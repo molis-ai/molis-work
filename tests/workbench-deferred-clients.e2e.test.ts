@@ -41,7 +41,7 @@ test("RAC-2516 RAC-2517 RAC-2519 in-place membership owns every Feed mount, sour
   assert.equal(await feed.evaluate(`t403Host.view.readDocument({object:{id:${JSON.stringify(item.item_id)},surface:'foreign-surface'}}).then(()=>false,()=>true)`), true, "an undeclared object surface is refused");
   await feed.evaluate("for(const [name,value] of [['search','Membership live'],['sort','title']]){const field=document.querySelector('[data-feed-'+name+']');field.value=value;field.dispatchEvent(new Event(name==='search'?'input':'change',{bubbles:true}))}");
   await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${item.item_id}"]`);
-  await feed.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]')`);
+  await feed.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"][data-feed-detail-read=read] [data-feed-action=inbox]') && t403Reads.pending===0`);
   await feed.click('[data-feed-filter-trigger]');
   await feed.click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`);
   await feed.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-destination-state=inbox]') && t403Reads.pending===0`);

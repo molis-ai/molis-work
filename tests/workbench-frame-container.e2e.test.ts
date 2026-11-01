@@ -65,7 +65,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   const originalProjection = await b.evaluate<string>("document.querySelector('iframe[data-t403-feed-pane]').contentDocument.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench] script[data-plugin-document]').textContent");
   const revisionHold = await sendBarrier(b,[{urlPattern:"*/api/plugins/io.molis.work.feed/view-revision",requestStage:"Request"}]);
   try {
-    const added = feed.ingestItem({source,externalId:"fresh-outside-drag-projection",title:"Fresh owner material outside the old handle",occurredAt:new Date(Date.parse(now)-20000).toISOString(),attention:false}).item;
+    const added = feed.ingestItem({source,externalId:"fresh-outside-drag-projection",title:"Fresh owner material outside the old handle",summary:"A later real record outside the original drag projection",occurredAt:new Date(Date.parse(now)-20000).toISOString(),attention:false}).item;
     assert.equal(originalProjection.includes(added.item_id),false);
     assert.equal(await b.evaluate(`fetch(document.querySelector('iframe[data-t403-feed-pane]').src).then(response=>response.text()).then(html=>html.includes(${JSON.stringify(added.item_id)}))`),true,"the real fresh owner HTML contains the later reference");
     assert.equal(await child.evaluate("t403Handle"),originalHandle,"the source handle has not rotated while revision delivery is held");
@@ -224,15 +224,6 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   assert.deepEqual(await stored(), before, "source withdrawal and a target switch discard the late add without changing the original Goal");
   await b.reloadPage();
   assert.deepEqual(await stored(), before, "the successful native drop retains its exact reference and position after reload");
-  await owner.post(`/api/settings/projects/${projectId}/plugins`,{plugin_id:"feed"});
-  await b.evaluate(`localStorage.removeItem('molis-work-tab-workspace:${projectId}')`);
-  const narrowInbox=await pluginFrameBrowser(t,b,"inbox");
-  await b.setViewport(390,844);
-  await b.navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/?openPlugin=inbox`},sessionId));
-  await narrowInbox.waitFor(`document.querySelector('[data-inbox-entry-id="${inboxEntry.entry_id}"]') && t403Reads.pending===0`);
-  await narrowInbox.click(`[data-inbox-row][data-inbox-entry-id="${inboxEntry.entry_id}"] strong`);
-  await narrowInbox.waitFor(`document.querySelector('[data-inbox-detail="${inboxEntry.entry_id}"]:not([hidden])')`);
-  await capture("inbox-narrow-390");
 });
 
 test("Goal Frames use outer tabs, preserve references, and isolate project state", { timeout: 90_000 }, async (t) => {

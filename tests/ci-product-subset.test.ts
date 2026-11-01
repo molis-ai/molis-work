@@ -471,7 +471,7 @@ test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a 
   assert.doesNotMatch(job, /^    continue-on-error:/m, "a red subset turns Verify red (decision #14, 2026-10-31)");
   assert.match(job, /^    name: Product subset \(\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}\)$/m);
   assert.match(job, /^      fail-fast: false$/m, "a failure does not cancel the other shard");
-  assert.ok(job.includes("        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.product_shards || '[1, 2]') }}"), "both parts of the complete list run, unless a selection that succeeded found the files a pull request touches fit in one (T-130, tests/ci-test-selection.test.ts)");
+  assert.ok(job.includes("        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2]') }}"), "only a PR's successful some consumes selected shards; whole or untrusted outputs retain both complete shards (RAC-1764)");
   assert.ok(job.includes("--shard ${{ matrix.shard }}/${{ strategy.job-total }}"));
   assert.ok(job.includes("name: product-subset-${{ matrix.shard }}"), "each shard preserves its own artifact");
   assert.match(job, /^\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux /m, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");

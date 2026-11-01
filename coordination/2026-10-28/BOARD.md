@@ -416,3 +416,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 00:00Z：T378准确H的Verify与文档审验已齐，根按§8正常入队，无auto/admin，未计实际采用。T377两SI各134文件通过已核，Full仍在运行。根核收[T362最小同步书](plans/T362-current-sync/PLAN.md)，仅资源许可冲突/13非资源blob保持H，最终资源窗为T377实际采用→T208→T362，保原50/50而不倒签新组合。根回读Runtime真实installIdentity与installation_generation后修正[T067/T068准备书](plans/T067-T068/PLAN.md)，并保留[独立评审](plans/T067-T068/REVIEW.md)：稳定签名身份、在途固定generation、原构建Manifest产品客户端资格；保持外部data-MCP拒绝与父片/共享锁WAIT，无新信任开放或实现。
 
 2026-11-01 00:02Z：T378经正常队列实际采用b6f92222f，根核patch-id及整树相同并发6550884059；自建临时工作树与准确本地分支已清、报告保留，T351原作者对象仍不动。仅关闭两处静态文档差异，不签W6动态/RAC11。当前24 open=16任务号/18任务PR+6其他；后继24～32不再次扣减。T143/T065最终main吸收最小方案正只读准备；T377 Full继续，后继仍等其实际采用。
+
+2026-11-01 00:17Z：根核存[T143/T065最小同步准备](plans/T143-T065-current-sync/PLAN.md)，两单仍等T377实际采用后冻结M/唯一writer；原行为证据保绑定，不重演无变化历史整批。W6[最终执行图](plans/W6-final-execution/PLAN.md)及[场景5](plans/W6-scene5/PLAN.md)、[场景7](plans/W6-scene7/PLAN.md)已存。场景7正常Todo链已授权验证线3在b6f92222f隔离实操，匹配构建及甲项目持久正控完成、全链未结；场景5由验证线4等T377采用。验证线1准备场景8无模型/无Memory最小Host重启链。T116后继A/B/C具体合同已修订，原书审窄核最后字段，T403闭包映射起草中；不新增本数/READY/完成声明。

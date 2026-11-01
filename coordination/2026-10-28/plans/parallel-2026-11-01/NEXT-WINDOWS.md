@@ -26,3 +26,10 @@ T389已采用f47fa0da，七路径patch核同。四源码writer为开发1 T141来
 来源窗口交付（08:10Z记录）：T141来源五生产文件及两测试窗口窄审通过后正式交开发1；见同书与SOURCE-GUARD-REVIEW。T144四共享文件仍独占其原hunk，两个writer无新增交点。
 
 用户最新增并行授权：开发5独占PR1b web-request的stage_request存在条件，开发6独占T387原10路径普通合流；与四现有writer生产路径无交集。共享docs/gates由各自原hunk保两边，跨树最终采用仍根串行。
+
+
+## 2026-11-01 本轮 Open PR 优先接续
+
+用户要求继续合并旧 Open PR并提高并行效率。T389已采用，根将B普通同步交开发线2，原作者与历史证据归属保留；独立增量验证/二审另由非作者收。以现有 `/private/tmp/t353b-current-sync/wt` 的 H `2de956e7ac3b4ad1ef7df936b2e48b5b5ee72d09` 正常合已采用 M `f47fa0da4ba7447f94d1cd209e6d69d43b21465c`。不重组成员，不吸其它候选。原28非资源结果与27指定输入逐项核抵；若main本身触到某项，按实际hunk保两边，不能覆盖main。
+
+许可表只有Jelly原已审+33B与main已消费workbench许可邻接冲突：保持新M算法，移除已消费T389许可，仅保Jelly实际基数76866→76899，若实测不符先交根；预算继承main各资源，仅Jelly保批准增长，不混入T386候选。相同M的matching build/48served可复用 `/private/tmp/t386-evidence/sync-20261101/` 及 `/private/tmp/t385-evidence/post-t389/assets-M.json`，本B必须自己的matching整体build与48响应。普通health/boundary/import/diff/page-assets；许可表变更补一份完整page-assets-budget，jobs1/retries0公共browser槽。原69+67门禁文件、238/508/KP等输入与机制未变则不重复；新共享core组合交自身Full，完整Alchemist必须从新run核，旧失败UNKNOWN保留。根负责push/CI/Full/合并，writer不操作远端。C仍等B真正采用。

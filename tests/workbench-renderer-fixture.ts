@@ -1,10 +1,10 @@
-import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, type buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import { buildFeedReaderUiModel, feedUiContribution, feedSourcePresentationId, FEED_UI_CONTRIBUTION_ID, type FeedItemRecord, type FeedSnapshot, type FeedStageData } from "@molis-ai/molis-work-plugin-feed";
 import { gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
 import { rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
 export { countGoalDecisions } from "@molis-ai/molis-work-plugin-goals";
-export type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+export type MolisWorkWebView = ReturnType<typeof buildMolisWorkWebView>;
 export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 
 export { type GoalPresentationState as WebGoalStatus, GOALS_PRESENTATION_STATES as WEB_GOAL_STATUSES, type GoalsInputBinding as WebInputBinding, type GoalsPolicyBinding as WebPolicyBinding, type GoalsDecisionEvent as WebEventRecord, type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
@@ -15,7 +15,7 @@ export {
   firstBlockedDescendant, unsatisfiedOutgoingDependencies, goalTreeReferenceLabel, goalTreeReferenceLabels,
 } from "@molis-ai/molis-work-plugin-goals";
 export type { GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
-import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkOnboardingRenderOptions } from "@molis-ai/molis-work-app-workbench";
 
 const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);

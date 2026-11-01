@@ -1,4 +1,4 @@
-import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocumentView as WebGoalView, GoalsInputBinding as WebInputBinding, GoalsPolicyBinding as WebPolicyBinding, GoalsDecisionEvent as WebEventRecord } from "@molis-ai/molis-work-plugin-goals";
+import type { BoardSnapshot, GoalPolicyHistoryRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
@@ -9,7 +9,7 @@ export interface MolisWorkWebView {
   page_owner?: string;
   page_stage?: import("./declared-stages.js").RenderedStagePage;
   cli_availability?: Record<string, boolean>;
-  inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxJudgmentSummary;
+  inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxStageData["judgment"];
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
@@ -42,14 +42,7 @@ export interface MolisWorkWebView {
   /** Empty only for in-process test fixtures; normal Web URLs are project-scoped. */
   route_prefix: string;
   demo: boolean;
-  active_goal_id: string | null;
-  goals: WebGoalView[];
-  archived_goals: WebGoalView[];
-  trashed_goals: WebGoalView[];
-  counts: Record<WebGoalStatus, number>;
-  input_bindings: WebInputBinding[];
-  policy_bindings: WebPolicyBinding[];
-  events: WebEventRecord[];
+  policy_bindings: GoalPolicyHistoryRecord[];
   /**
    * The answers of the plugins' declared stage reads (`stage_data`), by project plugin id, read per request as the person (T-133). A
    * plugin that is not shown, declares none, or is not there to answer has no key; its stage is drawn without `data`.

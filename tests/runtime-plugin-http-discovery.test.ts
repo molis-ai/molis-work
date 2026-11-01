@@ -774,7 +774,7 @@ test("RAC-1745 a dual-instance plugin in the build is drawn by the half that off
     const moved = await page();
     assert.equal(moved.split("<section>feed-home-half</section>").length - 1, 1, "the Home half that offers the view draws it");
     assert.equal(homeReads, 1, "its declared data is read once by that same Home half");
-    assert.equal(projectPlatform.runtime.get(projectInstallId).state, "stopped", "the original project producer remains withdrawn");
+    assert.equal(projectPlatform.runtime.get(projectInstallId).state, "disabled", "the original project producer remains withdrawn");
     assert.equal(moved.match(feed), null, "and no half answers with a placeholder");
     release(); release = undefined;
     assert.doesNotMatch(await page(), /<section>feed-home-half<\/section>/, "withdrawing the Home read cannot revive old data or the catalog");

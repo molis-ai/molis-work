@@ -136,13 +136,13 @@ export class PluginTerminalPanels {
     if (!current) throw new ActionError("actions.missing", "找不到这个终端面板");
     const session = input.host_session_id.trim(), runtime = input.runtime_id.trim();
     if (!session || !runtime) throw new ActionError("actions.input_invalid", "Runtime 与它的 Session 标识不能为空");
+    if (!isTerminalSessionId(session)) return current;
     const now = this.now();
     this.addAlias(current.panel_id, runtime, session, now);
     // The session is the person's who opened the terminal, as its own work context is.
     if (current.project_id) this.ports.bind({ runtime_id: runtime, stable_work_context_id: session, project_id: current.project_id, actor_id: current.actor_id });
-    // Only a session in the session format is the one the terminal resumes: anything else (an option, a space) still names this work
-    // context, but never reaches the recipe's resume arguments.
-    if (!isTerminalSessionId(session) || current.host_session_id === session) return current;
+    // Even an unchanged valid session must restore its alias and project binding.
+    if (current.host_session_id === session) return current;
     this.db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ?, updated_at = ? WHERE panel_id = ?").run(session, now, current.panel_id);
     return { ...current, host_session_id: session, updated_at: now };
   }

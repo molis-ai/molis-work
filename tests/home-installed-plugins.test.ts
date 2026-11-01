@@ -4,18 +4,24 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { HomeConsentLedger, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
-import { PACKAGE_PLUGIN_ID, newPublisher } from "./fixtures/sandbox-package.js";
+import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HomeConsentLedger, pluginInstallActions, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
+import { PACKAGE_PLUGIN_ID, newPublisher, signedAgentPackage, signedPackage } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, refused, valuesOf } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-/** A Home package that is already installed refuses a second confirmation with the declared state code and a pointed message. */
-const describeInstallResult = (result: unknown): string => result instanceof ActionError
-  ? `ActionError ${result.code}: ${result.message}`
-  : result instanceof Error ? `${result.name}: ${result.message}` : `value ${JSON.stringify(result)}`;
-/** The refusal the task asks for: its declared code, and a message that tells the person to uninstall first. */
-const refusedInstalledHomePackage = (result: unknown): boolean => result instanceof ActionError && result.code === "plugin.state_invalid" && /先卸载/.test(result.message);
+// All changes precede signing; compatible versions must reach the upgrade path, not fail package validation.
+function upgradePackage(publisher: ReturnType<typeof newPublisher>, version = "1.1.0", fail = false) {
+  return signedPackage(publisher, (files, manifest) => {
+    manifest.runtime = { scope: "home" };
+    if (version !== "0.9.0") manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
+    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!);
+    contract.operations.find((operation: { id: string }) => operation.id === "notes.add").effects.storage = ["read", "write"];
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+    files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify([{ id: "new-summary", title: "New summary", purpose: "Summarize", body: "New version summary." }]);
+    files[SANDBOX_PACKAGE_FILES.entrypoint] = fail ? "throw new Error('T141 runner startup fault');" : files[SANDBOX_PACKAGE_FILES.entrypoint]!.replace("text: input.text", "text: 'v2:' + input.text");
+  }, { version });
+}
 
 // BL-628 (S-80, S-84, S-91; specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): a signed package whose Manifest says
 // `runtime: { scope: "home" }` is installed in the Home: one sandboxed instance every project shares, started and recovered by the Home's
@@ -152,49 +158,103 @@ test("RAC-970 RAC-971 a Home package is switched and removed by the install life
   await install();
   assert.deepEqual(await operate(client, caller, await operationsOf(client, caller), "notes.list", {}), [], "a fresh installation starts empty");
 });
-test("RAC-1505 RAC-1506 RAC-1507 a Home package already installed refuses a second confirmation with plugin.state_invalid and changes nothing", mac, async t => {
-  const h = await fixture(t), publisher = newPublisher(), first = homePackage(publisher);
-  await h.install(first);
+test("RAC-1505 RAC-1506 RAC-1507 RAC-2615 RAC-2617 Home upgrade preserves installation and data; same/lower versions do not write", mac, async t => {
+  const h = await fixture(t), publisher = newPublisher();
+  await h.install(homePackage(publisher, { prompt: true }));
+  const call = async (id: string, input = {}) => operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), id, input);
   const installation = () => h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
-  const approvals = () => valuesOf(h.home, "agent-studio:~home").filter(key => key.startsWith(APPROVED));
-  const observed = (error: unknown) => ({ unavailable: error instanceof ActionError ? error.code : String(error) });
-  const notes = async () => operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.list", {}).catch(observed);
-  const readState = async () => ({
-    install_id: installation().install_id,
-    version: installation().version,
-    state: installation().state,
-    approvals: approvals(),
-    publishers: h.ledger.publishers().length,
-    has_package: h.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID),
-    notes: await notes(),
-  });
-  await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.add", { text: "kept" });
-  const installed = await readState();
-  // Both refusals are collected as values first, and the guardrail state is read after each one, so one
-  // failing code assertion cannot hide the other scenario or the state that RAC-1507 has to report.
-  const newerResult = await h.install(homePackage(publisher, { version: "1.1.0" })).catch(error => error);
-  const afterNewer = await readState();
-  const sameResult = await h.install(first).catch(error => error);
-  const afterSame = await readState();
-  const actionResult = await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.add", { text: "after" }).then(value => ({ value }), observed);
-  const afterActions = await readState();
+  const snapshot = async () => ({ record: installation(), notes: await call("notes.list"),
+    approvals: h.store(db => db.prepare("SELECT item_key, item_value FROM plugin_private_values WHERE install_id = ?").all("agent-studio:~home")),
+    pins: h.ledger.publishers(), packages: readdirSync(join(h.home, "plugin-packages")).sort() });
+  await call("notes.add", { text: "kept" });
+  const before = await snapshot(), next = upgradePackage(publisher);
+  const prompts = () => homeAgentDefinitions(h.home).prompts().filter(prompt => prompt.source.kind === "plugin" && prompt.source.plugin_id === PACKAGE_PLUGIN_ID);
+  assert.deepEqual(prompts().map(prompt => prompt.prompt_id), ["summary"]);
+  await h.install(next);
+  assert.equal(installation().install_id, before.record.install_id);
+  assert.equal(installation().installation_generation, before.record.installation_generation);
+  assert.equal(installation().version, "1.1.0");
+  assert.deepEqual(prompts().map(prompt => [prompt.prompt_id, prompt.source.state]), [["new-summary", "enabled"]]);
+  assert.deepEqual(await call("notes.list"), before.notes);
+  const upgraded = await snapshot();
+  const incompatible = signedPackage(publisher, (_files, manifest) => { manifest.runtime = { scope: "home" }; }, { version: "1.2.0" });
+  for (const bundle of [next, homePackage(publisher), upgradePackage(publisher, "0.9.0"), incompatible]) {
+    await assert.rejects(h.install(bundle), refused("plugin.upgrade_required"));
+    assert.deepEqual(await snapshot(), upgraded, "RAC-1507 refused version changes no persisted fact");
+  }
+  assert.equal(await call("notes.add", { text: "after" }), true);
+  assert.deepEqual(await call("notes.list"), [{ id: "1", text: "kept" }, { id: "2", text: "v2:after" }]);
+  await h.reopen();
+  assert.equal(installation().version, "1.1.0");
+  assert.deepEqual(prompts().map(prompt => [prompt.prompt_id, prompt.source.state]), [["new-summary", "enabled"]]);
+  assert.equal(installation().install_id, before.record.install_id);
+  assert.deepEqual(await call("notes.list"), [{ id: "1", text: "kept" }, { id: "2", text: "v2:after" }]);
+});
 
-  assert.equal(installed.version, "1.0.0", "the test starts from a genuinely installed 1.0.0 Home package");
-  assert.equal(installed.state, "running", "the package is genuinely running before the refusals");
-  assert.equal(installed.has_package, true, "the installed package is there before the refusals");
-  assert.ok(installed.approvals.length >= 1, "the Home holds the person's approval before the refusals");
-  assert.deepEqual(installed.notes, [{ id: "1", text: "kept" }], "the data written before the refusals is there");
+test("RAC-2857 Home upgrade retains complete signed registration and current role/method sources after recovery", mac, async t => {
+  const h = await fixture(t), publisher = newPublisher();
+  await h.install(signedAgentPackage(publisher, { scope: "home" }));
+  const before = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
+  const entries = () => homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === PACKAGE_PLUGIN_ID);
+  const previous = entries();
+  assert.deepEqual(previous.map(item => item.kind).sort(), ["method", "role"]);
+  const bodies = { "agent/role.md": "升级后完整的角色正文。", "agent/method.md": "升级后完整的方法正文。" };
+  await h.install(signedAgentPackage(publisher, { scope: "home", version: "1.1.0", compatibleFrom: ["1.0.0"], bodies }));
+  const check = () => {
+    const installed = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!, registry = homeAgentDefinitions(h.home);
+    assert.equal(installed.install_id, before.install_id);
+    assert.equal(installed.installation_generation, before.installation_generation);
+    assert.equal(installed.version, "1.1.0");
+    const offered = entries();
+    assert.deepEqual(offered.map(item => item.kind).sort(), ["method", "role"]);
+    assert.ok(registry.prompts().some(item => item.owner_id === PACKAGE_PLUGIN_ID && item.kind === "instruction" && item.prompt_id === "summary"));
+    assert.equal(registry.roles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!.workspace, "none");
+    for (const item of offered) {
+      assert.equal(item.install_id, before.install_id);
+      assert.deepEqual(item.tools, []);
+      assert.deepEqual(item.default_ref!.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.1.0", publisher_signature: publisher.identity });
+      assert.equal(registry.signedMaterial(installed.install_id, item.default_ref!).body, bodies[item.kind === "role" ? "agent/role.md" : "agent/method.md"]);
+    }
+    for (const item of previous) assert.throws(() => registry.signedMaterial(installed.install_id, item.default_ref!), /来源已变化/);
+  };
+  check();
+  await h.reopen();
+  check();
+});
 
-  assert.deepEqual(afterNewer, installed, `RAC-1507: a refused newer version must change nothing (got ${JSON.stringify(afterNewer)})`);
-  assert.deepEqual(afterSame, installed, `RAC-1507: the second refusal must change nothing (got ${JSON.stringify(afterSame)})`);
-  assert.equal("unavailable" in actionResult, false, `RAC-1507: the package still answers actions after the refusals (got ${JSON.stringify(actionResult)})`);
-  assert.deepEqual(afterActions.notes, [{ id: "1", text: "kept" }, { id: "2", text: "after" }], "RAC-1507: the data written after the refusals is read back");
+test("RAC-2615-FAIL Home upgrade reaches a real runner failure and restores the old callable version", mac, async t => {
+  const h = await fixture(t), publisher = newPublisher();
+  await h.install(homePackage(publisher, { prompt: true }));
+  const before = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!;
+  const call = async (operation: string, input = {}) => operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), operation, input);
+  const approved = () => h.store(db => db.prepare("SELECT item_value FROM plugin_private_values WHERE install_id = ? AND item_key = ?").get("agent-studio:~home", APPROVED + PACKAGE_PLUGIN_ID));
+  const approval = approved();
+  await call("notes.add", { text: "kept before failure" });
+  await assert.rejects(h.install(upgradePackage(publisher, "1.1.0", true)), /升级没有完成：Plugin entrypoint 启动失败，已记录为 crashed/);
+  assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.version, "1.0.0");
+  assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id, before.install_id);
+  assert.equal(await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.add", { text: "restored" }), true);
+  assert.deepEqual(await call("notes.list"), [{ id: "1", text: "kept before failure" }, { id: "2", text: "restored" }]);
+  assert.deepEqual(approved(), approval);
+  assert.deepEqual(homeAgentDefinitions(h.home).prompts().filter(prompt => prompt.source.kind === "plugin" && prompt.source.plugin_id === PACKAGE_PLUGIN_ID).map(prompt => prompt.prompt_id), ["summary"]);
+  // A published version is immutable even when it could not start: retry a corrected, newer package.
+  await h.install(upgradePackage(publisher, "1.2.0"));
+  assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.version, "1.2.0");
+});
 
-  assert.deepEqual(
-    [refusedInstalledHomePackage(newerResult), refusedInstalledHomePackage(sameResult)],
-    [true, true],
-    `RAC-1505/RAC-1506: both confirmations must be refused with plugin.state_invalid and tell the person to uninstall first; got ${describeInstallResult(newerResult)} | ${describeInstallResult(sameResult)}`,
-  );
+test("RAC-2615 Home upgrade keeps a disabled installation disabled across restart", mac, async t => {
+  const h = await fixture(t), publisher = newPublisher();
+  await h.install(homePackage(publisher));
+  const id = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id;
+  await h.host.homePlugins!.packageAction(PACKAGE_PLUGIN_ID, "disable");
+  await h.install(upgradePackage(publisher));
+  assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.state, "disabled");
+  assert.deepEqual(await operationsOf(h.homeClient(), h.homeCaller()), []);
+  await h.reopen();
+  assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.state, "disabled");
+  assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id, id);
+  await h.host.homePlugins!.packageAction(PACKAGE_PLUGIN_ID, "enable");
+  assert.equal(await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.add", { text: "enabled" }), true);
 });
 
 

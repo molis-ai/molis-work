@@ -6,9 +6,33 @@ export interface PluginPackageFile {
   content_base64: string;
 }
 
+/** The signed app package declares text resources, not executable Agent permissions. */
+export interface SandboxAgentBodyDeclaration {
+  name: string;
+  purpose: string;
+  body: string;
+}
+
+/** Wire bytes are signed before the Host projects these text declarations into a runtime Manifest. */
+export type SandboxPackageManifest = Omit<PluginManifest, "agent" | "methods"> & {
+  agent?: SandboxAgentBodyDeclaration[];
+  methods?: SandboxAgentBodyDeclaration[];
+};
+export type PluginPackageManifest = PluginManifest | SandboxPackageManifest;
+
+/** A decoded text resource, with its deterministic identity. Trust comes from the installation, not this text. */
+export interface SandboxAgentBody {
+  kind: "role" | "method";
+  entry_id: string;
+  prompt_id?: string;
+  name: string;
+  purpose: string;
+  body: string;
+}
+
 export interface PluginPackagePayload {
   schema_version: 1;
-  manifest: PluginManifest;
+  manifest: PluginPackageManifest;
   files: PluginPackageFile[];
 }
 

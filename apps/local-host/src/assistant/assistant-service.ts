@@ -1,3 +1,4 @@
+import type { MethodHandoff } from "./assistant-work-reads.js";
 import { sentOriginal } from "./assistant-round-start.js";
 import { memoryInputSource } from "../memory/memory-source-identity.js";
 import { assistantFailure } from "./assistant-error.js";
@@ -191,11 +192,12 @@ export class AssistantService {
       }
       work = await this.chooseCharacter(work, input.character);
       if (materials.some(item => item.reference)) materials = await this.materials.readReferences(work, materials);
-      if (materials.some(item => item.kind === "method")) materials = await this.materials.chosenMethods(work, materials);
+      const handoffs: MethodHandoff[] = [];
+      if (materials.some(item => item.kind === "method")) materials = await this.materials.chosenMethods(work, materials, handoffs);
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input });
+      const result = await this.dispatcher.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input }, { assertCurrent: () => { for (const item of handoffs) item.assertCurrent(); }, accepted: () => { for (const item of handoffs) item.accepted(); } });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.reads.publicWork(current, await this.reads.stateSafely(current)); }
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;

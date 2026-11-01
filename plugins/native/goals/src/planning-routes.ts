@@ -1,18 +1,19 @@
+import type { DeclaredPageRouteMatch } from "@molis-ai/molis-work-plugin-sdk";
 import type { PlanningMethodPack } from "./contract/goals.js";
+import { GOALS_PLUGIN_ID } from "./identity.js";
 
 export type GoalsPlanningRoute =
   | { kind: "library" }
   | { kind: "method"; method_id: string; mode: "detail" | "edit" | "new" };
 
-/** Host removes the Project prefix before matching; identifiers are decoded once. */
-export function matchGoalsPlanningRoute(pathname: string, scope: "personal" | "project"): GoalsPlanningRoute | null {
-  if (pathname === "/settings/planning") return { kind: "library" };
-  const match = scope === "personal"
-    ? pathname.match(/^\/settings\/planning(?:\/([^/]+))?(?:\/(edit))?$/)
-    : pathname.match(/^\/settings\/planning\/([^/]+)(?:\/(edit))?$/);
-  if (!match) return null;
-  const method_id = decodeURIComponent(match[1]!);
-  return { kind: "method", method_id, mode: method_id === "new" ? "new" : match[2] ? "edit" : "detail" };
+/** What the Host's match of a planning route (`planning-library`, `planning-method`, `planning-method-edit`) asks for; null when it is another route. A rejected identifier is a method that is not there. */
+export function goalsPlanningRouteOf(declared: DeclaredPageRouteMatch | null): GoalsPlanningRoute | { rejected: true } | null {
+  if (!declared || declared.plugin_id !== GOALS_PLUGIN_ID) return null;
+  if (declared.route_id === "planning-library") return { kind: "library" };
+  if (declared.route_id !== "planning-method" && declared.route_id !== "planning-method-edit") return null;
+  const method_id = declared.params.method_id;
+  if (declared.rejected || method_id === undefined) return { rejected: true };
+  return { kind: "method", method_id, mode: method_id === "new" ? "new" : declared.route_id === "planning-method-edit" ? "edit" : "detail" };
 }
 
 /** Select within the Host's already-resolved methods; this is not a method authorization query. */

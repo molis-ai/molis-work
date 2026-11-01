@@ -17,6 +17,7 @@ import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, mode
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
+import { pageRouteProblems } from "./page-routes.js";
 import { createStations, englishNameProblem, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
@@ -215,6 +216,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["attention", manifest.attention],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
+    ["ui.page_routes", ui.page_routes],
     ["ui.messages", ui.messages],
     ["ui.translations", ui.translations],
   ];
@@ -258,6 +260,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   ));
   problems.push(...inspectSkillDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
+  problems.push(...pageRouteProblems(parsed));
   problems.push(...messageDeclarationProblems(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));

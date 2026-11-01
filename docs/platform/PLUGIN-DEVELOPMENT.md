@@ -417,9 +417,9 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 ## 沙箱包格式与安装
 
-上面 `pack` 打的是在 Host 进程之外自己运行的插件源码包。另一种包在 Home 里跑在**沙箱**里：代码是一个入口文件，界面由 Host 按声明画，不带任何页面脚本。它是公开格式，任何作者都可以做：创作台发布只是其中一个作者，Host 读它的代码里没有创作台的任何实现。类型在 `@molis-ai/molis-work-contracts/platform/plugin`（`SANDBOX_PACKAGE_FILES`、`SandboxPackageInterface`、`SandboxPackagePrompt`），沙箱合同的类型在 `platform/plugin-sandbox`。
+上面 `pack` 打的是在 Host 进程之外自己运行的插件源码包。另一种包在 Home 里跑在**沙箱**里：代码是一个入口文件，界面由 Host 按声明画，不带任何页面脚本。它是公开格式，任何作者都可以做：创作台发布只是其中一个作者，Host 读它的代码里没有创作台的任何实现。类型在 `@molis-ai/molis-work-contracts/platform/plugin`（`SANDBOX_PACKAGE_FILES`、`SandboxPackageManifest`、`SandboxPackageInterface`、`SandboxPackagePrompt`），沙箱合同的类型在 `platform/plugin-sandbox`。
 
-包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 恰好是下面五个文件，缺一个或多一个都不是这个格式：
+包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 `agent` / `methods` 正文声明逐项引用的 `agent/` 资源；缺文件、重复路径或未声明的额外文件均拒绝：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -429,11 +429,17 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
-沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent` / `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+
+**签名角色资料与方法**：app 包的 wire 清单可写 `agent: [{ name, purpose, body }]`、`methods: [{ name, purpose, body }]`，合计至多 64 项；每项只收这三个键。名字为 1–80、用途为 1–300 个 UTF-16 单元，`body` 是 `agent/` 下无跳转的包内相对资源路径。资源先限 32,000 字节，再按严格 UTF-8 解码，正文非空白且至多 8000 个 UTF-16 单元，保留原始文字与空白。不同条目可共用资源，同 plugin/kind 下名字不能重复。
+
+`parsePluginPackageManifest` 校验原 wire；签名和 `manifest.json` 都保留该形状。宿主读取资源后用 SDK 的唯一派生 helper 生成 workspace:none 的 roles/prompts 和顶层 tools:[] methods，整份有效清单再经 `parsePluginManifest`。id 为 UTF-8 JSON tuple `[plugin_id,kind,name]` 的完整 SHA-256，展示名字不截断；Agent 声明的数字 version 固定为 1，来源版本以完整包 SemVer 为准。包不能塞入完整 AgentManifest、工具、目录、MCP、子 Agent 或执行权限；没有新增 `agent:run`。
+
+预览 @4 列出每项 kind、名字及前 200 个 Unicode 码点。升级按同身份条目全文比较，标明新增、正文已变化、移除，摘要相同也显示尾部变化。确认使用原 held 签名包；取消不安装或登记。角色资料与方法沿助理现有材料入口选择和 `assistant.methods.read@2` 读取；它们及包内元数据都以固定不可信说明后的 JSON 数据进入上下文，不加入 system/role prompt 或 inlineMethods。角色资料允许用户覆盖，返回 effective/user_revision；方法不增加编辑账。精确来源含 plugin_id、完整 plugin_version、publisher_signature、kind/entry_id 与当前安装/世代/范围；失效需重选，不自动换最新版。本次 handoff 得到接受回执后才记角色使用，后续撤销保留当时历史，新的读取和交付仍复核。真实模型质量须另验。
 
 **集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，运行范围写 `runtime: { scope: "home" }`（集成的来源是 Home 的，与 BL-628 的 Home 包同一条），没有路由和视图，作者另外写自己的一个连接服务和它的一个集成（`connection_services`、`integrations` 各一项，现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-95）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。装的时候走与别的签名包同一条预览、确认：预览列出包写的来源，并拿包的插件 ID、服务 ID、集成 ID 对 Home 的集成登记查一遍，撞了内置或已装的就拒（`plugin.integration_declaration_conflict`，点名撞的 id 和占着它的插件），确认时再查一次。装上后代码在 Home 的沙箱实例里跑，它运行时登记才有它的来源；停用、卸载、发布者被撤销时它的 id 放掉，用它的 Feed 来源拉取得 `plugin.integration_unavailable`，人的连接记录和 Feed 来源都留着，再启用就接着拉。集成包不出动作、不进个人插件名单。设置页的服务卡片、粘贴凭据的新建连接读这个 Home 的集成登记，所以包声明的服务有它的卡片、能新建连接，卸载后卡片随之消失（人建好的连接记录留着）。
 
-安装管理当前合同为 `plugins.install.preview@3`、`plugins.installed.list@3`：范围/来源与当前权限是各自输出的一部分，固定旧版本的引用须重新选择。两者只给本人，没有 MCP 工具；确认安装仍为 `plugins.install.confirm@1`。
+安装管理当前合同为 `plugins.install.preview@4`、`plugins.installed.list@3`：范围/来源与当前权限是各自输出的一部分，固定旧版本的引用须重新选择。两者只给本人，没有 MCP 工具；确认安装仍为 `plugins.install.confirm@1`。
 
 **安装**：`molis-work plugin install <signed-package.json> <project-id> [--pin-as <发布者名称>] [--confirm]`，交给这个 Home 的常驻 Host 去做（没有常驻 Host 就停下，不在命令自己的进程里装）。不带 `--confirm` 只预览：Host 验证签名，按上面的格式读一遍，再说明装上它意味着什么（发布者、有没有被固定过、要的权限）；加 `--confirm` 才装。发布者还没被固定时，`--confirm` 要同时给 `--pin-as` 名称，这是本人对这个公钥的信任，之后这个发布者的包不必再取名；固定可以撤销，已撤销的发布者的包在预览就被拒。界面里是同样的两个动作（`plugins.install.preview`、`plugins.install.confirm`），只接受本人的操作，Agent、MCP、工作流和插件都调不了。
 

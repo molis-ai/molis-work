@@ -3,7 +3,8 @@
  * entrypoint, one call route, the private storage grant, one `stage` view. The plugin studio builds it for what it generates and the
  * Host rebuilds it from a sandbox package to check the package's own Manifest against it; this is the one place that writes it.
  */
-import { PLUGIN_PROJECTS_EXIST_PERMISSION, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { PLUGIN_PROJECTS_EXIST_PERMISSION, type PluginManifest, type SandboxPackageManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { sandboxAgentDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import type { PluginIconName } from '@molis-ai/molis-work-plugin-sdk/ui';
@@ -61,6 +62,8 @@ export interface SandboxManifestInput {
   icon?: PluginIconName;
   /** Validated contract effects; the Manifest's optional permission rows are derived from them (`sandboxDerivedPermissions`). */
   effects?: DerivedEffects;
+  /** Validated wire text declarations, projected once by the public SDK. */
+  textDeclarations?: SandboxPackageManifest;
 }
 
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
@@ -68,6 +71,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   return {
     schema_version: 2, host_api_version: 2, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
+    ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
     ...(input.runtime ? { runtime: input.runtime } : {}),

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// Repository health gates (specs/repository-anti-corruption §5a): numbers that may only go down, including the
-// anti-backflow count of compatibility markers per file (§4.1). The per-file counts of old names and of empty catches in
+// Repository health gates (tooling/gates/README.md): numbers that may only go down, including the
+// anti-backflow count of compatibility markers per file (CONTRACT-CHANGES.md, 当前保留机制). The per-file counts of old names and of empty catches in
 // browser scripts are defined in scripts/gates/source-counts.mjs, those of the static checks (Biome: empty catches, `as
 // unknown as` casts, floating promises, explicit `any`, console calls, debugger statements) in scripts/gates/lint.mjs. The public API of the contracts package and the
 // plugin SDK is not a number: it is compared with the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs) and
 // refreshed on purpose with `pnpm api:update`. tooling/gates/README.md lists what each file and counter means.
 //
-// It also fails, with no comparison against the merge-base, when the package table of specs/repository-anti-corruption
-// §5.1 disagrees with scripts/workspace-packages.mjs or with the layer and status the code gives a package (a package
+// It also fails, with no comparison against the merge-base, when the current table of docs/system/PACKAGE-BOUNDARIES.md
+// disagrees with scripts/workspace-packages.mjs or with the layer and status the code gives a package (a package
 // added or deleted, a plugin moved to the Plugin Runtime supervisor, an import that changes what is reachable from the
 // product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement. In the same
 // way it fails when apps/workbench/src/builtin-plugins.ts is not exactly the list the built-in plugins' own registrations
@@ -573,7 +573,7 @@ const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[me
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
-// A library whose version changed against the merge-base needs a row in the spec's maintenance list (scripts/gates/store-versions.mjs).
+// A library whose version changed against the merge-base needs a row under CONTRACT-CHANGES.md「存储版本变更登记」(scripts/gates/store-versions.mjs).
 // It fails closed: a table it cannot read ends the run with exit 2.
 const storeVersions = () => {
   const show = (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null;

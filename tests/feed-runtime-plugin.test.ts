@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -10,7 +11,7 @@ import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, 
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { captureHostLog, createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, connectorPluginSlotActions, createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, LocalProjectDatabase, runningProjectPlatform, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -18,10 +19,13 @@ import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-plugin
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction } from "@molis-ai/molis-work-plugin-feed";
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { artifactsActions, ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { libraryGit, publishLibrary } from "./fixtures/research-library.js";
+import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // FI-4 step 4e-1 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11): Feed as a Plugin Runtime plugin, not
 // registered anywhere yet. Started beside the platform's own services (project database, Attention, Context Ledger), it answers the
@@ -301,7 +305,7 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 const CONNECTOR = ["connections:use", "sources:pull_connector"];
 const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
-const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write"];
+const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write", "connections:use"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
@@ -314,7 +318,7 @@ async function syncing(t: TestContext, options: { ledger?: boolean; clock?: bool
     return body ? new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } }) : new Response("missing", { status: 404 });
   };
   const f = await platform(t, { fetch, ledger: options.ledger ?? true, ...(options.clock ? { clock: true } : {}), ...(options.goals ? { goals: options.goals } : {}) });
-  const entry = listFeedSourceCatalog()[0]!;
+  const entry = listTestFeedSourceCatalog()[0]!;
   feeds.set(entry.feed_url, feedXml([{ id: "one", title: "First" }, { id: "two", title: "Second" }]));
   const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "rss", definition_id: entry.id }) as { source: { source_id: string } };
   const sourceId = registered.source.source_id;
@@ -700,6 +704,72 @@ test("RAC-1025 disconnecting an account source takes the person's binding off it
   assert.equal(f.calls.length, 0);
 });
 
+// T-121 (FI-7b): Feed makes an account source empty and never writes which account it reads with; the person binds one on the platform.
+test("RAC-2665 a Runtime Feed adds an account source with no account: the same service and name give it back (a deleted one stays deleted), and it is pulled once the person binds an account to it", async t => {
+  const f = await connecting(t);
+  const add = (input: unknown) => f.client.invoke(caller(WRITE).context, feedSourceActions.add_account, input) as Promise<{ source: { source_id: string; sync_kind: string; config: Record<string, unknown>; status: string }; registered: boolean }>;
+  const added = await add({ service: "github", name: "Work GitHub" });
+  assert.deepEqual([added.registered, added.source.sync_kind, added.source.config, added.source.status], [true, "github", {}, "active"]);
+  const again = await add({ service: "github", name: "Work GitHub" });
+  assert.deepEqual([again.registered, again.source.source_id], [false, added.source.source_id]);
+  // Only the services Feed declares an account slot and an integration for, a name, and nothing that names an account.
+  for (const input of [{ service: "notion", name: "Docs" }, { service: "github", name: "" }, { service: "github", name: "Work", connection_id: "c-1" }, { service: "github", name: "Work", install_id: "i-1" }]) {
+    await assert.rejects(add(input), { code: "actions.input_invalid" }, JSON.stringify(input));
+  }
+  const sync = (key: string) => f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: added.source.source_id, idempotency_key: key }) as Promise<{ created: number; run: { outcome: string } }>;
+  // The person has a working GitHub account, but has not chosen it for this source: the platform pulls with no account of its own choosing.
+  const account = f.connect();
+  await assert.rejects(sync("added-unbound"), { code: "feed.connector_failed" });
+  assert.equal(f.calls.length, 0, "an account not bound to the source is not used");
+  withConnectorConnections(f.home, store => store.bind({ scopeId: pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: added.source.source_id }),
+    pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId: account.connection_id }));
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: added.source.source_id, enabled: true });
+  const pulled = await sync("added-bound");
+  assert.deepEqual([pulled.run.outcome, pulled.created, f.calls[0]?.source_id, f.calls[0]?.connection_id], ["completed", 1, added.source.source_id, account.connection_id]);
+  const row = f.store.db.prepare("SELECT config_json, credential_ref FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { config_json: string; credential_ref: string | null };
+  assert.deepEqual([JSON.parse(row.config_json), row.credential_ref], [{}, null], "the source holds nothing of the account");
+
+  // Deleting it (keeping its history) takes the person's binding off it, and the same service and name do not bring it back.
+  const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: added.source.source_id });
+  const boundNow = () => withConnectorConnections(f.home, store => store.binding(scope, feedManifest.plugin_id, "github"))?.connection_id ?? null;
+  assert.equal(boundNow(), account.connection_id);
+  await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: added.source.source_id, history_decision: "retain_history" });
+  assert.equal(boundNow(), null, "a deleted source keeps no account");
+  await assert.rejects(add({ service: "github", name: "Work GitHub" }), { code: "feed.source_invalid_state" });
+  const kept = f.store.db.prepare("SELECT status, enabled FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { status: string; enabled: number };
+  assert.deepEqual([kept.status, kept.enabled], ["disconnected", 0], "the deleted source stays deleted");
+});
+
+test("RAC-2664 feed.sources.update@2 changes a source's own fields only: an account is not one of them, and @1 is gone", async t => {
+  const f = await connecting(t), account = f.connect();
+  f.bind(account.connection_id);
+  const who = caller([...WRITE, "sources:pull_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
+  assert.equal(feedSourceActions.update.version, 2);
+  await assert.rejects(update({ source_id: f.sourceId, connection_id: account.connection_id }), { code: "actions.input_invalid" });
+  await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 1 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
+  await update({ source_id: f.sourceId, name: "Renamed", description: "Work notifications" });
+  const row = f.row();
+  assert.deepEqual([row.name, JSON.parse(String(row.config_json)), row.credential_ref], ["Renamed", {}, null]);
+  assert.equal(JSON.stringify(row).includes(account.connection_id), false);
+  assert.ok(f.bound(), "renaming leaves the person's binding as it was");
+});
+
+test("RAC-2668 changing a source's account is disconnecting and binding again: the source keeps its id, and the next pull starts from no cursor", async t => {
+  const f = await connecting(t), first = f.connect("First");
+  f.bind(first.connection_id);
+  await f.sync("first-account");
+  const cursor = () => (f.store.db.prepare("SELECT cursor_json FROM listener_instances WHERE source_id = ?").get(f.sourceId) as { cursor_json: string } | undefined)?.cursor_json;
+  assert.notEqual(cursor(), "{}", "the first account's pull left a cursor");
+  await f.client.invoke(caller([...WRITE, "connections:use"]).context, feedSourceActions.disconnect, { source_id: f.sourceId });
+  assert.deepEqual([cursor(), f.bound()], ["{}", null], "disconnecting forgets the cursor and the binding");
+  const second = f.connect("Second");
+  f.bind(second.connection_id);
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: f.sourceId, enabled: true });
+  const pulled = await f.sync("second-account");
+  assert.deepEqual([pulled.run.outcome, f.calls.at(-1)?.connection_id, f.calls.at(-1)?.source_id], ["completed", second.connection_id, f.sourceId]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_sources"), 1, "no second source was made for the other account");
+});
+
 test("RAC-1026 an account the person changes while a pull is running ends the pull refused: nothing is written, not even the bookkeeping", async t => {
   let swap = () => {};
   const f = await connecting(t, { sync: () => swap() }), account = f.connect(), other = f.connect("Other");
@@ -762,7 +832,7 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   for (const permission of ["connections:use", "sources:pull_connector"]) assert.equal(feedManifest.permissions.find(declared => declared.permission === permission)?.required, true, `${permission} is required`);
   const declared = (definition: ActionDefinition) => feedManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.permissions;
   for (const permission of ["connections:use", "sources:pull_connector", "attention:write"]) assert.ok(declared(feedSourceActions.sync).includes(permission), `a sync declares ${permission}`);
-  assert.ok(declared(feedSourceActions.disconnect).includes("connections:use"));
+  for (const releases of [feedSourceActions.disconnect, feedSourceActions.delete]) assert.ok(declared(releases).includes("connections:use"), `${releases.capability_id} releases the binding`);
   assert.ok(declared(feedInboxActions.material).includes("connections:use"));
   // 4e-2f: the actions that give an item's retained text, and those that judge a new item by it, declare evidence:read; the status of accounts does not.
   for (const definition of [feedQueryActions.snapshot, feedQueryActions.item, feedInboxActions.material, feedInboxActions.content, feedContentActions.read, feedRuleActions.previewJudgment,
@@ -1447,4 +1517,111 @@ test("FI-C-05 a source paused, edited or deleted while a tick's pull or its sche
     f.feeds.set(f.entry.feed_url, feedXml([{ id: `fi-c-05-tick-${k}`, title: `Tick ${k}` }]));
     return { sourceId: f.sourceId, call: who => f.client.invoke(who, feedSourceActions.tick, {}) };
   });
+});
+
+// T396 / PG-045: this segment uses the real Host, Runtime Feed, per-record binding action and built-in registry. No provider override.
+type CurrentConnector = "github" | "gmail" | "google-drive";
+function currentConnectorResponse(service: CurrentConnector, input: RequestInfo | URL): { response: Response; final: boolean } {
+  const path = new URL(String(input)).pathname;
+  if (service === "github") {
+    if (path === "/user") return { response: Response.json({ id: 17, login: "octo" }, { headers: { "x-oauth-scopes": "notifications, read:user" } }), final: false };
+    assert.equal(path, "/notifications");
+    return { response: Response.json([{ id: "t396-notification", repository: { full_name: "fixture/project", html_url: "https://github.com/fixture/project" },
+      subject: { title: "Captured connector update", type: "Issue", url: "https://api.github.com/repos/fixture/project/issues/1" },
+      reason: "subscribed", unread: true, updated_at: "2026-11-01T12:00:00Z" }]), final: true };
+  }
+  if (service === "gmail") {
+    if (path.endsWith("/profile")) return { response: Response.json({ historyId: "200", emailAddress: "me@example.test" }), final: false };
+    if (path.endsWith("/messages")) return { response: Response.json({ messages: [{ id: "t396-message" }] }), final: false };
+    assert.ok(path.endsWith("/messages/t396-message"));
+    return { response: Response.json({ id: "t396-message", snippet: "Captured connector update", labelIds: ["INBOX", "UNREAD"],
+      internalDate: "1793534400000", payload: { headers: [{ name: "Subject", value: "Captured connector update" }, { name: "From", value: "colleague@example.test" }] } }), final: true };
+  }
+  if (path === "/drive/v3/about") return { response: Response.json({ user: { emailAddress: "drive@example.test" } }), final: false };
+  assert.equal(path, "/drive/v3/files");
+  return { response: Response.json({ files: [{ id: "t396-file", name: "Captured connector update", modifiedTime: "2026-11-01T12:00:00Z", webViewLink: "https://drive.google.com/file/d/t396-file" }] }), final: true };
+}
+
+const CURRENT_CONNECTOR_FAULTS = [
+  { service: "github", fault: "grant" }, { service: "gmail", fault: "swap" },
+  { service: "google-drive", fault: "unbind" }, { service: "github", fault: "cancel" },
+] as const;
+
+for (const { service, fault } of CURRENT_CONNECTOR_FAULTS) test(`RAC-2863 RAC-2864 ${service}: a real connector's late response after ${fault} writes no source result, item, Inbox entry, capture or failure`, { timeout: 60_000 }, async t => {
+  const f = await openTestHome(t), project = await f.createProject(`T396 ${service} ${fault}`, ["feed", "inbox"]), client = f.host.actionClient(project.reference);
+  const person = () => f.host.localPersonContext(project.reference);
+  await client.discover(await person());
+  const runtime = await f.host.withProject(project.reference, runtime => runtime), platform = await runningProjectPlatform(runtime.store, project.project_id);
+  assert.ok(platform);
+  const install = platform.runtime.list().find(record => record.plugin_id === FEED_PLUGIN_ID)!;
+  assert.ok(install.grants.includes("connections:use") && install.grants.includes("sources:pull_connector"));
+  const token = `fixture-t396-${service}-${fault}-current`, otherToken = `fixture-t396-${service}-${fault}-other`;
+  const account = withConnectorConnections(f.home, store => store.createToken({ serviceId: service, displayName: "Current", token }));
+  const other = withConnectorConnections(f.home, store => store.createToken({ serviceId: service, displayName: "Other", token: otherToken }));
+  const bind = async (sourceId: string, connectionId: string | null) => client.invoke(await person(), connectorPluginSlotActions.bindRecord,
+    { install_id: install.install_id, plugin_id: FEED_PLUGIN_ID, slot_id: service, record_key: sourceId, service_id: service, connection_id: connectionId });
+  const source = async (name: string) => {
+    let sourceId: string;
+    if (service === "google-drive") {
+      // The current add-account action offers GitHub/Gmail only. Seed an existing Catalog source through its owner API; binding and sync remain real public actions.
+      const at = new Date().toISOString();
+      sourceId = createLocalFeedApplication(runtime.store.db).sources.upsert({ project_id: project.project_id, source_id: `t396-${name.replaceAll(" ", "-")}`,
+        kind: service, definition_id: service, sync_kind: "connector", name, description: "", status: "active", enabled: true, item_count: 0,
+        origin: "molis_work", config: {}, schedule: { mode: "manual" }, cursor: {}, credential_ref: null, account_label: null,
+        last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: at, updated_at: at }).source_id;
+    } else sourceId = (await client.invoke(await person(), feedSourceActions.add_account, { service, name }) as { source: { source_id: string } }).source.source_id;
+    await bind(sourceId, account.connection_id);
+    return sourceId;
+  };
+  const positive = await source("positive control"), negative = await source("held response");
+  await client.invoke(await person(), feedRuleActions.create, { name: "T396 capture", match: { contains: "Captured" }, admission: "inbox" });
+  const read = async () => ({ feed: await client.invoke(await person(), feedQueryActions.snapshot, { include_contents: true }),
+    inbox: await client.invoke(await person(), inboxActions.list, {}), artifacts: await client.invoke(await person(), artifactsActions.browser, {}) });
+  const before = await read(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let held = false;
+  const dispatched: Array<{ held: boolean; authorization: string | null }> = [];
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    const authorization = new Headers(init?.headers).get("authorization");
+    dispatched.push({ held, authorization });
+    assert.equal(authorization, `Bearer ${token}`, "the selected account is resolved in this Host's Home");
+    const answer = currentConnectorResponse(service, input);
+    if (held && answer.final) { entered.resolve(); await release.promise; }
+    return answer.response;
+  });
+  const sync = async (source_id: string, idempotency_key: string, signal?: AbortSignal) => client.invoke(await f.host.localPersonContext(project.reference, signal), feedSourceActions.sync, { source_id, idempotency_key });
+  const control = await sync(positive, "t396-positive-control") as { created: number };
+  assert.equal(control.created, 1, "the same production path and fixed response can commit an item");
+  const committed = await read();
+  assert.equal((committed.feed as { feed_items: unknown[] }).feed_items.length, (before.feed as { feed_items: unknown[] }).feed_items.length + 1);
+  assert.equal((committed.inbox as { entries: unknown[] }).entries.length, (before.inbox as { entries: unknown[] }).entries.length + 1);
+  assert.equal((committed.artifacts as { versions: unknown[] }).versions.length, (before.artifacts as { versions: unknown[] }).versions.length + 1);
+  const positiveRequests = dispatched.length, abort = new AbortController();
+  held = true;
+  const pending = sync(negative, "t396-held-response", abort.signal).then(() => null, (error: unknown) => error as { code?: string });
+  try {
+    await Promise.race([entered.promise, pending.then(error => { throw new Error(`Connector ended before its response gate: ${error?.code}`); })]);
+    let expected = await read();
+    if (fault === "swap" || fault === "unbind") { await bind(negative, fault === "swap" ? other.connection_id : null); expected = await read(); }
+    if (fault === "cancel") abort.abort(new ActionError("actions.cancelled", "调用已取消"));
+    if (fault === "grant") {
+      // Required grants are changed only after stopping the real activation; no copied context or fake control revokes this pull.
+      await platform.runtime.stop(install.install_id);
+      platform.runtime.grant(install.install_id, install.grants.filter(permission => permission !== "connections:use"));
+      assert.equal(platform.runtime.get(install.install_id).grants.includes("connections:use"), false);
+    }
+    release.resolve();
+    const refusal = await pending;
+    assert.ok(refusal, "the late response must reject the original sync");
+    if (fault === "swap" || fault === "unbind") assert.equal(refusal.code, "feed.source_connection_changed");
+    if (fault === "cancel") assert.equal(refusal.code, "actions.cancelled");
+    if (fault === "grant") {
+      platform.runtime.grant(install.install_id, install.grants);
+      await platform.runtime.start(install.install_id);
+    }
+    const after = await read();
+    assert.deepEqual(after, expected, "public owner reads include unchanged source/run state, items, Inbox failures and all captured versions");
+    assert.equal(dispatched.filter(call => call.held).length, positiveRequests, "no extra request follows the refused response");
+    const visible = JSON.stringify([after, f.host.callLog!.list(project.project_id)]);
+    for (const secret of [token, otherToken, account.credential_ref!, other.credential_ref!]) assert.equal(visible.includes(secret), false, "business outputs and call logs contain no credential");
+  } finally { release.resolve(); await pending; }
 });

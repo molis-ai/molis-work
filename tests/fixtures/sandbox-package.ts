@@ -1,8 +1,9 @@
+import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackageManifest, type SandboxAgentBodyDeclaration, type SandboxPackageManifest, type PluginPackageBundle, type PluginPackagePayload, type PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
-import { sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
+
 import { signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 
 export const PACKAGE_PLUGIN_ID = "io.molis.work.example.notes";

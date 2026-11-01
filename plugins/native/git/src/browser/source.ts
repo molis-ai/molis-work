@@ -54,13 +54,30 @@ function recordItem(page: GitPage, op: OperationRecord): HTMLElement {
   return item;
 }
 
-async function loadOperations(page: GitPage): Promise<void> {
-  const epoch = page.generation;
+/** Read the operation list and reconcile only the operation this page prepared. A notification is merely a read hint. */
+async function loadOperations(page: GitPage): Promise<boolean> {
+  const { L, message, scStatus, diffNotice } = page;
+  const epoch = page.generation, workspace = page.workspace, prepared = page.lastPrepared;
+  const current = () => active(page, epoch) && page.workspace === workspace && page.lastPrepared === prepared && !page.busy;
+  const reason = L("git.decision.details");
   try {
-    const value = await request<{ operations: OperationRecord[] }>(page, "/operations");
-    if (!active(page, epoch)) return;
+    const value = await request<{ workspace: { workspace_id: string }; operations: OperationRecord[] }>(page, "/operations");
+    if (!current() || value.workspace.workspace_id !== workspace) return false;
     page.operations.replaceChildren(...value.operations.slice(0, 6).map((op) => recordItem(page, op)));
-  } catch { /* the record is only a list of what was done; it stays as it was */ }
+    if (!prepared) return false;
+    const record = value.operations.find(operation => operation.review_id === prepared.reviewId);
+    if (!record || record.outcome === "pending" || record.outcome === "running") return false;
+    const done = record.outcome === "succeeded", label = operationLabel(L, prepared.action) || L("git.op.other");
+    if (prepared.action === "commit" && done && message.value === prepared.message) { message.value = ""; forgetDraft(page.scWorkspace); }
+    scStatus.textContent = record.outcome === "unknown" ? L("git.decision.uncertain", { reason }) : record.outcome === "denied" ? L("git.op.rejected", { op: label })
+      : record.outcome === "failed" ? L("git.op.failed", { op: label, reason }) : done ? L("git.op.done", { op: label }) : `${label} · ${outcomeLabel(L, record.outcome)}`;
+    if (record.outcome !== "unknown") page.lastPrepared = null;
+    diffNotice.textContent = scStatus.textContent;
+    return true;
+  } catch {
+    if (prepared && current()) scStatus.textContent = L("git.op.no-receipt", { reason });
+    return false;
+  }
 }
 
 /** The block for branch, commit, push and PR: read from the repository's summary. */
@@ -112,11 +129,22 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
   if (!page.summary || page.busy || !page.lifetime.visible) return;
   const epoch = page.generation;
   page.busy = true;
-  page.lastPrepared = operation.action;
   scStatus.textContent = L("git.op.preparing", { op: label });
+  let answer: { review_id: string };
   try {
-    await request(page, "/operations", "POST", { workspace_id: page.scWorkspace, operation_id: crypto.randomUUID(), revision: page.summary.revision, operation });
-    if (!active(page, epoch)) return;
+    answer = await request(page, "/operations", "POST", { workspace_id: page.scWorkspace, operation_id: crypto.randomUUID(), revision: page.summary.revision, operation });
+  } catch (error) {
+    if (active(page, epoch)) { scStatus.textContent = S(messageOf(error)); await loadSource(page); }
+    return;
+  } finally {
+    page.busy = false;
+  }
+  if (!active(page, epoch)) return;
+  const prepared = { action: operation.action, reviewId: answer.review_id,
+    ...(typeof operation.message === "string" ? { message: operation.message } : {}) };
+  page.lastPrepared = prepared;
+  const current = () => active(page, epoch) && page.lastPrepared === prepared && !page.busy;
+  try {
     scStatus.textContent = L("git.op.review", { op: label });
     page.ticket++;
     page.displayed = null;
@@ -129,11 +157,9 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
     q("[data-git-diff]").replaceChildren();
     diffNotice.textContent = L("git.op.review-note");
     await showReviews(page);
-    if (active(page, epoch)) await loadOperations(page);
+    if (current()) await afterDecision(page, { workspaceId: page.workspace, state: "pending" });
   } catch (error) {
-    if (active(page, epoch)) { scStatus.textContent = S(messageOf(error)); await loadSource(page); }
-  } finally {
-    page.busy = false;
+    if (current()) { scStatus.textContent = S(messageOf(error)); await loadSource(page); }
   }
 }
 
@@ -152,18 +178,14 @@ function decisionNotice(L: Translate, state: string, reason: string): string {
 
 /** A review of this workspace was decided: say how it ended and read the repository again. */
 export async function afterDecision(page: GitPage, outcome: DecisionOutcome): Promise<void> {
-  const { L, message, scStatus, diffNotice, result, action } = page;
-  if (!page.lifetime.visible || !outcome.workspaceId || outcome.workspaceId !== page.workspace) return;
+  const { L, diffNotice, result, action } = page;
+  if (page.busy || !page.lifetime.visible || !outcome.workspaceId || outcome.workspaceId !== page.workspace) return;
   const state = outcome.state, reason = L("git.decision.details");
-  // A commit, branch, push or PR decided here reads as that operation, never as an index change.
-  if (page.lastPrepared) {
-    const done = state === "settled", label = operationLabel(L, page.lastPrepared) || L("git.op.other");
-    if (page.lastPrepared === "commit" && done) { message.value = ""; forgetDraft(page.scWorkspace); }
-    scStatus.textContent = state === "unavailable" ? L("git.op.no-receipt", { reason }) : state === "rejected" ? L("git.op.rejected", { op: label })
-      : state === "failed" ? L("git.op.failed", { op: label, reason }) : done ? L("git.op.done", { op: label }) : L("git.op.recorded");
-    page.lastPrepared = "";
-    diffNotice.textContent = scStatus.textContent;
-    await refresh(page);
+  // A delayed decision can belong to an earlier index review. Read this operation's own result.
+  const prepared = page.lastPrepared;
+  if (prepared) {
+    const epoch = page.generation;
+    if (await loadOperations(page) && active(page, epoch) && !page.busy && (page.lastPrepared === prepared || page.lastPrepared === null)) await refresh(page);
     return;
   }
   if (result.getAttribute("aria-busy") === "true") return;

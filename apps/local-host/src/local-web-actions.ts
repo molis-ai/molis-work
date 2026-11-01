@@ -5,9 +5,18 @@ import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runti
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { pageLocale } from "./web-locale.js";
 import { localOwnerPermissionsOver } from "./local-owner-permissions.js";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+/** Host-issued request-local owner fence; never populated from page input. */
+export interface LocalWebStageRead {
+  readonly manifest: PluginManifest;
+  readonly install_id: string;
+  readonly scope: "home" | "project";
+  assertCurrent(): void;
+}
 
 /** What the Host's own entry adds to the person's call: the file the person handed it (an import), never any authority. */
-export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction };
+export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction; readonly stage_read?: LocalWebStageRead };
 
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
@@ -61,8 +70,14 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       || !install || install.plugin_id !== view.provider.plugin_id) return [];
     return [...view.definition.permissions, ...view.definition.configuration_permissions ?? []].filter(permission => install.grants.includes(permission));
   });
+  const owner = entry.stage_read, ownActions = new Set(owner?.manifest.actions?.map(action => `${action.capability_id}@${action.version}`));
+  owner?.assertCurrent();
+  const authority = owner ? accepted.filter(view => ownActions.has(`${view.capability_id}@${view.version}`)
+    ? view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
+      && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)
+    : owner.manifest.capabilities.consumes.includes(view.capability_id)) : accepted;
   return { ...base, permissions: [...new Set([...builtinPermissions, ...accepted.flatMap(view => view.action.permissions), ...scenePermissions])],
-    allowed_actions: accepted.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
+    allowed_actions: authority.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
     validate_authority: async (action: ActionReference) => {
       const matches = accepted.filter(view => view.capability_id === action.capability_id && view.version === action.version
         && (!action.provider_id || view.provider.provider_id === action.provider_id));
@@ -103,13 +118,18 @@ export function bindLocalWebAction(host: MolisWorkLocalHost, reference: LocalHos
   definition: ActionDefinition, entry: LocalWebEntry & { readonly signal?: AbortSignal } = {}): BoundActionClient {
   const declared = definition.action.permissions;
   const same = (action: ActionReference) => action.capability_id === definition.capability_id && action.version === definition.version;
-  return boundLocalWebClient(host, reference, declared, entry, caller => ({ ...caller,
-    permissions: caller.permissions.filter(permission => declared.includes(permission)),
-    allowed_actions: (caller.allowed_actions ?? []).filter(same) }));
+  return boundLocalWebClient(host, reference, declared, entry, caller => {
+    const owner = entry.stage_read;
+    if (!owner) return { ...caller, permissions: caller.permissions.filter(permission => declared.includes(permission)), allowed_actions: (caller.allowed_actions ?? []).filter(same) };
+    owner.assertCurrent();
+    return { ...caller, read_only_effects: true,
+      validate_authority: async target => { owner.assertCurrent(); await caller.validate_authority?.(target); owner.assertCurrent(); },
+      assert_authority_current: (target, permissions) => { owner.assertCurrent(); caller.assert_authority_current?.(target, permissions); owner.assertCurrent(); } };
+  }, definition);
 }
 
 function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, builtinPermissions: readonly string[],
-  entry: LocalWebEntry & { readonly signal?: AbortSignal }, narrow: (caller: ActionCallContext) => ActionCallContext): BoundActionClient {
+  entry: LocalWebEntry & { readonly signal?: AbortSignal }, narrow: (caller: ActionCallContext) => ActionCallContext, single?: ActionDefinition): BoundActionClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
   // A bound client serves one request: its calls share one authority snapshot instead of inspecting the whole directory per call.
   // A grant revoked meanwhile is still refused, because every call re-reads its owner (validate_authority) and the dispatcher re-checks availability.
@@ -117,15 +137,29 @@ function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProje
   // Provenance belongs to this authenticated entry; it grants no permissions and never comes from an action input.
   const asEntry = (caller: ActionCallContext): ActionCallContext => entry.user_action ? { ...caller, actor_kind: "user", user_action: entry.user_action() } : caller;
   const current = () => context ??= localWebActionContext(host, reference, builtinPermissions, entry.signal, entry).then(narrow).catch(error => { context = undefined; throw error; });
+  const entrance = (caller: ActionCallContext, action: ActionReference) => {
+    const matches = (caller.allowed_actions ?? []).filter(ref => ref.capability_id === single?.capability_id && ref.version === single.version);
+    return action.capability_id === single?.capability_id && action.version === single.version && matches.length === 1
+      && (!action.provider_id || action.provider_id === matches[0]!.provider_id);
+  };
   return {
     // What is available can depend on where the act came from (a tree decision needs the page's own provenance), so a discovery carries it too.
-    discover: async () => client.discover(asEntry(await current())),
+    discover: async () => {
+      entry.stage_read?.assertCurrent();
+      const caller = await current(), views = await client.discover(asEntry(caller));
+      entry.stage_read?.assertCurrent();
+      return entry.stage_read ? views.filter(view => entrance(caller, { ...view, provider_id: view.provider.provider_id })) : views;
+    },
     // A control (whose call this is still counting, say) joins this caller's checks the way every bound client joins it: at the
     // dispatcher's validation, its last synchronous check and each `beforeEffect` of the handler, up to the effect itself.
     invoke: async (definition, input, control, transport) => {
       const caller = await current();
+      entry.stage_read?.assertCurrent();
+      if (entry.stage_read && !entrance(caller, definition)) throw new ActionError("actions.forbidden", "页面只能调用此次绑定的舞台入口及原提供方");
       const call = asEntry(caller);
-      return await bindActionClient(client, () => call).invoke(definition, input, control, transport);
+      const result = await bindActionClient(client, () => call).invoke(definition, input, control, transport);
+      entry.stage_read?.assertCurrent();
+      return result;
     },
   };
 }

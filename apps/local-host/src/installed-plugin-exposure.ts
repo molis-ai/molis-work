@@ -4,6 +4,8 @@ import type { PluginPlatform } from './plugin-platform.js';
 import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { pluginPagesFor } from './plugin-page-authority.js';
+import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
+import { followInstalledActions } from './installed-action-registration.js';
 
 interface ExposurePorts {
   homeDirectory: string; actorId: string;
@@ -27,10 +29,14 @@ export function installedPluginExposure(c: ExposurePorts) {
         && now.version === record.version && now.manifest_digest === record.manifest_digest && now.state === 'running';
     };
     try {
-      exposure = exposeInstalledPlugin(c.actions, release, async (id, operation, input, context) =>
-        await c.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + id + '/call', actor_id: context.actor_id,
-          execution: { signal: context.signal, beforeEffect: context.beforeEffect, page_context: context.page_context, locale: context.locale, assert_authority_current: context.assert_authority_current }, body: { operation, input } })
-        ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } },
+      const registered = followInstalledActions(c.actions.registry, record, release);
+      if (!registered && release.design.contract.operations.some(operation => operation.effects.background?.length)) throw new ActionError('actions.provider_replaced', '后台动作的 Runtime 注册尚未就绪');
+      exposure = registered ?? exposeInstalledPlugin(c.actions, release, async (id, operation, input, context) => {
+        const execution = { signal: context.signal, beforeEffect: context.beforeEffect, page_context: context.page_context, locale: context.locale, assert_authority_current: context.assert_authority_current };
+        return withProjectReachInvocation(execution, c.actions.project_id === null ? context.project_id : null, record, async () =>
+          await c.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + id + '/call', actor_id: context.actor_id, execution, body: { operation, input } })
+          ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } });
+      },
         () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation });
       c.exposed.set(pluginId, exposure); c.changed();
       const withdrawPage = pluginPagesFor(c.homeDirectory).connect({
@@ -42,6 +48,7 @@ export function installedPluginExposure(c: ExposurePorts) {
       });
       const dispose = exposure.dispose; exposure.dispose = () => { withdrawPage(); dispose(); };
       await c.catalog();
+      exposure.assertReady();
       if (!current()) throw new ActionError('actions.provider_replaced', '原插件曝光已失效，不能采用旧目录结果');
     } catch (error) {
       if (current()) {

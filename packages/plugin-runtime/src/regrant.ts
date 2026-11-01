@@ -1,4 +1,4 @@
-import type { PluginInstanceRecord, PluginLifecycleReceipt, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type PluginInstanceRecord, type PluginLifecycleReceipt, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertMutable, toggledGrants } from "./install-rules.js";
 import { sameStrings } from "./runtime-rules.js";
 
@@ -32,6 +32,9 @@ export async function regrantInstall(steps: RegrantSteps, installId: string, per
   if (!granted && first.state === "running" && !sameStrings(wanted, first.grants)) steps.revoke(installId);
   return steps.locked(installId, async () => {
     const current = steps.install(installId);
+    if (current.installation_generation !== first.installation_generation || current.version !== first.version || current.manifest_digest !== first.manifest_digest) {
+      throw pluginErrors.definition_conflict("插件的安装或版本在等待期间已变化，请重新查看权限");
+    }
     assertMutable(current);
     const next = toggledGrants(steps.manifest(current), current.grants, permission, granted);
     if (sameStrings(next, current.grants)) return steps.receipt(current, true);

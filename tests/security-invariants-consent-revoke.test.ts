@@ -53,7 +53,7 @@ function service(ledger: PluginConsentLedger) {
   actions.registerProvider(pluginConsentProvider(ledger));
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: PLUGIN_CONSENT_PERMISSIONS, ...extra });
   const revoke = (consent_id: string, context: ActionCallContext) =>
-    actions.invoke(context, { capability_id: pluginConsentActions.revoke.capability_id, version: 1 }, { consent_id });
+    actions.invoke(context, { capability_id: pluginConsentActions.revoke.capability_id, version: pluginConsentActions.revoke.version }, { consent_id });
   return { actions, caller, revoke };
 }
 

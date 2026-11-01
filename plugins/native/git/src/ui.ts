@@ -109,6 +109,7 @@ export const gitUiContribution: UiContribution<GitUiModel | CompanionStageModel>
     const model = request.model as CompanionStageModel;
     switch (request.surface) {
       case "workbench": return renderGitStage(model);
+      case "changes": return "view" in request.model ? renderGitChanges(request.model) : renderGitBrowserDirectory(model.primitives.text);
       case "browser-directory": return renderGitBrowserDirectory(model.primitives.text);
       case "browser-result": return renderGitBrowserResult(model.primitives.text);
       default: return renderGitChanges(request.model as GitUiModel);

@@ -1,4 +1,4 @@
-// T-116 (PG-060, RAC-2685): the workbench draws Goals' pages through the one port Goals hands it (`createGoalsPage`) and through the
+// T-116 (PG-060, RAC-2685): the workbench draws Goals' pages through its declared stage and through the
 // contributions Goals registers; the files of `apps/workbench/src` that still name the Goals package are written down here and the
 // list only shrinks. A file that stops naming the package must leave the list in the same change (the test fails until it does), and a
 // file that starts naming it fails the test: add the need to the platform, not a Goals import to the shell. `builtin-plugins.ts` is the
@@ -11,14 +11,10 @@ import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 const ROOT = new URL("../", import.meta.url);
 const GOALS_PACKAGE = /@molis-ai\/molis-work-plugin-goals\b/u;
 
-/** Who takes each remaining name out: T-117 owns the view and capsule types; the two shell page files wait for their contribution-based conversion. */
+/** Who takes each remaining name out: T-117 owns remaining view types; settings forwards existing facts without Goals presentation types. */
 const WORKBENCH_FILES_NAMING_GOALS: ReadonlyArray<readonly [string, string]> = [
-  ["capsule-items.ts", "T-117 (PG-064): the capsule's Goal types"],
-  ["capsule.ts", "T-117 (PG-064): the capsule's Goal types"],
-  ["page-view.ts", "T-117 (PG-064): the view's Goal types"],
-  ["project-settings-pages.ts", "T-117 (PG-064): the settings view's Goal types; its `/page` mount goes with the shell page conversion"],
-  ["renderer.ts", "the shell page conversion: the one `createGoalsPage` call"],
-  ["shell-page-renderer.ts", "the shell page conversion: the Goals stage mounted from the page port"],
+  ["page-view.ts", "T-117 (PG-064): existing BoardSnapshot and GoalPolicyHistoryRecord facts from Goals /contract"],
+  ["project-settings-pages.ts", "Existing ProjectGuidanceView and PlanningMethodPack facts from Goals /contract"],
 ];
 
 const sourceFiles = (directory: URL): string[] => readdirSync(directory, { withFileTypes: true }).flatMap(entry =>

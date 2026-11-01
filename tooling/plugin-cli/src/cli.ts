@@ -2,10 +2,11 @@ import { browserSiteDeclarations } from "@molis-ai/molis-work-contracts/platform
 import { validatePluginManifestFile } from "./validate.js";
 import { createPluginProject } from "./create.js";
 import { packPluginProject } from "./package-files.js";
+import { packSandboxProject, sandboxPackOptions } from "./pack-sandbox.js";
 import { readPublisherIdentity, signPluginPackageFile, verifyPluginPackageFile } from "./package-signing.js";
 import type { PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 
-const usage = "Usage:\n  molis-work plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development\n  molis-work-plugin validate <manifest.json>\n  molis-work-plugin create <directory> <plugin-id> <publisher-id> <binding-signature>\n  molis-work-plugin pack <directory> <output.json>\n  molis-work-plugin identity <public-key.pem>\n  molis-work-plugin sign <input.json> <private-key.pem> <output.json>\n  molis-work-plugin verify <input.json> <trusted-public-key.pem>\n  molis-work plugin install <signed-package.json> <project-id> [--pin-as <publisher-name>] [--confirm]\n";
+const usage = "Usage:\n  molis-work plugin dev <source-directory> <isolated-state-directory> <comma-separated-grants> --allow-unsigned-development\n  molis-work-plugin validate <manifest.json>\n  molis-work-plugin create <directory> <plugin-id> <publisher-id> <binding-signature>\n  molis-work-plugin pack <directory> <output.json>\n  molis-work-plugin pack-sandbox <directory> <output.json> --name <name> --version <version> --publisher-id <id> --publisher-key-id <fingerprint> [--scope project|home] [--icon <icon>] [--compatible-from <versions>] [--agent <JSON>] [--methods <JSON>]\n  molis-work-plugin identity <public-key.pem>\n  molis-work-plugin sign <input.json> <private-key.pem> <output.json>\n  molis-work-plugin verify <input.json> <trusted-public-key.pem>\n  molis-work plugin install <signed-package.json> <project-id> [--pin-as <publisher-name>] [--confirm]\n";
 
 export interface PluginCliOutput {
   stdout(value: string): void;
@@ -26,6 +27,14 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
   const arities: Record<string, number> = { validate: 2, create: 5, pack: 3, identity: 2, sign: 4, verify: 3 };
   arities.dev = 5;
   if (args[0] === "install") return runInstall(args.slice(1), output, host);
+  if (args[0] === "pack-sandbox") {
+    try {
+      if (!args[1] || !args[2]) throw new Error('pack-sandbox 需要输入目录与输出文件');
+      const bundle = await packSandboxProject(args[1], args[2], sandboxPackOptions(args.slice(3)));
+      output.stdout(`${JSON.stringify({ packed: true, plugin_id: bundle.payload.manifest.plugin_id, output: args[2], signed: false })}\n`);
+      return 0;
+    } catch (error) { output.stderr((error instanceof Error ? error.message : String(error)) + '\n'); return 1; }
+  }
   if (arities[args[0]!] !== args.length) {
     output.stderr(usage);
     return 2;

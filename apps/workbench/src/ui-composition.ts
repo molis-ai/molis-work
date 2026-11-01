@@ -1,22 +1,7 @@
 import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { artifactReferenceUiContribution, artifactBrowserUiContribution } from "./artifacts/index.js";
-import { ownedContribution, type UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { ownedContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "./artifacts/index.js";
-import {
-  FEED_UI_CONTRIBUTION_ID,
-  type FeedUiModel,
-  type PersistedFeedDetailModel,
-} from "@molis-ai/molis-work-plugin-feed";
-import {
-  INBOX_UI_CONTRIBUTION_ID,
-  type InboxUiModel,
-  type InboxUiSurface,
-} from "@molis-ai/molis-work-plugin-inbox";
-import {
-  SCHEDULE_UI_CONTRIBUTION_ID,
-  type ScheduleUiModel,
-  type ScheduleUiSurface,
-} from "@molis-ai/molis-work-plugin-schedule";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { withPluginWords } from "./i18n.js";
@@ -62,21 +47,6 @@ export function renderWorkbenchContribution(contributionId: string, surface: str
  */
 export function mountContributionsOf(pluginId: string, host: UiHost = workbenchUiHost): (contributionId: string, surface: string, model: unknown) => string {
   return (contributionId, surface, model) => host.mountDeclared({ contribution_id: contributionId, surface, model }, pluginId).html;
-}
-
-export function renderFeedContribution(
-  surface: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel>["surface"],
-  model: FeedUiModel | PersistedFeedDetailModel,
-): string {
-  return renderWorkbenchContribution(FEED_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderInboxContribution(surface: InboxUiSurface, model: InboxUiModel): string {
-  return renderWorkbenchContribution(INBOX_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderScheduleContribution(surface: ScheduleUiSurface, model: ScheduleUiModel): string {
-  return renderWorkbenchContribution(SCHEDULE_UI_CONTRIBUTION_ID, surface, model);
 }
 
 /** The settings page asks for the settings slot itself: a contribution whose `settings` surface targets another slot is refused. */

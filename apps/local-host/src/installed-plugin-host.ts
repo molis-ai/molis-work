@@ -1,3 +1,4 @@
+import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { installedPluginExposure } from './installed-plugin-exposure.js';
@@ -13,7 +14,7 @@ import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugi
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
-import { SandboxError, effectsFromContract, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
 import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platform.js';
@@ -25,7 +26,7 @@ import { installedVersion, releaseVersion, type InstalledRelease } from './insta
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { HomeConsentLedger } from './home-plugin-store.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
-import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
@@ -94,7 +95,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         revision = exposureRevision; snapshot = await readCatalog();
         if (closed) return [];
         if (revision !== exposureRevision) continue;
-        const costs = exposedOperationCosts([...exposed.values()].map(entry => entry.release), snapshot);
+        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
         let changed = false;
         for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
         if (!changed) return snapshot;
@@ -104,7 +105,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const ledger = new HomeConsentLedger(homeDirectory), standing = publisherStanding(ledger);
-  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost({ drawingAs: withPluginWords }), home: null, projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },
+  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost({ drawingAs: withPluginWords }), home: pluginHomeFor(homeDirectory), projects: pluginProjectsPort(homeDirectory), inProcess: { admit: new Set() },
     consents: ledger,
     ...openProjectVersionStores(store),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),

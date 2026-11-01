@@ -94,6 +94,15 @@ export interface SandboxOperationContract {
   output: SandboxSchema;
   errors: Array<{ code: string; description: string }>;
   effects: SandboxEffects;
+  /** A launcher's persistent business job, read by a query of this same package. Broker execution ids are separate, ephemeral handles. */
+  background_job?: {
+    status: string;
+    id: string;
+    input: string;
+    state: string;
+    done: readonly string[];
+    failed: readonly string[];
+  };
   examples: SandboxOperationExample[];
 }
 
@@ -428,7 +437,7 @@ export type SandboxHostMessage =
  * operations, with these schemas and effects. The platform names them, not the plugin; the Host's proxy calls them for each source and
  * reads what comes back as the source's pull. `account` is the one the plugin may leave out.
  */
-export const SANDBOX_INTEGRATION_OPERATIONS = { health: 'integration.health', poll: 'integration.poll', account: 'integration.account' } as const;
+export const SANDBOX_INTEGRATION_OPERATIONS = { health: 'integration.health', poll: 'integration.poll', account: 'integration.account', presentation: 'integration.presentation' } as const;
 /**
  * The slot an integration's requests use the source's own account through (S-95): the Host's proxy gives a pull the connection the person
  * chose for the source, for that one call. It is no slot of the Manifest's and nothing binds it.
@@ -471,5 +480,12 @@ export const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_
     kind: 'query', input: object({ ...SOURCE, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength) }, ['source_id', 'config_json', 'has_connection', 'cursor']),
     // Without `account_label` the source's label stays as it is.
     output: object({ account_label: text(256, 1) }, []), effects: {},
+  },
+  presentation: {
+    kind: 'query', input: object({ presentation_id: text(64, 1), cursor_json: text(SANDBOX_INTEGRATION_LIMITS.cursorLength) }, ['presentation_id']),
+    // The bounded sandbox schema has no nullable union. The same finite SourcePresentation travels as JSON and the shared SDK
+    // validator checks every field after decoding, including home_url:null, exactly as for an in-process presenter.
+    output: object({ presentation_json: text(32_768, 2) }, ['presentation_json']),
+    effects: {},
   },
 };

@@ -92,8 +92,8 @@ export type PluginAuthMethodDeclaration = {
     readonly kind: "token";
     readonly label: string;
     readonly placeholder?: string;
-} | PluginOAuthMethodDeclaration | {
-    readonly kind: Exclude<ConnectorMethodKind, "token" | "oauth">;
+} | PluginOAuthMethodDeclaration | PluginMcpMethodDeclaration | {
+    readonly kind: "cli" | "mcp";
 };
 
 export interface PluginConnectionServiceDeclaration {
@@ -118,6 +118,18 @@ export interface PluginIntegrationDeclaration {
     readonly service_id: string;
     readonly document_source?: string;
     readonly connection_methods?: readonly ConnectorMethodKind[];
+}
+
+export interface PluginMcpMethodDeclaration {
+    readonly kind: "mcp";
+    readonly endpoint: string;
+    readonly auth: "oauth" | "bearer" | "either" | "none";
+    readonly registration?: "manual";
+    readonly endpoint_pattern?: {
+        readonly source: string;
+        readonly flags: "u" | "iu";
+    };
+    readonly token_scheme?: "Sentry-Bearer";
 }
 
 export interface PluginOAuthMethodDeclaration {
@@ -146,4 +158,17 @@ export interface PluginOAuthMethodDeclaration {
         readonly expiry?: "jwt_exp";
     };
     readonly note?: string;
+}
+
+export interface SourcePresentation {
+    readonly scope_options?: readonly {
+        readonly value: string;
+        readonly label: string;
+    }[];
+    readonly conditional_request?: "etag" | "last-modified" | "unvalidated" | "not-fetched";
+    readonly home_url?: string | null;
+}
+
+export interface SourcePresentationInput {
+    readonly cursor?: unknown;
 }

@@ -4,7 +4,7 @@ import { inboxErrors, type AttentionEntryRecord, type AttentionStatus } from "@m
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createInboxActionHandlers, type InboxActionEntry } from "./actions.js";
+import { createInboxActionHandlers, readInboxStageSubjects, INBOX_STAGE_GOAL_READ, type InboxActionEntry } from "./actions.js";
 import { createInboxContentHandlers, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
 import { inboxManifest } from "./manifest.js";
 import { createInboxPagesHandlers } from "./pages.js";
@@ -109,6 +109,10 @@ export function createInboxPlugin(): PluginDefinition {
     });
     const actions = [...createInboxActionHandlers({ ...sceneRuntime.ports, ...pages,
       listEntries: () => attention.listInbox().map(recordOf),
+      stageSubjects: (entries, caller) => readInboxStageSubjects(entries, { briefs: ids => briefs(caller, ids),
+        feedAvailability: () => own.availability(FEED.briefs),
+        goal: id => own.invokeQuery<{ goal_id: string }, { goal: { title: string } }>(INBOX_STAGE_GOAL_READ, { goal_id: id }),
+      }),
       setStatus: async (entryId, status, revision, caller) => {
         const entry = entryOf(entryId);
         // Reopening is admission too: an ignored item's entries stay closed until the person restores the item, and only Feed can say so.

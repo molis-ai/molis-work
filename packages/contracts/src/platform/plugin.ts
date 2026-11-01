@@ -80,6 +80,7 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
   kind: "integration";
+  presentSource?(id: string, input: import("./plugin-integrations.js").SourcePresentationInput): import("./plugin-integrations.js").SourcePresentation | Promise<import("./plugin-integrations.js").SourcePresentation>;
   /**
    * The driver and the adapter for one source. The plugin is started once and serves every source of its integrations; what
    * differs between sources arrives here as references (`IntegrationBinding`), so a source's change needs no restart.

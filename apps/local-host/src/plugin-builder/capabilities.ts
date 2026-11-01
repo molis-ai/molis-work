@@ -16,6 +16,7 @@ export type PluginModelCaller = Pick<ActionCallContext, 'project_id' | 'plugin_i
 export interface CapabilityExecution {
   id: string; version?: number; provider_id?: string; offered?: boolean; installed?: boolean;
   effect?: 'read' | 'write' | 'irreversible'; execution?: ActionExecutionPolicy;
+  permissions?: readonly string[];
 }
 
 /** Only dependencies of this operation participate; unrelated catalog changes must not revoke its work. */
@@ -23,7 +24,7 @@ export function capabilityPolicyBinding(effects: SandboxEffects, capabilities: r
   return JSON.stringify([...(effects.capabilities ?? [])].sort().map(id => {
     const entry = latestCapability(capabilities, id), policy = entry?.execution;
     return [id, entry?.provider_id ?? null, entry?.version ?? null, entry?.offered ?? null, entry?.installed ?? null, entry?.effect ?? null,
-      policy?.timeout_ms ?? null, policy?.cost ?? 'unknown', policy?.max_calls_per_minute ?? null];
+      policy?.timeout_ms ?? null, policy?.cost ?? 'unknown', policy?.max_calls_per_minute ?? null, [...(entry?.permissions ?? [])].sort()];
   }));
 }
 /** Keep metadata and dispatch on the same offered version; private entries cannot set a public call's limits. */

@@ -10,7 +10,7 @@ import { createFeedItemHandlers, promoteOffered } from "./item-actions.js";
 import { feedGoalsThroughDirectory, promoteFeedItemToGoal } from "./goal-promotion.js";
 import { feedManifest } from "./manifest.js";
 import { FeedOutRuleStore } from "./out-rules.js";
-import { createFeedQueryHandlers } from "./query-actions.js";
+import { createFeedQueryHandlers, FEED_STAGE_INBOX_READ } from "./query-actions.js";
 import { createFeedRuleHandlers } from "./rule-actions.js";
 import { createFeedRouteHandlers } from "./route-handlers.js";
 import { createFeedRuntimePorts } from "./runtime-ports.js";
@@ -28,12 +28,17 @@ import { holdingsOfSnapshot, releaseHeldHistory, type FeedSourceHistory, type Fe
 import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
+import { feedSourceCatalog } from "./source-catalog.js";
+import { feedSourcePresentationId } from "./source-presentation.js";
+import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { feedUiContribution } from "./ui.js";
 import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
 import { SignalsModule } from "./store/index.js";
 import { createConnectionWatch, FEED_RECONCILE_ACTOR, keepFeedReconcile } from "./runtime-reconcile.js";
 
 const idOf = (value: { capability_id: string; version: number }) => `${value.capability_id}@${value.version}`;
+/** The source actions after which an account source holds no account any more. */
+const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, feedSourceActions.delete.capability_id]);
 
 /**
  * Feed as a Plugin Runtime plugin, one instance per project (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
@@ -109,8 +114,6 @@ export function createFeedPlugin(): PluginDefinition {
     // source actions run inside the action's own transaction and need no transaction of their own.
     const sourcesFor = (caller: ActionExecutionContext) => new FeedSourceService({ feed, providers, acquireSync: lease, appendEvent, transaction: operation => operation(),
       commit: operation => writer.commit(caller, operation),
-      // The account is the person's binding, made through the platform; the source keeps only the connection's id as a record of the choice.
-      ...(connections ? { resolveConnection: () => ({ credentialRef: null, accountLabel: null }) } : {}),
       syncRepository: (source, input) => {
         const repository = sourcePull?.repository;
         if (!repository) throw new ActionError("actions.dependency_missing", "Feed 没有读取研究库的权限");
@@ -146,13 +149,27 @@ export function createFeedPlugin(): PluginDefinition {
     const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
     const bindings: ActionHandlerBinding[] = [
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
-      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext }),
+      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
+        stage: { sourceCatalog: vocabulary ? () => feedSourceCatalog(vocabulary) : noVocabulary, recommendations: sceneRuntime.selection.recommendations,
+          sourcePresentations: async sources => Object.fromEntries(await Promise.all(sources.flatMap(source => {
+            const id = feedSourcePresentationId(source);
+            return id ? [(async () => [source.source_id, await (vocabulary ?? noVocabulary()).presentation(id, { cursor: source.cursor })] as const)()] : [];
+          }))),
+          inboxEntries: async () => {
+            const actions = services.actions!;
+            const availability = actions.availability(FEED_STAGE_INBOX_READ);
+            if (!availability.available && ["actions.dependency_missing", "actions.plugin_disabled"].includes(availability.code ?? "")) return [];
+            return (await actions.invokeQuery<Record<string, never>, { entries: AttentionEntryRecord[] }>(FEED_STAGE_INBOX_READ, {})).entries;
+          },
+          promoteAvailable: async () => delegation ? promoteOffered(await delegation.discover()) : false,
+        } }),
       ...createFeedRuleHandlers(feed, projectId, hydrate, sceneRuntime.selection, (caller, body) => writer.commit(caller, body)),
       // The platform's notifications are written in one commit, as the platform's notification service; a judgment that fails afterwards keeps the item and comes back as the receipt's code.
       ...createFeedNotificationHandlers(projectId, { feed: () => feed }),
       ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: authorizeRuntimeSource(connections) }),
-      // Disconnecting an account source also takes the person's binding off it (after the commit, as the platform's own binding is not Feed's).
-      ...sourceHandlers.map(binding => binding.capability_id !== feedSourceActions.disconnect.capability_id || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {
+      // Disconnecting or deleting an account source also takes the person's binding off it (after the commit, as the platform's own binding
+      // is not Feed's): a deleted source keeps no account bound to it.
+      ...sourceHandlers.map(binding => !RELEASES_ACCOUNT.has(binding.capability_id) || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {
         const source = feed.sources.get(projectId, (input as { source_id: string }).source_id);
         return Promise.resolve(binding.handle(caller, input)).then(async result => { if (connectorSlotOf(source) !== null) await releaseRuntimeAccount(connections, source); return result; });
       } }),

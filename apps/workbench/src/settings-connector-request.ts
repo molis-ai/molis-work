@@ -39,7 +39,7 @@ export function renderConnectorRequest(request: ConnectorSetupView | null, cards
       ${prepared ? `${plan.cli_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) + (request.installation_ready ? renderMethodGuide(card, selected!, p, plan, request.presentation?.cli_job) : "") : plan.local_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) : renderMethodGuide(card, selected!, p, plan)}<input data-connector-new-name type="hidden" value="${e(plan.display_name)}">` : ""}
       ${pending ? `<div data-protocol="${e(plan.method)}" data-protocol-service="${e(card.connector_id)}" data-pending-setup="${e(request.id)}" data-setup-expires="${request.expires_at}"><div data-protocol-result></div>
         ${request.presentation?.authorization_url ? `<a class="mw-btn mw-btn--secondary" href="${e(request.presentation.authorization_url)}" target="_blank" rel="noopener noreferrer">${L("重新打开官方授权页")}</a>` : ""}
-        ${request.presentation?.user_code ? `<p>${e(L("在 GitHub 输入设备码：{code}", { code: request.presentation.user_code }))}</p>` : ""}</div>` : ""}
+        ${request.presentation?.user_code ? `<p>${e(L("在 {name} 输入设备码：{code}", { name: card.title, code: request.presentation.user_code }))}</p>` : ""}</div>` : ""}
       ${prepared || pending ? `<button class="mw-btn mw-btn--ghost" data-setup-cancel>${L("取消这次接入")}</button>` : ""}
       <a class="mw-btn mw-btn--secondary" href="/capabilities/connections">${L("查看所有连接")}</a>
       </div>

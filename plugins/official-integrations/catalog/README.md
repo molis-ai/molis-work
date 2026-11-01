@@ -36,7 +36,7 @@ pnpm --filter @molis-ai/molis-work-integration-catalog build
 
 ## 开发要求
 
-- 负责：其余官方账号连接的只读协议：令牌解析、身份与列表 API、whoami；37 个服务的 OAuth 方法声明（[src/oauth-methods.ts](src/oauth-methods.ts) 的 `CATALOG_OAUTH_METHODS`，写进 Manifest 的 `auth.methods`，由 Host 的解释器读，W5-11 第 4 片）。
+- 负责：其余官方账号连接的只读协议：令牌解析、身份与列表 API、whoami；37 个服务的 OAuth 方法声明（[src/oauth-methods.ts](src/oauth-methods.ts) 的 `CATALOG_OAUTH_METHODS`，写进 Manifest 的 `auth.methods`，由 Host 的解释器读，W5-11 第 4 片）；远程 MCP 配置在 [src/mcp-methods.ts](src/mcp-methods.ts)，写入所属服务的同一方法声明，目录、接入与调用由 Host 共用解释。
 - 不负责：Source/Signal/Feed 事实、密钥持久化、宿主业务决定。
 - 公开入口：`@molis-ai/molis-work-integration-catalog`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。

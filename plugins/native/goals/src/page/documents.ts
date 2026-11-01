@@ -23,11 +23,11 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
     renderGoalMomentum, renderGoalKanban, renderRelations, renderChildProgress, renderContractCoverage, renderPolicyEditor,
   } = goals;
 
-  function dataJson(view: TView): string {
+  function clientData(view: TView) {
     const summarize = (items: WebGoalView[]) => buildGoalsNavigationItems(
       items, goalId => partOfChildViews(goalId, view), visibleGoalStatusIcon,
     );
-    return JSON.stringify({
+    return {
       snapshot: {
         board: { project_id: view.snapshot.board.project_id },
         cursor: view.snapshot.cursor,
@@ -38,8 +38,9 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
       archived_goals: summarize(view.archived_goals),
       trashed_goals: summarize(view.trashed_goals),
       inbox_judgment: view.inbox_judgment ?? null,
-    }).replaceAll("<", "\\u003c");
+    };
   }
+  const dataJson = (view: TView): string => JSON.stringify(clientData(view)).replaceAll("<", "\\u003c");
 
   const goalsFactorsRenderer = factories.factors({ translate: goalsL, escapeHtml, icon, renderFocusSectionDeck });
 
@@ -124,7 +125,7 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
   }
 
   return {
-    dataJson, goalsDocumentRenderer, renderGoalDocument, renderTrashGoalDocument,
+    clientData, dataJson, goalsDocumentRenderer, renderGoalDocument, renderTrashGoalDocument,
     renderGoalDocumentFragment, renderMolisWorkMomentumFragment, renderGoalTrashDialog, renderCreateDialog, renderTuiPane,
   };
 }

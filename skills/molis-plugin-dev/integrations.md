@@ -28,7 +28,7 @@ Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡
 
 - 一个 id 先到先得：后装的插件声明已被占的 `service_id` 或 `integration_id`，启用失败（`plugin.integration_declaration_conflict`，写明 id 与持有者），已登记的不受影响。平台自己的卡先于插件。
 - 声明不给连接权：有卡不等于能读这个服务已有的连接与凭据；要读连接走 `services.connections`，按安装逐个授权。
-- `auth.methods` 里 `token` 要写 `label`（可写 `placeholder`）；`oauth`、`mcp`、`cli` 现在只写 `kind`，数据仍在平台的表里。
+- `auth.methods` 里 `token` 要写 `label`（可写 `placeholder`）；`oauth` 写完整流程声明；远程 `mcp` 写下节的服务配置，`cli` 与本机 MCP 保留只写 `kind` 的槽。
 
 `createProvider` 返回的 port 负责 `health` 和 `sync`（cursor、`normal` / `rebuild_cursor`）。真实 `health` 可以返回 `account: { login, account_id? }`，只有经过认证的服务响应中已验证的身份才填写；有稳定账号 id 时一并返回，显示名称和本地保存的标签不能替代身份。未返回时保持未知，不能从 message 文案解析账号。SDK 把它收成 Connector Driver 的 `poll` 和 Signal Adapter 的 `toSignalDraft`。不要在 Native 插件里直接 fetch GitHub。
 
@@ -45,6 +45,16 @@ Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡
 GitHub、Gmail 有独立的 oauth 模块：配置、pending、token 生命周期、按账号隔离。账号检查（whoami）用连接器动作 `connectors.account.read`（GitHub 1.2.0 起，Catalog 连接器 1.1.0 起），不是插件自己登记的 behavior；连接 / 断开是设置页动作。这些都**不进** `feed.capture`。
 
 项目 MCP 的来源插件是来历，不能作为连接运行寿命或其他消费者授权。Host 共用目录保留项目范围，每次调用核对当前调用者与工作区权限；项目配置只引用 Home 凭据 owner，不能把 SDK 进程内的 credential ref 当成持久密钥。停用连接保留凭据，但所有消费者都须拒绝调用；移除不删除已有业务成果。
+
+## 远程 MCP 声明
+
+Host 构建的集成在 `connection_services[].auth.methods` 写 `{ kind: "mcp", endpoint, auth }`；`endpoint` 是无凭据的 HTTPS 地址，`auth` 为 `oauth`、`bearer`、`either` 或 `none`。可选 `registration: "manual"`，省略表示 dynamic；可选 `endpoint_pattern: { source, flags }`，source 以 `^` 开头、`$` 结尾，flags 只收 `u` 或 `iu`；特殊头只收 `token_scheme: "Sentry-Bearer"`。配置属于服务所在插件，Host 的目录、准备接入与真实连接从同一声明读取。
+
+SDK 校验数据形状，外部签名安装包暂不能携带带数据的 OAuth 或 MCP 方法：预览和 attach 都以 `plugin.declaration_invalid` 拒绝，已有登记不变。只写 kind 不会给包新增远程配置权。部署 OAuth 客户端只用于 Host 原始构建声明的同一身份、签名、完整方法与默认资源；同名服务或相同地址不能取得它。
+
+连接保存稳定安装身份、发布者签名、完整方法指纹及所选地址和认证模式；pending、held 和每次在途操作另固定当前安装世代，等待后及最终写入前复核原快照。正常重启后的新操作可重新捕获当前世代；停用再启用不能恢复旧在途请求，held 释放也重新核验。旧远程连接缺少来源 pin 时须重新连接，不按 service id 补猜。Agent 缓存同时绑定当前世代，来源重启后须重新连接其工具选择。Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
+
+飞书/Lark stdio 与 Figma 本机服务的生命周期仍留 BL-791。Figma 默认本机、none；显式 HTTPS 仅原远程地址，oauth/manual，均不自动选择产品客户端。
 
 ## Catalog 连接器
 

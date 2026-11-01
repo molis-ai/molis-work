@@ -26,8 +26,8 @@ const SCENE = ["attention:write", "judgments:write"];
  */
 const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map<ActionDefinition, readonly string[]>([
   [feedSourceActions.register, [FEED_PULL]], [feedSourceActions.update, [FEED_PULL]],
-  // Removing a source removes its items, with their Inbox entries and their links to Goals.
-  [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write"]],
+  // Removing a source removes its items, with their Inbox entries and their links to Goals; an account source's binding is taken off it (T-121).
+  [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write", CONNECTIONS]],
   // An account source is pulled with the account the person bound to it (`sources:pull_connector`), whose state it asks (`connections:use`),
   // and one whose account needs the person is recorded in the Inbox (`attention:write`).
   // New items are judged as the sync ends, which reads their retained bodies (`evidence:read`) for the capture rules.

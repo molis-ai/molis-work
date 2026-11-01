@@ -9,7 +9,7 @@
  * renders (molis-work:plugins-changed carries the page) and fills them itself.
  *
  * What cannot be brought in line in place ends the old way, once: a plugin whose page parts cannot be changed after the page
- * loads (RELOAD_ON_MEMBERSHIP_IDS — none today), a part of the page this does not know changed, or a result that does not
+ * loads (RELOAD_ON_MEMBERSHIP_IDS — none today), the page-owner bootstrap appearing or leaving, another part this does not know changed, or a result that does not
  * match what the server renders. The page's state is saved and the page is loaded again.
  */
 export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
@@ -128,12 +128,14 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const follow = async (pluginId, adding, before) => {
     let next;
     try { next = await fetchPage(); } catch { reload(); return; }
+    const ownerBoundaryChanged = Boolean(document.getElementById('molis-work-data')) !== Boolean(next.getElementById('molis-work-data'));
     const after = owned(next);
     const came = [...after].filter((id) => !before.has(id)), gone = [...before].filter((id) => !after.has(id));
     const wired = (rail()?.dataset.reloadPlugins || '').split(' ').filter(Boolean);
     if ([...came, ...gone].some((id) => wired.includes(id))) { reload(); return; }
     // What leaves is left first: a pane showing it goes back to where it was.
     gone.forEach((id) => host.leavePlugin?.(id));
+    if (ownerBoundaryChanged) { reload(); return; }
     const nextTiles = tiles(next);
     tiles().forEach((tile) => { const mate = nextTiles.find((other) => other.dataset.pluginTile === tile.dataset.pluginTile); if (mate) patchTile(tile, mate); });
     patchStages(next, came, gone); patchSections(next); patchRows(next); patchChoices(next);

@@ -2,8 +2,8 @@
  * The signed sandbox packages installed in the Home (BL-628; S-80, S-84, S-91; specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md).
  * The Home's counterpart of `openInstalledPlugins`: the same install lifecycle and the same sandboxed definition, over the Home's Runtime
  * and the Home's action service instead of a project's. What differs is only what has no project to hang on: the person's approval, the
- * secrets and the prompt registrations sit under one Home key, a package's calls are the Home's (`project_id` is null, so an action
- * of a project is out of its reach), and the plugins it runs are listed among the personal plugins every project reaches.
+ * secrets and the prompt registrations sit under one Home key. Its sandbox identity keeps `project_id` null; a Host-issued invocation
+ * may reach its triggering project only with that project's current agreement. Its pages remain personal plugins every project reaches.
  */
 import { pluginErrors, type PluginContribution, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -18,7 +18,7 @@ import { assertHomePackageAllowed } from './home-package-admission.js';
 import { configuredModelChoices } from './configured-models.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
-import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
 import { pluginHomeFor } from './home-side.js';
@@ -27,6 +27,8 @@ import { studioStorage } from './plugin-builder/storage.js';
 import type { PluginPlatform } from './plugin-platform.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { sandboxedIntegrationDefinition } from './sandbox-integration.js';
+import type { SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
+import { projectReachConsents } from './plugin-project-reach-consent.js';
 
 /** What the Home's installs are kept under where a project's id would go: the approval, the secrets and the prompt registrations. Not a project's id. */
 export const HOME_INSTALL_SCOPE = '~home';
@@ -49,6 +51,8 @@ export interface HomeInstalledPluginsOptions {
   platform: HomeInstalledPlatform;
   /** The Home host has closed. */
   closed(): boolean;
+  /** The Host resolves and rechecks the project and this Home plugin's visibility on each invocation. */
+  projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
   /** Where an integration package's sources are bound, and the Host's side of each pull's own connection (S-95). Without them an integration package does not start. */
   integrations?: { registry(): Promise<HomeIntegrationsPort>; connections: CallConnectionsPort };
 }
@@ -68,7 +72,14 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
-  const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
+  const recordFor = (pluginId: string, retryUninstall = false) => {
+    const current = records().find(item => item.plugin_id === pluginId);
+    if (current || !retryUninstall || approvedFor(pluginId) === null) return current;
+    // A failed cleanup keeps the existing approval until the same lifecycle finishes. Never choose another retired publisher/installation.
+    const retired = platform.runtime.list().filter(item => item.plugin_id === pluginId && item.publisher_trust === 'pinned'
+      && item.execution === 'sandbox' && item.state === 'uninstalled');
+    return retired.length === 1 ? retired[0] : undefined;
+  };
   /** A package runs only while its publisher's pin stands (S-84, S-87): the ledger is asked at the start, at every effect, and before it is enabled again. */
   const standing = publisherStanding({ publishers: () => platform.consents?.publishers() ?? [] });
   /** A package is read back (and checked again) from the Home's package store the first time an installation asks for it. */
@@ -91,6 +102,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       throw staleInstallation();
     }
   };
+  const reach = platform.consents ? projectReachConsents({ ledger: platform.consents, records, releaseFor, assertInstalled }) : undefined;
   const catalog = (): Promise<CatalogCapability[]> => {
     if (catalogPending) return catalogPending;
     catalogPending = (async () => {
@@ -102,13 +114,30 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
         catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
         if (isClosed()) return [];
         if (revision !== exposureRevision) continue;
-        const costs = exposedOperationCosts([...exposed.values()].map(entry => entry.release), snapshot);
+        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
         let changed = false;
         for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
         if (!changed) return snapshot;
       }
     })().finally(() => { catalogPending = undefined; });
     return catalogPending;
+  };
+  const resolveCall = async (context: SandboxServiceContext) => {
+    context.signal.throwIfAborted(); assertInstalled(context.identity);
+    if (context.projectReach) reach?.captureCall(context.projectReach, context.identity);
+    const homeCatalog = await catalog();
+    context.signal.throwIfAborted(); assertInstalled(context.identity);
+    const operation = releaseFor(context.identity.pluginId)?.design.contract.operations.find(item => item.id === context.operationId);
+    const dependencies = operation?.effects.capabilities ?? [];
+    if (dependencies.every(id => homeCatalog.some(entry => entry.id === id)) || !context.projectReach) return { catalog: homeCatalog, project: undefined };
+    if (!reach || !options.projectActions) throw staleInstallation('这个 Home 不提供项目同意服务');
+    const projectId = reach.assertCall(context.projectReach, context.identity);
+    const project = await options.projectActions(projectId, context.identity.pluginId);
+    context.signal.throwIfAborted(); reach.assertCall(context.projectReach, context.identity);
+    const projectCatalog = await capabilityCatalog(project, options.actorId);
+    context.signal.throwIfAborted(); reach.assertCall(context.projectReach, context.identity);
+    // Home targets keep their original caller and client, notably the Home model entry.
+    return { project, catalog: [...homeCatalog, ...projectCatalog.filter(entry => entry.scope === 'project' && !homeCatalog.some(homeEntry => homeEntry.id === entry.id))] };
   };
   const secrets = pluginSecrets(home, HOME_INSTALL_SCOPE, storage);
   // The `model.generate` capability a package's `prompts.json` is for (BL-714): the Home's own registration of the platform capability,
@@ -123,12 +152,17 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(home)[0] ?? null; } });
   let disposePlatform = () => {};
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
-  // Only the Home's own actions are in this catalog: the caller has no project, so an action of a project is not offered to it.
+  // The default catalog is Home-only; a verified invocation adds only its own approved project's current actions.
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean) => catalogCapabilities({ actions, catalog, live, author: pluginId => releaseFor(pluginId)?.design.title,
+    target: async (context, id) => {
+      const resolved = await resolveCall(context), entry = resolved.catalog.find(item => item.id === id);
+      return { catalog: resolved.catalog, actions: entry?.scope === 'project' && resolved.project ? resolved.project : actions,
+        ...resolved.project && context.projectReach ? { assertCurrent: () => { reach!.assertCall(context.projectReach!, context.identity); } } : {} };
+    },
     declaration: identity => sandboxDeclaration(identity, noBuilds, release => manifestOf(release), { recordFor, releaseFor }),
     granted: identity => sandboxGrants(identity, noBuilds, { recordFor, releaseFor, approvedFor }) });
   const integrations = options.integrations;
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled, earlier: () => [],
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, earlier: () => [],
     ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { connections: integrations.connections, assertLive }) } : {} });
   // An integration package offers no actions and no page: what it gives is its sources, held in the Home's registry while it runs (BL-530).
   const attached = new Map<string, symbol>();
@@ -189,10 +223,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   } catch (error) { close(); throw error; }
 
   return {
-    lifecycle, recordFor, releaseFor, records, recoveryErrors, close,
+    lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach,
     /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */
-    packageOf: (pluginId: string): InstalledRelease | undefined => {
-      const record = recordFor(pluginId);
+    packageOf: (pluginId: string, retryUninstall = false): InstalledRelease | undefined => {
+      const record = recordFor(pluginId, retryUninstall);
       return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
     },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */

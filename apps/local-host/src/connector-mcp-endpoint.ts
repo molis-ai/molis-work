@@ -1,9 +1,34 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import type { McpServerConfiguration, StartMcpConnectionInput } from "./connector-mcp.js";
+import type { PluginAuthMethodDeclaration, PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 /** The existing generic MCP connection entry also accepts complete remote server configurations. */
 export const CUSTOM_MCP_SERVICE = "mcp-bearer";
+/** Local launch/address exceptions stay here until BL-791; remote server data comes only from the declaration. */
+export const LOCAL_MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
+  feishu: { endpoint: "https://open.feishu.cn/", stdio: true },
+  lark: { endpoint: "https://open.larksuite.com/", stdio: true },
+  figma: { endpoint: "http://127.0.0.1:3845/mcp", auth: "none" },
+};
+
+export function declaredMcpMethod(method: PluginAuthMethodDeclaration): method is PluginMcpMethodDeclaration {
+  return method.kind === "mcp" && "endpoint" in method;
+}
+
+/** The one compilation point for a validated, serialized complete-address pattern. */
+export function mcpServerFor(serviceId: string, method?: PluginMcpMethodDeclaration, requested?: string): McpServerConfiguration | undefined {
+  const local = Object.hasOwn(LOCAL_MCP_SERVERS, serviceId) ? LOCAL_MCP_SERVERS[serviceId] : undefined;
+  if (local && (serviceId !== "figma" || !requested || /^http:/iu.test(requested.trim()))) return local;
+  if (!method) return undefined;
+  return { endpoint: method.endpoint, auth: method.auth, ...(method.registration ? { registration: method.registration } : {}),
+    ...(method.token_scheme ? { tokenScheme: method.token_scheme } : {}),
+    ...(method.endpoint_pattern ? { endpointPattern: new RegExp(method.endpoint_pattern.source, method.endpoint_pattern.flags) } : {}) };
+}
+
+export function requiresMcpDeclaration(serviceId: string, endpoint: string, transport?: string): boolean {
+  return serviceId !== CUSTOM_MCP_SERVICE && transport !== "stdio" && !(serviceId === "figma" && endpoint === LOCAL_MCP_SERVERS.figma!.endpoint) && serviceId !== "feishu" && serviceId !== "lark";
+}
 const invalid = (message: string) => connectorErrors["connector.mcp.configuration"](message);
 export function mcpEndpointFor(servers: Readonly<Record<string, McpServerConfiguration>>, serviceId: string, requested?: string, testing = false): string {
   const custom = serviceId === CUSTOM_MCP_SERVICE, server = Object.hasOwn(servers, serviceId) ? servers[serviceId] : undefined;

@@ -9,6 +9,8 @@ import { feedReconcileJob } from "./runtime-reconcile.js";
 import { feedWakeJob } from "./runtime-wake.js";
 import { FEED_PERMISSIONS } from "./permissions.js";
 import { FEED_ACTIONS, GOAL_CONTRACT, WAKE } from "./runtime-actions.js";
+import { FEED_STAGE_INBOX_READ, feedQueryActions } from "./query-actions.js";
+import { feedItemActions } from "./item-actions.js";
 import { feedRuntimeCaptureScene } from "./scenes.js";
 import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 export { FEED_PLUGIN_ID } from "./identity.js";
@@ -32,7 +34,7 @@ export const feedManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: FEED_PERMISSIONS,
   // A Goal's material is read after the Goal itself has been read, as the caller (`feed.goals.context`).
-  capabilities: { provides: [], consumes: [GOAL_CONTRACT.capability_id] },
+  capabilities: { provides: [], consumes: [GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
   actions: FEED_ACTIONS,
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
     preview: { capability_id: "feed.artifacts.preview", version: 1 } }], consumes: [] },
@@ -59,6 +61,7 @@ export const feedManifest: PluginManifest = {
     { route_id: "feed.out-rules.update", method: "PATCH", path: "/out-rules/:rule_id", permission: "feed:write" },
     { route_id: "feed.out-rules.delete", method: "DELETE", path: "/out-rules/:rule_id", permission: "feed:write" },
     { route_id: "feed.sources.create", method: "POST", path: "/sources", permission: "feed:write" },
+    { route_id: "feed.sources.add-account", method: "POST", path: "/sources/accounts", permission: "feed:write" },
     { route_id: "feed.sources.update", method: "PATCH", path: "/sources/:source_id", permission: "feed:write" },
     { route_id: "feed.sources.delete", method: "DELETE", path: "/sources/:source_id", permission: "feed:write" },
     { route_id: "feed.sources.schedule", method: "PUT", path: "/sources/:source_id/schedule", permission: "feed:write" },
@@ -72,7 +75,8 @@ export const feedManifest: PluginManifest = {
     translations: FEED_EN,
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", hue: "brown", order: 40, rail: "core", pinned_default: true, accepts_objects: true },
+      { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", hue: "brown", order: 40, rail: "core", pinned_default: true, accepts_objects: true,
+        stage_data: { action: feedQueryActions.stage.capability_id, object_action: feedQueryActions.reader.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
     ],
   },
 };

@@ -29,7 +29,7 @@
       "kind": "cohesive-unit",
       "reason": "动作服务：登记提供方（registerProvider 131 行，登记时的全部声明检查）、绑定、调用、场景和依赖可用性，共享同一份登记表；内核的唯一动作注册与调用入口，只超 300 行 96 行，拆开会让登记表有两个读写者。",
       "size": {
-        "lines": 396,
+        "lines": 407,
         "methods": 15
       }
     },
@@ -45,7 +45,7 @@
       "kind": "cohesive-unit",
       "reason": "插件安装生命周期状态机：安装、升级（changeVersion 117 行）、卸载、恢复、崩溃上报、启停，同一张安装记录表和同一套事务/恢复规则；各转移互相依赖前一状态，拆开会让状态转移散在几个类里。授权与兑换（grant、redeem、receipt）合计不到 60 行。",
       "size": {
-        "lines": 623,
+        "lines": 624,
         "methods": 29
       }
     },
@@ -93,14 +93,14 @@
       "kind": "cohesive-unit",
       "reason": "一次插件创作的工作流状态机：提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用，每步读写同一份运行记录；40 个方法最长 53 行，是同一条流水线上的相邻阶段，拆开会让一次创作的状态散在几个类里。",
       "size": {
-        "lines": 654,
+        "lines": 658,
         "methods": 40
       }
     },
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3270
+      "size": 3208
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -125,7 +125,7 @@
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": {
       "kind": "cohesive-unit",
       "reason": "连接器 MCP 宿主：启动连接、完成授权、取令牌、调用工具、读资源，共享同一张连接表和同一个受保护的 fetch；连接的状态在闭包里，拆开要把这张表传来传去。",
-      "size": 246
+      "size": 261
     },
     "function apps/local-host/src/home-actions.ts#homeActionProvider": {
       "kind": "cohesive-unit",
@@ -135,12 +135,12 @@
     "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
       "kind": "cohesive-unit",
       "reason": "沙箱 SDK 请求的统一授权与派发边界：队列、执行生命周期、效果检查和动作退出校验共享同一调用上下文；模型请求只隔离正常 RPC 清理且保留真实取消转发，拆散会把同一安全边界的开始与结束分离。",
-      "size": { "lines": 311, "methods": 9 }
+      "size": { "lines": 315, "methods": 9 }
     },
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
       "kind": "cohesive-unit",
       "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
-      "size": 161
+      "size": 191
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",
@@ -152,20 +152,15 @@
       "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。",
       "size": 151
     },
-    "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": {
+    "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": {
       "kind": "cohesive-unit",
       "reason": "胶囊条目的投影：由目标与状态推出决定、可做、阻塞、进行中、等待、最近完成六类条目，共用 itemBase 与排序；一个投影按条目类别分支，每类 14 到 19 行。",
       "size": 229
     },
-    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": {
-      "kind": "cohesive-unit",
-      "reason": "外壳整页的渲染（名字沿用旧称）：renderMolisWorkWeb 的 140 行主要是一个 HTML 模板，加 22 行的刷新片段；一页一个模板，超 150 行 26 行。",
-      "size": 176
-    },
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
       "kind": "cohesive-unit",
       "reason": "标签布局的纯操作集（拆分、移动、并排打开、规范化、关闭、固定），对同一棵布局树做变换；它被 toString 注入浏览器，必须自成一体，W5-04 打包后才能分文件。",
-      "size": 425
+      "size": 441
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": {
       "kind": "cohesive-unit",
@@ -175,7 +170,7 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": {
       "kind": "cohesive-unit",
       "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
-      "size": 173
+      "size": 192
     },
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": {
       "kind": "cohesive-unit",
@@ -241,6 +236,16 @@
       "kind": "cohesive-unit",
       "reason": "同一 AgentDefinitions 数据主人的声明登记、用户覆盖、history 和 uses 共用同一份来源引用及 SQLite 事务；新增的是精确读取与已接受使用的两个既有职责，拆分会分散同一状态和记录，不新增第二份业务账。",
       "size": { "lines": 257, "methods": 26 }
+    },
+    "function plugins/native/feed/src/plugin.ts#createFeedPlugin": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 159
+    },
+    "function plugins/native/feed/src/plugin.ts#start": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 157
     }
   }
 }

@@ -166,11 +166,11 @@ test("RAC-2681 the stage model carries `request` only when the view has one for 
 });
 
 // RAC-2681: explicit declarations cannot turn identity or transport fields into page data.
-for (const name of ["actor_id", "idempotency_key", "control_token"]) {
-  for (const location of ["path", "query", "stage_data.input"]) {
+for (const name of ["actor_id", "project_id", "install_id", "idempotency_key", "control_token"]) {
+  for (const location of ["path", "query", "params", "stage_data.input"]) {
     test(`RAC-2681 Manifest parser refuses explicitly declared ${name} in ${location}`, () => {
       const path = location === "path" ? `/notes/:${name}` : "/notes/:note_id";
-      const routes = [{ route_id: "note", path, query: location === "path" ? [] : [name] }];
+      const routes = [{ route_id: "note", path, query: location === "path" || location === "params" ? [] : [name], ...(location === "params" ? { params: { [name]: "untrusted" } } : {}) }];
       const declaration = location === "stage_data.input" ? stageManifest([name], routes) : routesOf(routes);
       assert.throws(() => parsePluginManifest(declaration), (error: unknown) => {
         assert.ok(error instanceof ActionError);
@@ -208,4 +208,21 @@ test("RAC-2681 ordinary declared parameters reach the real stage model through t
     stage_data: { schedule: { tasks: [] } }, stage_request }) as Part;
   assert.deepEqual(model.request, { task_id: "t1", tab: "files" });
   assert.deepEqual(model.data, { tasks: [] });
+});
+
+// RAC-2681 / RAC-2682: route constants choose the collection without accepting a request override.
+test("RAC-2681 declaration constants are bounded, disjoint and projected without query overrides", () => {
+  const routes = [{ route_id: "archive", path: "/archive/:note_id", query: ["tab"], params: { collection: "archive" } }];
+  const declaration = stageManifest(["note_id", "collection"], routes);
+  const manifest = parsePluginManifest(declaration);
+  const match = matchDeclaredPageRoute([manifest], "/archive/n1", new URLSearchParams("collection=trash&tab=body&project_id=other"));
+  assert.ok(match);
+  assert.deepEqual(match.params, { collection: "archive", note_id: "n1", tab: "body" });
+  assert.deepEqual(stageRequestParams(["note_id", "collection"], match.params), { note_id: "n1", collection: "archive" });
+  for (const overlap of [{ note_id: "constant" }, { tab: "constant" }]) {
+    assert.throws(() => parsePluginManifest(stageManifest(["note_id"], [{ ...routes[0], params: overlap }])), /参数名重复/);
+  }
+  for (const params of [[], { collection: 1 }, { Collection: "archive" }, { collection: "x".repeat(UI_PAGE_ROUTE_PARAM_LIMIT + 1) }]) {
+    assert.throws(() => parsePluginManifest(stageManifest(["note_id"], [{ ...routes[0], params }])), /params 必须/);
+  }
 });

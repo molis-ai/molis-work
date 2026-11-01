@@ -117,7 +117,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 ## 接到哪里（写完声明立刻看）
 
-- **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），项目级的在同一份登记写 `project_runtime: { create, package_name, factory_export }`，再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts` 与宿主的 `plugin-registry.generated.ts`（都不手改）；项目监督器按登记启动它（`trust: HOST_BUILD_TRUST` + `nativePluginReleaseArtifact` 由宿主给），`apps/local-host/src/project-plugins.ts` 与 `tests/builtin-plugin-assembly-gate.test.ts` 都不用改（+ i18n），在 `specs/repository-anti-corruption/spec.md` §5.1 的包清单表里补一行（`node scripts/gates/package-inventory.mjs --table` 生成；缺行或状态与登记不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
+- **内置插件**：workspace 包，包里 `src/registration.ts` 写目录条目（manifest、personal、summary、workbench pack；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`），项目级的在同一份登记写 `project_runtime: { create, package_name, factory_export }`，再 `node scripts/generate-plugin-registry.mjs` 生成 `builtin-plugins.ts` 与宿主的 `plugin-registry.generated.ts`（都不手改）；项目监督器按登记启动它（`trust: HOST_BUILD_TRUST` + `nativePluginReleaseArtifact` 由宿主给），`apps/local-host/src/project-plugins.ts` 与 `tests/builtin-plugin-assembly-gate.test.ts` 都不用改（+ i18n），在 `docs/system/PACKAGE-BOUNDARIES.md`「现行包清单」里补一行（`node scripts/gates/package-inventory.mjs --table` 核对机器列，保留原包的人工深度/审查与证据；缺行或状态与登记不符，`pnpm health:check` 变红）。构建期 Native 的 Host HTTP 与动作装配已冻结，只许减少。清单：[host.md](host.md)。
 - **Runtime 插件**（登记上有 `project_runtime` 或 `runtime` 的内置插件，如 Coding、Shelf）：`createXPlugin` 加监督器 `start()`。`start()` 必须兑现 Manifest 每一条 view、route、action、action_scene，以及 commands、events.subscribes、ports.inputs 对应的处理器。
 - **integration**：`definePollingIntegrationPlugin` + Connector Host；OAuth/secret 见 [integrations.md](integrations.md)。
 - **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。今天脚手架是 integration 样例，不是产品一级入口插件。
@@ -168,4 +168,4 @@ ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/ski
 `<release>` 来自 `~/.molis-work/config/installation.json` 的 `release_path`。npm 包在 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。
 
 
-签名 app 的包内角色资料/方法采用三字段 wire 与资源文件，参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览 @4、助理读取 @2 和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。
+签名 app 的包内角色资料/方法采用三字段 wire 与资源文件，参见 [authoring.md](authoring.md#签名-app-包的文字资料)。安装预览 @5、助理读取 @2 和精确签名来源是一条链；纯文字声明不授予执行、目录或工具权限。

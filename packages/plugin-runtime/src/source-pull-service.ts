@@ -5,6 +5,7 @@ import {
   type PluginSourcePullClient, type PluginSourceVocabulary, type RepositoryReadRequest, type RepositoryReadResult, type SourcePullKind, type SourcePullOptions, type SourcePullRequest, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { createPluginConnectorSourceClient, type PluginConnectorPort } from "./source-pull-connector.js";
+import { checkedSourcePresentation, checkedSourcePresentationInput } from "@molis-ai/molis-work-plugin-sdk";
 
 /** The account-source client lives in its own file and is offered with this service (`services.sourcePull.connector`). */
 export { createPluginConnectorSourceClient, type PluginConnectorPort };
@@ -145,6 +146,15 @@ export function createPluginSourcePullClient(manifest: PluginManifest, port: Plu
       try { return structuredClone(value); } catch { throw errors.source_pull_request_invalid("游标和回执必须是普通数据"); }
     };
     client.vocabulary = Object.freeze<PluginSourceVocabulary>({
+      presentation: async (id, input) => {
+        const checked = checkedSourcePresentationInput(input), name = word(id, 64);
+        const { scope, permission } = enter([PLUGIN_SOURCE_PULL_FEED_PERMISSION], false, false);
+        const current = currentFor(scope, permission, scope.caller.signal);
+        current();
+        const result = await vocabulary.presentation(name, checked);
+        current();
+        return checkedSourcePresentation(result);
+      },
       custom_rss_definition_id: vocabulary.custom_rss_definition_id, youtube_definition_id: vocabulary.youtube_definition_id, youtube_feed_host: vocabulary.youtube_feed_host,
       catalog: () => answer(() => vocabulary.catalog()),
       normalizeCustomRssUrl: value => answer(() => vocabulary.normalizeCustomRssUrl(word(value))),

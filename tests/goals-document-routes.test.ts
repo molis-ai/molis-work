@@ -167,7 +167,33 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
     body: JSON.stringify({ archived: true, reason: "Verify existing direct URL after archive" }),
   });
   assert.equal(archive.status, 200, await archive.text());
+  // RAC-2680/RAC-2682: the declared surface supplies content, and the HTTP host restores exactly one refresh document.
+  async function checkRefresh(base: string, projectId: string, collection: "current" | "archive" | "trash", goalId?: string) {
+    const response = await globalThis.fetch(`${base}/api/board/refresh?view=${collection}${goalId ? `&goal_id=${goalId}` : ""}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    const html = await response.text();
+    assert.ok(html.startsWith(`<!doctype html><html><body data-board-view="${collection}">\n    `));
+    assert.ok(html.endsWith("\n  </body></html>"));
+    assert.equal((html.match(/<!doctype\b/giu) ?? []).length, 1);
+    assert.equal((html.match(/<\/?html\b/giu) ?? []).length, 2);
+    assert.equal((html.match(/<\/?body\b/giu) ?? []).length, 2);
+    assert.match(html, /data-refresh-tree-chrome/u);
+    assert.match(html, /<section data-document-pane><section data-work-surface="goals">/u);
+    assert.match(html, /<dialog[^>]+data-create-dialog/u);
+    const data = html.match(/<script id="molis-work-data" type="application\/json">([\s\S]*?)<\/script>/u);
+    assert.ok(data);
+    assert.equal((JSON.parse(data[1]!) as { project: { project_id: string } | null }).project?.project_id, projectId);
+    assert.doesNotMatch(html, /href="\/(?:goals|archive|trash)(?:\/|["?])/u, "local links retain the project prefix");
+    if (goalId) assert.match(html, new RegExp('data-goal-view="' + goalId + '"', "u"));
+    else assert.doesNotMatch(html, /data-goal-view=/u, "an empty collection has no selected document");
+  }
   const beforeReads = await (await fetchProject(origin + "/api/board")).json();
+  for (const [collection, goalId] of [["current", "V1"], ["archive", "CORE"], ["trash", "AUTO-CONNECT"]] as const) {
+    await checkRefresh(projectOrigin, DEMO_PROJECT_ID, collection, goalId);
+  }
   for (const path of ["/goals/CORE", "/archive/goals/CORE", "/archive", "/trash"]) {
     const response = await fetchProject(origin + path);
     assert.equal(response.status, 200, path);
@@ -185,4 +211,9 @@ test("Goal document HTTP routes retain bad-encoding, collection, offset, missing
   assert.equal(wrongCollection.status, 404);
   assert.deepEqual(await wrongCollection.json(), { error: "找不到这个 Goal: CORE" });
   assert.deepEqual(await (await fetchProject(origin + "/api/board")).json(), beforeReads);
+  const empty = await served.createProject("Refresh without a selection");
+  const emptyOrigin = `${origin}/projects/${empty.project_id}`;
+  const emptyBefore = await (await globalThis.fetch(emptyOrigin + "/api/board")).json();
+  for (const collection of ["current", "archive", "trash"] as const) await checkRefresh(emptyOrigin, empty.project_id, collection);
+  assert.deepEqual(await (await globalThis.fetch(emptyOrigin + "/api/board")).json(), emptyBefore);
 });

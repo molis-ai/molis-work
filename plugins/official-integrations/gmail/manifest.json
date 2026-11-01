@@ -1,11 +1,12 @@
 {
   "schema_version": 2,
   "plugin_id": "io.molis.work.integration.gmail",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "name": "Gmail",
   "kind": "integration",
   "publisher": { "publisher_id": "io.adeptify", "signature": "adeptify-official-signature-v1" },
   "host_api_version": 2,
+  "source_presentations": ["gmail-scope"],
   "entrypoints": [
     { "deployment": "local", "entrypoint": "./dist/index.js" }
   ],
@@ -25,7 +26,7 @@
       "title": "Gmail",
       "group_id": "mail",
       "summary": "本机账号。Feed 只读收信。",
-      "auth_kind": "gmail",
+      "auth_kind": "oauth",
       "auth": {
         "methods": [
           {
@@ -41,7 +42,8 @@
               "account_id": [["identity:/sub"]],
               "label": ["identity:/email", "identity:/name", "identity:/sub"]
             }
-          }
+          },
+          { "kind": "mcp", "endpoint": "https://gmailmcp.googleapis.com/mcp/v1", "auth": "either", "registration": "manual" }
         ]
       },
       "capabilities": [

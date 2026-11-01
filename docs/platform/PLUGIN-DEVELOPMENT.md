@@ -193,6 +193,10 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 宿主自己运行的 Home/项目插件可在本安装的活跃并发 command 里 `await services.background.start(async control => …, { signal? })`。动作必须声明 `background_job`，否则拒绝；升级预检没有该服务；沙箱包不收回调，用 `sdk.background.start(operation, input)` 起自己某条命令的一次运行，它在同一个包的第二个沙箱进程里一次一个地跑，结果不回给包（S-67；生成的插件要等创作台一侧接线，BL-377）；启动钩子、直接路由、过期处理器和其他安装也不能借它开始工作。返回句柄的 `result` 是结果 Promise，`cancel()` 只取消这次执行；插件自己保存任务、幂等键、状态与恢复决定，平台不重试、不在重启后重放。
 
+已签名安装的沙箱包在 contract 的 launcher 上写 `effects.background: ["job.work"]` 及 `background_job: { status: "job.status", id: "job_id", input: "job_id", state: "state", done: ["done"], failed: ["failed"] }`。状态是本包同范围的实际 query；输入、输出字段须能从 schema 解析，终态互斥且在状态枚举中；状态的实际依赖闭包也须可用、只读、不收费。SDK 从同一 contract 派生签名动作、精确状态引用和权限，运行目录另按当前提供方、版本、费用与授权刷新；launcher 承担自己及所有允许目标的权限和费用，不把动态环境写回签名内容。目标不能再声明 background。一次操作 10 分钟、服务 60 秒，quick/slow 共用一个后台 lane；未结束执行上限 4 按 broker 计算。`sdk.background.cancel(execution_id)` 仅取消原 broker 的实际句柄。
+
+包先写自己的持久 job，再 start；目标可能在 start 返回前已经完成，因此受理状态须用原子条件更新：只把仍为 pending 的状态变成 accepted，附加临时 execution_id 时也不覆盖 running 或终态。返回已确认的业务状态。授权失效不再补写成功或失败。重启后 status 只读已确认事实，没有终态或当前存活证据时展示最后状态及「待核对」，不凭 broker 缺少旧句柄推断失败或重放。DB、文件与连接没有总事务：保留已经发生的部分结果；COMMIT 或 HTTPS 已派出但回执丢失时保留结果未知，不能捕获后写 failed 来伪称未发生。
+
 后台回调保留原动作的身份、项目、权限和精确注册，并用新控制调用既有模型与数据服务。每次写入都要先 `await control.beforeEffect()`，提交前同步检查 `control.assert_authority_current?.()`；不能继续使用已返回处理器的 caller。原 HTTP/MCP 正常结束或断开后，已受理工作可继续；原 MCP 授权撤销、插件停用/升级、Host 关闭或显式取消会终止本机等待，迟到的成功与失败都不得写业务记录。没有入口提供独立后台授权的调用仍服从原 signal；不能借它逃离 Agent 的取消。项目路径上的 Home 路由仍在原项目里，提交时重查项目存在且显示该插件。
 
 执行仍在本进程；非配合式外部调用可能继续运行，插件须把控制的 signal 交给它。200 ms 周期复查使用已有 `createExecutionLifetime`，结束即释放；模型和文件服务在等待后另行核权。后台不再向已结束的路由发进度，不能递归接受后台执行；自己的结果结束后，旧控制和迟到模型回调也失效。验收见 `tests/security-invariants-plugin-background.test.ts` 与 `tests/runtime-plugin-http-discovery.test.ts`。
@@ -307,10 +311,10 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - 监听 `molis:assistant-effect` 并在没有未保存修改时重读；用户在页面上改变了助理可能展示的对象时发 `molis:assistant-surface-changed`。
 - 页面缓存的设置在本页没有未保存改动时采用已保存值，避免把别处的修改写回。
 - 要给助理发信息，发 `molis:assistant-message` 并写明用途：`background`（只作上下文）、`change`（对象变了）、`suggest`（由用户决定是否发送）、`delegate`（用户刚在页面上要求交给助理，只有真实用户操作才立即开始）、`reply`（把结果交回某项工作）。不要自称“用户已同意”。
-- 动作声明里指向别的动作的地方（`undo`、`background_job.status`、片段与事项推荐的选项目标），目标必须在**同一次注册**里：同一份 Manifest 的 `actions`，或同一次 `registerProvider` 的 `definitions`；文档里说“同一提供方”，指的就是这个。注册先后不定，所以不按提供方编号跨注册去找：一个提供方拆成几次注册、又互相引用，会被拒绝，报“不在同一提供方的声明里”（Goals 按范围分两次注册，引用也都在各自的范围里，所以没有这个问题）。要用别的提供方的动作，写 `required_actions`，使用时按调用者核对。`definePlugin`、命令行 `validate`、Runtime 安装与升级、宿主注册动作时都检查（SDK 的 `inspectActionCrossReferences`）；声明本身不完整的由形状检查另外报告，不重复报。谁能用目标（受众、权限、效果）不在注册时查，使用时按调用者核对。
+- 动作声明里的引用（`undo`、`background_job.status`、片段与事项推荐的选项目标）在 Manifest 中必须指向同一份 `actions` 的实际动作。`definePlugin`、命令行 `validate`、Runtime 安装与升级检查完整声明（SDK 的 `inspectActionCrossReferences`）。宿主注册时通常限同一次 `registerProvider` 的 `definitions`；只有后台状态查询允许指向已经注册、提供方、项目与范围均相同的实际 query，供逐操作替换时保留未变化的状态查询；不补占位声明，也不接受跨提供方目标，其他引用仍限同一次注册。跨提供方依赖写 `required_actions`，使用时按调用者核对。声明本身不完整由形状检查另外报告，不重复报；谁能用目标（受众、权限、效果）在调用时核对。
 - 可以撤回的修改声明 `undo`：`{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一次注册里的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。注册时检查：撤销命令存在、是命令、与本动作同一范围；`input` 里的每个字段都是撤销命令输入 schema 的属性，它必填的输入都要填上；每个输出路径都在本动作的 `output_schema` 里写出来了（沿属性、`anyOf`/`oneOf`/`allOf` 分支和本 schema 内的 `$ref` 找；只写 `type: "object"` 的开放对象找不到，要先把字段写出来；没有 `output_schema` 就没有位置可指）。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“丢弃灵光” `{ ids: ["spark.id"] }` 撤回。
 - 用户可以在插件里设提醒（今天只有 Todo 的提醒时间在用）时，提供到期提醒查询：`defineDueRemindersAction("<插件>.reminders.window", [对象种类], "到期提醒", [读取权限])`（Home 范围、只读）。输入 `{ from, to }`，只返回 `from ≤ 到期时间 < to` 的提醒，每条带稳定的 `reminder_id`（改了时间就换新的）、`due_at`、`title`、`subject`、`project_id`（个人为 null）、`open`。插件不需要计时器：Host 每分钟来问一次，每条只提醒用户一次，并按用户的提醒规则处理。只返回用户自己要求的提醒，新条目、未读数、逾期清单都不算；用户已在插件里处理过的提醒不要返回。辅助函数 `assertDueReminderWindow`、`withinDueReminderWindow` 和类型随 `defineDueRemindersAction` 一起从插件 SDK 导出。
-- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一次注册里的状态查询、它接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里。片段与事项推荐的选项同样要指向同一次注册里、同一范围的动作，事项推荐的目标还要支持选项对应的事项种类（目标没写事项种类则不限）。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
+- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、本提供方的实际状态查询、它接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里。片段与事项推荐的选项同样要指向同一次注册里、同一范围的动作，事项推荐的目标还要支持选项对应的事项种类（目标没写事项种类则不限）。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
 - 修改已有对象的动作，输入里用 `<种类>_id`（或 `subject_id`、`id`）写对象标识：助理的建议按钮据此在用户手动改过该对象后自动失效。
 - 设置“助理”里的“插件接入诊断”会列出你的插件为助理提供了什么、缺什么（对象读取、结果关联、能力说明），按那里的提示补齐即可。
 - Native 插件新增路由或动作要递增 Manifest `version`，否则已安装项目仍按旧清单运行。
@@ -419,6 +423,10 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 上面 `pack` 打的是在 Host 进程之外自己运行的插件源码包。另一种包在 Home 里跑在**沙箱**里：代码是一个入口文件，界面由 Host 按声明画，不带任何页面脚本。它是公开格式，任何作者都可以做：创作台发布只是其中一个作者，Host 读它的代码里没有创作台的任何实现。类型在 `@molis-ai/molis-work-contracts/platform/plugin`（`SANDBOX_PACKAGE_FILES`、`SandboxPackageManifest`、`SandboxPackageInterface`、`SandboxPackagePrompt`），沙箱合同的类型在 `platform/plugin-sandbox`。
 
+作者可用 `molis-work-plugin pack-sandbox <源目录> <输出.json> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 生成 wire 清单和未签名包，再沿既有 `sign` / `verify` 签验。可选图标、兼容版本和文字声明参数见 [CLI 文档](../../tooling/plugin-cli/README.md#沙箱包)。SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest` 和 `effectsFromContract` 是 Host、CLI 与创作台共用的生成实现；作者只需 contracts 和 plugin-sdk。
+
+创作台首次发布前可选择项目或个人空间。切换范围会作废旧范围的通过结果，并按新范围重新检查已有源码和界面；不会为重验调用模型。首份发布固定该草稿的范围。发布在原五文件旁保存独立签名分发包，下载后在插件设置中导入，查看指纹、范围和权限，再由本人命名固定并确认；本机生成不等于已经信任。已有 agent-built 项目安装沿用原身份和数据，签名包不自动替换它。每个 Home 的签名私钥归现有 SecretStore，公开身份记录在 `config/plugin-publisher.json`；删除项目和普通卸载保留，显式 Home purge 才移除。身份缺失、不匹配或已撤销时拒绝发布，不能自动换钥绕过。
+
 包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 `agent` / `methods` 正文声明逐项引用的 `agent/` 资源；缺文件、重复路径或未声明的额外文件均拒绝：
 
 | 文件 | 内容 |
@@ -429,7 +437,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
-沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent` / `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限包含 `storage:private` 以及合同声明的项目存在性、模型和生图服务所派生的可选权限，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent` / `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
 
 **签名角色资料与方法**：app 包的 wire 清单可写 `agent: [{ name, purpose, body }]`、`methods: [{ name, purpose, body }]`，合计至多 64 项；每项只收这三个键。名字为 1–80、用途为 1–300 个 UTF-16 单元，`body` 是 `agent/` 下无跳转的包内相对资源路径。资源先限 32,000 字节，再按严格 UTF-8 解码，正文非空白且至多 8000 个 UTF-16 单元，保留原始文字与空白。不同条目可共用资源，同 plugin/kind 下名字不能重复。
 
@@ -438,6 +446,12 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 预览 @4 列出每项 kind、名字及前 200 个 Unicode 码点。升级按同身份条目全文比较，标明新增、正文已变化、移除，摘要相同也显示尾部变化。确认使用原 held 签名包；取消不安装或登记。角色资料与方法沿助理现有材料入口选择和 `assistant.methods.read@2` 读取；它们及包内元数据都以固定不可信说明后的 JSON 数据进入上下文，不加入 system/role prompt 或 inlineMethods。角色资料允许用户覆盖，返回 effective/user_revision；方法不增加编辑账。精确来源含 plugin_id、完整 plugin_version、publisher_signature、kind/entry_id 与当前安装/世代/范围；失效需重选，不自动换最新版。本次 handoff 得到接受回执后才记角色使用，后续撤销保留当时历史，新的读取和交付仍复核。真实模型质量须另验。
 
 **集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，运行范围写 `runtime: { scope: "home" }`（集成的来源是 Home 的，与 BL-628 的 Home 包同一条），没有路由和视图，作者另外写自己的一个连接服务和它的一个集成（`connection_services`、`integrations` 各一项，现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-95）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。装的时候走与别的签名包同一条预览、确认：预览列出包写的来源，并拿包的插件 ID、服务 ID、集成 ID 对 Home 的集成登记查一遍，撞了内置或已装的就拒（`plugin.integration_declaration_conflict`，点名撞的 id 和占着它的插件），确认时再查一次。装上后代码在 Home 的沙箱实例里跑，它运行时登记才有它的来源；停用、卸载、发布者被撤销时它的 id 放掉，用它的 Feed 来源拉取得 `plugin.integration_unavailable`，人的连接记录和 Feed 来源都留着，再启用就接着拉。集成包不出动作、不进个人插件名单。设置页的服务卡片、粘贴凭据的新建连接读这个 Home 的集成登记，所以包声明的服务有它的卡片、能新建连接，卸载后卡片随之消失（人建好的连接记录留着）。
+
+Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
+
+**Host 构建的远程 MCP 声明（BL-790）**：服务的 `auth.methods` 可写 `{ kind: "mcp", endpoint, auth }`；`endpoint` 必须为无凭据 HTTPS，`auth` 为 `oauth|bearer|either|none`。可选 `registration: "manual"`（省略为 dynamic）、`endpoint_pattern: { source, flags }`（source 以 `^` 开头、`$` 结尾，flags 为 `u` 或 `iu`）与 `token_scheme: "Sentry-Bearer"`。SDK 验证形状，目录、setup、授权、发现、刷新、工具调用和 Agent 读取同份声明。外部签名包携带带数据 OAuth/MCP 时，安装预览及 attach 都在副作用前以 `plugin.declaration_invalid` 拒绝；只写 kind 的槽保持原义。
+
+部署客户端只给 Host 原始构建的同一插件/发布者签名、完整方法与原默认资源。已激活连接保存稳定来源 pin；pending、held 与单次请求另固定真实安装世代，任何等待后及 staged→final 凭据和连接提交前都核对原快照，最终同步检查到写入之间没有 await。held 释放核本次实际提交的 completion。同源重启的新操作可用，旧在途及 Agent 缓存不能借 disable/enable 复活；缺来源 pin 的旧远程 MCP 连接须重新新增，不自动猜测或迁移。飞书/Lark stdio、Figma 本机例外留 BL-791；Figma 显式 HTTPS 保持原地址、oauth/manual 与无产品客户端自动选择条件。详见 [Integration 开发说明](../../skills/molis-plugin-dev/integrations.md)。
 
 安装管理当前合同为 `plugins.install.preview@4`、`plugins.installed.list@3`：范围/来源与当前权限是各自输出的一部分，固定旧版本的引用须重新选择。两者只给本人，没有 MCP 工具；确认安装仍为 `plugins.install.confirm@1`。
 

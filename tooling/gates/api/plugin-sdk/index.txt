@@ -336,7 +336,46 @@ export declare const QUESTION_REASK: Readonly<{
     maxTextChars: 8000;
 }>;
 
+export declare const SANDBOX_IMAGE_PERMISSIONS: Readonly<{
+    read: "image-api:read";
+    write: "image-api:write";
+    generate: "image-api:generate";
+}>;
+
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface SandboxIntegrationManifestInput {
+    pluginId: string;
+    version: string;
+    name: string;
+    publisher: PluginManifest['publisher'];
+    upgradesFrom?: readonly string[];
+    connection_services: NonNullable<PluginManifest['connection_services']>;
+    integrations: NonNullable<PluginManifest['integrations']>;
+    source_presentations?: NonNullable<PluginManifest['source_presentations']>;
+}
+
+export interface SandboxManifestInput {
+    pluginId: string;
+    version: string;
+    name: string;
+    publisher: PluginManifest['publisher'];
+    presentation: boolean;
+    upgradesFrom?: readonly string[];
+    runtime?: PluginManifest['runtime'];
+    icon?: PluginIconName;
+    effects?: DerivedEffects;
+    contract?: SandboxPluginContract;
+    actionIdentity?: {
+        buildId: string;
+        version: number;
+    };
+    textDeclarations?: SandboxPackageManifest;
+    homeDatabase?: Pick<HomePluginDatabaseDeclaration, 'version' | 'schema'>;
+    connections?: PluginManifest['connections'];
+    ownerFiles?: readonly PluginOwnerFileEntry[];
+}
+
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -429,6 +468,10 @@ export declare function cardSubject(view: Pick<ActionView, "action" | "operation
     id: string;
 } | null;
 
+export declare function checkedSourcePresentation(value: unknown): SourcePresentation;
+
+export declare function checkedSourcePresentationInput(value: unknown): SourcePresentationInput;
+
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;
@@ -468,6 +511,7 @@ export declare function definePollingIntegrationPlugin(input: {
     manifest: PluginManifest;
     createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
     presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
+    presentSource?(id: string, input: SourcePresentationInput): SourcePresentation | Promise<SourcePresentation>;
     now?: () => Date;
 }): PluginDefinition;
 
@@ -481,6 +525,8 @@ export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/pla
 export declare function dismissActionCard<Card extends ActionCard>(card: Card, store: CardStore<Card>): Card;
 
 export declare function draftActionCard(cardId: string, offer: AgentActionOffer, views: readonly ActionView[], ports: Pick<ActionCardPorts, "readSubject" | "now" | "refuse"> & Pick<CardAuthority, "check">): Promise<ActionCard>;
+
+export declare function effectsFromContract(contract: SandboxPluginContract): SandboxEffects;
 
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -578,12 +624,40 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
 
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare const sandboxActionId: (buildId: string, operationId: string) => string;
+
 export declare function sandboxAgentBodyIdentity(pluginId: string, kind: "role" | "method", name: string): {
     entry_id: string;
     prompt_id: string;
 };
 
 export declare function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods">;
+
+export declare function sandboxBackgroundProblems(contract: SandboxPluginContract): string[];
+
+export declare function sandboxDerivedPermissions(effects: DerivedEffects | undefined): NonNullable<PluginManifest['permissions']>;
+
+export declare function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest;
+
+export declare function sandboxOperationActions(input: {
+    contract: SandboxPluginContract;
+    buildId: string;
+    version: number;
+    title: string;
+    scope: 'home' | 'project';
+}): ActionDefinition[];
+
+export declare function sandboxOperationEffects(contract: SandboxPluginContract, operation: SandboxOperationContract): SandboxEffects;
+
+export declare function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[];
+
+export declare const sandboxPackageBuildId: (pluginId: string, signature: string) => string;
+
+export declare function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest;
+
+export declare function sandboxRequestedPermissions(effects: DerivedEffects | undefined): string[];
+
+export declare const sandboxUiContribution: (pluginId: string) => string;
 
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -612,3 +686,7 @@ export declare function wallClockIn(at: number, zone: string | undefined): {
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;

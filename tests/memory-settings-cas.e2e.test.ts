@@ -7,7 +7,8 @@ import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import type { FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MemoryExportPackage } from "@molis-ai/molis-work-contracts/services/memory";
 
 const { renderMolisWorkProjectSettingsHub, renderMolisWorkSettingsStylesheet } = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
@@ -24,7 +25,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
     candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 } };
   const project = { project_id: "project", display_name: "测试项目" };
-  const view: MolisWorkWebView = {
+  const view: MolisWorkWebView & { feed: FeedSnapshot } = {
     snapshot: { board: { project_id: "project", active_goal_id: null, created_at: "2026-10-23T00:00:00Z", updated_at: "2026-10-23T00:00:00Z" },
       cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [], project_guidance: [] },
     project, projects: [project], route_prefix: "/projects/project", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],

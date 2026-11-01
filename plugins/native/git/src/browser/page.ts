@@ -54,7 +54,7 @@ export interface GitPage {
   draft: string;
   scWorkspace: string;
   busy: boolean;
-  lastPrepared: string;
+  lastPrepared: { readonly action: string; readonly reviewId: string; readonly message?: string } | null;
   conflictTicket: number;
   conflictPath: string;
   conflictSides: { ours: string; theirs: string };
@@ -85,7 +85,7 @@ export function createPage(host: GitHost, sentences: GitSentenceTable): GitPage 
     conflicts: s("[data-git-conflicts]"), conflictEditor: s("[data-git-conflict-editor]"), conflictText: s("[data-git-conflict-text]"),
     viewSignal: undefined, initialRead: true, opener: null, workspace: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
     resultRows: [], resultsTicket: 0, resultSaving: false,
-    summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: "",
+    summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: null,
     conflictTicket: 0, conflictPath: "", conflictSides: { ours: L("git.conflict.ours"), theirs: L("git.conflict.theirs") },
   };
 }

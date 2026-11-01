@@ -6,14 +6,15 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { once } from "node:events";
-import test from "node:test";
+import { spawn } from "node:child_process";
+import test, { type TestContext } from "node:test";
 import { StdioClientTransport, type StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/dist/connector-mcp.js";
+import { createConnectorMcpHost, type McpConfiguration, type McpServerConfiguration } from "../apps/local-host/dist/connector-mcp.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { captureHostLog, larkMcpLaunch, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createAgentConnectorPorts } from "../apps/local-host/dist/agent-connector-ports.js";
@@ -21,7 +22,7 @@ import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../a
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
-import { MolisWorkLocalHost, connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, connectorDirectory, homeIntegrationRegistry, connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -29,6 +30,10 @@ import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.j
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 
+import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
+import { CATALOG_CONNECTORS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
 import { openTestHome } from "./fixtures/test-home.js";
 
 async function body(request: IncomingMessage): Promise<string> {
@@ -39,8 +44,50 @@ async function body(request: IncomingMessage): Promise<string> {
 function home() { return mkdtempSync(join(tmpdir(), "molis-mcp-test-")); }
 const callbackOrigin = "http://localhost:19357";
 
+// RAC2878: frozen T395 input, independently retained before the Host table was removed.
+const ORIGINAL_MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
+  gmail: { endpoint: "https://gmailmcp.googleapis.com/mcp/v1", auth: "either", registration: "manual" },
+  "google-drive": { endpoint: "https://drivemcp.googleapis.com/mcp/v1", auth: "either", registration: "manual" },
+  "google-calendar": { endpoint: "https://calendarmcp.googleapis.com/mcp/v1", auth: "either", registration: "manual" },
+  outlook: { endpoint: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_MailTools", auth: "either", registration: "manual", endpointPattern: /^https:\/\/agent365\.svc\.cloud\.microsoft\/agents\/tenants\/[0-9a-f-]{36}\/servers\/mcp_MailTools$/iu },
+  onedrive: { endpoint: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_OneDriveRemoteServer", auth: "either", registration: "manual", endpointPattern: /^https:\/\/agent365\.svc\.cloud\.microsoft\/agents\/tenants\/[0-9a-f-]{36}\/servers\/mcp_OneDriveRemoteServer$/iu },
+  sharepoint: { endpoint: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_SharePointRemoteServer", auth: "either", registration: "manual", endpointPattern: /^https:\/\/agent365\.svc\.cloud\.microsoft\/agents\/tenants\/[0-9a-f-]{36}\/servers\/mcp_SharePointRemoteServer$/iu },
+  teams: { endpoint: "https://agent365.svc.cloud.microsoft/agents/tenants/{tenantId}/servers/mcp_TeamsServer", auth: "either", registration: "manual", endpointPattern: /^https:\/\/agent365\.svc\.cloud\.microsoft\/agents\/tenants\/[0-9a-f-]{36}\/servers\/mcp_TeamsServer$/iu },
+  salesforce: { endpoint: "https://api.salesforce.com/platform/mcp/v1/{serverName}", auth: "either", registration: "manual", endpointPattern: /^https:\/\/api\.salesforce\.com\/platform\/mcp\/v1\/(?:sandbox\/)?[A-Za-z0-9_-]+$/u },
+  canva: { endpoint: "https://mcp.canva.com/mcp", auth: "oauth", registration: "manual" },
+  feishu: { endpoint: "https://open.feishu.cn/", stdio: true },
+  lark: { endpoint: "https://open.larksuite.com/", stdio: true },
+  notion: { endpoint: "https://mcp.notion.com/mcp", auth: "oauth" },
+  github: { endpoint: "https://api.githubcopilot.com/mcp/", auth: "either", registration: "manual" },
+  // Registration endpoint exists, but rejects non-partner clients (403).
+  dropbox: { endpoint: "https://mcp.dropbox.com/mcp", auth: "oauth", registration: "manual" },
+  box: { endpoint: "https://mcp.box.com", auth: "oauth", registration: "manual" },
+  slack: { endpoint: "https://mcp.slack.com/mcp", auth: "oauth", registration: "manual" },
+  gitlab: { endpoint: "https://gitlab.com/api/v4/mcp", auth: "oauth" },
+  vercel: { endpoint: "https://mcp.vercel.com", auth: "oauth" },
+  cloudflare: { endpoint: "https://mcp.cloudflare.com/mcp", auth: "either" },
+  huggingface: { endpoint: "https://huggingface.co/mcp", auth: "either" },
+  sentry: { endpoint: "https://mcp.sentry.dev/mcp", auth: "either", tokenScheme: "Sentry-Bearer" },
+  supabase: { endpoint: "https://mcp.supabase.com/mcp?read_only=true", auth: "either" },
+  linear: { endpoint: "https://mcp.linear.app/mcp/readonly", auth: "either" },
+  asana: { endpoint: "https://mcp.asana.com/v2/mcp", auth: "oauth", registration: "manual" },
+  clickup: { endpoint: "https://mcp.clickup.com/mcp", auth: "oauth" },
+  monday: { endpoint: "https://mcp.monday.com/mcp", auth: "either" },
+  airtable: { endpoint: "https://mcp.airtable.com/mcp", auth: "either" },
+  figma: { endpoint: "http://127.0.0.1:3845/mcp", auth: "none", endpointPattern: /^(?:http:\/\/127\.0\.0\.1:3845\/mcp|https:\/\/mcp\.figma\.com\/mcp)$/u },
+  jira: { endpoint: "https://mcp.atlassian.com/v2/mcp", auth: "oauth" },
+  confluence: { endpoint: "https://mcp.atlassian.com/v2/mcp", auth: "oauth" },
+  bitbucket: { endpoint: "https://mcp.atlassian.com/v2/mcp", auth: "oauth" },
+  loom: { endpoint: "https://mcp.atlassian.com/v2/mcp", auth: "oauth" },
+  stripe: { endpoint: "https://mcp.stripe.com", auth: "either" },
+  intercom: { endpoint: "https://mcp.intercom.com/mcp", auth: "either" },
+  hubspot: { endpoint: "https://mcp.hubspot.com", auth: "oauth", registration: "manual" },
+  zoom: { endpoint: "https://zoom.us/mcp/meeting/streamable", auth: "oauth", registration: "manual" },
+  x: { endpoint: "https://api.x.com/mcp", auth: "either", registration: "manual" },
+};
+
 type FixtureTool = { name: string; description?: string; inputSchema: { type: "object"; [key: string]: unknown } };
-async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean; toolError?: boolean; fail?: boolean; slow?: boolean; publicOrigin?: string; beforeToken?(): void | Promise<void>;
+async function fixture(options: { token?: string; tokenScheme?: "Sentry-Bearer"; oauth?: boolean; sse?: boolean; toolError?: boolean; fail?: boolean; slow?: boolean; publicOrigin?: string; beforeToken?(): void | Promise<void>;
   beforeList?(): void | Promise<void>; beforeInitialize?(): void | Promise<void>; tools?(): FixtureTool[] } = {}) {
   let enterCall!: () => void, releaseCall!: () => void;
   const called = new Promise<void>(resolve => { enterCall = resolve; });
@@ -54,6 +101,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
   let readCount = 0;
   let initializationCount = 0;
   let authClient = "";
+  let authClientSecret = "";
   const authorizationHeaders: string[] = [];
   const sessions = new Set<Server>();
   const sseTransports = new Map<string, SSEServerTransport>();
@@ -81,6 +129,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
         await options.beforeToken?.();
         const params = new URLSearchParams(await body(request));
         authClient = params.get("client_id") ?? "";
+        authClientSecret = params.get("client_secret") ?? "";
         if (params.get("grant_type") === "authorization_code") {
           const actual = createHash("sha256").update(params.get("code_verifier") ?? "").digest("base64url");
           if (params.get("code") !== "valid-code" || actual !== challenge) return json(400, { error: "invalid_grant", error_description: "do-not-echo-provider-secret" });
@@ -94,7 +143,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
       }
       authorizationHeaders.push(request.headers.authorization ?? "");
       if (options.fail) return json(500, { error: "raw-provider-secret-must-not-leak" });
-      if ((options.oauth || expectedToken) && request.headers.authorization !== `Bearer ${expectedToken}`) {
+      if ((options.oauth || expectedToken) && request.headers.authorization !== `${options.tokenScheme ?? "Bearer"} ${expectedToken}`) {
         response.writeHead(401, { "www-authenticate": `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp"` });
         response.end(); return;
       }
@@ -130,7 +179,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
     endpoint: `${origin}/mcp`, localOrigin, called, releaseCall,
     authorize(url: string) { const params = new URL(url).searchParams; challenge = params.get("code_challenge") ?? ""; assert.equal(params.get("code_challenge_method"), "S256"); return params.get("state")!; },
     rejectCurrentToken() { expectedToken = "server-invalidated-token"; },
-    stats: () => ({ refreshCount, tokenRequestCount, callCount, readCount, initializationCount, authClient, authorizationHeaders }),
+    stats: () => ({ refreshCount, tokenRequestCount, callCount, readCount, initializationCount, authClient, authClientSecret, authorizationHeaders }),
     async close() { await Promise.all([...sessions].map(session => session.close())); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); },
   };
 }
@@ -192,7 +241,7 @@ test("linking an account authorizes even when the MCP server also accepts anonym
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
-test("MCP OAuth DCR and PKCE survive a new host instance; refresh and 401 recovery use scoped credentials", async () => {
+test("RAC2884 MCP OAuth DCR and PKCE survive a new host instance; refresh and 401 recovery use scoped credentials", async () => {
   const temp = home(); const remote = await fixture({ oauth: true });
   let clock = Date.now();
   const options = { testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" as const } }, now: () => clock };
@@ -390,7 +439,10 @@ test("MCP failure never registers a connection or exposes server error text", as
       assert.doesNotMatch(String(error), /raw-provider-secret|test-access-token/); return true;
     });
     assert.equal(withConnectorConnections(temp, store => store.list()).length, 0);
-    assert.equal(MCP_SERVERS.figma?.auth, "none");
+    const figma = connectorDirectory(await homeIntegrationRegistry(temp)).find(service => service.connector_id === "figma")!.method_options!.find(method => method.kind === "mcp")!;
+    assert.equal(figma.mcp?.endpoint, "http://127.0.0.1:3845/mcp");
+    assert.equal(figma.login_ready, false);
+    assert.match(figma.mcp?.note ?? "", /认证方式：无需鉴权/);
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
@@ -504,6 +556,14 @@ test("official MCP OAuth flows through Host into Agent selections, refreshes, an
     assert.equal(remote.stats().refreshCount, 1);
     assert.ok(remote.stats().authorizationHeaders.includes("Bearer oauth-access-1"));
     assert.doesNotMatch(JSON.stringify(await library.list(owner)), /oauth-access|oauth-refresh/);
+    // RAC2885: a cached Agent connection cannot survive the declaration's disable/enable generation.
+    const registry = await homeIntegrationRegistry(temp), source = registry.mcpOwner("notion")!;
+    await registry.disable(source.plugin_id);
+    await registry.enable(declaredMcpPlugin("notion", source.method, { pluginId: source.plugin_id,
+      publisherId: source.publisher_id, signature: source.publisher_signature, version: "9.0.0" }));
+    await assert.rejects(library.validate(owner, tools), /已改变|断开|不可用/);
+    await library.control(owner, saved.id, "connect");
+    await library.validate(owner, (await library.list(owner))[0]!.tools);
     withConnectorConnections(temp, store => store.disconnect(started.connectionId));
     await assert.rejects(library.validate(owner, tools), /已改变|断开|不可用/);
     assert.notEqual((await library.list(owner))[0]!.health, "connected");
@@ -1011,4 +1071,663 @@ test("RAC-2416 a service id that names a prototype member has no official MCP ad
     assert.deepEqual(await refusal("constructor"), missing);
     assert.deepEqual(await refusal("__proto__"), missing);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+/** T068 fixtures use real Host declarations; testServers is deliberately absent. */
+function declaredMcpPlugin(serviceId: string, method: PluginMcpMethodDeclaration, identity: {
+  pluginId?: string; publisherId?: string; signature?: string; version?: string;
+} = {}): PluginDefinition {
+  const manifest: PluginManifest = {
+    schema_version: 2, host_api_version: 2, plugin_id: identity.pluginId ?? "io.molis.work.example." + serviceId,
+    name: "Declared MCP fixture", version: identity.version ?? "1.0.0", kind: "integration",
+    publisher: { publisher_id: identity.publisherId ?? "io.example.mcp", signature: identity.signature ?? "fixture-mcp-signature-v1" },
+    entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }], permissions: [],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    connection_services: [{ service_id: serviceId, title: "Declared MCP", group_id: "work", summary: "Controlled MCP service",
+      auth_kind: "none", auth: { methods: [method] }, capabilities: [{ label: "MCP", fulfillment: "live" }] }],
+  };
+  return definePollingIntegrationPlugin({ manifest, createProvider: () => { throw new Error("This MCP fixture has no Feed source"); } });
+}
+
+function routeDeclaredMcp(t: TestContext, remote: Awaited<ReturnType<typeof fixture>>, allowedLocal: string[] = []) {
+  const original = globalThis.fetch, origin = new URL(remote.endpoint).origin, destinations: string[] = [];
+  t.mock.method(globalThis, "fetch", (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.origin === origin) {
+      destinations.push(url.href);
+      const forwarded = new URL(url.pathname + url.search, remote.localOrigin);
+      return original(input instanceof Request ? new Request(forwarded, input) : forwarded, init);
+    }
+    if (allowedLocal.includes(url.origin)) return original(input, init);
+    destinations.push(url.href);
+    throw new Error("Unexpected external request in declared MCP fixture: " + url.origin);
+  });
+  return destinations;
+}
+
+/** Only synthetic connector deployment values can be read during these tests. */
+function controlledConnectorEnvironment(read: (key: string) => string | undefined = () => undefined) {
+  const original = process.env;
+  process.env = new Proxy(original, { get(target, key, receiver) {
+    if (typeof key === "string" && key.startsWith("MOLIS_WORK_CONNECTOR_")) return read(key);
+    return Reflect.get(target, key, receiver);
+  } });
+  return () => { process.env = original; };
+}
+
+test("RAC2884 RAC2886 Sentry's scheme and a declared SSE transport remain unavailable to Agent direct transport", async t => {
+  for (const mode of ["sentry", "sse"] as const) await t.test(mode, async t => {
+    const restore = controlledConnectorEnvironment(), temp = home();
+    const remote = await fixture(mode === "sentry"
+      ? { publicOrigin: "https://mcp.sentry.dev", token: "fixture-sentry-token", tokenScheme: "Sentry-Bearer" }
+      : { publicOrigin: "https://declared-sse.example.test", sse: true });
+    const destinations = routeDeclaredMcp(t, remote);
+    try {
+      const registry = await homeIntegrationRegistry(temp), serviceId = mode === "sentry" ? "sentry" : "declared-sse";
+      if (mode === "sse") await registry.enable(declaredMcpPlugin(serviceId, { kind: "mcp", endpoint: remote.endpoint, auth: "none" }));
+      const host = createConnectorMcpHost();
+      if (mode === "sse") {
+        await assert.rejects(host.startMcpConnection(temp, { serviceId, displayName: "None cannot take a token", token: "fixture-not-used", origin: callbackOrigin }),
+          { code: "connector.mcp.configuration", message: /不使用 Bearer/ });
+        assert.equal(destinations.length, 0);
+      }
+      const connected = await host.startMcpConnection(temp, { serviceId, displayName: mode, origin: callbackOrigin,
+        ...(mode === "sentry" ? { token: "fixture-sentry-token" } : {}) });
+      assert.ok(connected.tools?.length);
+      await host.callMcpConnectionTool(temp, connected.connectionId, "echo", { message: "Host transport" });
+      assert.equal(remote.stats().callCount, 1);
+      if (mode === "sentry") assert.ok(remote.stats().authorizationHeaders.every(value => value === "Sentry-Bearer fixture-sentry-token"));
+      const before = destinations.length, ports = createAgentConnectorPorts(temp);
+      await assert.rejects(ports.resolveMcpConnection(connected.connectionId, remote.endpoint), /原生传输/);
+      await assert.rejects(ports.resolveMcpCredential("connector-mcp:" + connected.connectionId), /原生传输/);
+      assert.equal(destinations.length, before);
+    } finally { restore(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+  });
+});
+
+test("RAC2885 stable pins survive process restart while old pending and held generations refuse", { timeout: 90_000 }, async t => {
+  const probe = process.env.MW_T068_RESTART_PROBE;
+  if (probe) {
+    const input = JSON.parse(probe) as { home: string; localOrigin: string; active: string; state: string; pending: string;
+      held: string; heldConnection: string; origin: string; caller: ActionCallContext };
+    const nativeFetch = globalThis.fetch, restore = controlledConnectorEnvironment();
+    const destinations: string[] = [];
+    t.mock.method(globalThis, "fetch", (request: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      const url = new URL(request instanceof Request ? request.url : String(request));
+      destinations.push(url.href);
+      if (url.origin !== "https://mcp.notion.com") throw new Error("Unexpected restart-probe request");
+      const forwarded = new URL(url.pathname + url.search, input.localOrigin);
+      return nativeFetch(request instanceof Request ? new Request(forwarded, request) : forwarded, init);
+    });
+    let resident: MolisWorkLocalHost | undefined;
+    try {
+      const host = createConnectorMcpHost();
+      const descriptor = await host.getMcpConnectionDescriptor(input.home, input.active);
+      assert.equal(descriptor.tools[0]?.name, "echo", "a stable pin accepts the new process's actual Runtime generation");
+      const before = destinations.length;
+      await assert.rejects(host.completeMcpAuthorization(input.home, { state: input.state, code: "valid-code", origin: input.origin }),
+        { code: "connector.mcp.configuration", message: /原运行实例/ });
+      assert.equal(destinations.length, before, "old pending never exchanges its code in the new process");
+      assert.equal(connectorAuthorizationStatus(input.home, input.pending)?.status, "failed");
+      resident = new MolisWorkLocalHost({ homeDirectory: input.home, completeText: null });
+      await assert.rejects(resident.homeActionClient().invoke(input.caller, connectorSetupIntentAction,
+        { authorization_id: input.held, intent_revision: "restart-latest", decision: "retain" }),
+      { code: "connector.mcp.configuration", message: /原运行实例/ });
+      assert.equal(connectorAuthorizationStatus(input.home, input.held)?.status, "failed");
+      assert.equal(connectorAuthorizationStatus(input.home, input.held)?.completion_ready, undefined);
+      assert.deepEqual(withConnectorConnections(input.home, store => store.list()).map(row => row.connection_id), [input.active]);
+      for (const name of ["oauth", "access", "client"]) assert.equal(connectorProtocolSecrets(input.home, input.heldConnection).get(name), null);
+    } finally { await resident?.close(); restore(); }
+    return;
+  }
+  const restore = controlledConnectorEnvironment(), local = await openTestHome(t);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let heldInspection = false;
+  const remote = await fixture({ oauth: true, publicOrigin: "https://mcp.notion.com",
+    beforeList: async () => { if (heldInspection) { entered.resolve(); await release.promise; } } });
+  routeDeclaredMcp(t, remote, [local.origin]);
+  try {
+    const host = createConnectorMcpHost();
+    const active = await host.startMcpConnection(local.home, { serviceId: "notion", displayName: "Active before restart", origin: callbackOrigin });
+    await host.completeMcpAuthorization(local.home, { state: remote.authorize(active.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+    const pending = await host.startMcpConnection(local.home, { serviceId: "notion", displayName: "Pending before restart", origin: callbackOrigin });
+    const state = remote.authorize(pending.authorizationUrl!);
+    const caller: ActionCallContext = { actor_id: "assistant:t068-restart", runtime_session_id: "t068-restart", audience: "agent",
+      project_id: null, permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ, "mcp:external"] };
+    const client = local.host.homeActionClient();
+    const plan = await client.invoke(caller, connectorSetupAction, { service_id: "notion", method: "mcp", display_name: "Held before restart", expected_revision: null }) as { authorization_id: string };
+    const held = await local.web.post<{ connection_id: string; authorization_url: string }>("/api/settings/connectors/methods/mcp/start",
+      { service_id: "notion", display_name: "Held before restart", setup_id: plan.authorization_id });
+    const heldState = remote.authorize(held.authorization_url);
+    heldInspection = true;
+    const completion = local.web.post<{ awaiting_intent: boolean }>("/api/settings/connectors/methods/mcp/complete",
+      { returned_url: local.origin + "/api/settings/connectors/methods/mcp/callback?state=" + heldState + "&code=valid-code" });
+    await entered.promise;
+    holdConnectorAuthorizationsForSession(local.home, caller.runtime_session_id!, caller.actor_id, "restart-latest");
+    release.resolve(); assert.equal((await completion).awaiting_intent, true); heldInspection = false;
+    await local.close(); await local.host.close();
+    const payload = { home: local.home, localOrigin: remote.localOrigin, active: active.connectionId, state, pending: pending.authorizationId,
+      held: plan.authorization_id, heldConnection: held.connection_id, origin: callbackOrigin, caller };
+    const child = spawn(process.execPath, ["--import", "tsx", "--test",
+      "--test-name-pattern=^RAC2885 stable pins survive process restart", fileURLToPath(import.meta.url)], {
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
+      env: { ...process.env, MW_T068_RESTART_PROBE: JSON.stringify(payload), MOLIS_WORK_SECRET_BACKEND: "file", MOLIS_WORK_ENCRYPTION_KEY: "" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM"); });
+    const output: Buffer[] = [], error: Buffer[] = [];
+    child.stdout!.on("data", chunk => { output.push(Buffer.from(chunk)); });
+    child.stderr!.on("data", chunk => { error.push(Buffer.from(chunk)); });
+    const [exit] = await once(child, "exit");
+    assert.equal(exit, 0, Buffer.concat(output).toString("utf8") + "\n" + Buffer.concat(error).toString("utf8"));
+    assert.equal(remote.stats().callCount, 0);
+  } finally { release.resolve(); restore(); await remote.close(); }
+});
+
+test("RAC2878 remote configurations and complete MCP method options preserve the frozen original behavior and order", async () => {
+  const temp = home(), restore = controlledConnectorEnvironment();
+  try {
+    const registry = await homeIntegrationRegistry(temp), cards = connectorDirectory(registry);
+    assert.deepEqual(cards.map(row => row.connector_id),
+      ["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail", ...CATALOG_CONNECTORS.map(row => row.id)]);
+    for (const [id, original] of Object.entries(ORIGINAL_MCP_SERVERS)) {
+      const actual = cards.find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
+      assert.deepEqual(cards.find(row => row.connector_id === id)!.method_options!.map(method => method.kind), officialMethodsFor(id).map(method => method.kind), id + " method order");
+      const oldPresentation = officialMethodsFor(id).find(method => method.kind === "mcp")!;
+      const authentication = original.auth === "none" ? "无需鉴权" : original.auth === "oauth" ? "OAuth" : original.auth === "bearer" ? "Bearer" : "OAuth 或 Bearer";
+      assert.deepEqual(actual, { ...oldPresentation, support: "in_app",
+        login_ready: !original.stdio && original.auth !== "none" && !original.endpoint.includes("{") && original.registration !== "manual",
+        mcp: { endpoint: original.endpoint, client_registration: original.registration ?? "dynamic",
+          note: "默认地址的认证方式：" + authentication + "。client_registration 仅描述 OAuth 客户端注册要求；Bearer 令牌在受保护表单填写。" },
+        note: oldPresentation.note.replace(/Molis Work 尚未[^。]*。?/gu, "") + " 在这里授权、发现工具并显式调用；服务商资格和许可仍需满足。" }, id);
+      if (original.stdio) {
+        assert.equal(registry.mcpOwner(id), undefined);
+        continue;
+      }
+      const method = registry.mcpOwner(id)!.method;
+      if (id === "figma") {
+        assert.deepEqual(method, { kind: "mcp", endpoint: "https://mcp.figma.com/mcp", auth: "oauth", registration: "manual" });
+      } else {
+        assert.deepEqual(method, { kind: "mcp", endpoint: original.endpoint, auth: original.auth,
+          ...(original.registration ? { registration: original.registration } : {}),
+          ...(original.tokenScheme ? { token_scheme: original.tokenScheme } : {}),
+          ...(original.endpointPattern ? { endpoint_pattern: { source: original.endpointPattern.source, flags: original.endpointPattern.flags } } : {}) }, id);
+      }
+    }
+  } finally { restore(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("RAC2879 a new Host MCP declaration runs through directory, setup, authorization, tools and Agent without a service table", async t => {
+  const restore = controlledConnectorEnvironment(), local = await openTestHome(t);
+  const remote = await fixture({ publicOrigin: "https://declared-mcp.example.test" });
+  const serviceId = "declared-mcp", definition = declaredMcpPlugin(serviceId, { kind: "mcp", endpoint: remote.endpoint, auth: "none" });
+  const registry = await homeIntegrationRegistry(local.home);
+  routeDeclaredMcp(t, remote, [local.origin]);
+  try {
+    await registry.enable(definition);
+    const source = registry.mcpOwner(serviceId)!;
+    assert.equal(source.state, "running");
+    const card = connectorDirectory(registry).find(row => row.connector_id === serviceId)!;
+    assert.equal(card.method_options?.[0]?.mcp?.endpoint, remote.endpoint);
+    assert.equal(card.method_options?.[0]?.support, "in_app");
+    const caller: ActionCallContext = { actor_id: "assistant:t068", runtime_session_id: "t068-declared", audience: "agent",
+      project_id: null, permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ, "mcp:external"] };
+    const client = local.host.homeActionClient();
+    const prepared = await client.invoke(caller, connectorSetupAction, { service_id: serviceId, method: "mcp", display_name: "New declared service",
+      expected_revision: null, authentication: "none" }) as { authorization_id: string };
+    const connected = await local.web.post<{ connection_id: string }>("/api/settings/connectors/methods/mcp/start",
+      { service_id: serviceId, display_name: "New declared service", setup_id: prepared.authorization_id });
+    const config = withConnectorProtocols(local.home, store => store.get<McpConfiguration>(connected.connection_id))!;
+    assert.equal(config.source?.plugin_id, source.plugin_id);
+    assert.equal(config.source?.install_id, source.install_id);
+    assert.equal(config.source?.publisher_signature, source.publisher_signature);
+    assert.equal(config.source?.endpoint, remote.endpoint);
+    assert.equal(config.source?.mode, "none");
+    assert.equal("sourceGeneration" in config, false, "active connections keep a stable pin, not an old operation generation");
+    assert.equal(remote.stats().callCount, 0);
+    const reference = local.host.connectorMcp!.reference(connected.connection_id, connectorMcpCapabilityId(connected.connection_id, "echo"))!;
+    assert.ok(reference);
+    assert.deepEqual(await client.invoke(caller, reference, { message: "declared and called" }),
+      { content: [{ type: "text", text: "declared and called" }] });
+    const ports = createAgentConnectorPorts(local.home);
+    assert.ok(await ports.resolveMcpConnection(connected.connection_id, remote.endpoint));
+    assert.equal(remote.stats().callCount, 1);
+    await registry.disable(definition.manifest.plugin_id);
+    await registry.enable(definition);
+    const restarted = registry.mcpOwner(serviceId)!;
+    assert.equal(restarted.install_id, source.install_id);
+    assert.notEqual(restarted.installation_generation, source.installation_generation);
+    assert.ok(await ports.resolveMcpConnection(connected.connection_id, remote.endpoint),
+      "the stable connection remains valid for a new operation on the same source");
+  } finally { restore(); await remote.close(); }
+});
+
+test("RAC2881 product MCP clients are read and sent only for the original running identity and original default", async t => {
+  for (const variant of ["original", "other-plugin", "other-publisher", "other-signature", "other-default"] as const) {
+    await t.test(variant, async t => {
+      const temp = home(), originalPlugin = "io.molis.work.integration.huggingface";
+      const endpoint = variant === "other-default" ? "https://changed-mcp.example.test/mcp" : "https://huggingface.co/mcp";
+      const remote = await fixture({ oauth: true, publicOrigin: new URL(endpoint).origin });
+      const destinations = routeDeclaredMcp(t, remote);
+      let clientReads = 0, secretReads = 0;
+      const restore = controlledConnectorEnvironment(key => {
+        if (key === "MOLIS_WORK_CONNECTOR_HUGGINGFACE_MCP_CLIENT_ID") { clientReads++; return "fixture-product-client"; }
+        if (key === "MOLIS_WORK_CONNECTOR_HUGGINGFACE_MCP_CLIENT_SECRET") { secretReads++; return "fixture-product-secret"; }
+        return undefined;
+      });
+      try {
+        const registry = await homeIntegrationRegistry(temp);
+        if (variant !== "original") {
+          await registry.disable(originalPlugin);
+          await registry.enable(declaredMcpPlugin("huggingface", { kind: "mcp", endpoint, auth: "either" }, {
+            pluginId: variant === "other-plugin" ? "io.molis.work.example.claimant" : originalPlugin,
+            publisherId: variant === "other-publisher" ? "io.example.other" : "io.adeptify",
+            signature: variant === "other-signature" ? "different-publisher-signature" : "adeptify-official-signature-v1", version: "9.0.0",
+          }));
+        }
+        const host = createConnectorMcpHost();
+        const started = await host.startMcpConnection(temp, { serviceId: "huggingface", displayName: "Client qualification", origin: callbackOrigin });
+        assert.ok(started.authorizationUrl);
+        const state = remote.authorize(started.authorizationUrl);
+        const connected = await host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+        assert.equal(clientReads, variant === "original" ? 1 : 0, "credential lookup itself must remain behind source qualification");
+        assert.equal(secretReads, variant === "original" ? 1 : 0);
+        assert.equal(remote.stats().authClient, variant === "original" ? "fixture-product-client" : "dynamic-test-client");
+        assert.equal(remote.stats().authClientSecret, variant === "original" ? "fixture-product-secret" : "");
+        const client = connectorProtocolSecrets(temp, connected.connectionId).get("client") ?? "";
+        assert.equal(client.includes("fixture-product-secret"), variant === "original");
+        assert.ok(destinations.length > 0 && destinations.every(url => new URL(url).origin === new URL(endpoint).origin));
+        assert.equal(remote.stats().tokenRequestCount, 1);
+        assert.equal(withConnectorConnections(temp, store => store.list()).length, 1);
+      } finally { restore(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+    });
+  }
+});
+
+test("RAC2882 an authorization cannot commit after source ABA, owner, endpoint, authentication or registration changes", async t => {
+  for (const change of ["reenable", "owner", "endpoint", "auth", "registration"] as const) {
+    await t.test(change, async t => {
+      const temp = home(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+      let paused = false;
+      const remote = await fixture({ oauth: true, publicOrigin: "https://source-race.example.test",
+        beforeToken: async () => { if (paused) { entered.resolve(); await release.promise; } } });
+      routeDeclaredMcp(t, remote);
+      const restore = controlledConnectorEnvironment();
+      const method: PluginMcpMethodDeclaration = { kind: "mcp", endpoint: remote.endpoint, auth: "oauth" };
+      const definition = declaredMcpPlugin("source-race", method), host = createConnectorMcpHost();
+      try {
+        const registry = await homeIntegrationRegistry(temp);
+        await registry.enable(definition);
+        const original = registry.mcpOwner("source-race")!;
+        const started = await host.startMcpConnection(temp, { serviceId: "source-race", displayName: "Race", origin: callbackOrigin });
+        const state = remote.authorize(started.authorizationUrl!);
+        const pending = withConnectorProtocols(temp, store => store.read<McpConfiguration>(state, callbackOrigin)).configuration;
+        paused = true;
+        const completion = host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+        const refusal = assert.rejects(completion, { code: "connector.mcp.configuration" });
+        await entered.promise;
+        await registry.disable(definition.manifest.plugin_id);
+        const changed: PluginMcpMethodDeclaration = { ...method, ...(change === "endpoint" ? { endpoint: remote.endpoint + "/changed" } : {}),
+          ...(change === "auth" ? { auth: "either" as const } : {}), ...(change === "registration" ? { registration: "manual" as const } : {}) };
+        await registry.enable(declaredMcpPlugin("source-race", changed, { pluginId: change === "owner" ? "io.molis.work.example.other-owner" : definition.manifest.plugin_id, version: change === "reenable" ? "1.0.0" : "1.1.0" }));
+        if (change === "reenable") {
+          assert.equal(registry.mcpOwner("source-race")!.install_id, original.install_id);
+          assert.notEqual(registry.mcpOwner("source-race")!.installation_generation, original.installation_generation);
+        }
+        release.resolve(); await refusal;
+        assert.deepEqual(withConnectorConnections(temp, store => store.list()), []);
+        assert.equal(withConnectorProtocols(temp, store => store.get(started.connectionId)), null);
+        for (const name of ["oauth", "access", "expires", "client", "verifier"]) {
+          assert.equal(connectorProtocolSecrets(temp, started.connectionId).get(name), null);
+          assert.equal(connectorProtocolSecrets(temp, pending.sessionId).get(name), null, "late staged credential is cleared");
+        }
+        assert.equal(connectorAuthorizationStatus(temp, started.authorizationId)?.status, "failed");
+        assert.equal(remote.stats().tokenRequestCount, 1);
+        assert.equal(remote.stats().initializationCount, 0);
+        assert.equal(remote.stats().callCount, 0);
+      } finally { release.resolve(); restore(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+    });
+  }
+});
+
+test("RAC2882 a refresh retains its original source generation and cannot overwrite valid credentials after ABA", async t => {
+  const temp = home(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let paused = false, clock = Date.now();
+  const remote = await fixture({ oauth: true, publicOrigin: "https://refresh-source.example.test",
+    beforeToken: async () => { if (paused) { entered.resolve(); await release.promise; } } });
+  routeDeclaredMcp(t, remote);
+  const restore = controlledConnectorEnvironment(), definition = declaredMcpPlugin("refresh-source", { kind: "mcp", endpoint: remote.endpoint, auth: "oauth" });
+  try {
+    const registry = await homeIntegrationRegistry(temp); await registry.enable(definition);
+    const host = createConnectorMcpHost({ now: () => clock });
+    const started = await host.startMcpConnection(temp, { serviceId: "refresh-source", displayName: "Refresh", origin: callbackOrigin });
+    const state = remote.authorize(started.authorizationUrl!);
+    const connected = await host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+    const before = withConnectorConnections(temp, store => store.require(connected.connectionId));
+    const config = withConnectorProtocols(temp, store => store.get(connected.connectionId));
+    const credentials = ["oauth", "access", "expires", "client"].map(name => connectorProtocolSecrets(temp, connected.connectionId).get(name));
+    clock += 3_700_000; paused = true;
+    const operation = host.callMcpConnectionTool(temp, connected.connectionId, "echo", { message: "never dispatched" });
+    const refused = assert.rejects(operation, { code: "connector.mcp.configuration" });
+    await entered.promise;
+    await registry.disable(definition.manifest.plugin_id); await registry.enable(definition);
+    release.resolve(); await refused;
+    assert.deepEqual(withConnectorConnections(temp, store => store.require(connected.connectionId)), before);
+    assert.deepEqual(withConnectorProtocols(temp, store => store.get(connected.connectionId)), config);
+    assert.deepEqual(["oauth", "access", "expires", "client"].map(name => connectorProtocolSecrets(temp, connected.connectionId).get(name)), credentials);
+    assert.equal(remote.stats().tokenRequestCount, 2);
+    assert.equal(remote.stats().callCount, 0);
+  } finally { release.resolve(); restore(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("RAC2882 held MCP results recheck their source at release; an unchanged result commits once", async t => {
+  for (const change of ["unchanged", "reenable", "auth"] as const) {
+    await t.test(change, async t => {
+      const restore = controlledConnectorEnvironment(), local = await openTestHome(t);
+      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+      let waiting = false;
+      const remote = await fixture({ oauth: true, publicOrigin: "https://held-source.example.test",
+        beforeList: async () => { if (waiting) { entered.resolve(); await release.promise; } } });
+      routeDeclaredMcp(t, remote, [local.origin]);
+      const method: PluginMcpMethodDeclaration = { kind: "mcp", endpoint: remote.endpoint, auth: "oauth" };
+      const definition = declaredMcpPlugin("held-source", method);
+      try {
+        const registry = await homeIntegrationRegistry(local.home); await registry.enable(definition);
+        const caller: ActionCallContext = { actor_id: "assistant:t068-held", runtime_session_id: "t068-held", audience: "agent", project_id: null,
+          permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ, "mcp:external"] };
+        const client = local.host.homeActionClient();
+        const plan = await client.invoke(caller, connectorSetupAction, { service_id: "held-source", method: "mcp", display_name: "Held source", expected_revision: null }) as { authorization_id: string };
+        const started = await local.web.post<{ connection_id: string; authorization_url: string }>("/api/settings/connectors/methods/mcp/start",
+          { service_id: "held-source", display_name: "Held source", setup_id: plan.authorization_id });
+        const state = remote.authorize(started.authorization_url);
+        const pending = withConnectorProtocols(local.home, store => store.read<McpConfiguration>(state, local.origin)).configuration;
+        waiting = true;
+        const completion = local.web.post<{ awaiting_intent: boolean }>("/api/settings/connectors/methods/mcp/complete",
+          { returned_url: local.origin + "/api/settings/connectors/methods/mcp/callback?state=" + state + "&code=valid-code" });
+        await entered.promise;
+        holdConnectorAuthorizationsForSession(local.home, caller.runtime_session_id!, caller.actor_id, "t068-latest");
+        release.resolve(); assert.equal((await completion).awaiting_intent, true);
+        assert.equal(connectorAuthorizationStatus(local.home, plan.authorization_id)?.completion_ready, true);
+        assert.deepEqual(withConnectorConnections(local.home, store => store.list()), []);
+        for (const name of ["oauth", "access", "client"]) assert.equal(connectorProtocolSecrets(local.home, pending.sessionId).get(name), null);
+        if (change !== "unchanged") {
+          await registry.disable(definition.manifest.plugin_id);
+          await registry.enable(declaredMcpPlugin("held-source", { ...method, ...(change === "auth" ? { auth: "either" as const } : {}) }, { version: change === "auth" ? "1.1.0" : "1.0.0" }));
+        }
+        const decision = { authorization_id: plan.authorization_id, intent_revision: "t068-latest", decision: "retain" };
+        if (change === "unchanged") {
+          const result = await client.invoke(caller, connectorSetupIntentAction, decision) as { status: string };
+          assert.equal(result.status, "connected");
+          assert.equal(withConnectorConnections(local.home, store => store.list()).length, 1);
+          await assert.rejects(client.invoke(caller, connectorSetupIntentAction, decision));
+          assert.equal(withConnectorConnections(local.home, store => store.list()).length, 1);
+        } else {
+          await assert.rejects(client.invoke(caller, connectorSetupIntentAction, decision), { code: "connector.mcp.configuration" });
+          assert.deepEqual(withConnectorConnections(local.home, store => store.list()), []);
+          assert.equal(withConnectorProtocols(local.home, store => store.get(started.connection_id)), null);
+          for (const name of ["oauth", "access", "expires", "client"]) assert.equal(connectorProtocolSecrets(local.home, started.connection_id).get(name), null);
+          assert.equal(connectorAuthorizationStatus(local.home, plan.authorization_id)?.status, "failed");
+        }
+        assert.equal(connectorAuthorizationStatus(local.home, plan.authorization_id)?.completion_ready, undefined);
+        assert.equal(remote.stats().tokenRequestCount, 1);
+        assert.equal(remote.stats().callCount, 0);
+      } finally { release.resolve(); restore(); await remote.close(); }
+    });
+  }
+});
+
+test("RAC2885 fresh operations reject changed persistent source pins and never guess a missing pin", async t => {
+  for (const change of ["owner", "publisher", "signature", "auth", "registration", "pattern", "missing"] as const) {
+    await t.test(change, async t => {
+      const temp = home(), restore = controlledConnectorEnvironment();
+      const remote = await fixture({ token: "fixture-source-token", publicOrigin: "https://stable-source.example.test" });
+      const destinations = routeDeclaredMcp(t, remote);
+      const method: PluginMcpMethodDeclaration = { kind: "mcp", endpoint: remote.endpoint, auth: "either" };
+      const definition = declaredMcpPlugin("stable-source", method);
+      try {
+        const registry = await homeIntegrationRegistry(temp); await registry.enable(definition);
+        const host = createConnectorMcpHost();
+        const connected = await host.startMcpConnection(temp, { serviceId: "stable-source", displayName: "Pinned",
+          token: "fixture-source-token", origin: callbackOrigin });
+        const config = withConnectorProtocols(temp, store => store.get<McpConfiguration>(connected.connectionId))!;
+        const connection = withConnectorConnections(temp, store => store.require(connected.connectionId));
+        const credential = connectorProtocolSecrets(temp, connected.connectionId).get("access");
+        if (change === "missing") {
+          const { source: _removed, ...withoutPin } = config;
+          withConnectorProtocols(temp, store => store.save(withoutPin));
+        } else {
+          await registry.disable(definition.manifest.plugin_id);
+          const changed: PluginMcpMethodDeclaration = { ...method,
+            ...(change === "auth" ? { auth: "bearer" as const } : {}),
+            ...(change === "registration" ? { registration: "manual" as const } : {}),
+            ...(change === "pattern" ? { endpoint_pattern: { source: "^https://stable-source\\.example\\.test/mcp$", flags: "iu" as const } } : {}) };
+          await registry.enable(declaredMcpPlugin("stable-source", changed, {
+            pluginId: change === "owner" ? "io.molis.work.example.new-source" : definition.manifest.plugin_id,
+            publisherId: change === "publisher" ? "io.example.new-publisher" : definition.manifest.publisher.publisher_id,
+            signature: change === "signature" ? "changed-source-signature" : definition.manifest.publisher.signature, version: "1.1.0",
+          }));
+        }
+        const beforeRequests = destinations.length;
+        let inspections = 0, business = 0;
+        await assert.rejects(host.callMcpConnectionTool(temp, connected.connectionId, "echo", { message: "refused" },
+          { onInspection: () => { inspections++; }, onBusinessDispatch: () => { business++; } }), { code: "connector.mcp.configuration" });
+        await assert.rejects(createAgentConnectorPorts(temp).resolveMcpConnection(connected.connectionId, remote.endpoint));
+        assert.equal(destinations.length, beforeRequests);
+        assert.equal(inspections, 0); assert.equal(business, 0);
+        assert.equal(remote.stats().callCount, 0);
+        assert.deepEqual(withConnectorConnections(temp, store => store.require(connected.connectionId)), connection);
+        assert.equal(connectorProtocolSecrets(temp, connected.connectionId).get("access"), credential);
+      } finally { restore(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+    });
+  }
+});
+
+test("RAC2883 fixed endpoint boundaries preserve Microsoft character classes, Salesforce paths and Supabase read_only", async t => {
+  const restore = controlledConnectorEnvironment();
+  try {
+    await t.test("Microsoft retains 36-character class and iu rather than UUID semantics", async t => {
+      const temp = home(), remote = await fixture({ token: "fixture-tenant-token", publicOrigin: "https://agent365.svc.cloud.microsoft" });
+      const destinations = routeDeclaredMcp(t, remote), host = createConnectorMcpHost();
+      const servers = { outlook: "mcp_MailTools", onedrive: "mcp_OneDriveRemoteServer", sharepoint: "mcp_SharePointRemoteServer", teams: "mcp_TeamsServer" };
+      try {
+        for (const [serviceId, server] of Object.entries(servers)) {
+          const endpoint = ("https://agent365.svc.cloud.microsoft/agents/tenants/" + "-".repeat(36) + "/servers/" + server).toUpperCase();
+          const connected = await host.startMcpConnection(temp, { serviceId, displayName: serviceId, endpoint,
+            token: "fixture-tenant-token", origin: callbackOrigin });
+          assert.equal(connected.tools?.[0]?.name, "echo");
+          const before = destinations.length, rows = withConnectorConnections(temp, store => store.list());
+          for (const invalid of [
+            "https://agent365.svc.cloud.microsoft/agents/tenants/" + "-".repeat(35) + "/servers/" + server,
+            "https://agent365.svc.cloud.microsoft/agents/tenants/" + "g".repeat(36) + "/servers/" + server,
+            "https://agent365.svc.cloud.microsoft/agents/tenants/" + "-".repeat(36) + "/servers/another",
+          ]) await assert.rejects(host.startMcpConnection(temp, { serviceId, displayName: "Invalid", endpoint: invalid,
+            token: "fixture-tenant-token", origin: callbackOrigin }), { code: "connector.mcp.configuration" });
+          assert.equal(destinations.length, before);
+          assert.deepEqual(withConnectorConnections(temp, store => store.list()), rows);
+        }
+      } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+    });
+    await t.test("Salesforce keeps its optional sandbox and serverName class", async t => {
+      const temp = home(), remote = await fixture({ token: "fixture-salesforce-token", publicOrigin: "https://api.salesforce.com" });
+      const destinations = routeDeclaredMcp(t, remote), host = createConnectorMcpHost();
+      try {
+        for (const path of ["/platform/mcp/v1/Server_9-", "/platform/mcp/v1/sandbox/Server_9-"]) {
+          const connected = await host.startMcpConnection(temp, { serviceId: "salesforce", displayName: "Salesforce",
+            endpoint: "https://api.salesforce.com" + path, token: "fixture-salesforce-token", origin: callbackOrigin });
+          assert.ok(connected.tools?.length);
+        }
+        const before = destinations.length;
+        for (const path of ["/platform/mcp/v1/sandbox/a/b", "/PLATFORM/mcp/v1/Server", "/platform/mcp/v1/a.b"]) {
+          await assert.rejects(host.startMcpConnection(temp, { serviceId: "salesforce", displayName: "Invalid",
+            endpoint: "https://api.salesforce.com" + path, token: "fixture-salesforce-token", origin: callbackOrigin }),
+          { code: "connector.mcp.configuration" });
+        }
+        assert.equal(destinations.length, before);
+      } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+    });
+    await t.test("Supabase never drops its fixed read_only query", async t => {
+      const temp = home(), remote = await fixture({ token: "fixture-supabase-token", publicOrigin: "https://mcp.supabase.com" });
+      const destinations = routeDeclaredMcp(t, remote), host = createConnectorMcpHost();
+      try {
+        await host.startMcpConnection(temp, { serviceId: "supabase", displayName: "Read only", token: "fixture-supabase-token", origin: callbackOrigin });
+        assert.ok(destinations.length > 0 && destinations.every(raw => new URL(raw).searchParams.get("read_only") === "true"));
+        const before = destinations.length;
+        await assert.rejects(host.startMcpConnection(temp, { serviceId: "supabase", displayName: "Changed",
+          endpoint: "https://mcp.supabase.com/mcp", token: "fixture-supabase-token", origin: callbackOrigin }), { code: "connector.mcp.configuration" });
+        assert.equal(destinations.length, before);
+      } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+    });
+    await t.test("Notion and unsafe explicit addresses refuse before dispatch or connection writes", async t => {
+      const temp = home(), destinations: string[] = [];
+      t.mock.method(globalThis, "fetch", async input => { destinations.push(String(input)); throw new Error("Unexpected dispatch"); });
+      try {
+        const host = createConnectorMcpHost();
+        for (const endpoint of ["https://example.test/mcp", "https://user@mcp.notion.com/mcp", "https://mcp.notion.com/mcp#token",
+          "https://mcp.notion.com/mcp?access_token=fixture", "http://mcp.notion.com/mcp"]) {
+          await assert.rejects(host.startMcpConnection(temp, { serviceId: "notion", displayName: "Invalid", endpoint, origin: callbackOrigin }),
+            { code: "connector.mcp.configuration" });
+        }
+        for (const endpoint of ["http://127.0.0.1:3846/mcp", "http://127.0.0.1:3845/other", "https://figma.example.test/mcp"]) {
+          await assert.rejects(host.startMcpConnection(temp, { serviceId: "figma", displayName: "Invalid", endpoint, origin: callbackOrigin }),
+            { code: "connector.mcp.configuration" });
+        }
+        assert.deepEqual(destinations, []);
+        assert.deepEqual(withConnectorConnections(temp, store => store.list()), []);
+      } finally { rmSync(temp, { recursive: true, force: true }); }
+    });
+  } finally { restore(); }
+});
+
+test("RAC2883 RAC2884 Figma keeps its local default and explicit HTTPS OAuth/manual without automatic product clients", async t => {
+  for (const mode of ["local", "remote"] as const) await t.test(mode, async t => {
+    const temp = home(), origin = mode === "local" ? "http://127.0.0.1:3845" : "https://mcp.figma.com";
+    const remote = await fixture({ publicOrigin: origin, oauth: mode === "remote" }), destinations = routeDeclaredMcp(t, remote);
+    let reads = 0;
+    const restore = controlledConnectorEnvironment(key => {
+      if (key.startsWith("MOLIS_WORK_CONNECTOR_FIGMA_MCP_")) { reads++; return "fixture-figma-product"; }
+      return undefined;
+    });
+    try {
+      const host = createConnectorMcpHost(), registry = await homeIntegrationRegistry(temp);
+      const option = connectorDirectory(registry).find(row => row.connector_id === "figma")!.method_options!.find(row => row.kind === "mcp")!;
+      assert.equal(option.mcp?.endpoint, "http://127.0.0.1:3845/mcp");
+      assert.equal(option.mcp?.client_registration, "dynamic");
+      assert.equal(option.login_ready, false);
+      if (mode === "local") {
+        const connected = await host.startMcpConnection(temp, { serviceId: "figma", displayName: "Local Figma" });
+        assert.ok(connected.tools?.length);
+        const config = withConnectorProtocols(temp, store => store.get<McpConfiguration>(connected.connectionId))!;
+        assert.equal(config.mode, "none"); assert.equal(config.source, undefined);
+      } else {
+        await assert.rejects(host.startMcpConnection(temp, { serviceId: "figma", displayName: "Remote Figma", endpoint: remote.endpoint, origin: callbackOrigin }),
+          { code: "connector.mcp.configuration", message: /Client ID/ });
+        await assert.rejects(host.startMcpConnection(temp, { serviceId: "figma", displayName: "Remote Figma", endpoint: remote.endpoint,
+          token: "fixture-figma-bearer", origin: callbackOrigin }), { code: "connector.mcp.configuration", message: /不使用 Bearer/ });
+        assert.equal(destinations.length, 0);
+        const started = await host.startMcpConnection(temp, { serviceId: "figma", displayName: "Remote Figma", endpoint: remote.endpoint,
+          clientId: "fixture-personal-figma", origin: callbackOrigin });
+        const state = remote.authorize(started.authorizationUrl!);
+        await host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+        assert.equal(remote.stats().authClient, "fixture-personal-figma");
+      }
+      assert.equal(reads, 0);
+      assert.ok(destinations.length > 0 && destinations.every(raw => new URL(raw).origin === origin));
+    } finally { restore(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+  });
+});
+
+test("RAC2885 Agent source withdrawal after validate blocks cached dispatch, including same-install ABA, while a new connection works", async t => {
+  for (const change of ["disable", "reenable"] as const) await t.test(change, async t => {
+    const temp = home(), remote = await fixture({ oauth: true });
+    const host = createConnectorMcpHost({ testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" } } });
+    let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+    try {
+      const started = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "Agent source tail", origin: callbackOrigin });
+      await host.completeMcpAuthorization(temp, { state: remote.authorize(started.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+      const registry = await homeIntegrationRegistry(temp), source = registry.mcpOwner("notion")!;
+      const ports = createAgentConnectorPorts(temp, host.resolveMcpConnectionToken);
+      adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.t068-agent-source-tail", appVersion: "1.0.0" },
+        reviewQueue: new AgentReviewQueue(), storageRoot: join(temp, "runtime"), modelConfiguration: async () => null,
+        resolveMcpConnection: ports.resolveMcpConnection, resolveCredential: ports.resolveMcpCredential,
+        subscribeMcpConnections: ports.subscribeMcpConnections });
+      const owner = { project_id: "source-tail", plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
+      const saved = await library.save(owner, { expected_version: 0, label: "Cached source tools", transport: "http", enabled: true,
+        timeout_ms: 5000, endpoint: remote.endpoint, auth: { kind: "connection", connection_id: started.connectionId } });
+      await library.control(owner, saved.id, "connect");
+      const tools = (await library.list(owner))[0]!.tools, validate = library.validate.bind(library);
+      let validated = false, withdrawn = false, business = 0;
+      t.mock.method(library, "validate", async (...args: Parameters<typeof validate>) => {
+        const result = await validate(...args);
+        validated = true;
+        return result;
+      });
+      await assert.rejects(library.call!(owner, tools[0]!, { message: "must never reach the server" }, {
+        beforeDispatch: async () => {
+          if (!validated || withdrawn) return;
+          withdrawn = true;
+          await registry.disable(source.plugin_id);
+          if (change === "reenable") await registry.enable(declaredMcpPlugin("notion", source.method, { pluginId: source.plugin_id,
+            publisherId: source.publisher_id, signature: source.publisher_signature, version: "9.0.0" }));
+        },
+        onBusinessDispatch: () => { business++; },
+      }));
+      assert.equal(withdrawn, true, "the real source changes in the awaited hook after production validation");
+      assert.equal(business, 0);
+      assert.equal(remote.stats().callCount, 0, "the cached credential must not send a business request after withdrawal");
+      if (change === "disable") assert.equal(registry.mcpOwner("notion"), undefined);
+      else {
+        const current = registry.mcpOwner("notion")!;
+        assert.equal(current.install_id, source.install_id);
+        assert.notEqual(current.installation_generation, source.installation_generation);
+        const fresh = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "New source connection", origin: callbackOrigin });
+        await host.completeMcpAuthorization(temp, { state: remote.authorize(fresh.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+        const freshServer = await library.save(owner, { expected_version: 0, label: "Fresh source tools", transport: "http", enabled: true,
+          timeout_ms: 5000, endpoint: remote.endpoint, auth: { kind: "connection", connection_id: fresh.connectionId } });
+        await library.control(owner, freshServer.id, "connect");
+        const freshTool = (await library.list(owner)).find(row => row.id === freshServer.id)!.tools[0]!;
+        const outcomes: string[] = [];
+        const result = await library.call!(owner, freshTool, { message: "fresh source succeeds" }, {
+          onBusinessDispatch: () => { business++; }, onBusinessResult: outcome => { outcomes.push(outcome); },
+        });
+        assert.equal(result.text, "fresh source succeeds");
+        assert.equal(remote.stats().callCount, 1);
+        assert.equal(business, 1);
+        assert.deepEqual(outcomes, ["succeeded"]);
+      }
+    } finally { await adapter?.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+  });
+});
+
+test("RAC2885 Agent source withdrawal during an actual in-flight tool never delivers its late result", { timeout: 30_000 }, async () => {
+  const temp = home(), remote = await fixture({ oauth: true, slow: true });
+  const host = createConnectorMcpHost({ testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" } } });
+  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  try {
+    const started = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "In-flight source", origin: callbackOrigin });
+    await host.completeMcpAuthorization(temp, { state: remote.authorize(started.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+    const registry = await homeIntegrationRegistry(temp), source = registry.mcpOwner("notion")!;
+    const ports = createAgentConnectorPorts(temp, host.resolveMcpConnectionToken);
+    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.t068-agent-source-flight", appVersion: "1.0.0" },
+      reviewQueue: new AgentReviewQueue(), storageRoot: join(temp, "runtime"), modelConfiguration: async () => null,
+      resolveMcpConnection: ports.resolveMcpConnection, resolveCredential: ports.resolveMcpCredential,
+      subscribeMcpConnections: ports.subscribeMcpConnections });
+    const owner = { project_id: "source-flight", plugin_id: "io.molis.work.coding" }, library = adapter.mcpLibrary!;
+    const saved = await library.save(owner, { expected_version: 0, label: "In-flight tools", transport: "http", enabled: true,
+      timeout_ms: 5000, endpoint: remote.endpoint, auth: { kind: "connection", connection_id: started.connectionId } });
+    await library.control(owner, saved.id, "connect");
+    const tool = (await library.list(owner))[0]!.tools[0]!, outcomes: string[] = [];
+    let business = 0;
+    const result = library.call!(owner, tool, { message: "late source content must not be delivered" }, {
+      onBusinessDispatch: () => { business++; }, onBusinessResult: outcome => { outcomes.push(outcome); },
+    });
+    const refused = assert.rejects(result);
+    await Promise.race([remote.called, result.then(() => { throw new Error("the tool finished without reaching the controlled server"); })]);
+    assert.equal(business, 1);
+    assert.equal(remote.stats().callCount, 1, "withdrawal happens after the request actually reached the server");
+    await registry.disable(source.plugin_id);
+    remote.releaseCall();
+    await refused;
+    assert.equal(outcomes.includes("succeeded"), false);
+    assert.equal(registry.mcpOwner("notion"), undefined);
+  } finally { remote.releaseCall(); await adapter?.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });

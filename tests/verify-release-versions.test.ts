@@ -222,8 +222,11 @@ test("a plugin-owned database declaration has a listed literal baseline with the
 
 test("only the typed Host connection bridge forwards a plugin declaration; other baseline calls remain checked", () => {
   put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
-  const bridge = "export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: unknown, partition?: { project_id: string }) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }";
+  const bridge = "export function openPluginDatabaseConnection(home: string, declaration: PluginDatabaseDeclaration, partition?: { project_id: string }) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }";
   put("apps/local-host/src/plugin-database.ts", bridge); assert.equal(run().code, 0, run().out);
+  put("apps/local-host/src/plugin-database.ts", bridge.replace("openPluginDatabaseConnection", "openPluginDatabase"));
+  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
+  put("apps/local-host/src/plugin-database.ts", bridge);
   put("apps/alpha/src/bridge.ts", bridge);
   failsWith(run(), "apps/alpha/src/bridge.ts: openBaselineHomeSqlite is called with declaration");
   rmSyncFile("apps/alpha/src/bridge.ts");

@@ -131,11 +131,14 @@ Memory 形成复用登记的 `memory.extract` 与唯一 HostTextGeneration，由
 
 Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalHost 时归该 Host 所有，关闭或重建借用的 Web 传输仍保留连接，最终 Host 关闭才释放。借用时复核 owner/schema，查询不缓存授权或项目事实，关闭等待已有借用。当前 schema 的目录打开不取得初始化写事务，也不执行建表。首次准备遇到 SQLITE_BUSY 延迟重试目录准备，确定性 owner/schema 拒绝不自动重试，关闭取消待重试；不会重新执行失败的业务回调。`/health` 在请求校验后读取服务就绪状态，不通过目录数据库探活。
 
+远程 MCP 配置归集成方法声明，Host 只解释当前 running 来源。连接持久保存稳定来源 pin；pending、held 和每次操作固定安装世代，在网络及 SDK 回调、held 释放和最终同步激活前复核。目录和 setup 不授予部署客户端资格，Agent 缓存同时绑定世代；无 pin 的旧远程连接须重新连接。回归：`tests/connector-mcp.test.ts`（RAC2878–2886）、`tests/integration-registry.test.ts`（RAC2880、RAC2887）。飞书/Lark stdio 与 Figma 本机生命周期留 BL-791。
+
 - 负责：本机唯一的组合根：数据库、Module、横向服务、插件、动作目录、安装器，以及 Web 与 MCP 网关。
 - 不负责：第二个业务协调者，或面向用户的外壳。
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - Home 包读写项目以触发调用的真实项目与该项目设置里的本人同意为准；Host 在预检、目录等待之后、目标效果之前及结果交付时复核安装、当前声明与原 consent_id。撤回再授不能复活旧调用，Home/后台无触发项目仍拒绝；删除项目与卸载从同一 ledger 清理。回归：`tests/home-package-project-reach.test.ts`、`tests/home-package-project-reach.e2e.test.ts`。
   - 签名包的角色资料与方法共用完整 `pluginAgentRegistration`，安装、启停、多项目持有与失败恢复不另写 prompts-only 登记。AgentDefinitions 在原覆盖、history、uses 中保存准确来源；新取材和最后 handoff 检查安装世代、范围、发布者、包版本和用户修订，接受后才记使用。后续撤销不抹掉已接受历史，也不放行新的读取或交付。正文及元数据只作为不可信 JSON 材料，原消费者授权检查保持。
   - 沙箱项目库（S-59）：SQL 只在子进程的 Worker 中运行，子进程控制器独立执行截止时间、进程总 RSS 上限与宿主断线终止；宿主逐句复查授权并固定事务所属进程。`get`/`all` 的字节上限在 Worker 中拒绝，事务外写也拒绝；提交中断保持结果未知。回归：`tests/security-invariants-sandbox-project-database-limits.test.ts`，包括宿主同步写等锁与父宿主被杀的真实进程路径。
   - 页面 JS 交付统一经 `src/served-page-text.ts` 的 esbuild 转换，直接读原程序，压缩空白和等价语法但保留绑定名与文字；不能先剥注释或缩进改变换行返回、模板正文。工作台、能力页与插件脚本走同一路径，转换失败保留原文；回归见 `tests/served-script-text.test.ts`，缓存、locale 与 HEAD 的既有合同保持。
@@ -295,7 +298,7 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 
 受管理 CLI 的包、原生发行物及前置配置都在现有 `CONNECTOR_CLIS` 适配表声明。原生下载按官方校验和固定，只提取指定普通文件；Graph 复用或补装固定 PowerShell，并用官方包管理器将固定认证模块保存在连接自身目录。飞书/Lark 配置向导继续使用该安装，完成后仍需账号登录；X 应用凭据只从受保护表单进入适配声明的环境变量，不进入参数或模型状态。CLI 输出按提交值遮蔽，重新打开原接入页恢复正在进行的交互。回归见 `tests/security-invariants-native-cli.test.ts`、`tests/security-invariants-graph-cli-install.test.ts` 与 `tests/security-invariants-cli-configuration.test.ts`。
 
-`connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。
+`connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。插件连接槽的使用位置由平台报（`connectors.plugin_slot.usages@1`，`connector-plugin-slot-actions.ts`）：按安装的槽各一条，按记录的槽按插件、槽、项目计数，不列记录键；项目里的调用只看到本项目的记录（T-121）。插件显示记录时的账号读写经 `plugin-connection-slots-http.ts` 的记录槽路径（S-71）。回归：`tests/connector-consumer-usages.test.ts`。
 
 MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-actions.ts` 只在动作校验副本中去掉一级基本类型参数上的有效 `x-mcp-header` 传输注释；不改参数约束，不关闭严格 schema 检查，未知关键字、嵌套或无效注释继续使该工具不可调用。HTTP 传输仍按 MCP SDK 实际协商的协议执行；这项处理不表示支持 2026-07-28 的头映射。真实 HTTP 派出与拒绝回归见 `tests/connector-mcp.test.ts` 的 ASC-03/13/31 注释用例。
 

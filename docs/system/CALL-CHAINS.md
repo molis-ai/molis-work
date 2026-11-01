@@ -250,7 +250,7 @@
 
 **现状与缺口**
 
-- 升级只覆盖程序本体；数据库不随升级迁移，版本不符就拒绝。在有真实用户之前，开发用的 Home 由一次性脚本升级或重建（`specs/repository-anti-corruption/spec.md` §4.1）。
+- 升级只覆盖程序本体；数据库不随升级迁移，版本不符就拒绝。开发用 Home 的处置按 [CONTRACT-CHANGES.md 的现行政策](CONTRACT-CHANGES.md#3-阶段一现在不留兼容期)与 [CHECKLIST.md 的干净重建窗口](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)：旧转换已取消，真实 Home 整体搬开与新建仍须用户当次说“开始”，尚未重建。
 - 步骤 8 的 CLI 是第二个进程内宿主，不转发给常驻服务；与「一个 Home 只有一个执行进程」的约束并存，登记在 §10。`demo remove --confirm` 是其中转发的一个：有这个 Home 的常驻 Host 应答时交给它的删除服务（链 2 步骤 7），没有才在自己的进程里删。
 - 插件本身的升级是链 4 的第 10 行。随 Host 带来的 Runtime 内置插件（监督器条目给 `trust: HOST_BUILD_TRUST`）在 Host 启动时把安装记录改成 Host 带来的构建的清单（版本更高、更低或同版本改了内容都一样，不恢复旧发行物），授权与其他插件同一规则：新 Manifest 不再声明的去掉，必需的补上，人关掉的可选权限仍关着，记录自己那个构建没声明的可选权限默认打开（全新安装时可选的都默认打开；[POLICY.md](../releases/POLICY.md) 第 7.8 节）；其余的升级要在插件市场确认（`PluginSupervisor.upgradeCandidates`，它不列内置插件）。
 - `installMolisWorkHome` 不清理旧版本的发行目录；新版本只是另起 `{home}/releases/<版本>` 并改写启动器。

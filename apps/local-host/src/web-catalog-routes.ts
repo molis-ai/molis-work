@@ -9,7 +9,7 @@ import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
-import { handleFunctionsHttp } from "./functions-http.js";
+import { handleFunctionsHttp } from "./judgment-rules-http.js";
 import { handleModelSettingsHttp } from "./web-model-settings.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";

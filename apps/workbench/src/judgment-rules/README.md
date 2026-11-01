@@ -2,7 +2,7 @@
 
 从「能力 → 能力库 → 编辑判断规则」进入 `/capabilities/rules`。定义、样本、试跑和发布继续写入原 Functions 存储，判断不再是可安装的插件。
 
-本目录只拥有界面、浏览器交互、样式与翻译。业务和动作合同在 [modules/functions](../../../../modules/functions/README.md)，HTTP 适配在 [Local Host](../../../local-host/src/functions-http.ts)。草稿操作要求 `functions:manage`，试跑另需 `functions:invoke`，通过同一 Host 动作客户端执行。凭据由服务连接管理，编辑器不保存密钥。
+本目录只拥有界面、浏览器交互、样式与翻译。业务和动作合同在 [modules/judgment-rules](../../../../modules/judgment-rules/README.md)，HTTP 适配在 [Local Host](../../../local-host/src/judgment-rules-http.ts)。草稿操作要求 `functions:manage`，试跑另需 `functions:invoke`，通过同一 Host 动作客户端执行。凭据由服务连接管理，编辑器不保存密钥。
 
 `project` 指定使用场景的项目，`rule` 打开稳定记录 ID；`desktop` 保留桌面外壳。旧 Functions 页面链接和 HTTP 插件前缀仅转到同一系统入口。关闭或删除草稿后清除详情 URL；失效引用展示错误，不假装打开了另一条规则。
 

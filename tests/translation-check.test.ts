@@ -251,6 +251,7 @@ const failsAndStaysFailing = (scenario: Scenario) => {
 };
 for (const scenario of missing) failsAndStaysFailing(scenario);
 
+// RAC-2847 / RA4-05: the existing dictionary selection contract follows the renamed editor directory.
 test("RAC-775 LF(pluginId, text) and a wrapper bound to it are translator calls, the plugin id is not a key", () => {
   const text = "export const BOUND = String.raw`\n  const FL = (text, vars) => LF('io.example.beta', text, vars);\n  document.title = FL('新的') + LF('io.example.beta', '另一个');\n`;\n";
   const found = scanFile("plugins/native/beta/src/bound.ts", text);
@@ -625,14 +626,14 @@ test("this repository: scanning a file twice gives the same facts, and the owner
 test("a missing key says which dictionary its English belongs in", () => {
   const dictionary = (file: string, name: string) => scanFile(file, `export const ${name}: Record<string, string> = { "已有": "Present" };\n`);
   const result = summarise(analyse([
-    dictionary("apps/workbench/src/i18n/en.ts", "EN"), dictionary("apps/workbench/src/i18n/renderer-gap-en.ts", "RENDERER_GAP_EN"), dictionary("apps/workbench/src/functions/en.ts", "FUNCTIONS_EN"),
+    dictionary("apps/workbench/src/i18n/en.ts", "EN"), dictionary("apps/workbench/src/i18n/renderer-gap-en.ts", "RENDERER_GAP_EN"), dictionary("apps/workbench/src/judgment-rules/en.ts", "FUNCTIONS_EN"),
     dictionary("plugins/native/goals/src/status-en.ts", "GOALS_STATUS_EN"), dictionary("plugins/native/goals/src/tree-en.ts", "GOALS_TREE_EN"),
-    scanFile("apps/workbench/src/settings.ts", 'export const a = L("新一");\n'), scanFile("apps/workbench/src/functions/client.ts", 'export const b = L("新二");\n'),
+    scanFile("apps/workbench/src/settings.ts", 'export const a = L("新一");\n'), scanFile("apps/workbench/src/judgment-rules/client.ts", 'export const b = L("新二");\n'),
     scanFile("apps/local-host/src/host.ts", 'export const c = L("新三");\n'), scanFile("plugins/native/goals/src/tree-ui.ts", 'export const d = L("新四");\n'),
   ]));
   const hint = Object.fromEntries(missingErrors(result).map((line: string) => [/no English for "(.+?)"/.exec(line)![1], /add its English to (.+)$/.exec(line)![1]]));
   assert.deepEqual(hint, {
-    "新一": "apps/workbench/src/i18n/renderer-gap-en.ts", "新二": "apps/workbench/src/functions/en.ts",
+    "新一": "apps/workbench/src/i18n/renderer-gap-en.ts", "新二": "apps/workbench/src/judgment-rules/en.ts",
     "新三": "apps/workbench/src/i18n/renderer-gap-en.ts", "新四": "plugins/native/goals/src/tree-en.ts",
   });
 });

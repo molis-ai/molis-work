@@ -9,7 +9,7 @@ import { ActionError, type ActionDefinition, type ActionExecutionContext, type A
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { inspectActionDeclarations, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
-import { FunctionsService } from "@molis-ai/molis-work-module-functions";
+import { FunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /*

@@ -214,9 +214,9 @@ export const FUNCTIONS_EN: Record<string, string> = {
   "选择用途后，再写判断规则。也可以先做一个独立函数。": "Choose where to use the result, then write the rules. You can also start with a standalone function.",
   "限定判断对象（可选）": "Limit judgment subjects (optional)",
   "高级：调用标识": "Advanced: invocation key",
-  // apps/workbench/src/functions/bootstrap.ts
+  // apps/workbench/src/judgment-rules/bootstrap.ts
   "请求失败": "Request failed",
-  // apps/workbench/src/functions/client.ts
+  // apps/workbench/src/judgment-rules/client.ts
   "原用途不可用": "The original purpose is unavailable",
   "请为原用途选择具体版本。": "Choose a specific version for the original purpose.",
   "当前范围未注册原用途，请检查插件状态或重新选择。": "The original purpose isn't registered in this scope. Check the plugin status or choose again.",
@@ -231,9 +231,9 @@ export const FUNCTIONS_EN: Record<string, string> = {
   "当前范围未绑定消费场景，可独立调用。": "No consuming scene is bound in this scope, so it can be called on its own.",
   "未能读取实际使用位置，请重试。": "Couldn't load where this is actually used. Please retry.",
   "配置未保存，请重试。": "The settings weren't saved. Please retry.",
-  // apps/workbench/src/functions/settings-client.ts
+  // apps/workbench/src/judgment-rules/settings-client.ts
   "还未选择账号连接。": "No account connection selected yet.",
-  // apps/workbench/src/functions/settings-ui.ts
+  // apps/workbench/src/judgment-rules/settings-ui.ts
   "TypeSafe 账号连接": "TypeSafe account connection",
   "选择连接": "Choose connection",
   "保存选择": "Save selection",

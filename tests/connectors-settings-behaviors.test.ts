@@ -417,12 +417,12 @@ test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors"
 
 test("Functions and judgment sources do not talk to GitHub", async () => {
   const files = [
-    "modules/functions/src/service.ts",
-    "apps/local-host/src/functions-http/route-handlers.ts",
-    "apps/workbench/src/functions/client.ts",
-    "apps/workbench/src/functions/client-render.ts",
-    "apps/workbench/src/functions/client-records.ts",
-    "apps/workbench/src/functions/client-events.ts",
+    "modules/judgment-rules/src/service.ts",
+    "apps/local-host/src/judgment-rules-http/route-handlers.ts",
+    "apps/workbench/src/judgment-rules/client.ts",
+    "apps/workbench/src/judgment-rules/client-render.ts",
+    "apps/workbench/src/judgment-rules/client-records.ts",
+    "apps/workbench/src/judgment-rules/client-events.ts",
   ];
   for (const relative of files) {
     const source = await readFile(join(ROOT, "..", relative), "utf8");

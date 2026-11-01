@@ -1,8 +1,8 @@
-import { FUNCTIONS_PROVIDER_ID, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, functionContextActions, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
+import { FUNCTIONS_PROVIDER_ID, functionsActionProvider, publishedFunctionProvider, publishedFunctionAction, functionContextActions, type FunctionsActionPorts } from "@molis-ai/molis-work-module-judgment-rules";
 import { sceneConfigurationActions, retainActionAuthority, ActionError, type ActionRegistryPort, type ActionCallContext, type ActionClient, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { actionSceneCompatibilityReason } from "@molis-ai/molis-work-kernel";
-import { functionsConnectionId, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
+import { functionsConnectionId, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
 import { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
 
 type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; projectId?: string };

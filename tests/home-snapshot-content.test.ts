@@ -31,6 +31,10 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
     assert.equal(result.status, "created");
     const manifest: HomeSnapshotManifest = JSON.parse(await readFile(join(f.snapshot, "manifest.json"), "utf8"));
     assert.deepEqual(manifest.stores.map(store => ({ path: store.path, owner: store.owner })), homeStores(f.home).stores.map(store => ({ path: store.path, owner: store.owner })));
+    // RAC-2845 / RA4-03: persistent identity is independent of the implementation directory and registry.
+    const functionsStore = manifest.stores.find(store => store.path === "functions");
+    assert.ok(functionsStore, "the functions Home store is captured");
+    assert.equal(functionsStore.owner, "modules/functions");
     for (const fact of f.facts) {
       const entry = manifest.stores.flatMap(store => store.entries).find(item => item.kind === "file" && item.path === fact.file);
       assert.ok(entry && entry.kind === "file" && entry.sqlite, fact.file + " is backed up by SQLite, not copied raw");

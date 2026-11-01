@@ -27,12 +27,12 @@ import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
-import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-judgment-rules";
 import {
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT, formManifest } from "@molis-ai/molis-work-plugin-form";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/judgment-rules/client.js";
 import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
@@ -353,8 +353,8 @@ test("Host 不再进口 Functions 的库（FunctionsStore）；错误类型来�
   const error = new ContractsError("pages.unavailable", "当前环境不能发出 Artifact");
   assert.equal(error.name, "ActionError");
   const files = [
-    "apps/local-host/src/functions-host.ts",
-    "apps/local-host/src/functions-http.ts",
+    "apps/local-host/src/judgment-rules-host.ts",
+    "apps/local-host/src/judgment-rules-http.ts",
     "apps/local-host/src/web-catalog.ts",
     "apps/local-host/src/web-catalog-routes.ts",
     "apps/local-host/src/web-catalog-settings.ts",

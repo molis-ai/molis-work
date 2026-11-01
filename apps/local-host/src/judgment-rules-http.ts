@@ -1,9 +1,9 @@
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { functionsConnectionStatus } from "./functions-host.js";
+import { functionsConnectionStatus } from "./judgment-rules-host.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { FunctionsHttpRouteTable } from "./functions-http/routes.js";
-import { createFunctionsRouteHandlers } from "./functions-http/route-handlers.js";
-import { functionsErrors } from "@molis-ai/molis-work-module-functions";
+import { FunctionsHttpRouteTable } from "./judgment-rules-http/routes.js";
+import { createFunctionsRouteHandlers } from "./judgment-rules-http/route-handlers.js";
+import { functionsErrors } from "@molis-ai/molis-work-module-judgment-rules";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { bindTypeSafeConnection, unbindTypeSafeConnection } from "./typesafe-connection.js";
 

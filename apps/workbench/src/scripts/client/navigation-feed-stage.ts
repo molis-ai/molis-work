@@ -398,7 +398,6 @@ export const NAVIGATION_FEED_STAGE_PART = `
       feedPresetState[activeFeedPreset] = {
         quick: feedQuickFilter,
         selected: selectedFeedItem,
-        task: selectedFeedTask || "all",
         query: String(feedSearch?.value || ""),
         source: feedSourceFilter?.value || "all",
         type: feedTypeFilter?.value || "all",
@@ -411,7 +410,6 @@ export const NAVIGATION_FEED_STAGE_PART = `
     const restoreFeedPresetState = (preset) => {
       const saved = feedPresetState[preset] || defaultFeedPresetState();
       selectedFeedItem = String(saved.selected || "");
-      selectedFeedTask = String(saved.task || "all");
       feedQuickFilter = ["unread", "saved"].includes(saved.quick) ? saved.quick : "all";
       syncFeedQuickFilter();
       if (feedSearch) feedSearch.value = String(saved.query || "");

@@ -471,7 +471,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       const openGoal = () => {
         if (projectId === here()) { openItem("goals", goalId, goal ? goal.title : ""); if (host.openGoalWork) host.openGoalWork(); return; }
         const url = new URL("/projects/" + encodeURIComponent(projectId) + "/", location.origin);
-        url.searchParams.set("openPlugin", "goals"); url.searchParams.set("openItem", goalId); url.searchParams.set("openGoalView", "work");
+        url.searchParams.set("openPlugin", "goals"); url.searchParams.set("openItem", goalId); url.searchParams.set("openView", "work");
         if (goal) url.searchParams.set("openTitle", goal.title);
         location.assign(url.pathname + url.search);
       };

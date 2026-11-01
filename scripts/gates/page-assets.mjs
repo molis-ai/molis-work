@@ -243,11 +243,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T-399 (RAC-2894–2896): project consent, signed publication/download and the visible installation target.
-  // Reuse existing controls and request/download paths; removing an extra fetch already saved 150 B in the builder.
-  // These are the measured combined increases against T395 ccdb190c: 3,321 B, 2,272 B and 40 B; no new URL.
-  // Reviewed as necessary under decision #17. T395's previous workbench allowance has been spent.
-  "/assets/molis-work-workbench.js": [1153965, 1157286],
+  // T399 + T116 PR2 (RAC-2687), coordinator reviewed against T395: the combined unpublished member set needs +4,673 B
+  // in the workbench (T399 3,321 B + PR2 1,352 B), +2,272 B in the builder and +40 B in its stylesheet; no new URL.
+  // PR2 removes duplicate UI/preset task storage, old source-to-task replay and the separate pane view handlers.
+  // These three allowances remain unconsumed until the combined T399 publication.
+  "/assets/molis-work-workbench.js": [1153965, 1158638],
   "/assets/molis-work-plugins/plugin-builder.js": [118672, 120944],
   "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
 };

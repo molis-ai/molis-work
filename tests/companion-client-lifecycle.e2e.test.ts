@@ -381,7 +381,7 @@ test("T405-GIT-01 a late index decision cannot consume a preparing or pending co
   }); if (!f) return;
   const { page, count, blocked, pending } = f, post = "POST /git/operations";
   await page.evaluate("parentView.hidden=false");
-  await page.wait("!document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
+  await page.wait("document.querySelector('[data-git-branch]').textContent==='main' && !document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
   blocked.add(post);
   await page.evaluate("document.querySelector('[data-git-commit-message]').value='current draft'");
   await page.click("[data-git-commit]"); await until(() => pending.has(post));
@@ -425,7 +425,7 @@ test("T405-GIT-02 a failed or hidden commit-result read preserves its identity a
   }); if (!f) return;
   const { page, count, blocked, pending, aborted } = f, read = "GET /git/operations";
   await page.evaluate("parentView.hidden=false");
-  await page.wait("!document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
+  await page.wait("document.querySelector('[data-git-branch]').textContent==='main' && !document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
   await page.evaluate("document.querySelector('[data-git-commit-message]').value='retained draft'");
   await page.click("[data-git-commit]");
   await page.wait("document.querySelector('[data-git-sc-status]').textContent.includes('宿主审查')");

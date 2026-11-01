@@ -15,7 +15,7 @@ export {
   firstBlockedDescendant, unsatisfiedOutgoingDependencies, goalTreeReferenceLabel, goalTreeReferenceLabels,
 } from "@molis-ai/molis-work-plugin-goals";
 export type { GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
-import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkOnboardingRenderOptions } from "@molis-ai/molis-work-app-workbench";
 
 const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
@@ -67,6 +67,9 @@ export function renderMolisWorkWeb(view: MolisWorkWebView, goalId?: string, arch
 function fragment(surface: string, view: MolisWorkWebView, goalId: string | undefined, selection: "current" | "archive" | "trash"): string {
   return renderer.declaredPageSurface("io.molis.work.goals", surface, view, { collection: view, selection, selected: null }, goalId ? { goal_id: goalId } : {});
 }
-export const renderMolisWorkRefreshFragment = (view: MolisWorkWebView, goalId?: string, archive = false, trash = false) => fragment("board-refresh", view, goalId, trash ? "trash" : archive ? "archive" : "current");
+export const renderMolisWorkRefreshFragment = (view: MolisWorkWebView, goalId?: string, archive = false, trash = false) => {
+  const selection = trash ? "trash" : archive ? "archive" : "current";
+  return renderWorkbenchRefreshDocument({ body_html: fragment("board-refresh", view, goalId, selection), body_attributes: { "data-board-view": selection } });
+};
 export const renderGoalDocumentFragment = (view: MolisWorkWebView, goalId: string, collection: "current" | "archive" | "trash" = "current") => fragment("goal-document", view, goalId, collection) || null;
 export const renderMolisWorkMomentumFragment = (view: MolisWorkWebView, goalId: string, collection: "current" | "archive" = "current") => fragment("board-momentum", view, goalId, collection) || null;

@@ -17,6 +17,11 @@ function renderAttributes(attributes: WorkbenchDocumentRenderRequest['body_attri
     .map(([name, value]) => value === true ? ` ${name}` : ` ${name}="${escapeHtml(String(value))}"`).join('');
 }
 
+/** Host-owned document for fetched content; an absent contribution remains an empty response. */
+export function renderWorkbenchRefreshDocument(request: Pick<WorkbenchDocumentRenderRequest, 'body_html' | 'body_attributes'>): string {
+  return request.body_html === '' ? '' : `<!doctype html><html><body${renderAttributes(request.body_attributes)}>${request.body_html}</body></html>`;
+}
+
 /** Stable document shell, shared by native and installed app surfaces. */
 export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {
   return `${request.preamble_html ?? ''}<!doctype html>

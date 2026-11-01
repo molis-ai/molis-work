@@ -31,6 +31,7 @@ export {
   renderWorkbenchDocument,
   WORKBENCH_UI_SLOTS,
 } from "./ui-composition.js";
+export { renderWorkbenchRefreshDocument } from "./document-shell.js";
 export type { ProjectSettingsFoldId } from "./project-settings-folds.js";
 export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRenderer } from "./renderer.js";
 export { renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";

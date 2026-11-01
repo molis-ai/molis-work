@@ -3,7 +3,7 @@ import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
-import { renderCharacters, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderCharacters, renderWorkbenchRefreshDocument, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { renderGoalsReadRequest, renderGoalsPageRequest, type GoalsStageData } from "@molis-ai/molis-work-plugin-goals/page";
 import { matchPageRoute } from "./page-routes.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
@@ -131,8 +131,11 @@ export function createLocalGoalsReadHttp(ports: {
       const view = await readWebView();
       return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
     }, ({ view, selected }) => ({
-      refresh: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData,
-        goalId ? { goal_id: goalId } : {}),
+      refresh: (goalId, collection) => renderWorkbenchRefreshDocument({
+        body_html: declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData,
+          goalId ? { goal_id: goalId } : {}),
+        body_attributes: { "data-board-view": collection },
+      }),
       momentum: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, view, { collection: view, selection: collection, selected: null } satisfies GoalsStageData, { goal_id: goalId }) || null,
       document: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData, { goal_id: goalId }) || null,
     }));

@@ -4,11 +4,30 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
+import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
+import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { openTestHome } from "./fixtures/test-home.js";
 
 test("RAC-2682 Goals owns the canvas markup and the shell has no Goals renderer import", () => {
   const shell = readFileSync(new URL("../apps/workbench/src/shell-page-renderer.ts", import.meta.url), "utf8");
   assert.doesNotMatch(shell, /goal-canvas-shell|buildGoalCollectionModel|molis-work-plugin-goals/u);
+});
+
+test("RAC-2682 the declared Goals refresh surface returns content without document tags", () => {
+  const view = JSON.parse(readFileSync(new URL("./fixtures/goals-page-golden/view.json", import.meta.url), "utf8")) as MolisWorkWebView;
+  const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+  for (const [selection, goalId] of [["current", "V1"], ["archive", "GRAPH"], ["trash", "AUTO-CONNECT"]] as const) {
+    const html = renderer.declaredPageSurface("io.molis.work.goals", "board-refresh", view,
+      { collection: view, selection, selected: null }, { goal_id: goalId });
+    assert.doesNotMatch(html, /<(?:!doctype\b|\/?(?:html|head|body)\b)/iu);
+    assert.match(html, /^\n    <div data-refresh-tree-chrome/u);
+    assert.match(html, /<section data-document-pane><section data-work-surface="goals">/u);
+    assert.match(html, new RegExp('data-goal-view="' + goalId + '"', "u"));
+    assert.match(html, /<dialog[^>]+data-create-dialog/u);
+    assert.match(html, /<script id="molis-work-data" type="application\/json">/u);
+    assert.match(html, /\n  $/u);
+  }
 });
 
 test("RAC-2682 the declared stage action reads the real project collection and selected document without writes", async t => {

@@ -54,6 +54,8 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 
 可从[本地 Plugin 示例](../../examples/plugin-sample/README.md)开始：示例使用 context.services 存取私人状态、发布 Artifact 并注册 UI，完整授权和开发步骤见开发指南。
 
+签名 app 包的原始清单使用 `parsePluginPackageManifest` 校验；验签后由 `sandboxAgentDeclarations` 唯一派生纯文字角色与空工具方法，启动时用 `assertSandboxAgentDefinition` 核对同一限制。`sandboxAgentBodyIdentity` 保留完整 plugin/kind/name 身份；派生数字版本不代替签名包的完整版本。包内正文格式与上限见[插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。这些文字只作为有来源的不可信材料，不授予执行权限。
+
 ## 富文本子路径 `/rich-text`
 
 `@molis-ai/molis-work-plugin-sdk/rich-text` 的 `renderRichText`、`richPlainText` 要用 Markdown 解析器和 HTML 消毒器。SDK 把这两个包写成可选 peer 依赖，不替你装：用这个子路径的插件在自己的 `package.json` 里加 `marked@^18.0.11` 和 `sanitize-html@^2.17.7`（范围与 SDK 的 `peerDependencies` 相同；TypeScript 项目另加开发依赖 `@types/sanitize-html`）。没加就导入 `/rich-text`，加载时会报找不到模块；SDK 根入口和 `/highlight` 不加载这两个包，不用装。工作台和 Coding 声明的就是这两个范围，`tests/plugin-sdk-subpaths.test.ts` 核对 README、peer 范围与仓库里每个导入 `/rich-text` 的包一致。

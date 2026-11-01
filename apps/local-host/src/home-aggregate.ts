@@ -105,7 +105,9 @@ export async function collectHomeAggregate<Output>(ports: HomeAggregatePorts, ou
       return catalogIssue ? { answers: result.answers, issues: [catalogIssue, ...result.issues] } : result;
     } catch (error) {
       signal?.throwIfAborted();
-      return { answers: [], issues: closing(error) ? [] : [{ project_id, source: null, code: codeOf(error) }] };
+      return { answers: [], issues: closing(error) ? [] : [
+        ...(catalogIssue ? [catalogIssue] : []), { project_id, source: null, code: codeOf(error) },
+      ] };
     }
   }));
   return { answers: projects.flatMap(result => result.answers), issues: projects.flatMap(result => result.issues) };

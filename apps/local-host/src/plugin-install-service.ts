@@ -7,7 +7,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
@@ -63,6 +63,7 @@ export interface PluginInstallPreviewResult {
    * Only an integration package's: the exact origins its requests with the person's account may reach, per service it declared them for
    * (S-95, BL-691). They are part of the signed package, so they stay what the person saw: another set comes only with another package and its own preview.
    */
+  agent_bodies?: Array<{ kind: 'role' | 'method'; name: string; excerpt: string; change?: 'added' | 'changed' | 'removed' }>;
   origins?: Array<{ service_id: string; title: string; origins: string[] }>;
 }
 
@@ -114,9 +115,19 @@ export class PluginInstallService {
     assertNotHostId(manifest.plugin_id);
     for (const [id, entry] of this.held) if (entry.expires <= Date.now()) this.held.delete(id);
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value as string);
+    const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
+    const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');
+    const old = current ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged?.agentBodies ?? [] : undefined;
+    const bodies = 'agentBodies' in pkg ? pkg.agentBodies : [];
+    const previewBody = (body: SandboxAgentBody, change?: 'added' | 'changed' | 'removed') => ({ kind: body.kind, name: body.name, excerpt: Array.from(body.body).slice(0, 200).join(''), ...(change ? { change } : {}) });
+    const agent_bodies = bodies.map(body => {
+      const previous = old?.find(item => item.kind === body.kind && item.entry_id === body.entry_id);
+      return previewBody(body, old === undefined ? undefined : !previous ? 'added' : previous.body !== body.body ? 'changed' : undefined);
+    });
+    for (const body of old ?? []) if (!bodies.some(item => item.kind === body.kind && item.entry_id === body.entry_id)) agent_bodies.push(previewBody(body, 'removed'));
     const preview_id = randomUUID();
     this.held.set(preview_id, { bundle, pkg, runtime_scope, key_id, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: Date.now() + PREVIEW_TTL_MS });
-    return { preview_id, name: manifest.name, runtime_scope, effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
+    return { preview_id, name: manifest.name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
         permissions: permissionViews(manifest), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
@@ -153,17 +164,14 @@ export class PluginInstallService {
     await this.assertIntegrationsFree(held.pkg.manifest);
     const pin = this.pinOf(held.key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
-    // In a project, a package of a plugin already installed there is its upgrade, and only its own publisher's: another publisher's is refused
-    // before it can be pinned or kept, in a project or the Home. A Home package looks at the Home's installations of signed packages (an id of
-    // the Host's own plugins was refused at the preview), a project's at the project's. The Home does not upgrade a package in place (S-80,
-    // BL-628): its own publisher's is refused here too, before it is kept, with the code the Home's install answers.
+    // Each scope checks its own installations. Only the installed publisher can upgrade a signed package; another publisher is refused
+    // before it can be pinned or kept. An id belonging to the Host's own plugins was already refused at preview.
     const inHome = held.runtime_scope === 'home';
     const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
     const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
     if (present && present.record.publisher_signature !== held.key_id) {
       throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
     }
-    if (present && inHome) throw pluginErrors.state_invalid('这个插件已经装在 Home 里。Home 里的签名包不就地升级：先卸载（可保留数据），再装新包');
     // The two refusals the install makes after the package is kept, asked here instead: an id on the dotted path of another publisher's installed
     // plugin (the Runtime's, S-75), and a package of the plugin's own publisher that is not its upgrade (the install lifecycle's, BL-623).
     assertIdPathFree(held.pkg.manifest.plugin_id, held.key_id, entries);

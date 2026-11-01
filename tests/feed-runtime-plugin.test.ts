@@ -45,7 +45,7 @@ const RULES = [...WRITE, "attention:write", "judgments:write"];
  * provided by a plugin of its own, so the project instance asks it through the action directory as it will ask the real one.
  */
 async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void;
-  breakWrites(count: number): void; unmark(): void; pauseAfterWrite(pause: () => Promise<void>): void }> {
+  breakWrites(count: number): void; pauseAfterWrite(pause: () => Promise<void>): void }> {
   const db = new Database(join(home, "ledger.db"));
   db.exec(FEED_HOME_DATABASE.schema);
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
@@ -68,7 +68,6 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
   // The collector deletes from this Home's evidence store, as the platform's does (`runWithMolisWorkHome`), never from the process's default Home.
   const evidence = runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
   const ledger = createFeedContentLedger(store, { collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)) });
-  await ledger.markComplete(async () => {}, new Date().toISOString());
   const permissions = ["feed:read", "feed:write", "evidence:collect"].map(permission => ({ permission, required: true, reason: "The reference ledger" }));
   const actions = Object.values(feedContentLedgerActions);
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
@@ -76,7 +75,7 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
   async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
   return { definition, close: () => db.close(), forget: () => { db.exec("DELETE FROM feed_content_holds"); }, breakWrites: count => { broken = count; },
-    unmark: () => { db.exec("DELETE FROM feed_content_meta"); }, pauseAfterWrite: pause => { paused = pause; },
+    pauseAfterWrite: pause => { paused = pause; },
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
@@ -160,7 +159,7 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   // The bodies the platform keeps are this fixture Home's, sealed with its own key; never the Home the test process would resolve to by default.
   const bodies = () => runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
   return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(),
-    breakLedger: (count = 1) => homeHalf?.breakWrites(count), unmarkLedger: () => homeHalf?.unmark(), pauseLedger: (pause: () => Promise<void>) => homeHalf!.pauseAfterWrite(pause),
+    breakLedger: (count = 1) => homeHalf?.breakWrites(count), pauseLedger: (pause: () => Promise<void>) => homeHalf!.pauseAfterWrite(pause),
     clock: () => scheduleServiceFor(store.db), installId, bodies, goalsAsked, calls };
 }
 
@@ -423,7 +422,7 @@ test("RAC-518 deleting a source that keeps its local history keeps its items, it
 
 // FI-C-06 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger is another service's write, so a deletion releases before it commits.
 // A release that fails commits nothing: the source, its rows and with them its references and operation ids stay, and deleting it again
-// finishes and records the deletion once. A ledger without the completeness mark is no failure: the source goes and its bodies stay.
+// finishes and records the deletion once.
 test("FI-C-06 a deletion the Home's ledger fails keeps the source and what it holds; deleting again finishes and records the deletion once", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-06-key" });
@@ -448,17 +447,6 @@ test("FI-C-06 a deletion the Home's ledger fails keeps the source and what it ho
   for (const ref of refs) assert.ok(!bodies.has(ref), "a body nobody else holds is gone");
   assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [1, 1], "the deletion is recorded once");
 
-  const unmarked = await syncing(t);
-  await unmarked.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: unmarked.sourceId, idempotency_key: "fi-c-06-unmarked" });
-  const held = unmarked.holds(), heldBodies = unmarked.bodies();
-  unmarked.unmarkLedger();
-  await unmarked.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: unmarked.sourceId, history_decision: "delete_local_history" });
-  assert.equal(unmarked.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", unmarked.sourceId), 0, "the source and its rows go");
-  assert.deepEqual(unmarked.holds(), held, "a ledger that cannot say nobody holds a body keeps every hold");
-  for (const hold of held) assert.ok(heldBodies.has(hold.content_ref), "and every body");
-  const released = unmarked.store.db.prepare(`SELECT payload_json AS payload FROM events WHERE object_id = ? AND type = '${FEED_PLUGIN_ID}:feed_source.history_released'`).all(unmarked.sourceId) as Array<{ payload: string }>;
-  assert.equal(released.length, 1);
-  assert.equal((JSON.parse(released[0]!.payload) as { complete: boolean }).complete, false, "the record says the history was kept, not that it is gone");
 });
 
 /** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */
@@ -1322,20 +1310,19 @@ test("RAC-518 a Runtime Feed names every body its library keeps in the Home's le
 });
 
 // FI-C-07 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger may not answer when the instance starts (it starts on its own, maybe
-// later); the job tries again rather than leave the library's bodies unnamed, and a ledger without its completeness mark still keeps them.
-test("FI-C-07 a start the Home's ledger first refuses still names the library's bodies, and a ledger without its mark keeps every one", async t => {
+// later); the job tries again rather than leave the library's bodies unnamed.
+test("FI-C-07 a start the Home's ledger first refuses still names the library's bodies", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-07-key" });
   const held = f.holds().map(hold => hold.content_ref).sort(), bodies = f.bodies();
   assert.equal(held.length, 2);
   f.forgetHolds();
-  f.unmarkLedger();
   await f.running.runtime.stop(f.installId());
   f.breakLedger(1);
   await f.running.runtime.start(f.installId());
   await until(() => f.holds().length === held.length, "the ledger holds the library's bodies after it first refused");
   assert.deepEqual(f.holds().map(hold => hold.content_ref).sort(), held);
-  for (const ref of held) assert.ok(bodies.has(ref), "no body went while the ledger could not tell who holds it");
+  for (const ref of held) assert.ok(bodies.has(ref), "no body went: the library still holds them");
 });
 
 // FI-C-05 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a pull checks its source again as the first statement of

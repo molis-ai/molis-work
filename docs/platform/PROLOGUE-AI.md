@@ -720,3 +720,8 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 - Anthropic，[Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)（2025-09-29）：上下文是有限的资源，要找能完整定义期望行为的最小一组高价值信息；系统 prompt 在「写死的脆弱逻辑」与「空泛的高层指引」之间找合适的高度；示例用少量多样的典型例子，不列边界情况清单；用引用按需取用信息；长任务用压缩、结构化笔记和子代理。对应本手册 12.4、13.1、13.3。
 - Anthropic，[Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)（2024-12-19，页面自己注明其中提到的工具已有变化）：先找最简单的方案，只在能证明结果更好时增加复杂度；workflow 是预先写好代码路径的编排，agent 由模型自己决定过程和工具；给模型的工具接口值得像人机界面一样用心设计，改参数让错误难犯。对应 12.3、13.4。文中的具体 API 与产品现状不照搬。
 - OpenAI，[Harness engineering](https://openai.com/index/harness-engineering/)：需求书于 2026-10-15 核对并引用，取「仓库知识要可发现、给 Agent 能看见结果的反馈环境、不把全部知识堆成一大段常驻指令」这一层意思。2026-10-16 再核对时页面要求人机验证，未能读到原文，本手册不在需求书之外引申。对应 17 节的入口做法与第 16 节。
+
+
+### 签名包的角色资料与方法
+
+签名 app 包的文字声明与 Native AgentManifest 不同，见 [插件开发手册](PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。助理的 `assistant.methods.read@2` 接收目录中的精确版本和安装引用，角色与方法以 `kind` 区分；签名正文、名字、用途都属于不可信 JSON 数据，不进入角色指令或 inlineMethods，也不扩展工具与目录授权。可编辑角色的来源引用与用户 revision 在原 AgentDefinitions 覆盖/history/uses 中保存；使用以有效 handoff 回执为界。取材后、每次新交付前复核来源与当前用户修订；有效历史不会因随后停用被改写。补充材料预算不足时明确拒绝整次发送，不能截坏正文或来源 JSON。

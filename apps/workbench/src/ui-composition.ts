@@ -55,6 +55,15 @@ export function renderWorkbenchContribution(contributionId: string, surface: str
   return workbenchUiHost.mountDeclared({ contribution_id: contributionId, surface, model }).html;
 }
 
+/**
+ * The mount one plugin's page is given (T-116, `GoalsPagePorts.mount`): its own contributions only. Another plugin's contribution id is
+ * refused by the host with `ui_host.plugin_denied`, so a page cannot draw a surface another plugin owns through the port it was handed.
+ * `host` is the workbench's own unless a test gives another.
+ */
+export function mountContributionsOf(pluginId: string, host: UiHost = workbenchUiHost): (contributionId: string, surface: string, model: unknown) => string {
+  return (contributionId, surface, model) => host.mountDeclared({ contribution_id: contributionId, surface, model }, pluginId).html;
+}
+
 export function renderFeedContribution(
   surface: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel>["surface"],
   model: FeedUiModel | PersistedFeedDetailModel,

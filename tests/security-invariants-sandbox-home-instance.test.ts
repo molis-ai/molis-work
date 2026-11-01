@@ -8,9 +8,9 @@ import { LOCAL_PERSON_ACTOR_ID, actionReachesAudience, type ActionCallContext } 
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { HOST_BUILD_TRUST, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
-import { HomeConsentLedger, SandboxPackageStore, readSandboxPackage, type HomePluginHost } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, SandboxPackageStore, readSandboxPackage, pluginInstallActions, type HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
-import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, refused, valuesOf } from "./fixtures/home-sandbox.js";
+import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, refused, valuesOf } from "./fixtures/home-sandbox.js";
 
 // BL-628 (S-80, S-84, S-91): what the Home's instance of a signed package does NOT take. Each case asserts the refusal itself and what
 // it left behind (nothing: no installation, no kept approval, no offered action); the positive cases are in home-installed-plugins.test.ts.
@@ -122,7 +122,7 @@ test("RAC-966 RAC-967 S-91 a Home package's capability calls are the Home's: a r
   assert.equal(h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.state, "running", "the other package is untouched");
 });
 
-test("RAC-1500 RAC-1501 RAC-1504 RAC-1683 S-84 a package of a plugin installed in the Home is refused at the confirmation, another publisher's and its own publisher's newer one: no pin, no kept package, and the installation stays as it was", mac, async t => {
+test("RAC-1500 RAC-1501 RAC-1504 RAC-1683 RAC-2616 S-84 another publisher is refused without writes; its own compatible Home upgrade preserves the installation", mac, async t => {
   const h = await fixture(t), a = newPublisher(), b = newPublisher(), c = newPublisher();
   await h.install(homePackage(a));
   await h.install(homePackage(c, { pluginId: SECOND_PLUGIN_ID }));
@@ -137,15 +137,13 @@ test("RAC-1500 RAC-1501 RAC-1504 RAC-1683 S-84 a package of a plugin installed i
   const installation = held();
   // Each confirmation is compared with what was written just before it, and all of them in one assertion, so a failure shows each.
   const results: Record<string, { code: string | undefined; unchanged: boolean }> = {};
-  for (const [rac, bundle] of [["RAC-1500 b, not pinned yet", homePackage(b, { version: "2.0.0" })], ["RAC-1501 c, pinned", homePackage(c, { version: "2.0.0" })],
-    ["RAC-1683 a, its own newer version", homePackage(a, { version: "1.1.0" })]] as const) {
+  for (const [rac, bundle] of [["RAC-1500 b, not pinned yet", homePackage(b, { version: "2.0.0" })], ["RAC-1501 c, pinned", homePackage(c, { version: "2.0.0" })]] as const) {
     const before = await written();
     const outcome = await h.install(bundle).then(() => ({ code: "installed" }), (caught: { code?: string }) => caught);
     results[rac] = { code: outcome.code, unchanged: isDeepStrictEqual(await written(), before) };
   }
   const refusedUntouched = { code: "plugin.definition_conflict", unchanged: true };
-  assert.deepEqual(results, { "RAC-1500 b, not pinned yet": refusedUntouched, "RAC-1501 c, pinned": refusedUntouched,
-    "RAC-1683 a, its own newer version": { code: "plugin.state_invalid", unchanged: true } }, "refused, with no publisher pinned and no package kept");
+  assert.deepEqual(results, { "RAC-1500 b, not pinned yet": refusedUntouched, "RAC-1501 c, pinned": refusedUntouched }, "refused, with no publisher pinned and no package kept");
 
   // RAC-1504: the installation that holds the id is the one it was, with its data and its actions.
   assert.deepEqual(held(), installation);
@@ -154,6 +152,16 @@ test("RAC-1500 RAC-1501 RAC-1504 RAC-1683 S-84 a package of a plugin installed i
   const views = await operationsOf(h.homeClient(), h.homeCaller());
   assert.deepEqual(await operate(h.homeClient(), h.homeCaller(), views, "notes.list", {}), [{ id: "1", text: "kept" }]);
   assert.equal(await operate(h.homeClient(), h.homeCaller(), views, "notes.add", { text: "still" }), true);
+  const next = signedPackage(a, (files, manifest) => {
+    manifest.runtime = { scope: "home" }; manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
+    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!);
+    contract.operations.find((operation: { id: string }) => operation.id === "notes.add").effects.storage = ["read", "write"];
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+  }, { version: "1.1.0" });
+  await h.install(next);
+  assert.equal(held().install_id, installation.install_id, "RAC-1683 own publisher upgrades the same installation");
+  assert.equal(held().version, "1.1.0");
+  assert.deepEqual(await operate(h.homeClient(), h.homeCaller(), await operationsOf(h.homeClient(), h.homeCaller()), "notes.list", {}), [{ id: "1", text: "kept" }, { id: "2", text: "still" }]);
 });
 
 test("RAC-1840 S-75 S-84 another publisher's package whose plugin id is on the dotted path of a plugin installed in the Home is refused at the confirmation with plugin.id_namespace_conflict: no pin, no kept package, and the installation stays as it was", mac, async t => {
@@ -170,4 +178,32 @@ test("RAC-1840 S-75 S-84 another publisher's package whose plugin id is on the d
   assert.deepEqual(results, { "below the installed id": refusedUntouched, "above the installed id": refusedUntouched }, "refused, with no publisher pinned and no package kept");
   const installation = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID);
   assert.deepEqual([installation?.version, installation?.state], ["1.0.0", "running"], "the installation that holds the path is as it was");
+});
+
+
+test("RAC-2618 both Home-to-project and project-to-Home scope changes refuse preview and stale confirmation without writes", mac, async t => {
+  for (const originalScope of ["home", "project"] as const) {
+    const h = await fixture(t), publisher = newPublisher();
+    const bundle = (scope: "home" | "project", version: string) => signedPackage(publisher, (_files, manifest) => {
+      if (scope === "home") manifest.runtime = { scope };
+      if (version !== "1.0.0") manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
+    }, { version });
+    const client = h.projectClient(), other = bundle(originalScope === "home" ? "project" : "home", "1.1.0");
+    const waiting = await client.invoke(person(), ref(pluginInstallActions.preview), { bundle: other }) as { preview_id: string };
+    await h.install(bundle(originalScope, "1.0.0"));
+    const snapshot = async () => {
+      const project = new DatabaseSync(join(h.home, "project.sqlite"), { readOnly: true });
+      try { return {
+        home: h.store(db => ({ installs: db.prepare("SELECT * FROM plugin_runtime_installs").all(), values: db.prepare("SELECT * FROM plugin_private_values").all() })),
+        project: project.prepare("SELECT * FROM plugin_runtime_installs").all(), pins: h.ledger.publishers(),
+        packages: (await readdir(join(h.home, "plugin-packages"))).sort(),
+        homeActions: (await operationsOf(h.homeClient(), h.homeCaller())).map(view => view.capability_id),
+        projectActions: (await operationsOf(client, h.projectCaller())).map(view => view.capability_id),
+      }; } finally { project.close(); }
+    };
+    const before = await snapshot();
+    await assert.rejects(client.invoke(person(), ref(pluginInstallActions.preview), { bundle: other }), refused("plugin.declaration_invalid"));
+    await assert.rejects(client.invoke(person(), ref(pluginInstallActions.confirm), { preview_id: waiting.preview_id, consent: true }), refused("plugin.preview_unknown"));
+    assert.deepEqual(await snapshot(), before, originalScope + " keeps its sole installation, approval, package and actions");
+  }
 });

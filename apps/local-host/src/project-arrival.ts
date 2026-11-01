@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { resolveConfiguredHome } from "./product-home.js";
 
 /**
@@ -91,7 +92,7 @@ export function descriptionFromSummary(summary: string): string | null {
       .replace(/\s+/gu, " ").trim())
     .find(part => part.length > 0);
   if (!paragraph) return null;
-  return paragraph.length > MAX_DESCRIPTION ? `${paragraph.slice(0, MAX_DESCRIPTION - 1).replace(/[\uD800-\uDBFF]$/u, "").trimEnd()}…` : paragraph;
+  return paragraph.length > MAX_DESCRIPTION ? `${cutHead(paragraph, MAX_DESCRIPTION - 1).trimEnd()}…` : paragraph;
 }
 
 /** The sentence that introduces a project, kept when its summary is accepted. Best effort, like the rest. */
@@ -99,7 +100,7 @@ export function setProjectDescription(homeDirectory: string | undefined, project
   try {
     const state = readProjectArrival(homeDirectory);
     const previous = state.projects[projectId];
-    state.projects[projectId] = { last_opened_at: previous?.last_opened_at ?? null, description: description?.trim() ? description.trim().slice(0, MAX_DESCRIPTION).replace(/[\uD800-\uDBFF]$/u, "") : null };
+    state.projects[projectId] = { last_opened_at: previous?.last_opened_at ?? null, description: description?.trim() ? cutHead(description.trim(), MAX_DESCRIPTION) : null };
     write(homeDirectory, state);
   } catch {
     // Presentation memory only.

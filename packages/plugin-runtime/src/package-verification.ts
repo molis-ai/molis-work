@@ -1,6 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash, createPublicKey, type KeyObject, verify } from "node:crypto";
-import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 
@@ -35,7 +35,7 @@ export function parsePluginPackage(input: unknown): PluginPackageBundle {
   const bundle = object(input);
   const payload = object(bundle.payload);
   if (payload.schema_version !== 1 || !Array.isArray(payload.files)) invalid("不支持的 Plugin package schema");
-  const manifest = parsePluginManifest(payload.manifest);
+  const manifest = parsePluginPackageManifest(payload.manifest);
   const paths = new Set<string>();
   const files = payload.files.map(value => {
     const file = object(value);

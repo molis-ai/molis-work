@@ -141,16 +141,16 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 
 ## 3. BL-711 Home 包就地升级（T-141）
 
-### 现状
+### 当前实现与验收边界
 
-- 项目里的签名包已经就地升级：`installed-plugin-host.ts` 第 207 行传的是 `lifecycle(recordFor(...) ? 'upgrade' : 'install', ...)`（BL-623）。
-- Home 有两处拒绝，都答 `plugin.state_invalid`（「先卸载（可保留数据），再装新包」）：确认处 `plugin-install-service.ts` 第 164 行，宿主 `home-installed-plugins.ts` 第 178 行。
-- 回滚在两个范围都被拒：`apps/local-host/src/installed-plugin-lifecycle.ts` 第 152 行。
-- 钉住这些拒绝的用例：
-  - RAC-1505～1507：`tests/home-installed-plugins.test.ts` 第 155～199 行；
-  - RAC-1683：`tests/security-invariants-sandbox-home-instance.test.ts` 第 125～157 行；
-  - 来自 T-055、T-155、T-175。
-- 设置页的预览只拿当前项目的列表比对版本（`apps/workbench/src/settings-plugins.ts` 第 191～192 行的 `current.find(...)`），装 Home 包时不和 Home 行比。
+T-141 已完成隔离 Home 中的本地实现与作者验收，独立原件核验及生产差异二审已通过；最终配套门禁、准确头 CI Full 与采用待结。BL-916、PG-011 的其它余项不随本片关闭。
+
+本轮主线同步：2026-11-01 统筹指定已采用 main `be0c777002509b6eb4e2c2187eb3a5765a5440f6`（含 T392 私有路径迁移与 T146 设置样式减重）作为 T141 当前普通合流基点，保留原实现及 `e8aa2a8ed1027150d828cbd0fb0206789412b30f` 的 RAC-959／RAC-2606 断言修复。匹配构建、实际资源与普通门禁按此组合记录，已有行为证据按实际输入核抵；新头 CI Full 与采用仍由统筹结算。
+
+- Home 与项目的签名包共用 `installed-plugin-lifecycle.ts` 的升级路径；`plugin-install-service.ts` 在保存前检查发布者、命名空间、范围、严格递增版本和兼容声明，`home-installed-plugins.ts` 按真实安装记录选择 install/upgrade。安装身份及数据保留，批准、密钥与提示词随版本更新；失败补偿恢复旧状态，禁用安装升级后仍禁用。
+- 集成声明在 `integration-registry.ts` 的原队列内先完整检查冲突，再同步替换；来源旧回执的提供方检查保留到同一调用的后续平台写入，升级或停用后连失败记账也拒绝。较新的启用不被旧目录查询失败停用。真实签名 source、Runtime Feed、重启与失败恢复由 `tests/sandbox-integration-home.test.ts`、`tests/integration-registry.test.ts` 验证。
+- `settings-plugins.ts` 按 preview 的范围比对 Home 或项目列表，初装与升级均以文本显示服务名、ID 和精确 origins。`tests/plugin-trust-home-upgrade.e2e.test.ts` 通过真实 File、预览、取消与确认核对版本、声明及持久事实；局部 view 与受控密钥输入证据分别陈述。
+- RAC-1505～1507、RAC-1682/1683 改为断言可升级及原拒绝边界；同版、降版、缺兼容、另发布者、双向范围更换仍拒绝。Home 与项目的用户主动 rollback 仍拒绝（D1），与失败后的内部补偿分开。
 
 ### 做完是什么
 
@@ -390,22 +390,28 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
   - 正文是包里的资源文件（包格式的文件名单多一个目录，例如 `agent/`，每条一个文件），Manifest 的块只用包内相对路径引用它；这与合同「正文在包里，不在 Manifest」一致，也不算 D6 被拒的「另加单独的声明文件」，不用再问用户；
   - 条数与字数上限照 `prompts.json` 的口径（至多 64 条、每条 8000 字），在开发单里定；路径必须在包内、不许越界。
 - **`agent` 与 `methods` 两块都只收 `{ name, purpose, body }`**（三审建议 L，统筹采纳）：`body` 是包内资源文件的相对路径。它们是简化形状，**不是** `AgentManifest` 的子集，所以包里写不了任何带权限的字段：`execution`、`host_tools`、`subagents`、`mcp`、`characters`、`text_sources`、`directory_input_port`（`agent` 一侧），`tools`（`AgentSkillDeclaration.tools`，`plugin-agent.ts` 第 126～132 行，`methods` 一侧），多出名字、用途、正文引用以外的任何键都以明确的错误码拒绝，这就是 D5 的「不加权限」。
-- **宿主怎样派生合同里的形状**：读包时先把这两块取出来，各自校验（路径、条数、字数），由宿主派生成 `AgentManifest` 的 `roles`、`prompts` 与 `skills`；`role_id`、`skill_id` 由 `plugin_id` 加名字派生，`version` 取包的版本，`name` 取包给的名字，`summary` 取用途，`workspace` 固定为 `none`（纯推理角色，不需要授权目录，`plugin-agent.ts` 第 39～41 行），`tools` 固定为空数组，`host_tools`、`execution` 等一律不写；派生的 `agent`、`methods` 放进 `sandboxPluginManifest` 重建，再整份过 `parsePluginManifest`，最后与包里的清单比较（第 1 节）。这样一个只读、不带工具的角色是否还有用，T-144 开工第一步核，没用就只许 `methods`，回统筹。
-- 安装预览逐条列出名字与正文前 N 字（N 在开发单里定）。`plugins.install.preview` 升到 `@4`，加顶层可选字段（第 1 节）。
+- **宿主派生的形状与真实用法**：`agent`、`methods` 各收 `{ name, purpose, body }` 的可选数组，合计至多 64 条；`body` 引用包内资源，正文至多 8000 个 UTF-16 单元。宿主派生角色的 `roles`、`prompts` 与顶层 `methods`，不复制到 `agent.skills`、`agent_skills`；`workspace` 固定为 `none`，顶层方法 `tools` 固定为空数组，`host_tools`、`execution` 等一律不写。角色资料和方法都以有来源材料供消费者选择、读取，UI 区分两种 kind；携带角色正文不获得 Agent 执行入口、不增加 `agent:run`、目录、MCP 或子 Agent 权限。角色不能只登记而没有实际取材路径。
+- **正文的精确版本**：完整包 SemVer 复用 `AgentDefinitionSource.plugin_version`，与发布者签名身份、`plugin_id`、kind、条目 id 组成默认正文引用，不另建版本字段或版本计数器。派生 Agent 声明里的数字 1 仅为该投影内部占位，不改变公共 Agent 数字版本含义；签名正文的精确读取、覆盖默认更新提示、历史和采用记录均认完整来源引用。角色 prompt 沿用现有人的覆盖，实际正文标 `effective` 与 `user_revision`，不把人的改文称为发布者签名原文；顶层方法不新增编辑功能。
+- **派生 id 与校验**：同一 SDK 函数以 `plugin_id`、kind、完整 name 的确定编码做完整 SHA-256，保留原名称作显示，既不截短名称也不截短摘要；不同 plugin/kind 的同名不得混用。对外引用必须满足现有 200 长度的消费合同，名字与用途按 UTF-16 单元限 80/300。原 wire Manifest 与签名文件保持原样验证，完整运行 Manifest 由宿主派生后校验，两种形状不直接作整份相等比较。
+- **既有集成包拒绝合同保持**：`readSandboxIntegrationPackage` 的首次清单解析在现有 `validated('清单', …)` 内完成，非法声明仍以 `plugin.declaration_invalid` 拒绝；不重复解析，不改变包内清单一致性、固定形状检查或返回对象（RAC-893）。
+- **登记与恢复**：旧 prompts.json 指令、新角色和顶层方法由同一个完整 registration 组装函数提供，执行器及 Home/项目安装启停回调使用同一安装 scope，回调不能再以仅 prompts 的登记覆盖它。覆盖/history/uses 的签名默认来源引用由既有 AgentDefinitions owner 持久保存；重启继续使用当前来源和人的有效修订，不另建正文目录或身份账本。
+- 安装预览逐条列出 kind、名字与正文前 200 个 Unicode 码点；`plugins.install.preview` 升到 `@4`，加顶层可选 `agent_bodies`。升级按全文比较并标新增、变化、移除，不能因开头相同漏报正文变化。
 - 正文按提示注入面处理，对照 `docs/system/SECURITY-INVARIANTS.md` 里提示注入的几行：
-  - 只作数据进别的 Agent 的上下文，带来源标记（哪个插件、哪个版本、哪个发布者）；
+  - 名字、用途、目录摘要和正文都只作带固定不可信声明的 JSON 数据进入消费者上下文，保留真实插件、完整版本、发布者及有效用户修订，不进入系统提示或工具定义；
   - 不升级权限：Agent 用这段正文时，调用的仍是它自己被授权的动作；
-  - 升级后正文换了，预览里要能看出来。
+  - 读取按当前工作范围关联实际安装/世代与签名来源，旧引用失效就拒绝，不悄悄换最新正文；send 到实际 handoff、运行中 input deliver、按需工具读取的最后副作用检查各复核本次来源；失效后不新增正文交付或采用成功记录；
+  - 已有效交付的资料保留为该轮历史，不声称能从模型撤回，不因源插件撤销新增跨插件整轮取消；新读取、新注入再核当前来源；
+  - 升级后正文换了，预览里要能看出来；项目升级按已有链验证，Home 就地升级不借用未采纳的 T-141。
 - 删掉 NOT_GIVEN 的 `agent` 一行。
 - 可检验：
-  - RAC-2636：名单内的 `agent`、`methods`（`{ name, purpose, body }`）能装，宿主派生出合同形状（不是拒绝）；
+  - RAC-2636：名单内的 `agent`、`methods` 能装且可实际取材，混合旧 prompts.json 的包在全部安装/启停回调、重启及失败恢复后仍保有完整登记；最大长度中文/代理对名称能列出、选择和读取，同名跨 kind/plugin 不混用（不是拒绝）；
   - RAC-2637：名单外的键**每个一例**被拒：`agent` 一侧的 `execution`、`host_tools`、`subagents`、`mcp`、`characters`、`text_sources`、`directory_input_port`，`methods` 一侧的 `tools`；
   - RAC-2638：正文引用不是包内相对路径（绝对路径、`..`、缺文件）被拒；
   - RAC-2639：超过条数或字数上限的包被拒；
   - RAC-2640：预览列出每一条的名字与正文开头（不是拒绝）；
-  - RAC-2641：正文进上下文时带来源标记（不是拒绝）；
-  - RAC-2642：正文里写「调用某某动作」不会让 Agent 多一项授权（断言拒绝）；
-  - RAC-2643：包升级后正文换了，预览里能看出来（不是拒绝）。
+  - RAC-2641：显式选择和按需读取的实际模型输入都有完整签名来源，角色人的覆盖带 effective/user_revision，名字、用途与正文均在数据中，伪标记不能逃出字符串（不是拒绝）；
+  - RAC-2642：正文要求未授权动作/目录访问仍被代码拒绝；已读正文但尚未实际 handoff、input deliver 和工具最后检查时取消/停用/撤销/换安装，均不交付迟到正文、不记无效采用或执行副作用；有效交付后的历史保留，不新增整轮取消；
+  - RAC-2643：包升级后包括第 200 字以后的变化也可在预览辨认；确认前仍旧正文，失败恢复不泄漏新正文；完整包版本 1.1.0→1.2.0 的角色覆盖/history/default_updated/reset/uses 经重启保持准确，旧引用不自动换版（不是拒绝）。
 
 ### 选项与推荐（正文怎样给，D5 定①）
 

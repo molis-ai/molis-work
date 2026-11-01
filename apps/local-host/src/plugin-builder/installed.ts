@@ -10,7 +10,7 @@ import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-a
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { sandboxPluginManifest, sandboxUiContribution } from '../sandbox-plugin-manifest.js';
 import { releaseInstructions } from './prompts.js';
-import { releaseVersion } from '../installed-release.js';
+import { releaseVersion, type InstalledRelease } from '../installed-release.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
@@ -29,19 +29,24 @@ export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' |
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]>;
+export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]>;
     /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
     assertLive?(identity: Readonly<SandboxIdentity>): void } = {},
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
   const manifest = declared ?? generatedPluginManifest(release, compatibleFrom), uiId = sandboxUiContribution(release.pluginId);
-  const instructions = declared?.kind === 'app' && declared.runtime?.scope === 'home' ? releaseInstructions(release, [release]) : undefined;
+  const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
   return {
     manifest,
     ...(instructions ? { instructions } : {}),
+    ...(release.packaged?.agentBodies ? {
+      agent_prompt_names: Object.fromEntries(release.packaged.agentBodies.filter(item => item.kind === 'role').map(item => [item.prompt_id!, { title: item.name, purpose: item.purpose }])),
+      agent_prompts: release.packaged.agentBodies.filter(item => item.kind === 'role').map(item => ({ prompt_id: item.prompt_id!, version: 1, layer: 'role' as const, body: item.body })),
+      methods: release.packaged.agentBodies.filter(item => item.kind === 'method').map(item => ({ skill_id: item.entry_id, version: 1, name: item.name, summary: item.purpose, tools: [], body: item.body })),
+    } : {}),
     // Host provenance: Plugin Runtime then requires explicit grants and rolls back code without rolling back data.
     execution: 'sandbox',
     async start(context) {

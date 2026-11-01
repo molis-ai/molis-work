@@ -100,7 +100,7 @@
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3265
+      "size": 3270
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -236,6 +236,11 @@
       "kind": "cohesive-unit",
       "reason": "把一份设计答卷展开成插件的文件与验收用例：对零件、表单、读写操作和浏览器验收逐个生成，是一条代码生成流水线（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
       "size": 225
+    },
+    "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
+      "kind": "cohesive-unit",
+      "reason": "同一 AgentDefinitions 数据主人的声明登记、用户覆盖、history 和 uses 共用同一份来源引用及 SQLite 事务；新增的是精确读取与已接受使用的两个既有职责，拆分会分散同一状态和记录，不新增第二份业务账。",
+      "size": { "lines": 257, "methods": 26 }
     }
   }
 }

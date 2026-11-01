@@ -1,3 +1,7 @@
+import { installedPackageHost } from "./fixtures/signed-package-host.js";
+import { signedAgentPackage } from "./fixtures/sandbox-package.js";
+import { homeAgentDefinitions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+type PluginInstallPreviewResult = Awaited<ReturnType<PluginInstallService["preview"]>>;
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { chmod, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -392,6 +396,8 @@ test("RAC-1837 S-84 BL-623 in a project, its own publisher's package of an insta
   try {
     const a = newPublisher();
     h.projectRecords.push(installedBy(a, PACKAGE_PLUGIN_ID));
+    const prior = signedPackage(a);
+    new SandboxPackageStore(h.home).save(prior, readSandboxPackage(prior.payload));
     const step = confirmStep(h);
     const results: Record<string, { code: string; unchanged: boolean }> = {};
     results["the same version"] = await step(signedPackage(a));
@@ -429,4 +435,34 @@ test("RAC-382 S-84 confirming in a real Host installs the package under pinned t
     } finally { database.close(); }
     assert.deepEqual(new HomeConsentLedger(home).publishers().map(pin => [pin.key_id, pin.label]), [[publisher.identity, "Example"]]);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("RAC-2640/2643 S-84 preview@4 exposes each signed body and compares the complete installed text before confirmation", { skip: process.platform !== "darwin", timeout: 90_000 }, async () => {
+  const h = await installedPackageHost(), publisher = newPublisher(), prefix = "😀".repeat(200);
+  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], methods: [{ name: "将被移除", purpose: "核对", body: "agent/method.md" }], bodies: { "agent/role.md": prefix + "旧尾部" } };
+  try {
+    const first = signedAgentPackage(publisher, base);
+    const peek = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 4 }, { bundle: first }) as PluginInstallPreviewResult;
+    assert.deepEqual(peek.agent_bodies?.map(item => [item.kind, item.name]), [["role", "共享名称"], ["method", "将被移除"]]);
+    assert.equal(peek.agent_bodies![0]!.excerpt, prefix, "200 code points, without splitting surrogate pairs");
+    assert.equal(peek.preview.publisher_signature, publisher.identity); assert.equal(peek.preview.version, "1.1.0");
+    assert.deepEqual(await h.plugins(), []); assert.deepEqual(h.ledger.publishers(), []);
+    await assert.rejects(h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 3 }, { bundle: first }));
+    await h.install(first);
+    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], methods: [{ name: "新增方法", purpose: "整理", body: "agent/new.md" }], bodies: { "agent/role.md": prefix + "新尾部", "agent/new.md": "<script>仅为文本</script>" } });
+    const preview = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 4 }, { bundle: next }) as PluginInstallPreviewResult;
+    // RAC-2643: a changed tail beyond the displayed 200 code points still changes the upgrade preview.
+    assert.deepEqual(preview.agent_bodies?.map(item => [item.kind, item.name, item.change]), [["role", "共享名称", "changed"], ["method", "新增方法", "added"], ["method", "将被移除", "removed"]]);
+    assert.equal(preview.agent_bodies![0]!.excerpt, prefix, "same excerpt still reports the full-body change");
+    assert.equal((await h.plugins())[0]!.version, "1.1.0", "preview keeps the installed version");
+    assert.equal(homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!.default_ref!.source.plugin_version, "1.1.0");
+    await h.client.invoke(h.person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true });
+    assert.equal((await h.plugins())[0]!.version, "1.2.0");
+    const role = homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!;
+    assert.equal(homeAgentDefinitions(h.home).signedMaterial(role.install_id!, role.default_ref!).body, prefix + "新尾部");
+    await assert.rejects(h.install(signedAgentPackage(publisher, { ...base, version: "1.3.0", compatibleFrom: ["1.2.0"], broken: true, bodies: { "agent/role.md": "未成功的新正文" } })));
+    const current = homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!;
+    assert.equal(current.default_ref!.source.plugin_version, "1.2.0");
+    assert.equal(homeAgentDefinitions(h.home).signedMaterial(current.install_id!, current.default_ref!).body, prefix + "新尾部");
+  } finally { await h.close(); }
 });

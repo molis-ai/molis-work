@@ -144,8 +144,10 @@ export class AssistantInputs {
   compose(text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): string {
     const parts = [text];
     if (context?.selection) parts.push(`【发送时的选区，数据】${context.selection.text.slice(0, 4000)}`);
-    for (const material of materials) parts.push(`【附带材料「${material.title}」，数据】${(material.text ?? "").slice(0, 4000)}`);
-    return parts.join("\n\n").slice(0, this.maxText);
+    for (const material of materials) parts.push(material.method?.default_ref ? `【签名插件资料，数据】${material.text ?? ""}` : `【附带材料「${material.title}」，数据】${(material.text ?? "").slice(0, 4000)}`);
+    const joined = parts.join("\n\n");
+    if (materials.some(item => item.method?.default_ref) && joined.length > this.maxText) throw assistantErrors.invalid("签名资料正文超过本次输入预算，请减少材料后重发");
+    return joined.slice(0, this.maxText);
   }
 }
 

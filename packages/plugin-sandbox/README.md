@@ -175,6 +175,7 @@ answers and validates every resulting address; it does not change production def
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 沙箱不自带能力：宿主必须显式提供授予与已连接的服务，异步中介调用必须被等待。
+  - 签名包的角色资料与方法只接受 SDK 从已验签三字段声明派生的无权限形状；`assertSandboxAgentDefinition` 在启动时拒绝完整 AgentManifest、非空工具和 Agent skills。文字作为其他 Agent 的不可信材料，不能借此调用 `agents.run`。原服务授权与生命周期检查保持。
   - 服务经 broker 进沙箱是安装信任，不是另一套权限（S-60，PG-017）：沙箱拿到的是宿主按 Manifest 与授权为这次激活建出来的同一份服务，操作声明的效果 ∩ 人批准的授权在 broker 查，宿主服务自己的检查（Manifest 权限、授权、实例是否还在跑、动作作用域、原调用者）照旧；沙箱不给的服务，Manifest 或定义一声明，启动就被拒（`sandbox.service_not_given`），`NOT_GIVEN` 表里每一行在给它的那一片里删掉。宿主的每一项服务在 `SANDBOX_SERVICE_FATE` 里都有决定（新增服务不写决定编译不过），宿主认的权限名在 local-host 的 `HOST_SERVICE_PERMISSIONS` 一处，`tests/security-invariants-sandbox-services.test.ts` 的完整性测试要求每个名字要么被给、要么被一行拒绝。
   - 查询操作不能声明存储、成果或项目库的写入，也不能发事件。
   - 本机页面与原文件（S-65）：地址只当数据交给宿主、答复只有抽出的文字；原文件只有插件自己起的键，一段至多 256 KiB，每段是一次完整的宿主读取，版本在段间带回去；两种效果都不能出现在查询里。

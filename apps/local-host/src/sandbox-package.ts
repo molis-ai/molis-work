@@ -6,14 +6,15 @@
  */
 import { Buffer } from 'node:buffer';
 import { isDeepStrictEqual } from 'node:util';
-import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type SandboxAgentBody, type SandboxPackageManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
-import { parsePluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { parsePluginManifest, parsePluginPackageManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
+import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
 import { sandboxIntegrationManifest, sandboxPluginManifest } from './sandbox-plugin-manifest.js';
 
 /** The longest plugin code the Host takes, as the studio's own publish does. */
@@ -31,6 +32,7 @@ export interface SandboxPackage {
   readonly presentation?: PluginPresentation;
   readonly acceptance: unknown[];
   readonly prompts: SandboxPackagePrompt[];
+  readonly agentBodies: SandboxAgentBody[];
   /** The plugin's code, as the package ships it. */
   readonly entrypoint: Uint8Array;
   /** What the contract's operations ask for in all: the person approves exactly this at install. */
@@ -69,13 +71,17 @@ function promptsOf(value: unknown): SandboxPackagePrompt[] {
 }
 
 export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackage {
-  const wanted = Object.values(SANDBOX_PACKAGE_FILES) as string[];
+  const wire = validated('manifest', () => parsePluginPackageManifest(payload.manifest));
+  if (wire.kind !== 'app' || (wire.agent !== undefined && !Array.isArray(wire.agent))) refuse('文字正文只用于 app 包');
+  const manifest = wire as SandboxPackageManifest;
+  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...(manifest.agent ?? []).map(item => item.body), ...(manifest.methods ?? []).map(item => item.body)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
+  if (files.size !== payload.files.length) refuse('包内文件路径重复');
   for (const path of files.keys()) if (!wanted.includes(path)) refuse('包里有格式之外的文件：' + path);
   const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
   if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
 
-  const { manifest } = payload;
+
   if (!isDeepStrictEqual(jsonFile(files, SANDBOX_PACKAGE_FILES.manifest), JSON.parse(JSON.stringify(manifest)))) refuse('manifest.json 与包的清单不一致');
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
@@ -100,14 +106,18 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   // The Manifest of a sandbox plugin has one shape; what the package may choose is who it is, its version, its name, what it upgrades from, where it runs,
   // and the icon of its page, a name of the platform's set. This reads the Manifest itself (the install path has, but this is exported and takes any payload),
   // so a name outside the set is refused here and `icon` below is one of the set.
-  validated('清单', () => parsePluginManifest(manifest));
+  const agentBodies = readSandboxAgentBodies(manifest, files);
   const named = manifest.ui.views?.[0]?.icon;
   const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
     presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, runtime: manifest.runtime, effects: permissions,
-    ...(icon ? { icon } : {}) });
-  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
-  return { manifest, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
+    ...(icon ? { icon } : {}), textDeclarations: manifest });
+  const { agent: wireAgent, methods: wireMethods, ...fixed } = manifest;
+  const { agent: projectedAgent, methods: projectedMethods, ...expectedFixed } = expected;
+  void wireAgent; void wireMethods; void projectedAgent; void projectedMethods;
+  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(fixed)), JSON.parse(JSON.stringify(expectedFixed)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
+  validated('清单', () => parsePluginManifest(expected));
+  return { manifest: expected, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }
 
 /** A package the Host keeps and runs: an app's (`readSandboxPackage`) or an integration's (`readSandboxIntegrationPackage`), by its Manifest's kind. */
@@ -140,9 +150,8 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
   if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
 
-  const { manifest } = payload;
+  const manifest = validated('清单', () => parsePluginManifest(payload.manifest));
   if (!isDeepStrictEqual(jsonFile(files, SANDBOX_PACKAGE_FILES.manifest), JSON.parse(JSON.stringify(manifest)))) refuse('manifest.json 与包的清单不一致');
-  validated('清单', () => parsePluginManifest(manifest));
   const services = manifest.connection_services ?? [], integrations = manifest.integrations ?? [];
   if (!integrations.length) refuse('集成包要在清单里声明 integrations');
   // One source and its one service: the registry binds a source to the plugin, so a package of two could not tell them apart.

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { AgentDefinitionRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { agentDeclarationsFor, agentDefinitionsFor, agentRegistration, declaredMethods } from "./agent-definitions/agent-definitions.js";
@@ -23,8 +23,7 @@ let hostOwners: ReadonlySet<string> | undefined;
  * (`PluginDefinition.instructions`), so the person sees and edits them in “Prompt 与 Character” like every other, and the methods
  * its Manifest declares with their bodies (`PluginDefinition.methods`), so other Agents use them as they use a built-in Plugin's
  * (decision #18, W4-02). Only on a platform that reaches a Home. A sandboxed package registers its instructions the same way
- * (PG-017 P1, V-20: they exist for `services.model`, and a model request names one of them); its roles, Agent prompts, skills and methods are
- * not given to it (`SANDBOX_NOT_GIVEN` refuses them when it starts, before this runs), because a method's body goes into another Agent's round.
+ * (PG-017 P1, V-20). Signed text-only roles and methods are data for another Agent, never execution authority.
  * Returns what withdraws them, once.
  *
  * The register shows an installation's newest running version, whole: one that starts while another project still runs an earlier
@@ -41,7 +40,7 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
   if (!home) return undefined;
   const instructions = definition.instructions ?? [], bodies = definition.methods ?? [], agent = definition.manifest.agent;
   const carries = instructions.length > 0 || bodies.length > 0 || agent !== undefined;
-  const { plugin_id: owner, version, name } = definition.manifest;
+  const { plugin_id: owner, version } = definition.manifest;
   for (const item of instructions) {
     if (item.owner_id !== owner) throw new Error(`插件 ${owner} 登记的指令 ${item.prompt_id} 属于 ${item.owner_id}：一个插件只能登记自己的指令`);
   }
@@ -58,14 +57,8 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
   const replaces = !holder || comparePluginVersions(version, holder.version) > 0;
   let current: Holder = holder ? { ...holder, held: holder.held + 1 } : { held: 1, version, registration: null };
   if (replaces) {
-    let registration: AgentDefinitionRegistration | null = null;
-    if (carries) {
-      const { methods, notes } = declaredMethods(definition.manifest.methods ?? [], bodies);
-      const source = { kind: "plugin" as const, plugin_id: owner, plugin_version: version, title: name, state: "enabled" as const };
-      const declared = agent ? agentRegistration(owner, source, agent, definition.agent_prompts ?? []) : { prompts: [], roles: [] };
-      registration = { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(item => ({ prompt_id: item.prompt_id, version: item.version,
-        kind: "instruction" as const, title: item.title, purpose: item.purpose, used_by: [...item.used_by], body: item.body }))], roles: declared.roles,
-        ...(methods.length ? { methods } : {}), ...(notes.length ? { notes } : {}) };
+    const registration = pluginAgentRegistration(definition);
+    if (registration) {
       registry.register(registration, installId);
       declarations.remember(installId, registration);
     } else {
@@ -91,6 +84,45 @@ export function registerPluginAgentDefinitions(home: PluginPlatformHome | null |
     registry.register(notRunning(now.registration), installId);
     declarations.remember(installId, now.registration);
   };
+}
+
+/** The one complete projection used by the executor and installed lifecycle callbacks. */
+export function pluginAgentRegistration(definition: PluginDefinition, source: AgentDefinitionSource = pluginDefinitionSource(definition)): AgentDefinitionRegistration | null {
+  const { plugin_id: owner, agent } = definition.manifest;
+  const instructions = definition.instructions ?? [], bodies = definition.methods ?? [];
+  if (!agent && !instructions.length && !bodies.length) return null;
+  for (const item of instructions) if (item.owner_id !== owner) throw new Error(`插件 ${owner} 不能登记别人的指令`);
+  const { methods, notes } = declaredMethods(definition.manifest.methods ?? [], bodies);
+  const declared = agent ? agentRegistration(owner, source, agent, definition.agent_prompts ?? [], { prompts: definition.agent_prompt_names }) : { prompts: [], roles: [] };
+  if (source.kind === "plugin" && source.publisher_signature) {
+    const signedSource = { kind: "plugin" as const, plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature };
+    for (const role of declared.roles) for (const id of role.prompt_ids) {
+      const prompt = declared.prompts.find(item => item.prompt_id === id);
+      if (prompt) { prompt.default_ref = { source: signedSource, kind: "role", entry_id: role.role_id }; role.purpose = prompt.purpose; }
+    }
+  }
+  return { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(item => ({ prompt_id: item.prompt_id, version: item.version,
+    kind: "instruction" as const, title: item.title, purpose: item.purpose, used_by: [...item.used_by], body: item.body }))], roles: declared.roles,
+    ...(methods.length ? { methods } : {}), ...(notes.length ? { notes } : {}) };
+}
+
+/** Provenance comes from the verified definition, never from body text or a consumer's request. */
+function pluginDefinitionSource(definition: PluginDefinition): AgentDefinitionSource {
+  const { plugin_id, version, name, publisher } = definition.manifest;
+  return { kind: "plugin", plugin_id, plugin_version: version, title: name, state: "enabled",
+    ...(definition.execution === "sandbox" && publisher.signature.startsWith("ed25519:sha256:") ? { publisher_signature: publisher.signature } : {}) };
+}
+
+/** Lifecycle refreshes do not acquire another running instance. Only a verified rollback may replace a newer holder. */
+export function updatePluginAgentDefinitions(home: PluginPlatformHome, definition: PluginDefinition, installId: string, state: "enabled" | "disabled", restored = false): void {
+  const { plugin_id: owner, version } = definition.manifest, ownerKey = `${path.resolve(home.directory)}\0${owner}`;
+  const holder = holders.get(ownerKey)?.get(installId);
+  if (holder && comparePluginVersions(version, holder.version) < 0 && !restored) return;
+  const registration = pluginAgentRegistration(definition), registry = agentDefinitionsFor(home.directory, builtinRegistrations), declarations = agentDeclarationsFor(home.directory);
+  if (holder) { holder.version = version; holder.registration = registration; }
+  if (!registration) { registry.unregister(owner, installId); declarations.forgetOwner(installId, owner); return; }
+  registry.register(state === "disabled" && !holder?.held ? notRunning(registration) : registration, installId);
+  declarations.remember(installId, registration);
 }
 
 /** An uninstalled installation's declarations leave the register and the Home (PG-051 Q1 b), unless it still runs somewhere. */

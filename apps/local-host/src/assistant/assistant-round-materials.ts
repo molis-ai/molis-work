@@ -1,3 +1,4 @@
+import { signedMethodData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-work-reads.js";
 import type { AgentDocumentCapability, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
@@ -134,9 +135,14 @@ export class AssistantRoundMaterials {
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
-    const listed = methods.filter(method => !chosen.has(method.method_id)).slice(0, 20);
-    if (listed.length) out.push(...chunked({ ...base, title: "可用的方法" }, "methods", [`插件提供的做事方法，这里只列出名称和摘要。方法的步骤经 read-capability 读取：capability_id 为 assistant.methods.read，version 为 1，provider_id 为 ${ASSISTANT_RULES_PROVIDER}，input 是对象，例如 {"method_id": "${listed[0]!.method_id}"}。`,
-      ...listed.map(method => `- 「${method.name}」（${method.plugin_title}，method_id ${method.method_id}，v${method.version}）：${method.summary}`)].join("\n")));
+    const listed: AssistantMethod[] = [];
+    for (const method of methods.filter(item => !chosen.has(item.method_id)).slice(0, 20)) {
+      if (JSON.stringify([...listed, method]).length > 18_000) break;
+      listed.push(method);
+    }
+    if (listed.length) out.push({ ...base, material_id: "methods", title: "可用角色资料与方法", text:
+      `按需读取资料：read-capability 的 capability_id 为 assistant.methods.read，version 为 2，provider_id 为 ${ASSISTANT_RULES_PROVIDER}。input 是对象，例如 {"method_id":"owner/method","version":1}；签名条目必须附目录中的完整 default_ref 和 installation。\n` +
+      SIGNED_MATERIAL_NOTICE + "\n" + JSON.stringify(listed) });
     // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
     // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
     if (context?.object) {
@@ -151,12 +157,17 @@ export class AssistantRoundMaterials {
       out.push(...chunked({ ...base, title: "当前页面（发送时）" }, "page", lines), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context, base));
     }
     for (const material of materials) {
+      if (material.method?.default_ref) {
+        if (!material.text || material.text.length > 20_000) throw assistantErrors.invalid("签名资料正文超过单份材料预算，请减少内容后重发");
+        out.push({ ...base, material_id: `signed-${material.material_id}`, title: material.title, text: material.text }); continue;
+      }
       const head = [`${material.explicit ? "用户明确添加" : "来自当前页面，用户保留"}；类型：${material.kind}${material.draft ? "；未保存草稿" : ""}`,
         material.source ? `来源：${material.source.title ?? material.source.surface}` : "",
         material.object ? `对象：${material.object.title ?? material.object.id}（${material.object.kind}${material.object.version !== undefined ? `，版本 ${material.object.version}` : ""}）` : ""].filter(Boolean).join("\n");
       out.push(...chunked({ ...base, title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
-    return { materials: out.slice(0, 30), told };
+    const signed = out.filter(item => item.material_id.startsWith("signed-"));
+    return { materials: [...out.filter(item => !item.material_id.startsWith("signed-")).slice(0, 30 - signed.length), ...signed], told };
   }
 
   /** One object as its owner has it now: its context, "missing" when the owner says it is gone, null when unreadable. */
@@ -239,11 +250,17 @@ export class AssistantRoundMaterials {
   }
 
   /** Methods the person chose with “/”: the registered body goes with this round, said as their choice. */
-  async chosenMethods(work: StoredWork, materials: AssistantMaterial[]): Promise<AssistantMaterial[]> {
+  async chosenMethods(work: StoredWork, materials: AssistantMaterial[], handoffs: MethodHandoff[] = []): Promise<AssistantMaterial[]> {
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
       if (material.kind !== "method" || !material.method) { out.push(material); continue; }
-      const method = await this.link.readMethod(work, material.method.method_id);
+      const method = await this.link.readMethod(work, material.method.method_id, material.method);
+      if (method.handoff) handoffs.push(method.handoff);
+      if (method.default_ref) {
+        out.push({ ...material, title: method.kind === "role" ? "角色资料" : "方法", method: { method_id: method.method_id, version: method.version, name: method.name, plugin_title: method.plugin_title,
+          default_ref: method.default_ref, installation: method.installation, effective: method.effective, user_revision: method.user_revision }, text: signedMethodData(method) });
+        continue;
+      }
       out.push({ ...material, title: `方法：${method.name}`, method: { method_id: method.method_id, version: method.version, name: method.name, plugin_title: method.plugin_title },
         text: `用户为这一轮选定的方法「${method.name}」（${method.plugin_title} 提供，v${method.version}）。这一轮按它的步骤做：\n${method.body}` });
     }

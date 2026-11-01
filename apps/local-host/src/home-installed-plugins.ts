@@ -20,7 +20,8 @@ import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, t
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
-import { generatedRegistration, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
+import { pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
+import { pluginHomeFor } from './home-side.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { studioStorage } from './plugin-builder/storage.js';
 import type { PluginPlatform } from './plugin-platform.js';
@@ -117,7 +118,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       if (isClosed() || caller?.project_id !== null || !caller.plugin_install_id) throw staleInstallation('模型调用缺少个人空间的执行身份');
       const record = recordFor(pluginId), installed = releaseFor(pluginId);
       if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw staleInstallation('模型调用的安装执行身份已失效');
-      return { kind: 'installed', registration: generatedRegistration(installed, [installed], 'enabled', installedVersion(installed)) };
+      return { kind: 'installed', registration: pluginAgentRegistration(definition(installed, approvedFor(pluginId) ?? installed.permissions))! };
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(home)[0] ?? null; } });
   let disposePlatform = () => {};
@@ -152,16 +153,15 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
     catch (error) { forget(); throw error; }
   };
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') => {
-    const registration = generatedRegistration(release, [release], state, installedVersion(release));
-    // Same install, source and instructions as the running definition; stopping and reopening only change its state.
-    if (registration.source.kind === 'plugin') delete registration.source.origin;
-    registerGeneratedPrompts(home, registration, recordFor(release.pluginId)!.install_id);
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
+    const record = recordFor(release.pluginId);
+    if (!record || record.version !== installedVersion(release)) return;
+    updatePluginAgentDefinitions(pluginHomeFor(home), definition(release, approvedFor(release.pluginId) ?? release.permissions), record.install_id, state, restored);
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    forget(pluginId, installId) { unregisterGeneratedPrompts(home, pluginId, installId); forgetDefinitions(pluginId); } });
+    forget(pluginId, installId) { forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); } });
   const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
 
   try {

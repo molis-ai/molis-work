@@ -8,8 +8,8 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
 import { checklistVersions, maintenanceEntries } from "../scripts/gates/store-versions.mjs";
 
-// BL-157, spec §12.4 RAC-13: a library whose version changed against the merge-base needs a row in the 库版本维护清单 of
-// the spec's §4.1 (scripts/gates/store-versions.mjs). As in tests/health-gates-table-owners.test.ts, each case is a branch
+// RAC-2899/RAC-2900, BL-157, original RAC-13: a changed library version needs a row in the 库版本维护清单 under
+// CONTRACT-CHANGES.md「存储版本变更登记」(scripts/gates/store-versions.mjs). As in health-gates-table-owners, each case is a branch
 // of a small scratch repository gated with `--base main`; the readers are also checked on in-memory text.
 const script = fileURLToPath(new URL("../scripts/check-health-gates.mjs", import.meta.url));
 let repo = "";
@@ -38,7 +38,7 @@ const branch = (name: string, mutate: () => void) => {
 const lines = (...parts: string[]) => `${parts.join("\n")}\n`;
 
 const CHECKLIST = "docs/releases/CHECKLIST.md";
-const SPEC = "specs/repository-anti-corruption/spec.md";
+const SPEC = "docs/system/CONTRACT-CHANGES.md";
 const checklist = (pages: number, extra = "") => lines(
   "# 发布检查清单", "", "## 3. 各库版本表", "", "说明。", "",
   "| 库 | 位置 | 版本 | 记在 |", "| --- | --- | --- | --- |",
@@ -48,8 +48,8 @@ const checklist = (pages: number, extra = "") => lines(
   "", "- 注。", "", "## 4. 真实 Home 的处理", "", "| 别的表 | 版本 |", "| --- | --- |", "| `pages/pages.db` | 9 |");
 const ROW_HEADER = ["| 位置 | 版本 | 改版本的提交 | 维护 |", "| --- | --- | --- | --- |"];
 const spec = (rows: string[], prose = "") => lines(
-  "状态：测试用。", "", "## 4. 兼容逻辑清单", "", "### 4.1 库与就地补表", "", "正文。", ...(prose ? ["", prose] : []), "",
-  "**库版本维护清单**（门禁只读这张表）：写法固定。", "", ...ROW_HEADER, ...rows, "", "### 4.2 下一节", "", "正文。");
+  "状态：测试用。", "", "## 3. 阶段一", "", "### 存储版本变更登记", "", "正文。", ...(prose ? ["", prose] : []), "",
+  "**库版本维护清单**（门禁只读这张表）：写法固定。", "", ...ROW_HEADER, ...rows, "", "### 下一节", "", "正文。");
 const PROJECT_ROW = "| `projects/<project_id>/molis-work.db` | 6 → 7 | #369 | 维护六，已做 |";
 
 before(() => {
@@ -91,11 +91,11 @@ expect("a row for another library does not count", () => {
   put(CHECKLIST, checklist(3));
   put(SPEC, spec([PROJECT_ROW, "| `pages/other.db` | 2 → 3 | 本 PR | 维护八 |"]));
 }, 1, [/went from 2 to 3/]);
-expect("the same words in prose inside §4.1 do not count", () => {
+expect("the same words in prose inside the registration section do not count", () => {
   put(CHECKLIST, checklist(3));
   put(SPEC, spec([PROJECT_ROW], "Pages `pages/pages.db` 2 → 3：装新版本时维护。"));
 }, 1, [/went from 2 to 3/]);
-expect("a matching row in a table outside §4.1 does not count", () => {
+expect("a matching row in a table outside the registration section does not count", () => {
   put(CHECKLIST, checklist(3));
   put(SPEC, spec([PROJECT_ROW]) + lines("", "## 9. 别处", "", "**库版本维护清单**", "", ...ROW_HEADER, "| `pages/pages.db` | 2 → 3 | 本 PR | 维护八 |"));
 }, 1, [/went from 2 to 3/]);
@@ -108,9 +108,9 @@ expect("the checklist without its §3 heading exits 2", () => edit(CHECKLIST, "#
 expect("the checklist's table without a 版本 column exits 2", () => edit(CHECKLIST, "| 库 | 位置 | 版本 | 记在 |", "| 库 | 位置 | 版 | 记在 |"), 2, [/no column 版本/]);
 expect("a version that is not a number exits 2", () => edit(CHECKLIST, "| 7 |", "| 七 |"), 2, [/whole-number 版本/]);
 expect("the checklist deleted exits 2", () => rmSync(path.join(repo, CHECKLIST)), 2, [/CHECKLIST\.md: missing/]);
-expect("the spec deleted exits 2", () => rmSync(path.join(repo, SPEC)), 2, [/spec\.md: missing/]);
-expect("the spec without §4.1 exits 2", () => edit(SPEC, "### 4.1 库与就地补表", "### 4.9 别的"), 2, [/no heading「### 4\.1 」/]);
-expect("§4.1 without the list's marker exits 2", () => edit(SPEC, "**库版本维护清单**", "库版本维护清单"), 2, [/no line starting with \*\*库版本维护清单\*\*/]);
+expect("the registration document deleted exits 2", () => rmSync(path.join(repo, SPEC)), 2, [/CONTRACT-CHANGES\.md: missing/]);
+expect("the document without the registration heading exits 2", () => edit(SPEC, "### 存储版本变更登记", "### 别的"), 2, [/no heading「### 存储版本变更登记」/]);
+expect("the registration section without the list's marker exits 2", () => edit(SPEC, "**库版本维护清单**", "库版本维护清单"), 2, [/no line starting with \*\*库版本维护清单\*\*/]);
 expect("a list row in another shape exits 2", () => put(SPEC, spec([PROJECT_ROW, "| pages/pages.db | 2 -> 3 | 本 PR | 维护八 |"])), 2, [/needs 位置 in backticks and 版本 as `<old> → <new>`/]);
 test("a merge-base whose checklist has no §3 heading exits 2", () => {
   git("checkout", "-q", "-f", "main");
@@ -131,7 +131,7 @@ test("the readers return the versions and the rows", () => {
   assert.deepEqual(maintenanceEntries(spec([PROJECT_ROW])), [{ place: "projects/<project_id>/molis-work.db", from: 6, to: 7 }]);
 });
 
-test("a repository without a checklist on either side is not gated, even with the spec", () => {
+test("a repository without a checklist on either side is not gated, even with the registration document", () => {
   git("checkout", "-q", "-f", "main");
   git("checkout", "-q", "-B", "case-neither");
   rmSync(path.join(repo, CHECKLIST));

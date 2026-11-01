@@ -1,6 +1,6 @@
 # 门禁数据（tooling/gates）
 
-状态：现行；门禁脚本是 `scripts/check-health-gates.mjs`（入口）、`scripts/gates/`（各门禁的实现），规格在 [specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §5a。
+状态：现行；门禁脚本是 `scripts/check-health-gates.mjs`（入口）、`scripts/gates/`（各门禁的实现）。本文管现行口径和命令；历史方案与演进证据在 [specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §5a。
 
 `pnpm health:check` 与 CI 的「Health gates」步骤读这里的文件。比较的规则、`--base`、`--update`、`--report` 的用法见 `AGENTS.md`「构建与测试」和 `scripts/check-health-gates.mjs` 开头的注释，这里只说有哪些文件，以及两类门禁的口径。
 
@@ -55,18 +55,22 @@
 
 验证：`node scripts/run-tests.mjs tests/health-gates-test-imports-tool.test.ts`——在临时仓库里：每种拆成两份的写法（源码加包名、帮手、别的包的构建、动态 import、`dist` 换成 `src`、新测试、没人导入的夹具一开始就拆开或多拆一个包）在 `--base main` 下必须失败，`--update` 藏不住；类型导入、`dist` 孪生、只用源码、没人导入而只有一份的夹具必须不变红；删掉拆分（含夹具里的）会降低、改名保留记录。同一个文件也验证重写工具（公开名字走入口、别名、非公开走 `dist`、动态导入的解构、`apps/*` 的名字规则、没有构建孪生时不动、自检失败时不写）。
 
+## 包清单（`scripts/gates/package-inventory.mjs`，W1-18）
+
+唯一现行表在 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，包登记仍来自 `scripts/workspace-packages.mjs`。门禁按首个完全匹配的 11 列表头读取，守包的行集合、层、代码判定的状态、人工列词汇及数字写法；缺文档或缺表就失败。不比较数字列的当前实测值，也不根据默认生成值覆盖人工审查。`--table` 供核对机器列；原包的计划深度、审查及证据须保留。`--check` 和健康门禁只读新表，不回读历史 spec。完整负例在 `tests/package-inventory-gate.test.ts`。
+
 ## 库的版本与维护清单（`scripts/gates/store-versions.mjs`，BL-157）
 
-每个 Home 库只认一个版本，别的一律拒绝（`docs/releases/CHECKLIST.md` 第 3 节）。所以一个 PR 改了某个库的版本，在用的 Home 装新构建之前就要做一次维护。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。
+每个权威 Home 库只认当前版本，错版拒绝；派生库按既有重建合同处理（`docs/releases/CHECKLIST.md` 第 3 节）。一个 PR 改了某个库的版本，必须记录变更及处置。2026-10-30 旧迁移已取消，当前干净重建和真实 Home 的边界归 `docs/system/HOME-DATA.md`；登记不代表已做维护或授权旧转换。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。
 
 | 项 | 说明 |
 | --- | --- |
-| 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `specs/repository-anti-corruption/spec.md` §4.1 的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
-| 条目的写法 | 只认 §4.1 里（从「### 4.1 」到下一个标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，§4.1 之外的同样一张表也不算 |
-| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，都以退出码 2 结束，不会当作通过。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或 spec 也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 spec 的包清单表）不适用 |
+| 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `docs/system/CONTRACT-CHANGES.md`「存储版本变更登记」内的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
+| 条目的写法 | 只认「存储版本变更登记」里（从固定标题「### 存储版本变更登记」到下一个一至三级标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，该节之外的同样一张表也不算 |
+| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，都以退出码 2 结束，不会当作通过。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或登记文档也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 PACKAGE-BOUNDARIES 的包清单表）不适用 |
 | 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。它也不检查清单里写的维护有没有做 |
 
-验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在 §4.1 之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有 §4.1、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。
+验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在登记节之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有登记节标题、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。
 
 ## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 

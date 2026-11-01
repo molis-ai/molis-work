@@ -6,7 +6,7 @@
 - 第 10 节的真实 Home 清单只用 `ls`、`stat`、`find`、`du` 看了名字、大小和日期，没有打开任何库或数据文件，也没有读任何密钥文件。所以真实库当前盖的是哪个版本，没有核对。只有一处例外，是为了回答旧启动脚本还有没有人在用：读了启动脚本 `bin/goalboard-mcp` 本身（约 1 KB，不含密钥），用 `grep -o` 只取出 Runtime 配置里含 `molis-work` 或 `goalboard` 的路径，用 `ps` 看了在跑的进程的命令行。
 - Home 存储的统一登记已有（W4-11，2026-10-15）：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里每个有数据的条目和它的 owner，库另带基线；各 owner 在打开它的代码旁声明（插件经目录条目的 `home_store` 带进来，类型在 `contracts/platform/plugin` 的 `HomeStoreDeclaration`），卸载清除、插件库的发放和基线用例都读它（见第 9 节）。W5-16 的离线 snapshot 由同一登记提供 owner、库基线、排除项、密封策略和原 key 依赖；带 Home 的枚举还经 installed-library owner 纳入实际动态库。CLI 不另列存储名单。恢复命令仍在后续实施，本表给出更细的子路径与恢复边界。
 
-2026-10-30统一起点：用户决定旧Home整体搬开、以现行结构干净重建，旧迁移/采用/搬迁与残留清理计划取消。[当前分片与授权边界](../../specs/repository-anti-corruption/slices/home-maintenance-window.md)。各片落地前本表逐步对齐实际代码；项目主库和Feed声明已归1。真实Home尚未重建，不把代码版本当实测版本。
+2026-10-30统一起点：用户决定旧Home整体搬开、以现行完整结构干净重建，现行库/存储 JSON 合为第1版；旧迁移/采用/搬迁、演练、旧结构、按版本分支与残留清理计划取消。不迁移、不猜偏好、不在启动时改表；每个库只保留当前建库结构，错版明确拒绝，可从权威数据重建的派生库按既有合同重建。[当前分片与授权边界](../../specs/repository-anti-corruption/slices/home-maintenance-window.md)，真实操作步骤只归 [CHECKLIST.md 第4节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)。各片落地前本表逐步对齐实际代码；项目主库和Feed声明已归1。旧Home等用户另说“开始”才整体搬开，不删Keychain或只读副本；真实Home尚未重建，不把代码版本当实测版本。
 
 版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝；原有明确的结构、路径、权限与密钥检查仍保留。这里只引用既有记录，没有重新读取真实Home。
 

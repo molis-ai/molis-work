@@ -1515,6 +1515,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 ## 4. 兼容逻辑清单（§4.1，初稿）
 
+现行兼容政策与保留机制的唯一入口为 [CONTRACT-CHANGES.md](../../docs/system/CONTRACT-CHANGES.md#当前保留机制)；本节保留历史盘点、原失败及证据，不把旧计数或旧维护步骤当成当前规则。
+
 从文件名就能看出是迁移、旧格式或兼容的文件，共 50 个：
 
 - **宿主**：`catalog-migrations.ts`、`feed-migrations.ts`、`project-migrations.ts`、`session-migration.ts`、`pages-legacy-project.ts`；
@@ -1570,7 +1572,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 ### 4.1 库与就地补表
 
-**2026-10-30决定：旧迁移路线作废，改为干净重建。** 统筹6517794305与6518340875转达用户决定：现行库/存储JSON合为第1版，删旧脚本、演练、旧结构与按版本分支；不迁移、不猜偏好、不在启动时改表。旧Home等用户说开始才整体搬开，不删Keychain或只读副本；分片见[slices/home-maintenance-window.md](slices/home-maintenance-window.md)。本节下方历史维护事项不再执行；版本变更登记只说明代码起点，不是旧数据转换授权。
+2026-10-30 的现行初始化和库 owner 规则已归 [HOME-DATA.md](../../docs/system/HOME-DATA.md)；版本变更登记已归 [CONTRACT-CHANGES.md「存储版本变更登记」](../../docs/system/CONTRACT-CHANGES.md#存储版本变更登记)。下方旧迁移与维护事项保留为历史，已被干净重建取代，不再执行；本次迁出不改变真实 Home、Memory 或未完验收状态。
 
 
 系统评审修复的项目库 v8 → v9（2026-10-22，`feature/system-review-fixes`，待提交、待维护）：新增 `schedule_action_bindings`，记录闹钟所绑定安装、世代与动作版本。运行时只接受 v9，不补旧表、不推测旧闹钟身份。维护只在备份副本先演练：严格检查 v8、加入现行表、暂停未绑定闹钟、保留原任务与执行历史，明确重新授权后才恢复；拒绝错误版本并保证失败回滚。真实 Home 尚未维护，切换前须按发布维护窗口另行授权。验收与证据归 `specs/archive/system-review-fixes/spec.md` 的 SYS-15-S6。
@@ -1746,38 +1748,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
   - **原Shelf目录1→2维护（已被干净重建取代）**：现行完整目录结构起点1，原件仍由平台materials.claimOriginal登记。旧转换脚本与演练已删除，不再执行旧目录改写；旧Home整体搬开，新Home不继承旧条目或路径授权，真实重建未开始。
   - **10-17 只读核对**（真实 Home 各库的只读拷贝，读完即删；只读 `user_version` 与 `catalog_meta`、`session_meta` 的版本，不读内容、不碰密钥；真实 Home 跑的是 10-11 构建的安装版 0.2.0）：19 个项目库都是 7，目录库 22、会话库 7，Functions 3，助理、记忆、Form 2，`homeStores()` 登记的其余各库 1，都与基线相符；不符的只有 Pages（真实 1，代码 2）。`plugin-runtime/plugin-runtime.db`、`issues/issues.db`（都是 2）真实 Home 里还没有，新版本第一次打开时按基线新建，不用维护。没有核对的：搜索索引 `search/search.db`（可重建的派生库，版本记在 `search_meta`，不符就重建、不拒绝）和两个 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`）。
 
-**库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
-
-| 位置 | 版本 | 改版本的提交 | 维护 |
-| --- | --- | --- | --- |
-| `projects/catalog.db` | 22 → 1 | W5-17（`feature/maintenance-w517-a`；统筹 #1332 6517794305） | 原迁移已取消，真实重建未开始。当前结构无projects.database_path，路径由可信Home与project_id推导；删除catalog维护脚本、旧结构夹具与演练。新建/错版拒绝及S-102在 `tests/catalog-path-derivation.test.ts`、`tests/security-invariants-project-storage.test.ts`。旧Home整体搬开后新建当前结构1，等全部代码合入/构建就绪后用户另说“开始”；不碰#1101分支。 |
-| `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `memory/memory.db` | 3 → 4 | [Memory SDK 采用 PR #1064](https://github.com/molis-ai/molis-work/pull/1064)，`6bbacc107` | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `plugin-runtime/plugin-runtime.db` | 2 → 3 | ac-trust T1（`claude/ac-trust-t1`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](slices/platform-scenes-judgments-services.md)） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `projects/<project_id>/molis-work.db` | 11 → 1 | 干净Home第一片 | 不迁移旧库；保留现行完整DDL，只在干净Home创建1。旧Home搬开由统筹另获“开始”；错版仍拒绝，项目旧维护链已删。 |
-| `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同第一片 | Feed现行12表和索引不改，声明起点1；旧账本不升级。 |
-| `plugin-runtime/plugin-runtime.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
-| `characters/characters.sqlite` | 2 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
-| `functions/functions.db` | 4 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
-| `assistant/assistant.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
-| `issues/issues.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行完整DDL、owner与权限保留；旧Home整体搬开后新建，不升级旧数据。新建/重开/错版拒绝见 `slices/clean-home-plugin-stores.md`；真实重建等全部代码就绪后用户“开始”。 |
-| `form/form.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行问卷/回答/发布恢复结构和实体版本保留；旧Home整体搬开后新建，不转换旧数据；库起点1，不改动作版本。真实重建未开始。 |
-| `pages/pages.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 当前文稿/评论/发布恢复完整DDL保留；旧Home整体搬开后新建，不升级旧库；新建/重开及拒绝见本片，真实重建未开始。 |
-| `search/search.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行索引结构保留，元数据起点1；仍按既有派生缓存合同在缺失/损坏/版本不符时重建，从事实owner获得相同结果，不迁移业务库。真实Home未操作。 |
-| `memory/memory.db` | 4 → 1 | 干净Home第五片（统筹6517794305） | 原storage/Host/SDK显式采用路线已取消，工具/演练删除；现行DDL不变，新Home完整reviewed偏好，旧账本错版和不完整设置仍拒绝。SDK内部shape不改；真实重建等全部代码就绪后用户“开始”。 |
-| `server/server.sqlite` | 2 → 1 | 干净Home第六片（统筹6517794305） | 现行IM/身份/传输完整DDL归1，错版与错结构在可写打开前拒绝；旧邀请转换工具/演练删除，旧Home整体搬开后新建，真实未开始。 |
-| `feed/secrets.json` | 2 → 1 | 干净Home第六片（统筹6517794305 / 6518340875） | 只改外层文件格式号；AES-GCM、AAD、Home绑定及缺原key拒绝保持，不改Keychain或SDK内部形状；旧Home整体搬开，真实未开始。 |
-| `config/mcp-tools.json` | 3 → 1 | 干净Home第六片（统筹6517794305） | 现行逐客户端/动作精确授权字段归外层1，权限与撤销保持；旧Home整体搬开后用户重授权，不转换旧授权。 |
-| `shelf/catalog.json` | 2 → 1 | 干净Home第六片（统筹6517794305） | 当前item/job/clipboard字段不变，外层1；旧转换工具删除，坏格式不补造；旧Home整体搬开后新建。 |
-| `connectors/connectors.db` | 2 → 1 | 干净 Home 连接库片（统筹 #1332 6520836999） | [本片规格](slices/clean-home-connectors.md)；保留现行完整DDL（含授权结果表），旧库不迁移，用户批准开始后整份Home搬开重建；当前只有代码候选和临时Home验证，真实Home未操作。 |
-
+**库版本维护清单的现行入口**：[CONTRACT-CHANGES.md「存储版本变更登记」](../../docs/system/CONTRACT-CHANGES.md#存储版本变更登记)。门禁只读该处，本文不保留第二张可写登记表；原登记的来源、取消及未验证状态随表保全。
 **各库版本表（10-08 建立，项目库一行已按 10-10 维护六更新；各个后续候选的现行版本以 `docs/releases/CHECKLIST.md` 和 `node scripts/verify-release-versions.mjs` 的代码核对为准）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是对应时点的代码版本；真实 Home 目录库已在维护四升至 22，原「仍是 21」为过时状态。I6 Home Runtime 候选 v2 的要求另见 §10.2，不把本表当候选全部库的唯一清单。
 
 | 库 | 版本 | 记在 |
@@ -1789,15 +1760,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | Form、记忆、助理、Pages | 2 | `user_version`（Pages 10-13 由 1 升到 2，真实 Home 还是 1，见上面的维护八） |
 | 连接、Agent 定义、引导、放置、炼金术士工作室、炼金术士搜索库、server、Cognia、Dataset、Images、Jelly、灵光、PPT、Todo、Workflows | 1 | `user_version` |
 
-**保留下来、不算兼容的机制**（门禁里剩的 9 处标记都在这几类里）：
-
-| 机制 | 为什么不算兼容 | 标记 |
-| --- | --- | --- |
-| 插件升级声明（`upgrade_compatibility.compatible_from_versions`、同版本重装） | 插件版本之间的升级是现行产品功能，不是读旧数据 | 5 |
-| pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名 | 2 |
-| 产品文案（Gmail 同步说明里的「回填」、规划方法的一条说明） | 给人看的话 | 2 |
-| 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；不做迁移 | — |
-| Goal 事件历史、成果的固定版本 | 现行产品功能（记录与版本），不是旧格式 | — |
+**保留下来、不算兼容的机制**：现行目的、owner 与边界见 [CONTRACT-CHANGES.md「当前保留机制」](../../docs/system/CONTRACT-CHANGES.md#当前保留机制)。迁出前的历史标记统计为 9：插件升级声明 5、pdfjs 构建路径 2、产品文案 2；这不是当前扫描结果，不用于门禁放行。
 
 ## 5. 包级清单（§4.4）
 
@@ -1805,91 +1768,17 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 
 ### 5.1 事实表
 
-本表于 2026-10-26 从当前 #1295 收口组合（`cbf060ca` 加原 `eb617d59` 增量）重新生成；原审计记录保留，本片涉及的 owner 行待固定头增量复审。包清单取自 `scripts/workspace-packages.mjs`。用 `node scripts/gates/package-inventory.mjs --table` 从代码重新生成，用 `--check` 对照代码检查；后者也在 `node scripts/check-health-gates.mjs`（CI 里的健康门禁）里跑，是不对照 merge-base 的绝对规则：增删 workspace 包、插件迁到 Plugin Runtime 监督器、或改变 import 的可达性后不补表，CI 变红。门禁守行集合（不多不少、各一行）、层、状态和各列的取值；数字列不守，否则每个加一个文件的 PR 都要改表，要新数字就重新生成。
-
-列的口径：
-
-- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`）。2026-10-08「右栏『讨论』页签与 IM 代码」一行把归类改成业务列为待办（PR #312）：`server` 已改登记为 `module`（本表标「模块」，结构门禁按 Module 规则查它）；`packages/im-ui` 是界面包、不拥有事实，仍登记为 `foundation`，要不要也改，等用户另定。
-- 源文件、行数：`<包>/src/` 下的 `.ts`、`.mts`，不含 `.d.ts`、测试、`dist`、`fixtures`；行数是按换行切开的段数，与巨大单元门禁（`scripts/check-health-gates.mjs`）同一口径。最大文件的路径相对 `src/`。
-- 公开入口：`package.json` 的 `exports` 条数。依赖内部包：`package.json` 的 `dependencies` 里 workspace 包的个数。被依赖：反方向的个数。
-- 状态、计划深度、审查：见 §5.2。
-
-| 包 | 层 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 | 状态 | 计划深度 | 审查 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `apps/cli` | 应用 | 4 | 159 | `command-dispatch.ts` 63 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `apps/desktop` | 应用 | 11 | 1,239 | `capsule-shell.ts` 548 | 1 | 6 | 1 | 在用 | 中 | 已审 |
-| `apps/local-host` | 应用 | 653 | 65,025 | `assistant/assistant-service.ts` 1,837 | 1 | 62 | 2 | 在用 | 深 | 待审 |
-| `apps/mcp` | 应用 | 16 | 956 | `runtime-context-tools.ts` 193 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `apps/server` | 应用 | 5 | 192 | `main.ts` 81 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
-| `apps/workbench` | 应用 | 303 | 51,590 | `i18n/en.ts` 3,266 | 2 | 31 | 1 | 在用 | 深 | 已审 |
-| `horizontal/agent-host` | 横向 | 96 | 13,630 | `adapters/prologue-stream.ts` 723 | 1 | 2 | 1 | 在用 | 深 | 已审 |
-| `horizontal/connector-host` | 横向 | 5 | 754 | `connection-store.ts` 396 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `horizontal/knowledge` | 横向 | 11 | 1,300 | `index.ts` 425 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/placement` | 横向 | 2 | 650 | `index.ts` 613 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
-| `horizontal/scheduler` | 横向 | 2 | 622 | `index.ts` 541 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `horizontal/search` | 横向 | 2 | 659 | `index.ts` 585 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/artifacts` | 模块 | 23 | 2,284 | `service.ts` 341 | 1 | 1 | 1 | 在用 | 中 | 待审 |
-| `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/judgment-rules` | 模块 | 17 | 1,963 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
-| `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |
-| `packages/im-ui` | 基础 | 23 | 1,730 | `views.ts` 168 | 1 | 3 | 3 | 在用 | 中 | 已审 |
-| `packages/kernel` | 基础 | 14 | 1,879 | `action-service.ts` 487 | 2 | 2 | 1 | 在用 | 深 | 已审 |
-| `packages/plugin-runtime` | 基础 | 52 | 7,889 | `index.ts` 784 | 1 | 2 | 3 | 在用 | 深 | 待审 |
-| `packages/plugin-sandbox` | 基础 | 14 | 1,681 | `broker.ts` 336 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `packages/plugin-sdk` | 基础 | 57 | 6,707 | `manifest.ts` 443 | 7 | 1 | 41 | 在用 | 中 | 待审 |
-| `packages/storage` | 基础 | 20 | 3,378 | `adapters/file-secret-store.ts` 744 | 1 | 1 | 10 | 在用 | 中 | 已审 |
-| `packages/test-kit` | 基础 | 11 | 1,242 | `boundaries.ts` 610 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
-| `packages/ui-host` | 基础 | 8 | 808 | `request-client.ts` 298 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
-| `plugins/native/alchemist` | 内置插件 | 106 | 10,872 | `studio/server/db/pulse-repository.ts` 563 | 2 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/coding` | 内置插件 | 206 | 23,321 | `styles.ts` 749 | 3 | 2 | 2 | Runtime | 深 | 已审 |
-| `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/diff` | 内置插件 | 18 | 829 | `comparison.ts` 192 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
-| `plugins/native/feed` | 内置插件 | 85 | 9,735 | `store/listener.ts` 779 | 3 | 2 | 2 | Runtime | 深 | 待审 |
-| `plugins/native/files` | 内置插件 | 31 | 1,688 | `actions.ts` 167 | 2 | 2 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/form` | 内置插件 | 36 | 3,245 | `store.ts` 466 | 3 | 2 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/git` | 内置插件 | 32 | 2,655 | `browser/source.ts` 249 | 2 | 2 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/goals` | 内置插件 | 220 | 25,273 | `event-document-client.ts` 742 | 4 | 2 | 2 | Runtime | 深 | 待审 |
-| `plugins/native/images` | 内置插件 | 34 | 2,092 | `service.ts` 181 | 3 | 3 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/inbox` | 内置插件 | 19 | 1,443 | `scene-runtime.ts` 190 | 2 | 1 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/issues` | 内置插件 | 28 | 1,908 | `browser/capture.ts` 183 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
-| `plugins/native/jelly` | 内置插件 | 56 | 4,517 | `messages.ts` 257 | 3 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/lingguang` | 内置插件 | 28 | 2,264 | `store.ts` 362 | 3 | 2 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/pages` | 内置插件 | 112 | 17,055 | `styles.ts` 770 | 5 | 2 | 2 | Runtime | 深 | 待审 |
-| `plugins/native/plugin-builder` | 内置插件 | 19 | 2,960 | `agent-authoring.ts` 800 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/ppt` | 内置插件 | 36 | 2,853 | `store.ts` 295 | 3 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/schedule` | 内置插件 | 46 | 3,103 | `tasks.ts` 300 | 2 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/shelf` | 内置插件 | 61 | 6,192 | `styles.ts` 647 | 2 | 3 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/text-stats` | 内置插件 | 16 | 553 | `core.ts` 105 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
-| `plugins/native/todo` | 内置插件 | 49 | 5,225 | `organize.ts` 328 | 3 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/workflows` | 内置插件 | 44 | 4,602 | `model.ts` 438 | 2 | 2 | 2 | Runtime | 中 | 待审 |
-| `plugins/official-integrations/catalog` | 官方接入 | 10 | 2,184 | `catalog.ts` 1,013 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/github` | 官方接入 | 6 | 960 | `provider.ts` 592 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `plugins/official-integrations/gmail` | 官方接入 | 16 | 2,641 | `history-cursor.ts` 529 | 3 | 2 | 2 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/rss` | 官方接入 | 8 | 1,308 | `catalog.ts` 513 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/web-query` | 官方接入 | 1 | 42 | `index.ts` 42 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
-| `plugins/official-integrations/youtube` | 官方接入 | 2 | 123 | `channel.ts` 80 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `server` | 模块 | 18 | 1,120 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
-| `tooling/plugin-cli` | 工具 | 8 | 359 | `sample-source.ts` 108 | 1 | 3 | 0 | 在用 | 浅 | 已审 |
+现行完整 11 列表及列口径已归 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，门禁只读该处；包登记仍是 `scripts/workspace-packages.mjs`。原包路径、机器列、人工计划深度、审查及证据切点随表保全，不用生成器的默认待审覆盖。本文保留审查历史与未完成结论，不保留第二张现行表。
 
 ### 5.2 状态、计划深度与审查
 
-**状态**：I6 `af0fe957` 重算为在用 42、Runtime 8、构建期 18、非产品 3（共 71）；Issue 是新增的 Runtime 插件，Experiments 已删除。由代码判定，门禁每次重算：
+现行判定与人工审查规则已归 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)。Runtime 以代码中的登记声明或监督器为准，不沿用本节旧时点只看监督器包名的描述。
 
-| 状态 | 含义 | 代码里怎么判 |
-| --- | --- | --- |
-| 在用 | 从产品入口走得到 | 产品入口是根包的三个启动器：根 `tsconfig.json` 把 `apps/desktop/launchers/**` 编成 `package.json` 的 `bin`（`molis-work`、`molis-work-mcp`、`molis-work-web`），目录在 `apps/desktop` 下，所以从 `apps/desktop` 出发，沿包内 `.ts`/`.mts`（不含测试）里的 import 走，类型导入也算；写在模板字符串里的 import 不算 |
-| Runtime | 内置插件由 Plugin Runtime 监督器启动 | 走得到，且 `apps/local-host/src/project-plugins.ts` 里有它的包名（`tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 用同一证据） |
-| 构建期 | 内置插件手工装配进宿主与工作台 | 走得到，但监督器里没有它；就是同一测试冻结的 `BUILD_TIME_ASSEMBLED`（只许减少，迁到 Runtime 时把这里的状态一起改） |
-| 非产品 | 产品入口走不到 | 见下 |
+原层说明（保留当时的审查依据与待决项）：
+
+- 层：登记里的 `kind`（基础是 `foundation`，官方接入是 `integration-plugin`）。`server` 与 `packages/im-ui` 是在用、还会迭代的产品功能（右栏「讨论」页签，`apps/workbench/src/side-panel.ts:42`、`:115` 嵌入 `/im`）。2026-10-08「右栏『讨论』页签与 IM 代码」一行把归类改成业务列为待办（PR #312）：`server` 已改登记为 `module`（本表标「模块」，结构门禁按 Module 规则查它）；`packages/im-ui` 是界面包、不拥有事实，仍登记为 `foundation`，要不要也改，等用户另定。
+
+以下仅保留历史盘点，不能据此重写现行人工列：I6 `af0fe957` 重算为在用 42、Runtime 8、构建期 18、非产品 3（共 71）；当时 Issue 是新增的 Runtime 插件，Experiments 已删除。
 
 非产品的三个包，每个都用 `git grep` 再核对过：
 
@@ -1899,9 +1788,9 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 
 另有两处声明了依赖、包内却没有任何文件按包名导入：`apps/workbench` 对 `packages/im-ui`（「讨论」页签用的是 `/im` 的 iframe）、`plugins/native/goals` 对 `modules/goals`。这版不判断，留给逐包审查。（`packages/test-kit` 对 `packages/contracts` 的依赖原先也在此列，只把包名当字符串；W2-11 c1 起 `/local-host-http` 的类型从 `@molis-ai/molis-work-contracts/platform/actions` 导入，它不再属于「没有文件导入」。）
 
-**计划深度**按风险定（任务书 §0：深入程度按风险决定）。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17（现行 §5.1 的计划；I6 按阈值重算建议为深 11、中 42、浅 18，审查时再判定，不机械改已有深度）。深度是计划，不是门禁：以后某个包越过阈值不会让门禁变红，审它的时候再按当时的数重定。
+历史计划统计：结果：深 11（`apps/local-host`、`apps/workbench`、`horizontal/agent-host`、`modules/goals`、`packages/contracts`、`packages/design-system`、`packages/kernel`、`packages/plugin-runtime`、`plugins/native/coding`、`plugins/native/goals`、`plugins/native/pages`）、中 43、浅 17（现行 §5.1 的计划；I6 按阈值重算建议为深 11、中 42、浅 18，审查时再判定，不机械改已有深度）。
 
-**审查**：「待审」含尚未开始和已开始但未审完；「已审」须在同一 spec 有完整逐包结论和已核实的实现覆盖。现行71包源码均已审，逐包职责、依赖、放置与冗余结论及覆盖核对见 §12.9。缺陷修复和运行未完成项另记于 §12.8/§12.11，不能以代码审完代替整改完成，也不能据 #322 已合入或 §12.6 的历史局部读码记整条防腐线完成；代码审完、缺陷修复、工程通过、产品实操分别判定。
+原记录曾写「现行71包源码均已审」，只指当时审查范围，不覆盖后来保留为待审的 owner 增量。原源码审查结论与覆盖核对仍见 §12.9，缺陷修复和运行未完成项仍见 §12.8/§12.11。迁出不把历史「71包已审」推广到后续 owner 增量，不据 #322 或局部读码关闭整条防腐线；代码审完、缺陷修复、工程通过、产品实操分别判定。
 
 ### 5.x 本轮补记的清单项（2026-10-03）
 
@@ -1912,6 +1801,8 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | 演示稿对象的两套种类名 | PPT 的动作（`ppt.*`）声明 `subject_kinds: ["ppt"]`，对象读取、搬动、搜索、侧栏与成果来源用 `presentation` | `plugins/native/ppt/src/actions.ts`（`subject_kinds: ["ppt"]`）对 `search.ts`、`defineObjectMoveAction("ppt.placement.move", ["presentation"])` | 统一成 `presentation`；改动方的发现与授权都按种类匹配，要连同读它的用例一起改 |
 
 ## 5a. 门禁先行（§5 第 1 步，方案）
+
+本节保留原方案、冻结数字及演进证据。现行口径与命令归 [tooling/gates/README.md](../../tooling/gates/README.md)，文档/引用/仓库形状的实现入口归 [scripts/gates/README.md](../../scripts/gates/README.md)，分层规则归 [PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)，巨大单元裁定归 [HUGE-CLASS-MIGRATION.md](../../docs/system/HUGE-CLASS-MIGRATION.md)。下方旧 ESLint 备选、原 CI 与旧算法说明不覆盖这些现行规则。
 
 先接进 CI、防止边整理边恶化。每个门禁都有入库的基线文件，「只减不增」；改动后用突变验证（故意违反一次，确认 CI 变红）。
 

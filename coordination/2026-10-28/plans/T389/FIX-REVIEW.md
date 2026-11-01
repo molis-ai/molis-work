@@ -41,3 +41,15 @@ sources中selectedSource更新仍无条件，关闭相关的railOpen/aria-expand
 资源必须实测并按现行规则处理，不预签零增长或改门禁。Full由实际diff、affected及现行包/仓库规则交根裁定，脚本建议不能反过来豁免明确规则；本计划没有预签full=false，也不构成运行Full授权。当前文件名/内部参数本身不能决定Full，旧Full暂停及历史CI账保持。
 
 已只读核本机对象db29f18d4f602fa8d9efb689a6a766aa9b07625f相对15ad仅多tests/mcp-connection-change-refusal.test.ts，相关生产链无增量；这不是新的main运行证据。可由根据最新PLAN/本REVIEW更新同一WO，并在T391交回writer、绑定正式输入后安排修复；本报告不是开工授权，不请求另开任务/号段，不实施最小修法。
+
+## 最终文字与共享路径收口
+
+已回读最终PLAN：完成信号/永久测试失败传播，以及完整测试路径/README mandatory两项均已满足；18必跑、10界面、6恢复条件逐项入合同，适用条件与去重/准确输入核抵边界清楚，无新增必修。原is-syncing已明确禁止单凭false推断rAF。此处只核文本，不执行清单。
+
+对根0535开PR文件快照按拟改四生产文件+新测试取交集，普通在途只有T121 #1677的navigation-feed-sources.ts。根提供的共享diff两个hunk是文件头及loadFeedConnections/新增change、submit处理；本线另读本机准确T121头`c2502b62dc2af4cb090ce740f12d394646e7bdeb`，其source blob为`decd219db32bf73e2061e61e33b7a7cf2559009c`，setFeedTask整段与15ad逐字相同。新增两处setFeedTask调用属于账号绑定/创建后的显式设置路径，继续走默认open符合本方案，无需给它们预加restore。文件级共享仍须串行，不能以hunk分离宣称有第二writer：根已冻结T121、将同文件唯一writer交T389开发线2；T389只在正式基点做本片差异，不把未合T121整文件复制过来，不改T121分支。
+
+保护PR #1101已用连接器独立取得跨全部分页的584个唯一文件，并用PR metadata核changed_files=584、head=`2b38b5f5fef4bf70617c3c05b22b6d446771d693`；与根`/private/tmp/root-1101-completefiles-0554.txt`逐行完全一致，没有缺页/漏项或额外条目。本线原件是同目录`1101-independent-files.txt`。其与拟改四生产路径及新测试的交集为空，补全分页未发现遗漏的直接生产冲突。共享的apps/workbench/README、tests/fixtures/goal-browser、page-assets/baseline及资源gate文件仍需区分：本片不改README/共享helper/门禁算法；若实测资源/health要求更新元数据，由根按已有共享文件合同串行处理，不据“生产交集为空”宣称整个仓库完全无共享。未改保护分支、保护PR或其运行状态，也没有复审它的功能/CI。
+
+根已完成fresh open heads核对的事实按根来源记录，本线没有把0535文件快照冒署成自己逐个实时重查全部PR；独立实时查询限上述#1101文件完整性/metadata。最终仍待根更新同WO、释放当前writer并绑定正式实施输入，不因这次收口自行开始修复。
+
+阶段3正式书收口：已回读同WO“根接受实施”一节，准确基点`db29f18d4f602fa8d9efb689a6a766aa9b07625f`、RAC-2840～2842、四生产片段+新测试及README逐项验证合同均与已审最终PLAN一致；T121冻结/同文件唯一writer、资源许可尚未授权、Full尚未裁定且不重开均明确，无新增书面必修。作者开发线2、独立验证线1、本线独立二审4保持；书审到此收口，待作者`/private/tmp/t389-fix-evidence/REPORT.md`的final H/准确diff和验证原件后进行实现终审，当前不预签实现或补跑。

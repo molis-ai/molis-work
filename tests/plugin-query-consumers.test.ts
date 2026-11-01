@@ -7,7 +7,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from 
 import { feedQueryActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { cachedMolisWorkWebView, declaredStageData } from "@molis-ai/molis-work-app-local-host";
 import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -167,6 +167,7 @@ for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC
     permissions: [{ permission, required: true, reason: "Read this owner" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: [stage, object, other],
     ui: { contributions: [contribution, foreign], views: [{ view_id: "main", slot: "stage", title: "Owner", contribution_id: contribution,
       stage_data: { action: stage.capability_id, object_action: object.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
+      { view_id: "directory", slot: "navigator", title: "Owner", icon: "note", contribution_id: contribution },
       { view_id: "foreign", slot: "side", title: "Other contribution", contribution_id: foreign }] } };
   const reads = { stage: 0, object: 0, other: 0 }, draws: UiRenderRequest[] = [], seen: Array<{ caller: ActionExecutionContext; input: unknown }> = [];
   let held: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
@@ -216,4 +217,26 @@ for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC
   await wait.entered.promise; await platform.runtime.stop(install); await platform.supervisor.restart(id); wait.release.resolve();
   const late = await pending; assert.notEqual(late.status, 200); assert.doesNotMatch(await late.text(), /data-owner-probe/);
   assert.equal(draws.length, rendered); assert.equal(reads.other, 0, "a late answer never revives the other half or catalog");
+});
+
+test("RAC-2507 RAC-2509 a single-database fixture also reads the actual owners and keeps both object surfaces working", { timeout: 45_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "stage-fixture-owner-")), databasePath = join(home, "fixture.db");
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  await seedDemoGoals(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const runtime = await host.withProject(reference, runtime => runtime), feed = createLocalFeedApplication(runtime.store.db);
+  const source = createLocalFeedSourceService(runtime.store.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "fixture-owner" }).source;
+  const item = feed.ingestItem({ source, externalId: "fixture", title: "Fixture owner title", summary: "summary", body: "Fixture owner body", occurredAt: new Date().toISOString(), attention: false }).item;
+  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: home, localHost: host });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const page = await fetch(origin); assert.equal(page.status, 200); assert.match(await page.text(), /Fixture owner title/);
+    const board = await fetch(origin + "/api/board"); assert.equal(board.status, 200);
+    assert.equal((await board.json()).stage_data.feed.snapshot.feed_items.some(row => row.item_id === item.item_id), true);
+    for (const surface of ["persisted-detail", "frame-block"]) {
+      const response = await fetch(`${origin}/api/stage/feed/objects/${encodeURIComponent(item.item_id)}?surface=${surface}`);
+      assert.equal(response.status, 200); assert.match(await response.text(), /Fixture owner body/);
+    }
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(resolve)); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

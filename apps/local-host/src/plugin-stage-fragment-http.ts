@@ -42,7 +42,7 @@ export async function handlePluginStageFragmentHttp(request: IncomingMessage, re
     const target = stageRequest(url);
     if (!target) return false;
     const showing = await ports.shown();
-    if (!showing.includes(target.plugin)) throw new ActionError("actions.plugin_disabled", "此项目未显示该插件");
+    if (!showing.includes(target.plugin)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     const owner = await ports.owner(target.plugin);
     if (!owner) throw new ActionError("actions.plugin_disabled", "插件舞台没有运行中的提供方");
     owner.assertCurrent();

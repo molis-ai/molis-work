@@ -185,7 +185,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           ...declared.panels,
           // A running Plugin's own panel wins over the built-in one.
           ...(view.plugin_panels ?? {}),
-        }, initialDesktopDirectory, settingsDirectory)}
+        }, directory, initialDesktopDirectory, settingsDirectory)}
         </div>
       </aside>
       <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${L("调整目录宽度")}" aria-controls="goal-tree-pane" aria-valuemin="200" aria-valuemax="520" aria-valuenow="240" title="${L("拖动调整目录宽度，双击恢复默认")}"></div>

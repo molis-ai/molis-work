@@ -2,7 +2,7 @@ import { retainActionAuthority, ActionError, defineSubjectOffersAction, type Act
 import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration } from "./pages-shapes.js";
-import type { InboxBriefs, InboxItemBrief } from "./content-actions.js";
+import type { InboxBriefs } from "./content-actions.js";
 import type { InboxJudgmentState, InboxJudgmentSummary } from "./route-handlers.js";
 
 const empty = { type: "object", properties: {}, additionalProperties: false };

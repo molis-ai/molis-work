@@ -474,8 +474,9 @@ export const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_
   },
   presentation: {
     kind: 'query', input: object({ presentation_id: text(64, 1), cursor_json: text(SANDBOX_INTEGRATION_LIMITS.cursorLength) }, ['presentation_id']),
-    output: object({ scope_options: { type: 'array', maxItems: 32, items: object({ value: text(200, 1), label: text(200, 1) }, ['value', 'label']) },
-      conditional_request: { type: 'string', enum: ['etag', 'last-modified', 'unvalidated', 'not-fetched'] }, home_url: { type: 'string', format: 'uri', maxLength: 2048 } }, []),
+    // The bounded sandbox schema has no nullable union. The same finite SourcePresentation travels as JSON and the shared SDK
+    // validator checks every field after decoding, including home_url:null, exactly as for an in-process presenter.
+    output: object({ presentation_json: text(32_768, 2) }, ['presentation_json']),
     effects: {},
   },
 };

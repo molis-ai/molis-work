@@ -31,7 +31,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner } from "./project-plugin-stages.js";
 import type { InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
-import { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
+import { declaredStageRequests } from "./project-stage-data.js";
 import { matchPageRoute } from "./page-routes.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
@@ -161,17 +161,16 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
-    if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
+    view = { ...view, shown_plugins: await shownPlugins(options.projectId) };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
     // A stage is given only the request parameters it names in `stage_data.input`, from its own plugin's declared page route (T-116).
     const pageMatch = matchPageRoute(url);
     const stage_request = declaredStageRequests(view.shown_plugins ?? [], pageMatch);
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
-    const prepared = options.project ? await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
-      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent } }), stage_request) : undefined;
-    view = { ...view, stage_data: prepared?.data ?? await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request),
-      ...(prepared ? { plugin_stage_views: prepared.views } : {}) };
+    const prepared = await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
+      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent } }), stage_request);
+    view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.
     const inbox = view.stage_data?.inbox as InboxStageData | undefined;
     if (inbox?.judgment) view = { ...view, inbox_judgment: inbox.judgment };

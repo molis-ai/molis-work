@@ -45,8 +45,11 @@ export function sandboxIntegrationContribution(input: SandboxIntegrationProxyInp
       }
       const checked = checkedSourcePresentationInput(request);
       // A pure operation: no source identity, binding, connections or other effect port is passed into the sandbox.
-      return checkedSourcePresentation(await input.call(SANDBOX_INTEGRATION_OPERATIONS.presentation,
-        { presentation_id: id, ...(checked.cursor === undefined ? {} : { cursor_json: JSON.stringify(checked.cursor) }) }, {}));
+      const answer = await input.call(SANDBOX_INTEGRATION_OPERATIONS.presentation,
+        { presentation_id: id, ...(checked.cursor === undefined ? {} : { cursor_json: JSON.stringify(checked.cursor) }) }, {}) as Answer;
+      let presentation: unknown;
+      try { presentation = JSON.parse(answer.presentation_json as string); } catch { return invalid('来源展示必须返回 presentation_json'); }
+      return checkedSourcePresentation(presentation);
     } } : {}),
     bind(binding) {
       const config_json = JSON.stringify(binding.config ?? {});

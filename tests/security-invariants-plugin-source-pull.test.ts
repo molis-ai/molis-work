@@ -2,7 +2,8 @@ import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
-import { createSourcePullRuntime, createPluginPlatform } from "@molis-ai/molis-work-app-local-host";
+import { createSourcePullRuntime, createPluginPlatform, IntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
+import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -27,7 +28,7 @@ const rss = (title: string, entries: Array<{ id: string; title: string; text: st
   <description>${entry.text}</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}
 </channel></rss>`;
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, integrations?: IntegrationRegistry) {
   // Registered before the Home's own close, so the plugins stop while the project is still open.
   let stop = async () => {}; t.after(() => stop());
   const test = await openTestHome(t);
@@ -58,7 +59,8 @@ async function fixture(t: TestContext) {
   const client = { ...host.actionClient(reference), ...host.syncActionClient(reference) };
   const ports = { db: runtime.store.db, appendEvent: (event: Parameters<typeof runtime.store.appendEvent>[0]) => runtime.store.appendEvent(event), eventCursor: (id: string) => runtime.store.eventCursor(id) };
   const platform = createPluginPlatform({ db: runtime.store.db, project_id: reference.project_id, actor_id: "fixture-person", actions: { registry, client, project_id: reference.project_id }, home: null,
-    artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }), sourcePullFetch, sourcePullGit });
+    artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }), sourcePullFetch, sourcePullGit,
+    ...(integrations ? { sourcePullIntegrations: async () => integrations } : {}) });
   stop = async () => {
     await platform.closeCoordination();
     for (const record of platform.runtime.list()) if (owned.has(record.plugin_id) && record.state === "running") await platform.runtime.stop(record.install_id);
@@ -365,4 +367,20 @@ test("S-97 RAC-1019: repository.read refuses what is not a repository and a sour
   const before = f.gitCalls.length, aborted = AbortSignal.abort();
   await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY, { signal: aborted })));
   assert.equal(f.gitCalls.length, before, "a call that is already cancelled never reaches Git");
+});
+
+test("RAC-2507 a pure presentation rechecks the original consumer authority after its provider await", { timeout: 30_000 }, async t => {
+  const registry = new IntegrationRegistry();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let presentations = 0;
+  const definition = definePollingIntegrationPlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.deferred-presentation", version: "1.0.0", name: "Pure display",
+    kind: "integration", publisher: { publisher_id: "example", signature: "deferred-display" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, source_presentations: ["deferred-display"] },
+    createProvider() { throw new Error("a display cannot bind a source"); }, async presentSource() { presentations++; entered.resolve(); await release.promise; return { home_url: "https://example.com/" }; } });
+  await registry.enable(definition); t.after(() => registry.disable(definition.manifest.plugin_id));
+  const f = await fixture(t, registry), probe = await f.start("purecurrent", [FEED]); let current = true;
+  const pending = probe.in(services => services.sourcePull!.vocabulary!.presentation("deferred-display", {}), probe.query, [FEED],
+    { assert_authority_current: () => { if (!current) throw new ActionError("actions.forbidden", "read authority revoked"); } });
+  const refused = assert.rejects(pending, { code: "actions.forbidden" });
+  await entered.promise; current = false; release.resolve(); await refused;
+  assert.equal(presentations, 1); assert.deepEqual(f.fetched, []);
 });

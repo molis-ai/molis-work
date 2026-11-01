@@ -31,9 +31,13 @@ const permissionSwitch = {
 } as const;
 type PermissionSwitch = ActionDefinition<{ install_id: string; permission: string; granted: boolean }, { install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }>;
 const consentRow = {
-  type: "object", additionalProperties: false, required: ["consent_id", "plugin_id", "publisher_signature", "kind", "subject", "manifest_digest", "granted_at", "granted_by", "revoked_at"],
-  properties: { consent_id: text, plugin_id: text, publisher_signature: text, kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory"] }, subject: text, manifest_digest: text,
-    granted_at: text, granted_by: { enum: ["user", "host_build"] }, revoked_at: { type: ["string", "null"] } },
+  oneOf: [
+    { properties: { kind: { const: "project_reach" }, approved_capability_ids: { type: "array" }, granted_by: { const: "user" } } },
+    { properties: { kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory"] }, approved_capability_ids: { type: "null" } } },
+  ],
+  type: "object", additionalProperties: false, required: ["consent_id", "plugin_id", "publisher_signature", "kind", "subject", "manifest_digest", "granted_at", "granted_by", "revoked_at", "approved_capability_ids"],
+  properties: { consent_id: text, plugin_id: text, publisher_signature: text, kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory", "project_reach"] }, subject: text, manifest_digest: text,
+    granted_at: text, granted_by: { enum: ["user", "host_build"] }, revoked_at: { type: ["string", "null"] }, approved_capability_ids: { type: ["array", "null"], items: text } },
 };
 const installedView = {
   type: "object", additionalProperties: false,
@@ -86,12 +90,12 @@ export const pluginInstallActions = {
     title: "开关个人空间里插件的一项可选权限", description: "本人在宿主设置里，为运行在个人空间（所有项目共用）的一个插件打开或关掉它的一项可选权限（必需的关不掉，没声明的开不了）。关掉的权限马上收回：插件会被停下、换上新的授权再启动，正在做的事走到下一次写入就被拒、不留业务记录；打开则在重启后生效。只有宿主设置入口能调，Agent、MCP、工作流和插件都调不到。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     ...permissionSwitch } } as PermissionSwitch,
-  homeInstalled: { capability_id: "plugins.home.installed.list", version: 2, operation: "query", action: { ...metadata, scope: "home",
+  homeInstalled: { capability_id: "plugins.home.installed.list", version: 3, operation: "query", action: { ...metadata, scope: "home",
     title: "查看个人空间里的插件", description: "列出运行在个人空间（所有项目共用）的插件：谁签的名、信任到哪一级、它要了哪些权限（含现在开着没有）、它在后台常做的事和本人给过的同意，以及它没能启动时的原因。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: installedView } } } } } as ActionDefinition<Record<string, never>, { plugins: PluginInstalledView[] }>,
-  installed: { capability_id: "plugins.installed.list", version: 3, operation: "query", action: { ...metadata, scope: "project",
+  installed: { capability_id: "plugins.installed.list", version: 4, operation: "query", action: { ...metadata, scope: "project",
     title: "查看项目里装的插件", description: "列出这个项目里装着的插件：谁签的名、信任到哪一级、它要了哪些权限（含插件自己写的理由和平台对权限的说明）、它在后台常做的事，以及本人给过它的同意（含已撤回的），以及它没能启动时的原因。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
     input_schema: { type: "object", properties: {}, additionalProperties: false },

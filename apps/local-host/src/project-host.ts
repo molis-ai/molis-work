@@ -54,6 +54,7 @@ import { HomePluginHost } from "./home-plugins.js";
 import { homeProjectReach } from "./project-reach.js";
 import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { homePluginActions, withPreparedActions } from "./plugin-actions-client.js";
+import { capabilityCatalog } from "./plugin-builder/catalog.js";
 import { homePluginEntries } from "./plugin-registry.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
@@ -193,7 +194,16 @@ export class MolisWorkLocalHost {
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()) });
+      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
+      projectActions: async (projectId, pluginId) => {
+        if (!this.catalogRunner) throw new ActionError("actions.unavailable", "项目目录尚未就绪");
+        const project = await this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.getProject(projectId));
+        if (this.host.projects().some(item => item.project_id === projectId && item.state === "closing") || !(await this.projectPluginReach(projectId))(pluginId)) {
+          throw new ActionError("actions.forbidden", "项目已关闭或不再启用这个 Home 插件");
+        }
+        const reference = molisWorkHostProjectReference({ projectId, databasePath: project.database_path });
+        return { project_id: projectId, registry: this.actionRegistry(reference), client: this.actionClient(reference), inspect: caller => this.inspectActions(caller, reference) };
+      } });
     if (options.homeDirectory) {
       this.alchemist = new AlchemistHostService(options.homeDirectory, options.alchemist);
       this.host.actionRegistry().registerProvider(this.alchemist.provider());
@@ -210,7 +220,16 @@ export class MolisWorkLocalHost {
         if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
         return project ? this.actionClient(project) : this.homeActionClient();
       }, options.homeDirectory),
-      ...(options.homeDirectory ? [pluginConsentProvider(new HomeConsentLedger(options.homeDirectory)), pluginInstallProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id)))] : []),
+      ...(options.homeDirectory ? [pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(), async projectId => {
+        if (!this.catalogRunner) throw new ActionError("actions.unavailable", "项目目录尚未就绪");
+        const project = await this.catalogRunner({ homeDirectory: options.homeDirectory }, catalog => catalog.getProject(projectId));
+        const reference = molisWorkHostProjectReference({ projectId, databasePath: project.database_path });
+        const [home, scoped] = await Promise.all([
+          capabilityCatalog({ project_id: null, registry: this.host.actionRegistry(), client: this.homeActionClient(), inspect: caller => this.host.inspectActions(caller) }, LOCAL_PERSON_ACTOR_ID),
+          capabilityCatalog({ project_id: projectId, registry: this.actionRegistry(reference), client: this.actionClient(reference), inspect: caller => this.inspectActions(caller, reference) }, LOCAL_PERSON_ACTOR_ID),
+        ]);
+        return { project_name: project.display_name, capabilities: [...home, ...scoped.filter(entry => entry.scope === "project" && !home.some(item => item.id === entry.id))] };
+      }), pluginInstallProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id)))] : []),
     ];
     registerHostPlatformProviders(this.host.actionRegistry(), platform);
     if (options.homeDirectory) {

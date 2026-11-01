@@ -40,7 +40,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
-  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: shownProjectPlugins(configuration.plugins, configuration.hidden),
+  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
   return { html: [characters, ...runtime.html], panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,

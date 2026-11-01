@@ -305,7 +305,8 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     if (result.overlays) overlays.push(result.overlays);
     surfaces.push(...result.surfaces);
   };
-  for (const entry of registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id))) {
+  for (const entry of registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)
+    || options?.views && Object.hasOwn(options.views, `home:${entry.project_plugin_id}`))) {
     const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest), key = `home:${entry.project_plugin_id}`;
     if (options?.views && !Object.hasOwn(options.views, key)) continue;
     if (host.hasPackage(pluginId)) {

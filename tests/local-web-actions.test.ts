@@ -452,10 +452,11 @@ test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action
 test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and internal declared read-only authority", { timeout: 60_000 }, async t => {
   const ownerId = "io.molis.work.example.stage-authority", sourceId = "io.molis.work.example.stage-source";
   const query = (capability_id: string, operation: "query" | "command" = "query", effect?: "metered"): ActionDefinition => ({ capability_id, version: 1, operation,
-    action: { title: capability_id, description: "Stage authority probe", scope: "home", kind: operation === "query" ? "query" : "operation", audiences: ["user"],
+    action: { title: capability_id, description: "Stage authority probe", scope: "home", kind: operation === "query" ? "query" : "operation", audiences: ["user", "workflow"],
       permissions: ["stage-source:read"], subject_kinds: [], input_schema: { type: "object" }, output_schema: {}, ...(effect ? { execution: { cost: effect } } : {}) } });
   const entry = query("stage-authority.read"), source = query("stage-source.read"), undeclared = query("stage-source.other"), write = query("stage-source.write", "command"), metered = query("stage-source.paid", "query", "metered");
   const counts = { entry: 0, source: 0, other: 0, write: 0, metered: 0 };
+  const sourceCallers: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext[] = [];
   const manifest = (plugin_id: string, actions: ActionDefinition[]) => ({ schema_version: 2 as const, host_api_version: 2 as const, plugin_id, name: plugin_id, version: "1.0.0", kind: "app" as const,
     publisher: { publisher_id: "example", signature: "stage-authority" }, entrypoints: [{ deployment: "local" as const, entrypoint: "./index.js" }],
     permissions: ["stage-source:read", "actions:delegate"].map(permission => ({ permission, required: true, reason: "Read declared source" })), actions,
@@ -468,10 +469,17 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
     return context.services!.actions!.invokeQuery(mode === "undeclared" ? undeclared : source, {});
   } }] }; } });
   const producer = definePlugin({ manifest: manifest(sourceId, [source, undeclared, write, metered]), async start() { return { kind: "app", actions: [source, undeclared, write, metered].map(action => ({ ...action,
-    async handle() { counts[action === source ? "source" : action === undeclared ? "other" : action === write ? "write" : "metered"]++;
+    async handle(caller) { if (action === source) sourceCallers.push(caller); counts[action === source ? "source" : action === undeclared ? "other" : action === write ? "write" : "metered"]++;
       const wait = hold; hold = undefined; if (wait && action === source) { wait.entered.resolve(); await wait.release.promise; } return { value: "declared source" }; } })) }; } });
   const { host, project } = await serveHomeRuntime(t, { pluginFixtures: { home: [owner, producer] } });
   const one = await project("Stage authority"), platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(ownerId)!;
+  const narrow = bindLocalWebAction(host, one.reference, source);
+  assert.deepEqual((await narrow.discover()).map(view => view.capability_id), [source.capability_id]);
+  await narrow.invoke(source, {});
+  assert.deepEqual(sourceCallers[0]!.permissions, source.action.permissions);
+  assert.deepEqual(sourceCallers[0]!.allowed_actions?.map(ref => `${ref.capability_id}@${ref.version}`), [`${source.capability_id}@1`]);
+  assert.equal(sourceCallers[0]!.read_only_effects, undefined, "ordinary binder keeps its original single-action context");
+  counts.source = 0;
   const current = () => { const row = host.homePlugins!.installation(ownerId); if (row?.state !== "running" || row.installation_generation !== installation.installation_generation) throw new ActionError("actions.provider_changed", "owner changed"); };
   const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: { manifest: ownerManifest, scope: "home", install_id: installation.install_id, assertCurrent: current } });
   const bound = bind(), visible = await bound.discover();

@@ -144,12 +144,12 @@ async function proxied(body: string, names: Array<keyof typeof SANDBOX_INTEGRATI
   const declared = contract(names);
   const runner = await createSandboxRunner({ bundlePath, contract: declared, grants: { connections: [SANDBOX_INTEGRATION_SOURCE_SLOT] }, services: {},
     identity: { projectId: "home", installationId: "install-probe", pluginId: PLUGIN_ID, namespace: "installed" } });
-  const contribution = sandboxIntegrationContribution({ manifest: manifest(), operations: declared.operations.map(item => item.id),
+  const contribution = sandboxIntegrationContribution({ manifest: manifest(names.includes("presentation") ? { source_presentations: ["example-display"] } : {}), operations: declared.operations.map(item => item.id),
     call: (id, input, control) => runner.call(id, input, control),
     connections: (binding, control) => { signals.push(control.signal); return createCallConnectionsClient(port, { plugin_id: PLUGIN_ID, install_id: "install-feed", service_id: "example-feed", connection_id: binding.connection_id, origins: ["https://api.example-feed.com"] }, SANDBOX_INTEGRATION_SOURCE_SLOT, control); },
     now: () => new Date("2026-10-26T00:00:00.000Z") });
   const bound = contribution.bind({ source_id: "src-1", connection_id: "c-1", credential_ref: null, config: { repo: "a" } });
-  return { bound, sent, signals, async close() { await runner.stop(); await rm(directory, { recursive: true, force: true }); } };
+  return { bound, contribution, sent, signals, async close() { await runner.stop(); await rm(directory, { recursive: true, force: true }); } };
 }
 
 const POLL = (answer: string, account = true) => `export const operations = {
@@ -241,4 +241,30 @@ test("S-95 RAC-2464 a sandboxed integration's calls stop counting as current whe
       assert.equal(sent.length, 0, `${withdrawn}: nothing reached the Host's side`);
     } finally { await definition.stop!(); }
   }
+});
+
+test("RAC-2507 a signed source presentation redeems a closed pure query and receives no source binding or effect port", async () => {
+  const declared = manifest({ source_presentations: ["example-display"] }), fixed = contract(["health", "poll", "presentation"]);
+  assert.ok(readSandboxIntegrationPackage(payload({ manifest: declared, contract: fixed })));
+  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: declared })), refusedWith(/一同兑现/u));
+  assert.throws(() => readSandboxIntegrationPackage(payload({ contract: fixed })), refusedWith(/一同兑现/u));
+  const withConnections = structuredClone(fixed); withConnections.operations[2]!.effects = { connections: ["source"] };
+  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: declared, contract: withConnections })), refusedWith(/effects/u));
+  const seen: unknown[] = [], contribution = sandboxIntegrationContribution({ manifest: declared, operations: fixed.operations.map(op => op.id),
+    call: async (id, input, control) => { seen.push({ id, input, control }); return { home_url: "https://example.com/news" }; },
+    connections: () => { throw new Error("pure presentation gets no account"); } });
+  assert.deepEqual(await contribution.presentSource!("example-display", { cursor: { position: 4 } }), { home_url: "https://example.com/news" });
+  assert.deepEqual(seen, [{ id: "integration.presentation", input: { presentation_id: "example-display", cursor_json: '{"position":4}' }, control: {} }]);
+  await assert.rejects(contribution.presentSource!("other", {}), { code: "host.integration_source_invalid" });
+  assert.equal(seen.length, 1);
+});
+
+test("RAC-2507 a real sandbox presentation cannot use the pull's connection effect", mac, async () => {
+  const f = await proxied(`export const operations = { 'integration.presentation': async (input, sdk) => {
+    try { await sdk.connections.request('source', { url: 'https://api.example-feed.com/me' }); throw new Error('unexpected account access'); }
+    catch (error) { if (!String(error.code || error.message).includes('denied')) throw error; }
+    return { home_url: 'https://example-feed.com/' };
+  } };`, ["health", "poll", "presentation"]);
+  try { assert.deepEqual(await f.contribution.presentSource!("example-display", {}), { home_url: "https://example-feed.com/" }); assert.deepEqual(f.sent, []); }
+  finally { await f.close(); }
 });

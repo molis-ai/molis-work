@@ -56,7 +56,7 @@ test("RAC-2500 Schedule's stage-opening view names its own task list, and the wo
   assert.equal(stageDataAction(scheduleManifest), scheduleManifest.actions!.find(action => action.capability_id === scheduleActions.list.capability_id));
   assert.equal(stageDataAction(scheduleManifest)?.capability_id, "schedule.tasks.list");
   const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => stageDataAction(entry.manifest)).map(entry => entry.project_plugin_id);
-  assert.deepEqual(declaring, ["goals", "feed", "inbox", "schedule"], "each owner declares its own stage read");
+  assert.deepEqual(declaring, ["goals", "inbox", "schedule", "feed"], "each owner declares its own stage read");
 });
 
 /** A binder that records the action each stage read is bound for, and answers through `answer`. */
@@ -149,10 +149,9 @@ test("RAC-2501 RAC-2502 RAC-2503 the page and its redraw take Schedule's stage f
   }
 });
 
-// Verification of slice 1 (#1590, Codex A): the binder was handed the action's permissions, but the local web adapter joined every running
-// installation's back into the caller. What is asserted here is the caller the Host's action client really gets, for the page and its
-// redraw: the person in this project, exactly the action's own permissions, and no other action it may reach.
-test("RAC-2505 the page and its redraw call the stage read as the person in the project with exactly its own permissions and no other action", { timeout: 60_000 }, async t => {
+// T402 accepted internal-read mode preserves the external single entrance and gives its handler only the same person's
+// precise owner/consumes references, with effect execution refused. The unchanged default binder is checked in local-web-actions.
+test("RAC-2505 the page and redraw keep the person, owner references, read-only effects and current authority checks", { timeout: 60_000 }, async t => {
   const { host, scheduled, actions, base } = await servedHome(t);
   await actions.invoke(scheduleActions.createTask, { title: "Morning digest", instructions: "Read the news", time: "08:00" });
   const callers: ActionCallContext[] = [], actionClient = MolisWorkLocalHost.prototype.actionClient;
@@ -171,8 +170,14 @@ test("RAC-2505 the page and its redraw call the stage read as the person in the 
     assert.equal(callers.length, 1, `${path}: the stage read is called once`);
     const [caller] = callers;
     assert.deepEqual([caller!.actor_id, caller!.audience, caller!.project_id], [LOCAL_PERSON_ACTOR_ID, "user", scheduled.project_id], path);
-    assert.deepEqual([...caller!.permissions].sort(), [...scheduleActions.list.action.permissions].sort(), `${path}: only the read's own permissions`);
-    assert.deepEqual(caller!.allowed_actions?.map(item => `${item.capability_id}@${item.version}`), [`${scheduleActions.list.capability_id}@${scheduleActions.list.version}`], `${path}: no other action`);
+    assert.ok(scheduleActions.list.action.permissions.every(permission => caller!.permissions.includes(permission)), path);
+    assert.equal(caller!.read_only_effects, true, `${path}: an internal read cannot execute writes or paid queries`);
+    assert.equal(caller!.query_only, undefined, `${path}: promotion metadata may remain visible`);
+    const own = new Set(scheduleManifest.actions!.map(action => `${action.capability_id}@${action.version}`));
+    assert.ok(caller!.allowed_actions!.every(reference => own.has(`${reference.capability_id}@${reference.version}`)
+      || scheduleManifest.capabilities.consumes.includes(reference.capability_id)), `${path}: no unrelated authority`);
+    const provider = caller!.allowed_actions!.find(reference => reference.capability_id === scheduleActions.list.capability_id)!.provider_id;
+    assert.ok(provider && caller!.allowed_actions!.filter(reference => own.has(`${reference.capability_id}@${reference.version}`)).every(reference => reference.provider_id === provider), `${path}: own references stay on the selected provider`);
     assert.equal(typeof caller!.validate_authority, "function", `${path}: the installation's grant is still checked per call`);
   }
 });
@@ -190,7 +195,7 @@ test("RAC-2510 object reads and finite stage surfaces obey the same owner/read/p
   for (const list of [[], ["source-workbench"], ["workbench", "workbench"], ["workbench", ""], "workbench"]) {
     assert.match(manifestProblems(withViews([navigator({ stage_surfaces: list })])), /stage_surfaces/);
   }
-  assert.match(manifestProblems(withViews([navigator({ stage_surfaces: ["workbench"] }), { view_id: "other", title: "Other", slot: "stage" }])), /stage_surfaces.*打开舞台/);
+  assert.match(manifestProblems(withViews([navigator({ stage_data: undefined, stage_surfaces: ["workbench"] }), { view_id: "other", title: "Other", slot: "stage" }])), /stage_surfaces.*打开舞台/);
   assert.match(manifestProblems(withViews([navigator({ slot: "settings", stage_data: undefined, stage_surfaces: ["workbench"] })])), /stage_surfaces.*打开舞台/);
 });
 

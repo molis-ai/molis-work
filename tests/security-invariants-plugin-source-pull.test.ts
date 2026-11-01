@@ -203,11 +203,16 @@ test("S-97 RAC-1017: the source vocabulary is pure data, needs sources:pull_feed
   const vocabulary = () => probe.services().sourcePull!.vocabulary!;
   // Outside every call, without the permission on the calling action, from another installation: refused.
   assert.throws(() => vocabulary().catalog(), code("plugin.source_pull_call_required"));
+  await assert.rejects(vocabulary().presentation("rss-http", {}), code("plugin.source_pull_call_required"));
   await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.catalog()), probe.plain, []), code("plugin.source_pull_permission_undeclared"));
   await assert.rejects(none.in(() => Promise.resolve(vocabulary().catalog()), none.run, ["storage:private"]), code("plugin.source_pull_call_required"));
   // In a call that holds it, a read-only one included: data, the same each time, and a copy a plugin cannot use to change the next answer.
   const answers = await probe.in(async services => {
     const v = services.sourcePull!.vocabulary!;
+    const presentation = await v.presentation("rss-http", { cursor: { rss_http: { schema: "molis-work-rss-http-v1", etag: '"one"', home_url: "https://example.com/" } } });
+    assert.deepEqual(presentation, { conditional_request: "etag", home_url: "https://example.com/" });
+    const scope = await v.presentation("gmail-scope", {});
+    assert.equal(scope.scope_options?.length, 4);
     const first = v.catalog(), again = v.catalog();
     first[0]!.limitations.push?.("tampered");
     return { first: v.catalog(), again, custom: v.normalizeCustomRssUrl("https://Example.com/feed.xml#top"), channel: v.normalizeYouTubeChannel("UCabcdefghijklmnopqrstuv"),
@@ -229,6 +234,10 @@ test("S-97 RAC-1017: the source vocabulary is pure data, needs sources:pull_feed
   await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.rssFailureCount((() => 1) as never))), code("plugin.source_pull_request_invalid"));
   await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("http://127.0.0.1/feed.xml"))), code("rss.custom_url_invalid"));
   await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeYouTubeChannel("not a channel"))), code("youtube.channel_invalid"));
+  await assert.rejects(probe.in(services => services.sourcePull!.vocabulary!.presentation("not-declared", {})), code("plugin.integration_unavailable"));
+  await assert.rejects(probe.in(services => services.sourcePull!.vocabulary!.presentation("rss-http", { cursor: new Date() })), code("plugin.declaration_invalid"));
+  await assert.rejects(probe.in(services => services.sourcePull!.vocabulary!.presentation("rss-http", {}), probe.plain, []), code("plugin.source_pull_permission_undeclared"));
+  assert.deepEqual(await probe.in(services => services.sourcePull!.vocabulary!.presentation("rss-http", {}), probe.query), { conditional_request: "not-fetched", home_url: null });
   assert.deepEqual(f.fetched, [], "the vocabulary never reached a transport");
 });
 

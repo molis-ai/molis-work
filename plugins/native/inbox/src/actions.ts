@@ -51,13 +51,17 @@ export async function readInboxStageSubjects(entries: readonly InboxActionEntry[
 }): Promise<readonly InboxStageSubject[]> {
   const state = ports.feedAvailability();
   const missing = !state.available && ["actions.dependency_missing", "actions.plugin_disabled"].includes(state.code ?? "");
-  const { items, sources } = missing ? { items: new Map<string, InboxItemBrief>(), sources: new Map<string, { source_id: string; name: string }>() }
-    : await ports.briefs({ item_ids: [...new Set(entries.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id))],
-      source_ids: [...new Set(entries.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id))] });
+  const ids = { item_ids: [...new Set(entries.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id))],
+    source_ids: [...new Set(entries.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id))] };
+  let items: InboxBriefs["items"] = new Map(), sources: InboxBriefs["sources"] = new Map();
+  if (!missing && (ids.item_ids.length || ids.source_ids.length)) {
+    try { ({ items, sources } = await ports.briefs(ids)); }
+    catch (error) { if (!(error instanceof ActionError) || !["actions.dependency_missing", "actions.plugin_disabled", "actions.missing"].includes(error.code)) throw error; }
+  }
   const goals = new Map<string, string | null>();
   for (const id of new Set(entries.filter(entry => entry.subject_type === "goal_decision").map(entry => entry.subject_id))) {
     try { goals.set(id, (await ports.goal(id)).goal.title); }
-    catch (error) { if (error instanceof ActionError && error.code === "goals.not_found") goals.set(id, null); else throw error; }
+    catch (error) { if (error instanceof ActionError && ["goals.not_found", "actions.dependency_missing", "actions.plugin_disabled", "actions.missing"].includes(error.code)) goals.set(id, null); else throw error; }
   }
   return entries.map(entry => {
     if (entry.subject_type === "feed_item") {

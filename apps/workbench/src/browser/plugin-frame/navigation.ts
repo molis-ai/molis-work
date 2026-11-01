@@ -1,12 +1,13 @@
 import type { FrameConfig, FrameDown, FrameScope, FrameUp } from "./types.js";
 
-/** The trusted shell chooses which declared tool chords can cross this boundary. */
+/** The trusted shell chooses which search and declared tool chords can cross this boundary. */
 export function pageNavigation(scope: FrameScope, port: MessagePort, side: boolean) {
   let owner = document;
   if (parent !== window) {
     try { owner = parent.document; } catch { /* A foreign parent supplies no shell shortcuts. */ }
   }
   const shortcuts = [...owner.querySelectorAll<HTMLElement>("[data-side-keys]")].map(node => node.dataset.sideKeys!).filter(Boolean);
+  if (owner.querySelector("[data-global-search-dialog]")) shortcuts.push("Mod+K", "Mod+F");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
   const focus = () => { if (side && scope.visible && document.hasFocus()) port.postMessage({ type: "focus" } satisfies FrameDown); };
   scope.listen(window, "focus", focus);
@@ -45,6 +46,7 @@ export function childNavigation(port: MessagePort, scope: FrameScope, config: Fr
     if (key.repeat || key.isComposing || key.defaultPrevented) return;
     const chord = (key.metaKey || key.ctrlKey ? "Mod+" : "") + (key.shiftKey ? "Shift+" : "")
       + (key.altKey ? "Alt+" : "") + key.code.replace(/^Key/, "");
+    if ((chord === "Mod+K" || chord === "Mod+F") && key.target instanceof Element && key.target.closest("[data-tui-pane],.xterm")) return;
     if (config.shortcuts.includes(chord)) { key.preventDefault(); port.postMessage({ type: "shortcut", keys: chord } satisfies FrameUp); }
     else if (config.side && key.key === "Escape" && !document.querySelector("dialog[open],:popover-open")) {
       key.preventDefault(); port.postMessage({ type: "close-side" } satisfies FrameUp);

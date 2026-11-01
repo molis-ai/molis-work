@@ -1,18 +1,16 @@
 import { createHash } from "node:crypto";
-import { existsSync, realpathSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { realpathSync } from "node:fs";
 import { feedErrors } from "@molis-ai/molis-work-plugin-feed/contract";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { createDemoFeedApplication, createDemoFeedSourceService, homeIntegrationRegistry, withConnectorConnections, type DemoFeedApplicationOptions, type IntegrationProviderFactory, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
-import { LocalSqliteJournal, LocalSqliteStorage, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
   FeedConnectorSync, FeedSourceScheduler, createFeedSourceSyncLease, integrationKeyOf, providerItemOf,
   type FeedApplication, type FeedSourceRecord, type FeedSourceSchedulerDispatch, type FeedSourceService, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
-import { ListenerHost, SignalsModule, fromBetterSqlite, refreshSourceConnectionState } from "@molis-ai/molis-work-plugin-feed/store";
+import { ListenerHost, SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
 
 // A Feed library arranged without the Plugin Runtime: the tests that need rows in a project library before (or beside) the Host starts the
 // plugin build them with these, over the same tables the Runtime Feed reads. The application and the source service are the demo seed's
@@ -34,7 +32,7 @@ export function feedSourceSyncLease(db: SqliteDatabase): FeedSourceSyncLease {
 
 export function createLocalFeedSourceService(db: SqliteDatabase, projectId: string,
   runtimeFactory?: (db: SqliteDatabase, source?: FeedSourceRecord) => SourcePullRuntime, now?: () => Date, homeDirectory?: string, feedOptions?: LocalFeedApplicationOptions): FeedSourceService {
-  return createDemoFeedSourceService(db, projectId, runtimeFactory, now, homeDirectory, { ...feedOptions, acquireSync: feedSourceSyncLease(db) });
+  return createDemoFeedSourceService(db, projectId, runtimeFactory, now, { ...feedOptions, acquireSync: feedSourceSyncLease(db) });
 }
 
 export function createLocalFeedSourceScheduler(db: SqliteDatabase, projectId: string, dispatch: FeedSourceSchedulerDispatch, now: () => Date = () => new Date(),
@@ -94,29 +92,3 @@ export function createLocalFeedConnectorSync(db: SqliteDatabase, projectId: stri
   }, projectId);
 }
 
-/**
- * Brings the sources saved on one connection in step with it in every project library of a Home, as the Runtime Feed's reconcile does when
- * the Host announces the connection changed (`host.connection.changed`); the tests that arrange a Home without a running Host call it
- * to see what the saved sources say afterwards.
- */
-export function refreshFeedConnectionState(homeDirectory: string, connectionId: string): void {
-  const available = withConnectorConnections(homeDirectory, store => {
-    const connection = store.get(connectionId);
-    return connection !== null && store.state(connection) === "connected";
-  });
-  const catalogPath = join(homeDirectory, "projects", "catalog.db");
-  if (!existsSync(catalogPath)) return;
-  const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
-  try {
-    const root = resolve(homeDirectory, "projects") + sep;
-    for (const databasePath of listProjectDatabasePaths(catalog.db, join(homeDirectory, "projects"))) {
-      const path = resolve(databasePath);
-      if (!path.startsWith(root) || !existsSync(path)) continue;
-      const project = new LocalSqliteStorage(path, { fileMustExist: true });
-      try {
-        if (!project.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get()) continue;
-        refreshSourceConnectionState(fromBetterSqlite(project.db), { connection_id: connectionId, available });
-      } finally { project.close(); }
-    }
-  } finally { catalog.close(); }
-}

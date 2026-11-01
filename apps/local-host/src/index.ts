@@ -115,7 +115,7 @@ export { installManagedConnectorTool, removeManagedConnectorTool } from "./conne
 export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 export { connectorUsagesAction } from "./connector-usage-actions.js";
-export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
+export { connectorPluginSlotActions, connectorPluginSlotUsages } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 export { publisherStanding } from "./installed-publisher-standing.js";
 export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";

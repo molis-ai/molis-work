@@ -410,6 +410,49 @@ test("Alchemist abort while shared inference returns cannot publish its complete
   assert.equal(requests, 1, "a request already dispatched before abort is neither repeated nor presented as a cancelled success");
 });
 
+test("RAC-2724: a prompt over twice the limit is refused by unit count, without building a code-point array", { timeout: 30_000 }, async t => {
+  // The port's own promptTooLong has the same fast path: a prompt whose UTF-16 length already exceeds twice the limit cannot be within
+  // the limit in characters either, so it is refused on the unit count without spreading the whole string into code points.
+  const f = await configuredAi(t);
+  let inferenceCalls = 0;
+  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => textInference(async input => {
+    inferenceCalls += 1;
+    return { state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, value: '{"reply":"ok"}', configuredModel: input.model, reportedModels: [], usage: [] };
+  }) });
+  const schema = { type: "object", properties: { reply: { type: "string" } } };
+  const prefix = alchemistPromptText("检查长度", schema, "").length;
+  const userPrompt = "😀".repeat(ALCHEMIST_PROMPT_MAX_CHARS + 10);
+  const prompt = alchemistPromptText("检查长度", schema, userPrompt);
+  assert.ok(prompt.length > 2 * ALCHEMIST_PROMPT_MAX_CHARS, "the test input is over twice the limit in UTF-16 units");
+  // The fast path must not build a code-point array of the huge string. The observer replaces the string iterator with a counter: spreading
+  // the prompt (what the slow path does) must be counted (a positive control for the observer), and the production call must count zero.
+  const iterator = String.prototype[Symbol.iterator];
+  let observed = 0;
+  // It counts only characters of a string over the port's limit: a small string spread elsewhere is not what this observes. It also
+  // cannot see an expansion done without the string iterator (e.g. indexing), which is why the source shape is checked too.
+  const counting = function* counting(this: string) {
+    for (let index = 0; index < this.length; index += 1) { if (this.length > ALCHEMIST_PROMPT_MAX_CHARS) observed += 1; yield this[index]!; }
+  };
+  Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, writable: true, value: counting });
+  try {
+    assert.equal([...prompt].length, prompt.length, "the observer's expansion gives the same characters as before");
+    assert.ok(observed > 0, "the observer counts the expansion the slow path would do (positive control)");
+    observed = 0;
+    await assert.rejects(port.generate({ operationId: "over-twice", purpose: "检查长度", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt, jsonSchema: schema }),
+      (error: unknown) => {
+        assert.equal((error as { code?: string }).code, "alchemist.prompt_too_long");
+        assert.equal((error as { kind?: string }).kind, "invalid");
+        assert.match((error as Error).message, /至少多 \d+ 个 UTF-16 单元/u, "the fast path says it is at least the unit excess over the limit, without counting characters");
+        return true;
+      });
+    assert.equal(observed, 0, "the fast path expands no character of the over-twice prompt");
+    assert.equal(inferenceCalls, 0, "the refused prompt never reaches the model");
+  } finally {
+    Object.defineProperty(String.prototype, Symbol.iterator, { configurable: true, writable: true, value: iterator });
+  }
+  assert.ok(prompt.length > prefix, "the prefix is part of the prompt");
+});
+
 test("RAC-2410: the Alchemist prompt is refused whole over the port's limit, and the limit counts whole characters", { timeout: 30_000 }, async t => {
   // The prompt is the JSON Schema and the task materials (the instructions ride in `system`, so this prompt may be as long as the port's
   // own PROMPT_MAX_CHARS, re-exported by this port as ALCHEMIST_PROMPT_MAX_CHARS). The prompt is refused whole — not cut — because a cut would break the

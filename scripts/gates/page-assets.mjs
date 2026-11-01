@@ -242,13 +242,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
+// T-377 (RAC-2794–2797): reopening a failed plugin clears its old notice, while background restoration preserves its usable retry.
+// +219 B, approved in #1332 after source-level savings review: button-only cleanup misses reopen; a broad selector weakens ownership;
+// skipping every failed surface blocks explicit reopen. Reuses existing state and surface-change calculation; no new asset or state.
 const APPROVED_CEILINGS = {
-  // T-354 (RAC-2729): a laid-out code block grown past the slice colours the next frame instead of asking a layout observer
-  // (+41 B of branch in the Coding client; the measured buffer before layout already existed, the shorter guard is the whole cost).
-  // T-354 一审 P1 keeps the shortcut but asks first that what is rendered is not a skipped subtree (`checkVisibility`, style only) and
-  // then the block's real box, not only `framed` (+112 B more; a geometry read alone would make the browser render content-visibility:auto
-  // contents, so the style check is needed too). The original shortcut branch and this guard are the whole cost.
-  "/assets/molis-work-plugins/coding.js": [289876, 290029],
+  "/assets/molis-work-workbench.js": [1150072, 1150291],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

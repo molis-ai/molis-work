@@ -150,7 +150,7 @@ Work 扫描全部 72 个 workspace 包、开始基线的 2405 份产品 TypeScri
 
 | 路径 | 候选 | 保留原因 |
 | --- | --- | --- |
-| `apps/local-host/src/artifact-native-plugin-http.ts` | `ArtifactHttpContext` | TypeScript 导出的返回值/变量签名需要这个具名类型；去掉会产生 TS4023/TS4058。 |
+| `apps/local-host/src/artifact-library-http.ts` | `ArtifactHttpContext` | TypeScript 导出的返回值/变量签名需要这个具名类型；去掉会产生 TS4023/TS4058。 |
 | `apps/local-host/src/assistant/assistant-service.ts` | `AssistantCaller`, `CODING_SESSION_KIND` | 开放 PR #970, #934 的实际修改文件。 |
 | `apps/local-host/src/assistant/assistant-surroundings.ts` | `SurroundingsPorts` | 开放 PR #970, #934 的实际修改文件。 |
 | `apps/local-host/src/coding-surface.ts` | `charactersWorkbenchPanel`, `codingCompanionStages` | 开放 PR #970, #934 的实际修改文件。 |

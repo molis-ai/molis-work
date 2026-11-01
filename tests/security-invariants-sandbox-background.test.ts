@@ -20,7 +20,14 @@ const IDENTITY: SandboxIdentity = { projectId: "p", installationId: "install-bg"
 const GRANTS: SandboxEffects = { background: ["work", "spin"], storage: ["read", "write"] };
 const op = (id: string, kind: "query" | "command", effects: SandboxEffects, input: SandboxOperationContract["input"] = { type: "string" }): SandboxOperationContract =>
   ({ id, kind, input, output: { type: "string" }, errors: [], effects, examples: [{ input: input.type === "number" ? 1 : "x", output: "ok" }] });
-const contract = (operations: SandboxOperationContract[]): SandboxPluginContract => ({ version: 1, pluginId: "bgprobe", revision: "one", entities: [], pages: [], acceptance: [], operations });
+const jobState = { type: 'string', enum: ['running', 'done', 'failed'] } as const;
+const jobSchema: SandboxOperationContract['output'] = { type: 'object', properties: { id: {type:'string'}, state: jobState }, required: ['id','state'], additionalProperties: false };
+const contract = (operations: SandboxOperationContract[]): SandboxPluginContract => ({ version: 1, pluginId: "bgprobe", revision: "one", entities: [], pages: [], acceptance: [], operations: [
+  ...operations.map(operation => operation.effects.background?.length ? {...operation, output: jobSchema,
+    background_job: {status:'status',id:'id',input:'id',state:'state',done:['done'],failed:['failed']},
+    examples: operation.examples.map(example=>({...example,output:{id:'example',state:'running'}}))} : operation),
+  {id:'status',kind:'query',input:{type:'object',properties:{id:{type:'string'}},required:['id'],additionalProperties:false},output:jobSchema,effects:{},errors:[],examples:[{input:{id:'example'},output:{id:'example',state:'running'}}]},
+] });
 const code = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;
 
 /** The Host's client as far as this slice needs it: it runs the work under an execution signal of its own, and can be told to hold it instead. */
@@ -169,10 +176,11 @@ const BODY = `
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(sdk, key) { while (await sdk.storage.get(key) === null) await wait(20); }
 export const operations = {
-  launch: async (input, sdk) => sdk.background.start('work', input),
-  'launch-spin': async (input, sdk) => sdk.background.start('spin', input),
-  'launch-bad': async (input, sdk) => sdk.background.start('work', input),
-  stop: async (input, sdk) => String(await sdk.background.cancel(input)),
+  launch: async (input, sdk) => ({id:await sdk.background.start('work', input),state:'running'}),
+  'launch-spin': async (input, sdk) => ({id:await sdk.background.start('spin', input),state:'running'}),
+  'launch-bad': async (input, sdk) => ({id:await sdk.background.start('work', input),state:'running'}),
+  stop: async (input, sdk) => ({id:String(await sdk.background.cancel(input)),state:'running'}),
+  status: async input => ({id:input.id,state:'running'}),
   ping: async () => String(process.pid),
   release: async (input, sdk) => { await sdk.storage.set('go', true); return 'released'; },
   work: async (input, sdk) => { await until(sdk, 'go'); await sdk.storage.set('done:' + input, String(process.pid)); return 'ok'; },
@@ -197,7 +205,7 @@ async function processes(t: test.TestContext, stand = standIn()) {
 
 test("S-67 RAC-236 a run happens in a second process, so the first keeps answering while it waits", { ...mac, timeout: 60_000 }, async t => {
   const f = await processes(t);
-  const id = await f.foreground.call("launch", "job-1");
+  const {id} = await f.foreground.call("launch", "job-1") as {id:string};
   assert.equal(typeof id, "string");
   const answered = Date.now();
   const first = await f.foreground.call("ping", ""), again = await f.foreground.call("ping", "");
@@ -212,12 +220,12 @@ test("S-67 RAC-236 a run happens in a second process, so the first keeps answeri
 
 test("S-67 RAC-236 cancelling a run that is executing ends its process; the next run starts a new one and the first is not replayed", { ...mac, timeout: 90_000 }, async t => {
   const f = await processes(t);
-  const id = await f.foreground.call("launch-spin", "s") as string;
+  const {id} = await f.foreground.call("launch-spin", "s") as {id:string};
   await f.until(() => f.entries.has("spin-pid"));
   const spinPid = f.entries.get("spin-pid");
-  assert.equal(await f.foreground.call("stop", id), "true");
+  assert.deepEqual(await f.foreground.call("stop", id), {id:'true',state:'running'});
   await f.until(() => f.stand.executions[0]!.settled);
-  assert.equal(await f.foreground.call("stop", id), "false", "a run that has ended cannot be cancelled again");
+  assert.deepEqual(await f.foreground.call("stop", id), {id:'false',state:'running'}, "a run that has ended cannot be cancelled again");
   f.entries.delete("spin-pid");
   await f.foreground.call("release", "");
   await f.foreground.call("launch", "after");

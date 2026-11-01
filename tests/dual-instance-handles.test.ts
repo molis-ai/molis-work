@@ -80,7 +80,7 @@ function half(which: Half, actions: { home: ReturnType<typeof act>; project: Ret
   return definePlugin({ manifest: own, async start(context) {
     contexts[which] = context;
     const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive() {},
-      requireGrant: (permission: string) => context.requireGrant(permission) };
+      requireGrant: (permission: string) => context.requireGrant(permission), installationPermissions: own.permissions.map(row => row.permission) };
     const port = ports(which, reached);
     handles[which] = {
       model: createPluginModelClient(own, port.model, gate),

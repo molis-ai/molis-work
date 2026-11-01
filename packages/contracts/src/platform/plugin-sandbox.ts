@@ -94,6 +94,15 @@ export interface SandboxOperationContract {
   output: SandboxSchema;
   errors: Array<{ code: string; description: string }>;
   effects: SandboxEffects;
+  /** A launcher's persistent business job, read by a query of this same package. Broker execution ids are separate, ephemeral handles. */
+  background_job?: {
+    status: string;
+    id: string;
+    input: string;
+    state: string;
+    done: readonly string[];
+    failed: readonly string[];
+  };
   examples: SandboxOperationExample[];
 }
 

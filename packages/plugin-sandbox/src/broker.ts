@@ -216,7 +216,7 @@ export class SandboxBroker {
     result.validateResult();
     return modelResultJson(result);
   }
-  private async dispatchBackground(operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards): Promise<SandboxJson> {
+  private async dispatchBackground(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards): Promise<SandboxJson> {
     // The Host's client asks the Manifest's `background_job` metadata on the plugin's own concurrent action, the running instance and the original
     // caller's authority (before the Host accepts, and again at each `beforeEffect` of the run). Here: only a command starts or cancels work, the
     // operation that runs is one the contract names and the person approved, its input is checked before anything is accepted, and the number of
@@ -239,7 +239,7 @@ export class SandboxBroker {
     if (this.executions.size + this.accepting >= BACKGROUND_EXECUTIONS) throw new SandboxError('sandbox.queue_full', 'Too many background executions are still running');
     this.accepting += 1;
     let execution: PluginBackgroundExecution<SandboxJson>;
-    try { execution = await background.client.start(control => background.lane.run(target, input, { signal: control.signal, beforeEffect: control.beforeEffect })); }
+    try { execution = await background.client.start(control => background.lane.run(target, input, { signal: control.signal, beforeEffect: control.beforeEffect, projectReach: context.projectReach })); }
     finally { this.accepting -= 1; }
     if (this.stopped) {
       execution.cancel();
@@ -327,7 +327,7 @@ export class SandboxBroker {
     }
     if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
     if (method.startsWith('imageGeneration.')) return imageGenerationCall(this.services.imageGeneration, context, operation, method, args, guards);
-    if (method.startsWith('background.')) return this.dispatchBackground(operation, method, args, guards);
+    if (method.startsWith('background.')) return this.dispatchBackground(context, operation, method, args, guards);
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.
       const object = <T>(index: number): T => {

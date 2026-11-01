@@ -13,6 +13,7 @@ import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, Plugi
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
+import { registerInstalledActions } from './installed-action-registration.js';
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { assertModelConfigurationEntries } from "./model-configuration-entries.js";
 import { assertImageGenerationEntries } from "./plugin-image-generation-entries.js";
@@ -136,6 +137,8 @@ export class HomePluginHost {
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
+  /** Refresh installed definitions after activation replacement and before public directory/dispatch reads them. */
+  async refreshPublicActions(): Promise<void> { if (!this.closed) await this.installed?.refreshPublicActions(); }
   /**
    * The signed packages installed in the Home, as the tool bar offers them: those that run and those that were running and did not come
    * back (their page says why), by name. A Home that did not start offers none, nor one whose library cannot be read now.
@@ -269,6 +272,8 @@ export class HomePluginHost {
     const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
+        register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,
+          { registry: this.options.registry, client: this.options.client, project_id: null }),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
       definition: entry.definition, project_data: identity.projectDataFor(entry.definition),

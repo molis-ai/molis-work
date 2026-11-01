@@ -53,6 +53,8 @@ export function createBackgroundLane(options: { contract: SandboxPluginContract;
       const process = live ??= options.create();
       let runner: SandboxRunner;
       try { runner = await process; } catch (error) { discard(process); throw error; }
+      if (stopped) { await runner.stop(); throw new SandboxError('sandbox.stopped', 'The background lane stopped while opening its process'); }
+      control.signal?.throwIfAborted();
       try { return await runner.call(operationId, input, control); }
       catch (error) { if (error instanceof SandboxError && PROCESS_GONE.has(error.code)) discard(process); throw error; }
     },

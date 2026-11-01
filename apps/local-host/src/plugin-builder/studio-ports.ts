@@ -91,7 +91,7 @@ export function builderPorts(inputs: {
       signal.throwIfAborted();
       for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw new Error('目标范围没有开放给插件的能力：' + capability);
       if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: '0.0.0',
-        publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects, runtime: { scope: 'home' } }));
+        publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects, contract: build.design!.contract, runtime: { scope: 'home' } }));
       return runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
       operationIds, services: previewFor(build), mockServices: { capability: standIns, network: networkFor(build) }, grants: buildEffects(build), signal, settled: settledFor(build.directory!),
       identity: { projectId: scope === 'home' ? null : options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } });

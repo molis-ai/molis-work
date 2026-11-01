@@ -4,7 +4,7 @@ import test from "node:test";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { recordedCallId, subjectOfferChoices, withCallId } from "@molis-ai/molis-work-kernel";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";

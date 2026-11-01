@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { describeSqliteSchema, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { createFunctionsService } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 
 const cases = [

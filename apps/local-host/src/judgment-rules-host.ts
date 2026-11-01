@@ -11,7 +11,7 @@ import {
   type DeclaredRuleSubject,
   type DeclaredSceneRule,
   type TypeSafeProvider,
-} from "@molis-ai/molis-work-module-functions";
+} from "@molis-ai/molis-work-module-judgment-rules";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 
 /**

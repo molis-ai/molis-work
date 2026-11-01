@@ -7,9 +7,9 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { sceneConfigurationActions, ActionError, bindActionClient, type ActionDefinition, type ActionSceneDefinition, type ActionSceneBinding, type ActionSceneHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalActionGatewayClient, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { grantMcpActions, revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";

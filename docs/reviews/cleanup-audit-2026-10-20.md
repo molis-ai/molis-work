@@ -189,7 +189,7 @@
 | 重复体 | 位置 | 大小 | 建议 |
 | --- | --- | ---: | --- |
 | `canonicalize` | `modules/goals` 3 份 + `plugins/native/goals` 4 份（`modules/goals/src/command-support.ts:86`、`plugins/native/goals/src/goal-tree-check.ts:106` 等） | 299 字符 × 7 | 收进 Plugin SDK，作为共享的规范化 JSON 工具；两处变体（`canonicalizeValue`、`proposal-baselines.ts`）一起评估 |
-| 路由 `handle` | [`apps/local-host/src/functions-http/routes.ts:66`](../../apps/local-host/src/functions-http/routes.ts#L66)、[`plugins/native/feed/src/routes.ts:69`](../../plugins/native/feed/src/routes.ts#L69)、`inbox`、`pages`、`schedule`、`shelf` 各一份 | 435 字符 × 6 | 抽成 SDK 的通用路由表（`createRouteTable` 一类）；或先做宿主/插件内的共享 helper，避免改公开 API |
+| 路由 `handle` | [`apps/local-host/src/functions-http/routes.ts:66`](../../apps/local-host/src/judgment-rules-http/routes.ts#L66)、[`plugins/native/feed/src/routes.ts:69`](../../plugins/native/feed/src/routes.ts#L69)、`inbox`、`pages`、`schedule`、`shelf` 各一份 | 435 字符 × 6 | 抽成 SDK 的通用路由表（`createRouteTable` 一类）；或先做宿主/插件内的共享 helper，避免改公开 API |
 | `ledgerDatabase` | [`apps/local-host/src/assistant/assistant-relations.ts:16`](../../apps/local-host/src/assistant/assistant-relations.ts#L16)、[`apps/local-host/src/placement-actions.ts:39`](../../apps/local-host/src/placement-actions.ts#L39) | 485 字符 × 2 | 抽到宿主内一个 `context-ledger-database.ts`；两处都有 `as unknown as`，顺手消掉 |
 | `writeResponse` | `apps/local-host/src/inbox-native-plugin-http.ts:54`（已随 FI-7 删；Schedule 入口已随 SYS-15 迁到 Runtime） | 285 字符 × 2 | 合并进已有的 `native-plugin-http.ts`，作为“可返回 HTML 的 JSON 响应” |
 | `deletionRecord` | `modules/projects/src/repository.ts:452`、`modules/projects/src/project-service.ts:223` | 330 字符 × 2 | 一个 mapper 导出给另一个用 |

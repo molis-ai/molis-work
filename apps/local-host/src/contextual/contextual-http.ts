@@ -5,7 +5,7 @@ import { ActionError, type ActionReference, type ActionView, type FragmentAction
 import { FUNCTIONS_DEFAULT_MODEL } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ContextualJudgeRequest, SurfaceFocus, SurfaceLanding } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates, type JudgmentWording } from "@molis-ai/molis-work-kernel/contextual";
-import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-functions";
+import { TYPESAFE_SYSTEMONE_URL } from "@molis-ai/molis-work-module-judgment-rules";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { registeredInstructionBody, registeredInstructionRevision } from "../agent-definitions/instructions.js";
 import { CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE } from "../agent-definitions/system-prompts.js";

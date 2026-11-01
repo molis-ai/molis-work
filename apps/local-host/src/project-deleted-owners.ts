@@ -2,7 +2,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
-import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
+import { functionsProjectData } from "@molis-ai/molis-work-module-judgment-rules";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";

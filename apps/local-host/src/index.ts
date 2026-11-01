@@ -101,7 +101,7 @@ export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
 export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
 export { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
-export { seedSceneRules, withFunctionsService } from "./functions-host.js";
+export { seedSceneRules, withFunctionsService } from "./judgment-rules-host.js";
 
 export { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
@@ -166,7 +166,7 @@ export type { IntegrationProviderFactory } from "./integration-providers.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 /** One Feed item for the shell's reader (`/api/stage/feed/items/<id>`), read through Feed's own actions. */
 export { feedItemForReader } from "./web-request.js";
-export { handleFunctionsHttp } from "./functions-http.js";
+export { handleFunctionsHttp } from "./judgment-rules-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";
 

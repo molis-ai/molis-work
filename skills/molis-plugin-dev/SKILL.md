@@ -74,12 +74,12 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 1. 对象与时刻（上面四问）。
 2. Manifest 身份：`schema_version`（产品插件用 2）、`host_api_version`、`plugin_id`、`name`、`version`、`kind`、`publisher`、`entrypoints`、`permissions`（每条带 reason；要用侧栏浏览器的网站，写 `surface:browser` 并列出 `origins`，见 [ui.md](ui.md) 侧栏标签一节）、`requires`（每条同时写入 `capabilities.consumes`）。权限只写真会用的。
-3. 个人还是项目：个人插件（本机创作、置物架、灵光、Todo、Jelly、Cognia 等，以各包 `src/registration.ts` 的 `personal: true` 为准）在每个项目都可用；Goals、Feed、Inbox、Coding 等按项目启用。判断规则属于系统模块 `modules/functions`，不是插件。
+3. 个人还是项目：个人插件（本机创作、置物架、灵光、Todo、Jelly、Cognia 等，以各包 `src/registration.ts` 的 `personal: true` 为准）在每个项目都可用；Goals、Feed、Inbox、Coding 等按项目启用。判断规则属于系统模块 `modules/judgment-rules`，不是插件。
 4. UI 槽 + contribution。槽只有 `navigator` | `stage` | `settings` | `island` | `side`。列表详情用 `renderPluginStageShell`。视觉、客户端：[ui.md](ui.md)。
 5. HTTP：写 Manifest `routes`，Host 挂在 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。短名路径（如 `/api/alchemist`）只属于构建期例外 Alchemist（已迁完的 Pages、灵光、Schedule、Inbox、Feed 等走 Manifest `routes`，旧短名路径已删），新插件不新增 `<插件>-native-plugin-http.ts`。未声明或未接线的路径到不了插件。
 6. 浏览器客户端：Pages 族在插件包 `CLIENT_FACTORY_SCRIPT`，Workbench pack 注入。Feed/Inbox 的点击在 `apps/workbench/src/scripts/client/navigation-*.ts`。只出静态 HTML 不够。
 7. 注册 `actions` 和实际处理器，让 UI、编排和授权 MCP 共用同一实现；HTTP 路由只转发到这些动作。写法：用 SDK 的 `defineAction`，同一份定义既进 Manifest 的 `actions`，也绑定运行实例的处理器（`packages/plugin-sdk/README.md`；[host.md](host.md) 必改第 12 步）。
-8. 消费判断：注册 `action_scenes`，按 [host.md](host.md#接到统一判断场景) 兑现真实绑定、上下文准备和结果消费。兼容场景来自合同，使用位置来自真实配置；新增场景不再修改 Host 白名单。判断规则归系统模块 `modules/functions`，编辑器在「能力」（`apps/workbench/src/functions`），不是插件。
+8. 消费判断：注册 `action_scenes`，按 [host.md](host.md#接到统一判断场景) 兑现真实绑定、上下文准备和结果消费。兼容场景来自合同，使用位置来自真实配置；新增场景不再修改 Host 白名单。判断规则归系统模块 `modules/judgment-rules`，编辑器在「能力」（`apps/workbench/src/judgment-rules`），不是插件。
 9. 可搜索内容：每种对象一个读取器，再声明一个搜索来源（`defineSearchEntriesAction`），按版本列出条目。不写索引、不调用搜索服务。见 [search.md](search.md)。
 10. 对外调用：新注册动作按 `audiences` 和真实授权进入共同 MCP 目录，不另写业务处理器或工具总表（工具名 `molis_work_v1_action_<动作>__v<版本>`）；Manifest 没有 MCP 导出块。schema 不接收可信身份；声明 mcp 入口不授予权限，外部客户端在「能力 → 对外接入」逐客户端授权。
 11. Artifacts：可保存、同步、按类型消费的内容。判断记录不是 Artifact。新类型先写合同，再 `produces`。

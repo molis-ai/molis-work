@@ -1834,7 +1834,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/functions` | 模块 | 17 | 1,969 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/judgment-rules` | 模块 | 17 | 1,963 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |

@@ -127,12 +127,12 @@
     },
     "functions": {
       "paths": [
-        "modules/functions/",
-        "apps/local-host/src/functions-*",
-        "apps/local-host/src/functions-http/",
+        "modules/judgment-rules/",
+        "apps/local-host/src/judgment-rules-*",
+        "apps/local-host/src/judgment-rules-http/",
         "packages/contracts/src/modules/functions.ts"
       ],
-      "reason": "The Functions module and the Host files that serve it (functions-host, functions-http): functions.*"
+      "reason": "The Functions module and the Host files that serve it (judgment-rules-host, judgment-rules-http): functions.*"
     },
     "git": {
       "paths": [

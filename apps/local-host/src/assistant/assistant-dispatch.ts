@@ -1,4 +1,4 @@
-import type { MethodHandoff } from "./assistant-work-reads.js";
+import type { MethodHandoff } from "./assistant-signed-materials.js";
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";

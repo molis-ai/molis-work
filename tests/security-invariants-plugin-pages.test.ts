@@ -460,42 +460,13 @@ function injectedString(script: string, name: string): string {
 type Event = { type: string; detail?: { href?: string } };
 type Listener = (event: Event) => void;
 
-/** A settings-directory shell over a page mock: the address it sends to the settings page after a page hands one over. */
-function openSettingsAddress(href: string, pluginSections: readonly string[] = [], via: "event" | "link" = "event"): string {
-  const listeners = new Map<string, Listener[]>();
-  const opened: string[] = [];
-  const document = {
-    querySelector: (selector: string) => selector.includes("data-directory-panel") || selector.includes("data-work-surface") ? panel() : null,
-    querySelectorAll: (selector: string) => selector.includes("[data-settings-section]")
-      ? [...["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "projects"], ...pluginSections].map((id) => ({ dataset: { settingsSection: id } }))
-      : [],
-    createElement: () => panel(),
-    adoptNode: (node: unknown) => node,
-    addEventListener: (type: string, listener: Listener) => { const list = listeners.get(type) ?? []; list.push(listener); listeners.set(type, list); },
-    dispatchEvent: (event: Event) => { for (const listener of listeners.get(event.type) ?? []) listener(event); return true; },
-  };
-  function panel(): Record<string, unknown> {
-    const node: Record<string, unknown> = { dataset: {}, children: [], hidden: false, scrollTop: 0, scrollLeft: 0, ownerDocument: document,
-      className: "", textContent: "", querySelector: () => null, querySelectorAll: () => [], replaceChildren: () => {}, append: () => {},
-      remove: () => {}, matches: () => false, closest: () => null, setAttribute: () => {}, addEventListener: () => {}, contains: () => false };
-    return node;
-  }
-  const host = { translate: (text: string) => text, projectId: "p1", setDirectory: () => {}, setExclusive: () => {}, hideDirectory: () => {},
-    closeCover: () => false, openCover: () => {}, registerCover: () => {}, showToast: () => {},
-    noteCover: (kind: string, place: string) => { opened.push(`${kind} ${place}`); } };
-  vm.runInNewContext(`(${SETTINGS_DIRECTORY_FACTORY_SCRIPT})(host)`, {
-    host, document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/projects/p1/" }, URL, URLSearchParams,
-    molisWorkRequest: () => new Promise(() => {}), requestAnimationFrame: () => {}, CSS: { escape: (text: string) => text },
-  });
-  if (via === "event") document.dispatchEvent({ type: "molis-work:open-settings-path", detail: { href } });
-  else {
-    // A plugin page draws a plain link to the settings address; the shell's own click handling opens it (from outside the settings shell).
-    const anchor = { href, tagName: "A", closest: (selector: string) => selector === "a[href]" ? anchor : null, hasAttribute: () => false, matches: () => false };
-    document.dispatchEvent({ type: "click", target: anchor, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, button: 0, defaultPrevented: false,
-      preventDefault() { this.defaultPrevented = true; } });
-  }
-  assert.equal(opened.length, 1, `${href}: one settings page is opened`);
-  return opened[0]!.split(" ").slice(2).join(" ");
+import { createSettingsAddressHarness, type SettingsAddressSection } from "./fixtures/settings-address.js";
+
+/** A single address; lifecycle regressions below retain the harness across requests. */
+function openSettingsAddress(href: string, pluginSections: readonly SettingsAddressSection[] = [], via: "event" | "link" = "event"): string {
+  const address = createSettingsAddressHarness(pluginSections).open(href, via);
+  assert.notEqual(address, null, `${href}: one settings page is opened`);
+  return address!;
 }
 
 /** A Home shell dialog over a page mock: what it asks the Host for after a page hands over an address. */
@@ -610,4 +581,41 @@ test("RAC-2412 S-47 both scripts carry the one declaration table", () => {
   assert.equal(injectedString(SETTINGS_DIRECTORY_FACTORY_SCRIPT, "PROJECT_ID_HASH_SECTION"), PROJECT_ID_HASH_SECTION);
   assert.deepEqual(injectedTable(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "HOME_QUERY_EXTRAS"), JSON.parse(JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)));
   assert.equal(injectedString(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, "DEFAULTS"), SETTINGS_ADDRESS_DEFAULTS.global);
+});
+
+// RAC-2743 (T-362, BL-543): a plugin settings page keeps the query parameters and fragments its Manifest declares (rendered on its
+// settings-directory row as data-settings-address-*), keeps the defaults every page is rendered with, and still drops what it did not
+// declare. RAC-2744: a page that declares nothing keeps the defaults only, as before.
+test("RAC-2743 S-47 a plugin settings page keeps what its Manifest declares, and RAC-2744 a page without declarations keeps the defaults", () => {
+  const declared = [{ id: "roles", query: "tab filter", hash: "#section #members" }];
+  assert.equal(openSettingsAddress("/settings/roles?tab=members&filter=active&evil=1#section", declared),
+    "/settings/roles?tab=members&filter=active#section", "the declared query names and fragment stay; the undeclared one goes");
+  assert.equal(openSettingsAddress("/settings/roles?project=p1&desktop=1&tab=members&evil=1#members", declared),
+    "/settings/roles?project=p1&desktop=1&tab=members#members", "the defaults stay beside the declared names");
+  assert.equal(openSettingsAddress("/settings/roles?tab=members#other", declared),
+    "/settings/roles?tab=members", "a fragment the page did not declare is dropped");
+  assert.equal(openSettingsAddress("/settings/plain?tab=members&evil=1#section", ["plain"]),
+    "/settings/plain", "a page that declares nothing keeps no parameter, as before");
+  assert.equal(openSettingsAddress("/settings/plain?project=p1&tab=members#section", ["plain"]),
+    "/settings/plain?project=p1", "a page that declares nothing keeps the defaults only, as before");
+  assert.equal(openSettingsAddress("/settings/plain?tab=members#section", [{ id: "plain", query: "", hash: "" }]),
+    "/settings/plain", "an empty declaration is the same as none");
+});
+
+test("RAC-2743 RAC-2744 S-47 the same factory follows replaced, added, removed and reappearing settings rows", () => {
+  const shell = createSettingsAddressHarness([{ id: "shelf", query: "tab", hash: "#old" }]);
+  assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#old"),
+    "/settings/shelf?project=p1&desktop=1&tab=old#old");
+  shell.replaceNavigation([{ id: "shelf", query: "filter", hash: "#new" }]);
+  assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#new"),
+    "/settings/shelf?project=p1&desktop=1&filter=new#new", "replacement uses the current row, not the cached declaration");
+  assert.equal(shell.open("/settings/shelf?tab=old&filter=new#old"), "/settings/shelf?filter=new", "old hash is no longer declared");
+  shell.replaceNavigation([{ id: "shelf", query: "filter", hash: "#new" }, { id: "added", query: "tab", hash: "#added" }]);
+  assert.equal(shell.open("/settings/added?tab=active&evil=1#added"), "/settings/added?tab=active#added", "new row is discovered");
+  shell.replaceNavigation([]);
+  assert.equal(shell.open("/settings/shelf?filter=new#new"), null, "a removed row does not open");
+  assert.equal(shell.open("/settings/added?tab=active#added"), null, "the other removed row does not open");
+  shell.replaceNavigation(["shelf"]);
+  assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=old&filter=new#new"),
+    "/settings/shelf?project=p1&desktop=1", "a reappearing row without declarations keeps only defaults");
 });

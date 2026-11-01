@@ -4087,6 +4087,7 @@ export interface PluginTerminalPanel {
     readonly panelId: string;
     readonly title: string;
     readonly runtime: string;
+    readonly program: PluginTerminalProgram;
     readonly subject: string | null;
     readonly running: boolean;
     readonly created_at: string;
@@ -4094,6 +4095,7 @@ export interface PluginTerminalPanel {
 
 export type PluginTerminalProgram = {
     readonly runtime: string;
+    readonly session?: string;
 } | {
     readonly command: string;
     readonly args?: readonly string[];

@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import Database from "better-sqlite3";
 import { WebSocket } from "ws";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, hostDependencyCheck, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
@@ -500,7 +501,7 @@ test("RAC-2557 S-103 a sandboxed package that asks for terminal:run is stopped b
   assert.deepEqual(started, [], "no sandboxed package's code ran");
 });
 
-test("RAC-2564 S-103 a command is an absolute path or a bare name on the platform's PATH, anything else is refused and a missing name is unavailable; the terminal gets the platform's variables and, without a named workspace, the preferred one", { timeout: 60_000 }, async t => {
+test("RAC-2564 S-103 a command is an absolute path or a bare name on the platform's PATH, anything else is refused and a missing name is unavailable; the terminal gets the platform's variables and, without a named workspace, the preferred one; a runtime resumes the session it names as one argument, and a session with a space or `;`, or with a command, is refused", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchprogram");
   const f = await open(t, [probe]), project = await f.project("程序");
   const { folder, workspace_id } = await linkWorkspace(t, f, project);
@@ -529,7 +530,79 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
   assert.equal(env.MOLIS_WORK_GOAL_ID, undefined, "the retired name is not set");
   assert.deepEqual(Object.keys(env).filter(name => name.startsWith("MOLIS_WORK_")).sort(), ["MOLIS_WORK_FOCUS_ID", "MOLIS_WORK_HOME", "MOLIS_WORK_MCP_AUDIENCE",
     "MOLIS_WORK_PANEL_ID", "MOLIS_WORK_RUNTIME_ID", "MOLIS_WORK_WEB_URL", "MOLIS_WORK_WORK_CONTEXT_ID", "MOLIS_WORK_WORK_CONTEXT_STABLE"],
-  "the Molis Work variables are exactly the platform's set: none of the Host process's own reach the terminal");
+  "the Molis Work variables are exactly the platform's set: none the login shell exports reach the terminal");
+  // A runtime recipe is looked up on the platform's PATH, whose first entry is `~/.local/bin`: for these cases HOME is a folder with a `codex`
+  // there that writes its arguments to its first marker. A session goes to the recipe's resume arguments as one argument, never to a shell.
+  const runtimeHome = join(f.home, "runtime-home"), resumed = join(runtimeHome, "codex.args"), previousHome = process.env.HOME;
+  await mkdir(join(runtimeHome, ".local", "bin"), { recursive: true });
+  await writeFile(join(runtimeHome, ".local", "bin", "codex"), `#!/bin/sh\nprintf '%s\\n' "$*" > '${resumed}'\nexec /bin/cat\n`, { mode: 0o700 });
+  process.env.HOME = runtimeHome;
+  try {
+    const commandMarker = f.marker();
+    for (const [key, program, marker] of [["spaced-session", { runtime: "codex", session: "s-1 rm" }, resumed], ["semicolon-session", { runtime: "codex", session: "s-1;rm" }, resumed],
+      ["long-session", { runtime: "codex", session: "s".repeat(129) }, resumed],
+      ["option-session", { runtime: "codex", session: "--dangerously-bypass-approvals-and-sandbox" }, resumed], ["command-session", { command: f.program, args: [commandMarker], session: "s-1" }, commandMarker]] as const) {
+      const answer = await run(f, probe, "project", "run", own => opened(own, { key, program, directory }), { project });
+      await refused(f, answer, "actions.input_invalid", marker, panelOf(install.install_id, project.project_id, key), key);
+    }
+    const session = "019a.b_c:D-2";
+    const started = await run(f, probe, "project", "run", own => opened(own, { key: "resumed", program: { runtime: "codex", session }, directory }), { project });
+    assert.equal(started.outcome, "ok", started.message);
+    assert.equal(await ranIn(resumed), `resume ${session}`, "the first start resumes the session it names");
+    const recorded = await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog =>
+      catalog.terminalPanels.get(panelOf(install.install_id, project.project_id, "resumed"))?.host_session_id);
+    assert.equal(recorded, session, "the session is the terminal's, so it resumes it when it starts again");
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+  }
+});
+
+// The session a terminal resumes is checked where it comes in (what a runtime reports through MCP, `aliasTerminalSession`), where it is
+// stored and where it goes out (the recipe's resume arguments). A `codex` on the platform's PATH (`~/.local/bin` of HOME) appends its
+// arguments to a log and exits, so the same key starts again.
+test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the resume arguments only in the session format: an option or a value with a space never does", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchresume");
+  const f = await open(t, [probe]), project = await f.project("续接");
+  const { workspace_id } = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe);
+  const directory = { root: "workspace", workspace_id };
+  const runtimeHome = join(f.home, "runtime-home"), log = join(runtimeHome, "codex.log"), previousHome = process.env.HOME;
+  await mkdir(join(runtimeHome, ".local", "bin"), { recursive: true });
+  await writeFile(join(runtimeHome, ".local", "bin", "codex"), `#!/bin/sh\nprintf '[%s]\\n' "$*" >> '${log}'\n`, { mode: 0o700 });
+  process.env.HOME = runtimeHome;
+  t.after(() => { if (previousHome === undefined) delete process.env.HOME; else process.env.HOME = previousHome; });
+  const runs = async () => existsSync(log) ? (await readFile(log, "utf8")).split("\n").filter(Boolean) : [];
+  const panelId = (key: string) => panelOf(install.install_id, project.project_id, key);
+  /** Opens the key with the runtime and waits until it ran and ended: what it was started with. */
+  const start = async (key: string) => {
+    const before = (await runs()).length;
+    const answer = await run(f, probe, "project", "run", own => opened(own, { key, program: { runtime: "codex" }, directory }), { project });
+    assert.equal(answer.outcome, "ok", `${key}: ${answer.message}`);
+    await until(async () => (await runs()).length > before && (await panelState(f, panelId(key))).attached === false, `${key}: the runtime ran and ended`);
+    return (await runs()).at(-1);
+  };
+  const reported = (key: string, session: string) => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+    catalog.commit(() => { catalog.terminalPanels.aliasSession({ panel_id: panelId(key), runtime_id: "codex", host_session_id: session }); }));
+  const recorded = (key: string) => withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => catalog.terminalPanels.get(panelId(key))?.host_session_id);
+  for (const [key, session] of [["reported-option", "--dangerously-bypass-approvals-and-sandbox"], ["reported-spaced", "s-1 --yolo"]] as const) {
+    assert.equal(await start(key), "[]", `${key}: a new session`);
+    await reported(key, session);
+    assert.equal(await recorded(key), null, `${key}: what the runtime reported is not the terminal's session`);
+    assert.equal(await start(key), "[]", `${key}: started again as a new session, without the reported value`);
+  }
+  // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
+  assert.equal(await start("recorded-option"), "[]");
+  // The catalog's own SQLite (better-sqlite3): a second SQLite copy in this process would drop the Host's file locks when it closes.
+  const db = new Database(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
+  try {
+    db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
+  } finally { db.close(); }
+  assert.equal(await start("recorded-option"), "[]", "the recorded option never reaches the resume arguments");
+  // A session in the format is the one it resumes.
+  await reported("recorded-option", "019a-b2");
+  assert.equal(await recorded("recorded-option"), "019a-b2");
+  assert.equal(await start("recorded-option"), "[resume 019a-b2]");
 });
 
 // The login shell environment is given here, so this runs the same on every machine (CI's runner may have no zsh, and no shell configuration
@@ -553,14 +626,15 @@ test("RAC-2569 S-103 a terminal's record is its installation's, project's and pe
   const homeInstall = (await grantInHome(f, home)).install;
   const person = await f.host.localPersonContext(project.reference), stranger = { ...person, actor_id: "second-person" };
   const panelId = panelOf(install.install_id, project.project_id, "mine");
-  const opening = await run(f, probe, "project", "run", own => opened(own, { ...launch(f, "mine", f.marker(), { root: "workspace", workspace_id }), subject: "s1" }), { project });
+  const mine = f.marker();
+  const opening = await run(f, probe, "project", "run", own => opened(own, { ...launch(f, "mine", mine, { root: "workspace", workspace_id }), subject: "s1" }), { project });
   assert.equal(opening.outcome, "ok", opening.message);
   const list = (who: Probe, input?: { subject?: string }, caller = person) => run(f, who, "project", "query", own => own.terminal!.list(input), { project, caller });
   const close = (who: Probe, caller = person) => run(f, who, "project", "run", own => own.terminal!.close({ key: "mine" }), { project, caller });
   const listed = await list(probe, { subject: "s1" });
   assert.equal(listed.outcome, "ok", listed.message);
   assert.deepEqual((listed.value as Array<Record<string, unknown>>).map(({ created_at: _created, ...row }) => row),
-    [{ key: "mine", panelId, title: "探针", runtime: "command", subject: "s1", running: true }]);
+    [{ key: "mine", panelId, title: "探针", runtime: "command", program: { command: f.program, args: [mine] }, subject: "s1", running: true }]);
   assert.deepEqual((await list(probe, { subject: "s2" })).value, [], "another subject");
   assert.deepEqual((await list(probe, undefined, stranger)).value, [], "another person lists nothing");
   assert.deepEqual((await list(other)).value, [], "another installation lists nothing");
@@ -582,4 +656,42 @@ test("RAC-2569 S-103 a terminal's record is its installation's, project's and pe
     assert.equal(catalog.terminalPanels.get(homePanel)?.project_id, null, "a Home call's record has no project");
     assert.equal(catalog.terminalPanels.listIds(project.project_id).includes(homePanel), false, "a project does not count a Home terminal");
   });
+});
+
+test("RAC-2560 S-103 the terminal channel only attaches: a control-token connection that asks to start a program, leaves out attachOnly, adds a key or sends a size out of bounds is refused and starts nothing", { timeout: 60_000 }, async t => {
+  const f = await open(t, []);
+  const socket = new WebSocket(f.origin.replace("http:", "ws:") + "/pty"), messages: Array<Record<string, unknown>> = [];
+  socket.on("message", raw => messages.push(JSON.parse(raw.toString())));
+  const reply = async (panelId: string) => {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const index = messages.findIndex(message => message.panelId === panelId && (message.type === "error" || message.type === "spawned"));
+      if (index >= 0) return messages.splice(index, 1)[0]!;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error("no answer for " + panelId + ": " + JSON.stringify(messages));
+  };
+  await new Promise<void>((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
+  // Closed here, before the fixture stops the server: an upgraded socket is not among the connections it closes.
+  try {
+    socket.send(JSON.stringify({ type: "auth", token: f.token }));
+    await until(async () => messages.some(message => message.type === "ready"), "the control connection is ready");
+    const cases: Array<[string, (panelId: string, marker: string) => Record<string, unknown>]> = [
+      ["a program", (panelId, marker) => ({ type: "spawn", panelId, command: f.program, args: [marker], cwd: f.home })],
+      ["attachOnly false", (panelId, marker) => ({ type: "spawn", panelId, attachOnly: false, command: f.program, args: [marker], cwd: f.home })],
+      ["a sixth key", (panelId, marker) => ({ type: "spawn", panelId, attachOnly: true, command: f.program, args: [marker] })],
+      ["a width of 0", panelId => ({ type: "spawn", panelId, attachOnly: true, cols: 0, rows: 24 })],
+      ["a height of 1001", panelId => ({ type: "spawn", panelId, attachOnly: true, cols: 80, rows: 1001 })],
+      ["a fractional width", panelId => ({ type: "spawn", panelId, attachOnly: true, cols: 80.5 })],
+    ];
+    for (const [why, message] of cases) {
+      const panelId = `rac-2560-${why.replaceAll(" ", "-")}`, marker = f.marker();
+      socket.send(JSON.stringify(message(panelId, marker)));
+      assert.equal((await reply(panelId)).type, "error", `${why}: refused`);
+      await nothingRan(f, marker, panelId, why);
+    }
+    // Attaching to a panel nobody started answers that nothing runs there, and starts nothing.
+    socket.send(JSON.stringify({ type: "spawn", panelId: "rac-2560-none", attachOnly: true, cols: 80, rows: 24 }));
+    assert.deepEqual(await reply("rac-2560-none"), { type: "spawned", panelId: "rac-2560-none", attached: false, started: false, replay: "" });
+  } finally { socket.terminate(); }
 });

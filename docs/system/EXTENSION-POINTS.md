@@ -192,7 +192,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
-| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
+| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/local-host/src/plugin-terminal-runtimes.ts`（终端配方：命令名与续接参数，T-148 起只此一份）、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
 
 外部 Runtime 的目标是一张 Runtime 描述表（id、可执行名、配置与 Skill 路径、恢复参数、导入根、显示名），各处读它。无切片，建议新增（X-4）。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
 

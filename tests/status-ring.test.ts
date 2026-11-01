@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { icon, renderSpinner, renderStateRing, renderStatusMark, STATE_RING_FAMILIES, stateRingFamily } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { STATE_RING_STYLES } from "@molis-ai/molis-work-design-system";
-import { createWorkbenchGoalsStatusRenderer } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 
 test("RING-01 aliases share presentation without replacing the caller's business meaning", () => {
   for (const state of ["done", "saved", "round-ended", "staged"] as const) {
@@ -47,7 +47,7 @@ test("RING-02 RING-05 current status and loading entrypoints use one accessible 
 });
 
 test("RING-05 Goals keep their labels while only real execution moves", () => {
-  const renderer = createWorkbenchGoalsStatusRenderer({ translate: text => text, escapeHtml: text => text, icon });
+  const renderer = goalsRenderers.status({ translate: text => text, escapeHtml: text => text, icon });
   const running = renderer.renderVisibleGoalStatus({ status: "executing", display_status: "in_progress", status_label: "正在检查实现" });
   const doing = renderer.renderVisibleGoalStatus({ status: "execution_pending", display_status: "in_progress", status_label: "进行中" });
   assert.match(running, /data-mw-state="running"/);

@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsPolicyRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 import { GOALS_POLICY_UI_CONTRIBUTION_ID, type GoalsPolicyItem } from "@molis-ai/molis-work-plugin-goals";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const base = { human_approval: true };
 const escapeHtml = (value: unknown) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = createWorkbenchGoalsPolicyRenderer({ translate: L, currentLocale, icon, escapeHtml,
+const renderer = goalsRenderers.policy({ translate: L, currentLocale, icon, escapeHtml,
   formatDate: value => value ?? "", defaultPolicy: base });
 const item: GoalsPolicyItem = {
   goal: { goal_id: 'goal-"<unsafe>' },

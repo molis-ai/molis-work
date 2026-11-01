@@ -1549,10 +1549,12 @@ function workbenchContributionRegistered(workbench, registry, name, descriptors,
   return importsRegistry && registersPacks && contributions.includes(name);
 }
 
-export function checkProposalUiOwnership(renderer, workbench, proposalMount, legacyMount, clientDispatch, registry = "", descriptors = "") {
+export function checkProposalUiOwnership(renderer, workbench, proposalMount, surfaces, clientDispatch, registry = "", descriptors = "", pageSources = "") {
   const errors = [];
   for (const name of ["proposedGoalName", "goalTreeProposalItemCopy", "goalTreeDecompositionIssueCopy", "renderGoalTreeProposalDecision", "renderRewireDecision", "renderContractProposal", "renderCandidateDecision", "buildDecisionGroups", "recentDecisionResults"]) {
     if (new RegExp(`function\\s+${name}\\s*\\(`, "u").test(renderer)) errors.push(`apps/workbench/src/renderer.ts: DD2 ${name} belongs to the Goals contribution`);
+    // The Goals page mounts the contribution; it does not draw the decision itself (`pageSources` is every file of plugins/native/goals/src/page).
+    if (new RegExp(`function\\s+${name}\\s*\\(`, "u").test(pageSources)) errors.push(`plugins/native/goals/src/page: DD2 ${name} belongs to the Goals contribution, which the page mounts`);
   }
   for (const name of ["goalsProposalUiContribution", "goalsDecisionResultsUiContribution"]) {
     if (!hasWorkbenchUiContribution(workbench, registry, name, descriptors)) errors.push(`apps/workbench: DD2 ${name} must be registered with UiHost`);
@@ -1560,28 +1562,42 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, leg
   if (mentionsWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution", descriptors)) {
     errors.push("apps/workbench: retired goalsLegacyProposalUiContribution must stay unregistered");
   }
-  // W5-06: the shell builds the proposal renderer from the plugin's own surface map; each method mounts a declared surface.
-  if (!matchesInCode(proposalMount, /createSurfaceRenderers<[^>]+>\(workbenchUiHost, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u)) {
-    errors.push("apps/workbench: proposal renderers must mount the native contributions");
+  // W5-06 / T-116: Goals builds the proposal renderer from its own surface map; each method mounts a declared surface (`proposalMount` is the Goals page's factories).
+  if (!matchesInCode(proposalMount, /surfaceRenderers<[^>]+>\(mount, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u)) {
+    errors.push("plugins/native/goals: proposal renderers must mount the native contributions");
   }
-  void legacyMount;
+  // Three links of the chain from the Goals page to the registered contribution, each pinned where it is written: the shell hands the page
+  // its one mount (a different function would mount something the UiHost does not declare), that mount is the UiHost's `mountDeclared`
+  // in the slot the contribution declares, and the page's surface renderers call only the mount they were given.
+  if (!matchesInCode(renderer, /createGoalsPage<[^>]+>\(\{\s*mount: renderWorkbenchContribution\b/u)) {
+    errors.push("apps/workbench/src/renderer.ts: DD2 the Goals page must be created with mount: renderWorkbenchContribution");
+  }
+  if (!matchesInCode(workbench, /function renderWorkbenchContribution\([^)]*\): string \{\s*return workbenchUiHost\.mountDeclared\(/u)) {
+    errors.push("apps/workbench: DD2 renderWorkbenchContribution must mount through workbenchUiHost.mountDeclared");
+  }
+  if (!matchesInCode(surfaces, /return mount\(contributionId, surface, model\)/u)) {
+    errors.push("plugins/native/goals: DD2 a surface of the page must be mounted with the mount the shell gave it");
+  }
   // The client script is a browser script written in a template string, so its calls are template text: `hasInText`, not `hasInCode`.
   if (/const (?:goalTreeDecisionForm|contractDecisionForm|candidateDecisionForm|rewireDecisionForm) =/u.test(clientDispatch)
       || !hasInText(clientDispatch, "handleGoalProposalSubmit(submittedForm, event)")) errors.push("apps/workbench: proposal submission behavior belongs to the Goals client factory");
   return errors;
 }
 
-/** `checkProposalUiOwnership` on the tree: the four Workbench files and the registration files it reads. */
+/** `checkProposalUiOwnership` on the tree: three Workbench files, the Goals page's factories and surfaces, and the registration files it reads. */
 export function checkProposalUiOwnershipInTree(repositoryRoot) {
   const read = file => fs.readFileSync(path.join(repositoryRoot, file), "utf8");
-  const [renderer, workbench, proposalMount, clientDispatch] = [
+  const [renderer, workbench, proposalMount, surfaces, clientDispatch] = [
     "apps/workbench/src/renderer.ts",
     "apps/workbench/src/index.ts",
-    "apps/workbench/src/ui-composition.ts",
+    "plugins/native/goals/src/page/factories.ts",
+    "plugins/native/goals/src/page/surfaces.ts",
     "apps/workbench/src/scripts/client/events-accessibility.ts",
   ].map(file => read(file) + (file === "apps/workbench/src/index.ts" ? read("apps/workbench/src/ui-composition.ts") : ""));
-  return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,
-    read("apps/workbench/src/plugin-workbench.ts"), builtinCatalogText(repositoryRoot));
+  const pageDirectory = path.join(repositoryRoot, "plugins/native/goals/src/page");
+  const pageSources = fs.readdirSync(pageDirectory).filter(name => name.endsWith(".ts")).map(name => fs.readFileSync(path.join(pageDirectory, name), "utf8")).join("\n");
+  return checkProposalUiOwnership(renderer, workbench, proposalMount, surfaces, clientDispatch,
+    read("apps/workbench/src/plugin-workbench.ts"), builtinCatalogText(repositoryRoot), pageSources);
 }
 
 export function checkPackageBoundaries(repositoryRoot) {

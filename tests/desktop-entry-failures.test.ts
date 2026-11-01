@@ -140,7 +140,7 @@ test("RAC-119 Desktop Web stops live SSE and upgraded PTY connections with real 
   let projectId = "";
   const f = await web(t, "live-streams", async directory => { projectId = await seedEntryProject(directory); });
   const stream = await openEntryEventStream(t, f.origin, f.directory, projectId);
-  const terminal = await openEntryTerminal(t, f.origin, f.directory);
+  const terminal = await openEntryTerminal(t, f.origin, f.directory, projectId);
   const revision = await fetch(`${f.origin}/projects/${projectId}/api/plugins/io.molis.work.files/view-revision`);
   assert.equal(revision.status, 200);
   assert.equal(typeof (await revision.json() as { revision: string }).revision, "string", "view-revision answers JSON rather than holding a poll");

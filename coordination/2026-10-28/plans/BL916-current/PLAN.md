@@ -56,3 +56,5 @@ T149拥有唯一Manifest/effects迁入SDK的共享hunk，T397必须等其准确�
 公共build/test槽、jobs1/retries0、隔离Home/file secrets/专用浏览器；不本机Full/真实Home4207/Keychain/真模型/保护分支/push/GH。只原必要相关回归与真实边界实验，父未变有效证据沿用，报告一页，原件只保定位需要。共享API/actions/SI/预算/基线/状态根串行。无需重新设计或重审已接受工程选择。
 
 2026-11-01 12:02Z：用户明确全部工作线Sol6.1Max；原Astra回合已中断，T397由Sol子代理t397_sol保留同一工作树与Runtime两文件WIP接续，范围、等待hunk和完整验收不变。
+
+2026-11-01 12:30Z准确接缝已交：T149 owner完整冻结40249032c73e84c605fe3f02ab2f33ed43a2c09e（含d3921f），独立candidate树matching整体build通过，三constants/import迁移接入且旧Host算法删除。根核提交后授权T397保存自有checkpoint后普通merge此准确父并在唯一SDK owner/reader扩四资源；不消费发布WIP。T145未改executor，T397原异步await窄hunk已获交接。整T149/T397仍未Ready/未采用，后续只追加普通合流。

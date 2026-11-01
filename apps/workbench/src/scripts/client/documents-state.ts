@@ -209,7 +209,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
             task: String(ui?.sourceSelected || feedPresetState.feed.task || "all"),
           };
         }
-        setFeedPreset(activeFeedPreset, true);
+        setFeedPreset(activeFeedPreset, true, "restore");
       }
       if (sourceDirectory) {
         const availableSourceFilters = new Set(["all", "account", "public", "attention"]);

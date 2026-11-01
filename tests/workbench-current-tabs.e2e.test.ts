@@ -138,6 +138,9 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
 
     await load(prefix + "?openPlugin=goals&openItem=CORE&openView=work");
     await page.wait("document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+    if (!await page.evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]')?.getClientRects().length)")) {
+      await page.click('.plugin-rail-items [data-rail-tools-toggle]');
+    }
     await page.click('[data-plugin-strip] [data-plugin-id="feed"]');
     await page.wait(`Boolean(document.querySelector('[data-feed-task="${source.source_id}"]'))`);
     await page.evaluate(`document.querySelector('[data-feed-task="${source.source_id}"]').click()`);

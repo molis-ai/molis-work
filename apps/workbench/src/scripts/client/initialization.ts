@@ -387,11 +387,11 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
-      if (goalStageShown()) await refreshBoard(false, signal);
+      if (goalData && goalStageShown()) await refreshBoard(false, signal);
     }, 4000);
     document.addEventListener("molis-work:attention", event => {
       const cursor = event.detail?.board_cursor;
-      if (typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
+      if (goalData && typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
     });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();

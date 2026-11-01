@@ -15,7 +15,8 @@ import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
  */
 export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const q = (selector) => document.querySelector(selector);
-    let state = JSON.parse(q("#molis-work-data").textContent);
+    const goalData = q("#molis-work-data");
+    let state = goalData ? JSON.parse(goalData.textContent) : { project: { project_id: document.body.dataset.projectId } };
     const workspace = q("[data-workspace]");
     const documentPane = q("[data-document-pane]");
     const treePane = q("#goal-tree-pane");
@@ -123,7 +124,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const localPathname = () => routePrefix && location.pathname.startsWith(routePrefix)
       ? location.pathname.slice(routePrefix.length) || "/"
       : location.pathname;
-    const visibleGoals = (source = state) => trashView ? source.trashed_goals : archiveView ? source.archived_goals : source.goals;
+    const visibleGoals = (source = state) => source === state && !goalData ? [] : trashView ? source.trashed_goals : archiveView ? source.archived_goals : source.goals;
     const goalUiStorageKey = "molis-work-ui:" + (state.project?.project_id || state.snapshot.board.project_id);
     const currentGoalUiStorageKey = goalUiStorageKey + ":current";
     const storageKey = trashView

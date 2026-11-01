@@ -9,3 +9,11 @@
 5. T389 Full继续；T386最终候选与T065第一段同步冻结，实际资源采用顺序T389→T386→T065。它们等待的仅对应最终M/资源窗口，不阻止T141/T392独立实现。所有build、所有测试各只有一个公共槽，根串行共享状态/许可；源码并行不等于并行build/Full。
 
 根已读原工程书、当前独立窄审、实际Git交集及父贡献；书面通过不冒作工程/真实场景/CI或用户验收。T141/T392注册/实施不在开PR前扣23～31未出主线估算。
+
+## 07:40Z 实际交接补充
+
+T121完整接续交开发2，在独立M08642树正常合原Hc250；保持declarers/pin/forgetPluginBindings及update@2。T392冻结index两export路径与consumer私有import三行，T121保M旧私有路径，根未来实际采用后普通合成；资源终态仍待。
+
+T144完整A–D交开发3，SDK/Assistant末端接缝及词典自有词条可在自身M树实现；不取PR1b/#1101未合语义。T141四文件home-installed-plugins、plugin-install-service、settings-plugins、security-invariants-plugin-install仍冻结，交接前T144不写；lifecycle/version归T144原范围，T141条件只读。真实模型体验另列未验。
+
+T392候选实现37移动/23 dist并保稳定身份，24完整文件218例。根已应用22共享文档；doc-citations的functions动作覆盖漏检必须补正，不删除例外消警。T390已采用，T389 Full未终结，T386→T065最终资源顺序不变。

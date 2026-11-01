@@ -11,12 +11,12 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前已采用main为08642dcb9：T391/#1717已合并且补丁核同、自有树清理。T389修复已开#1718 @13767116，独立验证/二审通过，人工full=true；准确Verify后只排本修复首次Full，其它Full等其实际采用，旧Linux因果UNKNOWN保留。T390/开发1、PR1b/开发3、T386/开发4继续独立树并行，开发2接T065有限接续准备；公共build/browser各1，资源与文档hunk根串行。本轮已批准审计已发，早先T384/385 CI补充与T387审验评论仍待批准，未改道。
+当前已采用main为6cdb21830（T390/#1719），根已核队列Verify及完整采用补丁/patch-id；旧SI76项UNKNOWN保留。T389首次Full已15/16绿，新菜单与原journey均完整首轮2/2，其它Full等最终结论。PR1b准确3421已按用户批准close/reopen触发常规CI。T141/开发1、T121/开发2、T144/开发3、T392/开发4四独立源码窗口已交；公共build与全部测试各1槽，共享文档/资源根串行。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | #1717实际采用08642dcb9，patch-id同；自有树/分支已清 | full=false，文案RAC2837～2839完成 | 唯一文档10行15项与历史限定；原件保留 |
-| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | #1719 @b7eee1b，根核本地审验及fresh secrets后普通发布 | full=false；准确CI/SI及采用未结 | 五路径，S103/安全命令末尾；候选冻结 |
+| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1；队列观察二审线5 | #1719实际采用6cdb21830，完整binary diff/patch-id同 | full=false；准确CI/手查SI、queue Verify通过，catalog16/16 | 自有树/分支已清；SI76项原因UNKNOWN保留 |
 | T-369 | MCP alias等待中换连接拒绝证据 | 丙 | Codex开发线3；验证线3/二审线5 | 已合 #1716 → db29f18d4（05:46Z） | full=false；未新增Linux动态证据 | 作者树与本地分支已清，原件保留；合入审计6554193654按用户具体批准发布 |
 | T-389 | 项目动线添加来源失败诊断及当前菜单恢复修复 | 甲 | Codex开发线2；验证线1/二审线4 | #1718 @13767116，Verify已过，首次Full41281594550在跑 | full=true；旧LinuxUNKNOWN保留；审验6554580999/6554581602按用户批准原样发布 | 七路径/99B资源；作者冻结 |
 | T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | #1715实际采用820d9a0f5，补丁核同；自有作者树已清 | full=false；旧CI首败因果UNKNOWN保留 | 已释放；仅一行await |
@@ -334,7 +334,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
 | T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex开发线1；验证线4；加强二审线2 | 现行接续与独立窄审通过，已交具体窗口开始完整实现 | full=true；M08642；T143/#1701旧WAIT解除，attach与T144共享窗口见NEXT-WINDOWS | tasks/T-141.md；共享SI/slice/资源根串行 |
-| T-144 | 签名包角色/方法正文来源、取材与末端复核（RAC-2636～2643） | 甲 | Codex开发线3；独立二审线1 | A–D工程书及当前父合同窄核已接受 | T143采用等待已解除；SDK冻结与Assistant具体交接未结，full=true | 详plans/T144-current；保护分支不动 |
+| T-144 | 签名包角色/方法正文来源、取材与末端复核（RAC-2636～2643） | 甲 | Codex开发线3；独立二审线1 | A–D完整实施已交独立M树；SDK/Assistant与词典自有hunk已交 | full=true；T141四文件仍冻结待交，真实模型体验未验 | 详plans/T144-current/WINDOW.md；保护分支不动 |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给Goals并走平台启动终端服务（BL-695/637/508） | 甲 | Codex 开发线1 | 已合 #1643 → `0926d15a9`；patch-id核同；自有树/分支已清理 | 后片T-148已交开发线4 | 已释放 |
 | T-138 | 设置页里，个人空间的插件包说出没能启动的原因和被撤销信任，并能停用、启用、卸载（BL-715；PG-011 余项；RAC-2600～2607；BL-915；full=true；统筹大单） | 甲 | A-Claude | 已合（10-31，#1642 → `126851bb7`） | —（页面字节排在 #1551/#1569/#1594/#1607 后） | `packages/contracts/src/platform/plugin-trust.ts`、`tooling/gates/api/contracts/platform/plugin-trust.txt`、`apps/local-host/src/plugin-installed-view.ts`、`apps/local-host/src/project-plugin-ports.ts`、`apps/local-host/src/plugin-install-service.ts`、`apps/local-host/src/plugin-install-actions.ts`、`apps/local-host/src/plugin-trust-actions.ts`、`apps/local-host/src/plugin-permission-settings-http.ts`、`apps/workbench/src/settings-plugins.ts`、`apps/workbench/src/i18n/plugin-trust-en.ts`、`tests/plugin-trust-view.test.ts`、`tests/security-invariants-plugin-permissions.test.ts`、`tests/security-invariants-plugin-permissions-http.test.ts`、`tests/home-plugin-settings.test.ts`（新）；只改自己那一处：`docs/system/SECURITY-INVARIANTS.md`（只 S-94 行）、`tooling/gates/actions/host-actions.tsv`（只经 `actions:update`）、`tooling/gates/page-assets.json`、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS` 一条） |
@@ -502,6 +502,12 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 
 2026-11-01 06:50Z：T390准确b7eee1b已开#1719，本地原副作用红、最终25/25加64文件625/625沿用及独立审验经根核收；full=false、真实SI/CI待结。T389审验两评论获用户具体批准后原样发布，首次Full在跑。T386最终cb931作者/独立验证/二审核收，171门禁只拿build槽的偏差明确保留，不重跑补历史；等T389采用后真实资源合流。T065当前同步书独立审通过，开发2可先非资源普通merge/证据窄核；T144父等待解除，SDK/Assistant窗口另结。
 
-| T-392 | W5-14 R-A4 判断规则实现包/路径原子迁移 | 甲 | Codex开发线4；验证线3；加强二审线1 | 工程书R1/R2与当前23 dist补正已核，已交独立窗口 | full=true；M08642；公开合同/数据身份不变，保护分支不动 | tasks/T-392.md；共表/资源根串行 |
+| T-392 | W5-14 R-A4判断规则实现包/路径原子迁移 | 甲 | Codex开发线4；验证线3；加强二审线1 | 源码b88f7115，24完整218/218；22共享文档根已应用待独立核 | full=true；doc-citations改名漏检须保覆盖，最终门禁/独立审验未结 | tasks/T-392.md；T121/T144具体hunk已冻结交接 |
 
 2026-11-01 07:01Z：根fresh22 open/准确M不变，核收T141与R-A4接续及独立审查并交两条独立实现窗口；T141归开发1，R-A4登记T392归开发4，完整范围不拆片。T144原owner保留，仅具体安装/设置接缝等T141冻结；SDK已释放。T065第一段4accb7d普通同步完成且原37路径/34blob与M资源账本完整保留，无新运行结论。T390两审计已按用户具体批准原样发布6554723182/6554723753。T389 Linux Full新菜单完整2/2首轮、shard1全102/102已根读raw，原journey仍待后片。
+
+2026-11-01 07:23Z：PR1b最终3421本地作者/验证5/加强二审5及根diff核收，最终317+43完整回归通过，139无条件与历史有效原件分源；正常push原task/T116-cb并改main，未排Full。T390独立CI终态及根手查Verify/SI、无线评审/未答问题已核，用户具体批准普通入队；SI273调用271唯一、catalog16/16及76UNKNOWN保留。T141/T392派单评论按用户批准原样发布6554830347。BL916当前接续修正及T121当前同步方案已收，后者窄审中；不因准备/推送/队列减少主线未出23～31。
+
+2026-11-01 07:40Z：T390采用6cdb21830，根以作者真实merge-base db29核五路径binary diff及stable patch-id7ee7c28e相同；首次误用较晚queue父的比较失败原件保留。PR1b按用户批准关闭后立即重开，H3421不变、不触发Full。T121/T144完整任务已正式执行，T392冻结三行index/consumer和单行词典给两者后继普通合成，未预取未合API。T141四安装/设置文件仍冻结。T392暴露functions引用覆盖依赖目录名，根不接受删除例外消警，独立二审窄核保持覆盖的最小补正。
+
+2026-11-01 07:55Z：T389准确H137的首次Full16片与聚合成功，1629/1629 Linux文件完成，新菜单/原journey均首轮2/2，另两文件retry及15未计pass类别UNKNOWN保留。根核CI/Full关键raw、SI、两审验评论及空评审列表；自动审批分别拒绝入队与新补记后，用户具体批准两项，补记6555081726已发布，普通队列命令执行。T390自有树已删除；squash使branch -d祖先检查拒绝，根已核补丁等同后以expected旧SHA删除精确本地ref，原件保留。

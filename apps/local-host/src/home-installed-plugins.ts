@@ -96,7 +96,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
       let snapshot: CatalogCapability[], revision: number;
       for (;;) {
-        revision = exposureRevision; snapshot = await capabilityCatalog(actions, options.actorId);
+        revision = exposureRevision;
+        try { snapshot = await capabilityCatalog(actions, options.actorId); }
+        catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
         if (isClosed()) return [];
         if (revision !== exposureRevision) continue;
         const costs = exposedOperationCosts([...exposed.values()].map(entry => entry.release), snapshot);

@@ -52,7 +52,7 @@ export interface PublicHttpsRequest {
   /** Only for tests: which addresses a connection may use (a local server), and that server. The request still opens its own connection. */
   allowAddress?(address: string): boolean;
   readonly testServer?: PublicHttpsTestServer;
-  failure(reason: PublicHttpsFailure, detail: string): Error;
+  failure(reason: PublicHttpsFailure, detail: string, outcome?: 'unknown'): Error;
 }
 
 export interface PublicHttpsResponse {
@@ -63,6 +63,9 @@ export interface PublicHttpsResponse {
 
 export async function sendPublicHttps(request: PublicHttpsRequest): Promise<PublicHttpsResponse> {
   const { url, method, body, signal, failure } = request;
+  let dispatched = false;
+  const problem = (reason: PublicHttpsFailure, detail: string) => failure(reason, detail,
+    dispatched && (reason === 'read' || reason === 'connect' || reason === 'timeout') ? 'unknown' : undefined);
   signal.throwIfAborted();
   const allowed = request.allowAddress ?? publicAddress;
   const resolve: PublicLookup = request.lookup ?? ((hostname, callback) => dnsLookup(hostname, { all: true, verbatim: true }, callback));
@@ -70,14 +73,14 @@ export async function sendPublicHttps(request: PublicHttpsRequest): Promise<Publ
   const timeout = AbortSignal.timeout(TIMEOUT_MS), stop = AbortSignal.any([signal, timeout]);
   let abort!: () => void;
   const stopped = new Promise<never>((_resolve, reject) => {
-    abort = () => reject(timeout.aborted ? failure('timeout', '网站在 15 秒内没有响应') : signal.reason);
+    abort = () => reject(timeout.aborted ? problem('timeout', '网站在 15 秒内没有响应') : signal.reason);
     stop.addEventListener('abort', abort, { once: true });
   });
   try {
     const addresses = await Promise.race([new Promise<LookupAddress[]>((done, fail) => resolve(url.hostname, (error, rows) => {
-      if (error) fail(failure('connect', '网站地址解析失败')); else done(rows);
+      if (error) fail(problem('connect', '网站地址解析失败')); else done(rows);
     })), stopped]);
-    if (!addresses.length || addresses.some(item => !allowed(item.address))) throw failure('private_address', '不能访问本机或内网地址');
+    if (!addresses.length || addresses.some(item => !allowed(item.address))) throw problem('private_address', '不能访问本机或内网地址');
     await Promise.race([Promise.resolve(request.beforeEffect?.()), stopped]);
     stop.throwIfAborted(); request.current();
     // No wait between the final current check and constructing the actual request. DNS is pinned to the addresses checked above.
@@ -90,21 +93,26 @@ export async function sendPublicHttps(request: PublicHttpsRequest): Promise<Publ
       };
     const outgoing = httpsRequest({ protocol: 'https:', hostname: url.hostname, port: request.testServer?.port ?? 443, path: url.pathname + url.search, method, headers,
       lookup: lookup as never, signal: stop, agent: false, ...(request.testServer ? { ca: request.testServer.ca } : {}) }, response => {
+      // A response proves this transport reached the server, including an early response during an upload.
+      dispatched = true;
       const chunks: Buffer[] = []; let size = 0;
       response.on('data', (chunk: Buffer) => {
         size += chunk.length;
-        if (size > MAX_BODY) { response.destroy(); fail(failure('too_large', '网站返回的内容太大（超过 1MB）')); return; }
+        if (size > MAX_BODY) { response.destroy(); fail(problem('too_large', '网站返回的内容太大（超过 1MB）')); return; }
         chunks.push(chunk);
       });
       response.on('end', () => done({ status: response.statusCode ?? 0, headers: response.headers, body: Buffer.concat(chunks).toString('utf8') }));
-      response.on('error', error => fail(failure('read', '读取网站返回的内容失败：' + error.message)));
+      response.on('error', error => fail(signal.aborted ? signal.reason : problem('read', '读取网站返回的内容失败：' + error.message)));
     });
+    // ClientRequest finish means flushed to the underlying system; constructing or queueing the request is not dispatch evidence.
+    outgoing.once('finish', () => { dispatched = true; });
     // Nothing is written before the socket is handed over; a reused one would have skipped the recheck, so it is never written to.
     outgoing.once('socket', () => { if (outgoing.reusedSocket) outgoing.destroy(new Error('连接被复用，发出前没有复核原调用')); });
     outgoing.on('error', error => {
-      if ((error as { code?: string }).code === 'PRIVATE_ADDRESS') fail(failure('private_address', '不能访问本机或内网地址'));
-      else if (timeout.aborted) fail(failure('timeout', '网站在 15 秒内没有响应'));
-      else fail(failure('connect', '访问网站失败：' + error.message));
+      if ((error as { code?: string }).code === 'PRIVATE_ADDRESS') fail(problem('private_address', '不能访问本机或内网地址'));
+      else if (timeout.aborted) fail(problem('timeout', '网站在 15 秒内没有响应'));
+      else if (signal.aborted) fail(signal.reason);
+      else fail(problem('connect', '访问网站失败：' + error.message));
     });
     if (body !== undefined) outgoing.write(body);
     outgoing.end();

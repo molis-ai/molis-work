@@ -1,4 +1,5 @@
 import { PLUGIN_PROJECTS_EXIST_LIMITS, type PluginProjectsClient, type PluginBackgroundExecution, type PluginInteractionClient, type PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionMethod, type PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
@@ -96,6 +97,9 @@ export class SandboxBroker {
         await lifetime.wait(beforeEffect()); assertJson(result);
         if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('sandbox.response_too_large', 'Host service response exceeds channel limit');
         return result;
+      } catch (error) {
+        if (error instanceof ActionError && error.code === 'actions.outcome_unknown') throw new SandboxError('sandbox.host_service_error', error.message, 'unknown');
+        throw error;
       } finally {
         // Forward real timeout/cancel through the final guard; detach only immediately before our own cleanup abort.
         if (modelRequest) lifetime.signal.removeEventListener('abort', forwardAbort);
@@ -239,7 +243,8 @@ export class SandboxBroker {
     if (this.executions.size + this.accepting >= BACKGROUND_EXECUTIONS) throw new SandboxError('sandbox.queue_full', 'Too many background executions are still running');
     this.accepting += 1;
     let execution: PluginBackgroundExecution<SandboxJson>;
-    try { execution = await background.client.start(control => background.lane.run(target, input, { signal: control.signal, beforeEffect: control.beforeEffect, projectReach: context.projectReach })); }
+    try { execution = await background.client.start(control => background.lane.run(target, input, { signal: control.signal, beforeEffect: control.beforeEffect,
+      assert_authority_current: control.assert_authority_current, projectReach: context.projectReach })); }
     finally { this.accepting -= 1; }
     if (this.stopped) {
       execution.cancel();

@@ -33,7 +33,8 @@ export const operations = {
     const cmd=JSON.parse(input.text);
     await sdk.homeDatabase.transaction([{sql:'INSERT INTO jobs(job_id,state) VALUES (?,?)',parameters:[cmd.job_id,'pending']}]);
     if(cmd.mode==='pending') return row(sdk,cmd.job_id,true);
-    const execution_id=await sdk.background.start(cmd.target ?? 'job.work',cmd.bad_input ?? {job_id:cmd.job_id,mode:cmd.mode ?? 'fast'});
+    const answer=cmd.mode==='model-hold' ? (await sdk.model.complete({prompt_id:'summary',data:cmd.job_id})).text : undefined;
+    const execution_id=await sdk.background.start(cmd.target ?? 'job.work',cmd.bad_input ?? {job_id:cmd.job_id,mode:cmd.mode ?? 'fast',...(answer===undefined?{}:{model_text:answer})});
     // BG-2: acceptance is one atomic conditional update, never a read followed by an unconditional accepted write.
     await sdk.homeDatabase.transaction([{sql:"UPDATE jobs SET state=CASE WHEN state='pending' THEN 'accepted' ELSE state END, execution_id=? WHERE job_id=?",parameters:[execution_id,cmd.job_id]}]);
     return row(sdk,cmd.job_id,true);
@@ -48,26 +49,26 @@ export const operations = {
   'job.work': async (input,sdk) => {
     await sdk.homeDatabase.transaction([{sql:"UPDATE jobs SET state='running',pid=? WHERE job_id=?",parameters:[process.pid,input.job_id]}]);
     if(input.mode==='forge') throw Object.assign(new Error('untrusted worker outcome'),{outcome:'unknown'});
-    if(input.mode==='hold') while(await sdk.storage.get('release:'+input.job_id)===null) await wait(100);
+    if(input.mode==='hold'||input.mode==='model-hold') while(await sdk.storage.get('release:'+input.job_id)===null) await wait(100);
     if(input.mode==='dependency') await sdk.capability.call('fixture.bgwait',input.job_id);
-    const statements=[{sql:'INSERT INTO results(id,text) VALUES (?,?)',parameters:[input.job_id+':a','first']}];
+    const statements=[{sql:'INSERT INTO results(id,text) VALUES (?,?)',parameters:[input.job_id+':a',input.model_text ?? 'first']}];
     statements.push(input.mode==='commit-fail' ? {sql:'INSERT INTO results(id,text,parent) VALUES (?,?,42)',parameters:[input.job_id+':b','second']} : {sql:'INSERT INTO results(id,text) VALUES (?,?)',parameters:[input.job_id+':b','second']});
     await sdk.homeDatabase.transaction(statements);
     await sdk.ownerFiles.write([{op:'write',path:'data/'+input.job_id+'.txt',data_base64:'ZG9uZQ==',mode:'create'}]);
-    if(input.mode==='https') await sdk.connections.request('github',{url:'https://api.github.com/user',method:'GET'});
+    if(['https','https-catch','https-denied'].includes(input.mode)) {try {await sdk.connections.request('github',{url:input.mode==='https-denied'?'https://outside.t398.example/':'https://api.github.com/user',method:'GET'})}catch(error){if(input.mode!=='https-catch')throw error;try{await sdk.homeDatabase.transaction([{sql:"UPDATE jobs SET state='failed' WHERE job_id=?",parameters:[input.job_id]}])}catch(refused){return true}return true}}
     if(input.mode==='materials') {const material=await sdk.materials.readDocuments([{file_name:'result.txt',data_base64:'QmFja2dyb3VuZCBtYXRlcmlhbCB3b3Jrcy4='}]);await sdk.homeDatabase.transaction([{sql:'INSERT INTO results(id,text) VALUES (?,?)',parameters:[input.job_id+':material',JSON.stringify(material)]}]);}
     await sdk.homeDatabase.transaction([{sql:"UPDATE jobs SET state='done' WHERE job_id=?",parameters:[input.job_id]}]);
     return true;
   },
 };`;
 
-export function signedBackgroundPackage(publisher = newPublisher(), options: { dependency?: boolean; version?: string; id?: string } = {}) {
+export function signedBackgroundPackage(publisher = newPublisher(), options: { dependency?: boolean; model?: boolean; version?: string; id?: string } = {}) {
   return signedPackage(publisher, (files, manifest) => {
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const read = contract.operations[0]!, launch = contract.operations[1]!;
     read.effects = { homeDatabase: ['read'] };
     launch.output = jobOutput; launch.examples = [{ input: { text: '{"job_id":"example"}' }, output: example }];
-    launch.effects = { homeDatabase: ['read', 'write'], background: ['job.work'] }; launch.background_job = metadata;
+    launch.effects = { homeDatabase: ['read', 'write'], background: ['job.work'],...(options.model?{model:['invoke']}: {}) }; launch.background_job = metadata;
     const op = (id: string, kind: 'command' | 'query', input: SandboxSchema, output: SandboxSchema, effects: SandboxOperationContract['effects'], sample: unknown): SandboxOperationContract =>
       ({ id, kind, input, output, effects, errors: [], examples: [sample as SandboxOperationContract['examples'][number]] });
     contract.operations.push(
@@ -79,13 +80,14 @@ export function signedBackgroundPackage(publisher = newPublisher(), options: { d
       op('job.inspect','query',object({}),text,{homeDatabase:['read']},{input:{},output:'{}'}),
       op('job.query-start','query',jobInput,text,{}, {input:{job_id:'example'},output:'sandbox.not_authorized'}),
       op('job.query-cancel','query',object({execution_id:text}),text,{}, {input:{execution_id:'handle'},output:'sandbox.not_authorized'}),
-      op('job.work','command',object({job_id:text,mode:text}),{type:'boolean'}, {storage:['read'],homeDatabase:['read','write'],ownerFiles:['write'],connections:['github'],materials:['read'],
+      op('job.work','command',object({job_id:text,mode:text,model_text:text},['job_id','mode']),{type:'boolean'}, {storage:['read'],homeDatabase:['read','write'],ownerFiles:['write'],connections:['github'],materials:['read'],
         ...(options.dependency ? {capabilities:['fixture.bgwait']} : {})}, {input:{job_id:'example',mode:'fast'},output:true}),
     );
     Object.assign(manifest, sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, presentation: false,
       runtime: {scope:'home'}, upgradesFrom:['1.0.0'], effects:effectsFromContract(contract),contract, homeDatabase:{version:1,schema},ownerFiles:[{name:'data',kind:'directory'}],
       connections:{slots:[{slot_id:'github',service_id:'github',reason:'读取已绑定的测试账号'}]} }));
     files[SANDBOX_PACKAGE_FILES.contract]=JSON.stringify(contract); files[SANDBOX_PACKAGE_FILES.entrypoint]=BODY;
+    if(options.model) files[SANDBOX_PACKAGE_FILES.prompts]=JSON.stringify([{id:'summary',title:'Controlled answer',purpose:'Hold one controlled provider result',body:'Return the controlled answer.'}]);
   }, {pluginId:options.id ?? BACKGROUND_ID,version:options.version});
 }
 
@@ -105,6 +107,7 @@ export async function backgroundRig(t: TestContext, options: { dependencies?: Pl
   const read = (sql: string,parameters: string[]=[]) => {const db=new DatabaseSync(dbPath(),{readOnly:true});try{return db.prepare(sql).all(...parameters)}finally{db.close()}};
   const until = async (check:()=>boolean|Promise<boolean>) => {const deadline=Date.now()+15000;while(!await check()){assert.ok(Date.now()<deadline,'background condition completed');await new Promise(resolve=>setTimeout(resolve,40))}};
   return {h,caller,record,control,set,approve,call,read,until,dbPath,project:(name:string)=>served.createProject(name),
+    deleteProject:(projectId:string)=>served.web.post(`/api/settings/projects/${projectId}/delete`,{delete_confirmed:true,idempotency_key:'background398-'+projectId}),
     launch:(job_id:string,mode='fast',who=caller(),extra={})=>call('notes.add',{text:JSON.stringify({job_id,mode,...extra})},who),
     status:(job_id:string)=>call('job.status',{job_id}) as Promise<{job_id:string;state:string;last_state:string;execution_id:string;cancelled:boolean}>,
     async reopen(){await served.close();await h.reopen();served=await serveTestHost(null,{home:h.home,host:h.host})}};

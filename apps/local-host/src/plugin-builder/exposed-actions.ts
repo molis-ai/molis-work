@@ -10,7 +10,7 @@ import { sandboxOperationActions, sandboxOperationPermissions, sandboxActionId }
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionExecutionPolicy, type ActionHandlerBinding } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { runInPluginAction, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
+import { runInPluginAction, pluginActionBeforeEffect, reservePluginInvocationPlace, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
 
 import type { ProjectActions } from './catalog.js';
 import { latestCapability, type CapabilityExecution } from './capabilities.js';
@@ -134,8 +134,10 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
           // The target owns the private write; its Runtime scope retains the original caller checks.
           handlers: [{ ...handlers[index]!, availability: (context: ActionCallContext) => policy.statusProblem
             ? { available: false, code: 'actions.definition_invalid', reason: policy.statusProblem } : operationAvailability?.(operationId, context) ?? { available: true }, handle: (caller, input) => {
-            const execute = () => handlers[index]!.handle(caller, input);
-            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition: finalDefinition, caller }, execute) : execute();
+            if (!plugin) return handlers[index]!.handle(caller, input);
+            const checked = { passed: false }, view = { ...caller, beforeEffect: pluginActionBeforeEffect(caller.beforeEffect, checked) };
+            return runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition: finalDefinition, caller,
+              checked, begun: reservePluginInvocationPlace() }, () => handlers[index]!.handle(view, input));
           } }], ...(availability ? { availability } : {}) });
         registrations.set(operationId, { binding, policy, dispose: unregister }); changed = true;
       });

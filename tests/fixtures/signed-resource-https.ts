@@ -55,5 +55,5 @@ export async function signedResourceHttps(t: TestContext) {
   });
   syncBuiltinESMExports();
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
-  return { seen, article };
+  return { seen, article, server };
 }

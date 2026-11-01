@@ -244,3 +244,18 @@ test("S-67 RAC-236 stopping the lane ends its process and refuses new runs", { .
   assert.throws(() => f.lane.check("ping", ""), code("sandbox.invalid_request"));
   assert.throws(() => f.lane.check("work", 7), code("sandbox.schema_mismatch"));
 });
+
+test('RAC2871 background model effects keep actual per-call operation/service budgets at ten minutes/sixty seconds', {...mac,timeout:30000},async t=>{
+  const directory=await mkdtemp(join(tmpdir(),'background-budgets-')),bundlePath=join(directory,'plugin.mjs');
+  await writeFile(bundlePath,"export const operations={work:async(_input,sdk)=>{await sdk.storage.get('probe');return true}};");
+  const contractValue:SandboxPluginContract={version:1,pluginId:'bgprobe',revision:'budgets',entities:[],pages:[],acceptance:[],operations:[{
+    id:'work',kind:'command',input:{type:'null'},output:{type:'boolean'},effects:{model:['invoke'],storage:['read']},errors:[],examples:[{input:null,output:true}]}]};
+  const recorded:number[]=[],timer=globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',function(...args:Parameters<typeof setTimeout>){if(args[1])recorded.push(args[1]);return Reflect.apply(timer,globalThis,args)});
+  const lane=createBackgroundLane({contract:contractValue,create:()=>createSandboxRunner({bundlePath,contract:contractValue,identity:IDENTITY,
+    grants:{model:['invoke'],storage:['read']},limits:SANDBOX_BACKGROUND_LIMITS,services:{storage:{transaction:async(_context,mutate)=>mutate(new Map())}}})});
+  t.after(async()=>{await lane.stop();await rm(directory,{recursive:true,force:true})});
+  assert.equal(await lane.run('work',null,{limits:{operationTimeoutMs:660000,serviceTimeoutMs:630000}}),true);
+  assert.ok(recorded.includes(600000),'the actual runner scheduled the fixed operation deadline');assert.ok(recorded.includes(60000),'the actual broker scheduled the fixed service deadline');
+  assert.equal(recorded.includes(660000)||recorded.includes(630000),false,'model-derived or caller budgets cannot lift the background limits');
+});

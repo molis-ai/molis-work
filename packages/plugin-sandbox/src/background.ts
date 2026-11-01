@@ -54,9 +54,15 @@ export function createBackgroundLane(options: { contract: SandboxPluginContract;
       let runner: SandboxRunner;
       try { runner = await process; } catch (error) { discard(process); throw error; }
       if (stopped) { await runner.stop(); throw new SandboxError('sandbox.stopped', 'The background lane stopped while opening its process'); }
-      control.signal?.throwIfAborted();
-      try { return await runner.call(operationId, input, control); }
-      catch (error) { if (error instanceof SandboxError && PROCESS_GONE.has(error.code)) discard(process); throw error; }
+      try {
+        control.signal?.throwIfAborted(); control.assert_authority_current?.();
+        return await runner.call(operationId, input, { ...control, limits: { ...control.limits, ...SANDBOX_BACKGROUND_LIMITS } });
+      } catch (error) {
+        let retired = control.signal?.aborted === true;
+        try { control.assert_authority_current?.(); } catch { retired = true; }
+        if (retired || error instanceof SandboxError && PROCESS_GONE.has(error.code)) discard(process);
+        throw error;
+      }
     },
     async stop() { stopped = true; const gone = live; live = undefined; if (gone) await (await gone.catch(() => undefined))?.stop(); },
   };

@@ -20,7 +20,7 @@ export function followInstalledActions(registry: ActionRegistryPort, record: Plu
     const active = !closed && current();
     if (!active) throw new ActionError('actions.provider_replaced', '原插件的动作激活已失效');
     active.assertReady();
-  }, dispose() { if (!closed) { closed = true; current()?.dispose(); } } };
+  }, dispose() { closed = true; } };
 }
 
 /** Runtime has already checked complete redemption. It owns the returned disposer, including failure and disable cleanup. */

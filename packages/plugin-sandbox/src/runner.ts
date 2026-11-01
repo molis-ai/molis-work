@@ -36,6 +36,8 @@ export interface SandboxRunner {
 /** Host-only controls; the worker receives only the operation id and JSON input. */
 export interface SandboxCallControl {
   signal?: AbortSignal; beforeEffect?(): void | Promise<void>;
+  /** The same retained Host authority's final synchronous check; never decoded from worker input. */
+  assert_authority_current?(): void;
   /** Opaque Host-issued project subject for this invocation only; never sent to the worker. */
   projectReach?: object;
   /** Trusted Host policy for this call only; never supplied by the worker or persisted plugin input. */

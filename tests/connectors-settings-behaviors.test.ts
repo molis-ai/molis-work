@@ -28,7 +28,7 @@ import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connec
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home"));
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";
@@ -124,7 +124,7 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
     assert.ok(row.capabilities.every((item) => item.label.length > 0), row.connector_id);
     assert.ok(row.capabilities.some((item) => item.fulfillment === "live"), row.connector_id);
     if (!["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail"].includes(row.connector_id)) {
-      assert.equal(row.auth_kind, row.connector_id === "loom" ? "none" : row.connector_id === "notion" || row.connector_id === "feishu" ? row.connector_id : "token", row.connector_id);
+      assert.equal(row.auth_kind, row.connector_id === "loom" ? "none" : row.connector_id === "notion" ? "oauth" : row.connector_id === "feishu" ? "feishu" : "token", row.connector_id);
       assert.equal(existsSync(join(ROOT, "..", "plugins", "official-integrations", row.connector_id)), false, row.connector_id);
     }
   }
@@ -144,7 +144,7 @@ test("Connectors settings cards distinguish account states and never echo the se
         connector_id: "github",
         title: "GitHub",
         availability: "live",
-        auth_kind: "github",
+        auth_kind: "oauth",
         group_id: "code",
         summary: "本机账号。Feed 拉未读通知，Functions 可勾已兑现动作。",
         outbound_note: "已兑现动作：查看当前 GitHub 账号（github.whoami）。判断只挑，不会自动调用。",
@@ -157,7 +157,7 @@ test("Connectors settings cards distinguish account states and never echo the se
         connector_id: "gmail",
         title: "Gmail",
         availability: "live",
-        auth_kind: "gmail",
+        auth_kind: "oauth",
         group_id: "mail",
         summary: "本机账号。Feed 只读收信。",
         outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
@@ -353,7 +353,7 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
   // RING-05: the saved credentials retain their original claim beside the shared mark.
   assert.match(html, /data-connection-state data-mw-state="saved">已保存/);
   assert.match(html, /data-protocol-start="oauth"/);
-  assert.doesNotMatch(html, /data-account-login="gmail"/, "Gmail signs in through the generic flow, not a dedicated login");
+  assert.doesNotMatch(html, /data-device-login/, "Gmail signs in through the web flow, not a device code");
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
   assert.match(html, /data-connection-manage="disable"/);
   assert.match(html, /data-connection-manage="remove"/);

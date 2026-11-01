@@ -153,7 +153,7 @@
     "tests/connector-mcp.test.ts": 9,
     "tests/connector-method-directory.test.ts": 4,
     "tests/connector-oauth-broker.test.ts": 3,
-    "tests/connector-oauth-choice.test.ts": 4,
+    "tests/connector-oauth-choice.test.ts": 3,
     "tests/connector-provider-contracts.test.ts": 3,
     "tests/connector-reconnect-regressions.test.ts": 1,
     "tests/connectors-settings-behaviors.test.ts": 4,
@@ -435,9 +435,9 @@
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseChangeSet": 31,
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseCodingChangeSet": 23
   },
-  "hostEntryExportStarTotal": 8,
+  "hostEntryExportStarTotal": 7,
   "hostEntryExportStar": {
-    "apps/local-host/src/index.ts#export-star": 8
+    "apps/local-host/src/index.ts#export-star": 7
   },
   "layerExceptionsTotal": 10,
   "layerExceptions": {
@@ -1008,7 +1008,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 25,
+  "errorSubclassTotal": 24,
   "errorSubclasses": {
     "apps/local-host/src/browser/cdp.ts": 1,
     "apps/local-host/src/connector-api-oauth.ts": 1,
@@ -1031,7 +1031,6 @@
     "plugins/native/alchemist/src/studio/server/sources/http-source-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/official-integrations/catalog/src/http.ts": 1,
-    "plugins/official-integrations/catalog/src/notion-oauth.ts": 1,
     "plugins/official-integrations/github/src/provider.ts": 1,
     "server/src/errors.ts": 1,
     "server/src/im/errors.ts": 1

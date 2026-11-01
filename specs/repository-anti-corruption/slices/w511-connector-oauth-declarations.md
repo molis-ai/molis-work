@@ -1,6 +1,6 @@
 # W5-11：连接器 OAuth 从宿主的表移进官方集成插件的声明（设计稿）
 
-状态：设计稿，第八版（第 7 片 Notion 已做，2026-10-30，T-065，写法见 §2.6「第 7 片落地的写法」，待评审；第 6 片 Gmail 已做，2026-10-29，T-064，写法见 §2.6「第 6 片落地的写法」，待评审；第七版：旧 OAuth 连接的收尾按用户 10-27 改定；第八版：照第 2 片复核，占位文法只留一份、account 不取 `token:`、label_prefix 原样拼、context 只在授权时发）：第 2 片已做，写进 §2.1.1，评审过了（10-27），合同按评审收窄（§2.1.1「写死的三条」）；第 1 片已做，照第 1 片评审（M1～M3、四处对齐、context 收窄）和第 2 片复核改过，在分支上待复核（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`；合同、SDK 检查和解释器的写法定在 §2.1「第 1 片落地的写法」）。检查连接和读账号也改用解释器（统筹 10-27 选 A，§2.2「检查连接和读账号」，随第 4 片）；旧 OAuth 连接不保留绑定：用户 10-27 改定，旧连接只能新增，绑定由本人重新绑，不加只给旧连接走的分支（§10 Q2，第 5 片）。第一版的六个问题都按 A 定了（§10）。四轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，第四轮没有必须改，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。第 1 片的代码在本分支上。第 4 片已合入 main（2026-10-29，T-062，#1439，`4772d0c59`；落地的写法见 §2.2「第 4 片落地的写法」）；第 5 片已做（2026-10-28，T-063，分支 `task/T063-ca`，待评审；落地的写法见 §2.6「第 5 片落地的写法」，`resolveApiConnection` 收成三支与旧 OAuth 连接的收尾挪到第 6～8 片）；其余各片还只有设计。第 1、2 片统筹 10-27 放行，叠在本分支上，按顺序一次一片。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
+状态：设计稿，第八版（第 8 片 GitHub 已做，2026-10-31，T-066，写法见 §2.6「第 8 片落地的写法」，待评审；第 7 片 Notion 已做，2026-10-30，T-065，写法见 §2.6「第 7 片落地的写法」，待评审；第 6 片 Gmail 已做，2026-10-29，T-064，写法见 §2.6「第 6 片落地的写法」，待评审；第七版：旧 OAuth 连接的收尾按用户 10-27 改定；第八版：照第 2 片复核，占位文法只留一份、account 不取 `token:`、label_prefix 原样拼、context 只在授权时发）：第 2 片已做，写进 §2.1.1，评审过了（10-27），合同按评审收窄（§2.1.1「写死的三条」）；第 1 片已做，照第 1 片评审（M1～M3、四处对齐、context 收窄）和第 2 片复核改过，在分支上待复核（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`；合同、SDK 检查和解释器的写法定在 §2.1「第 1 片落地的写法」）。检查连接和读账号也改用解释器（统筹 10-27 选 A，§2.2「检查连接和读账号」，随第 4 片）；旧 OAuth 连接不保留绑定：用户 10-27 改定，旧连接只能新增，绑定由本人重新绑，不加只给旧连接走的分支（§10 Q2，第 5 片）。第一版的六个问题都按 A 定了（§10）。四轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，第四轮没有必须改，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。第 1 片的代码在本分支上。第 4 片已合入 main（2026-10-29，T-062，#1439，`4772d0c59`；落地的写法见 §2.2「第 4 片落地的写法」）；第 5 片已做（2026-10-28，T-063，分支 `task/T063-ca`，待评审；落地的写法见 §2.6「第 5 片落地的写法」，`resolveApiConnection` 收成三支与旧 OAuth 连接的收尾挪到第 6～8 片）；其余各片还只有设计。第 1、2 片统筹 10-27 放行，叠在本分支上，按顺序一次一片。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
 
 ## 0. 已经定了的，本稿照着写
 
@@ -471,6 +471,26 @@
 - **留给后面的**：`ConnectorAuthKind` 里的按服务取值（`github`、`gmail`、`notion`）随第 8 片收窄；Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 不在本片也不在第 8 片，留给 Feed 线，单列在交接里。
 - **测试**：新 `tests/notion-oauth.test.ts`（RAC-2533～2539，其中 RAC-2538 是原 `connector-oauth-choice.test.ts` “FI-C-02 … Notion” 一组搬过来，断言不放宽）；`connector-oauth-choice`、`security-invariants-oauth-shared-refresh`、`connector-connections`、`connector-setup`、`security-invariants-connector-intent`、`connector-method-directory`、`security-invariants-oauth-non-protocol` 里的 Notion 专门流程用例改成通用流程上的同一组。
 
+**第 8 片落地的写法**（2026-10-31，T-066，分支 `task/T066-ca`，叠在第 7 片（#1669）上，方案经统筹核准：issue #1332 评论 6540397434；S 号 S-106（T-134 的 S-104 合入后按统筹裁定取号））
+
+- **设备授权是平台的 grant**：新 `connector-device-oauth.ts`：`startDeviceOAuth`、`pollDeviceOAuth`、`registerConnectorDevicePolling`。路由是通用的 `methods/device/start`、`methods/device/poll`；GitHub 的 `github/device/*`、`github/client` 路由与 `github-oauth.ts`、`connector-github-device.ts`、github 包的 `oauth.ts` 删除。`device_code` 存在记录的 `device` 秘密里（`clear()` 一并清掉），页面拿到 `user_code`、验证地址和 state。
+- **提交只有一份**：回调的收尾抽成 `commitApiOAuth`（令牌检查、账号、第 9、8 条、凭据、本人意图确认、返回页），回调与设备授权共用；回调的用例一条没放宽。
+- **每条记录各自限速**：`nextPollAt`、`interval` 在 `DeviceConfiguration` 里；间隔没到回 `pending` 不发请求；一次 poll 不论成败都把下一次推后一个间隔；`slow_down` 只加这一条记录的间隔（+5 秒，上限 60 秒）。
+- **队列里重读、轮询各自启动**（#1672 二审）：`pollDeviceOAuth` 在连接的队列里面重新读记录与 `nextPollAt`，两路同时 poll 在间隔内只发一次；`registerConnectorDevicePolling` 对每条授权各自启动、不整轮等待（在途的记在 `inFlight`），一个服务的端点挂住只拖住它自己的授权（公开传输上限为 15 秒）。**Host 停止时**：`PeriodicTasks.stop()` 新增对任务 `onStop` 的等待；轮询器的 `onStop` 中止在途请求（Host 停止不是服务失败，不写退避）并等在途的 poll 结束（含已到账号请求、正在提交的），`stop()` 返回之后不再有提交或写入，也不再启动新的 poll。本轮补真实 `createPeriodicTasks` 注册表的证明：每任务 `onStop` 只调一次，等待每个返回结果，停止后拒绝新登记；轮询 run 在过期扫描之前拒绝停止后的 tick，排队中的 poll 在进入队列后先拒绝已取消信号，不推进 `nextPollAt`。
+- **网络抖动不结束授权**：取不到应答、超时、没有错误码的应答（HTTP 5xx 的网页，代码里走 `later()`，RAC-2543 断言下一次要等间隔 + 5 秒）按 `slow_down` 的退避（+5 秒，上限 60 秒）继续试，直到授权过期；只有服务明确的错误码（`expired_token`、`access_denied`、其他 `error`）才终止；声明、取消等检查的拒绝照旧终止。
+- **`device_code` 在授权记录写成功之后才存**（放进同一个 try），记录失败不留孤立的秘密；`verification_uri` 与 `_complete` 封顶 2048 字符。
+- **设置页的名字**：设备码提示改成“在 {name} 输入设备码”，名字来自按钮上的 `data-device-login="<服务名>"`（请求页用卡片标题），通用脚本里不再写死 GitHub。
+- **验证地址按 origin 全等**：`verificationAddress` 用解析后的 `URL.origin` 与设备授权请求地址的 origin 比；https、不带账号密码、端口、片段；`verification_uri_complete` 同样判。`user_code` 只收字母数字空格连字符。
+- **按 grant 取方法**：`oauthOwner(服务, grant)` 取对应的 `oauth` 方法；`OAuthConfiguration.grant` 存在记录里，之后的刷新与绑定检查用同一个方法。SDK 的重复检查改为 `oauth` 按 grant 各一个（GitHub 同时声明 `authorization_code` 与 `device`）。
+- **`OWN_FLOW` 删光，`ConnectorAuthKind` 收窄**为 `oauth | feishu | token | none`；GitHub、Gmail、Notion 的 Manifest 都写 `auth_kind: "oauth"`。旧形状（`auth_method: "oauth"` 而凭据不是 `connector-protocol:`）对所有服务一律 `reauth_required`，不再有按服务的例外。
+- **环境变量与设置页**：产品客户端只认 `MOLIS_WORK_CONNECTOR_GITHUB_OAUTH_CLIENT_ID`；`github_client_id_configured` 与 `connector:github:client_id` 不再读。设置页的主按钮在 `oauth.device.login_ready` 时走设备授权，自带应用仍走网页授权码。
+- **没碰的**：Feed 的 `source-service.ts:144` 里 gmail 的 `token_refs` 留给 Feed 线，单列在交接里。
+- **测试**：新 `tests/github-oauth.test.ts`（RAC-2540～2549）；`connector-setup`、`security-invariants-connector-intent`、`security-invariants-connector-scope` 里的 GitHub 设备授权用例改走通用路由与 `oauthNetwork`；`connector-method-directory`、`connector-oauth-choice`、`connectors-settings-behaviors`、`plugin-global-settings` 的 `auth_kind` 与按钮断言随之更新；`tests/github-device-flow.test.ts` 删除（内容并入上面几份）。
+- **和方案不一样的**：方案里的 RAC-2549 是设置页设备授权的 UI 动线，实际落地的是源码扫描（递归扫 Host、GitHub 包、catalog、工作台，含页面脚本目录）加一条不开浏览器的断言：卡片按钮带 `data-device-login="GitHub"`，页面脚本从它走 `methods/device/start`（`tests/connector-method-directory.test.ts`）。设备授权的整条 UI 动线没有现成的浏览器用例（设备码要在 GitHub 的页面输入，浏览器用例里没有 GitHub），由 `tests/connector-setup.test.ts`「ASC-18 ASC-36: GitHub device authorization finishes on the restarted Host」从路由开始走到连接建立覆盖。
+- **第 8 片变异表**（每条改源码、重建、跑所点名的测试，再还原重建；构建有类型错误时不算，要改到编译通过再跑）：原作者已记录的 17 条全红（来源为 #1672 的修复记录，本轮不重演整批）。(1) 验证地址 origin 全等去掉 → RAC-2541、2548；(2) 地址长度上限去掉 → RAC-2541；(3) 间隔没到仍发请求 → RAC-2540、2542、2543；(4) `slow_down` 不加间隔 → RAC-2542、2543；(5) 队列里不重读记录 → RAC-2542「two polls arriving together」；(6) 轮询器等每条授权 → RAC-2542「a service whose token endpoint hangs」；(7) `device_code` 在记录之前存 → RAC-2541「a device code is stored only after」；(8) 网络失败结束授权 → RAC-2543「a request that cannot be made」；(9) 没有错误码的应答不退避（原先直接返回 pending） → 同；(10) 重新授权不比账号（规则 8） → RAC-2544「a reauthorization」；(11) `oauthOwner` 不看 grant → `github-oauth` 12 条和 `connector-setup` 3 条；(12) 请求前不复判声明 → RAC-2544；(13) `user_code` 不检查 → RAC-2541；(16) 停止时不等在途的 poll → RAC-2542「stop() waits for a poll」；(17) 停止时不中止请求 → RAC-2542「stopping the Host's periodic tasks aborts」；SDK：(14) 按 kind 判重 → RAC-2547「one oauth method per grant」；(15) `auth_kind` 放回按服务取值 → RAC-2547「auth_kind is oauth, feishu, token or none」。
+- **本轮增量变异（6542414976）**：E 去掉真实 `PeriodicTasks.stop()` 的 `onStop?.()` 调用，完整 `github-oauth` 文件在真实 registry 用例红；F 去掉 run 开头的停止守卫，在停止后推进时钟再 tick 的“记录不变”断言红；G 去掉队列入口的已取消信号守卫，在真实排队交错的 `nextPollAt` 不变断言红。三处均正常重建后得到目标业务红（不是编译失败），恢复源码并整体构建后，设备授权、声明与目录三个完整文件共 59 条通过。旧二审 A～D 的证据仍绑定原头 `3477dcd92`，未写成本轮执行。
+- **改了也不会红的三处，各自为什么**：`store.consume`（令牌领取）——领取之后 `terminal = true`，`finally` 会丢记录，再来一次 poll 也过不了“授权仍在等待”（提交时已写成 `connected`）；`finally` 里的 `secrets.clear()`——授权结束时 `finishConnectorAuthorization` 与记录的丢弃已经清掉同一批秘密（RAC-2543 直接读了这批秘密）；请求前先推后 `nextPollAt`——现在队列里重读，第二路 poll 要等第一路结束才进来，而第一路结束时 `nextPollAt` 已经是新值。三处都是纵深防御，保留。
+
 ### 2.7 `auth_kind` 收窄
 
 `ConnectorAuthKind` 去掉 `github`、`gmail`、`notion`，留下 `feishu`（CLI 例外）、`token`、`none`，再加 `oauth`。下面这些地方原来按服务分支，改成按方法种类：
@@ -690,7 +710,7 @@
 | 5 | 共用刷新推广到全部 OAuth 连接，加连接上的绑定和最后一道检查，改掉 C「最后一个离开就丢弃」那一处；同一个 PR 里把 C 的 FI-C-02 两条断言和 spec 行反过来，写明用户 10-27 的决定，告知 C 线（A3） | **已做**（2026-10-28，T-063，分支 `task/T063-ca`，待评审；写法见 §2.6「第 5 片落地的写法」）。原排在本片的 `resolveApiConnection` 收成三支、旧 OAuth 连接标 `reauth_required` 与它的收尾挪到第 6～8 片（理由同上） | `connector-access.ts`、`connector-api-oauth.ts`、新的 `connector-shared-refresh.ts`、`apps/local-host/src/notion-oauth.ts`、`tests/connector-oauth-choice.test.ts`、`specs/…/feed-inbox-runtime-plugins.md` |
 | 6 | Gmail 并进通用流程；`resolveApiConnection` 删掉 Gmail 那一支（从第 5 片挪来）；共用刷新在 `settle()` 得出 `discard` 之后不再收新的参与者，之后来的有效调用另排一次刷新，不拿到「已失去授权」（#1479 二审建议 1） | **已做**（2026-10-29，T-064，分支 `task/T064-ca`，待评审；写法见 §2.6「第 6 片落地的写法」）。依赖 C 合入，在 3、5 之后 | gmail 包、`gmail-oauth.ts`、入门流程、`connector-access.ts` |
 | 7 | Notion 并进通用流程；`resolveApiConnection` 删掉 Notion 那一支（从第 5 片挪来） | **已做**（2026-10-30，T-065，分支 `task/T065-ca`，待评审；写法见 §2.6「第 7 片落地的写法」）。依赖 C 合入，在 3、5 之后 | catalog 包、两份 `notion-oauth.ts`、`connector-access.ts` |
-| 8 | GitHub 设备授权（§2.5），收窄 `auth_kind`；旧形状的 OAuth 连接一律标 `reauth_required`、设置页提示重新新增连接和重新绑定来源、重连得到「请新增连接」（§2.6「旧的 OAuth 连接」、§10 Q2「10-27 用户改定」，RAC-1089；从第 5 片挪来：三种专门流程都换掉以后再标，中间 main 上一直能用） | 依赖 C 合入，在 4 之后 | github 包、`github-oauth.ts`、`connector-github-device.ts`、`web-connectors-settings.ts`、workbench、`connector-directory.ts` |
+| 8 | GitHub 设备授权（§2.5），收窄 `auth_kind`；旧形状的 OAuth 连接一律标 `reauth_required`、设置页提示重新新增连接和重新绑定来源、重连得到「请新增连接」（§2.6「旧的 OAuth 连接」、§10 Q2「10-27 用户改定」，RAC-1089；从第 5 片挪来：三种专门流程都换掉以后再标，中间 main 上一直能用） | **已做**（2026-10-31，T-066，分支 `task/T066-ca`，叠在第 7 片上，待评审；写法见 §2.6「第 8 片落地的写法」）。依赖 C 合入，在 4 之后 | github 包、`github-oauth.ts`、`connector-github-device.ts`、`web-connectors-settings.ts`、workbench、`connector-directory.ts` |
 | 9 | 文档：§10.1、privileges（§5 的措辞）、EXTENSION-POINTS、SECURITY-INVARIANTS（拿到合批会话给的 S 号之后，含写回凭据这条例外）、CHANGELOG；`AGENTS.md` 在 S-35 那句旁边补上写回凭据的例外（A3） | 在 3～8 之后 | `docs/`、`specs/`、`AGENTS.md` |
 | 10 | 第二批：`MCP_SERVERS` 的数据 | 另开一片（BL-790），依赖 C 合入 | `connector-mcp.ts`、catalog 包 |
 
@@ -730,6 +750,16 @@
 | RAC-2537 | Notion 的产品客户端只读 `MOLIS_WORK_CONNECTOR_NOTION_OAUTH_CLIENT_ID/SECRET`；旧名与设置页存的客户端不读 | 同上 |
 | RAC-2538 | 共用刷新的取消、走光后保留新令牌且下次刷新用新的 refresh token、25 秒自己的时限、走光后新来的调用加入在途刷新、期间 refresh token 或连接变了什么都不写（原 FI-C-02 Notion 一组，断言不放宽） | 同上 |
 | RAC-2539 | Host 和 catalog 里没有只给 Notion 的 OAuth 代码、路由和密钥名 | 同上，读源码 |
+| RAC-2540 | GitHub 走设备授权：页面只拿到 `user_code`、验证地址和 state，拿不到 `device_code`；间隔没到的 poll 不发请求；授权后连接是通用形状（`connector-protocol:` 引用、账号是登录名） | `tests/github-oauth.test.ts` |
+| RAC-2541 | 验证地址（含 `verification_uri_complete`）不是 https、带账号密码、端口、片段或不是请求地址的 origin，`user_code` 不合格，都在存任何东西之前结束授权 | 同上 |
+| RAC-2542 | 限速按每条授权各自算：`slow_down` 只加大这一条的间隔，别的授权仍按自己的间隔被问；`stop()` 中止并等到在途的 poll，返回后无写入 | 同上 |
+| RAC-2543 | 过期、被拒、其他回答都只写状态，不建连接，`device_code` 不留 | 同上 |
+| RAC-2544 | 声明的插件停用、换了安装或发布者、方法指纹变了，请求之前就拒，不发请求；令牌请求期间失去声明，账号不读、不提交 | 同上 |
+| RAC-2545 | 令牌只领一次，第二次 poll 找不到记录；没发出的 state、别的来源的 state 什么都读不到 | 同上；`tests/connector-setup.test.ts`、`tests/security-invariants-connector-scope.test.ts` 的取消用例 |
+| RAC-2546 | GitHub 的产品客户端只读 `MOLIS_WORK_CONNECTOR_GITHUB_OAUTH_CLIENT_ID`；旧名与设置页存的 Client ID 不读 | `tests/github-oauth.test.ts` |
+| RAC-2547 | 旧形状的 GitHub 设备授权连接 `reauth_required`、不发请求；两种 grant 各读自己的方法 | 同上；`tests/security-invariants-oauth-non-protocol.test.ts` |
+| RAC-2548 | 验证地址按解析后的 origin 比较，拼写花样（大小写、末尾点、`@`、`\\`、编码）不让仿冒域通过 | `tests/github-oauth.test.ts` |
+| RAC-2549 | Host、GitHub 包、catalog、工作台里没有只给 GitHub 的 OAuth 代码、路由、密钥名；`ConnectorAuthKind` 不再有按服务的取值 | 同上，读源码 |
 
 ## 9. 不做与后续（BL）
 

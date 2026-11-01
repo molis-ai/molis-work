@@ -6,7 +6,7 @@ import { oauthMethodOption } from "./connector-oauth-declarations.js";
 import { OAUTH_CALLBACK, defaultOAuthCallbackHost, defaultOAuthCallbackPath } from "./connector-oauth-callback-paths.js";
 import { MCP_SERVERS } from "./connector-mcp.js";
 import { CONNECTOR_CLIS, cliAvailability } from "./connector-cli.js";
-import { connectorProductAuth, productApiLoginReady } from "./connector-product-auth.js";
+import { connectorProductAuth, productApiLoginReady, productDeviceLoginReady } from "./connector-product-auth.js";
 
 function link(label: string, url: string): ConnectorSetupLink {
   if (!url.startsWith("https://")) throw new Error(`connector_method_link_must_be_https:${url}`);
@@ -60,17 +60,19 @@ export function hasConnectorMethods(connectorId: string): boolean {
  * method; otherwise the token method its declaration gives, and no other.
  */
 export function connectorMethodsOf(declaration: PluginConnectionServiceDeclaration): readonly ConnectorMethodOption[] {
-  if (hasConnectorMethods(declaration.service_id)) return connectorMethodsFor(declaration.service_id, declaration.auth.methods.find(isDeclaredOAuth));
+  const oauth = (grant: PluginOAuthMethodDeclaration["grant"]) => declaration.auth.methods.find((method): method is PluginOAuthMethodDeclaration => isDeclaredOAuth(method) && method.grant === grant);
+  if (hasConnectorMethods(declaration.service_id)) return connectorMethodsFor(declaration.service_id, oauth("authorization_code"), oauth("device"));
   if (!declaration.auth.methods.some(method => method.kind === "token")) return [];
   return [{ kind: "token", support: "paste", note: declaration.auth_help ?? "", links: declaration.setup_links ?? [] }];
 }
 
 /** The table's ways for a service; `oauth` is the service's declared OAuth method, without which the OAuth way stays the table's link. */
-export function connectorMethodsFor(connectorId: string, oauth?: PluginOAuthMethodDeclaration): readonly ConnectorMethodOption[] {
+export function connectorMethodsFor(connectorId: string, oauth?: PluginOAuthMethodDeclaration, device?: PluginOAuthMethodDeclaration): readonly ConnectorMethodOption[] {
   return HOST_METHODS[connectorId] ?? officialMethodsFor(connectorId).map(method => {
     if (method.kind === "oauth" && oauth) return { ...method, support: "in_app", login_ready: productApiLoginReady(connectorId, oauth), note: "在服务商官方页面登录并确认权限；每条连接独立刷新。",
       oauth: { ...oauthMethodOption(oauth), ...(defaultOAuthCallbackPath(connectorId) === OAUTH_CALLBACK ? {} : { callback_path: defaultOAuthCallbackPath(connectorId) }),
-        ...(defaultOAuthCallbackHost(connectorId) ? { callback_host: defaultOAuthCallbackHost(connectorId) } : {}) } };
+        ...(defaultOAuthCallbackHost(connectorId) ? { callback_host: defaultOAuthCallbackHost(connectorId) } : {}),
+        ...(device ? { device: { login_ready: productDeviceLoginReady(connectorId) } } : {}) } };
     if (method.kind === "cli" && CONNECTOR_CLIS[connectorId]) return { ...method, support: "in_app", note: "在这里运行官方 CLI 登录，再用真实只读请求验证并连接当前账号。", cli: cliAvailability(connectorId) };
     const mcp = MCP_SERVERS[connectorId];
     if (method.kind === "mcp" && mcp) return { ...method, support: "in_app",

@@ -8,7 +8,7 @@ import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
-import type { OAuthTokenRequestDeclaration, PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { OAuthGrant, OAuthTokenRequestDeclaration, PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { isDeclaredOAuth } from "@molis-ai/molis-work-plugin-sdk/oauth";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProductAuth, connectorBrokerOrigin } from "./connector-product-auth.js";
@@ -25,8 +25,10 @@ export { apiOAuthConnectionId } from "./connector-oauth-shape.js";
 import { OAUTH_CALLBACK as CALLBACK, defaultOAuthCallback, isOAuthCallbackAliasFor, oauthCallbackOrigin } from "./connector-oauth-callback-paths.js";
 import { assertOAuthReturnPending, beginOAuthReturn, expiredOAuthReturn, finishOAuthReturn, type OAuthReturn } from "./connector-oauth-return.js";
 
-interface OAuthConfiguration extends ConnectorProtocolConfiguration {
+export interface OAuthConfiguration extends ConnectorProtocolConfiguration {
   protocol: "oauth";
+  /** The grant the connection was authorized with, the method it is judged against ever after; the authorization code when left out. */
+  grant?: OAuthGrant;
   sessionId: string;
   displayName: string;
   clientId: string;
@@ -55,14 +57,14 @@ interface OAuthConfiguration extends ConnectorProtocolConfiguration {
 /** Refusals of an OAuth connection's use. */
 export const oauthConnectionErrors = defineErrorCodes("connector.oauth", { method_unavailable: "unavailable" });
 /** Who declares a service's OAuth method now: the Home's integration registry unless a test brings its own. */
-export type OAuthOwners = (serviceId: string) => Promise<OAuthServiceOwner | undefined>;
-const registryOwners = (home: string): OAuthOwners => async serviceId => (await homeIntegrationRegistry(home)).oauthOwner(serviceId);
+export type OAuthOwners = (serviceId: string, grant?: OAuthGrant) => Promise<OAuthServiceOwner | undefined>;
+export const registryOwners = (home: string): OAuthOwners => async (serviceId, grant) => (await homeIntegrationRegistry(home)).oauthOwner(serviceId, grant);
 /** The method as declared now: the Manifest's `oauth` method, all of it data (W5-11 slice 4). */
-function methodFingerprint(owner: OAuthServiceOwner): string {
+export function methodFingerprint(owner: OAuthServiceOwner): string {
   return createHash("sha256").update(JSON.stringify(owner.method)).digest("hex");
 }
 /** The service's `oauth` method as the enabled plugin declares it now; a service with none has no OAuth connection. */
-function declaredMethod(owner: OAuthServiceOwner | undefined, serviceId: string): PluginOAuthMethodDeclaration {
+export function declaredMethod(owner: OAuthServiceOwner | undefined, serviceId: string): PluginOAuthMethodDeclaration {
   if (!owner?.method || !isDeclaredOAuth(owner.method)) throw new ApiOAuthError("没有已启用的宿主插件声明这个服务的 OAuth 连接", serviceId);
   return owner.method;
 }
@@ -83,15 +85,15 @@ function boundMethod(config: OAuthConfiguration, owner: OAuthServiceOwner | unde
   return owner.method;
 }
 /** The interpreter's answer, its refusal said to the person as the flow's own error. */
-function declared<T>(run: () => T, serviceId?: string): T {
+export function declared<T>(run: () => T, serviceId?: string): T {
   try { return run(); } catch (error) { throw error instanceof ApiOAuthError ? error : new ApiOAuthError(error instanceof Error ? error.message : "授权方式的声明无法读取", serviceId); }
 }
-function settingsOf(serviceId: string, method: PluginOAuthMethodDeclaration, raw: Record<string, string>): OAuthResolvedSettings {
+export function settingsOf(serviceId: string, method: PluginOAuthMethodDeclaration, raw: Record<string, string>): OAuthResolvedSettings {
   return declared(() => resolveOAuthSettings(serviceId, method, raw), serviceId);
 }
 /** The callback's rules 6 and 7 (W5-11 §3.3): the declaring plugin is still enabled as the same install and publisher, and its method unchanged. */
-async function assertStillDeclared(config: OAuthConfiguration, owners: OAuthOwners): Promise<void> {
-  const owner = await owners(config.serviceId);
+export async function assertStillDeclared(config: OAuthConfiguration, owners: OAuthOwners): Promise<void> {
+  const owner = await owners(config.serviceId, config.grant);
   if (!owner || !config.plugin || owner.plugin_id !== config.plugin.plugin_id || owner.install_id !== config.plugin.install_id || owner.publisher_id !== config.plugin.publisher_id) {
     throw new ApiOAuthError("声明这个服务的插件在授权期间已停用或变更，请重新连接");
   }
@@ -116,16 +118,16 @@ export class ApiOAuthError extends Error {
   /** Set once the callback's record is known: where the person returns to, for the page that answers the callback. */
   returnTo?: OAuthReturn;
 }
-type Json = Record<string, unknown>;
-function object(value: unknown): Json { return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {}; }
-function text(value: unknown): string { return typeof value === "string" ? value : ""; }
-function localOrigin(raw: string): string {
+export type Json = Record<string, unknown>;
+export function object(value: unknown): Json { return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {}; }
+export function text(value: unknown): string { return typeof value === "string" ? value : ""; }
+export function localOrigin(raw: string): string {
   const url = new URL(raw);
   if (!isLoopbackHttpOrigin(url)) throw new ApiOAuthError("OAuth 必须从本机应用启动");
   return url.origin;
 }
 /** A JSON answer the service did not refuse: a 2xx whose object, if it is one, carries no `error`, `ok: false` or non-zero `code`. */
-async function answer(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<{ body: unknown }> {
+export async function answer(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<{ body: unknown }> {
   const response = await fetchImpl(url, { ...init, redirect: "error", signal: AbortSignal.any([AbortSignal.timeout(25_000), ...(init.signal ? [init.signal] : [])]) });
   let body: unknown;
   try { body = await response.json(); } catch { body = undefined; }
@@ -143,11 +145,11 @@ async function described(fetchImpl: typeof fetch, request: OAuthRequestDescripti
   return (await answer(fetchImpl, request.url, { method: request.method, headers: request.headers, ...(request.body === undefined ? {} : { body: request.body }) })).body;
 }
 /** The flow's own sender unless a test brings one: `sendPublicHttps` with the checks of this step. */
-function sender(fetchImpl: typeof fetch | undefined, checks: OAuthSendChecks, network?: OAuthNetwork): typeof fetch {
+export function sender(fetchImpl: typeof fetch | undefined, checks: OAuthSendChecks, network?: OAuthNetwork): typeof fetch {
   return fetchImpl ?? publicOAuthFetch(checks, network);
 }
 const queues = new Map<string, Promise<unknown>>();
-async function serialized<T>(home: string, id: string, run: () => Promise<T>): Promise<T> {
+export async function serialized<T>(home: string, id: string, run: () => Promise<T>): Promise<T> {
   const key = `${resolve(home)}:${id}`;
   const previous = queues.get(key) ?? Promise.resolve();
   // Only the order is chained: the previous refresh's failure was already answered to its own caller.
@@ -351,36 +353,11 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
     return await serialized(home, config.connectionId, async () => {
       await assertStillDeclared(config, owners);
       assertConnectorAuthorizationPending(home, state);
-      const method = declaredMethod(await owners(config.serviceId), config.serviceId);
+      const method = declaredMethod(await owners(config.serviceId, config.grant), config.serviceId);
       // Each request checks once more after its address resolves, right before it connects (S-10, S-101).
       const send = sender(fetchImpl, { beforeEffect: () => assertStillDeclared(config, owners), current: () => assertConnectorAuthorizationPending(home, state) });
       const tokens = await exchange(home, config, method, { code }, send);
-      const token = text(tokens.access_token);
-      if (!token) throw new ApiOAuthError("服务未返回 access_token，请检查应用权限");
-      const label = await authorizedAccount(config, method, tokens, token, send);
-      // Rule 9: cancelled or revoked while waiting, or rules 6 and 7 no longer hold.
-      await assertStillDeclared(config, owners);
-      assertConnectorAuthorizationPending(home, state);
-      // Rule 8: a reauthorization lands on the revision and the account it started from.
-      if (config.previousRevision) {
-        const previous = withConnectorConnections(home, store => store.require(config.connectionId, config.serviceId));
-        if (previous.updated_at !== config.previousRevision) throw new ApiOAuthError("此连接在授权期间已变更，请重新开始");
-        const previousContext = apiOAuthContext(home, config.connectionId);
-        if (!previousContext?.account_id || previousContext.account_id !== config.context.account_id) throw new ApiOAuthError("无法确认这是原账号：请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接");
-      }
-      const secrets = connectorProtocolSecrets(home, config.connectionId);
-      const refreshToken = text(tokens.refresh_token), expires = oauthExpiry(method, tokens, Date.now());
-      const credentials = { [secrets.reference("client")]: staged!.get("client") || "{}", [secrets.reference("access")]: token,
-        [secrets.reference("oauth")]: refreshToken || null, [secrets.reference("expires")]: expires ? String(expires) : null };
-      const saved: OAuthConfiguration = { ...config, sessionId: config.connectionId,
-        binding: { plugin_id: config.plugin!.plugin_id, publisher_id: config.plugin!.publisher_id, endpoint: oauthEndpointFingerprint(method) } };
-      delete saved.previousRevision; delete saved.plugin; delete saved.fingerprint; delete saved.issuer; delete saved.returnTo;
-      const result = submitConnectorActivation(home, state, { kind: "oauth", target: { connectionId: config.connectionId, expectedRevision: config.previousRevision },
-        credentials, protocol: saved, declaration: { plugin: config.plugin!, fingerprint: config.fingerprint! }, input: { connectionId: config.connectionId, serviceId: config.serviceId,
-          displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
-          refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true } });
-      if (result.status !== "pending") finishOAuthReturn(home, config.returnTo, state, { connected: config.connectionId });
-      return { service_id: config.serviceId, ...result, ...(config.returnTo ? { return_to: config.returnTo } : {}) };
+      return await commitApiOAuth(home, state, config, method, tokens, send, owners, staged!);
     });
   } catch (refused) {
     ended(config);
@@ -388,6 +365,40 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
     failure.returnTo = config.returnTo;
     throw failure;
   } finally { staged?.clear(); }
+}
+/**
+ * What follows the service's answer with its tokens, for the callback and for a device authorization alike (W5-11 §3.3 rules 8 and 9 and
+ * the commit): the account is read, the declaration and the authorization are judged once more, a reauthorization must land on the
+ * revision and the account it started from, and only then is the connection committed. A refusal writes nothing of the tokens.
+ */
+export async function commitApiOAuth(home: string, state: string, config: OAuthConfiguration, method: PluginOAuthMethodDeclaration, tokens: Json,
+  send: typeof fetch, owners: OAuthOwners, staged: ReturnType<typeof connectorProtocolSecrets>) {
+  const token = text(tokens.access_token);
+  if (!token) throw new ApiOAuthError("服务未返回 access_token，请检查应用权限");
+  const label = await authorizedAccount(config, method, tokens, token, send);
+  // Rule 9: cancelled or revoked while waiting, or rules 6 and 7 no longer hold.
+  await assertStillDeclared(config, owners);
+  assertConnectorAuthorizationPending(home, state);
+  // Rule 8: a reauthorization lands on the revision and the account it started from.
+  if (config.previousRevision) {
+    const previous = withConnectorConnections(home, store => store.require(config.connectionId, config.serviceId));
+    if (previous.updated_at !== config.previousRevision) throw new ApiOAuthError("此连接在授权期间已变更，请重新开始");
+    const previousContext = apiOAuthContext(home, config.connectionId);
+    if (!previousContext?.account_id || previousContext.account_id !== config.context.account_id) throw new ApiOAuthError("无法确认这是原账号：请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接");
+  }
+  const secrets = connectorProtocolSecrets(home, config.connectionId);
+  const refreshToken = text(tokens.refresh_token), expires = oauthExpiry(method, tokens, Date.now());
+  const credentials = { [secrets.reference("client")]: staged.get("client") || "{}", [secrets.reference("access")]: token,
+    [secrets.reference("oauth")]: refreshToken || null, [secrets.reference("expires")]: expires ? String(expires) : null };
+  const saved: OAuthConfiguration = { ...config, sessionId: config.connectionId,
+    binding: { plugin_id: config.plugin!.plugin_id, publisher_id: config.plugin!.publisher_id, endpoint: oauthEndpointFingerprint(method) } };
+  delete saved.previousRevision; delete saved.plugin; delete saved.fingerprint; delete saved.issuer; delete saved.returnTo;
+  const result = submitConnectorActivation(home, state, { kind: "oauth", target: { connectionId: config.connectionId, expectedRevision: config.previousRevision },
+    credentials, protocol: saved, declaration: { plugin: config.plugin!, fingerprint: config.fingerprint! }, input: { connectionId: config.connectionId, serviceId: config.serviceId,
+      displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
+      refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true } });
+  if (result.status !== "pending") finishOAuthReturn(home, config.returnTo, state, { connected: config.connectionId });
+  return { service_id: config.serviceId, ...result, ...(config.returnTo ? { return_to: config.returnTo } : {}) };
 }
 const refreshes = new Map<string, SharedRefresh<string>>();
 const LOST_AUTHORITY = "等这次刷新的调用已失去授权，换到的令牌不保存";
@@ -411,7 +422,7 @@ export async function resolveApiOAuthToken(home: string, id: string, control: Co
     try {
       control.signal.throwIfAborted(); await control.beforeEffect(); control.current();
       const config = configured(home, id);
-      const owner = await owners(config.serviceId);
+      const owner = await owners(config.serviceId, config.grant);
       const method = boundMethod(config, owner);
       const secrets = connectorProtocolSecrets(home, id);
       const token = secrets.get("access");
@@ -450,7 +461,7 @@ async function renewed(home: string, id: string, read: { config: OAuthConfigurat
   const kept = declared(() => oauthKept(config.serviceId, method.keep?.map(keep => ({ ...keep, required: false })), json), config.serviceId);
   await refresh.settle();
   if (refresh.outcome() === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
-  const owner = await owners(config.serviceId);
+  const owner = await owners(config.serviceId, config.grant);
   // The last await: from here to the write nothing yields, so the participants are asked once more now (S-95).
   const outcome = refresh.outcome();
   if (outcome === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
@@ -477,7 +488,7 @@ async function renewed(home: string, id: string, read: { config: OAuthConfigurat
 export async function readApiOAuthAccount(home: string, id: string, control: ConnectorCallControl, token: (refresh: boolean) => Promise<string>,
   options: { fetchImpl?: typeof fetch; owners?: OAuthOwners } = {}): Promise<{ account_id: string; label: string }> {
   const config = configured(home, id);
-  const method = boundMethod(config, await (options.owners ?? registryOwners(home))(config.serviceId));
+  const method = boundMethod(config, await (options.owners ?? registryOwners(home))(config.serviceId, config.grant));
   const settings = settingsOf(config.serviceId, method, config.settings);
   const send = controlledConnectorFetch(sender(options.fetchImpl, control), control);
   const read = async (refresh: boolean) => identityOf(config, method, settings, await token(refresh), send);

@@ -10,7 +10,7 @@ import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../apps/workbench/src/scripts
 // A Home's registry is keyed by its path and nothing here reads the disk; the directory is what a Home with no installed package lists,
 // without the three flags a listing adds from this machine's own settings.
 const HOME = "connector-method-directory-test-home";
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map(({ github_client_id_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards(HOME)).map((entry) => entry);
 
 test("every catalog service and the two host account services have official method choices", () => {
   const ids = new Set(["github", "gmail", ...CATALOG_CONNECTORS.map((row) => row.id)]);
@@ -107,12 +107,19 @@ test("onboarding prefers ready account login and keeps developer configuration o
   for (const service of ["gmail", "notion", "github"]) {
     const entry = HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === service)!;
     // Gmail's and Notion's ready login is their OAuth method's own `login_ready` (the generic flow's product client), never a per-service flag.
-    const ready = { ...entry, github_client_id_configured: true,
-      method_options: entry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: true } : m) };
+    const ready = { ...entry,
+      method_options: entry.method_options?.map(m => m.kind === "oauth" ? { ...m, login_ready: true, ...(m.oauth?.device ? { oauth: { ...m.oauth, device: { login_ready: true } } } : {}) } : m) };
     assert.equal(recommendedMethod(ready)?.kind, "oauth", service);
     const html = renderConnectorSetup(ready, p);
     // Gmail and Notion sign in through the generic flow: the same start button, with no dedicated-login marker of their own.
-    assert.equal(html.includes(`data-account-login="${service}"`), service === "github", service);
+    assert.equal(html.includes("data-device-login"), service === "github", service);
+    // The device button names the service the code is typed at, and the page script starts the device flow from it, never the web one.
+    if (service === "github") {
+      assert.match(html, /data-device-login="GitHub"/u);
+      assert.match(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /'deviceLogin' in button\.dataset[^;]*deviceFlow\(area, body, popup, button\.dataset\.deviceLogin\)/u);
+      assert.match(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /api\('methods\/device\/start', body\)/u);
+      assert.doesNotMatch(CONNECTORS_SETTINGS_CLIENT_SCRIPT, /输入设备码[^)]*GitHub/u, "no service is written into the generic script");
+    }
     assert.ok(html.includes("data-protocol-start=\"oauth\""), service);
     assert.match(html, /<details class="settings-connector-help"><summary>使用其他应用配置/);
     const primary = html.split('<details class="settings-connector-alternatives">')[0]!;
@@ -127,7 +134,7 @@ test("onboarding prefers ready account login and keeps developer configuration o
   assert.equal(recommendedMethod(gmail), undefined);
   assert.match(html, /首次连接需要服务商的应用配置/);
   assert.match(html, /data-protocol-field="client_id"[^>]*required/);
-  assert.doesNotMatch(html, /data-account-login/);
+  assert.doesNotMatch(html, /data-device-login/);
   assert.equal(recommendedMethod({ ...gmail, connector_id: "loom", method_options: HOST_CONNECTOR_DIRECTORY.find(c => c.connector_id === "loom")!.method_options })?.kind, "mcp");
   // Compile the actual generated browser program, including template escaping.
   assert.doesNotThrow(() => new Function(CONNECTORS_SETTINGS_CLIENT_SCRIPT));

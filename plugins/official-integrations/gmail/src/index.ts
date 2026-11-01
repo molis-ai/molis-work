@@ -42,7 +42,7 @@ export const gmailIntegrationManifest = {
     title: "Gmail",
     group_id: "mail",
     summary: "本机账号。Feed 只读收信。",
-    auth_kind: "gmail",
+    auth_kind: "oauth",
     auth: { methods: [{
       kind: "oauth", grant: "authorization_code", authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
       token_url: "https://oauth2.googleapis.com/token", scopes: ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"], pkce: "S256",

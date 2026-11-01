@@ -20,18 +20,18 @@ export function connectorCardText(text: string, max: number): string {
   return characters.length <= max ? text : characters.slice(0, max - 1).join("") + "…";
 }
 
-export function readyAccountLogin(card: ConnectorSettingsCardView): boolean {
-  return Boolean(card.connector_id === "github" && card.github_client_id_configured);
+/** Whether the page can sign in for the person now: the method's login is ready, or the service also takes a device code and the product has a client for it. */
+export function loginReady(method?: ConnectorMethodOption): boolean {
+  return Boolean(method?.login_ready || method?.oauth?.device?.login_ready);
 }
 
 export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMethodOption | undefined {
   const methods = card.method_options ?? [];
-  if (readyAccountLogin(card)) return methods.find(m => m.kind === "oauth");
   if (card.connector_id === "feishu") {
     const cli = methods.find(m => m.kind === "cli" && m.cli?.installed);
     if (cli) return cli;
   }
-  const direct = methods.find(m => m.kind === "oauth" && m.login_ready)
+  const direct = methods.find(m => m.kind === "oauth" && loginReady(m))
     ?? methods.find(m => m.kind === "mcp" && m.login_ready);
   if (direct) return direct;
   if (card.connector_id === "figma") return methods.find(m => m.mcp);
@@ -42,8 +42,8 @@ export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMet
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 
 /** How a method connects, in the page's language. */
-export function methodLabel(method: ConnectorMethodOption, card: ConnectorSettingsCardView, L: Translate): string {
-  if (method.kind === "oauth") return method.login_ready || readyAccountLogin(card) ? L("登录账号") : L("自定义应用授权");
+export function methodLabel(method: ConnectorMethodOption, L: Translate): string {
+  if (method.kind === "oauth") return loginReady(method) ? L("登录账号") : L("自定义应用授权");
   if (method.kind === "mcp") return L("连接官方工具");
   if (method.kind === "cli") return L("使用本机客户端");
   return L("使用密钥连接");
@@ -54,7 +54,7 @@ export function pathLabel(card: ConnectorSettingsCardView, L: Translate): string
   if (card.availability === "placeholder") return L("暂未接入");
   const method = recommendedMethod(card);
   if (!method) return L("登录接入准备中");
-  if (method.kind === "oauth") return method.login_ready || readyAccountLogin(card) ? L("浏览器登录") : L("登录接入准备中");
+  if (method.kind === "oauth") return loginReady(method) ? L("浏览器登录") : L("登录接入准备中");
   if (method.kind === "mcp") return card.connector_id === "figma" ? L("连接 Figma 工具") : method.mcp?.client_registration === "manual" ? L("需配置工具授权") : L("官方工具授权");
   if (method.kind === "cli") return method.cli?.installed ? L("本机登录") : L("需安装客户端");
   return L("使用 API Key / 令牌");
@@ -122,7 +122,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
   let body = "";
   if (option.kind === "token" && option.support === "paste") body = tokenGuide(card, option, p);
   else if (option.oauth) {
-    const dedicated = readyAccountLogin(card);
+    const dedicated = Boolean(option.oauth.device?.login_ready);
     const ready = dedicated || Boolean(option.login_ready);
     const provider = card.connector_id === "gmail" ? "Google" : card.title;
     const config = `<ol class="settings-connector-steps"><li><strong>${L("打开官方后台，准备应用")}</strong>${officialLinks(option.links, p)}<p>${L("没有开发者权限时，请让应用管理员完成这一步，或选择下方其他连接方式。")}</p></li>
@@ -132,7 +132,7 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
       ${option.oauth.note ? `<p>${e(L(option.oauth.note))}</p>` : ""}
       ${ready ? `<details class="settings-connector-help"><summary>${L("使用其他应用配置")}</summary>${config}</details>` : config}
       <details class="settings-connector-help"><summary>${L("高级：使用已注册的 HTTPS 回调")}</summary>${field("redirect_uri", "HTTPS 回调地址（可选）")}<p>${L("仅在服务不接受本机回调时使用。授权后将完整返回地址粘贴到这里。")}</p></details>
-      <button class="mw-btn mw-btn--primary" type="button" data-protocol-start="oauth"${dedicated ? ` data-account-login="${e(card.connector_id)}"` : ""}>${e(L("前往 {name} 登录", { name: provider }))}</button>${manualReturn}`;
+      <button class="mw-btn mw-btn--primary" type="button" data-protocol-start="oauth"${dedicated ? ` data-device-login="${e(provider)}"` : ""}>${e(L("前往 {name} 登录", { name: provider }))}</button>${manualReturn}`;
   } else if (option.mcp) {
     const custom = card.connector_id === "mcp-bearer";
     const manual = custom || !option.login_ready && (option.mcp.client_registration === "manual" || ["feishu", "lark"].includes(card.connector_id));
@@ -160,8 +160,8 @@ export function renderConnectorSetup(card: ConnectorSettingsCardView, p: Connect
   if (card.availability === "placeholder") return `<p>${e(L(card.unavailable_reason || "此服务暂未接入。可以查看官方说明，选择其他可用服务。"))}</p>${officialLinks(card.setup_links ?? [], p)}`;
   const recommended = recommendedMethod(card);
   const others = (card.method_options ?? []).filter(m => m !== recommended);
-  return `<div class="settings-connector-setup">${recommended ? `<h3>${e(methodLabel(recommended, card, L))}</h3>${renderMethodGuide(card, recommended, p)}` : `<div class="settings-connector-pending"><h3>${L("登录接入准备中")}</h3><p>${L("Molis 尚未完成此服务的应用接入，暂时无法直接登录。这一步由我们准备，你不需要注册开发者应用。")}</p><p>${L("已有密钥或自有应用的用户，可以展开高级连接方式。")}</p></div>`}
-    ${others.length ? `<details class="settings-connector-alternatives"><summary>${L("高级连接方式")}</summary>${others.map(m => `<details class="settings-connector-alternative" data-method-choice="${m.kind}"><summary>${e(methodLabel(m, card, L))}<small>${e(L(m.kind === "mcp" ? "供工具调用使用" : m.kind === "cli" ? "需安装官方客户端" : m.kind === "oauth" ? "使用自有应用" : "在官方后台获取凭据"))}</small></summary>${renderMethodGuide(card, m, p)}</details>`).join("")}</details>` : ""}
+  return `<div class="settings-connector-setup">${recommended ? `<h3>${e(methodLabel(recommended, L))}</h3>${renderMethodGuide(card, recommended, p)}` : `<div class="settings-connector-pending"><h3>${L("登录接入准备中")}</h3><p>${L("Molis 尚未完成此服务的应用接入，暂时无法直接登录。这一步由我们准备，你不需要注册开发者应用。")}</p><p>${L("已有密钥或自有应用的用户，可以展开高级连接方式。")}</p></div>`}
+    ${others.length ? `<details class="settings-connector-alternatives"><summary>${L("高级连接方式")}</summary>${others.map(m => `<details class="settings-connector-alternative" data-method-choice="${m.kind}"><summary>${e(methodLabel(m, L))}<small>${e(L(m.kind === "mcp" ? "供工具调用使用" : m.kind === "cli" ? "需安装官方客户端" : m.kind === "oauth" ? "使用自有应用" : "在官方后台获取凭据"))}</small></summary>${renderMethodGuide(card, m, p)}</details>`).join("")}</details>` : ""}
     <details class="settings-connector-help"><summary>${L("为这个账号起个名字（可选）")}</summary><label class="settings-connector-field"><span>${L("连接名称")}</span><input class="mw-input" data-connector-new-name maxlength="100" placeholder="${e(card.title)}" autocomplete="off"></label></details>
     ${card.capabilities?.length ? `<details class="settings-connector-help"><summary>${L("支持的用途与限制")}</summary><ul class="settings-connector-capabilities">${card.capabilities.map(c => `<li data-fulfillment="${c.fulfillment}"><span>${L(c.fulfillment === "live" ? "支持" : "暂不支持")}</span>${e(L(c.label))}</li>`).join("")}</ul>${card.outbound_note ? `<p>${e(L(card.outbound_note))}</p>` : ""}</details>` : ""}
     ${(() => { const used = new Set((card.method_options ?? []).flatMap(m => m.links.map(l => l.url))); const extra = (card.setup_links ?? []).filter(l => !used.has(l.url)); return extra.length ? `<details class="settings-connector-help"><summary>${L("更多官方设置与帮助")}</summary>${officialLinks(extra, p)}</details>` : ""; })()}

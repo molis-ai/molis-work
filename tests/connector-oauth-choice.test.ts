@@ -11,7 +11,7 @@ import { listConnectorSettingsCards } from "../apps/local-host/dist/connector-di
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connector-oauth-choice-test-home")).map(({ github_client_id_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connector-oauth-choice-test-home"));
 
 async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "connector-oauth-choice-"));
@@ -87,8 +87,8 @@ else if (args[0] === "api" && args[1] === "GET") {
 
 test("settings show the available method choices for Gmail, Notion, and Feishu", () => {
   const cards = [
-    { connector_id: "gmail", title: "Gmail", auth_kind: "gmail", group_id: "mail" },
-    { connector_id: "notion", title: "Notion", auth_kind: "notion", group_id: "files" },
+    { connector_id: "gmail", title: "Gmail", auth_kind: "oauth", group_id: "mail" },
+    { connector_id: "notion", title: "Notion", auth_kind: "oauth", group_id: "files" },
     { connector_id: "feishu", title: "飞书", auth_kind: "feishu", group_id: "chat" },
   ] as const;
   const html = renderConnectorsSettings({ connectors: cards.map((card) => ({

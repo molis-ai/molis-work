@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { syncBuiltinESMExports } from "node:module";
 import test from "node:test";
 import { existsSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -116,24 +117,27 @@ test("ASC-08 ASC-09 ASC-35: OAuth binds the prepared id, can reopen, and a cance
 
 test("ASC-18 ASC-36: GitHub device authorization finishes on the restarted Host without an open login page", async t => {
   const home = await openTestHome(t), requested = await prepare(home, "github", "oauth");
-  const realFetch = globalThis.fetch;
   let tokenPolls = 0;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
+  // The device flow is the platform's now (W5-11 slice 8): its requests leave by `sendPublicHttps`.
+  const answer = async (url: string) => {
     if (url === "https://github.com/login/device/code") return Response.json({ device_code: "fixture-private-device", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
     if (url === "https://github.com/login/oauth/access_token") { tokenPolls++; return Response.json({ access_token: "fixture-device-access" }); }
-    if (url === "https://api.github.com/user") return Response.json({ id: 12, login: "work-device" });
-    return realFetch(input, init);
-  });
-  const started = await home.web.post<{ authorization_id: string; state: string }>("/api/settings/connectors/github/device/start",
-    { client_id: "fixture-app", display_name: "Work", setup_id: requested.authorization_id });
+    assert.equal(url, "https://api.github.com/user");
+    return Response.json({ id: 12, login: "work-device" });
+  };
+  oauthNetwork(t, answer);
+  const started = await home.web.post<{ authorization_id: string; state: string }>("/api/settings/connectors/methods/device/start",
+    { service_id: "github", client_id: "fixture-app", display_name: "Work", setup_id: requested.authorization_id });
   assert.equal(started.authorization_id, requested.authorization_id);
   assert.doesNotMatch(JSON.stringify(started), /fixture-private-device/);
   assert.doesNotMatch(JSON.stringify(await status(home, requested.authorization_id)), /ABCD-EFGH|device_state|fixture-private-device/);
   await home.close(); await home.host.close();
+  // The name lookup stand-in also answers a socket that listens: put the real one back while the Host restarts, then stand in again for its polling.
+  t.mock.restoreAll(); syncBuiltinESMExports();
   const now = Date.now(); t.mock.method(Date, "now", () => now + 6_000);
   const restartedHost = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });
   const restarted = await serveTestHost(null, { home: home.home, host: restartedHost });
+  oauthNetwork(t, answer);
   const readRestarted = () => restarted.web.get<{ status: string }>("/api/settings/connectors/authorizations/" + requested.authorization_id);
   try {
     for (let attempt = 0; attempt < 30 && (await readRestarted()).status === "pending"; attempt++) await new Promise(resolve => setTimeout(resolve, 200));
@@ -172,18 +176,17 @@ const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(hold)})){clearIn
 test("S-37 ASC-35 ASC-36: cancelling a device request after its token poll starts rejects the late token and leaves an existing account untouched", async t => {
   const home = await openTestHome(t), request = await prepare(home, "github", "oauth");
   const existing = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Personal", token: "fixture-original-device" }));
-  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), realFetch = globalThis.fetch;
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let identities = 0;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    const url = String(input);
+  oauthNetwork(t, async url => {
     if (url === "https://github.com/login/device/code") return Response.json({ device_code: "fixture-private-device", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
     if (url === "https://github.com/login/oauth/access_token") { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-cancelled-device" }); }
-    if (url === "https://api.github.com/user") { identities++; return Response.json({ id: 12, login: "work-device" }); }
-    return realFetch(input, init);
+    assert.equal(url, "https://api.github.com/user");
+    identities++; return Response.json({ id: 12, login: "work-device" });
   });
-  const started = await home.web.post<{ state: string }>("/api/settings/connectors/github/device/start", { client_id: "fixture-app", setup_id: request.authorization_id });
+  const started = await home.web.post<{ state: string }>("/api/settings/connectors/methods/device/start", { service_id: "github", client_id: "fixture-app", display_name: "Work", setup_id: request.authorization_id });
   const now = Date.now(); t.mock.method(Date, "now", () => now + 6000);
-  const polling = home.web.post("/api/settings/connectors/github/device/poll", { state: started.state });
+  const polling = home.web.post("/api/settings/connectors/methods/device/poll", { state: started.state });
   const rejected = assert.rejects(polling, { status: 400 });
   await entered.promise; await cancel(home, request.authorization_id); release.resolve(); await rejected;
   assert.equal((await status(home, request.authorization_id)).status, "cancelled");
@@ -192,6 +195,22 @@ test("S-37 ASC-35 ASC-36: cancelling a device request after its token poll start
   assert.equal(withConnectorConnections(home.home, store => store.resolveToken(existing.connection_id, "github")), "fixture-original-device");
 });
 
+
+test("S-37 ASC-35 ASC-36: cancelling a device request before its first poll: the poll sends nothing and writes nothing", async t => {
+  const home = await openTestHome(t), request = await prepare(home, "github", "oauth");
+  let requests = 0;
+  oauthNetwork(t, async url => {
+    if (url === "https://github.com/login/device/code") return Response.json({ device_code: "fixture-private-device", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
+    requests++; return Response.json({ access_token: "fixture-late-device" });
+  });
+  const started = await home.web.post<{ state: string }>("/api/settings/connectors/methods/device/start", { service_id: "github", client_id: "fixture-app", display_name: "Work", setup_id: request.authorization_id });
+  await cancel(home, request.authorization_id);
+  const now = Date.now(); t.mock.method(Date, "now", () => now + 6000);
+  await assert.rejects(home.web.post("/api/settings/connectors/methods/device/poll", { state: started.state }), { status: 400 });
+  assert.equal(requests, 0, "a cancelled authorization is not asked again");
+  assert.equal((await status(home, request.authorization_id)).status, "cancelled");
+  assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
+});
 
 test("S-37 ASC-03 ASC-19: prepared reauthorization pins the original connection and revision, never overwriting a later change", async t => {
   const home = await openTestHome(t);

@@ -11,17 +11,11 @@ export function replacedOAuthAccessRef(ref: string): boolean {
 }
 
 /**
- * Services whose OAuth connections are still made by a flow of their own, and so are still of the shape that flow leaves: GitHub's
- * device authorization until W5-11 slice 8, which takes it off this list; with the list empty the rule below is the whole of it (§2.6, M4).
+ * An OAuth connection made before its service joined the generic flow (Gmail, Notion, GitHub's device authorization): `auth_method: "oauth"` with
+ * credentials that are not the generic flow's. It is not read, not refreshed and not sent anywhere; the person adds a new connection (user decision of 2026-10-27, Q2).
  */
-const OWN_FLOW = new Set(["github"]);
-
-/**
- * An OAuth connection made before its service joined the generic flow: `auth_method: "oauth"` with credentials that are not the generic
- * flow's. It is not read, not refreshed and not sent anywhere; the person adds a new connection (user decision of 2026-10-27, Q2).
- */
-export function replacedOAuthShape(connection: Pick<ConnectorConnectionRecord, "auth_method" | "service_id" | "credential_ref">): boolean {
-  return connection.auth_method === "oauth" && !apiOAuthConnectionId(connection.credential_ref ?? undefined) && !OWN_FLOW.has(connection.service_id);
+export function replacedOAuthShape(connection: Pick<ConnectorConnectionRecord, "auth_method" | "credential_ref">): boolean {
+  return connection.auth_method === "oauth" && !apiOAuthConnectionId(connection.credential_ref ?? undefined);
 }
 
 /** What the settings page tells the person about such a connection. */

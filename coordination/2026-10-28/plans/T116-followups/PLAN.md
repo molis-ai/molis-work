@@ -212,3 +212,31 @@ RAC2686要求英文键真正归Goals，故RAC2680的原始全HTML字节恒等只
 根核候选92234791的必要view读写与旧布局一次清理后，批准createTabWorkspaceOps现有cohesive登记425→441和workbench.js1157286→1158638（+1352B，无新URL）；作者已删除旧双状态/回填并合并消息，增长有必要。将该精确三元数据窗口委派原开发线1串行执行：原giant理由保留，删除已消费T399三项许可，仅加本项准确许可及原因，官方资源update以4880为base；不改算法/阈值。脚本改变后取一次最终matching整体build及所涉门禁，不重复已有效的产品浏览器矩阵。
 
 T403可按原mount合同增加packages/contracts/src/platform/plugin-registration.ts的有限clientMounts声明及API快照；必须由可信实际registration/client调用链消费，不能由BUILTIN_PLUGIN_CATALOG按owner点名赋权，补通用非内置owner正反例。该接缝属既有同待遇范围，不新增产品选择。三新资源实测审批仍独立保留。
+
+
+## 2026-11-01 18:32Z T399与完整PR2同次承载
+
+为落实用户并行提速，根采纳只读祖先/门禁审查：T399尚未发布，PR2当前c0bdbbb21已普通合入T399最终4880f875，具备同一后继承载条件。将17:12Z“不吸PR2”更新为：仅在PR2原完整作者验收、独立验证和加强二审均通过后，将其完整冻结头普通并入T399，作为第六成员一次发布、同一准确H的Verify/SI/Full与正常队列采用；不吸收T403/T398或未完成WIP。没有产品语义变化或降低RAC；T399原五成员有效证据及PR2独立证据各保输入，组合只验真实新增接缝。此项替代先采用T399再单独PR2 Full的排程，不把本地候选提前算采用。
+
+资源以T395准确父ab82142为组合基线：workbench 1153965→1158638（总+4673B，原T399+3321加PR2+1352），builder.js 118672→120944（+2272B）、builder.css 19893→19933（+40B），均已有必要性/减量评审，无新URL、无单资源超10KB。T399尚未实际采用，原三许可未消费；当前PR2删除父许可/写spent仅适于分批采用，组合改回这三对准确数与实际说明，不改算法、阈值或总预算。根将这一精确修改交原PR2作者串行：若当前build/browser仍活跃，先让它自然结束；然后只改page-assets许可注释和tuple，按ab基线跑必要资源与官方快查更新（仅无增长时）、一次最终matching整体build、完整page-assets-budget和必要raw门禁。已有效的产品浏览器不因元数据重复；真实跨进程恢复仍须通过。最终合流无新源码差量时沿用最终匹配构建/原验收，不再重复同一构建。
+
+
+## T403冻结首审确认的必要调用链收口
+
+根已实读fa7d9934a的来源导航、规则恢复/busy、membership和可信slot代码，核收独立验证五项与二审账号控件一项必修。它们都保原RAC2515～2519完整体验和失效边界，不新增产品语义：来源目录选择不得把surface当plugin身份，不新增Sources标签且按实际pane/mount路由；create丢响应恢复贯穿原操作guard，不用新guard把过期意图变成新操作；hide/reopen需解除旧请求所属busy而不让旧finally写新UI，保草稿和显式幂等重试；多surface启停按真实owner/contribution/surface统一增删，不能恢复Feed专用私路；Feed写入后已挂Inbox经自身身份与既有revision/有限失效重新读，不借给Feed其数据或权限；账号选择的被替代/hide/detach请求必须取消在途读取和控件，创建弹层、绑定前与回传前核同请求代次/settled，来源选择失效能撤销旧picker。
+
+确认必要caller补入原窗口：apps/workbench/src/scripts/client/plugin-membership.ts只接声明的多surface启停；refresh-decisions.ts仅去掉退休feedWorkbench闭包引用并保真实receipt回退行为。其余在原53路径及关联原验收文件内完成。沿现有作用域/生命周期/目录事件，不建第二状态账、不删除权限检查、不只延长等待。作者待活动build/browser自然结束再改运行输入。既有五项Functions授权与三新资源具体批准仍独立，不因本段扩大。
+
+
+## T403 三新增资源具体批准（2026-11-01 19:09Z）
+
+用户在根会话弹窗明确选择“批准三条新增资源（推荐）”。可审阅候选H8b04d7385bb71015d15ccb6481eaf4d368149591/treece8cb28df9e8d7295962b1e01fa6b6a703e4dd34，以准确父2ca72c337为基线，真实隔离HTTP Host下发feed.js 31375B、feed.css 43247B、inbox.js 9109B；workbench.js减少90809B、workbench.css减少43267B、公共frame增加5862B，全部资源7381860→7337377B，净减少44483B。原件/tmp/t403-evidence/RESOURCE-CANDIDATE.md及resources-8b04d7385/served.json已由根回读。业务代码移出常载工作台，公共桥接保一份，Feed样式沿已有按需机制。
+
+批准上述三个准确URL；后续六P1修复按最终实测差量结算，单项增长超过10KB仍另询。作者可沿现有INITIAL_ASSET_BUDGETS与官方page-assets更新机制填写这三项具体批准，不改门禁算法/阈值；公共frame必要增长等最终字节与减量说明由根核裁。预算/快照更新须在运行输入冻结与公共槽窗口内串行。资源批准不代签产品验收、CI/Full或真实Home，继续原完整RAC2515～2519。
+
+
+## 2026-11-01 T118 文档候选并行窗口
+
+落实用户18:05Z开发与采用分开要求：T118原三文档范围与验收保持，解除“只有三父实际main才可准备实施”的排程等待。起草线已完成T067，可从T403准确冻结8b04d7385bb71015d15ccb6481eaf4d368149591/treece8cb28df9e8d7295962b1e01fa6b6a703e4dd34在独立树先完成T118候选；根已核其含T399/PR2最终2ca，三目标文档相对2ca均未改，不消费T403 dirty。T403修复仍由原writer，文档作者不改源码、测试、门禁或代签其未完成RAC。T403当前六P1、资源最终结算和CI/Full仍未完成，三新URL已获用户具体批准。
+
+候选仅修当前已核的入口/owner/取型/客户端指引和本链状态分界；明确候选来源与待采用，不先关闭整行、PG094⑤或本人/真实Home验收。T118原PLAN/REVIEW完整范围直接沿用，含host.md第5步Feed/Inbox factory旧句，BACKLOG默认零diff；最终T403冻结及实际采用后只合真实父和回填已核状态，不因状态文案重新跑父产品矩阵。旧实际main等待仅约束最终发布/签结。三目标文件、coord由各自owner负责，无共享写入。

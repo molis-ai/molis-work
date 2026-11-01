@@ -248,3 +248,5 @@
 
 
 2026-11-01 17:20Z：T117有限语义诊断发现既有tests/memory-settings-cas.e2e.test.ts中MemoryExportPackage的version=1与现行合同2不符（TS2322）；父输入已有，本片只修新增展示字段取型，原literal/断言未动。归属Codex统筹，待Memory原线/保护#1101接续时交还，不扩T117产品行为或算本轮实现主线；未把原文件typecheck红改报绿。
+
+2026-11-01 UI审计CDP观察（负责人：Codex统筹，待新证据，不另派实现书）：T395 Full41336597988首轮shard6的ui-audit分别在Runtime.evaluate与截图超时，Node CPU/loop接近全忙、无assert mismatch；准确ab82142本地完整1/1未复现，现有profileTimeouts未触发，根因UNKNOWN。保旧原件，仅同头failed rerun一次；同类再现转Linux采样，不概率重复、不基于假设改产品/超时。参见#1724评论6562372704。

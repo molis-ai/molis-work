@@ -233,8 +233,8 @@ DUAL-06 由 S0-2a 证明，DUAL-04 由 S0-2b-1 证明；其余各行写明由哪
 - RAC-2906：通用双实例、两个项目，各自 grant 与 Home 上限同时成立才放行；Home 不改项目记录。
 - RAC-2907：动作、scene 回调、保留作业与后台执行接受后发生 Home off→on，旧调用拒绝且效果与失败记录均不新增，新调用成功；服务首次使用额外可选权限同样捕获。
 - RAC-2908：route 在启动等待前以及 SDK 消费在目录等待前捕获，等待后、效果前、结果交付前复核；旧 local-user 上下文不借重新授权复活。
-- RAC-2909：Home 缺失、停止、重装或换激活只拒可选能力；必需能力继续，项目状态与世代不变，冷启动保持关闭。
+- RAC-2909：Home 缺失、停止、重装或换激活只拒可选能力；必需能力继续，项目状态与世代不变，冷启动保持关闭。源调用结束后，仅需必需权限的保留作业以自己的 scope 初检、sweep 与执行，不继承源动作、route 或 SDK 的可选权限检查。
 - RAC-2910：本人 Home 设置关/开并回读；项目 setter 不写两库，页面无第二开关，停止/崩溃/缺失状态准确。
 - RAC-2911：显式 true/false 可读，缺失、表达式、spread、未知构造、可信配对负控保持拒绝。
 
-真实接受点由 `tests/dual-instance-optional-permissions.test.ts` 验证；设置页面由 `tests/plugin-permission-switch.e2e.test.ts`，静态声明由 `tests/health-gates-dual-instance.test.ts`。验证命令：整体 `pnpm build` 后用 `node scripts/run-tests.mjs` 跑上述完整文件及影响的双实例/撤权/作业/场景回归，jobs=1、retries=0，公共构建/浏览器窗口与隔离 Home；作者不跑本机 Full。
+真实接受点由 `tests/security-invariants-dual-instance-optional-permissions.test.ts` 验证；设置页面由 `tests/plugin-permission-switch.e2e.test.ts`，静态声明由 `tests/health-gates-dual-instance.test.ts`。验证命令：整体 `pnpm build` 后用 `node scripts/run-tests.mjs` 跑上述完整文件及影响的双实例/撤权/作业/场景回归，jobs=1、retries=0，公共构建/浏览器窗口与隔离 Home；作者不跑本机 Full。

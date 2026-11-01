@@ -64,7 +64,9 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 
 ## 开发要求
 
-可信双实例的项目可选权限由 permissionBound 只读捕获同 Home 的原激活检查，与项目自己的 grant 同时成立；必需权限与生命周期独立。动作/场景/作业/route/SDK 消费调用在实际接受权限时保留检查，await 后、beforeEffect 与结果交付时复核，regrant 不变世代也不能使旧调用复活。回归：`tests/dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2909）。
+保留作业的初检、sweep 和工作都进入它自己的 scope，并退出源 action/route/SDK 的调用局部上下文；只声明必需权限的项目作业，不因来源可选权限在源调用结束后关闭而停止。作业需要的可选权限仍保留该作业自己接受时的原 Home 检查（S-52、RAC-2909）。
+
+可信双实例的项目可选权限由 permissionBound 只读捕获同 Home 的原激活检查，与项目自己的 grant 同时成立；必需权限与生命周期独立。动作/场景/作业/route/SDK 消费调用在实际接受权限时保留检查，await 后、beforeEffect 与结果交付时复核，regrant 不变世代也不能使旧调用复活。回归：`tests/security-invariants-dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2909）。
 
 `listPluginProjectDatabases(database)` 只读项目库的现行插件 ledger，沿该 owner 的严格 parser 返回插件 id、库名、版本与发布者，用于离线快照子版本记录；不激活插件、不迁移或初始化账本，不向 Host 暴露跨 owner SQL。回归包含 `tests/home-snapshot-content.test.ts`。
 

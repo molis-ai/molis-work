@@ -117,7 +117,7 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
-双实例可选权限的 Home 上限由 home-side / HomePluginHost 只读捕获匹配安装的原激活检查，项目平台仅对可信双实例接入，不同步两库。项目 setter 明确拒绝双实例可选权限修改；settings 私有 overview 从同一可信判定投影安装 ID，不改公开动作 schema。Home 缺失或停止只拒可选能力，必需能力与项目状态仍独立。回归：`tests/dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2910）。
+双实例可选权限的 Home 上限由 home-side / HomePluginHost 只读捕获匹配安装的原激活检查，项目平台仅对可信双实例接入，不同步两库。项目 setter 明确拒绝双实例可选权限修改；settings 私有 overview 从同一可信判定投影安装 ID，不改公开动作 schema。Home 缺失或停止只拒可选能力，必需能力与项目状态仍独立。回归：`tests/security-invariants-dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2910）。
 
 不留数据的已卸载安装在重装前，由现有同步 `keptDataDiscarded` 先核 KV owner 端口、再清主人文件、最后删该安装 KV（RAC-357-U1）。`createPluginPlatform` / `PluginHostExecutorOptions` 的 `deleteInstallationData` 是可信组合端口，真实项目装配、安装宿主和本地开发入口接现有 `SqlitePluginPrivateStorage` 的公开方法；Home 复用自身 storage。不留数据而缺端口时明确拒绝，不以客户端工厂冒充可清理。路径拒绝不删 KV，后一步失败拒绝新安装并保留原卸载事实；旧保留数据且明确丢弃的路径时序及回滚不变。回归见 `tests/security-invariants-sandbox-owner-files.test.ts`、`tests/plugin-lifecycle-states.test.ts`。
 

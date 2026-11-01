@@ -243,6 +243,10 @@ function permissionScope(instance: PluginInstance): object | undefined {
 /** A permission's producer check is captured once for this source call; later grants cannot replace it. */
 export function requirePluginPermission(instance: PluginInstance, permission: string, capture: () => (() => void) | undefined): void {
   const scope = permissionScope(instance);
+  // A nested action of the same instance cannot shadow the source route/SDK call's already accepted permissions.
+  const route = routes.getStore(), call = permissionCalls.getStore();
+  if (route && route !== scope && inPluginInstance(route.instance, instance)) assertPluginPermissionChecks(heldKey(route));
+  if (call && call !== scope && inPluginInstance(call, instance)) assertPluginPermissionChecks(heldKey(call));
   if (!scope) { capture()?.(); return; }
   const key = heldKey(scope);
   assertPluginPermissionChecks(key);

@@ -76,3 +76,6 @@ T149拥有唯一Manifest/effects迁入SDK的共享hunk，T397必须等其准确�
 
 
 2026-11-01 20:18Z：T398修复候选73b1ea2ec/treea253已冻结，准确头真签完整文件16/16，原9完整文件101pass/1默认关闭外网集成skip按原输入保留。独立增量二审核出新的必要修复：background lane按单caller signal/authority失效就discard共享runner，会在A实际执行、B排队时仅取消B便杀A。根已回读确认，交原作者移除这项越界的lane判断，由现有runner派发/取消责任保queued隔离，实际executing取消及安装/世代stop仍结束所属进程；不加第二队列或状态表。补真实A持有/B排队取消或单caller撤权/A继续完成/显式C成功和B零副作用的必要用例。旧73b不终签，其他已有效证据不重复跑；API/SI/giant只在新源码冻结后一次生成并核收，最终CI/Full与采用仍未完成。
+
+
+2026-11-01 20:38Z最终源码与元数据窗：cd9cdda4567d378e23a351eb6abe4bbd5e4eca48/tree86462be62221759a389099d0b9e4537119d29b67相对73b仅5paths，原queue task保有执行及最后异步检查责任，queued caller拒绝不会杀另一active caller；最终完整签名19/19、runner23/23，独立两线均通过，旧PID退出与红例保留。根授权原writer仅官方API两份、SI既有S67/S18/S57准确行为/证明入口和giant现有四项实测size（ActionService406/15、PluginRuntime624/29、SandboxBroker315/9、runner192），保完整既有理由、不改算法/limits；普通health/boundary/API/actions/imports及提交级secrets收尾，未变业务不重复。最终metadata由原两线只核差量；不push/Full/真实Home，发布采用仍待根。

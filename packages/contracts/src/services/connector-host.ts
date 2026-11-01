@@ -126,7 +126,7 @@ export interface ConnectorMethodOption {
   readonly note: string;
   readonly links: readonly ConnectorSetupLink[];
   readonly mcp?: { readonly endpoint: string; readonly client_registration?: "dynamic" | "manual"; readonly note?: string };
-  readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string; /** The local path the sign-in returns to by default; absent for the generic callback. */ readonly callback_path?: string };
+  readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string; /** The local path the sign-in returns to by default; absent for the generic callback. */ readonly callback_path?: string; /** The loopback name that address is registered under, for a provider that takes no numeric IP (the page shows `http://<host>:<port><path>`). */ readonly callback_host?: string };
   readonly cli?: { readonly binary: string; readonly installed: boolean; readonly install_url: string; readonly setup_available?: boolean; readonly environment_fields?: readonly { readonly name: string; readonly label: string; readonly secret: boolean }[]; readonly note?: string };
 }
 

@@ -2,7 +2,6 @@ import type { ConnectorDirectoryEntry } from "@molis-ai/molis-work-contracts/ser
 import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
 import { GITHUB_CLIENT_ID_REF } from "./github-oauth.js";
-import { notionOAuthConfigured } from "./notion-oauth.js";
 import { connectorMethodsOf } from "./host-connector-methods.js";
 import { homeIntegrationRegistry, type IntegrationDeclarationsView } from "./builtin-integrations.js";
 import { PLATFORM_OWNER } from "./integration-declarations.js";
@@ -91,6 +90,5 @@ export async function listConnectorSettingsCards(home: string) {
     : {
       ...entry,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,
-      notion_oauth_configured: entry.auth_kind === "notion" ? notionOAuthConfigured() : false,
     });
 }

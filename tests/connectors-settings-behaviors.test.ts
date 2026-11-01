@@ -28,7 +28,7 @@ import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connec
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
-const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, ...entry }) => entry);
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";

@@ -344,6 +344,7 @@ export interface ConnectorMethodOption {
         }[];
         readonly note?: string;
         readonly callback_path?: string;
+        readonly callback_host?: string;
     };
     readonly cli?: {
         readonly binary: string;

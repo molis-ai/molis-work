@@ -55,7 +55,7 @@ export function createWorkbenchStageRenderers(ports: {
     drawing: { mount: mountContributionsOf(pluginId), currentLocale, listJoin, formatDocumentDate: formatDate, renderList, prefixLocalLinks,
       renderReference: createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: L }),
       creatableKinds: creatableKinds(view ? shownPagePlugins(view) : [], pluginDirectoryFor(view?.plugin_directory)),
-      inPluginWords: withPluginWords, renderTerminalPane, withDesktopQuery: ports.withDesktopQuery, settingsContextHref: ports.settingsContextHref,
+      inPluginWords: (id, run) => withPluginWords(id, () => run(L)), renderTerminalPane, withDesktopQuery: ports.withDesktopQuery, settingsContextHref: ports.settingsContextHref,
       renderHint: options => renderHint({ ...options, iconName: options.iconName as PluginIconName | undefined }) },
   } satisfies StagePageModel;
   };

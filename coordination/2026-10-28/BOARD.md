@@ -11,13 +11,13 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前已采用main为6729a2d46（含T381/T382/T383）；T384 #1712与T385 #1713的准确Verify、本地独立审验均核收，已各排一次普通PR自身Full，适用SI仍另结。T146最终c35ad3036已推原#1676，四组局部视觉/二审核收，等新CI和Full空位；顶层导航首败及旧UNKNOWN保留。T386和T369/PR1b仍等T384实际采用，三小片合载书审进行，未造READY。
+当前已采用main仍为6729a2d46（含T381/T382/T383）。T384 #1712与T385 #1713各自Full执行中；T146 #1676准确c35ad3036的Verify已绿，适用SI与Full仍待结。T387本地合成、独立验证及二审已核，正常推送3862de92并开#1714，等自身CI及Full预算；三原PR继续只读。T386和T369/PR1b仍等T384实际采用，未造READY或提前关行。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712 @4404e142；Verify与独立审验已核，已排自身Full | full=true；适用SI及Full在途；未采用/原四PR只读 | 原四片合成；ports与golden两自修；BACKLOG准确冲突已解；资源仅原T362+324B |
 | T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；Verify/本地审验通过，已排自身Full | full=true；两原PR只读；资源零增量 | 两原片10路径，六完整文件+README另九项逐项核抵，无第三项修复 |
-| T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | M6729本地实施已授权，书审及共享hunk交接已核 | full=true；三原PR只读；零资源增量；新Full实际核三完整文件 | 原三片10路径；immersive-shell/FI文书/runtime测试仅本书自有hunk，T384/T121冻结 |
+| T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | #1714 @3862de92；本地构建/独立审验/推前secrets核收 | full=true；等准确CI与Full预算；三原PR只读；48资源零增量 | 原三片10路径自有hunk；最终Full核ledger/runtime/aggregate三完整文件，原失败边界保持 |
 | T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线2；验证线3/二审线5 | 书审两项oracle已落实，WAIT不计READY | 等T384实际采用和资源窗口交接；full=true | 六原文件+README/S30精确文案+根核资源tuple；三完整e2e与窄实操 |
 | T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710实际采用main4b04947e7；patch-id同、原树/分支已清 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
 | T-383 | Pages父上下文保存完成后再刷新 | 丙 | Codex开发线2；验证线3/二审线5 | #1711已实际采用main6729a2d46；完整patch/patch-id同，full=false | full=false；初轮私有槽不合格保留，历史Linux因果UNKNOWN | 仅tests/pages-actions.e2e.test.ts；保护#1101共享fixture不交写 |

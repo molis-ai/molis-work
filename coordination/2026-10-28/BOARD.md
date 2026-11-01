@@ -11,11 +11,12 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前已采用main为3fd857792（含T377与T208）；T116 PR1a/T143准确头Full运行。T362、T148、T299、T345、T373、T346新头增量审验已核，等各自CI/Full；T379独立7/7已核，最终资源窗仍等T362实际采用。开发线1执行T380诊断修复，开发线3接T146最小同步；已完成项不重复派。
+当前已采用main为328d5b612（含T381、T377与T208）；T116 PR1a准确头Full终态通过但两首败仍UNKNOWN，T143 Full继续至终态。T362、T148、T299、T345、T373、T346新头增量审验已核，等各自CI/Full；T379独立7/7已核，最终资源窗仍等T362实际采用。开发线1执行T380诊断修复，开发线3接T146最小同步；已完成项不重复派。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4 | 当前 | PG077/T147/T364已采用；共享artifact路径hunk根已交接 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
+| T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710 @4f3d4d03e；本地增量核收，准确CI/SI待结 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
+| T-383 | Pages重复reload首败有界诊断 | 丙（产品/共享改动另裁） | Codex开发线2；验证线3/二审线5 | 根已接受五项书审修订，冻结E328d5b612 | 新Full等处置；两历史首败/重试UNKNOWN保留 | 仅Pages测试本地临时观测；保护#1101共享fixture不交写 |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
 | T-002 | privileges 状态列收口与 BACKLOG 清理 | 丙 | B | 1 | — | `specs/repository-anti-corruption/privileges.md` |
 | T-003 | 给 Feed、Inbox 各加一项生命周期用例 | 乙 | A | 2 | — | `tests/shipped-plugin-lifecycle-feed.test.ts`、`tests/fixtures/shipped-lifecycle.ts`（只改 `declared()`，与 T-005 共改，后合的解冲突） |
@@ -321,7 +322,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-378 | W6-03历史扩展步骤与本次Full授权两文档澄清（RAC-2798～2799） | 甲 | Codex 开发线3；验证线1；二审线4 | #1708已采用main b6f92222f；准确adf31b2a2的审验/CI齐，patch-id与整树同，合入6550884059 | full=false；原通用Full规则不改，W6动态/RAC11不签完成 | EXTENSION-POINTS §3.1；PARALLEL本次覆盖说明/短引用；根显式分段交接，保留#1654 §3.5和#1673长段 |
 | T-379 | iframe内全局搜索快捷键（RAC-2800～2803） | 甲 | Codex 开发线4；验证线3/二审线4 | 本地ea67075d1冻结；独立两完整7/7及Todo/嵌套Issue原生K/F实操已核，二审无必修 | full=true；资源/共享文档/最终CI未结；运行中xterm未验；资源窗T208→T362→本单→T065 | 两生产/两浏览器文件见tasks/T-379.md；README/S-30根串行，+179/+360B未冻结许可 |
 | T-380 | 右分屏Goals首页可见状态接线修复（RAC-2804～2806） | 甲 | Codex 开发线1；验证线4/二审线1 | 已接受书审两修订，冻结B3fd857792；先动态诊断后范围内最小修复 | full=true；源码与真实验证可继续，最终资源窗口另交；不签W6整体 | 客户端tab-workspace/panes/plugins、frame-container、initialization、editing-graph；必要Goals momentum；原三份标签浏览器文件择实际范围 |
-| T-381 | Goals创建后返回导航重复超时（RAC-2807～2809） | 丙（产品/共享改动另裁） | Codex 开发线2；验证线3/二审线5 | 根已接受书审，冻结B3fd857792，先有界诊断 | 两Full首红/重试原件保持；新Full等处置，不随机重跑 | 初始仅tests/goals-dialogs.e2e.test.ts及临时诊断；产品/共享夹具不预交 |
+| T-381 | Goals创建后返回导航重复超时（RAC-2807～2809） | 丙 | Codex 开发线2；验证线3/二审线5 | #1709已采用main328d5b612；合入6552463056；patch-id/整树同 | full=false；独立最终3/3、二审、Verify齐；历史超时因果UNKNOWN保留 | 自有作者树/本地分支已清，原件与独立副本保留；测试锁释放 |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
 | T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
@@ -452,3 +453,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 02:08Z：T381已正式登记并交开发线2；两首败尚无同根归因，只按书内一轮被动观测定位，目标RAC2700所有业务断言保持。T380本地b4382ea8f的右pane stale CORE恢复根因和最小4行修复已有同B/H整文件2/3→3/3；根已读实际diff/时序，独立验证线4先给最小计划，二审线1核代码。+199B资源未许可，未签W6。
 
 2026-11-01 02:22Z：T381首轮3/3未复现30秒超时，真实事件已证两次测试返回覆盖产品新Goal导航；根接受独立窄审并更新同一书，开发线2仅修完整提交等待及目标页面断言，旧Linux因果仍UNKNOWN，不做概率重跑。T382已接受独立书审唯一类型修订并派开发线4，承接已有BL926，三项验收2810–2812；具体artifact路径hunk交接，未开PR、不减少在途或后继估算。
+
+2026-11-01 02:44Z：T381完成上述采用；T382已从BL926后继转在途#1710，根核实uncovered仅两条改import路径而非空，既有HTTP/Goal context与build证据核抵。Pages同一reload在T377/T116的1440/390首败由T383承接一次有界观测，不预认同根；新Full等待处置，现有T143不取消。W6场景6项目签包安装/停用/恢复/兼容升级/卸载子链经实际Host API执行与独立二审核收，修正签包确落隔离Home后清理的报告事实；仅该子链通过。W4当前差量保存，真实模型仍未授权。

@@ -12,7 +12,7 @@ import type { PluginPlatformOptions } from '../plugin-platform.js';
 import type { CapabilityImplementations } from './capabilities.js';
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
@@ -29,7 +29,7 @@ import { studioModels } from './studio-models.js';
 import { studioImages } from './studio-images.js';
 import { createStudioPreview } from './studio-preview.js';
 
-export type { AgentBuild, AgentBuilderPorts };
+export type { AgentBuild, AgentBuilderPorts, AgentRelease, AgentPublicationControl };
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {

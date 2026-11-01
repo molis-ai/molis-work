@@ -41,6 +41,19 @@ test('SDK-1 PUB-1 the real workflow publishes complete signed bytes, preserves B
   assert.equal(readdirSync(release.directory).length, 6);
 });
 
+test('SCOPE-1 undo after a scope round trip cannot restore publishable stale checks', async t => {
+  const home = await mkdtemp(join(tmpdir(), 't149-scope-undo-')), h = readyPublication(home, 'author', 'project');
+  t.after(async () => { await h.workflow.close(); await rm(home, { recursive: true, force: true }); });
+  const { design, nodes, connected, directory, checks, checksScope, browserResult } = h.build;
+  h.workflow.store.update(h.build.id, h.build.revision, build => { build.history.push({ design, nodes, connected, directory, checks, checksScope, browserResult }); });
+  for (const scope of ['home', 'project']) await h.workflow.action(h.build.id, { action: 'scope', scope, revision: h.workflow.store.require(h.build.id).revision });
+  await h.workflow.action(h.build.id, { action: 'undo', revision: h.workflow.store.require(h.build.id).revision });
+  const current = h.workflow.store.require(h.build.id);
+  assert.equal(current.phase, 'paused'); assert.equal(current.scopeCheckPending, true);
+  await assert.rejects(h.publish(), /目标范围/);
+  assert.equal(h.workflow.store.versions(h.build.id).length, 0); assert.equal(existsSync(identityPath(home)), false);
+});
+
 /** A real authority await, selected by observable publication progress rather than an implementation-specific call count. */
 function heldAuthority(when: () => boolean) {
   let open!: () => void, arrived!: () => void, held = false, current = true;
@@ -185,8 +198,10 @@ test('CLEAN-1 explicit production Home purge removes its publisher metadata and 
 });
 
 test('RAC-2656 RAC-2657 RAC-2658 KEY-2 local signatures still require personal pin confirmation, run in Home, survive restart, and do not transfer trust', mac, async t => {
+  const closePublishers: Array<() => Promise<void>> = [];
+  t.after(async () => { for (const close of closePublishers) await close(); });
   const a = await fixture(t), b = await fixture(t), source = readyPublication(a.home, 'author'), ownB = readyPublication(b.home, 'author');
-  t.after(async () => { await source.workflow.close(); await ownB.workflow.close(); });
+  closePublishers.push(() => source.workflow.close(), () => ownB.workflow.close());
   const release = await source.publish(), bundle = await readStudioDistribution(source.root, release), pluginId = release.pluginId;
   const preview = await a.projectClient().invoke(person(), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; preview: { publisher_pinned: boolean }; runtime_scope: string };
   assert.equal(preview.preview.publisher_pinned, false); assert.equal(preview.runtime_scope, 'home');

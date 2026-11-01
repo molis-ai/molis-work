@@ -12,7 +12,7 @@ export interface PackSandboxOptions {
   publisherKeyId: string;
   scope?: 'project' | 'home';
   icon?: PluginIconName;
-  compatibleFrom?: string[];
+  upgradesFrom?: string[];
   agent?: SandboxPackageManifest['agent'];
   methods?: SandboxPackageManifest['methods'];
 }
@@ -56,7 +56,7 @@ export async function packSandboxProject(directory: string, output: string, opti
     publisher: { publisher_id: options.publisherId, signature: options.publisherKeyId },
     presentation: surface.presentation !== undefined, effects: effectsFromContract(contract),
     ...(options.scope === 'home' ? { runtime: { scope: 'home' } } : {}),
-    ...(options.icon ? { icon: options.icon } : {}), upgradesFrom: options.compatibleFrom,
+    ...(options.icon ? { icon: options.icon } : {}), upgradesFrom: options.upgradesFrom,
   });
   void projectedAgent; void projectedMethods;
   const manifest: SandboxPackageManifest = { ...fixed, ...(options.agent !== undefined ? { agent: options.agent } : {}), ...(options.methods !== undefined ? { methods: options.methods } : {}) };
@@ -86,6 +86,6 @@ export function sandboxPackOptions(args: readonly string[]): PackSandboxOptions 
   if (icon && !PLUGIN_ICON_NAMES.some(value => value === icon)) invalid('icon 必须是 SDK 图标名');
   const json = (key: string): unknown => { try { return JSON.parse(fields.get(key)!); } catch { return invalid('--' + key + ' 必须是 JSON'); } };
   return { name: need('name'), version: need('version'), publisherId: need('publisher-id'), publisherKeyId: need('publisher-key-id'), scope,
-    ...(icon ? { icon: icon as PluginIconName } : {}), ...(fields.has('compatible-from') ? { compatibleFrom: fields.get('compatible-from')!.split(',') } : {}),
+    ...(icon ? { icon: icon as PluginIconName } : {}), ...(fields.has('compatible-from') ? { upgradesFrom: fields.get('compatible-from')!.split(',') } : {}),
     ...(fields.has('agent') ? { agent: json('agent') as SandboxPackageManifest['agent'] } : {}), ...(fields.has('methods') ? { methods: json('methods') as SandboxPackageManifest['methods'] } : {}) };
 }

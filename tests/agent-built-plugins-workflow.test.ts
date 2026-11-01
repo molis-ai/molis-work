@@ -1,6 +1,5 @@
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
-import { ActionService } from '@molis-ai/molis-work-kernel';
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { studioFrameAsset, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
@@ -1162,16 +1161,16 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Signed publishing');
   const store = await f.host.withProject(project.reference, runtime => runtime.store), directory = join(f.home, 'browser-test');
   const browser = await openStudioChrome(directory); assert.ok(browser, 'dedicated browser is required'); cleanups.push(() => browser.close());
-  const fixture = agentStudioFixture(0), actions = new ActionService(), seen: Array<string | null> = [];
+  const fixture = agentStudioFixture(0), actions = f.host.actionRegistry(project.reference), seen: Array<string | null> = [];
   const probe = (scope: 'project' | 'home'): ActionDefinition => ({ capability_id: 'scope.read', version: 1, operation: 'query',
     action: { title: 'Scope read', description: 'Observe trusted scope', kind: 'query', scope, audiences: ['user', 'plugin'], permissions: [], subject_kinds: [],
       input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false }, output_schema: { type: 'string' }, execution: { cost: 'none' } } });
   const projectProbe = probe('project');
-  actions.registerProvider({ provider: { provider_id: 't149-project', title: 'Project only', kind: 'system', project_id: project.project_id }, definitions: [projectProbe],
+  const stopProjectProbe = actions.registerProvider({ provider: { provider_id: 't149-project', title: 'Project only', kind: 'system', project_id: project.project_id }, definitions: [projectProbe],
     handlers: [{ ...projectProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
   let modelCalls = 0, enabledProjectPlugins = 0;
   const options = { store, projectId: project.project_id, homeDirectory: f.home, routePrefix: '/projects/' + project.project_id,
-    ...fixture, browserExecutable: dedicatedBuilderBrowser(), actorId: LOCAL_PERSON_ACTOR_ID, actions: { registry: actions, client: actions, project_id: project.project_id },
+    ...fixture, browserExecutable: dedicatedBuilderBrowser(), actorId: LOCAL_PERSON_ACTOR_ID, actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: caller => f.host.inspectActions(caller, project.reference), project_id: project.project_id },
     homeActions: { registry: f.host.actionRegistry(), client: f.host.homeActionClient(), inspect: f.host.inspectActions.bind(f.host), project_id: null },
     enablePlugin: async () => { enabledProjectPlugins++; throw new Error('A Home check cannot enable a project plugin'); },
     agents: async (build: AgentBuild) => { const agent = await fixture.agents(build); return { ...agent, async run(request: BuilderAgentRequest) {
@@ -1200,6 +1199,15 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   cleanups.push(async () => { await releaseAgentStudio(store, project.project_id); await releaseInstalledPlugins(store, project.project_id);
     await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); });
   const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port, raw = await browser.page(), page = await framedStudioPage(t, browser, raw);
+  const screenshots = join(process.cwd(), '.impeccable/qa/review/t149'); await fs.mkdir(screenshots, { recursive: true });
+  const ready = async (timeoutMs: number) => {
+    const current = async () => ((await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/state')).json()) as { builds: AgentBuild[] }).builds[0]!;
+    const describe = async () => { const build = await current(); return JSON.stringify({ phase: build.phase, error: build.error, checks: build.checks, browser: build.browserResult, steps: build.steps.slice(-5) }); };
+    try { await page.wait(`['ready','failed','paused'].includes(document.querySelector('[data-as-phase]')?.dataset.phase)`, { timeoutMs }); }
+    catch (error) { await raw.screenshot(join(screenshots, 'not-ready.png')); throw new Error(await describe(), { cause: error }); }
+    assert.equal((await current()).phase, 'ready', await describe());
+  };
+
   await raw.command('Page.navigate', { url: origin + '/__t149_studio' });
   await page.wait(`document.querySelector('[data-as-model] option[value^="fixture"]')`);
   await page.evaluate(`(()=>{const select=document.querySelector('[data-as-model]');select.value=[...select.options].find(option=>option.value.startsWith('fixture')).value;select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -1207,7 +1215,7 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   await page.fill('[data-as-input]', '创建一个可以保存并阅读笔记的插件'); await page.click('.as-send');
   await page.wait(`document.querySelector('[data-as-candidate="board"]')`); await page.click('[data-as-candidate="board"]');
   await page.wait(`document.querySelector('[data-as-choose="board"]')`); await page.click('[data-as-choose="board"]');
-  await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='ready'`, { timeoutMs: 100_000 });
+  await ready(100_000);
   assert.ok(seen.includes(project.project_id)); const before = modelCalls;
   const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`), info = async () => await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + buildId)).json() as { build: AgentBuild; versions: AgentRelease[] };
   await page.click('[data-as-scope="home"]'); await page.wait(`!!document.querySelector('[data-as-action="recheck"]')`);
@@ -1215,16 +1223,20 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   await page.click('[data-as-action="recheck"]');
   await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='failed'`);
   assert.match((await info()).build.error ?? '', /目标范围.*scope.read/);
+  await raw.screenshot(join(screenshots, 'home-check-refused.png'));
   assert.equal((await info()).versions.length, 0); assert.equal(enabledProjectPlugins, 0); assert.equal(modelCalls, before);
   assert.equal(await fs.stat(join(f.home, 'config', 'plugin-publisher.json')).then(() => true, () => false), false);
+  stopProjectProbe(); // The kernel intentionally forbids a global and project provider with the same capability id.
   const homeProbe = probe('home');
   f.host.actionRegistry().registerProvider({ provider: { provider_id: 't149-home', title: 'Home read', kind: 'system' }, definitions: [homeProbe],
     handlers: [{ ...homeProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
   seen.length = 0; await page.click('[data-as-action="recheck"]');
-  await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='ready'`, { timeoutMs: 60_000 });
+  await page.wait(`!['failed','paused'].includes(document.querySelector('[data-as-phase]')?.dataset.phase)`);
+  await ready(60_000);
   assert.ok(seen.length); assert.ok(seen.every(id => id === null), 'Home checks and live preview calls carry the trusted null project identity');
   assert.equal(modelCalls, before, 'scope checks never call a model');
   await page.click('[data-as-action="publish"]'); await page.wait(`!!document.querySelector('[data-as-download]')`);
+  await raw.screenshot(join(screenshots, 'home-published.png'));
   const downloaded = join(directory, 'downloads'); await fs.mkdir(downloaded);
   await browser.command('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloaded, eventsEnabled: true });
   const completed = browser.event('Browser.downloadProgress', params => params.state === 'completed');
@@ -1240,6 +1252,7 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
     await raw.command('DOM.setFileInputFiles', { nodeId: input.nodeId, files: [file] }); await raw.wait(`document.querySelector('[data-plugin-trust-preview]')?.hidden===false`); };
   await select(); const shown = await raw.evaluate<string>(`document.querySelector('[data-plugin-trust-preview]').innerText`);
   assert.ok(shown.includes(bundle.payload.manifest.publisher.signature)); assert.match(shown, /个人|Home/);
+  await raw.screenshot(join(screenshots, 'install-preview.png'));
   await raw.click('[data-plugin-trust-preview] .mw-btn--secondary'); await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
   assert.deepEqual(new HomeConsentLedger(f.home).publishers(), []); assert.equal(f.host.homePlugins!.installation(pluginId), null);
   await select(); await raw.fill('[data-plugin-trust-preview] input', 'My local publisher'); await raw.click('[data-plugin-trust-preview] .mw-btn--primary');

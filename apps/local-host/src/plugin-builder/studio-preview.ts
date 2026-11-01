@@ -5,7 +5,6 @@ import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contract
 import { createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
-import { buildScope } from '@molis-ai/molis-work-plugin-builder';
 import { hostNetwork } from './network.js';
 import { buildManifest } from './build-project.js';
 import { FRAME_QUERY } from '../plugin-builder-surface.js';
@@ -68,7 +67,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   const accepting = new Set<string>();
   const currentBuild = (identity: Readonly<SandboxIdentity>) => {
     const build = identity.installationId.startsWith(STABLE_PREVIEW) ? studio.workflow.store.get(identity.installationId.slice(STABLE_PREVIEW.length)) : undefined;
-    return build?.design?.contract.pluginId === identity.pluginId && (buildScope(build) === 'home' ? identity.projectId === null : identity.projectId === options.projectId) ? build : undefined;
+    return build?.design?.contract.pluginId === identity.pluginId && (build.runtimeScope === 'home' ? identity.projectId === null : identity.projectId === options.projectId) ? build : undefined;
   };
   const live = (identity: Readonly<SandboxIdentity>) => !!currentBuild(identity) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
   const projectCapability = installed.capabilityFor(live);
@@ -83,9 +82,9 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   } };
   // Home trials have no access to the author's project network-secret namespace.
   const homeNetwork = hostNetwork({ reach: () => 'read' });
-  const networkFor = (build: AgentBuild) => buildScope(build) === 'home' ? homeNetwork : installed.network;
+  const networkFor = (build: AgentBuild) => build.runtimeScope === 'home' ? homeNetwork : installed.network;
   const previewFor = (build: AgentBuild): SandboxServices => {
-    const capability = buildScope(build) === 'home' ? homeCapability : projectCapability;
+    const capability = build.runtimeScope === 'home' ? homeCapability : projectCapability;
     if (!capability) throw new Error('当前宿主没有提供个人空间的能力服务');
     return { ...previewServices(storage), capability, network: networkFor(build) };
   };
@@ -100,13 +99,13 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     if (!bundle || !build.design) throw new Error('还没有接通的功能可以试用');
     const used = new Set(buildEffects(build).capabilities);
     const policies = capabilities.filter(item => used.has(item.id)).map(item => [item.id, item.version, item.provider_id, item.execution]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-    const info = await stat(bundle), key = `${buildScope(build)}:${bundle}:${info.mtimeMs}:${info.size}:${JSON.stringify(policies)}`;
+    const info = await stat(bundle), key = `${build.runtimeScope ?? 'project'}:${bundle}:${info.mtimeMs}:${info.size}:${JSON.stringify(policies)}`;
     const slot = build.id + '|' + lane, current = studio.runners.get(slot);
     if (current?.key === key) return current.runner;
     // A newer bundle replaces both lanes, so the trial never mixes versions.
     if (current) await stopRunner(build.id);
     const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: buildEffects(build), services: previewFor(build), limits: capabilityLimits(buildEffects(build), capabilities),
-      identity: { projectId: buildScope(build) === 'home' ? null : options.projectId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
+      identity: { projectId: build.runtimeScope === 'home' ? null : options.projectId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
     studio.runners.set(slot, { key, runner });
     runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
     return runner;
@@ -118,7 +117,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     const node = trial.build.nodes.find(node => node.id === componentId);
     if (!node) throw new Error('界面组件不存在');
     const call = resolvePluginComponentCall(node, binding, payload);
-    const capabilities = await studio.catalog(buildScope(trial.build));
+    const capabilities = await studio.catalog(trial.build.runtimeScope);
     return (await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities)).call(call.operationId, call.input, control);
   };
   const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {

@@ -7,7 +7,7 @@ import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work
 import { parsePluginPackage, signPluginPackage, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
-import { buildScope, type AgentBuilderPorts, type AgentBuild, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentBuilderPorts, AgentBuild, AgentRelease, AgentPublicationControl } from './agent-surface.js';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { readKeptSandboxPackage } from '../sandbox-package.js';
 import { releaseVersion } from '../installed-release.js';
@@ -74,7 +74,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
       const { prompts, problems } = readPluginPrompts(await buildSources(build.directory!, build.directory! + '.settled', design.contract.operations.length));
       control.assertCurrent();
       if (problems.length) throw new Error('发布前请先修好调用模型的写法：' + problems[0]);
-      const scope = buildScope(build);
+      const scope = build.runtimeScope ?? 'project';
       const originalFiles = {
         'plugin.mjs': code, 'manifest.json': JSON.stringify(manifest), 'contract.json': JSON.stringify(design.contract),
         'interface.json': JSON.stringify({ parts: design.parts, nodes: build.nodes, acceptance: design.acceptance, presentation: design.presentation }),

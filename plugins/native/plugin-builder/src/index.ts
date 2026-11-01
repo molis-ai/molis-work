@@ -12,5 +12,3 @@ export * from './agent-studio.js';
 export * from './agent-authoring.js';
 export * from './agent-capabilities.js';
 export * from './agent-catalog.js';
-
-export { buildScope, releaseScope, assertPublicationReady } from './agent-publication.js';

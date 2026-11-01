@@ -1,4 +1,3 @@
-import { buildScope } from '@molis-ai/molis-work-plugin-builder';
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { createStudioPublisher } from './studio-release.js';
@@ -66,7 +65,7 @@ export function builderPorts(inputs: {
       await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
       // The code agent reads what each capability the design uses takes and returns, and how checks answer it.
       const used = new Set(design.contract.operations.flatMap(operation => operation.effects.capabilities ?? []));
-      const described = (await studio.catalog(buildScope(previous))).filter(entry => entry.offered && used.has(entry.id)).map(entry => ({ id: entry.id, title: entry.title, description: entry.description, effect: entry.effect, input: entry.input, output: entry.output ?? null,
+      const described = (await studio.catalog(previous.runtimeScope)).filter(entry => entry.offered && used.has(entry.id)).map(entry => ({ id: entry.id, title: entry.title, description: entry.description, effect: entry.effect, input: entry.input, output: entry.output ?? null,
           inChecks: entry.provider_id === PLATFORM_PROVIDER_ID ? '由固定替身代答（见说明）' : entry.effect === 'read' ? '由替身按输出结构给出示例值（列表里一条记录，文字字段是「示例」）' : '由替身代答，不会真的写入' }));
       await createBuildProject(directory, design.contract, manifest, { capabilities: described as SandboxJson, resources: [] });
       // A revision keeps the implementation and tests of every operation whose contract did not change,
@@ -88,7 +87,7 @@ export function builderPorts(inputs: {
       return directory;
     },
     check: async (build, operationIds, signal) => {
-      const scope = buildScope(build), catalog = await studio.catalog(scope), effects = buildEffects(build);
+      const scope = build.runtimeScope, catalog = await studio.catalog(scope), effects = buildEffects(build);
       signal.throwIfAborted();
       for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw new Error('目标范围没有开放给插件的能力：' + capability);
       if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: '0.0.0',
@@ -98,7 +97,7 @@ export function builderPorts(inputs: {
       identity: { projectId: scope === 'home' ? null : options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } });
     },
     call: async (build, operationId, input, control) => {
-      const capabilities = await studio.catalog(buildScope(build));
+      const capabilities = await studio.catalog(build.runtimeScope);
       return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input, control);
     },
     async sources(build) {

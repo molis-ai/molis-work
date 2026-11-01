@@ -65,3 +65,8 @@ T149拥有唯一Manifest/effects迁入SDK的共享hunk，T397必须等其准确�
 2026-11-01 13:43Z：T397四资源完整候选a3b55dea20ea75445be8f3db4094490fee656d80冻结，作者真签四服务、项目/原生边界及缺失/空库只读恢复、真实discard冷重启重试原件齐；验证线1及二审线4独立核实际实现与必要原件，最后装配改动的最终matching整体build/API/actions/SI/giant/资源交后续组合。T145 afcc3de4720f13839e387632dd3b9966309d79c0也已冻结并独立核收，后续与T149准确发布候选合流由根另给一次窗口；不重复父矩阵，不提前关BL916或释放T398实际采用条件。
 
 2026-11-01 15:29Z T398工程接续：根已核既有七项验收的当前接口差集。四资源最终e4e05dc5及T145/T149/T402已进入T399 c68df1183候选；background仍严格等T397实际采用，原工程书与作者归属保留。唯一派生owner改认SDK sandbox-manifest的Declared/Requested/Operation三函数，预览@5与两setter@2跟随真实descriptor；exposed注册与scope共用finalDefinition已实现，后继只补target闭包、job投影及同cost的provider/version失效。两个Host回调已移至project-reach，按最终采用输入衔接。原四资源真签正反/恢复证据仅在输入未变时沿用，新增验证集中原书的真实lane、job原子竞态、跨服务COMMIT unknown和重启status链；不新造矩阵、第二owner或平台job表，五项齐后才关BL916。
+
+
+## 2026-11-01 18:05Z 用户提速：T398并行候选实施窗口
+
+用户明确要求后续开发并行。根撤销先前为排程设置的T398“必须等T397实际main才可开发”条件；T397完整且独立审验的实现已在冻结T399 debaf12eb7bb0b61bb0fe259bec683606804ae8c/tree5a313100eb5ea0b98f8dbcaaa8bcdafc84dec469，依赖合同可从准确候选消费。正式交Codex开发线4在独立feature/t398-background真签包树完整实施revision-3/background.md及七项RAC2871～2877；不是只做lane切片，不造第二派生owner/平台job表，不改保护分支或真实Home。当前唯一静态派生在SDK sandbox-manifest，exposed注册/运行已共用finalDefinition，继续补原目标闭包/费用/provider-version失效、真实lane、业务job竞态与重启待核对。主写路径为sandbox合同/SDK派生、installed definition/lane、exposed/background服务与其原测试；与T403的ui/frame/client路径分开，最终公开快照/SI/资源/状态根串行。父后续修复只收准确冻结提交；发布/采用仍等T399实际采用，并满足本头审验/Verify/SI/Full。原七项真签验收与已有效父证据复用不变，不重审原书或新增矩阵。

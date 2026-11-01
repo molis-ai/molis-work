@@ -200,3 +200,8 @@ RAC2686要求英文键真正归Goals，故RAC2680的原始全HTML字节恒等只
 最小六完整文件：新增原指定tests/tab-workspace-view.test.ts直接调用生产ops/validator；原tab-workspace-ops；原workbench-current-tabs/workbench-tab-workspace/workbench-pane-feed.e2e及security-invariants-pane-messages。覆盖新布局往返、旧形状整份拒绝、非活动pane、默认plugin head、固定pane异步回写、Iframe/placement入口、复制移动/合并和草稿；隔离同profile同origin关/重开浏览器证明旧布局只重置一次，新布局保有pane/tab/view，并回读固定Goal/Pages/Feed事实未变。原S30窗口/origin拒绝不弱化；不另造矩阵。
 
 最终一次matching整体build与必要raw门禁/API/actions零变化核、实际workbench字节；公共build/browser槽、jobs1/retries0、隔离Home/专用测试浏览器。旧有效父证据按未变输入核抵，不本机Full/真实Home/4207/Keychain/真模型/版本变更。快照、资源许可/预算、giant/基线/状态根串行；实际资源有增长给准确字节与减量尝试，禁止为变绿放宽。源码冻结后独立验证/加强二审一次核收；T403接最终按pane接口，不另建布局状态。
+
+
+## 2026-11-01 18:05Z 用户提速：开发与采用分开排程
+
+用户明确要求加速并行，不再让后续开发等T395整单采用。保留原完整行为/验收，取消本任务之前由统筹保守设置的整线唯一writer及开发前实际main条件：PR2、T403各独立树实施；只有真实同hunk合流、公共build/browser槽、共享API/action/预算结算和最终发布采用串行。PR2已保存原WIP40f61de52，普通合T399 debaf12，默认head split丢view P1已在原ops/新view测试内修正；冻结3193473272b769cef618af2a1f91ee8842dbdb2b交T403，PR2作者继续原六完整文件/同profile真实浏览器重启，不能放宽断言。T403由开发线3从该准确冻结父在独立feature/t403-plugin-clients完整实施原六书/RAC2515～2519，平台/插件精确路径沿/tmp/t403-next/CURRENT.md；不等T395/T399实际采用才写代码，不复制PR2 WIP。后续PR2如修共享hunk，先冻结再普通merge，保双方合同。Functions A原批准保持，三个新资源先形成可审阅源码/实际字节，再交根具体询问；批准前不发布预算增长。最终合入仍在父采用及本头CI/Full满足后，不降低验收。

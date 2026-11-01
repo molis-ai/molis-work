@@ -299,7 +299,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-350 | 几处测试断言收紧：affected-tests、ci-timeouts、plugin-frame 诊断、RAC-2440 注释、未用类型 | 丙 | A | 1.7 | — | `tests/affected-tests.test.ts`、`tests/ci-timeouts*.test.ts`、`tests/plugin-frame-browser-diagnostics.test.ts` |
 | T-351 | Alchemist材料先粗筛，按码显示材料太长；Todo/信息助手边界 | 乙 | Codex 开发线1；验证线4；原二审线5交线4接资源增量 | #1661 已合 a1117b3ba；整树与稳定patch-id已核同，审计6550512963 | full=false；准确CI四完整59/59已核；原Mac/DOM UNKNOWN保留；原作者树清理被自动审批拦截，等具体确认 | 原产品/测试及资源锁释放；本地task/T351-a与原树保留 |
 | T-352 | 问卷离线填写页回答框按字数封顶（与库同口径）、导入答卷大小按字节 | 乙 | 池 | 已合（10-31，#1668 → `f660b5631`） | — | `plugins/native/form/src/fillpage.ts`、`store.ts` |
-| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex 统筹；B开发线1，C开发线2 | A已合；B #1682 @81955aa93增量验证/二审沿用，待本头Full；C #1683待B | B旧Full失败保留；C等B后retarget与自身CI/Full | 新函数所在包、各就地截法文件 |
+| T-353 | SDK整字截统一及消费者迁移 | 甲 | Codex 统筹；B开发线1/独立验证一审线2/二审线1，C开发线2 | A已合；B从81955aa93普通同步准确M6729，唯一writer已交共享窗口；C #1683待B采用 | B旧Full失败保留；新H自身CI/Full待结；C采用后再retarget | 原30路径；仅Jelly许可/预算窗口，T384/T146冻结候选不吸入 |
 | T-354 | Coding 着色调度：已排过版的流式块下一帧直接着色；被丢掉的块先实测观察器是否留着，留就给出口 | 乙 | Codex 统筹 | 已合 #1692 b21f76175 | — | `plugins/native/coding/src/browser/main/code.ts`、`code-paint-client.ts` |
 | T-355 | 急：`form.fill.too-long` 的英文改成 fill-message 测试认可的写法（main 红 VUX-40，挡集成分支 Full） | 丙 | A | 0.1 | — | `plugins/native/form/src/messages.ts` |
 | T-356 | 官方 CLI 的服务名查表只认自己的键（`definition("constructor")` 不再抛 TypeError），两条回归钉补断言错误码 | 乙 | B | 已合（10-31，#1685 → `a9fbdf756`；Codex 统筹） | — | `apps/local-host/src/connector-cli.ts`、`tests/connector-cli.test.ts`、`tests/connector-record-actions.test.ts` |
@@ -469,3 +469,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 03:30Z：T383已实际采用6729a2d46，patch逐字/patch-id同；T384独立生产验证先行，作者只吸收T383测试增量再冻结最终H/R。T385两片storage普通承载书审的WAL/SHM与备份覆盖描述已修正，根注册并授权开发线1以同main合成，独立验证线1/二审线4；本地不跑Full。
 
 2026-11-01 04:01Z：根手读T384/T385准确Verify原日志后，各加一次full-suite（无既有Full/queued CI、UTC非10–15），合计最多12 runner；SI仍待手查。T146准确c35ad3036正常推原PR，根已读四对图、场景/raw、作者与独立二审；独立文档iframe证据只签CSS删减局部视觉，顶层导航首败不倒填。新准确Full仍需核七完整browser文件。
+
+2026-11-01 04:40Z：根完整核读T353-B当前接续准备、所有open PR在gate/registry/预算的实际hunk，fresh fetch main仍6729，GET原B H81955且普通CI已成功。无须等T384/T385/T387/T146全部采用；根将B的gate、knowledge登记和Jelly预算窗口串行交开发线1，T384/T146作者已通知冻结，T121/T065/T386无writer。只正常merge实际M、清已消费许可、核实测Jelly+33B；原业务与旧238/508/KP按未变输入沿用，三gate完整文件及matching build/48响应另核。独立增量验证由一审线2承担（甲无FIRST），加强二审线1；C仍等B实际采用，不造READY或销历史Full失败。

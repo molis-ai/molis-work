@@ -137,3 +137,7 @@ T068准许原§4指定精确模块：contracts/platform/plugin-integrations.ts�
 ## 2026-11-01 13:57Z 同书 Agent 派发窗口修复
 
 冻结 H b327bef2 的独立验证已用真实 createPrologueNodeAdapter/mcpLibrary 复现：validate 后 beforeDispatch 等待中停用来源，仍实际远端 callCount=1 且 fulfilled；原88例通过、新增交错红。根核原件后退回本单作者，非新需求或缩减验收。原 §4.1 的来源快照须覆盖整个调用的后续 await、实际网络/业务派发和结果交付，ABA 不得靠重新捕获新世代绕过。允许新增必要 hunk：horizontal/agent-host/src/adapters/prologue-mcp.ts 与现有 adapter/connector 端口声明及具名测试；不改 vendored SDK，不动其他任务的模型/签名/权限语义。公开导出变化仍只给根生成候选。修复先简短记录设计，实施原合同，增加已复现窗口与 ABA/飞行中撤权/合法调用正控，matching build 后只跑直接受影响完整文件；原未变328等证据保留，不重做父矩阵。作者/独立验证/加强二审仍分离，原失败保留。
+
+## 2026-11-01 14:28Z 修复核收与父合流准备
+
+根核实际三文件增量、matching build/五完整文件104/104原件和独立验证/加强二审，5a6e5d4dadc8026d26b8acfd873a6431878a23cc 已关闭原Agent派发P1；旧红保留。允许原作者在干净树普通merge已双审T395最终b685fc0d，只解真实冲突、保双方合同，十二共享候选按准确合流头更新但不直接落。先不重建/重跑，根收共享metadata后一次matching build及必要接缝回归。最终发布/采用仍等T395实际采用；不纳入T149/T397/T402，不扩本机MCP/BL791。

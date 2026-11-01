@@ -22,3 +22,9 @@
 依据：[T145](/private/tmp/t145-evidence/REPORT.md)、[T149 handoff](/private/tmp/t149-evidence/HANDOFF.md)／[单行候选](/private/tmp/t149-evidence/SETTINGS-SCOPE.patch)、[T397](/private/tmp/t397-evidence/REPORT.md) 与冻结 diff。本页非成员重审；T398 仍等 T397 实际采用。仅写本页，无源码/refs/coord/GH 写入，无 build/tests。
 
 既有 agent-studio.e2e.test.ts 仅在实际解冲影响其输入时补跑，未变沿用。Runtime index 的 readProjectReachSubject 和 Home schema 两个导出普通合并保并集，不重造机制。
+
+## 2026-11-01 14:28Z 统筹接受第四成员条件
+
+根已核T402追加准备与实际已审hunk，接受[T402-ADDITION](T402-ADDITION.md)作为本书增量：T149完整最终冻结后可开始原三成员合成；只有T402完整最终头及独立验证/加强二审通过，才能普通merge为第四成员，在排最终Full前固定成员。顺序T145→T149→T397→T402，保T395最终父已有后续修复，合成仅一轮matching build/共享metadata/必要接缝/准确Full。T402若尚在必修，不消费WIP、不签四成员完成。此决定不增加产品语义或另开验收矩阵；原RAC2894～2896适用于最终冻结成员。T068单独接T395，不进本批；T398/T403严格实际采用前置保留。
+
+2026-11-01 14:37Z执行绑定：T149改用完整最终a95e0f2a018667899a88dbca508e433a85a9ac43（独立审验通过），原前缀不得作为合入头。T399唯一writer已交t399_sol，先普通合原三成员，T402完整收尾及T395父单测试维护由根续交准确提交；整体build仍等最终源码与共享项一次完成。

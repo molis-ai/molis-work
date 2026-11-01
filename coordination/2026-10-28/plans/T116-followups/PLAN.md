@@ -179,3 +179,9 @@ RAC2686要求英文键真正归Goals，故RAC2680的原始全HTML字节恒等只
 
 
 2026-11-01 13:13Z：PR1c最终自有H c2d96b32143363ec783ee88a564cd94064538e7d已冻结（37872cd5..H；eab之后单个追加）。matching build、health、DD2、原金样及固定B的66完整HTML精确词典搬迁比较、Home实际贡献正反例均有作者通过证据；独立验证线1/加强二审线4已接，尚未签采用。T145/T402获准保存自有WIP后普通合这个准确H，保双方已接受hunk，最终一次matching build，只补实际受影响验证。T149补SDK依赖72727cb83仅package/lockfile，T397/T402准确cherry-pick，不吸发布WIP。共享资源/快查基线与最终CI由根串行，未因本地冻结关闭整行。
+
+## 2026-11-01 14:12Z T402完整审验必修窗口
+
+当前生产557aefa及后续测试fixture由独立验证/加强二审核，未签READY。原RAC2511/2514新增一项真实Host有限补证：Attention公开owner写合法缺主体事实，经实际Inbox舞台保事项/不可用显示，真实Feed读取故障不得吞；不重做原21文件矩阵。旧测试直接消费者feed-sources、functions-system-capability与runtime-plugin-http-discovery按当前owner合同维护，不删业务断言。RSS/Gmail源码与发布manifest.json的纯presentation声明必须一致；RSS semver误增1.1.0恢复1.0.0，本任务不发版。schema/host_api只按现行声明实际需要，不能以升级绕校验。
+
+旧checkMigratedFeedUiOwnership强制已删除NativeAdapter/projection，因此根核具体代码并接受两文件精确迁位：scripts/check-package-boundaries.mjs仅该函数，tests/package-boundary-must-contain.test.mjs仅Feed对应行和两退休路径复活负例。保全部Host私路/跨插件/routes/贡献登记/UiHost真render拒绝；旧adapter必需改为Feed stage_data.action/object_action与Inbox stage_data.action、各owner真实handler接入，通用renderer的createWorkbenchStageRenderers及stageModel/stageFragmentModel绑定，Feed stage-ui的真实模型构造。退休feed/inbox-projection-ui路径存在即拒，不读不存在文件。沿原代码/文本识别机制和must-contain真删除及注释/字符串/regex/template伪装反控，增退休复活反控；不删拒绝、不放松门禁算法/阈值、不加通用框架。全部同轮收齐后一次matching build与直接受影响完整文件，原有效证据不重做；共享API/actions/安全表/数值仍根串行。

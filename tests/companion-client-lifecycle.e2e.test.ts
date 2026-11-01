@@ -447,12 +447,15 @@ test("T405-GIT-02 a failed or hidden commit-result read preserves its identity a
 });
 
 test("T405-GIT-03 a commit settled before its prepare response arrives is reconciled from its own record", { timeout: 30_000 }, async t => {
-  let outcome = "pending";
+  let outcome = "pending", revision = 1;
   const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
-    const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
+    const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{
+      window.decide=options.onDecision;
+      if(window.holdNextShow){window.holdNextShow=false;window.showBlocked=true;await new Promise(resolve=>window.releaseShow=resolve);}
+    }}};
     window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {
-    if (path.endsWith("/view-revision")) return { revision: "one" };
+    if (path.endsWith("/view-revision")) return { revision: String(revision) };
     if (path.endsWith("/summary")) return { workspace: { workspace_id: "ws" }, summary: {
       branch: "main", head_commit: "head", remotes: [], branches: ["main"], staged: ["note.md"], conflicted: [], merging: false, revision: "one",
     } };
@@ -468,8 +471,14 @@ test("T405-GIT-03 a commit settled before its prepare response arrives is reconc
   outcome = "succeeded";
   await page.evaluate("decide('settled')");
   assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "already settled draft", "no response identity has arrived yet");
+  await page.evaluate("window.holdNextShow=true");
   pending.get(post)![0]!.end(JSON.stringify({ review_id: "commit-current" }));
+  await page.wait("window.showBlocked===true");
+  const reads = count("GET /git/state"); revision++;
+  await until(() => count("GET /git/state") > reads);
+  await page.wait("!document.querySelector('[data-git-refresh]').disabled");
   await page.wait("document.querySelector('[data-git-commit-message]').value===''");
+  await page.evaluate("releaseShow()");
   assert.equal(count(post), 1, "the original authoritative record settles the UI without replay or a second notification");
   assert.deepEqual(await page.evaluate("errors"), []);
 });

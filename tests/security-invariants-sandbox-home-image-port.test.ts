@@ -1,3 +1,4 @@
+import { sandboxDerivedPermissions, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
@@ -8,8 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginImageGenerationClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { MolisWorkLocalHost, forgetSandboxImageBindings, homeStores, pluginImageGenerationFor, pluginModelFor, installedLibrarySnapshots, openSandboxHomeLibrary, reservedHomeName, sandboxDerivedPermissions, sandboxImageGenerationFor,
-  sandboxImageNamespace, sandboxModelDeclaration, sandboxPluginManifest, sandboxProviderId, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, forgetSandboxImageBindings, homeStores, pluginImageGenerationFor, pluginModelFor, installedLibrarySnapshots, openSandboxHomeLibrary, reservedHomeName, sandboxImageGenerationFor, sandboxImageNamespace, sandboxModelDeclaration, sandboxProviderId, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runInPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { IMAGE_PNG } from "./fixtures/images-runtime.js";

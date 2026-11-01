@@ -5,10 +5,10 @@
  */
 import { pluginErrors, type PluginDefinition, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, effectsFromContract, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { sandboxPluginManifest, sandboxUiContribution } from '../sandbox-plugin-manifest.js';
+import { effectsFromContract, sandboxPluginManifest, sandboxUiContribution } from '@molis-ai/molis-work-plugin-sdk';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';

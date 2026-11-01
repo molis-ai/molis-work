@@ -1,3 +1,4 @@
+import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor } from "./declaration-owners.js";
@@ -12,7 +13,7 @@ import type {
   PluginUpgradeContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
-import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
+
 import { registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
 import {
   PluginEventBus,

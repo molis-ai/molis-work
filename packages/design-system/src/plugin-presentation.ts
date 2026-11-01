@@ -1,9 +1,6 @@
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { pluginComponentChoices, type PluginComponentPlan } from './plugin-components.js';
 
-/** A renderer contract requirement, not a callable business capability. */
-export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: 'ui.plugin-presentation', version: 1 } as const;
-
 /** Presentation references existing parts; it never duplicates operations or grants authority. */
 export type PluginLayout = { part: string } | {
   layout: 'stack' | 'split' | 'grid';

@@ -1,3 +1,4 @@
+import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { installedPluginExposure } from './installed-plugin-exposure.js';
@@ -13,7 +14,7 @@ import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugi
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
-import { SandboxError, effectsFromContract, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
 import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platform.js';

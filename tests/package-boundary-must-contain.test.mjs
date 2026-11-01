@@ -134,12 +134,17 @@ test("RAC-2507 the retired Feed and Inbox Workbench projections cannot be restor
 
 // A requirement written as a pattern: the text the pattern finds is what is taken out and written back.
 const COMPOSITION = "apps/workbench/src/ui-composition.ts", GOALS_FACTORIES = "plugins/native/goals/src/page/factories.ts", GOALS_SURFACES = "plugins/native/goals/src/page/surfaces.ts", RENDERER = "apps/workbench/src/renderer.ts", REGISTRY = "apps/workbench/src/plugin-workbench.ts", GOALS_PLUGIN = "plugins/native/goals/src/plugin.ts";
+const STAGES = "apps/workbench/src/stage-renderers.ts", GOALS_STAGE = "plugins/native/goals/src/page/workbench-stage.ts", GOALS_PAGE = "plugins/native/goals/src/page/index.ts";
 const PATTERNS = [
   { check: checkMigratedGoalsCommandOwnership, file: GOALS_PLUGIN, pattern: /routes:\s*goalsRoutes\s*\(\{/u },
   { check: checkMigratedGoalsCommandOwnership, file: GOALS_PLUGIN, pattern: /actions:\s*request\s*=>/u },
   { check: checkMigratedGoalsCommandOwnership, file: GOALS_PLUGIN, pattern: /actions\.invoke\(definition,\s*input,\s*request\.execution\)/u },
   { check: checkProposalUiOwnershipInTree, file: GOALS_FACTORIES, pattern: /surfaceRenderers<[^>]+>\(mount, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u },
-  { check: checkProposalUiOwnershipInTree, file: RENDERER, pattern: /createGoalsPage<[^>]+>\(\{\s*mount: mountContributionsOf\(GOALS_PLUGIN_ID\)/u },
+  // PR1c: actual stage owner, its drawing forwarded as ports, the stage render, and the page's native factories.
+  { check: checkProposalUiOwnershipInTree, file: STAGES, pattern: /const pluginId = BUILTIN_PLUGIN_CATALOG\.find\(entry => entry\.project_plugin_id === projectPluginId\)\?\.manifest\.plugin_id \?\? projectPluginId;/u },
+  { check: checkProposalUiOwnershipInTree, file: GOALS_STAGE, pattern: /const \{ drawing \} = model;/u },
+  { check: checkProposalUiOwnershipInTree, file: GOALS_STAGE, pattern: /const ports = goalsPagePorts\(model\);\s*const page = createGoalsPage\(ports\);/u },
+  { check: checkProposalUiOwnershipInTree, file: GOALS_PAGE, pattern: /const factories = createGoalsRendererFactories\(ports\.mount\);/u },
   { check: checkProposalUiOwnershipInTree, file: COMPOSITION, pattern: /function mountContributionsOf\(pluginId: string, host: UiHost = workbenchUiHost\)[^{]*\{\s*return \(contributionId, surface, model\) => host\.mountDeclared\(\{[^}]*\}, pluginId\)\.html/u },
   { check: checkProposalUiOwnershipInTree, file: COMPOSITION, pattern: /function renderWorkbenchContribution\([^)]*\): string \{\s*return workbenchUiHost\.mountDeclared\(/u },
   { check: checkProposalUiOwnershipInTree, file: GOALS_SURFACES, pattern: /return mount\(contributionId, surface, model\)/u },
@@ -158,9 +163,10 @@ test("RAC-2060 the Feed and Integration, Goals route mount and proposal UI check
   for (const { file, pattern } of PATTERNS) assert.ok(pattern.exec(read(file)), `${file} has ${pattern}`);
 });
 for (const { check, file, pattern } of PATTERNS) test(`RAC-2064 ${check.name}: what ${pattern.source.slice(0, 50)}… finds in ${path.basename(file)} is required, and the same words in a comment, a string, a regular expression or template text do not stand in`, () => {
-  const found = pattern.exec(read(file));
+  const original = read(file), found = pattern.exec(original);
   assert.ok(found, "the file says it as it did");
-  const source = without(read(file), found[0]);
+  const source = without(original, found[0]);
+  assert.notEqual(source, original, "the negative really removes the actual requirement");
   assert.ok(checkWith(check, file, source).length > 0, "taking it out refuses");
   for (const [name, write] of Object.entries(stand)) assert.ok(checkWith(check, file, source + write(found[0])).length > 0, name);
 });
@@ -262,7 +268,8 @@ test("RAC-2065 a registration file's comment or string does not list a contribut
 test("RAC-2066 a registration that must not be there is still found in a comment: the retired contribution and a Legacy host.register line stay refused", () => {
   const composition = read(COMPOSITION), registry = read(REGISTRY), descriptors = builtinCatalogText(repository);
   const retired = "goalsLegacyProposalUiContribution", clientDispatch = "handleGoalProposalSubmit(submittedForm, event)";
-  const ok = (workbench, listing) => checkProposalUiOwnership(read(RENDERER), workbench, read(GOALS_FACTORIES), read(GOALS_SURFACES), clientDispatch, registry, listing);
+  const pageSources = `${read(GOALS_STAGE)}\n${read(GOALS_PAGE)}`;
+  const ok = (workbench, listing) => checkProposalUiOwnership(read(RENDERER), workbench, read(GOALS_FACTORIES), read(GOALS_SURFACES), clientDispatch, registry, listing, pageSources, read(STAGES));
   assert.deepEqual(ok(composition, descriptors), []);
   const inComment = descriptors.replace("contributions: [feedUiContribution]", "/* contributions: [feedUiContribution, goalsLegacyProposalUiContribution] */ contributions: [feedUiContribution]");
   assert.match(ok(composition, inComment).join("\n"), /retired/);

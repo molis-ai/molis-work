@@ -1,0 +1,9 @@
+# PG-070 后继只读接续页
+
+状态：只读工程准备；不占号、不派工、不实施。完整 Coding 子路径及 Characters 方案已有 [候选书](CANDIDATE.md)，本页只记当前 main `3fd857792a27352030ac8f3544a3b57d418febc1` 上须改的输入和缺口。T146 #1676 H=`1507e2034976650150e8994965db5612a7474727` 仍 open，不能把其删除 `CODING_STYLES` 的结果署给 main；采用后重冻基点。
+
+**Coding owner 与端口。** 四条 `.coding-settings` 规则仍在 `apps/workbench/src/styles/settings.ts:504–507`；Coding 的 `src/registration.ts` 已声明 `stylesheet`，尚未声明既有公共 `settingsStylesheet`/`settingsClient`。把四条原值搬到 Coding 自己的设置样式常量，经登记交给 `pluginSettingsStyles()`，把既有 `CODING_SETTINGS_CLIENT_SCRIPT` 经登记交给 `pluginSettingsClients()` 和 `pluginWorkbenchClientBootstrap()`。宿主删除 `scripts/client/initialization.ts:1,126`、`scripts/settings.ts:7,115` 对 Coding 脚本的点名；独立设置页同时撤去 Shelf 旧直拼，避免与通用登记重复。三个现有消费者是独立设置页、工作台设置、项目设置整页；第三处 `project-settings-pages.ts:116` 已调用通用聚合，通常只验不改。无需新合同或资源 URL。
+
+**Characters owner 与真实缺口。** 事实仍归 `modules/characters`，HTML 归工作台 `characters/ui.ts`，Host 的 `web-goals-read.ts` 和 `web-catalog-settings.ts` 调这两个渲染入口。`CHARACTERS_STYLES` 仍在 `page-assets.ts:87,100` 两张共用表。沿既有 Host HTML/CSP 内联静态 CSS、从两表移除原常量；角色项目页的导入/确认 dialog、终端和全局项目入口各只在自身页面获得所需规则。旧候选书说把 `<style>` 放在 section **前**；现行 `settings-directory.ts:123–177` 嵌入时只抽取 `.settings-document`，前置兄弟节点会丢失。实施前须将入口 CSS 放入被抽取的 section 内，并验证安全渲染及嵌入后的计算样式；若实际过滤器拒绝，回根裁已有加载端口，不绕过滤器。无需重定产品语义，当前无证据必须新增 HTTP 资源。
+
+**等待和验收。** 真前置是 T146 准确采用后重读最终 diff；当前 #1676 占 `page-assets.ts`、`plugin-styles.test.ts`、README、PG070 slice、privileges 和资源账本。实时 open PR 文件 metadata 另见 [来源](/private/tmp/pg070-next/SOURCES.md)：#1679 占 README/项目设置页，#1654 占 README，保护 #1101 占 page-assets/plugin-workbench/README/账本；资源账本也有 #1694 等写窗，均由根按文件交接，不能把 T146 采用当成所有锁解除。按旧书验证三入口 Coding/Shelf/Goals 各一次实际交互无重复请求、持久化回读，Characters 两入口含首次打开/换项目/dialog/终端及窄屏计算样式；T146 已核的静态/资源证据按准确树和未变范围沿用。新验收是嵌入 Characters 样式确实随被抽取节点到达、共用两表不再含该常量、真实 HTML 响应增量与 served 资源逐项实测。资源增长或新资源仅在有准确产物、必要性与字节数时交根按现行规则裁，不预申请。Coding 与 Characters 合流后才结 PG070 整行；本轮无 build/test/产品/coord/GH/refs 写入。

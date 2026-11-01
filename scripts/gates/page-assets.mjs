@@ -242,11 +242,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-351 (RAC-2723): the Alchemist research page says "material too long" for a lens job refused because the prompt's data position is
-// over, telling it apart from the generic runtime failure; +146 B on this one asset. Tried: no new asset, one localized sentence with its
-// English pair, no count text (the character excess needs a dedicated error-detail field and is a separate change). Approved [52556, 52702] (the measured bytes, no slack).
+// T-377 (RAC-2794–2797): reopening a failed plugin clears its old notice, while background restoration preserves its usable retry.
+// +219 B, approved in #1332 after source-level savings review: button-only cleanup misses reopen; a broad selector weakens ownership;
+// skipping every failed surface blocks explicit reopen. Reuses existing state and surface-change calculation; no new asset or state.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/alchemist.js": [52556, 52702],
+  "/assets/molis-work-workbench.js": [1150072, 1150291],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

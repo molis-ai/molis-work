@@ -166,7 +166,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
     // A stage is given only the request parameters it names in `stage_data.input`, from its own plugin's declared page route (T-116).
     const stage_request = declaredStageRequests(view.shown_plugins ?? [], matchPageRoute(url));
-    view = { ...view, stage_request, stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request) };
+    view = { ...view, ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}), stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request) };
     const feedActions = bindLocalWebActions(localHost, hostReference, [...FEED_ACTION_PERMISSIONS, "functions:invoke"]);
     try {
       const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);

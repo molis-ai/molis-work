@@ -1,6 +1,10 @@
 {
-  "giantUnits": 42,
+  "giantUnits": 43,
   "giant": {
+    "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
+      "lines": 257,
+      "methods": 26
+    },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
       "methods": 39
@@ -12,7 +16,7 @@
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
-    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 162,
+    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 161,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 208,
       "methods": 32
@@ -20,7 +24,7 @@
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
-    "file apps/workbench/src/i18n/en.ts": 3265,
+    "file apps/workbench/src/i18n/en.ts": 3270,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "file horizontal/memory/src/service.ts": 1151,
@@ -476,7 +480,7 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 56,
+  "pluginOutsideMentionsTotal": 55,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
     "coding#outside-files": 2,
@@ -487,7 +491,7 @@
     "files#outside-files": 0,
     "form#outside-files": 0,
     "git#outside-files": 0,
-    "goals#outside-files": 13,
+    "goals#outside-files": 12,
     "images#outside-files": 0,
     "inbox#outside-files": 6,
     "issues#outside-files": 0,

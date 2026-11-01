@@ -140,7 +140,7 @@
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
       "kind": "cohesive-unit",
       "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
-      "size": 162
+      "size": 161
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",

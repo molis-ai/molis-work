@@ -1,5 +1,7 @@
 # W5-08 工作台入口不再转出插件实现（PG-064，ac-shell）
 
+T-382 路径更新：本文历史记录中的 `artifact-native-plugin-http.ts` 现为平台成果库路由 `apps/local-host/src/artifact-library-http.ts`；已移出 `NATIVE_PLUGIN_HTTP_FILES`。历史证据与当时裁定保留。
+
 状态：草稿，2026-10-25，在 `claude/ac-shell-w508`（叠在 `claude/ac-shell-rest` 上，#1296 的头 `58e877b21`）。不改合同、不改 SDK、不改动作，直接做；留给别线的几项写在 §3。
 
 验收编号：RAC-710～719。BL：BL-635（工作台入口里没人用的导出，§3）。

@@ -113,7 +113,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 `APPROVED_BUILD_TIME_EXCEPTIONS` 里的两个（Alchemist、插件创作台；用户 2026-10-21、10-23 定不迁、不删、本轮绕过，以后由 BL-377 重做）仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和目录条目（各包的 `registration`）。只有改这些旧插件时才看这一段，新插件不照抄。
 
-- 手写 HTTP 文件：`<id>-native-plugin-http.ts` 只剩 Alchemist 的 `alchemist-native-plugin-http.ts`，由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）。Pages、灵光、Schedule、Feed、Inbox 等都已迁完，路由是 Manifest `routes`。`artifact-native-plugin-http.ts` 是平台成果库的路由文件（PG-077），不是插件的。
+- 手写 HTTP 文件：`<id>-native-plugin-http.ts` 只剩 Alchemist 的 `alchemist-native-plugin-http.ts`，由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）。Pages、灵光、Schedule、Feed、Inbox 等都已迁完，路由是 Manifest `routes`。`artifact-library-http.ts` 是平台成果库的路由文件（PG-077），不是插件的。
 - Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不是构建期例外），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 

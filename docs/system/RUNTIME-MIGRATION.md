@@ -1,5 +1,7 @@
 # 内置插件迁到 Plugin Runtime：计划
 
+T-382 路径更新：本文历史记录中的 `artifact-native-plugin-http.ts` 现为平台成果库路由 `apps/local-host/src/artifact-library-http.ts`；已移出 `NATIVE_PLUGIN_HTTP_FILES`。历史证据与当时裁定保留。
+
 状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main；截至 2026-10-30 的 main：Cognia、Images、Jelly、PPT、Dataset 已进 Plugin Runtime（各自 `src/registration.ts` 的 `runtime`/`project_runtime`：Cognia、Images、Jelly 由 Home 监督器启动，PPT、Dataset 由项目监督器启动；这些登记分别在 #840（2026-10-20）与 batch-39（#1307，2026-10-25）进 main）。第 2.1 节的目录条目以 2026-10-18 为准（名字与库的来源见该节首的说明），其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节；CHR-1 已于 2026-10-22 做完，见该节进度）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。2026-10-31 W6-01 第二片（T-147）：构建期只剩用户批过的两个例外 Alchemist、插件创作台，门禁里的名单改名 `APPROVED_BUILD_TIME_EXCEPTIONS`、带出处；下文各节按当时口径写的数与名单，以第 9 节「现在」一列为准。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
@@ -267,7 +269,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 | 目录条目 | 25（CHR-1 移出 Characters 之后，2026-10-22） | 25（迁移本身不增减目录条目；原来写的 24 是减去 Characters 的数，它已移出） |
 | `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 16（2026-10-31，登记上有 `project_runtime` 的；Home 级另算） | 20（现有 6 个，Characters 移出，加迁来的 14 个） |
 | `APPROVED_BUILD_TIME_EXCEPTIONS`（构建期装配的内置插件；2026-10-31 前的名单名见 `:47`） | 2（2026-10-31） | 2（Alchemist、插件创作台，BL-377 重做后为 0） |
-| `apps/local-host/src/*-native-plugin-http.ts` | 2 个文件（2026-10-31：`alchemist-…` 54 行，`artifact-…` 253 行，后者是平台成果库的路由文件） | 1 个（`artifact-native-plugin-http.ts`，208 行） |
+| `apps/local-host/src/*-native-plugin-http.ts` | 1 个文件（T-382 后只剩 `alchemist-native-plugin-http.ts`；平台成果库为 `artifact-library-http.ts`） | 1 个（`artifact-native-plugin-http.ts`，208 行） |
 | 以插件命名的 `apps/local-host/src/*-actions.ts` | 15 个 | 3 个（`artifact-actions.ts`、`goals-actions.ts`、`work-actions.ts`，共 136 行） |
 | `project-host.ts` 里按插件逐个登记的 `registerProvider` | 16 行 | 0 |
 | 新增一个内置插件在包外的手改文件数（外加 SSOT 一行，两端都要） | 12（见 EXTENSION-POINTS.md 3.1） | 1（要 X-1；没有 X-1 是 4） |

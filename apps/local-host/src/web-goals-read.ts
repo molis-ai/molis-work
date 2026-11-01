@@ -10,7 +10,7 @@ import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-s
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+import { renderGoalArtifactContext } from "./artifact-library-http.js";
 import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";

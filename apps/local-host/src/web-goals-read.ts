@@ -4,7 +4,7 @@ import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
 import { renderCharacters, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { renderGoalsReadRequest, renderGoalsPageRequest } from "@molis-ai/molis-work-plugin-goals/page";
+import { renderGoalsReadRequest, renderGoalsPageRequest, type GoalsStageData } from "@molis-ai/molis-work-plugin-goals/page";
 import { matchPageRoute } from "./page-routes.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -41,9 +41,9 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: shownProjectPlugins(configuration.plugins, configuration.hidden),
-    drawn: view.plugin_stage_ids ?? [], model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
+    drawn: view.plugin_stage_ids ?? [], page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
   const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
-  return { html: [characters, ...runtime.html], ids: runtime.ids, unavailable: runtime.unavailable,
+  return { html: [characters, ...runtime.html], ids: runtime.ids, unavailable: runtime.unavailable, page: runtime.page,
     directory: record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [] };
 }
 /**
@@ -62,6 +62,7 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
     translate: (value: string) => value, routePrefix: view.route_prefix };
   const builtin = await projectPluginStages(surfacePorts, view, input.configuration, input.stageModel);
   view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtin.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtin.ids],
+    ...(builtin.page ? { page_stage: builtin.page } : {}),
     unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...builtin.unavailable] };
   // Installed execution supplies rail entries and stages independently of opening the authoring studio.
   const installed = await installedPluginStages({ store, projectId: input.projectId, homeDirectory, routePrefix: view.route_prefix,
@@ -72,12 +73,12 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
 }
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
-  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment" | "declaredStageModel">;
+  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "declaredPageSurface" | "renderMolisWorkWeb" | "declaredStageModel">;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
 }) {
   const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
-  const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment, declaredStageModel } = ports.renderer;
+  const { renderMolisWorkProjectSettingsHub, declaredPageSurface, renderMolisWorkWeb, declaredStageModel } = ports.renderer;
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
     goalsHere: () => Promise<boolean>,
@@ -124,13 +125,15 @@ export function createLocalGoalsReadHttp(ports: {
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
   ): Promise<boolean> {
     if (request.method !== "GET") return false;
-    const renderedGoalsRead = await renderGoalsReadRequest(request.method, matchPageRoute(url), async route => {
+    const match = matchPageRoute(url);
+    const renderedGoalsRead = await renderGoalsReadRequest(request.method, match, async route => {
       const view = await readWebView();
       return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
     }, ({ view, selected }) => ({
-      refresh: (goalId, collection) => renderMolisWorkRefreshFragment(selected, goalId, collection === "archive", collection === "trash"),
-      momentum: (goalId, collection) => renderMolisWorkMomentumFragment(view, goalId, collection),
-      document: (goalId, collection) => renderGoalDocumentFragment(selected, goalId, collection),
+      refresh: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData,
+        goalId ? { goal_id: goalId } : {}),
+      momentum: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, view, { collection: view, selection: collection, selected: null } satisfies GoalsStageData, { goal_id: goalId }) || null,
+      document: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData, { goal_id: goalId }) || null,
     }));
     if (renderedGoalsRead) {
       if ("error" in renderedGoalsRead) {
@@ -148,17 +151,33 @@ export function createLocalGoalsReadHttp(ports: {
     return false;
   }
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
-    homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
+    homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, _goalActions: BoundActionClient, artifactActions: BoundActionClient,
     store?: LocalProjectDatabase,
     pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderGoalsPageRequest(
-      request.method, matchPageRoute(url), readWebView,
-      async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
+      request.method, matchPageRoute(url), async () => {
+        const view = await readWebView(), stage = view.stage_data?.goals as GoalsStageData | undefined;
+        // The action's single read owns selection too; the earlier shell projection may precede another request's update.
+        return stage ? { ...view, ...stage.collection, snapshot: { ...stage.collection.snapshot,
+          board: { ...stage.collection.snapshot.board, project_id: view.snapshot.board.project_id } } } : view;
+      },
+      async view => {
         const desktopShell = isDesktopShellRequest(request, url);
         const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;
         // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
         if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
+        if (store) {
+          const stage = view.stage_data?.goals as GoalsStageData | undefined;
+          if (stage) {
+            const decorated = stage.selected
+              ? await withGoalArtifactContext({ ...view, ...stage.collection }, stage.selected.goal_id, artifactActions, stage.selection)
+              : { ...view, ...stage.collection };
+            view = { ...view, stage_data: { ...view.stage_data, goals: { ...stage, collection: { ...stage.collection,
+              snapshot: { ...stage.collection.snapshot, board: { ...stage.collection.snapshot.board, project_id: view.snapshot.board.project_id } },
+              goals: decorated.goals, archived_goals: decorated.archived_goals, trashed_goals: decorated.trashed_goals } } satisfies GoalsStageData } };
+          }
+        }
         // The project's Runtime draws its plugins' panels and stages; one that is not running gets the unavailable shell (W5-06).
         // Only the fixture server (one database, no project catalog: `fixtureWebBoardOptions`) has no project here; no Runtime
         // runs there, so the shell draws the declared stages from the catalog.
@@ -167,23 +186,7 @@ export function createLocalGoalsReadHttp(ports: {
           view = await withProjectPluginSurfaces(view, { store, projectId: options.projectId, homeDirectory, configuration: projectConfiguration, pluginServices, stageModel: declaredStageModel });
         }
         if (url.searchParams.has("workbenchPane")) view = { ...view, pane_plugin: url.searchParams.get("panePlugin") || "home" };
-        return renderMolisWorkWeb(
-          store
-            ? await withSelectedGoalDocument(
-                view,
-                requestedGoalId ?? view.active_goal_id ?? undefined,
-                goalActions,
-                artifactActions,
-                trashView ? "trash" : archiveView ? "archive" : "current",
-              )
-            : view,
-          requestedGoalId,
-          archiveView,
-          trashView,
-          controlToken,
-          desktopShell,
-          {},
-        );
+        return renderMolisWorkWeb(view, controlToken, desktopShell);
     });
     if (renderedGoalsPage) {
       if ("error" in renderedGoalsPage) {
@@ -221,6 +224,14 @@ async function withSelectedGoalDocument(
     goalActions.invoke(goalsActions.policyResolve, { goal_id: goalId }),
   ]);
   const policyBindings = history.bindings.filter(binding => binding.goal_id === null || binding.goal_id === goalId);
+  const decorate = (item: MolisWorkWebView["goals"][number]) => item.goal.goal_id === goalId
+    ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy } : item;
+  return withGoalArtifactContext({ ...eventView, goals: eventView.goals.map(decorate), archived_goals: eventView.archived_goals.map(decorate),
+    trashed_goals: eventView.trashed_goals.map(decorate) }, goalId, actions, collection);
+}
+
+async function withGoalArtifactContext(eventView: MolisWorkWebView, goalId: string, actions: BoundActionClient,
+  collection: "current" | "archive" | "trash"): Promise<MolisWorkWebView> {
   let html: string | undefined, outputs = 0;
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   if (collection !== "trash") try {
@@ -244,7 +255,7 @@ async function withSelectedGoalDocument(
     html = `<p class="empty-state" data-artifact-unavailable>${escapeHtml(L(error.message))}</p>`;
   }
   const decorate = (item: MolisWorkWebView["goals"][number]) =>
-    item.goal.goal_id === goalId ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy,
+    item.goal.goal_id === goalId ? { ...item,
       ...(html === undefined ? {} : { artifact_embed_html: html, artifact_outputs: outputs, artifact_inputs: inputs }) } : item;
   return {
     ...eventView,

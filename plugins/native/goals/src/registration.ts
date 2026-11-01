@@ -3,6 +3,7 @@ import { createHomeGoalsPlugin } from "./home-plugin.js";
 import { createGoalsPlugin } from "./plugin.js";
 import { GOALS_PAGE_CLIENTS, GOALS_SETTINGS_CLIENT_SCRIPT, GOALS_SETTINGS_STYLESHEET } from "./workbench-clients.js";
 import { GOALS_WORKBENCH_STYLESHEET } from "./workbench-styles.js";
+import { goalsStageUiContribution } from "./page/workbench-stage.js";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "./index.js";
 
 /**
@@ -19,6 +20,7 @@ export const registration: PluginRegistration = {
   workbench: {
     order: 19,
     contributions: [
+    goalsStageUiContribution,
     goalsPolicyUiContribution,
     goalsProposalUiContribution,
     goalsDecisionResultsUiContribution,

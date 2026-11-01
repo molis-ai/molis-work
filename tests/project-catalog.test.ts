@@ -851,7 +851,7 @@ test("project deletion needs separate confirmation and records an idempotent rec
   });
 });
 
-test("opening a desktop TUI panel binds that work context to the Goal and aliases a later host session", async () => {
+test("a plugin terminal record binds its work context to the project and aliases a later host session", async () => {
   await withTemporaryDirectory(async (directory) => {
     const home = join(directory, "home", ".molis-work");
     const workspace = join(directory, "repo");
@@ -859,63 +859,23 @@ test("opening a desktop TUI panel binds that work context to the Goal and aliase
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const project = await catalog.createProject({ display_name: "桌面项目", actor_id: "user" });
-      assert.throws(
-        () => catalog.openDesktopPanel({
-          project_id: project.project_id,
-          goal_id: "leaf-goal",
-          runtime_kind: "codex",
-          launch_command: "codex",
-          actor_id: "user",
-          user_confirmed: false,
-        }),
-        (error: unknown) =>
-          error instanceof ActionError && error.code === "catalog.panel_confirmation_required",
-      );
-
-      const panel = catalog.openDesktopPanel({
-        project_id: project.project_id,
-        goal_id: "leaf-goal",
-        runtime_kind: "codex",
-        launch_command: "codex",
-        cwd: workspace,
-        actor_id: "user",
-        user_confirmed: true,
-      });
-      assert.equal(panel.goal_id, "leaf-goal");
+      const owner = { install_id: "fixture-install", project_id: project.project_id, actor_id: "user" };
+      const panel = await catalog.commit(() => catalog.terminalPanels.insert({ ...owner, panel_id: "plugin-catalog-terminal", key: "main", subject: "leaf-goal",
+        runtime: "codex", launch_command: "codex", launch_args: [], title: "Codex" }, workspace));
+      assert.equal(panel.subject, "leaf-goal");
       assert.equal(panel.project_id, project.project_id);
-      assert.equal(catalog.listDesktopPanels(project.project_id, "leaf-goal").length, 1);
-      assert.equal(catalog.listDesktopPanels(project.project_id, "other-goal").length, 0);
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", panel.work_context_id)).status,
-        "bound",
-      );
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", panel.work_context_id)).project?.project_id,
-        project.project_id,
-      );
+      assert.equal(catalog.terminalPanels.list(owner, "leaf-goal").length, 1);
+      assert.equal(catalog.terminalPanels.list(owner, "other-goal").length, 0);
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", panel.panel_id)).status, "bound");
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", panel.panel_id)).project?.project_id, project.project_id);
 
-      const aliased = catalog.aliasDesktopPanelSession({
-        panel_id: panel.panel_id,
-        runtime_id: "codex",
-        host_session_id: "codex-thread-99",
-        actor_id: "desktop-panel",
-      });
+      const aliased = await catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panel.panel_id, runtime_id: "codex", host_session_id: "codex-thread-99" }));
       assert.equal(aliased.host_session_id, "codex-thread-99");
-      assert.equal(
-        catalog.findDesktopPanelByWorkContext("codex", "codex-thread-99")?.panel_id,
-        panel.panel_id,
-      );
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", "codex-thread-99")).project?.project_id,
-        project.project_id,
-      );
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", "codex-thread-99")).project?.project_id, project.project_id);
 
-      catalog.closeDesktopPanel(panel.panel_id, "user");
-      assert.equal(catalog.listDesktopPanels(project.project_id, "leaf-goal").length, 0);
-      assert.equal(
-        catalog.resolveRuntimeContext(stableContext("codex", panel.work_context_id)).status,
-        "bound",
-      );
+      await catalog.commit(() => catalog.terminalPanels.remove(aliased));
+      assert.equal(catalog.terminalPanels.list(owner, "leaf-goal").length, 0);
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", panel.panel_id)).status, "bound");
     } finally {
       catalog.close();
     }
@@ -935,5 +895,106 @@ test("RAC-800 a current catalog refuses a personal planning table without droppi
     const kept = new Database(file, { readonly: true });
     try { assert.ok(kept.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get()); }
     finally { kept.close(); }
+  });
+});
+
+// RAC-2834/2835/2836: use public commits; inspect alias rows only after the owner closes.
+test("RAC-2834 RAC-2836 S-103 invalid sessions leave no alias or binding, including an existing binding", async () => {
+  await withTemporaryDirectory(async directory => {
+    const home = join(directory, "home"), workspace = join(directory, "repo");
+    await mkdir(workspace);
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const invalid = ["--dangerously-bypass-approvals-and-sandbox", "s-1 --yolo", "s".repeat(129)];
+    const prebound = "existing invalid session";
+    let projectA = "", projectB = "";
+    const observed: { session: string; project: string | null }[] = [];
+    try {
+      projectA = (await catalog.createProject({ display_name: "A", actor_id: "owner-a" })).project_id;
+      projectB = (await catalog.createProject({ display_name: "B", actor_id: "owner-b" })).project_id;
+      const panel = await catalog.commit(() => catalog.terminalPanels.insert({ install_id: "fixture", project_id: projectB,
+        actor_id: "owner-b", panel_id: "invalid-session-panel", key: "main", subject: null, runtime: "codex",
+        launch_command: "codex", launch_args: [], title: "B" }, workspace));
+      await catalog.commit(() => catalog.bindRuntimeContext({ context: stableContext("codex", prebound),
+        project_id: projectA, actor_id: "owner-a", user_confirmed: true }));
+      for (const session of [...invalid, prebound]) {
+        const returned = await catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panel.panel_id,
+          runtime_id: "codex", host_session_id: session }));
+        assert.deepEqual(returned, panel);
+        assert.deepEqual(catalog.terminalPanels.get(panel.panel_id), panel);
+        observed.push({ session, project: catalog.resolveRuntimeContext(stableContext("codex", session)).project?.project_id ?? null });
+      }
+      const original = catalog.resolveRuntimeContext(stableContext("codex", panel.panel_id));
+      assert.equal(original.project?.project_id, projectB);
+      assert.equal(catalog.listRuntimeContextBindings().find(row => row.stable_work_context_id === panel.panel_id)?.bound_by, "owner-b");
+      await assert.rejects(catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panel.panel_id, runtime_id: "codex", host_session_id: " " })), { code: "actions.input_invalid" });
+      await assert.rejects(catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panel.panel_id, runtime_id: " ", host_session_id: "valid" })), { code: "actions.input_invalid" });
+      await assert.rejects(catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: "missing", runtime_id: "codex", host_session_id: "valid" })), { code: "actions.missing" });
+    } finally { catalog.close(); }
+    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    try {
+      const aliases = [...invalid, prebound].map(session => ({ session,
+        row: db.prepare("SELECT panel_id FROM plugin_terminal_panel_aliases WHERE runtime_id = ? AND stable_work_context_id = ?").get("codex", session) ?? null }));
+      // One independent expected state reports both illegal alias writes and binding changes on the original input.
+      assert.deepEqual({ aliases, observed }, {
+        aliases: [...invalid, prebound].map(session => ({ session, row: null })),
+        observed: [...invalid.map(session => ({ session, project: null })), { session: prebound, project: projectA }],
+      });
+      assert.deepEqual(db.prepare("SELECT panel_id FROM plugin_terminal_panel_aliases WHERE runtime_id = ? AND stable_work_context_id = ?").get("codex", "invalid-session-panel"), { panel_id: "invalid-session-panel" });
+    } finally { db.close(); }
+    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    try {
+      for (const session of invalid) {
+        const resolution = reopened.resolveRuntimeContext(stableContext("codex", session));
+        assert.equal(resolution.project, null);
+        assert.equal(resolution.connection, null);
+        assert.equal(reopened.listRuntimeContextBindings().some(row => row.runtime_id === "codex" && row.stable_work_context_id === session), false);
+      }
+      assert.equal(reopened.resolveRuntimeContext(stableContext("codex", prebound)).project?.project_id, projectA);
+      assert.equal(reopened.listRuntimeContextBindings().find(row => row.runtime_id === "codex" && row.stable_work_context_id === prebound)?.bound_by, "owner-a");
+      assert.equal(reopened.terminalPanels.get("invalid-session-panel")?.host_session_id, null);
+    } finally { reopened.close(); }
+  });
+});
+
+test("RAC-2835 S-103 a legal same session rebinds B after A and preserves the panel timestamp", async () => {
+  await withTemporaryDirectory(async directory => {
+    const home = join(directory, "home"), workspace = join(directory, "repo"), session = "legal-session-390";
+    await mkdir(workspace);
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    let projectB = "", savedAt = "";
+    try {
+      const a = await catalog.createProject({ display_name: "A", actor_id: "owner-a" });
+      const b = await catalog.createProject({ display_name: "B", actor_id: "owner-b" });
+      projectB = b.project_id;
+      for (const [suffix, project, actor] of [["a", a.project_id, "owner-a"], ["b", b.project_id, "owner-b"]]) {
+        await catalog.commit(() => catalog.terminalPanels.insert({ install_id: "fixture", project_id: project,
+          actor_id: actor, panel_id: "legal-panel-" + suffix, key: "main", subject: null, runtime: "codex",
+          launch_command: "codex", launch_args: [], title: suffix }, workspace));
+      }
+      const report = (panel: string, value: string) => catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panel, runtime_id: "codex", host_session_id: value }));
+      const saved = await report("legal-panel-b", session);
+      savedAt = saved.updated_at;
+      assert.equal(saved.host_session_id, session);
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", session)).project?.project_id, b.project_id);
+      await report("legal-panel-a", session);
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", session)).project?.project_id, a.project_id);
+      assert.equal(catalog.listRuntimeContextBindings().find(row => row.runtime_id === "codex" && row.stable_work_context_id === session)?.bound_by, "owner-a");
+      const rebound = await report("legal-panel-b", "  " + session + "\t");
+      assert.deepEqual(rebound, saved);
+      assert.equal(catalog.resolveRuntimeContext(stableContext("codex", session)).project?.project_id, b.project_id);
+      assert.equal(catalog.listRuntimeContextBindings().find(row => row.runtime_id === "codex" && row.stable_work_context_id === session)?.bound_by, "owner-b");
+    } finally { catalog.close(); }
+    const db = new Database(join(home, "projects", "catalog.db"), { readonly: true });
+    try {
+      assert.deepEqual(db.prepare("SELECT panel_id FROM plugin_terminal_panel_aliases WHERE runtime_id = ? AND stable_work_context_id = ?").get("codex", session), { panel_id: "legal-panel-b" });
+    } finally { db.close(); }
+    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    try {
+      assert.equal(reopened.resolveRuntimeContext(stableContext("codex", session)).project?.project_id, projectB);
+      assert.equal(reopened.listRuntimeContextBindings().find(row => row.runtime_id === "codex" && row.stable_work_context_id === session)?.bound_by, "owner-b");
+      assert.equal(reopened.terminalPanels.get("legal-panel-b")?.host_session_id, session);
+      assert.equal(reopened.terminalPanels.get("legal-panel-b")?.updated_at, savedAt);
+      for (const suffix of ["a", "b"]) assert.equal(reopened.resolveRuntimeContext(stableContext("codex", "legal-panel-" + suffix)).status, "bound");
+    } finally { reopened.close(); }
   });
 });

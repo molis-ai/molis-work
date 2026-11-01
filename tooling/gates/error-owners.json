@@ -71,10 +71,9 @@
         "apps/local-host/src/demo-project-lifecycle.ts",
         "apps/local-host/src/project-database.ts",
         "apps/local-host/src/project-deletion-*",
-        "apps/local-host/src/project-file-paths.ts",
-        "apps/desktop/src/panels.ts"
+        "apps/local-host/src/project-file-paths.ts"
       ],
-      "reason": "The project catalog: creating, binding, recovering and deleting projects and their panels (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
+      "reason": "The project catalog: creating, binding, recovering and deleting projects (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
     },
     "catalog_integration": {
       "paths": [
@@ -119,12 +118,6 @@
         "apps/local-host/src/contextual/"
       ],
       "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
-    },
-    "desktop": {
-      "paths": [
-        "apps/desktop/src/launch.ts"
-      ],
-      "reason": "The desktop app's Goal terminal launch recipes: which command and arguments open each Runtime in a terminal panel. A custom terminal without a command is refused as desktop.launch_command_required (invalid), so the panel route answers 400 with a code instead of an uncoded failure."
     },
     "diff": {
       "paths": [

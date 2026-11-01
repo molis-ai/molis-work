@@ -157,7 +157,8 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   expect(capture(() => catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: "entry-1", host_declares_stable: true }, project_id: project.project_id, actor_id: "runtime", user_confirmed: false })),
     "work.context.user_confirmation_required", 400);
   // A live terminal is a conflict the person can resolve.
-  const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "user", user_confirmed: true });
+  const panel = await catalog.commit(() => catalog.terminalPanels.insert({ panel_id: "plugin-error-model-terminal", install_id: "fixture-install", project_id: project.project_id,
+    actor_id: "user", key: "terminal", subject: "goal-1", runtime: "command", launch_command: "/bin/cat", launch_args: [], title: "cat" }, directory));
   const service = new hostModule.ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: id => id === panel.panel_id, releaseProject: async () => undefined });
   await assert.rejects(service.deleteProject(home, { project_id: project.project_id, actor_id: "user", delete_confirmed: true, idempotency_key: "delete-with-terminal" }),
     (error: unknown) => { expect(error, "catalog.project_terminal_live", 409); return true; });

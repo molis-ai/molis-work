@@ -21,6 +21,17 @@ const RECIPES: Record<TerminalRuntime, TerminalRuntimeRecipe> = {
   "grok-build": { command: "grok", resumeArgs: sessionId => ["--resume", sessionId] },
 };
 
+/**
+ * A runtime session a terminal resumes: one argument of a recipe's resume arguments, so letters, digits and `._:-` only (no space, quote
+ * or shell character) and not starting with `-`, which a runtime would read as an option (`--dangerously-…`). The one check for a session
+ * a page names, a runtime reports through MCP and a record holds (S-103 ⑤ ⑧).
+ */
+const TERMINAL_SESSION = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+
+export function isTerminalSessionId(value: unknown): value is string {
+  return typeof value === "string" && TERMINAL_SESSION.test(value);
+}
+
 export function isTerminalRuntime(value: string): value is TerminalRuntime {
   return (TERMINAL_RUNTIMES as readonly string[]).includes(value);
 }

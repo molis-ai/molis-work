@@ -55,7 +55,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 目标 package | 负责什么 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `production` | AP4/DV4/Cutover；实际平台安装证据见验证报告 | 应用：@yijunw0212 |
-| `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution、跟随焦点对象的侧栏及系统工作标签；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `production` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover | 共享核心：@yijunw0212 |
+| `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution、跟随焦点对象的侧栏及系统工作标签；Goals 的页面由 Goals 包绘制，这里只交它外壳端口（T-116）；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `production` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover | 共享核心：@yijunw0212 |
 | `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `production` | AP2/Cutover；动作服务见 `specs/action-architecture/` | 共享核心：@yijunw0212 |
 | `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 独立启动器：`apps/server` 是 `server/`（身份、设备、项目访问、接续回执、事件传输、IM 领域）的本地可部署启动器，所有业务读写调用现有 Action Host；它没有产品入口、不随 Desktop/npm 发布，只有跨设备测试在用，也不是正式的交换/Team 控制面，去留随功能迭代另定（spec §1，2026-10-08「右栏『讨论』页签与 IM 代码」）。右栏「讨论」页签不经过它：本地宿主直接挂载 `server/`，见 `server` 行；实验条件：正式的 Server/Exchange 功能 spec 立项时再定去留，在那之前不新增依赖它的产品路径（2026-10-25 统筹裁定） | `experimental`（独立启动器，无产品入口） | `specs/archive/molis-work-im/spec.md`；正式 Server/Exchange 仍待独立功能 Spec | 应用：@yijunw0212 |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `production` | DV1/Cutover；CLI 协议和真实进程验证 | 应用：@yijunw0212 |
@@ -126,7 +126,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
-| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；目录直接读当前状态；Workbench 注册并组合 UI，不另算完成 | `production` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
+| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；目录直接读当前状态；页面（项目页、片段、设置与规划页）由包内 `./page` 绘制，Workbench 只交外壳端口并注册贡献，不另算完成 | `production` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料；缺片：Inbox/Feed 拆插件切片 2–3；后续：切片 2–3 计划 | `slice` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/archive/feed-inbox-pages-loop/validation.md` | 内置插件：@yijunw0212 |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停；缺片：其他插件 job 的创建/编辑；后续：补齐 job 编辑 | `slice` | `specs/archive/schedule-conversation-tasks/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；路由在插件自己的 `/api/plugins/io.molis.work.shelf/…`，Host 注入 Store；缺片：轮盘/抓页/CLI Recipe；后续：Desktop 接入 | `slice` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop | 内置插件：@yijunw0212、@jingxusandra-gif |

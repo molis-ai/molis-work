@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsDocumentRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 import { GOALS_DOCUMENT_UI_CONTRIBUTION_ID, type GoalsDocumentItem, type GoalsDocumentContext } from "@molis-ai/molis-work-plugin-goals";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = createWorkbenchGoalsDocumentRenderer({ translate: L, escapeHtml, icon,
+const renderer = goalsRenderers.document({ translate: L, escapeHtml, icon,
   formatDate: value => value ?? "", renderStatus: status => status, renderVisibleGoalStatus: item => item.display_status,
   sectionHeading: (_icon, title, description = "") => "<header>" + escapeHtml(L(title)) + escapeHtml(L(description)) + "</header>" });
 const context: GoalsDocumentContext = { activeGoalId: null, decisionCount: 0,

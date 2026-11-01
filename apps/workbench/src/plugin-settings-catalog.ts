@@ -18,6 +18,8 @@ interface PluginSettingsNavItem {
   readonly icon: PluginIconName;
   /** Whether this settings view requests the Host's Agent Runtime list. */
   readonly settings_runtimes: boolean;
+  /** The extra address parameters this page reads (BL-543), as the space-joined lists the settings row renders. */
+  readonly address: { readonly query: string; readonly hash: string };
   /** Where the Manifest places the view among settings pages; host pages hold 10–90 (settings-sections.ts). */
   readonly order?: number;
 }
@@ -40,13 +42,15 @@ function declaredSettingsIcons(): ReadonlyMap<string, PluginIconName> {
  * A settings page's declared inputs, keyed by its view's contribution: its own read action and whether it needs the runtime list.
  * The SDK checks both declarations. The Host does not infer either dependency from the plugin's name or from the other input.
  */
-let settingsInputs: ReadonlyMap<string, { action?: ActionDefinition; runtimes: boolean }> | undefined;
+let settingsInputs: ReadonlyMap<string, { action?: ActionDefinition; runtimes: boolean; address: { query: string; hash: string } }> | undefined;
 function declaredSettingsInputs(): NonNullable<typeof settingsInputs> {
   settingsInputs ??= new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.ui?.views ?? []).flatMap(view => {
     if (view.slot !== "settings") return [];
     const declared = view.settings_data?.action;
     const action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared) : undefined;
-    return [[viewContributionId(entry.manifest, view), { action, runtimes: view.settings_runtimes === true }] as const];
+    // The SDK checks the declaration; the row hands the lists to the shell as the space-joined strings its filter uses.
+    const address = { query: (view.settings_address?.query ?? []).join(" "), hash: (view.settings_address?.hash ?? []).join(" ") };
+    return [[viewContributionId(entry.manifest, view), { action, runtimes: view.settings_runtimes === true, address }] as const];
   })));
   return settingsInputs;
 }
@@ -74,6 +78,7 @@ export function pluginSettingsNavItemsFrom(
         label: item.label,
         icon: icons.get(item.contribution_id) ?? "settings",
         settings_runtimes: declaredSettingsInputs().get(item.contribution_id)?.runtimes ?? false,
+        address: declaredSettingsInputs().get(item.contribution_id)?.address ?? { query: "", hash: "" },
       };
     })
     .filter((item) => !isHostGlobalSettingsSection(item.section_id));

@@ -242,13 +242,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-208 (MISC T-186 发布), RAC-1995–1999: the Images page cuts the prompt it shows in a file name, a Shelf receipt and the Assistant's context
-// title by whole characters instead of UTF-16 units (a cut between the two halves of an emoji kept half of it, and encodeURIComponent on the file
-// name threw, so the result page was not drawn), +20 B on this one asset (one small function in dom.ts and its three calls). Tried: the same cut
-// written inline at the three sites +42 B, at the one site that throws +14 B (leaves two cuts as they were), cutting by units and dropping a
-// dangling half +93 B; no new asset, no new text.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/images.js": [19877, 19897],
+  // T-389 (RAC-2840/2841) forwards open/restore through every Feed setter in passive UI restoration so later calls
+  // do not close the current source menu. Same-scope comment shortening saved no compiled bytes; the required
+  // intent propagation and conditional close add 99 B. Approved in T-389 stage3; exact served-byte tuple only.
+  "/assets/molis-work-workbench.js": [1150615, 1150714],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

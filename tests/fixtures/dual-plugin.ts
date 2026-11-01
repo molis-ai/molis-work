@@ -50,7 +50,7 @@ export function dualPlugin(name = "dualprobe", writes = false, viewIn: Half = "h
     return found;
   };
   const stage = { descriptor: { contribution_id: view, kind: "embedded" as const, label: name,
-    surfaces: [{ surface_id: "workbench", target_slot_id: "stage", format: "html" }], slots: [] }, render: () => `<section>${name}</section>` };
+    surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] }, render: () => `<section>${name}</section>` };
   /** One half's share of the Manifest; `extra` adds to it, for a half that offers more than its share. */
   const half = (which: Half, extra: (all: typeof actions) => Share = () => ({})): PluginDefinition => ({ manifest,
     event_types: [{ event_type_id: changed, type_version: 1, validate: payload => payload }],

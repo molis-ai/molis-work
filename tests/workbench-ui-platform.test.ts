@@ -17,6 +17,7 @@ import {
   mountContributionsOf,
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
+  renderWorkbenchRefreshDocument,
   renderStagePage,
 } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -53,6 +54,15 @@ test("K1-01 document metadata keeps hostile markup inside its text and attribute
   assert.match(html, /<body title="O&#039;Reilly &amp; &lt;\/title&gt;&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;">/);
   assert.equal(html.match(/<body[^>]*>/)?.[0], '<body title="O&#039;Reilly &amp; &lt;/title&gt;&lt;img src=x onerror=&quot;alert(1)&quot;&gt;">');
   assert.doesNotMatch(html, /<img/);
+});
+
+test("RAC-2680/RAC-2682 Host refresh documents preserve content bytes, escape attributes and keep absent content empty", () => {
+  const body = '\n    <section data-document-pane>Content &amp; context</section>\n  ';
+  assert.equal(renderWorkbenchRefreshDocument({
+    body_html: body,
+    body_attributes: { "data-board-view": "archive", title: 'a" & <tag>', inert: true, hidden: false },
+  }), '<!doctype html><html><body data-board-view="archive" title="a&quot; &amp; &lt;tag&gt;" inert>' + body + '</body></html>');
+  assert.equal(renderWorkbenchRefreshDocument({ body_html: "", body_attributes: { "data-board-view": "current" } }), "");
 });
 
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {

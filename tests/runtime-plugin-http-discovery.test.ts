@@ -744,7 +744,7 @@ test("RAC-1745 a dual-instance plugin in the build is drawn by the half that off
   const stageId = "io.molis.work.native.feed.ui.v1";
   assert.equal(first.match(feed), null, "Feed's own stage, from its project half, has no placeholder");
   const ownHome = home.runtime.contribution.bind(home.runtime), ownProject = projectPlatform.supervisor.contribution.bind(projectPlatform.supervisor);
-  const view = { descriptor: { contribution_id: stageId, kind: "embedded" as const, label: "Feed", surfaces: [{ surface_id: "workbench", target_slot_id: "stage", format: "html" }], slots: [] },
+  const view = { descriptor: { contribution_id: stageId, kind: "embedded" as const, label: "Feed", surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
     render: () => "<section>feed-home-half</section>" };
   const homeHalf = t.mock.method(home.runtime, "contribution", (id: string) => {
     const contribution = ownHome(id);

@@ -147,3 +147,8 @@ PR1c同一片补齐两个实际owner交接：Capsule的buildCapsuleSnapshot及ca
 T402交开发线2完整负责（甲档），立即在独立树从M e4bf46ca正常合冻结父T394 3878296ad后，先实施§4已接受的Feed/Inbox owner数据/服务；plugin.ts必要handler端口接线明确纳入。PR1c未冻结的contracts/ui、SDK view-placement、Host stage与Workbench绘制hunk暂不改、不消费其WIP。T121冻结7ac67在manifest/plugin/query-actions/ui的账号绑定增量必须保留：先核自有hunk，最终只合根交付T395冻结父，重叠语义报根，不另写旧绑定替代。PR1c冻结后给一次共享接缝合流窗口，补object_action/stage_surfaces/objects路由、两客户端URL同步和旧查询/投影删除，完整RAC2507～2514同交；不能仅owner切片就宣告完成。精确路径和输入输出见 /private/tmp/t402-next/EXECUTION.md；T403只后续搬客户端，T117等owner模型真正移出。
 
 共享快照/词典/预算/基线/状态由根串行结算；作者只改本树允许范围。整机build1/test1公共machine-slot、jobs1/retries0、隔离Home和专用浏览器。只必要相关完整回归，旧有效证据沿用；不本机Full/真实Home4207/Keychain/真模型/push/GH。准确候选完成后独立验证及加强二审另派，一页报告即可。
+
+
+### 2026-11-01 12:20Z 准确候选父交接
+
+PR1c完整实现候选已冻结eab8a8b4a1c3eddeb765eabe44ffee6c0877172f，明确未整体验收、未采用。根核提交后正式交T145/T402在自有已保存提交上普通merge此准确父；不是散拷未冻结WIP。T402先合T395源码父a5d425e5再此父，保T121账号绑定，随后开放§4/EXECUTION完整objects/stage合同与两客户端同步切换。T145开放原stage-candidate三接缝及原三项E2E/两回归。父原Home工具栏、DD2迁位、词典与金样剩余仍开发3收尾，后续只追加并普通合流，不能抢关PR1c或把父缺口转嫁。共享文档/快照/预算根串行，未变有效证据沿用。

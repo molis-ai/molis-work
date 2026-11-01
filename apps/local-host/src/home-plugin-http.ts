@@ -2,7 +2,8 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { declaredStageContributionId, inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { declaredStageContributionId, inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -279,7 +280,7 @@ function homeViewModel(pluginId: string) {
  * drawn here, the unavailable shell included, is reported by the contribution that would draw it, so the shell's declared
  * stages do not draw it again.
  */
-export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ html: string[]; ids: string[]; unavailable: UnavailablePluginStage[] }> {
+export async function renderHomePluginStages(host?: HomePluginHost, options?: { page_owner?: string; model(projectPluginId: string): unknown }): Promise<{ html: string[]; ids: string[]; unavailable: UnavailablePluginStage[]; page?: RenderedStagePage }> {
   if (!host) return { html: [], ids: [], unavailable: [] };
   let platform: HomePluginPlatform | undefined, failure: string | undefined;
   try { platform = await host.ready(); }
@@ -292,6 +293,13 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   });
   const ids: string[] = [], sideOnly = sideOpenedPlugins(registered);
   const unavailable: UnavailablePluginStage[] = [];
+  let page: RenderedStagePage | undefined;
+  const draw = (entry: (typeof registered)[number], view: UiContribution): string[] => {
+    const rendered = renderStagePage(view, options?.model(entry.project_plugin_id) ?? homeViewModel(entry.manifest.plugin_id), entry.project_plugin_id,
+      options?.page_owner === entry.manifest.plugin_id);
+    if (rendered.page) { page = rendered.page; return []; }
+    return [rendered.html];
+  };
   const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
     const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest);
     // A dual-instance plugin's stage is the half's that offers its view (`dualStageOwner`), shipped or not: here only when that is
@@ -300,7 +308,7 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
       const view = stage ? homeStageView(host, platform, pluginId, stage) : undefined;
       if (!view) return [];
       ids.push(stage!);
-      return [view.render({ contribution_id: stage!, surface: "workbench", model: homeViewModel(pluginId) })];
+      return draw(entry, view);
     }
     if (stage) ids.push(stage);
     // A signed package installed in the Home is drawn as every installed plugin's stage is, a frame of its own page; one that did not come back says why.
@@ -313,11 +321,11 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
     const install = host.installation(pluginId);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-    if (view) return [view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel(pluginId) })];
+    if (view) return draw(entry, view);
     unavailable.push(homeUnavailableStage(host, platform, failure, entry));
     return [];
   });
-  return { html, ids, unavailable };
+  return { html, ids, unavailable, ...(page ? { page } : {}) };
 }
 
 /**

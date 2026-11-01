@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { StagePageModel, UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import {
   DEMO_PROJECT_ID,
@@ -200,5 +201,38 @@ test("RAC-449 every surface an embedded plugin puts into Coding's page targets a
       }
     }
     assert.deepEqual(targets.sort(), ["io.molis.work.files:browser-directory", "io.molis.work.files:browser-result", "io.molis.work.git:browser-directory", "io.molis.work.git:browser-result"]);
+  });
+});
+
+// RAC-2682: the actual route owner alone may publish; its nested owners cannot inherit the port.
+test("RAC-2682 only the actual page owner publishes and a failed main render adopts nothing", async () => {
+  await withProject(async (store, state) => {
+    for (const fail of [false, true]) {
+      const seen: Array<{ pluginId: string; surface: string; page: boolean }> = [];
+      const wrapped = withContribution(state, (pluginId, real) => {
+        const contribution = real as { kind?: string; views?: UiContribution<StagePageModel>[] } | undefined;
+        if (contribution?.kind !== "app") return real;
+        return { ...contribution, views: contribution.views?.map(view => ({ ...view, render: (request: Parameters<typeof view.render>[0]) => {
+          seen.push({ pluginId, surface: request.surface, page: Boolean(request.model.page) });
+          if (pluginId === codingManifest.plugin_id && request.surface === "workbench") {
+            request.model.page?.publish({ title: "Actual owner" });
+            if (fail) throw new Error("main render failed after publication");
+          }
+          return view.render(request);
+        } })) };
+      });
+      const result = renderProjectRuntimeStages(wrapped, store, { shown: SHOWN, drawn: [], page_owner: codingManifest.plugin_id,
+        model: () => ({ ...model()(), page: { publish() { assert.fail("caller-supplied publisher escaped"); } } }) });
+      assert.ok(seen.some(entry => entry.pluginId !== codingManifest.plugin_id && entry.surface !== "workbench"), "real nested surfaces were drawn");
+      assert.ok(seen.filter(entry => entry.pluginId !== codingManifest.plugin_id).every(entry => !entry.page), "neither foreign embedded nor foreign main surfaces receive the publisher");
+      if (fail) {
+        assert.equal(result.page, undefined);
+        assert.ok(result.unavailable.some(entry => entry.surface === "coding"));
+      } else {
+        assert.equal(result.page?.parts.title, "Actual owner");
+        assert.match(result.page!.html, /data-coding-workbench/);
+        assert.doesNotMatch(result.html.join(""), /data-coding-workbench/, "the page anchor is its only copy");
+      }
+    }
   });
 });

@@ -12,11 +12,6 @@ import {
   type InboxUiModel,
   type InboxUiSurface,
 } from "@molis-ai/molis-work-plugin-inbox";
-import {
-  SCHEDULE_UI_CONTRIBUTION_ID,
-  type ScheduleUiModel,
-  type ScheduleUiSurface,
-} from "@molis-ai/molis-work-plugin-schedule";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { withPluginWords } from "./i18n.js";
@@ -73,10 +68,6 @@ export function renderFeedContribution(
 
 export function renderInboxContribution(surface: InboxUiSurface, model: InboxUiModel): string {
   return renderWorkbenchContribution(INBOX_UI_CONTRIBUTION_ID, surface, model);
-}
-
-export function renderScheduleContribution(surface: ScheduleUiSurface, model: ScheduleUiModel): string {
-  return renderWorkbenchContribution(SCHEDULE_UI_CONTRIBUTION_ID, surface, model);
 }
 
 /** The settings page asks for the settings slot itself: a contribution whose `settings` surface targets another slot is refused. */

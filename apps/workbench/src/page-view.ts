@@ -5,6 +5,10 @@ import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import type { HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 export interface MolisWorkWebView {
+  /** Matched Manifest owner and its successful presentation; scoped to this one page request. */
+  page_owner?: string;
+  page_stage?: import("./declared-stages.js").RenderedStagePage;
+  cli_availability?: Record<string, boolean>;
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];

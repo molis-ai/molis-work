@@ -1,7 +1,5 @@
 export type { SideViewDocumentInput } from "./side-view-document.js";
-export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
-export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
 export { homeToolKeysScript, renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
@@ -41,10 +39,9 @@ export { parseConditionFrame, renderMolisWorkConditionsSpecimen } from "./condit
 export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
-export type { CapsuleGoalItem, CapsuleSnapshot, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
-export { declaredStageContributionId, stageContributionId, stageDataAction, stageDataInput } from "./declared-stages.js";
+export { declaredStageContributionId, stageContributionId, stageDataAction, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {

@@ -1,4 +1,4 @@
-import { declaredStageContributionId, stageContributionId, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { declaredStageContributionId, stageContributionId, renderStagePage, withoutPagePublisher, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -47,6 +47,7 @@ export function dualStageOwner(home: StageHalf, project: StageHalf): "home" | "p
 }
 
 export interface ProjectRuntimeStageOptions {
+  page_owner?: string;
   /** The plugins this project shows. */
   shown: readonly string[];
   /** Contribution ids another stage path has already drawn (`plugin_stage_ids`). */
@@ -66,9 +67,10 @@ export interface ProjectRuntimeStageOptions {
  * Home's dual-instance plugins outside the build too, which the project reaches through the half it runs.
  */
 export function renderProjectRuntimeStages(state: ProjectPluginState, store: LocalProjectDatabase,
-  options: ProjectRuntimeStageOptions): { html: string[]; ids: string[]; unavailable: UnavailablePluginStage[] } {
+  options: ProjectRuntimeStageOptions): { html: string[]; ids: string[]; unavailable: UnavailablePluginStage[]; page?: RenderedStagePage } {
   const runs = new Set(state.plugins ?? []), shown = new Set(options.shown), drawn = new Set(options.drawn), home = options.home;
   const html: string[] = [], ids: string[] = [];
+  let page: RenderedStagePage | undefined;
   const unavailable: UnavailablePluginStage[] = [];
   const candidates = [
     ...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !runsOnlyInHome(entry) && shown.has(entry.project_plugin_id))
@@ -86,10 +88,11 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
         continue;
       }
     }
-    const stage = runtimeStage(state, store, entry, contributionId, options.model);
-    if (typeof stage === "string") html.push(stage); else unavailable.push(stage);
+    const stage = runtimeStage(state, store, entry, contributionId, options.model, options.page_owner === pluginId);
+    if ("html" in stage) { if (stage.page) page = stage.page; else html.push(stage.html); }
+    else unavailable.push(stage);
   }
-  return { html, ids, unavailable };
+  return { html, ids, unavailable, ...(page ? { page } : {}) };
 }
 
 /** The view of the project instance that draws this stage: the contribution the Manifest names, with its `workbench` surface. */
@@ -100,7 +103,7 @@ function stageView(state: ProjectPluginState, pluginId: string, contributionId: 
 }
 
 function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, entry: StageEntry, contributionId: string,
-  model: ProjectRuntimeStageOptions["model"]): string | UnavailablePluginStage {
+  model: ProjectRuntimeStageOptions["model"], pageOwner: boolean): { html: string; page?: RenderedStagePage } | UnavailablePluginStage {
   const pluginId = entry.manifest.plugin_id;
   const contribution = state.platform?.supervisor.contribution(pluginId);
   if (!contribution) {
@@ -113,7 +116,7 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
   if (!view) return unavailableStage(state, entry, L("插件页面未注册"));
   try {
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
-    return view.render({ contribution_id: contributionId, surface: "workbench", model: nested ? { ...own as Record<string, unknown>, nested } : own });
+    return renderStagePage(view, nested ? { ...own as Record<string, unknown>, nested } : own, entry.project_plugin_id, pageOwner);
   } catch (error) {
     hostLog.warn("plugins", "project_stage_failed", error, { plugin_id: pluginId });
     return unavailableStage(state, entry, L("插件页面读取失败"));
@@ -162,7 +165,7 @@ function embeddedFragments(state: ProjectPluginState, embeddedId: string, slot: 
   return (contribution.views ?? []).flatMap(view => (view.descriptor.surfaces ?? [])
     .filter(surface => surface.target_slot_id === slot.slot_id && slot.accepts.includes(surface.format))
     .flatMap(surface => {
-      try { return [view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model })]; }
+      try { return [view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: withoutPagePublisher(model) })]; }
       catch (error) { hostLog.warn("plugins", "embedded_surface_failed", error, { plugin_id: embeddedId, surface: surface.surface_id }); return []; }
     }));
 }

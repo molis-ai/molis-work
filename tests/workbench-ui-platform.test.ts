@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import type { OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OwnedUiContribution, StagePagePublisher, UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
@@ -17,6 +17,7 @@ import {
   mountContributionsOf,
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
+  renderStagePage,
 } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "@molis-ai/molis-work-plugin-goals/page";
@@ -203,6 +204,34 @@ test("T-116 a page is mounted only on its own plugin's contributions: another pl
   assert.throws(() => mount("io.molis.work.absent.v1", "panel", {}), code("ui_host.contribution_not_found"));
   // Without an owner the host mounts as before: the same foreign contribution is not refused for ownership.
   assert.throws(() => host.mountDeclared({ contribution_id: foreign.contribution_id, surface: "no-such-surface", model: {} }), code("ui_host.surface_invalid"));
+});
+
+test("RAC-2682 page parts are a synchronous snapshot and overlays belong to the same contribution", () => {
+  const seen: string[] = [], value = { text: "original" };
+  let retained: StagePagePublisher | undefined;
+  const contribution: UiContribution<{ page?: StagePagePublisher }> = {
+    descriptor: { contribution_id: "page.probe", kind: "primary-page", label: "Page", slots: [], surfaces: [
+      { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+      { surface_id: "dialog", target_slot_id: "workbench.overlay", format: "declarative-html" },
+    ] },
+    render({ model, surface }) {
+      seen.push(surface);
+      if (surface === "workbench") {
+        retained = model.page;
+        model.page?.publish({ title: "Original", bootstrap: { id: "data", value }, overlays: { before_global_search: "dialog" } });
+      } else assert.equal(model.page, undefined, "overlays cannot publish another page result");
+      return `<section>${surface}</section>`;
+    },
+  };
+  const rendered = renderStagePage(contribution, {}, "probe", true);
+  assert.deepEqual(seen, ["workbench", "dialog"]);
+  assert.equal(rendered.page?.before_global_search, "<section>dialog</section>");
+  retained!.publish({ title: "Too late" }); value.text = "mutated";
+  assert.equal(rendered.page?.parts.title, "Original");
+  assert.deepEqual(rendered.page?.parts.bootstrap?.value, { text: "original" });
+  assert.throws(() => renderStagePage({ ...contribution, render({ model }) {
+    model.page?.publish({ overlays: { before_global_search: "foreign-dialog" } }); return "main";
+  } }, {}, "probe", true), /Page overlay is not declared/);
 });
 
 test("W5-06 every surface a Workbench contribution declares names a slot the Workbench host offers, or one a plugin that embeds it opens", () => {

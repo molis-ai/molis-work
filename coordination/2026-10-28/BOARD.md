@@ -11,14 +11,14 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-当前已采用main为15ad4f397。T388 #1715已采用820d9a0f5，T384 #1712已采用15ad4f397；两份准确头§8和队列门禁已核，采用补丁一致，T384四成员185归属记录逐项核等后原#1694/#1654/#1679/#1675已按“由承载采用”关闭。T369准确89119b9c已开#1716，独立审验通过待CI；唯一writer现为T389阶段2开发线2；T386和PR1b前置解除，等writer及自身文件/资源窗口。T385 #1713 Full失败由T389承接：Mac H/M各一次2/2未复现，旧因果UNKNOWN；受控menu-refresh书审三项修订已核，开发线2执行一次，新Full仍暂停。T146/T387/B普通CI已核，B两片适用SI原件根已手读；各自Full未结。
+当前已采用main为db29f18d4：T369/#1716已实际合并。T391文档候选8c197031已冻结、独立审验中；唯一writer交T389阶段3开发线2，按同书修复当前已复现的菜单恢复缺陷。T389阶段1旧Linux因果仍UNKNOWN，新Full暂停；T146/T387/B等准确Full，T386/PR1b等writer及自身文件/资源窗口。GitHub审计评论有自动审批待确认项，未以其它渠道代发。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | 书审通过，等T389唯一writer释放 | actualM下仅10行/15旧词项与同范围历史限定；full预计false | 仅EXTENSION-POINTS；fresh21 open无占用，不重算成本 |
-| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | 书审合法同值反例已纳入；待T389交回唯一writer | T369候选已发布；开工核实际M/组合，full按实际diff | plugin-terminal-panels/project-catalog及终端slice、S103本行；fresh在途无相同改动 |
-| T-369 | MCP alias等待中换连接拒绝证据 | 丙 | Codex开发线3；验证线3/二审线5 | #1716 @89119b9c，独立审验通过，等准确CI/Verify | full=false；真实alias提交后、dispatch前拒绝及恢复；负控有效 | 作者已冻结并交回writer；仅新增167行测试 |
-| T-389 | 390px项目动线添加来源失败有限诊断 | 甲 | Codex开发线2；验证线1/二审线4 | 阶段1未复现已核；阶段2一次受控menu刷新正在执行 | M15ad4f；独立书审三项修订已纳入同书；新Full暂停保持 | 当前唯一writer；仅临时probe/证据，不改生产/helper/journey/CI |
+| T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | 本地H8c197031冻结；独立终审进行中 | full=false，唯一文档10行15项与两处历史限定 | writer已交回，原成本/终端段保留 |
+| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | accepted书；等T389阶段3唯一writer | T369已实际采用；开工核实际M/组合，full按实际diff | plugin-terminal-panels/project-catalog及终端slice、S103本行 |
+| T-369 | MCP alias等待中换连接拒绝证据 | 丙 | Codex开发线3；验证线3/二审线5 | 已合 #1716 → db29f18d4（05:46Z） | full=false；未新增Linux动态证据 | 作者树与本地分支已清，原件保留；合入审计评论待审批 |
+| T-389 | 项目动线添加来源失败诊断及当前菜单恢复修复 | 甲 | Codex开发线2；验证线1/二审线4 | 阶段2当前缺陷已核；同书阶段3修复开始 | 实施Mdb29；原Linux因果UNKNOWN，新Full暂缓 | 唯一writer；四client片段+一新回归；T121共享hunk冻结 |
 | T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | #1715实际采用820d9a0f5，补丁核同；自有作者树已清 | full=false；旧CI首败因果UNKNOWN保留 | 已释放；仅一行await |
 | T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712实际采用15ad4f397；原四PR已按承载采用关闭 | Verify/SI/Full16片+聚合及队列通过；两retry-only保留UNKNOWN | 生产writer释放；冻结构建/金样原件暂供后继核抵 |
 | T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；本地/普通CI核收，Full41271185187失败 | 390px project-user-journey同点首跑/retry红；只读归因中，未重跑/取消 | 两原片10路径不扩修；9片成功/1失败/6矩阵取消，旧失败保持 |
@@ -491,3 +491,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 05:31Z：T369准确89119b9c已完成独立核收/二审，根全文核实际代码、21/21及单raiser变异精确红和恢复2/2；fresh secrets167行通过后正常推送并开#1716，full=false待CI。作者交回writer后，T389阶段2按f5344a41e同书受控一次交开发线2，#1332审计6553923532；其余生产writer不并开。
 
 2026-11-01 05:38Z：T389初始化首败尚未进入对照/POST/Response控制，根核既有seedBoard前置并仅授权修正临时probe初始化后进入尚未执行的业务实验；原失败保留。T390独立书审同值反例已纳入并注册，等唯一writer；S103共享PR均只有context，不改其它行。协调485d67694推送曾误先于fetch/scan结束，根已披露并保留原fetch网络超时；立即最终扫描110376行通过，随后fresh fetch成功、同提交再次扫描通过，main仍15ad4f；不回填为推前完成。
+
+2026-11-01 05:55Z：T369已实际采用；T391本地候选进入独立终审并交回writer。T389阶段2原件、独立验证及二审已核收为当前menu状态丢失，作者rAF过强措辞已收口；同书阶段3仅四片段intent透传及两条永久回归。fresh20open头无变化，#1101全584文件分页核无目标路径，T121同文件非目标hunk继续冻结；未取消/重启Full。

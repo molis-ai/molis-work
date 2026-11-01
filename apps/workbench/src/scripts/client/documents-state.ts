@@ -139,7 +139,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
       feedPreset: activeFeedPreset,
       feedSelected: selectedFeedItem,
-      feedTask: selectedFeedTask || "all",
       feedQuery: feedSearch?.value || "",
       feedSource: feedSourceFilter?.value || "all",
       feedType: feedTypeFilter?.value || "all",
@@ -194,19 +193,12 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         if (!ui?.feedPresets) {
           feedPresetState[activeFeedPreset] = {
             selected: String(ui?.feedSelected || selectedFeedItem || ""),
-            task: String(ui?.feedTask || ui?.sourceSelected || "all"),
             query: String(ui?.feedQuery || ""),
             source: ui?.feedSource || "all",
             type: ui?.feedType || "all",
             time: ui?.feedTime || "all",
             status: ui?.feedStatus || "active",
             sort: ui?.feedSort || "newest",
-          };
-        }
-        if (ui?.directory === "sources" || ui?.workSurface === "sources") {
-          feedPresetState.feed = {
-            ...feedPresetState.feed,
-            task: String(ui?.sourceSelected || feedPresetState.feed.task || "all"),
           };
         }
         setFeedPreset(activeFeedPreset, true, "restore");

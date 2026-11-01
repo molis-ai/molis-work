@@ -392,6 +392,20 @@ export function createTabWorkspaceOps(titles) {
     const pane = focused(state);
     return pane?.tabs.find((tab) => tab.id === pane.activeTabId) || null;
   };
+  const viewTab = (state, paneId, tabId) => {
+    const pane = state.panes.find((entry) => entry.id === paneId);
+    if (!pane) return null;
+    if (tabId !== undefined) return pane.tabs.find((tab) => tab.id === tabId) || null;
+    const active = pane.tabs.find((tab) => tab.id === pane.activeTabId);
+    return active?.kind === "item" ? active : pane.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === pane.viewPlugin) || null;
+  };
+  const readView = (state, paneId, tabId) => viewTab(state, paneId, tabId)?.view;
+  const writeView = (state, paneId, view, tabId) => {
+    const tab = viewTab(state, paneId, tabId);
+    if (!tab || view !== undefined && typeof view !== "string") return false;
+    if (view === undefined) delete tab.view; else tab.view = view;
+    return true;
+  };
   return {
     GROUP_COLORS,
     pluginTitle,
@@ -421,6 +435,8 @@ export function createTabWorkspaceOps(titles) {
     ensureHome,
     focused,
     activeTab,
+    readView,
+    writeView,
     shownPlugin,
     countTabs,
   };
@@ -600,8 +616,8 @@ export function isCurrentTabWorkspace(value, plugins) {
       && (tab.kind === "home" && tab.plugin === "home" || tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home")
       && (tab.collapsed === undefined || tab.kind === "plugin" && tab.collapsed === true)
       && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")
-      && (tab.goalView === undefined || ["frame", "work"].includes(tab.goalView)) && (tab.feedTask == null || typeof tab.feedTask === "string")
-      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "goalView", "feedTask", "collapsed"].includes(key)))
+      && (tab.view === undefined || typeof tab.view === "string")
+      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "view", "collapsed"].includes(key)))
       && pane.groups.every(group => group && typeof group.id === "string" && typeof group.title === "string"
         && typeof group.color === "string" && typeof group.collapsed === "boolean"
         && Object.keys(group).every(key => ["id", "title", "color", "collapsed"].includes(key)));

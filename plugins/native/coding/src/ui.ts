@@ -1,3 +1,4 @@
+import { CODING_SETTINGS_STYLES } from "./settings-styles.js";
 import { codingUsageSummary } from "./usage.js";
 import { CODING_SESSION_MARKS } from "./session-marks.js";
 import type {
@@ -471,6 +472,7 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
     : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? p.text("coding.settings.runtime.write-command") : p.text("coding.settings.runtime.write") : p.text("coding.settings.runtime.read-only"))}</span><span>${p.escape(runtime.methods === "partial" ? p.text("coding.settings.runtime.methods-partial") : runtime.methods === "supported" ? p.text("coding.settings.runtime.methods-supported") : p.text("coding.settings.runtime.methods-none"))}</span></div></div>`).join("");
   const methods = (model.methods ?? []).map(method => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(p.text(method.name))} · v${method.version}</strong><span>${p.escape(method.summary ? p.text(method.summary) : "")}</span></div></div>`).join("");
   return `<section class="settings-document coding-settings" data-coding-settings>
+    <style>${CODING_SETTINGS_STYLES}</style>
     <header class="settings-heading"><div class="settings-heading-title"><h1>${p.escape("Coding")}</h1></div>
       <p>${p.escape(p.text("coding.settings.lede"))}</p>
       <p><a href="/settings/models">${p.escape(p.text("coding.settings.models"))}</a>${model.project_href ? ` · <a data-settings-return-workbench href="${p.escape(model.project_href)}?returnToWorkbench=1">${p.escape(p.text("coding.settings.back"))}</a>` : ""}</p>

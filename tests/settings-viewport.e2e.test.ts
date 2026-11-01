@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
@@ -142,3 +143,40 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
 
   });
 }
+
+test('RAC-2850 global Characters entry carries only its own CSS through real HTTP and section extraction', { timeout: 60_000 }, async t => {
+  const b = await openGoalBrowser(t, 'empty'); if (!b) return;
+  await b.setViewport(1024, 700);
+  await b.navigate(() => b.command('Page.navigate', { url: b.origin + '/settings/appearance' }, b.sessionId));
+  const load = async () => b.evaluate(`new Promise((resolve,reject)=>{document.getElementById('t393-global-entry')?.remove();const f=document.createElement('iframe');f.id='t393-global-entry';f.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:9999;background:white';f.onload=()=>resolve(true);f.onerror=reject;f.src='/settings/characters';document.body.append(f)})`);
+  const entry = async <T = unknown>(expression: string): Promise<T> => {
+    const tree = await b.command<{ frameTree: { childFrames: { frame: { id: string; url: string } }[] } }>('Page.getFrameTree', {}, b.sessionId);
+    const frameId = tree.frameTree.childFrames.find(item => item.frame.url === b.origin + '/settings/characters')?.frame.id; assert.ok(frameId);
+    const { executionContextId } = await b.command<{ executionContextId: number }>('Page.createIsolatedWorld', { frameId, worldName: 'T393 entry DOM inspection' }, b.sessionId);
+    const result = await b.command<{ result: { value: T }; exceptionDetails?: unknown }>('Runtime.evaluate', { expression, contextId: executionContextId, returnByValue: true, awaitPromise: true }, b.sessionId);
+    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails)); return result.result.value;
+  };
+  await load();
+  assert.deepEqual(await entry("({path:location.pathname,settings:document.body.classList.contains('settings-page'),workbench:!!document.querySelector('[data-tab-workspace]'),style:document.querySelector('.characters-settings-entry').querySelectorAll(':scope > style').length})"),
+    { path: '/settings/characters', settings: true, workbench: false, style: 1 });
+  assert.equal(await entry("document.querySelector('.characters-hint').textContent.includes('还没有项目')"), true);
+  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-hint')).fontSize"), '12px');
+  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-hint')).lineHeight"), '19.2px');
+  const directory = `${REVIEW_EVIDENCE}/pg070-current`; await mkdir(directory, { recursive: true });
+  const shot = async (name: string) => { const image = await b.command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, b.sessionId); await writeFile(`${directory}/${name}.png`, Buffer.from(image.data, 'base64')); };
+  await shot('characters-global-empty');
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory }, catalog => catalog.createProject({ display_name: 'PG070 linked project', actor_id: 'web-user' }));
+  await load(); await b.setViewport(390, 500);
+  assert.equal(await entry("document.querySelector('.characters-project-link').pathname"), '/projects/' + project.project_id + '/');
+  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).display"), 'flex');
+  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).minHeight"), '40px');
+  const response = await fetch(b.origin + '/settings/characters'); assert.equal(response.status, 200); const html = await response.text();
+  // The unchanged production extractor chooses settings-document; adopt that real HTTP node, including its child style.
+  await entry(`(()=>{const parsed=new DOMParser().parseFromString(${JSON.stringify(html)},'text/html'),node=parsed.querySelector('.settings-document');document.querySelector('.settings-content').replaceChildren(document.adoptNode(node));})()`);
+  assert.equal(await entry("document.querySelector('.characters-settings-entry').querySelectorAll(':scope > style').length"), 1);
+  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).display"), 'flex');
+  assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).minHeight"), '40px');
+  assert.equal(await entry("document.documentElement.scrollWidth<=innerWidth+1"), true);
+  assert.equal(await entry("document.querySelector('.characters-settings-entry style').textContent.includes('.characters-terminal')"), false);
+  await shot('characters-global-extracted-narrow');
+});

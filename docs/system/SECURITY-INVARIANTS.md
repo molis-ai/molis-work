@@ -5,7 +5,7 @@
 - 一条不变量的测试必须断言**拒绝**（状态码、错误码、没有被写的记录），不能只证明正常路径能走通。
 - 表由门禁看住：`pnpm health:check` 的 `security invariants` 规则（`scripts/gates/security-invariants.mjs`）检查每一行点名的测试文件存在、每一个「标题片段」（一个文件后面可以连写几个，一个都不漏）确在文件里、「CI 里跑」一列的文件确实被 CI 跑到，每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改这里。
 - CI 里跑的集合是三处：根 `package.json` 的 `test:security`、`test:contracts` 里已有的几条（动作网关、`beforeEffect`、MCP 授权），以及 `ci.yml` 其它作业/步骤单独跑的几条（例如 `gates` 作业的「Gate rules reject what they claim to」步骤跑 `tests/secret-scan.test.ts`，`health-gate-rules` 作业跑 `tests/health-gates-dual-instance.test.ts`）；门禁按这三处核对「CI 里跑」一列。CI 是 Linux：`security-invariants` 作业的浏览器用例使用 runner 自带的 Chrome 执行；只在 macOS 上能跑的（如 Seatbelt 沙箱）和尚未纳入 CI 的整机用例列在「只在本机跑」一列，同一文件里的其它用例仍可能在 CI 里跑。
-- **这一步现在不挡合并**：`ci.yml` 的 `security-invariants` 作业（「Security invariants (not required yet)」）带 `continue-on-error: true`，不在 `Verify` 的 `needs` 里（红了在作业上显示失败，`Verify` 仍是绿的；单独一个作业，也不拖长挡合并的作业）。理由是决定 #14（先不挡产品用例，约两周后并入）：`test:security` 里除了安全不变量还有产品用例（目标树与决定动作、侧栏、记忆等）。`linux-probe` 作业只跑非浏览器用例（`scripts/ci-linux-probe.mjs` 头注释：browser 需要 Chrome，不跑），它的报告不覆盖浏览器用例。探针连续两周没有所覆盖的非浏览器文件的失败后，把安全作业加进 `Verify` 的 `needs`、去掉 `continue-on-error`，它才挡合并（和 W2-16 一起做）。合并前至少要看到这个 PR 的 CI 里这一步在 Linux 上是绿的。
+- **这一步挡合并**（决定 #14，本次按只许变严合同落实）：`ci.yml` 的 `security-invariants` 作业在 `Verify` 的九项必过结果里。合并队列里跑 `test:security` 全清单；PR 上 some 定向，whole、选择故障及不可信输出仍跑整套，只有选择成功且本作业 mode 明确为 none 时才跳过。Verify 直接读取选择器结果和两个 mode，逐项核合法 skipped；失败或取消的作业不放行。选择器本身是辅助依赖，不替代实际测试结果。直推、每晚、手动整套跑，可信已验 push 按原队列证明复用。
 - Computer Use 已在 main：助理电脑 socket 在 S-04，桌面动作的拒绝在 S-25。
 
 ## 1. 表

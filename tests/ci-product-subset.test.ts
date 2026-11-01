@@ -462,17 +462,16 @@ test("only a counted file with a failing result fails the subset; a quarantined 
 });
 
 // ---- the job in ci.yml -----------------------------------------------------------------------------------------------------------
-// Decision #14: for about two weeks the product subset informs and does not block; then it joins Verify by being one of its needs,
-// which leaves the required check as it is. Until then these lines of .github/workflows/ci.yml must stay as they are; carrying the
-// decision out means changing the first of the two tests below in the same pull request (the second, the blocking job running the
-// subset's own rules, stays true after the join).
-test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow, that Verify does not wait for yet, and that is stopped by its own time limit", () => {
+// Decision #14: for about two weeks the product subset informed and did not block; then (user 2026-10-31) it joined Verify by being
+// one of its needs, which leaves the required check as it is. The first test below pins that state, the second that a blocking job
+// runs the subset's own rules.
+test("ci.yml: the product subset is an ubuntu job that Verify waits for, that a red run fails, and that is stopped by its own time limit", () => {
   const job = jobBlock("product-subset");
   assert.match(job, /^    runs-on: ubuntu-latest$/m);
-  assert.match(job, /^    continue-on-error: true$/m, "a red subset must not turn the workflow red (decision #14: not blocking at first)");
-  assert.match(job, /^    name: Product subset \(not required yet, \$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}\)$/m);
+  assert.doesNotMatch(job, /^    continue-on-error:/m, "a red subset turns Verify red (decision #14, 2026-10-31)");
+  assert.match(job, /^    name: Product subset \(\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}\)$/m);
   assert.match(job, /^      fail-fast: false$/m, "a failure does not cancel the other shard");
-  assert.ok(job.includes("        shard: ${{ fromJSON(needs.test-selection.result == 'success' && needs.test-selection.outputs.product_shards || '[1, 2]') }}"), "both parts of the complete list run, unless a selection that succeeded found the files a pull request touches fit in one (T-130, tests/ci-test-selection.test.ts)");
+  assert.ok(job.includes("        shard: ${{ fromJSON(github.event_name == 'pull_request' && needs.test-selection.result == 'success' && needs.test-selection.outputs.product_mode == 'some' && needs.test-selection.outputs.product_shards || '[1, 2]') }}"), "only a PR's successful some consumes selected shards; whole or untrusted outputs retain both complete shards (RAC-1764)");
   assert.ok(job.includes("--shard ${{ matrix.shard }}/${{ strategy.job-total }}"));
   assert.ok(job.includes("name: product-subset-${{ matrix.shard }}"), "each shard preserves its own artifact");
   assert.match(job, /^\s+exec node scripts\/ci-product-subset\.mjs --expect-platform linux /m, "the runner is the step's own process, so a cancel's signal reaches it, and it refuses to record another platform");
@@ -492,9 +491,11 @@ test("ci.yml: the product subset is an ubuntu job that cannot fail the workflow,
   assert.ok(attempt > 0 && smokeAttempt > 0, "both per-file time limits are given");
   const worst = 2 + (browserBudget + smokeAttempt) + (budget + Math.max(attempt, smokeAttempt));
   assert.ok(timeout >= worst, `the job limit (${timeout} min) holds the worst case: 2 for install and build, the smokes' budget and a last smoke attempt, the other files' budget and a last attempt = ${worst} min`);
-  assert.ok(budget + browserBudget <= 25, "the job stays about as long as the blocking one (about 20 minutes), so joining Verify does not lengthen the check");
-  const needs = workflow.split("\n").filter((line) => /^\s*needs:/.test(line));
-  assert.ok(needs.every((line) => !line.includes("product-subset")), `no job needs product-subset yet: ${needs.join(" | ")}`);
+  assert.ok(budget + browserBudget <= 25, "the job stays within about 25 minutes of tests, so Verify in the merge queue is not held much longer");
+  assert.ok(blockingJobs().includes("product-subset"), "Verify waits for it");
+  const needs = workflow.split("\n").filter((line) => /^\s*needs:/.test(line) && line.includes("product-subset"));
+  assert.deepEqual(needs, ["    needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks, security-invariants, product-subset, queue-check, test-selection]"], "verify is the only job that needs it; the selector is an auxiliary dependency");
+  assert.ok(jobBlock("verify").includes("          PRODUCT_SUBSET_RESULT: ${{ needs.product-subset.result }}"), "its result reaches Verify's last step (judged in tests/ci-queue-verified.test.ts, RAC-1903)");
   assert.match(jobBlock("verify"), /^    name: Verify$/m, "the required check keeps its name");
 });
 

@@ -1,5 +1,5 @@
-// T-128: the blocking jobs of .github/workflows/ci.yml and `security-invariants` have a time limit, and every `Install pnpm` step has
-// one, so a job that hangs does not hold a runner for the six-hour default. That is all a limit is for, so it is not tight: a blocking
+// T-128: the blocking jobs of .github/workflows/ci.yml (`security-invariants` and `product-subset` among them since decision #14,
+// 2026-10-31) have a time limit, and every `Install pnpm` step has one, so a job that hangs does not hold a runner for the six-hour default. That is all a limit is for, so it is not tight: a blocking
 // job gets at least 30 minutes (a slow runner took `action-contracts` 15.4 minutes in the merge queue and it still passed), and no job
 // gets less than 1.8 times its longest successful run, measured on the completed runs from 2026-10-28 13:06Z to 2026-10-29 (the table).
 import assert from "node:assert/strict";
@@ -16,7 +16,9 @@ const JOBS: Record<string, { limit: number; longest: number; blocking: boolean }
   "health-gate-rules": { limit: 30, longest: 312, blocking: true },
   "architecture-boundaries": { limit: 30, longest: 350, blocking: true },
   "action-contracts": { limit: 30, longest: 923, blocking: true },
-  "security-invariants": { limit: 40, longest: 1315, blocking: false },
+  "security-invariants": { limit: 40, longest: 1315, blocking: true },
+  // Measured on the same window when it joined the table (2026-10-31): 939 s at the longest of 422 successful jobs.
+  "product-subset": { limit: 35, longest: 939, blocking: true },
 };
 /** The `Install pnpm` step took 66 seconds at the longest of 2547 in the sample. */
 const INSTALL_PNPM = { limit: 3, longest: 66 };
@@ -63,7 +65,9 @@ test("RAC-2411 ci.yml: a blocking job with a job-level limit gets 30 minutes or 
   // `queue-check` is among verify's needs only to let a push already verified by the merge queue pass (T-129): it decides no merge,
   // and its 5-minute limit is the intentional exception.
   assert.ok(!blocking.includes("queue-check"), "queue-check is not a blocking job");
+  assert.ok(!blocking.includes("test-selection"), "the selector is an auxiliary Verify dependency, not a required test result");
   assert.equal(jobTimeout("queue-check"), "5", "queue-check keeps its intentional 5-minute limit");
+  assert.equal(jobTimeout("test-selection"), "5", "the auxiliary selector keeps its intentional 5-minute limit");
   // `secret-scan`, `native-checks` and `shell-checks` are verify's needs without a job-level limit, so they fall back to the six-hour
   // default if they hang; giving them a limit is a workflow change of its own, and a job without one is skipped here.
   const limited = limitedBlockingJobs(workflow);
@@ -89,8 +93,8 @@ test("RAC-1906 ci.yml: every Install pnpm step has a limit of a few minutes, exc
       assert.ok(INSTALL_PNPM.limit * 60 >= 1.8 * INSTALL_PNPM.longest, "above 1.8 times the longest it took");
     }
   }
-  assert.equal(seen, 6, "the six jobs that install pnpm besides the Linux probe: the four blocking ones, security-invariants and product-subset");
-  for (const name of [...Object.keys(JOBS), "product-subset"]) assert.equal(installPnpmSteps(jobBlock(name)).length, 1, `${name} installs pnpm once`);
+  assert.equal(seen, 6, "the six jobs that install pnpm besides the Linux probe: the six blocking ones that build or test");
+  for (const name of Object.keys(JOBS)) assert.equal(installPnpmSteps(jobBlock(name)).length, 1, `${name} installs pnpm once`);
 });
 
 // RAC-2425 (T-287 二审): a limit written with a trailing comment is still a limit, and a blocking job's limit line that is not a plain

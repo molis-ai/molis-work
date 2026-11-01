@@ -3,8 +3,10 @@
 # are checked by `pnpm health:check`; docs/system/PACKAGE-BOUNDARIES.md (the section 「产品子集作业」) says how the job runs and how it
 # joins Verify.
 #
-# What belongs here: the fast user-flow files that pass on Linux. What does not: the contract and gate tests the blocking job already
-# runs, files the Linux probe marks darwin or live (scripts/ci-linux-probe/select.mjs), and browser files other than the smokes.
+# What belongs here: the fast user-flow files that pass on Linux. What does not: the contract, gate and security tests the blocking jobs
+# already run (`pnpm test:security` too, since the `security-invariants` job joins Verify under decision #14; deduplication against
+# accepted main f47fa0da removed 28 files), files the Linux probe marks darwin or live (scripts/ci-linux-probe/select.mjs), and browser
+# files other than the smokes.
 # This first list comes from the Linux probe run 37895261962 on main (11878059): every file that passed there, carried no mark, was
 # not already run by the blocking job and took 5 seconds or less, plus the main flow of each product area ("Main flows", each at
 # most 60 seconds there) and the i18n test.
@@ -41,11 +43,7 @@ tests/i18n.test.ts
 tests/inbox-action-scenes.test.ts
 tests/issue-naming.test.ts
 tests/jelly-actions.test.ts
-tests/home-plugin-project-cleanup.test.ts
-tests/home-plugin-project-routes.test.ts
 tests/home-plugin-stage-pages.test.ts
-tests/plugin-model-configuration.test.ts
-tests/plugin-image-generation.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
@@ -65,7 +63,6 @@ tests/agent-budget-prologue.test.ts
 tests/agent-built-plugins-agent.test.ts
 tests/agent-built-plugins-authoring.test.ts
 tests/agent-built-plugins-capabilities.test.ts
-tests/agent-built-plugins-catalog.test.ts
 tests/agent-built-plugins-workbench.test.ts
 tests/agent-definitions.test.ts
 tests/agent-host-wiring.test.ts
@@ -165,18 +162,8 @@ tests/coding-work-executor.test.ts
 tests/coding-writers.test.ts
 
 # connector
-tests/connector-api-oauth.test.ts
-tests/connector-authorization-recovery.test.ts
 tests/connector-cli.test.ts
 tests/connector-local-actions.test.ts
-tests/security-invariants-local-mcp.test.ts
-tests/connector-setup.test.ts
-tests/security-invariants-connector-intent.test.ts
-tests/security-invariants-connector-install.test.ts
-tests/security-invariants-cli-install.test.ts
-tests/security-invariants-cli-configuration.test.ts
-tests/security-invariants-native-cli.test.ts
-tests/security-invariants-graph-cli-install.test.ts
 tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
@@ -249,9 +236,6 @@ tests/memory-review-remember-cancellation.test.ts
 tests/memory-review-forget-revocation.test.ts
 tests/memory-list-revocation.test.ts
 tests/memory-source-snapshot-withdrawal.test.ts
-tests/memory-source-owner.test.ts
-tests/memory-promotion.test.ts
-tests/prologue-memory-promotion.test.ts
 tests/memory-use-receipts.test.ts
 tests/prologue-memory-run-context.test.ts
 tests/memory-spoken.test.ts
@@ -309,7 +293,6 @@ tests/project-arrival-chooser.test.ts
 tests/project-arrival-http.test.ts
 tests/project-arrival.test.ts
 tests/project-brief.test.ts
-tests/project-catalog.test.ts
 tests/project-deletion-assistant.test.ts
 tests/project-deletion-declarations.test.ts
 tests/project-deletion-memory.test.ts
@@ -389,7 +372,6 @@ tests/functions-agent-references.test.ts
 tests/generated-action-costs.test.ts
 tests/generated-plugin-prompts.test.ts
 tests/git-operation-review.test.ts
-tests/git-operations.test.ts
 tests/git-plugin.test.ts
 tests/github-device-flow.test.ts
 tests/governance-collaboration-module.test.ts
@@ -478,8 +460,6 @@ tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
 tests/workspace-production-events.test.ts
-tests/security-invariants-plugin-background.test.ts
-tests/security-invariants-activation-jobs.test.ts
 
 tests/connector-status.test.ts
 tests/connector-consumer-usages.test.ts
@@ -487,20 +467,14 @@ tests/connector-consumer-usages.test.ts
 # SYS-01/02/03: material exclusion, deletion and round budget through production owners.
 tests/knowledge-cards.test.ts
 tests/knowledge-reads.test.ts
-tests/security-invariants-knowledge-lifecycle.test.ts
 tests/canonical-json-value.test.ts
 
-tests/coding-original-inputs.test.ts
 
 tests/memory-unknown-facts.test.ts
-tests/assistant-original-inputs.test.ts
 # W5-06 PRR-12: every shown plugin's stage page is drawn once, from the Manifest view that opens it.
 tests/declared-stages.test.ts
 # W5-16 RAC-104: original Runtime configuration recovery and read-only credential preflight through production owners.
-tests/security-invariants-runtime-backups.test.ts
-tests/security-invariants-secret-snapshot.test.ts
 # W5-16 RAC-105-A: real process exclusion, owner capability refusal and crash/release recovery.
-tests/security-invariants-home-storage-owner.test.ts
 # W5-06 RAC-75～78: view placement declarations are checked by the SDK and read by the rail, settings, creates and starts.
 tests/view-placement-declarations.test.ts
 # BL-635 RAC-1115: every name the workbench entry gives out has an importer outside the workbench, or a listed reason to stay.

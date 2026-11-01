@@ -11,7 +11,7 @@ import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedHom
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundClient, PluginJobControl, PluginManifest, PluginSqlValue, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-// RAC-494 and RAC-495 (the ledger half; the project half and the maintenance come with Feed's move into the Runtime).
+// RAC-494 and RAC-2718 (the ledger half; the project half comes with Feed's move into the Runtime).
 
 const noEffect = async () => {};
 function libraryAt(file: string, timeout = 5_000) {
@@ -43,7 +43,6 @@ function fixture(t: import("node:test").TestContext) {
 
 test("RAC-494: a body goes only when no source of any project holds it; a release takes only its own source's rows", async t => {
   const f = fixture(t);
-  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const a = f.evidence.write("body a").contentRef, b = f.evidence.write("body b").contentRef;
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]);
   await f.ledger.hold(noEffect, { project_id: "p2", source_id: "s1" }, [a]);
@@ -60,7 +59,6 @@ test("RAC-494: a body goes only when no source of any project holds it; a releas
 // RAC-1016 (4c-1 condition): a pull that fails after it held bodies leaves holds nobody refers to; the ledger takes them back.
 test("RAC-1016: holds a failed pull left behind are taken back: only this source's, only the ones named, and a body goes when nobody else holds it", async t => {
   const f = fixture(t);
-  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const kept = f.evidence.write("a body the source's rows point at").contentRef, shared = f.evidence.write("a body another project holds").contentRef,
     stray = f.evidence.write("a body only the failed pull held").contentRef;
   const unwritten = "molis-work-feed/sha256/" + "0".repeat(63) + "1";
@@ -79,30 +77,10 @@ test("RAC-1016: holds a failed pull left behind are taken back: only this source
   await assert.rejects(f.ledger.reclaim(async () => { throw new Error("revoked"); }, { project_id: "p1", source_id: "s1" }, [kept]), { message: "revoked" });
   assert.equal(f.library.rows().length, 2);
   assert.ok(f.evidence.has(kept));
-  // Without the completeness mark the ledger cannot say "nobody", so it takes nothing back.
-  const early = fixture(t), body = early.evidence.write("early body").contentRef;
-  await early.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [body]);
-  assert.deepEqual(await early.ledger.reclaim(noEffect, { project_id: "p1", source_id: "s1" }, [body]), { holds_released: 0, bodies_deleted: 0, bodies_kept: 1, complete: false });
-  assert.equal(early.library.rows().length, 1);
-});
-
-test("RAC-495: without the completeness mark nothing is released, and the ledger says it could not tell", async t => {
-  const f = fixture(t);
-  const a = f.evidence.write("body a").contentRef;
-  assert.equal(f.ledger.isComplete(), false);
-  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a]);
-  assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a]), { bodies_deleted: 0, bodies_kept: 1, complete: false });
-  assert.ok(f.evidence.has(a));
-  assert.equal(f.library.rows().length, 1, "an empty-handed ledger is not proof, so its rows stay too");
-  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
-  await f.ledger.markComplete(noEffect, "2099-01-01T00:00:00Z");
-  assert.equal(f.library.db.prepare("SELECT value FROM feed_content_meta WHERE key = 'complete_since'").pluck().get(), "2026-10-26T00:00:00Z", "the mark is written once");
-  assert.equal((await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a])).bodies_deleted, 1);
 });
 
 test("RAC-494: a release that fails part way leaves the ledger as it was, so a row is never missing for a body something points at", async t => {
   const f = fixture(t);
-  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const a = f.evidence.write("body a").contentRef, b = f.evidence.write("body b").contentRef;
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]);
   const failing: FeedEvidenceCollector = { collect(input) {
@@ -119,10 +97,9 @@ test("RAC-494: a release that fails part way leaves the ledger as it was, so a r
 });
 
 // FI-C-06 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a deletion gives a source's history back in bounded
-// batches; a batch not reached yet stays held, a failure throws so the source stays to be deleted again, and a missing mark keeps the bodies.
+// batches; a batch not reached yet stays held, and a failure throws so the source stays to be deleted again.
 test("FI-C-06: a large history is given back in batches of at most 5000 bodies and 1000 records; a failure part way keeps what is not reached, and deleting again finishes", async t => {
   const f = fixture(t);
-  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
   const refs = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1_001 }, (_, n) => ref(n + 1)), stray = ref(999_999), shared = [refs[0]!, refs[FEED_CONTENT_LEDGER_BATCH + 500]!];
   // The bodies exist until the collector deletes them; it counts what it deleted, so a second deletion of the same body is no deletion.
@@ -165,25 +142,6 @@ test("FI-C-06: a large history is given back in batches of at most 5000 bodies a
   await assert.rejects(releaseHeldHistory({ content_refs: [], operation_ids: ["op-x"] }, { ...ports, forget: async () => { throw new Error("search went away"); } }), { message: "search went away" });
   // A Feed that may not forget records gives the bodies back and says the history is not all gone.
   assert.deepEqual(await releaseHeldHistory({ content_refs: [], operation_ids: ["op-y"] }, { ...ports, forget: null }), { bodies_deleted: 0, bodies_kept: 0, records_deleted: 0, complete: false });
-});
-
-test("FI-C-06: without the completeness mark a deletion keeps every body and its holds, stops after one ask, and is not a failure", async t => {
-  const f = fixture(t);
-  const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
-  const refs = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 10 }, (_, n) => ref(n + 1)), mine = { project_id: "p1", source_id: "s1" };
-  const collector: FeedEvidenceCollector = { collect: () => { throw new Error("nothing is collected without the mark"); } };
-  const ledger = createFeedContentLedger(f.library.store, collector);
-  await ledger.hold(noEffect, mine, refs.slice(0, FEED_CONTENT_LEDGER_BATCH));
-  await ledger.hold(noEffect, mine, refs.slice(FEED_CONTENT_LEDGER_BATCH));
-  const asked: string[] = [];
-  const outcome = await releaseHeldHistory({ content_refs: refs, operation_ids: ["op-1"] }, {
-    reclaim: async batch => { asked.push(`reclaim:${batch.length}`); return ledger.reclaim(noEffect, mine, batch); },
-    release: async batch => { asked.push(`release:${batch.length}`); return ledger.release(noEffect, mine, batch); },
-    forget: async ids => { asked.push(`forget:${ids.length}`); return { records_deleted: ids.length }; },
-  });
-  assert.deepEqual(outcome, { bodies_deleted: 0, bodies_kept: refs.length, records_deleted: 1, complete: false });
-  assert.deepEqual(asked, [`reclaim:${FEED_CONTENT_LEDGER_BATCH}`, "forget:1"]);
-  assert.equal(f.library.rows().length, refs.length, "every hold stays, so no body is ever taken for nobody's");
 });
 
 /** A stand-in for a platform or application handle: only the members these cases exercise, the rest absent. */
@@ -241,7 +199,6 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
 
 test("RAC-494: a hold cannot enter while a release deletes files, so a body is written again or kept, never lost under a new holder", async t => {
   const f = fixture(t);
-  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const x = f.evidence.write("shared body").contentRef;
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [x]);
   // While p1's release is deleting, p2's hold tries from another connection to the same library: the write lock is taken, so it cannot begin.
@@ -280,7 +237,6 @@ test("RAC-494: a hold takes only well-formed body references, and a batch is bou
 
 test("RAC-494: only Feed's own project instance may hold or release, and the project is the call's, not the input's", async t => {
   const f = fixture(t);
-  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const a = f.evidence.write("body a").contentRef;
   const handlers = createFeedContentLedgerHandlers(f.ledger), hold = handlers.find(item => item.capability_id === feedContentLedgerActions.hold.capability_id)!,
     release = handlers.find(item => item.capability_id === feedContentLedgerActions.release.capability_id)!,
@@ -305,18 +261,26 @@ test("RAC-494: only Feed's own project instance may hold or release, and the pro
   assert.deepEqual(feedContentLedgerActions.reclaim.action.audiences, ["plugin"]);
 });
 
-test("RAC-495: a new Home's ledger is complete from the start only when Feed is installed in no project", async t => {
-  const start = async (projects: { project_ids: string[]; complete: boolean }) => {
-    const f = fixture(t);
-    const plugin = createFeedHomePlugin({ manifest: feedManifest, evidence: () => f.evidence });
-    const context: Partial<PluginStartContext> = { requireGrant() {}, services: { ui: { register() {}, unregister() {}, invalidate() {} },
-      database: { ...f.library.store.read, transaction: f.library.store.write }, installations: { list: () => [], get: () => null, projects: () => projects } } };
-    return { f, contribution: await plugin.start(context as PluginStartContext) };
-  };
-  const fresh = await start({ project_ids: [], complete: true });
-  assert.equal(fresh.f.ledger.isComplete(), true);
-  assert.deepEqual((fresh.contribution && "actions" in fresh.contribution ? fresh.contribution.actions ?? [] : []).map(item => item.capability_id).sort(),
-    [feedContentLedgerActions.hold.capability_id, feedContentLedgerActions.release.capability_id, feedContentLedgerActions.reclaim.capability_id].sort());
-  assert.equal((await start({ project_ids: ["p1"], complete: true })).f.ledger.isComplete(), false, "installed somewhere: wait for the maintenance");
-  assert.equal((await start({ project_ids: [], complete: false })).f.ledger.isComplete(), false, "installations that could not be read are not none");
+// RAC-2718: the maintenance that used to read every project once (and only then mark the ledger complete) is gone with the clean rebuild
+// (#1633). A Home that has Feed installed somewhere must not wait for a mark nothing writes any more: its ledger takes the holds the day
+// it starts, so deleting a source releases its bodies.
+test("RAC-2718: a Home with Feed installed somewhere releases from the start, without waiting for a maintenance that no longer exists", async t => {
+  const f = fixture(t);
+  const plugin = createFeedHomePlugin({ manifest: feedManifest, evidence: () => f.evidence });
+  const context: Partial<PluginStartContext> = { requireGrant() {}, services: { ui: { register() {}, unregister() {}, invalidate() {} },
+    database: { ...f.library.store.read, transaction: f.library.store.write },
+    installations: { list: () => [], get: () => null, projects: () => ({ project_ids: ["p1"], complete: true }) } } };
+  await plugin.start(context as PluginStartContext);
+  const body = f.evidence.write("a body of a source the person deletes").contentRef;
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [body]);
+  assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [body]),
+    { bodies_deleted: 1, bodies_kept: 0, complete: true }, "released at once: there is no completeness mark to wait for");
+  assert.ok(!f.evidence.has(body), "the body nobody else holds is gone");
+  // Reading the installation directory only served the wait: starting does not ask it anything, so every member would throw.
+  const untouched = createFeedHomePlugin({ manifest: feedManifest, evidence: () => f.evidence });
+  const notRead = (): never => { throw new Error("the installation directory is not read while starting"); };
+  const withDirectory: Partial<PluginStartContext> = { requireGrant() {}, services: { ui: { register() {}, unregister() {}, invalidate() {} },
+    database: { ...f.library.store.read, transaction: f.library.store.write },
+    installations: { list: () => notRead(), get: () => notRead(), projects: () => notRead() } } };
+  await assert.doesNotReject(untouched.start(withDirectory as PluginStartContext));
 });

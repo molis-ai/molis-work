@@ -4,8 +4,9 @@
 # joins Verify.
 #
 # What belongs here: the fast user-flow files that pass on Linux. What does not: the contract, gate and security tests the blocking jobs
-# already run (`pnpm test:security` too, since the `security-invariants` job blocks: decision #14, 2026-10-31, which took 27 files out
-# of here), files the Linux probe marks darwin or live (scripts/ci-linux-probe/select.mjs), and browser files other than the smokes.
+# already run (`pnpm test:security` too, since the `security-invariants` job joins Verify under decision #14; deduplication against
+# accepted main f47fa0da removed 28 files), files the Linux probe marks darwin or live (scripts/ci-linux-probe/select.mjs), and browser
+# files other than the smokes.
 # This first list comes from the Linux probe run 37895261962 on main (11878059): every file that passed there, carried no mark, was
 # not already run by the blocking job and took 5 seconds or less, plus the main flow of each product area ("Main flows", each at
 # most 60 seconds there) and the i18n test.

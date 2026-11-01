@@ -1,9 +1,9 @@
 // T-130: which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`, blocking since decision
 // #14, 2026-10-31) a pull request runs (scripts/ci-test-selection.mjs). The decision is checked rule by rule (every way to `whole`,
 // `none`, `some` on one or two runners), then end to end on a scratch repository with the real script and affected-tests, then the
-// workflow that reads it: the job runs on pull requests only, there the two jobs run only for `some` (anything else, a selection that
-// did not succeed whatever it may have written before failing included, leaves the whole list to the merge queue), and everywhere else
-// they run their whole list.
+// workflow that reads it: the selector runs on pull requests only. A successful per-job `none` skips that job; only a successful
+// `some` selects files and shards. `whole`, empty or unknown modes, and a failed, cancelled or skipped selector fall back to the full
+// list on two shards, ignoring residual outputs. Non-PR runs use the whole list, apart from the existing trusted push reuse.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

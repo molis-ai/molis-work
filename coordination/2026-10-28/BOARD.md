@@ -15,6 +15,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | 书审通过，等T389唯一writer释放 | actualM下仅10行/15旧词项与同范围历史限定；full预计false | 仅EXTENSION-POINTS；fresh21 open无占用，不重算成本 |
+| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | 书审合法同值反例已纳入；待T389交回唯一writer | T369候选已发布；开工核实际M/组合，full按实际diff | plugin-terminal-panels/project-catalog及终端slice、S103本行；fresh在途无相同改动 |
 | T-369 | MCP alias等待中换连接拒绝证据 | 丙 | Codex开发线3；验证线3/二审线5 | #1716 @89119b9c，独立审验通过，等准确CI/Verify | full=false；真实alias提交后、dispatch前拒绝及恢复；负控有效 | 作者已冻结并交回writer；仅新增167行测试 |
 | T-389 | 390px项目动线添加来源失败有限诊断 | 甲 | Codex开发线2；验证线1/二审线4 | 阶段1未复现已核；阶段2一次受控menu刷新正在执行 | M15ad4f；独立书审三项修订已纳入同书；新Full暂停保持 | 当前唯一writer；仅临时probe/证据，不改生产/helper/journey/CI |
 | T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | #1715实际采用820d9a0f5，补丁核同；自有作者树已清 | full=false；旧CI首败因果UNKNOWN保留 | 已释放；仅一行await |
@@ -487,3 +489,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 05:16Z：T388实际采用820d9a0f、T384实际采用15ad4f397；根核完整binary diff/patch-id一致及四成员185归属记录无承载→采用差异，原#1694/#1654/#1679/#1675已逐一说明由承载采用后关闭，原PR不冒称merged。T369解除WAIT交开发线3唯一writer，验证线3/二审线5；T386/PR1b前置已解除但等writer。T389仅受控menu-refresh复现方案准备，未执行。
 
 2026-11-01 05:31Z：T369准确89119b9c已完成独立核收/二审，根全文核实际代码、21/21及单raiser变异精确红和恢复2/2；fresh secrets167行通过后正常推送并开#1716，full=false待CI。作者交回writer后，T389阶段2按f5344a41e同书受控一次交开发线2，#1332审计6553923532；其余生产writer不并开。
+
+2026-11-01 05:38Z：T389初始化首败尚未进入对照/POST/Response控制，根核既有seedBoard前置并仅授权修正临时probe初始化后进入尚未执行的业务实验；原失败保留。T390独立书审同值反例已纳入并注册，等唯一writer；S103共享PR均只有context，不改其它行。协调485d67694推送曾误先于fetch/scan结束，根已披露并保留原fetch网络超时；立即最终扫描110376行通过，随后fresh fetch成功、同提交再次扫描通过，main仍15ad4f；不回填为推前完成。

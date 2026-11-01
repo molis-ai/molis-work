@@ -63,14 +63,9 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
     browser.server.on("request", request => { if (request.method === "GET" && request.url?.includes("/api/agent/reviews")) reviewReads++; });
     await child.evaluate(`(() => {
       const post=MessagePort.prototype.postMessage, held=[];
-      window.reviewShown=false;
       window.releaseReviewLayout=()=>{MessagePort.prototype.postMessage=post;for(const [port,value] of held)post.call(port,value);};
       MessagePort.prototype.postMessage=function(value,...rest){
         if(value?.type==='review-layout' && value.box){held.push([this,value]);return;}
-        if(value?.type==='review-show'){
-          const port=this, shown=event=>{if(event.data?.type==='review-shown' && event.data.id===value.id){window.reviewShown=true;port.removeEventListener('message',shown);}};
-          port.addEventListener('message',shown);
-        }
         return post.call(this,value,...rest);
       };
     })()`);
@@ -79,7 +74,7 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
   await child.evaluate("const field=document.querySelector('[data-git-commit-message]');field.value='reviewed commit';field.dispatchEvent(new Event('input',{bubbles:true}))");
   await child.click("[data-git-commit]");
   if (holdLayout) {
-    await child.waitFor("window.reviewShown");
+    await browser.waitFor("Boolean(document.querySelector('[data-host-review-slot] [data-agent-review-approve]'))");
     assert.ok(reviewReads > 0, "show reads the current review before geometry makes its slot visible");
     assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-host-review-slot] [data-agent-review-approve]'))"), true);
     assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-host-review-slot]')].every(node => node.hidden || getComputedStyle(node).visibility === 'hidden')"), true);

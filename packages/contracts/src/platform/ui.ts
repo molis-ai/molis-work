@@ -263,7 +263,8 @@ export interface StagePageDrawing {
   prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
   renderReference: (value: string, label?: string) => string;
   creatableKinds: readonly { readonly station: string; readonly title: string; readonly plugin_id: string }[];
-  inPluginWords: <T>(pluginId: string, run: () => T) => T;
+  /** Runs synchronously in that plugin's words and supplies its translator for cross-owner text. */
+  inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
   renderTerminalPane: (model: StageTerminalPaneModel) => string;
   renderHint: (options: { id: string; label: string; text?: string; html?: string; iconName?: string }) => string;
   withDesktopQuery: (path: string) => string;

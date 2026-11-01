@@ -141,7 +141,7 @@ export interface StagePageDrawing {
         readonly title: string;
         readonly plugin_id: string;
     }[];
-    inPluginWords: <T>(pluginId: string, run: () => T) => T;
+    inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
     renderTerminalPane: (model: StageTerminalPaneModel) => string;
     renderHint: (options: {
         id: string;

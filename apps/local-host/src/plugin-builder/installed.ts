@@ -5,7 +5,8 @@
  */
 import { pluginErrors, type PluginDefinition, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, effectsFromContract, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, effectsFromContract, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
+import { executionProjectReach } from '../plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { sandboxPluginManifest, sandboxUiContribution } from '../sandbox-plugin-manifest.js';
@@ -29,7 +30,7 @@ export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' |
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]>;
+export function sandboxedPluginDefinition(release: InstalledRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(context: SandboxServiceContext): Promise<readonly CapabilityExecution[]>;
     /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
     assertLive?(identity: Readonly<SandboxIdentity>): void } = {},
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
@@ -80,7 +81,9 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
             const operation = release.design.contract.operations.find(item => item.id === call.operationId)!;
             const dependencies = operation.effects.capabilities ?? [];
-            const capabilities = dependencies.length ? await host.capabilities?.() ?? [] : [];
+            const projectReach = executionProjectReach(request.execution);
+            const callContext: SandboxServiceContext = { identity, operationId: call.operationId, signal: request.execution?.signal ?? new AbortController().signal, projectReach };
+            const capabilities = dependencies.length ? await host.capabilities?.(callContext) ?? [] : [];
             if (host.capabilities) for (const id of dependencies) {
               const entry = latestCapability(capabilities, id);
               if (!entry || entry.installed === false) throw new SandboxError('plugin_builder.capability_unavailable', '这项功能依赖的能力当前不可用：' + id);
@@ -93,7 +96,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             const beforeEffect = async () => {
               await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
               if (!host.capabilities || !dependencies.length) return;
-              if (capabilityPolicyBinding(operation.effects, await host.capabilities()) !== binding) {
+              if (capabilityPolicyBinding(operation.effects, await host.capabilities(callContext)) !== binding) {
                 policyChanged = true;
                 throw new SandboxError('plugin_builder.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
               }
@@ -102,7 +105,7 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             await beforeEffect();
             const lane: Lane = slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
             try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, {
-              signal: request.execution?.signal, beforeEffect, limits: capabilityLimits(operation.effects, capabilities),
+              signal: request.execution?.signal, beforeEffect, limits: capabilityLimits(operation.effects, capabilities), projectReach,
             }) } }; }
             catch (error) {
               // The worker may wrap a refused SDK call as sandbox.plugin_error; keep the trusted Host's reason.

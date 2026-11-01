@@ -165,16 +165,17 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
 /**
  * The page a signed package installed in the Home draws its stage with, framed by the workbench (`?frame=workbench`): the same
  * renderer a project's installed plugin uses, with every call going to the package's own sandboxed process through the Home's
- * route. The page is opened under the person's authority over the package's Home activation, with no project (BL-713, S-15).
+ * route. The page keeps the Home activation; a verified project entrance additionally binds its triggering project (S-15, S-106).
  */
-export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string }): string {
+export function renderHomePackageDocument(input: { home: string; actorId: string; release: InstalledRelease; controlToken: string; projectId?: string | null; assertProject?(): Promise<void> }): string {
   const { release } = input, pluginId = release.pluginId;
+  const projectId = input.projectId ?? null, prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
   const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation,
     connected: release.design.contract.operations.map(item => item.id) };
   return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', title: release.design.title,
-    html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: '', route_prefix: '', control_token: input.controlToken,
-    page: { mode: 'installed', plugin_id: pluginId, call: '/api/plugins/' + pluginId + '/call', view },
-    authorization: pluginPagesFor(input.home).open(pluginId, null, input.actorId) });
+    html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: projectId ?? '', route_prefix: prefix, control_token: input.controlToken,
+    page: { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view },
+    authorization: pluginPagesFor(input.home).open(pluginId, projectId, input.actorId, input.assertProject) });
 }
 
 /** The agent-built plugin studio. All mutations reach this dispatcher after the shared local HTTP control guard. */

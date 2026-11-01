@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginConsentGranter, PluginConsentRecord, PluginPublisherPin, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginRuntimeDatabase } from "./repository.js";
-import { consentGranter } from "./trust-rules.js";
+import { consentGranter, consentSubject } from "./trust-rules.js";
 
 // The consent ledger and the pinned publishers (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3). One
 // row per consent, written once and revoked by `revoked_at`, never rewritten or deleted. Both tables are Home-wide: a project's
@@ -23,12 +23,15 @@ export const PLUGIN_TRUST_SCHEMA_SQL = `
       consent_id TEXT PRIMARY KEY,
       plugin_id TEXT NOT NULL,
       publisher_signature TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('always_on', 'default_wiring', 'default_group', 'local_directory')),
+      kind TEXT NOT NULL CHECK (kind IN ('always_on', 'default_wiring', 'default_group', 'local_directory', 'project_reach')),
       subject TEXT NOT NULL,
       manifest_digest TEXT NOT NULL,
       granted_at TEXT NOT NULL,
       granted_by TEXT NOT NULL CHECK (granted_by IN ('user', 'host_build')),
-      revoked_at TEXT
+      revoked_at TEXT,
+      approved_capability_ids TEXT,
+      CHECK ((kind = 'project_reach' AND granted_by = 'user' AND approved_capability_ids IS NOT NULL AND json_valid(approved_capability_ids) AND json_type(approved_capability_ids) = 'array')
+        OR (kind <> 'project_reach' AND approved_capability_ids IS NULL))
     );
     CREATE UNIQUE INDEX IF NOT EXISTS plugin_consents_active ON plugin_consents (plugin_id, publisher_signature, kind, subject) WHERE revoked_at IS NULL;
     CREATE INDEX IF NOT EXISTS plugin_consents_plugin ON plugin_consents (plugin_id);
@@ -44,6 +47,19 @@ export interface PluginConsentEntry {
   readonly at: string;
 }
 
+/** Only the Host's project settings owner supplies these verified installation facts. */
+export interface ProjectReachConsentEntry {
+  readonly plugin_id: string;
+  readonly publisher_signature: string;
+  readonly manifest_digest: string;
+  readonly project_id: string;
+  readonly install_id: string;
+  readonly approved_capability_ids: readonly string[];
+  readonly at: string;
+}
+
+export type ProjectReachConsentSelection = { readonly project_id: string } | { readonly install_id: string };
+
 export interface PluginConsentLedger {
   /**
    * Writes the consents the entry gives, and answers the rows it wrote. A consent a person already holds (not revoked) for the same
@@ -54,12 +70,17 @@ export interface PluginConsentLedger {
   record(entry: PluginConsentEntry): PluginConsentRecord[];
   /** Every row of a plugin, revoked ones included, oldest first. */
   consents(pluginId: string): PluginConsentRecord[];
+  consent(consentId: string): PluginConsentRecord | null;
   /**
    * Takes one agreement back: writes `revoked_at` on the row and answers it, or answers null when no row has that id. Revoking a row that
    * is already revoked changes nothing (the first time stays). Only this call writes `revoked_at`; a revoked row is never deleted, and a
    * host build's agreement is not written again after it (`record`).
    */
   revoke(consentId: string, at: string): PluginConsentRecord | null;
+  /** Atomically withdraw the previous approval and record the current signed declaration set. Exact repeats are idempotent. */
+  grantProjectReach(entry: ProjectReachConsentEntry): PluginConsentRecord;
+  /** Remove active project authorization, retaining the history, after project deletion or Home installation removal. */
+  revokeProjectReach(selection: ProjectReachConsentSelection, at: string): number;
   /** The publishers pinned, revoked ones included. */
   publishers(): PluginPublisherPin[];
   pinPublisher(pin: Omit<PluginPublisherPin, "revoked_at">): PluginPublisherPin;
@@ -73,14 +94,51 @@ export interface PluginConsentLedger {
 const key = (row: { plugin_id: string; publisher_signature: string; kind: string; subject: string }) =>
   JSON.stringify([row.plugin_id, row.publisher_signature, row.kind, row.subject]);
 
+function approvedIds(value: unknown): readonly string[] {
+  if (!Array.isArray(value) || value.some((id, index) => typeof id !== "string" || !id || (index > 0 && value[index - 1] >= id))) {
+    throw pluginErrors.state_invalid("项目同意的动作集合必须是已排序、去重的动作 id");
+  }
+  return [...value];
+}
+
+export function readProjectReachSubject(subject: string): { project_id: string; install_id: string } {
+  let parsed: unknown;
+  try { parsed = JSON.parse(subject); } catch { throw pluginErrors.state_invalid("项目同意的主体无效"); }
+  if (!Array.isArray(parsed) || parsed.length !== 2 || parsed.some(id => typeof id !== "string" || !id)
+    || JSON.stringify(parsed) !== subject) throw pluginErrors.state_invalid("项目同意的主体无效");
+  return { project_id: parsed[0], install_id: parsed[1] };
+}
+
+const copyConsent = (row: PluginConsentRecord): PluginConsentRecord => row.kind === "project_reach"
+  ? { ...row, approved_capability_ids: [...row.approved_capability_ids] } : { ...row };
+
+function projectReachRow(entry: ProjectReachConsentEntry): PluginConsentRecord {
+  const subject = consentSubject.projectReach(entry.project_id, entry.install_id);
+  readProjectReachSubject(subject);
+  return { consent_id: randomUUID(), plugin_id: entry.plugin_id, publisher_signature: entry.publisher_signature, subject,
+    manifest_digest: entry.manifest_digest, kind: "project_reach", approved_capability_ids: approvedIds(entry.approved_capability_ids),
+    granted_at: entry.at, granted_by: "user", revoked_at: null };
+}
+
+const sameApproval = (a: PluginConsentRecord, b: PluginConsentRecord): boolean => key(a) === key(b) && a.revoked_at === null
+  && a.manifest_digest === b.manifest_digest && JSON.stringify(a.approved_capability_ids) === JSON.stringify(b.approved_capability_ids);
+const selectedReach = (row: PluginConsentRecord, selection: ProjectReachConsentSelection): boolean => {
+  if (row.kind !== "project_reach" || row.revoked_at !== null) return false;
+  const subject = readProjectReachSubject(row.subject);
+  return "project_id" in selection ? subject.project_id === selection.project_id : subject.install_id === selection.install_id;
+};
+
 function newRows(entry: PluginConsentEntry, existing: readonly PluginConsentRecord[]): PluginConsentRecord[] {
   const rows: PluginConsentRecord[] = [];
   for (const grant of entry.grants) {
+    if (!["always_on", "default_wiring", "default_group", "local_directory"].includes(grant.kind)) {
+      throw pluginErrors.state_invalid("项目同意必须由项目设置单独记录");
+    }
     const same = existing.filter(row => key(row) === key({ ...entry, ...grant }));
     if (same.some(row => row.revoked_at === null) || (entry.granted_by === "host_build" && same.length > 0)) continue;
     if (rows.some(row => key(row) === key({ ...entry, ...grant }))) continue;
     rows.push({ consent_id: randomUUID(), plugin_id: entry.plugin_id, publisher_signature: entry.publisher_signature, kind: grant.kind, subject: grant.subject,
-      manifest_digest: entry.manifest_digest, granted_at: entry.at, granted_by: entry.granted_by, revoked_at: null });
+      manifest_digest: entry.manifest_digest, granted_at: entry.at, granted_by: entry.granted_by, revoked_at: null, approved_capability_ids: null });
   }
   return rows;
 }
@@ -92,14 +150,30 @@ export class MemoryPluginConsentLedger implements PluginConsentLedger {
   record(entry: PluginConsentEntry): PluginConsentRecord[] {
     const written = newRows(entry, this.rows.filter(row => row.plugin_id === entry.plugin_id));
     this.rows.push(...written);
-    return written.map(row => ({ ...row }));
+    return written.map(copyConsent);
   }
-  consents(pluginId: string): PluginConsentRecord[] { return this.rows.filter(row => row.plugin_id === pluginId).map(row => ({ ...row })); }
+  consents(pluginId: string): PluginConsentRecord[] { return this.rows.filter(row => row.plugin_id === pluginId).map(copyConsent); }
+  consent(consentId: string): PluginConsentRecord | null {
+    const row = this.rows.find(item => item.consent_id === consentId);
+    return row ? copyConsent(row) : null;
+  }
   revoke(consentId: string, at: string): PluginConsentRecord | null {
     const index = this.rows.findIndex(row => row.consent_id === consentId);
     if (index < 0) return null;
     this.rows[index] = { ...this.rows[index]!, revoked_at: this.rows[index]!.revoked_at ?? at };
-    return { ...this.rows[index]! };
+    return copyConsent(this.rows[index]!);
+  }
+  grantProjectReach(entry: ProjectReachConsentEntry): PluginConsentRecord {
+    const row = projectReachRow(entry), current = this.rows.find(item => key(item) === key(row) && item.revoked_at === null);
+    if (current && sameApproval(current, row)) return copyConsent(current);
+    if (current) this.revoke(current.consent_id, entry.at);
+    this.rows.push(row);
+    return copyConsent(row);
+  }
+  revokeProjectReach(selection: ProjectReachConsentSelection, at: string): number {
+    const rows = this.rows.filter(row => selectedReach(row, selection));
+    for (const row of rows) this.revoke(row.consent_id, at);
+    return rows.length;
   }
   publishers(): PluginPublisherPin[] { return [...this.pins.values()].map(pin => ({ ...pin })); }
   pinPublisher(pin: Omit<PluginPublisherPin, "revoked_at">): PluginPublisherPin {
@@ -116,19 +190,35 @@ export class MemoryPluginConsentLedger implements PluginConsentLedger {
 }
 
 interface ConsentRow { consent_id: string; plugin_id: string; publisher_signature: string; kind: PluginConsentRecord["kind"]; subject: string; manifest_digest: string;
-  granted_at: string; granted_by: PluginConsentGranter; revoked_at: string | null }
+  granted_at: string; granted_by: PluginConsentGranter; revoked_at: string | null; approved_capability_ids: string | null }
+
+function consentFromRow(row: ConsentRow): PluginConsentRecord {
+  if (row.kind === "project_reach") {
+    readProjectReachSubject(row.subject);
+    if (row.granted_by !== "user" || typeof row.approved_capability_ids !== "string") throw pluginErrors.state_invalid("项目同意缺少本人的批准集合");
+    return { ...row, kind: "project_reach", granted_by: "user", approved_capability_ids: approvedIds(JSON.parse(row.approved_capability_ids)) };
+  }
+  if (row.approved_capability_ids !== null) throw pluginErrors.state_invalid("非项目同意的批准集合必须为 null");
+  return { ...row, kind: row.kind, approved_capability_ids: null };
+}
 
 /** The ledger in the Home Runtime store (`PLUGIN_TRUST_SCHEMA_SQL`). */
 export class SqlitePluginConsentLedger implements PluginConsentLedger {
   constructor(private readonly db: PluginRuntimeDatabase & { readonly isTransaction?: boolean }) {}
   record(entry: PluginConsentEntry): PluginConsentRecord[] {
-    const insert = this.db.prepare(`INSERT INTO plugin_consents (consent_id, plugin_id, publisher_signature, kind, subject, manifest_digest, granted_at, granted_by, revoked_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`);
     const written = (): PluginConsentRecord[] => {
       const rows = newRows(entry, this.consents(entry.plugin_id));
-      for (const row of rows) insert.run(row.consent_id, row.plugin_id, row.publisher_signature, row.kind, row.subject, row.manifest_digest, row.granted_at, row.granted_by);
+      for (const row of rows) this.insert(row);
       return rows;
     };
+    return this.transaction(written);
+  }
+  private insert(row: PluginConsentRecord): void {
+    this.db.prepare(`INSERT INTO plugin_consents (consent_id, plugin_id, publisher_signature, kind, subject, manifest_digest, granted_at, granted_by, revoked_at, approved_capability_ids)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`).run(row.consent_id, row.plugin_id, row.publisher_signature, row.kind, row.subject,
+      row.manifest_digest, row.granted_at, row.granted_by, row.approved_capability_ids === null ? null : JSON.stringify(row.approved_capability_ids));
+  }
+  private transaction<T>(written: () => T): T {
     // One transaction so the check and the writes see the same rows, unless the caller already holds one.
     if (this.db.isTransaction === true) return written();
     this.db.exec("BEGIN IMMEDIATE");
@@ -136,12 +226,33 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
     catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
   consents(pluginId: string): PluginConsentRecord[] {
-    return (this.db.prepare("SELECT * FROM plugin_consents WHERE plugin_id = ? ORDER BY rowid").all(pluginId) as ConsentRow[]).map(row => ({ ...row }));
+    return (this.db.prepare("SELECT * FROM plugin_consents WHERE plugin_id = ? ORDER BY rowid").all(pluginId) as ConsentRow[]).map(consentFromRow);
+  }
+  consent(consentId: string): PluginConsentRecord | null {
+    const row = this.db.prepare("SELECT * FROM plugin_consents WHERE consent_id = ?").get(consentId) as ConsentRow | undefined;
+    return row ? consentFromRow(row) : null;
   }
   revoke(consentId: string, at: string): PluginConsentRecord | null {
     this.db.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE consent_id = ? AND revoked_at IS NULL").run(at, consentId);
-    const row = this.db.prepare("SELECT * FROM plugin_consents WHERE consent_id = ?").get(consentId) as ConsentRow | undefined;
-    return row ? { ...row } : null;
+    return this.consent(consentId);
+  }
+  grantProjectReach(entry: ProjectReachConsentEntry): PluginConsentRecord {
+    const row = projectReachRow(entry);
+    return this.transaction(() => {
+      const current = this.consents(entry.plugin_id).find(item => key(item) === key(row) && item.revoked_at === null);
+      if (current && sameApproval(current, row)) return current;
+      if (current) this.revoke(current.consent_id, entry.at);
+      this.insert(row);
+      return copyConsent(row);
+    });
+  }
+  revokeProjectReach(selection: ProjectReachConsentSelection, at: string): number {
+    return this.transaction(() => {
+      const rows = (this.db.prepare("SELECT * FROM plugin_consents WHERE kind = 'project_reach' AND revoked_at IS NULL").all() as ConsentRow[])
+        .map(consentFromRow).filter(row => selectedReach(row, selection));
+      for (const row of rows) this.revoke(row.consent_id, at);
+      return rows.length;
+    });
   }
   publishers(): PluginPublisherPin[] {
     return (this.db.prepare("SELECT * FROM plugin_publishers ORDER BY rowid").all() as PluginPublisherPin[]).map(row => ({ ...row }));

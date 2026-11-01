@@ -97,7 +97,7 @@ function reaching(publisher: ReturnType<typeof newPublisher>, capabilities: Reco
   }, pluginId ? { pluginId } : {});
 }
 
-test("RAC-966 RAC-967 S-91 a Home package's capability calls are the Home's: a read of the Home's is offered to it, an action of a project is not, so the operation that names one is refused", mac, async t => {
+test("RAC-966 RAC-2644 S-91 S-106 without a triggering project and its consent, a Home package reads Home actions but cannot call project actions", mac, async t => {
   const h = await fixture(t);
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] };
   await h.host.homePlugins!.ready();

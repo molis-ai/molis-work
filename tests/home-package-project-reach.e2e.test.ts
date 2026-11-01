@@ -1,0 +1,206 @@
+import assert from "node:assert/strict";
+import { constants } from "node:fs";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test, { type TestContext } from "node:test";
+import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
+import { HomeConsentLedger, pluginInstallActions, PLUGIN_CONSENT_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalPluginActions, type GoalEventWorkStateView } from "@molis-ai/molis-work-plugin-goals/contract";
+import { newPublisher } from "./fixtures/sandbox-package.js";
+import { projectReachPackage, REACH_PLUGIN_ID, REACH_GOAL_ID } from "./fixtures/home-project-reach-package.js";
+import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { person, ref, operate, operationsOf } from "./fixtures/home-sandbox.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+
+const mac = { skip: process.platform !== "darwin", timeout: 180_000 };
+const panel = `[data-project-reach="${REACH_PLUGIN_ID}"]`, ownerFrame = `iframe[src*="/plugins/${REACH_PLUGIN_ID}?"]`;
+
+async function fixture(t: TestContext) {
+  const f = await serveHomeRuntime(t), a = await f.project("写作项目 A"), b = await f.project("研究项目 B"), publisher = newPublisher();
+  for (const project of [a, b]) {
+    await initializeBoard(f.host, project.reference);
+    await f.host.withProject(project.reference, runtime => goalApplicationOf(runtime).goalEvents.createIntent({ project_id: project.project_id,
+      goal_id: REACH_GOAL_ID, title: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", idempotency_key: "create-goal" }));
+  }
+  const client = f.host.actionClient(a.reference), preview = await client.invoke(person(a.project_id), ref(pluginInstallActions.preview), { bundle: projectReachPackage(publisher) }) as { preview_id: string };
+  await client.invoke(person(a.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Reach publisher" });
+  const ledger = new HomeConsentLedger(f.home);
+  const state = (project: typeof a) => f.host.actionClient(project.reference).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["goals:read"] },
+    ref(goalPluginActions.state), { goal_id: REACH_GOAL_ID }) as Promise<GoalEventWorkStateView>;
+  const settings = (project: typeof a, name: string, body: unknown = {}) => f.request(`/projects/${project.project_id}/api/settings/plugin-project-reach/${name}`, { method: "POST", body });
+  return { ...f, a, b, publisher, ledger, state, settings };
+}
+
+async function browserFixture(t: TestContext, f: Awaited<ReturnType<typeof fixture>>) {
+  const executable = process.env.MOLIS_WORK_TEST_CHROME;
+  assert.equal(executable, "/Users/yijunwang/.local/bin/molis-test-browser");
+  await access(executable, constants.X_OK); await access("/Users/yijunwang/.local/share/molis-test-browser/engine/chrome-headless-shell", constants.X_OK);
+  const directory = await mkdtemp(join(tmpdir(), "t145-browser-")), browser = await ChromeHarness.start(directory, { executable });
+  t.after(async () => { try { await browser.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  const page = await browser.page();
+  const adapter = { sessionId: page.sessionId, command: browser.command.bind(browser), on: browser.on.bind(browser), evaluate: page.evaluate.bind(page) };
+  const child = await pluginFrameBrowser(t, adapter, REACH_PLUGIN_ID, ownerFrame);
+  const openSettings = async (project = f.a) => {
+    await page.command("Page.navigate", { url: f.origin + `/projects/${project.project_id}/` });
+    await page.wait("!!document.querySelector('[data-project-menu] > summary')");
+    await page.click("[data-project-menu] > summary"); await page.click("[data-directory-open=project-settings]");
+    await page.wait(`!!document.querySelector('a[href="/projects/${project.project_id}/settings/plugins"]')`);
+    await page.click(`a[href="/projects/${project.project_id}/settings/plugins"]`);
+    await page.wait(`!!document.querySelector('${panel}')`, { describe: "document.querySelector('[data-plugin-trust-error]')?.innerText" });
+    await page.click("[data-plugin-trust-home] details summary");
+  };
+  const openPackage = async (project = f.a) => {
+    await page.command("Page.navigate", { url: f.origin + `/projects/${project.project_id}/` });
+    await page.wait("!!document.querySelector('[data-plugin-picker-toggle]')"); await page.click("[data-plugin-picker-toggle]");
+    const surface = f.host.homePlugins!.packageSurface(REACH_PLUGIN_ID)!;
+    await page.click(`[data-plugin-picker-popover] [data-work-surface-open="${surface}"]`);
+    await page.wait(`document.querySelector('${ownerFrame}')?.getClientRects().length > 0`);
+    assert.ok((await page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).includes(`/projects/${project.project_id}/plugins/`));
+    await child.waitFor("!!document.querySelector('[data-field=text]')");
+  };
+  const submit = async (text: string) => {
+    await child.click("[data-field=text]");
+    await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", modifiers: 4, commands: ["selectAll"] });
+    await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", modifiers: 0 });
+    await page.command("Input.insertText", { text }); await child.click("button[type=submit]");
+  };
+  const decide = async (action: "grant" | "revoke", yes: boolean) => {
+    await page.click(`${panel} [data-project-reach-action=${action}]`);
+    await page.wait("!!document.querySelector('dialog[open]')");
+    await page.click(`dialog[open] .mw-btn--${yes ? "danger" : "secondary"}`);
+    await page.wait("!document.querySelector('dialog[open]')");
+    if (yes) {
+      await page.wait(`document.querySelector('${panel}')?.innerText.includes('${action === "grant" ? "已同意" : "未同意"}')`);
+      await page.click("[data-plugin-trust-home] details summary");
+    }
+  };
+  const upgrade = async (version: string, extraCapability?: string) => {
+    const file = join(directory, version + ".json"); await writeFile(file, JSON.stringify(projectReachPackage(f.publisher, { version, extraCapability })));
+    const doc = await page.command<{ root: { nodeId: number } }>("DOM.getDocument");
+    const input = await page.command<{ nodeId: number }>("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "[data-plugin-trust-pick]" });
+    await page.command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] });
+    await page.wait("document.querySelector('[data-plugin-trust-preview]')?.hidden === false");
+    await page.click("[data-plugin-trust-preview] .mw-btn--primary");
+    await page.wait(`document.querySelector('[data-plugin-trust-home]')?.innerText.includes('${version}')`);
+    await page.click("[data-plugin-trust-home] details summary");
+  };
+  return { page, child, openSettings, openPackage, submit, decide, upgrade };
+}
+
+test("RAC-2644–2649 S-106 actual project settings, signed File upgrade and workbench navigation retain A through page, refresh, withdrawal and project switch", mac, async t => {
+  const f = await fixture(t), ui = await browserFixture(t, f), b0 = await f.state(f.b), a0 = await f.state(f.a);
+  await ui.openPackage(); await ui.submit("unapproved page must not write");
+  await ui.child.waitFor("document.body.innerText.includes('同意')"); assert.deepEqual(await f.state(f.a), a0);
+  await ui.openSettings();
+  assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /未同意/u);
+  const initial = f.ledger.consents(REACH_PLUGIN_ID); await ui.decide("grant", false);
+  assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), initial, "cancel sends no agreement mutation");
+  await ui.decide("grant", true);
+  const original = f.ledger.consents(REACH_PLUGIN_ID).find(row => row.kind === "project_reach" && !row.revoked_at)!;
+  assert.equal(original.subject, JSON.stringify([f.a.project_id, f.host.homePlugins!.installation(REACH_PLUGIN_ID)!.install_id]));
+  await ui.openPackage(); await ui.submit("A from the actual workbench");
+  await ui.child.waitFor("document.body.innerText.includes('已记录')");
+  assert.equal((await f.state(f.a)).progress_summary!.summary, "A from the actual workbench"); assert.deepEqual(await f.state(f.b), b0);
+  await ui.page.command("Page.reload"); await ui.child.waitFor("!!document.querySelector('[data-field=text]')");
+  assert.ok((await ui.page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).includes(`/projects/${f.a.project_id}/plugins/`));
+  await ui.submit("A after refresh"); await ui.child.waitFor("document.body.innerText.includes('已记录')");
+  assert.equal((await f.state(f.a)).progress_summary!.summary, "A after refresh");
+  const caller: ActionCallContext = { actor_id: "reach-agent", audience: "agent", project_id: f.a.project_id, permissions: [] }, client = f.host.actionClient(f.a.reference);
+  await operate(client, caller, await operationsOf(client, caller, REACH_PLUGIN_ID), "reach.submit", { text: "A agent using the same agreement" });
+  assert.equal((await f.state(f.a)).progress_summary!.summary, "A agent using the same agreement");
+  await ui.openSettings(); await ui.upgrade("1.1.0");
+  assert.deepEqual(f.ledger.consent(original.consent_id), original); assert.notEqual(f.host.homePlugins!.installation(REACH_PLUGIN_ID)!.manifest_digest, original.manifest_digest);
+  await ui.upgrade("1.2.0", "model.generate");
+  assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /声明的动作增加/u);
+  const expanded = f.ledger.consents(REACH_PLUGIN_ID); await ui.decide("grant", false); assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), expanded);
+  const screenshots = join(process.cwd(), ".impeccable/qa/review/t145"); await mkdir(screenshots, { recursive: true });
+  for (const width of [1440, 390]) {
+    await ui.page.viewport(width, 1000, width === 390);
+    await ui.page.evaluate(`document.querySelector('${panel}').scrollIntoView({block:'center'})`);
+    assert.equal(await ui.page.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+    assert.equal(await ui.page.evaluate(`(() => { const p=document.querySelector('${panel}').getBoundingClientRect();return [...document.querySelectorAll('${panel} button')].every(n=>{const b=n.getBoundingClientRect();return b.width>0&&b.left>=p.left&&b.right<=p.right;}); })()`), true);
+    await ui.page.screenshot(join(screenshots, `approval-expanded-${width}.png`));
+  }
+  await ui.page.viewport(1440, 1000); await ui.decide("grant", true);
+  const current = f.ledger.consents(REACH_PLUGIN_ID).find(row => row.kind === "project_reach" && !row.revoked_at)!;
+  assert.notEqual(current.consent_id, original.consent_id); assert.ok(current.approved_capability_ids!.includes("model.generate"));
+  assert.equal(current.manifest_digest, f.host.homePlugins!.installation(REACH_PLUGIN_ID)!.manifest_digest);
+  await ui.openPackage(); await ui.submit("A after renewed agreement"); await ui.child.waitFor("document.body.innerText.includes('已记录')");
+  await ui.openSettings(); await ui.decide("revoke", true);
+  const before = await f.state(f.a); await ui.openPackage(); await ui.submit("withdrawn page");
+  await ui.child.waitFor("document.body.innerText.includes('同意')"); assert.deepEqual(await f.state(f.a), before);
+  await ui.openPackage(f.b); await ui.submit("B never agreed"); await ui.child.waitFor("document.body.innerText.includes('同意')");
+  assert.deepEqual(await f.state(f.b), b0);
+  await ui.openSettings(f.b); assert.match(await ui.page.evaluate<string>(`document.querySelector('${panel}').innerText`), /未同意/u);
+  await ui.page.command("Page.navigate", { url: f.origin + `/plugins/${REACH_PLUGIN_ID}` });
+  await ui.page.wait(`!!document.querySelector('${ownerFrame}')`);
+  assert.equal(new URL(await ui.page.evaluate<string>(`document.querySelector('${ownerFrame}').src`)).pathname, `/plugins/${REACH_PLUGIN_ID}`);
+  await ui.child.waitFor("!!document.querySelector('[data-field=text]')"); await ui.submit("Home has no triggering project");
+  await ui.child.waitFor("document.body.innerText.includes('不可用')");
+  assert.deepEqual(await f.state(f.a), before); assert.deepEqual(await f.state(f.b), b0);
+});
+
+test("S-106 project settings reject copied credentials, other audiences, extra identity inputs, global revoke and a plugin page", mac, async t => {
+  const f = await fixture(t), response = await f.settings(f.a, "list");
+  assert.equal(response.status, 200, await response.clone().text());
+  const selection = (await response.json() as { plugins: Array<{ plugin_id: string; snapshot: string }> }).plugins.find(item => item.plugin_id === REACH_PLUGIN_ID)!;
+  const input = { plugin_id: selection.plugin_id, snapshot: selection.snapshot }, before = f.ledger.consents(REACH_PLUGIN_ID);
+  for (const field of ["actor_id", "project_id", "subject", "install_id", "manifest_digest", "approved_capability_ids"]) {
+    const refusal = await f.settings(f.a, "grant", { ...input, [field]: "forged" }); assert.equal(refusal.status, 400, await refusal.text());
+  }
+  for (const audience of ["user", "agent", "mcp", "workflow", "plugin"] as const) {
+    const caller: ActionCallContext = { ...person(f.a.project_id), audience, permissions: PLUGIN_CONSENT_PERMISSIONS };
+    await assert.rejects(f.host.actionClient(f.a.reference).invoke(caller, { capability_id: "plugins.project_reach.grant", version: 1 }, input));
+  }
+  const original = f.host.actionClient, entered = deferred(), release = deferred();
+  let entry: ActionCallContext | undefined, held = false;
+  f.host.actionClient = function (...args: Parameters<typeof original>) {
+    const client = original.apply(this, args);
+    return { ...client, invoke: async (caller, reference, value) => {
+      if (!held && reference.capability_id === "plugins.project_reach.grant") { held = true; entry = caller; entered.resolve(); await release.promise; }
+      return client.invoke(caller, reference, value);
+    } };
+  };
+  const granted = f.settings(f.a, "grant", input);
+  try {
+    await Promise.race([entered.promise, granted.then(() => { throw new Error("did not observe the real settings credential"); })]);
+    const client = original.call(f.host, f.a.reference), action = { capability_id: "plugins.project_reach.grant", version: 1 };
+    await assert.rejects(client.invoke({ ...entry!, user_action: { ...entry!.user_action! } }, action, input));
+    await assert.rejects(original.call(f.host, f.b.reference).invoke({ ...entry!, project_id: f.b.project_id }, action, input));
+    await assert.rejects(f.host.homeActionClient().invoke({ ...entry!, project_id: null }, action, input));
+    assert.deepEqual(f.ledger.consents(REACH_PLUGIN_ID), before);
+    release.resolve(); assert.equal((await granted).status, 200);
+  } finally { release.resolve(); f.host.actionClient = original; }
+  const row = f.ledger.consents(REACH_PLUGIN_ID).find(item => item.kind === "project_reach" && !item.revoked_at)!;
+  const global = await f.request("/api/settings/plugin-consents/revoke", { method: "POST", body: { consent_id: row.consent_id } });
+  assert.equal(global.status, 403, await global.text()); assert.equal(f.ledger.consent(row.consent_id)!.revoked_at, null);
+  const page = await f.request(`/projects/${f.a.project_id}/plugins/${REACH_PLUGIN_ID}?frame=workbench`), html = await page.text();
+  const pageId = /"page_id":"([^"]+)"/u.exec(html)?.[1]; assert.ok(pageId, html.slice(-400));
+  const refusedPage = await f.request(`/projects/${f.a.project_id}/api/settings/plugin-project-reach/revoke`, { method: "POST", body: input, headers: { "x-molis-plugin-page": pageId } });
+  assert.equal(refusedPage.status, 403, await refusedPage.text()); assert.equal(f.ledger.consent(row.consent_id)!.revoked_at, null);
+});
+
+
+test("RAC-2647 S-106 copying a real page invocation control does not copy its project authority", mac, async t => {
+  const f = await fixture(t), listed = await f.settings(f.a, "list");
+  const selection = (await listed.json() as { plugins: Array<{ plugin_id: string; snapshot: string }> }).plugins.find(row => row.plugin_id === REACH_PLUGIN_ID)!;
+  assert.equal((await f.settings(f.a, "grant", { plugin_id: selection.plugin_id, snapshot: selection.snapshot })).status, 200);
+  const platform = await f.host.homePlugins!.ready(), original = platform.router, before = await f.state(f.a);
+  let copied = false;
+  platform.router = function () {
+    const router = original.call(this), dispatch = router.dispatch.bind(router);
+    router.dispatch = request => { copied = true; return dispatch({ ...request, execution: request.execution && { ...request.execution } }); };
+    return router;
+  };
+  const call = () => f.request(`/projects/${f.a.project_id}/api/plugins/${REACH_PLUGIN_ID}/call`, { method: "POST", body: { componentId: "editor", binding: "submit", payload: { form: { text: "actual page control" } } } });
+  try {
+    const refused = await call(); assert.equal(copied, true); assert.equal(refused.status, 400, await refused.clone().text());
+    assert.match(await refused.text(), /不可用/u); assert.deepEqual(await f.state(f.a), before);
+  } finally { platform.router = original; }
+  const fresh = await call(); assert.equal(fresh.status, 200, await fresh.text());
+  assert.equal((await f.state(f.a)).progress_summary!.summary, "actual page control");
+});

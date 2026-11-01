@@ -57,7 +57,7 @@ const el = (tag, className, text) => { const node = document.createElement(tag);
 const button = (text, variant) => { const node = el("button", "mw-btn " + variant + " mw-btn--sm", text); node.type = "button"; return node; };
 const TRUST = { host: "宿主随带", pinned: "你固定的发布者", unsigned: "没有签名" };
 const STATE = { installed: "已安装", running: "运行中", disabled: "已停用" };
-const KIND = { always_on: "常开", default_wiring: "默认连线", default_group: "默认输入组", local_directory: "本机目录" };
+const KIND = { always_on: "常开", default_wiring: "默认连线", default_group: "默认输入组", local_directory: "本机目录", project_reach: "项目读写" };
 const EFFECT = { storage: "保存数据", artifacts: "成果库", capabilities: "调用动作", events: "收发事件", networkDomains: "联网", secretRefs: "密钥", resources: "资源" };
 const day = (iso) => String(iso || "").slice(0, 10);
 const short = (id) => String(id).replace(/^ed25519:sha256:/, "").slice(0, 12);
@@ -67,6 +67,8 @@ const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden 
 const toast = (text) => { const box = board(); if (!box) return; box.textContent = text; box.classList.remove("is-error"); box.classList.add("is-visible"); setTimeout(() => box.classList.remove("is-visible"), 2600); };
 const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
 const homeApi = (name, payload = {}) => molisWorkRequest("/api/settings/plugin-permissions/" + name, { body: payload });
+const reachApi = (name, payload = {}) => molisWorkRequest("/projects/" + encodeURIComponent(root.dataset.project) + "/api/settings/plugin-project-reach/" + name, { body: payload });
+let reachViews = new Map();
 const ask = (title, description, yesLabel) => new Promise((resolve) => {
 const dialog = el("dialog", "mw-dialog mw-dialog--alert"); dialog.dataset.slot = "alert-dialog";
 const form = el("form", "mw-form mw-dialog__shell"); form.method = "dialog";
@@ -119,7 +121,7 @@ const draw = (target, empty, nodes) => { target.replaceChildren(...(nodes.length
 const consents = (plugin) => group(L("你给过的同意"), L("没有同意记录"), plugin.consents.map((consent) => {
 const item = row(L(KIND[consent.kind] || consent.kind) + " · " + consent.subject,
 consent.revoked_at ? L("已于 {date} 撤回", { date: day(consent.revoked_at) }) : L(consent.granted_by === "user" ? "你同意的" : "宿主随这个插件代为同意") + " · " + day(consent.granted_at));
-if (!consent.revoked_at) {
+if (!consent.revoked_at && consent.kind !== "project_reach") {
 const revoke = button(L("撤回同意"), "mw-btn--ghost");
 revoke.addEventListener("click", async () => {
 if (!await ask(L("撤回这条同意？"), L("{plugin} 的“{kind}”同意（{subject}）。撤回后立即生效；以后需要时可以重新同意。", { plugin: plugin.name, kind: L(KIND[consent.kind] || consent.kind), subject: consent.subject }), L("撤回"))) return;
@@ -130,6 +132,33 @@ item.append(revoke);
 }
 return item;
 }));
+const projectReach = (plugin, view) => {
+const box = el("div", "plugin-trust-group"); box.dataset.projectReach = plugin.plugin_id; box.style.overflowWrap = "anywhere";
+box.append(el("strong", "", L("读写当前项目")), el("span", "settings-muted", root.dataset.project));
+const status = { unapproved: "未同意", approved: "已同意", expanded: "声明的动作增加", unavailable: "签名包或同意记录不可读" };
+box.append(el("p", "", L(status[view.state])), el("p", "settings-muted", L("这份同意只对当前项目和这个安装有效，可随时撤回。")));
+if (view.error) box.append(el("p", "settings-form-error", view.error));
+if (view.capability_ids.length) box.append(group(L("它声明的动作"), "", view.capability_ids.map((id) => row(id))));
+if (view.added_capability_ids.length) box.append(group(L("新增声明的动作"), "", view.added_capability_ids.map((id) => row(id))));
+const actions = el("div", "plugin-trust-actions"); actions.style.flexWrap = "wrap";
+const add = (name, label, title, detail) => {
+const node = button(L(label), name === "grant" ? "mw-btn--primary" : "mw-btn--ghost"); node.dataset.projectReachAction = name;
+node.style.whiteSpace = "normal"; node.style.maxWidth = "100%";
+node.addEventListener("click", async () => {
+const controls = Array.from(actions.querySelectorAll("button")); controls.forEach((item) => { item.disabled = true; });
+try {
+if (!await ask(L(title), L(detail, { plugin: plugin.name, project: root.dataset.project }), L(label))) return;
+error.hidden = true;
+await reachApi(name, { plugin_id: plugin.plugin_id, snapshot: view.snapshot });
+await load(); toast(L(name === "grant" ? "已同意读写当前项目" : "已撤回当前项目的同意"));
+} catch (failure) { fail(failure); try { await load(); } catch (refresh) { fail(refresh); } }
+finally { controls.forEach((item) => { item.disabled = false; }); }
+}); actions.append(node);
+};
+if (view.state === "unapproved" || view.state === "expanded") add("grant", "同意读写这个项目", "同意读写这个项目？", "允许 {plugin} 按它声明的动作读写项目 {project}。这不会给它其他项目的同意。");
+if (view.state !== "unapproved") add("revoke", "撤回当前项目的同意", "撤回当前项目的同意？", "{plugin} 将不能再读写项目 {project}。其他项目的同意保持原状。");
+box.append(actions); return box;
+};
 // A signed plugin is switched off and on and taken off here (BL-623), one of the Home's through the Host settings door (BL-715); a publisher taken back leaves only taking it off.
 const controls = (plugin, revoked, act = (name, payload) => api("/installed/" + name, payload)) => {
 const box = el("div", "plugin-trust-actions");
@@ -159,7 +188,9 @@ if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "
 else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
-body.append(consents(plugin)); if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked, act)); box.append(summary, body);
+body.append(consents(plugin));
+if (act === homeApi && reachViews.has(plugin.plugin_id)) body.append(projectReach(plugin, reachViews.get(plugin.plugin_id)));
+if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked, act)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;
 };
 const publisher = (pin) => {
@@ -175,13 +206,16 @@ item.append(revoke);
 }
 return item;
 };
-let current = [], personal = [];
+let current = [], personal = [], loading = 0;
 const load = async () => {
+const revision = ++loading;
 const data = await api("/overview");
-current = data.plugins;
 const revoked = new Set(data.publishers.filter((pin) => pin.revoked_at).map((pin) => pin.key_id));
+const homeData = (await homeApi("list")).plugins;
+const reachData = (await reachApi("list")).plugins;
+if (revision !== loading) return;
+current = data.plugins; personal = homeData; reachViews = new Map(reachData.map((item) => [item.plugin_id, item]));
 draw($("list"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => installed(plugin, undefined, revoked)));
-personal = (await homeApi("list")).plugins;
 const homeSend = (payload) => homeApi("set", payload);
 draw($("home"), L("个人空间里没有插件"), personal.map((plugin) => installed(plugin, homeSend, revoked, homeApi)));
 draw($("publishers"), L("你还没有固定过发布者"), data.publishers.map(publisher));

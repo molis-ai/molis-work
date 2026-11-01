@@ -1,10 +1,12 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime, UNSIGNED_TRUST, assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution,
   consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents } from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger, readProjectReachSubject } from "@molis-ai/molis-work-plugin-runtime";
 
 // RAC-380: a trust level is the Host's evidence for an install. Nothing a plugin writes names its own, and the level is part of the record.
 const KEY_ID = `ed25519:sha256:${"a".repeat(64)}`;
@@ -86,4 +88,53 @@ test("RAC-384 a consent is accepted only for a declaration of this Manifest, exa
     assert.throws(() => assertConsentsDeclared(value, [grant as never]), code("plugin.declaration_invalid"), JSON.stringify(grant));
   }
   assert.throws(() => assertConsentsDeclared(manifest(), [{ kind: "always_on", subject: "always_on" }]), code("plugin.declaration_invalid"));
+});
+
+for (const storage of ["memory", "sqlite"] as const) test(`RAC-2645 RAC-2648 RAC-2649 ${storage} project approvals preserve independent history, copy arrays and replace atomically`, () => {
+  const db = new DatabaseSync(":memory:"); db.exec(PLUGIN_TRUST_SCHEMA_SQL);
+  const ledger = storage === "memory" ? new MemoryPluginConsentLedger() : new SqlitePluginConsentLedger(db);
+  try {
+    const ids = ["goals.plugin.progress", "goals.plugin.state"];
+    const entry = { plugin_id: "io.molis.work.example.reach", publisher_signature: KEY_ID, manifest_digest: "v1", project_id: "A", install_id: "home-1", approved_capability_ids: ids, at: "one" };
+    const first = ledger.grantProjectReach(entry);
+    assert.deepEqual(readProjectReachSubject(first.subject), { project_id: "A", install_id: "home-1" });
+    assert.equal(first.granted_by, "user"); assert.equal(first.kind, "project_reach");
+    ids.push("outside.new");
+    assert.deepEqual(ledger.consent(first.consent_id)!.approved_capability_ids, ["goals.plugin.progress", "goals.plugin.state"]);
+    for (const returned of [first, ledger.consents(entry.plugin_id)[0]!, ledger.consent(first.consent_id)!]) {
+      (returned.approved_capability_ids as string[]).push("outside.mutated");
+      assert.deepEqual(ledger.consent(first.consent_id)!.approved_capability_ids, ["goals.plugin.progress", "goals.plugin.state"]);
+    }
+    const before = ledger.consents(entry.plugin_id);
+    for (const bad of [undefined, null, ["b", "a"], ["a", "a"], [""]]) {
+      assert.throws(() => ledger.grantProjectReach({ ...entry, approved_capability_ids: bad } as never), code("plugin.state_invalid"));
+      assert.deepEqual(ledger.consents(entry.plugin_id), before, "invalid approval never withdraws a valid prior agreement");
+    }
+    const again = ledger.grantProjectReach({ ...entry, approved_capability_ids: ["goals.plugin.progress", "goals.plugin.state"] });
+    assert.equal(again.consent_id, first.consent_id);
+    if (storage === "sqlite") {
+      db.exec("CREATE TRIGGER refuse_next_agreement BEFORE INSERT ON plugin_consents BEGIN SELECT RAISE(ABORT, 'injected write failure'); END");
+      assert.throws(() => ledger.grantProjectReach({ ...entry, manifest_digest: "v2", at: "two" }), /injected write failure/u);
+      assert.deepEqual(ledger.consents(entry.plugin_id), before, "failure after withdrawing the old row rolls the entire transaction back");
+      db.exec("DROP TRIGGER refuse_next_agreement");
+    }
+    const next = ledger.grantProjectReach({ ...entry, manifest_digest: "v2", at: "two" });
+    assert.notEqual(next.consent_id, first.consent_id);
+    assert.equal(ledger.consent(first.consent_id)!.manifest_digest, "v1");
+    assert.equal(ledger.consent(first.consent_id)!.revoked_at, "two");
+    const b = ledger.grantProjectReach({ ...entry, project_id: "B" });
+    const second = ledger.grantProjectReach({ ...entry, install_id: "home-2" });
+    assert.equal(ledger.revokeProjectReach({ project_id: "A" }, "three"), 2);
+    assert.equal(ledger.consent(b.consent_id)!.revoked_at, null);
+    assert.equal(ledger.consent(second.consent_id)!.revoked_at, "three");
+    assert.equal(ledger.revokeProjectReach({ project_id: "A" }, "four"), 0);
+    assert.equal(ledger.revokeProjectReach({ install_id: "home-1" }, "five"), 1);
+    const revoked = ledger.revoke(b.consent_id, "six")!;
+    (revoked.approved_capability_ids as string[]).push("mutated.after.revoke");
+    assert.equal(ledger.consent(b.consent_id)!.revoked_at, "five");
+    assert.deepEqual(ledger.consent(b.consent_id)!.approved_capability_ids, ids);
+    const ordinary = ledger.record({ plugin_id: entry.plugin_id, publisher_signature: KEY_ID, manifest_digest: "plain", granted_by: "host_build", at: "six", grants: [{ kind: "always_on", subject: "always_on" }] });
+    assert.equal(ordinary[0]!.approved_capability_ids, null);
+    assert.throws(() => ledger.record({ ...entry, granted_by: "host_build", grants: [{ kind: "project_reach", subject: first.subject }] } as never), code("plugin.state_invalid"));
+  } finally { db.close(); }
 });

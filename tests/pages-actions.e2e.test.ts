@@ -109,7 +109,20 @@ for (const width of [1440, 390]) {
     await evaluate(`[...document.querySelectorAll('.pages-pop button')].find(button => button.textContent.trim() === "插到后面").click()`);
     await waitFor("document.querySelector('[data-pages-editor] .ProseMirror').textContent.includes('整理后的文稿') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
     const saved = openPagesStore(homeDirectory);
-    try { assert.match(JSON.stringify(saved.list(projectId!)[0]!.body), /整理后的文稿/); } finally { saved.close(); }
+    const savedPage = (() => {
+      try {
+        const page = saved.list(projectId!)[0]!;
+        assert.match(JSON.stringify(page.body), /整理后的文稿/);
+        return { id: page.id, version: page.version };
+      } finally { saved.close(); }
+    })();
+    // RAC-2813/RAC-2815: child save completion precedes its MessagePort context reaching the parent's unload guard.
+    await browser.waitFor(`(() => {
+      const root = document.querySelector('[data-work-surface="pages"]');
+      const context = JSON.parse(root?.getAttribute('data-assistant-context') || 'null');
+      return Boolean(context && context.object?.id === ${JSON.stringify(savedPage.id)}
+        && context.object.version === ${savedPage.version} && context.unsaved !== true && !('draft_text' in context));
+    })()`);
     await reloadPage();
     await browser.waitFor("document.querySelector('[data-plugin-id=pages]')");
     if (await browser.evaluate("document.body.dataset.desktopSurface") !== 'pages') {

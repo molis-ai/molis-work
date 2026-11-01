@@ -37,7 +37,8 @@ export function createWorkbenchStageRenderers(ports: {
   };
   const declaredStageModel = (projectPluginId: string, view: MolisWorkWebView): unknown => stageModels.get(projectPluginId)?.(view) ?? {
     route_prefix: view.route_prefix, shown_plugins: view.shown_plugins ?? view.enabled_plugins ?? [],
-    ...(view.stage_data && projectPluginId in view.stage_data ? { data: view.stage_data[projectPluginId] } : {}), primitives,
+    ...(view.stage_data && projectPluginId in view.stage_data ? { data: view.stage_data[projectPluginId] } : {}),
+    ...(view.stage_request?.[projectPluginId] ? { request: view.stage_request[projectPluginId] } : {}), primitives,
   } satisfies StagePageModel;
 
   /**

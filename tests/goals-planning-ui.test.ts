@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { renderPlanningRequest } from "@molis-ai/molis-work-plugin-goals/page";
 import { goalsRenderers } from "./goals-page-mount.js";
-import { matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
+import { goalsManifest, goalsPlanningRouteOf } from "@molis-ai/molis-work-plugin-goals";
+import { matchDeclaredPageRoute } from "@molis-ai/molis-work-plugin-sdk";
 import type { PlanningMethodPack, PlanningMethodComposition } from "@molis-ai/molis-work-plugin-goals/contract";
 import { L, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { withDesktopQuery } from "@molis-ai/molis-work-app-desktop";
+
+/** The Host's match of a request, as the Host makes it: one matcher over the plugins' declared page routes (T-116). */
+const matchOf = (path: string) => { const url = new URL(path, "http://fixture.test"); return matchDeclaredPageRoute([goalsManifest], url.pathname, url.searchParams); };
 
 const escapeHtml = (v: string) => v.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 const renderer = goalsRenderers.planning({
@@ -28,11 +32,11 @@ const method: PlanningMethodPack = {
   source_refs: ["project://method.md"], confidence: 0.8, enabled: true, created_at: "2026-09-05", updated_at: "2026-09-05",
 };
 
-test("Planning request composition preserves lazy loading, scope selection, new pages and missing-method errors", () => {
+test("Planning request composition preserves lazy loading, scope selection, new pages and missing-method errors", async () => {
   const projectMethod = { ...method, scope: "project" as const };
   const calls: unknown[][] = [];
   const request = (path: string, scope: "personal" | "project" = "personal", httpMethod = "GET") =>
-    renderPlanningRequest(httpMethod, path, scope, route => {
+    renderPlanningRequest(httpMethod, matchOf(path), scope, route => {
       calls.push(["load", route]);
       return {
         methods: [method, projectMethod],
@@ -40,41 +44,43 @@ test("Planning request composition preserves lazy loading, scope selection, new 
         method: (value, mode) => { calls.push(["method", value, mode]); return "method"; },
       };
     }, text => text);
-  assert.equal(request("/settings/planning", "personal", "POST"), null);
-  assert.equal(request("/settings/planning/id/other"), null);
-  assert.throws(() => request("/settings/planning/%"), URIError);
+  assert.equal(await request("/settings/planning", "personal", "POST"), null);
+  assert.equal(await request("/settings/planning/id/other"), null);
+  // A method identifier that is not valid percent-encoding is a method that is not there, not an uncaught error (T-116, RAC-2681).
+  assert.deepEqual(await request("/settings/planning/%"), { status: 404, error: "找不到这套规划方法" });
+  assert.deepEqual(await request("/settings/planning/" + "m".repeat(257), "project"), { status: 404, error: "找不到这个项目方法" });
   assert.deepEqual(calls, [], "Rejected paths never query methods or render");
-  assert.deepEqual(request("/settings/planning"), { status: 200, html: "library" });
+  assert.deepEqual(await request("/settings/planning"), { status: 200, html: "library" });
   assert.deepEqual(calls.at(-1), ["library"]);
   for (const scope of ["personal", "project"] as const) {
-    assert.deepEqual(request("/settings/planning/method%2Fa/edit", scope), { status: 200, html: "method" });
+    assert.deepEqual(await request("/settings/planning/method%2Fa/edit", scope), { status: 200, html: "method" });
     assert.equal(calls.at(-1)![1], scope === "personal" ? method : projectMethod);
     assert.equal(calls.at(-1)![2], "edit");
-    assert.deepEqual(request("/settings/planning/new", scope), { status: 200, html: "method" });
+    assert.deepEqual(await request("/settings/planning/new", scope), { status: 200, html: "method" });
     assert.deepEqual(calls.at(-1), ["method", null, "new"]);
     calls.length = 0;
-    assert.deepEqual(request("/settings/planning/missing", scope), { status: 404,
+    assert.deepEqual(await request("/settings/planning/missing", scope), { status: 404,
       error: scope === "personal" ? "找不到这套规划方法" : "找不到这个项目方法" });
     assert.deepEqual(calls, [["load", { kind: "method", method_id: "missing", mode: "detail" }]]);
   }
-  const rejected = renderPlanningRequest("GET", "/settings/planning/method%2Fa", "project",
+  const rejected = await renderPlanningRequest("GET", matchOf("/settings/planning/method%2Fa"), "project",
     () => ({ methods: [method], library: () => { throw Error("Wrong library"); },
       method: () => { throw Error("Built-in cannot be opened as a project method"); } }), text => text);
   assert.deepEqual(rejected, { status: 404, error: "找不到这个项目方法" });
 });
 
 test("Planning routes preserve library/new/edit and decode an identifier exactly once", () => {
-  for (const scope of ["personal", "project"] as const) {
-    assert.deepEqual(matchGoalsPlanningRoute("/settings/planning", scope), { kind: "library" });
-    assert.deepEqual(matchGoalsPlanningRoute("/settings/planning/new", scope), { kind: "method", method_id: "new", mode: "new" });
-    assert.deepEqual(matchGoalsPlanningRoute("/settings/planning/method%252Fa/edit", scope), { kind: "method", method_id: "method%2Fa", mode: "edit" });
-    assert.deepEqual(matchGoalsPlanningRoute("/settings/planning/edit", scope), { kind: "method", method_id: "edit", mode: "detail" });
-    assert.deepEqual(matchGoalsPlanningRoute("/settings/planning/new/edit", scope), { kind: "method", method_id: "new", mode: "new" });
-    assert.equal(matchGoalsPlanningRoute("/settings/planning/id/other", scope), null);
-    assert.equal(matchGoalsPlanningRoute("/settings/planning/", scope), null);
-    assert.equal(matchGoalsPlanningRoute("/api/settings/planning-methods", scope), null);
-    assert.throws(() => matchGoalsPlanningRoute("/settings/planning/%zz", scope), URIError);
-  }
+  const route = (path: string) => goalsPlanningRouteOf(matchOf(path));
+  assert.deepEqual(route("/settings/planning"), { kind: "library" });
+  assert.deepEqual(route("/settings/planning/new"), { kind: "method", method_id: "new", mode: "new" });
+  assert.deepEqual(route("/settings/planning/method%252Fa/edit"), { kind: "method", method_id: "method%2Fa", mode: "edit" });
+  assert.deepEqual(route("/settings/planning/edit"), { kind: "method", method_id: "edit", mode: "detail" });
+  assert.deepEqual(route("/settings/planning/new/edit"), { kind: "method", method_id: "new", mode: "new" });
+  assert.equal(route("/settings/planning/id/other"), null);
+  assert.equal(route("/settings/planning/"), null);
+  assert.equal(route("/api/settings/planning-methods"), null);
+  assert.deepEqual(route("/settings/planning/%zz"), { rejected: true });
+  assert.equal(goalsPlanningRouteOf({ plugin_id: "io.example.other", route_id: "planning-library", params: {} }), null, "another plugin's route is not Goals' to read");
 });
 
 test("Planning library mounts categorized cards, escaped copy and contextual desktop links", () => {

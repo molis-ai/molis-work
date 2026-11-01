@@ -118,6 +118,10 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
 
 export declare const DIFF_STEP_BUDGET = 200000;
 
+export interface DeclaredPageRouteMatch extends PageRouteMatch {
+    readonly plugin_id: string;
+}
+
 export type { DueReminder } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { DueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -218,6 +222,14 @@ export type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services
 export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+
+export declare const PAGE_ROUTE_LIMITS: Readonly<{
+    routes: 32;
+    segments: 8;
+    query: 4;
+    input: 8;
+}>;
+
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const PLUGIN_MESSAGE_LIMITS: {
@@ -234,6 +246,15 @@ export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     lines: 10000;
     progress_bytes: 1048576;
 }>;
+
+export interface PageRouteMatch {
+    readonly route_id: string;
+    readonly params: Readonly<Record<string, string>>;
+    readonly rejected?: {
+        readonly param: string;
+        readonly reason: "encoding" | "too_long";
+    };
+}
 
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -484,10 +505,20 @@ export declare function joinLines(lines: readonly DiffLine[]): string;
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function matchDeclaredPageRoute(manifests: Iterable<Pick<PluginManifest, "plugin_id" | "ui">>, pathname: string, query: {
+    get(name: string): string | null;
+}): DeclaredPageRouteMatch | null;
+
+export declare function matchPageRoute(routes: readonly UiPageRouteDeclaration[], pathname: string, query: {
+    get(name: string): string | null;
+}): PageRouteMatch | null;
+
 export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, "plugin_id" | "ui">): string[];
 
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function pageRouteProblems(manifest: PluginManifest): string[];
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
@@ -548,6 +579,8 @@ export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/action
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function splitLines(text: string): DiffLine[];
+
+export declare function stageRequestParams(input: readonly string[] | undefined, params: Readonly<Record<string, string>>): Readonly<Record<string, string>>;
 
 export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 

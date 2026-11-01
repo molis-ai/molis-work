@@ -15,6 +15,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-394 | W5三片合成：PR1b、Home升级、签名正文 | 甲 | Codex开发线4；独立验证5/加强二审另派 | accepted WO，M be0，三片冻结头交合成 | full=true；一次组合build/相关回归/Full；原单证据沿用 | tasks/T-394.md成员精确范围与必要冲突；共享状态根串行 |
 | T-393 | PG070完整后继：Coding登记与Characters随内容样式 | 乙 | Codex开发线2；一审线3/验证线2/二审线5 | accepted WO，M be0；开发窗口已交 | T146已采用，full=true；完整两部分同验同交 | tasks/T-393及CURRENT精确生产/测试hunk；共享文档/预算根串行，保护#1101不动 |
 | T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | #1717实际采用08642dcb9，patch-id同；自有树/分支已清 | full=false，文案RAC2837～2839完成 | 唯一文档10行15项与历史限定；原件保留 |
 | T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1；队列观察二审线5 | #1719实际采用6cdb21830，完整binary diff/patch-id同 | full=false；准确CI/手查SI、queue Verify通过，catalog16/16 | 自有树/分支已清；SI76项原因UNKNOWN保留 |

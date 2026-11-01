@@ -27,6 +27,6 @@ B实际采用后，原owner普通merge真正main：保M私有路径/登记及B�
 
 - C07592作者 **32文件395/395**只支持原输入，含28份README非浏览器及gate/摘要/comments/helper四份；静态同blob裁定可沿用，不改标成未来N独立执行。旧739/754、15个沙箱失败仍缺干净基线，B的508或Full不代C。
 - **七份README浏览器仍未跑**，其测试blob在C/B/M全相同，不能把“相同”当通过：`tests/`下的 `todo.e2e.test.ts`、`todo-draft-recovery.e2e.test.ts`、`contextual-todo.e2e.test.ts`、`context-onboarding-todo.e2e.test.ts`、`todo-from-inbox.e2e.test.ts`、`todo-placement.e2e.test.ts`、`todo-assistant.e2e.test.ts`。由根安排并按最终输入结算。
-- 6545073359的f236小写变异“点名新增行并变红”可核抵相同gate的 **-i/名单外拒绝**作者历史证据；6544859592中tail/小写SDK无匹配变异当时为绿，是缺陷历史，不能顶替修复后证明。6546163162及当前加强二审为静态；**无锚点tail／无匹配assert.fail仍未见独立动态原件**，原验证线先核已有有效记录，缺才补最小项。full=true、准确新头CI/Full与七份浏览器均不降级。
+- **旧反证已补齐**：已只读核对独立验证1在准确C07592的[报告](/private/tmp/t353c-verify/REPORT.md)及[原始顺序](/private/tmp/t353c-verify/mutation-sequence.log)。G0→M-tail→G1→M-empty→G2三绿各1/1；真实小写无锚tail击中原名单外断言，真实grep空结果击中原assert.fail，exit依次0/1/0/1/0，恢复准确H且clean。此独立补证沿用，不重跑旧反证，旧作者记录仍保来源。根已将新Pages约束限定为原gate内准确单声明、恰一匹配；未来仍需“同文件新增”和“他文件复制”两种拒绝新证据。七浏览器、自身准确头CI/Full仍缺；full=true不降级，C继续等B实际采用，无代码窗口。
 
 依据：[任务书](/Users/yijunwang/code/mw-coord/coordination/2026-10-28/tasks/T-353.md)、[C作者原报告](/private/tmp/t353c-sync/REPORT.md)、[加强二审](/private/tmp/t353c-current-second/REPORT.md)及指定Git对象；这里只定位接续delta，不重开已有审查结论。

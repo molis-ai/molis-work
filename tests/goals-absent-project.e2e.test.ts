@@ -53,6 +53,8 @@ test("RAC-400 Goals added again from the plugin list to a project without it ope
   await b.waitFor("document.querySelector('[data-desktop-surface]')?.getAttribute('data-desktop-surface') === 'goals'");
   assert.deepEqual(await b.evaluate("window.__errors"), [], "the page's program did not fail");
   await b.evaluate("document.querySelector('[data-create-dialog][open]')?.close(); true");
+  await b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').click(); true");
+  await b.waitFor("document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-confirming')");
   await b.navigate(() => b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').click(); true"));
   await b.waitFor("document.querySelector('[data-plugin-tile=\"goals\"]').classList.contains('is-available') && document.body.dataset.desktopSurface === 'home'");
   assert.equal(await withMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory }, c => c.projectPluginMembership(project.project_id).plugins.includes("goals")), false);

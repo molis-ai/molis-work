@@ -185,3 +185,18 @@ RAC2686要求英文键真正归Goals，故RAC2680的原始全HTML字节恒等只
 当前生产557aefa及后续测试fixture由独立验证/加强二审核，未签READY。原RAC2511/2514新增一项真实Host有限补证：Attention公开owner写合法缺主体事实，经实际Inbox舞台保事项/不可用显示，真实Feed读取故障不得吞；不重做原21文件矩阵。旧测试直接消费者feed-sources、functions-system-capability与runtime-plugin-http-discovery按当前owner合同维护，不删业务断言。RSS/Gmail源码与发布manifest.json的纯presentation声明必须一致；RSS semver误增1.1.0恢复1.0.0，本任务不发版。schema/host_api只按现行声明实际需要，不能以升级绕校验。
 
 旧checkMigratedFeedUiOwnership强制已删除NativeAdapter/projection，因此根核具体代码并接受两文件精确迁位：scripts/check-package-boundaries.mjs仅该函数，tests/package-boundary-must-contain.test.mjs仅Feed对应行和两退休路径复活负例。保全部Host私路/跨插件/routes/贡献登记/UiHost真render拒绝；旧adapter必需改为Feed stage_data.action/object_action与Inbox stage_data.action、各owner真实handler接入，通用renderer的createWorkbenchStageRenderers及stageModel/stageFragmentModel绑定，Feed stage-ui的真实模型构造。退休feed/inbox-projection-ui路径存在即拒，不读不存在文件。沿原代码/文本识别机制和must-contain真删除及注释/字符串/regex/template伪装反控，增退休复活反控；不删拒绝、不放松门禁算法/阈值、不加通用框架。全部同轮收齐后一次matching build与直接受影响完整文件，原有效证据不重做；共享API/actions/安全表/数值仍根串行。
+
+
+## 2026-11-01 17:20Z PR2准确候选开发窗
+
+原RAC2687与6541316193批准保持：goalView/feedTask并为通用view，旧整布局一次重置，不迁移。T148已实际采用；T402及T117完整审验候选已在T399冻结H8114a95b03df18c4657f268287c706ba8c3ef184/treed00c7caeb7e7358d6de21470f267d890f13ee658，根核普通合流与同树证据。用户要求加速W5，允许PR2从此准确父在独立feature/t116-pr2-view完成候选；发布和最终采用仍等父实际main。T068仅在冻结源码上build/gates，无源码写权。PR2唯一writer交Codex开发线1，开发线3保独立接续设计。
+
+精确实现输入 /tmp/t116-pr2-next/CURRENT.md（原件/tmp/t116-successor-plan/plan-t116.txt与decision-t116.json）。九生产路径：apps/workbench/src/tab-workspace-ops.ts；scripts/client/下tab-workspace、tab-workspace-panes、tab-workspace-plugins、documents-state、bootstrap、navigation-feed-stage、initialization、placement.ts。后四只接真实闭包；refresh-decisions、editing-graph、navigation-feed-sources、pane-messages、search-rows、frame-container/web-panel及DOM标记无必要差量不领写。fresh十个open PR完整分页已核，目标唯一交集为已冻结父#1724的initialization，无保护分支交集，不消耗WIP。
+
+同一tab数据仅view?:string；按固定paneId和可选tabId的readView/writeView私有口不回退focused pane，默认插件页取真实plugin head。Feed task id只在插件事件边界投影成view，Goal Frame默认缺省/work显式work。URL及消息生产者/消费者同片用paneView/openView/view，旧参数不兼容；DOM含义不机械替换。view是布局唯一持久owner，移除ui.feedTask和feedPresets.task双重存取，保筛选、来源目录预览、条目和草稿原owner。
+
+旧字段按存在性拒绝，包含null/空/非活动tab及新旧混合；整个本项目旧布局由现有create/persist一次替换。直接关联的旧UI缓存及失效pane history按原三个精确key族处理，不能先apply旧值或未来再次覆盖新view；只处理当前项目确有旧形状的缓存，不清全storage、不加迁移账本、不转换旧子树。保持业务事实、正文、版本、ID、账号/安装/终端不变。
+
+最小六完整文件：新增原指定tests/tab-workspace-view.test.ts直接调用生产ops/validator；原tab-workspace-ops；原workbench-current-tabs/workbench-tab-workspace/workbench-pane-feed.e2e及security-invariants-pane-messages。覆盖新布局往返、旧形状整份拒绝、非活动pane、默认plugin head、固定pane异步回写、Iframe/placement入口、复制移动/合并和草稿；隔离同profile同origin关/重开浏览器证明旧布局只重置一次，新布局保有pane/tab/view，并回读固定Goal/Pages/Feed事实未变。原S30窗口/origin拒绝不弱化；不另造矩阵。
+
+最终一次matching整体build与必要raw门禁/API/actions零变化核、实际workbench字节；公共build/browser槽、jobs1/retries0、隔离Home/专用测试浏览器。旧有效父证据按未变输入核抵，不本机Full/真实Home/4207/Keychain/真模型/版本变更。快照、资源许可/预算、giant/基线/状态根串行；实际资源有增长给准确字节与减量尝试，禁止为变绿放宽。源码冻结后独立验证/加强二审一次核收；T403接最终按pane接口，不另建布局状态。

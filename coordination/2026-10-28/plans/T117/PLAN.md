@@ -64,3 +64,6 @@ fresh十个open PR完整分页文件表已核：除本批T395已冻结写点外�
 根核实际 #1101 H2b38b5f5 与本线父3286的差分：Memory行为改动在测试数据、接口模拟及用例；目标import及view类型注解未改。用户红线保护的是#1101分支，本片不切换、写入、合并或重放该分支；此非枢纽测试的独立type hunk不占其产品行为写权。前轮整文件排除是根的保守锁，现按真实差分收窄，允许开发线2仅在自己的T117树应用 /tmp/t117-next/memory-settings-cas.type-only.patch 的3增2删：MolisWorkWebView改取既有中央fixture完整类型，原feed事实由既有FeedSnapshot交叉类型表达。不得改任何literal、请求、断言、Memory版本或功能，不引入新的公共类型/兼容。
 
 该hunk消除本次删除平台Goal展示字段引入的直接消费者错误；原version=1对当前2的既有诊断单列，不以编译未覆盖tests掩盖。本轮只改类型，原matching build与30/30输入有效，不重复构建/浏览器矩阵；最终文件语义诊断应只剩原version错误，并核测试imports、diff和fresh secrets。整个T117仍等独立一审/验证/二审与父实际采用，不提前签完成。
+
+
+2026-11-01 17:12Z：最终作者aeb45297/treed00c7已经一审线3、验证线1、二审线4分别核收，无Blocker/P1。根将此完整纯类型收尾纳入尚未发布的T399第五成员，按同一最终头统一CI/Full和正常队列采用，保乙档独立三阶段原证据；不用另开同输入Full。T117行为、九路径边界和旧Memory诊断不变，T118/PG064整体仍待后继。

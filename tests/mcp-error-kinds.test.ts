@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { dispatchMcpProjectTool, formatMcpToolError } from "@molis-ai/molis-work-app-mcp";
+import { dispatchMcpProjectTool, formatMcpToolError, isPlatformMcpTool, isRuntimeContextMcpTool } from "@molis-ai/molis-work-app-mcp";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { RuntimeProjectConnection, assertMcpStartInput, assertMcpToolAllowed, createPresentationError, mcpErrorKind, mcpErrors, requireMcpRuntimeContextHost, runtimeConnectionIdentity, type McpErrorReason } from "@molis-ai/molis-work-app-local-host";
@@ -90,6 +90,19 @@ test("RAC-2714 authority_denied and tool_unknown carry one kind from the preflig
   assert.deepEqual([preflightToolUnknown, authorityToolUnknown, dispatchedToolUnknown], ["not_found", "not_found", "not_found"]);
 });
 
+test("RAC-2761 RAC-2762 runtime is denied a platform management tool without a catalog, while management is allowed", () => {
+  const name = "molis_work_v1_initialize";
+  assert.equal(isPlatformMcpTool(name), true);
+  assert.equal(isRuntimeContextMcpTool(name), false);
+  const state = { audience: "runtime" as const, connectionState: new RuntimeProjectConnection(), runtimeConnection: null, runtimeContextHost: null };
+  // RAC-2763: omit the catalog so changing only this production branch's raiser must fail these assertions.
+  const error = kindOfError(() => assertMcpToolAllowed(state, name, CALL_CONTEXT));
+  assert.ok(error instanceof ActionError);
+  assert.equal(error.code, "mcp.authority_denied");
+  assert.equal(actionErrorKind(error), "forbidden");
+  assert.doesNotThrow(() => assertMcpToolAllowed({ ...state, audience: "management" }, name, CALL_CONTEXT));
+});
+
 test("RAC-2713 the statuses the HTTP edges derive from these kinds are the ones they answered before", () => {
   // Codes whose throw sites answer HTTP: context gateway identity checks and the settings grant errors keep 400.
   for (const code of ["mcp.context_host_missing", "mcp.runtime_identity_missing", "mcp.grant_invalid", "mcp.grant_scope", "mcp.grant_missing", "mcp.grant_requires"]) {
@@ -109,7 +122,7 @@ function kindOfError(run: () => unknown): Error {
   return new Error("unreachable");
 }
 
-test("RAC-2713 the five codes whose kind changed carry it where the error leaves the Host, and the MCP wire carries no kind", () => {
+test("RAC-2713 four changed kinds and one unchanged kind in this group are carried by Host errors, and the MCP wire carries no kind", () => {
   // The one transport that reads a kind is the HTTP edge (`actionErrorResponse`); these five leave through the MCP JSON-RPC
   // error text instead, which `formatMcpToolError` builds from code, message and details only (apps/mcp/src/tool-error.ts →
   // actionErrorBody). Their declared kinds therefore change no wire value: the statuses below are what they were (invalid 400 /

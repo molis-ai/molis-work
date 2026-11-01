@@ -67,7 +67,7 @@ Desktop / Workbench / CLI / MCP（stdio MCP 经动作网关转发）
 
 ## 5. Goal 与成果
 
-Goals 与成果（Artifacts）是两个内置插件，各自拥有自己的事实；它们不是其他插件内容的主干。
+Goals 是内置插件，拥有 Goal 的事实；成果（Artifacts）的正式事实由 `modules/artifacts` 拥有，Host 装配平台动作提供方，工作台成果界面经动作消费。两者不是其他插件内容的主干。
 
 - Goal 表达要持续推进和验收的结果。
 - Artifact 表达人要留存、引用的固定版本，可保存、版本化、共享和重放；类型在插件 manifest 的 `artifacts.produces` 里声明。

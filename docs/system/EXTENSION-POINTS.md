@@ -54,7 +54,9 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 
 ### 3.1 内置插件
 
-**怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤在 `skills/molis-plugin-dev/host.md`「内置插件：经 Plugin Runtime 装配」：包 `plugins/native/<id>`（Manifest、动作、界面贡献、客户端、`en.ts`）、监督器条目、包自己的 `src/registration.ts`（目录条目，`builtin-plugins.ts` 由 `node scripts/generate-plugin-registry.mjs` 生成）。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
+**怎么加**：新的内置插件只走 Plugin Runtime（`AGENTS.md` 硬约束；门禁 `tests/builtin-plugin-assembly-gate.test.ts`）。步骤见[插件开发手册](../../skills/molis-plugin-dev/host.md)「内置插件：经 Plugin Runtime 装配」：在 `plugins/native/<id>` 包中提供 Manifest、动作、界面贡献等，并从自己的 `src/registration.ts` 导出 `registration`；项目级插件在同一登记声明 `project_runtime: { create, package_name, factory_export }`，包的 `package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`，再运行 `node scripts/generate-plugin-registry.mjs`。`apps/local-host/src/project-plugins.ts` 按登记统一装配，不为新插件修改；生成的 `builtin-plugins.ts` 也不手改。HTTP 由 Manifest `routes` 声明，挂在 `/api/plugins/<plugin_id>/`，不写 `apps/local-host/src/<插件>-native-plugin-http.ts`。
+
+下表及其成本数字保留 2026-10-08 基线与各行注明的后续修订，不是新增插件的操作清单；没有逐项重新计量。新增步骤按上面的现行入口与插件开发手册执行，旧宿主装配和词典接线只用于解释历史成本。
 
 **现在要改**（包外 11 处，外加 2）。最小样本是 Text Stats：包外被 11 个源码或配置文件点名；门禁名单和 SSOT 行是两端都要的外加项，不计入 11。一个带自己舞台页的新插件，把 `demo-plugin-seed.ts` 一项换成舞台渲染的两处和英文词典（`coding-surface.ts` 已在 C9 删除，舞台由插件的声明画，不再是一项）。端口的默认来源由插件自己的 Manifest 声明（输入口的 `default_source`、输入组的 `default`，W4-03），宿主里没有名单：
 
@@ -62,10 +64,10 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | --- | --- | --- |
 | 登记 | `scripts/workspace-packages.mjs` | W5-02 PR-C（PG-069）后不改：登记表读各插件 `package.json` 的 `molis-work` 块，两个应用的插件依赖由登记推导（`registeredPluginDependencies`） |
 | 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析）。PR-C 后由 `node scripts/generate-plugin-registry.mjs` 写，`--check` 核对，与生成文件 import 的包一致时门禁不计 |
-| 登记 | `apps/local-host/src/project-plugins.ts` | import 和 `PluginSupervisorEntry`（`trust: HOST_BUILD_TRUST` 加 `nativePluginReleaseArtifact`）；要宿主端口时在同一文件构造 |
+| 登记 | `apps/local-host/src/project-plugins.ts` | 历史接线：当时在此 import / 构造 `PluginSupervisorEntry`；现行新增项目插件在自己的 `registration.project_runtime` 登记，由此文件统一装配，不为新增插件改此文件（PG-067） |
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
 | 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 三处），两条路没有统一规则。W5-06 第 2 片（2026-10-23）后：贡献带 `workbench` surface 的插件，舞台由 Manifest 视图画（`apps/workbench/src/declared-stages.ts`），不用再加函数；宿主自己画的（Coding 一族、Text Stats、Characters）仍走 `plugin_stages` |
-| 名单 | `apps/workbench/src/i18n/en.ts` | `import` 并 `...X_EN`；没有它，英文界面仍是中文 key |
+| 名单 | `apps/workbench/src/i18n/en.ts` | 历史 Host `L()` / `_EN` 总表路径需要 import / 展开。现行 Runtime 插件按实际使用的 Manifest `ui.messages` / `ui.translations` 声明界面消息和翻译（Text Stats 同时使用两者），不因新增插件而把插件词典接入 Host 总表；Host 自有 `L()` / `_EN` 文案仍走原 import / 展开及翻译检查路径，旧未迁路径也未据此宣称已迁移 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
 
 Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `demo-plugin-seed.ts`（`palette.ts`、`icons.ts`、`catalog.ts` 三处按插件手写的名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）已随 PG-075 删除，现在是 2026-10-25 起的 9 个：插件的图标是视图的 `icon`，tab 组的颜色是视图的 `hue`，两者都写在 Manifest 里，设计系统不再保留插件名单。）（原来还有 `coding-surface.ts`，宿主里写死的伙伴页渲染分支，PG-036 C9 已删）。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。W5-02 PR-1a 起目录条目在包自己的 `registration.ts` 里、生成的 `builtin-plugins.ts` 不手写，这一项不再是包外一处（上面 11、12 两个数字还没按它重算）。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。

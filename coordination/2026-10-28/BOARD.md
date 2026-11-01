@@ -11,7 +11,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-加急：T-377 修复重复的主区重试/恢复故障，根已核 C1 因果与 A+B 方案并派开发线4实施；T347等后续Full待其采用。T366已完成不重复派。
+当前加急前置T-377已实际采用8a46c2cb7并清自有树；T208/T143/T116/T065分别由开发线2/1/3/4吸收准确main。后继Full只在各自新头Verify通过后安排；T379候选独立审验中。T366已完成不重复派。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -316,8 +316,9 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-372 | PG-077/078成果库采用与A7/A8旧等待链文档核收（RAC-2775～2778） | 丙 | Codex 开发线4 | 已合 #1699 → `717d14f2a`；patch-id核同；自有树/分支已清理 | 共享三行由根串行；真实Home验收另账 | 两slice锁已释放 |
 | T-373 | 首页聚合双阶段code-only诊断（RAC-2779～2782；full=true） | 乙 | Codex 开发线1；一审线3/验证线3/二审线4 | #1700 @ba1a7aaed；三阶段/Verify/两片SI通过，已ready；待Full | T319已合；旧作者与新独立closing变异分源 | `apps/local-host/src/home-aggregate.ts`、`tests/home-aggregate.test.ts` |
 | T-374 | 真实Host事项经项目Catalog的listed/bare回归（RAC-2783～2786） | 丙 | Codex 开发线1 | #1703已合973063c79；patch-id同，审计6549696515 | full=false；自有树/本地分支已清，锁释放 | 仅 `tests/home-event-actions.test.ts` |
-| T-377 | 主区失败重试身份与加载时序加急（RAC-2794～2797） | 乙 | Codex 开发线4；一审线1/验证线5/二审线5 | #1707 @95ea9f1f6；五blob保持原61e4，正常合main及+219B资源二审6550601434通过 | full=true；最终H独立9/9、Verify及SI/Product终态已核6550799369；Full41253219144运行中，旧67/A-B保原来源 | 原三生产/两测试及精确资源窗口；T208等本单实际采用；无公共helper改动 |
+| T-377 | 主区失败重试身份与加载时序加急（RAC-2794～2797） | 乙 | Codex 开发线4；一审线1/验证线5/二审线5 | #1707已实际采用8a46c2cb7；原H95ea9f1f6与采用patch-id同832459dc | full=true；准确Verify、独立9/9、二审、SI及Full41253219144的16片/聚合通过；原67/A-B与Pages首败UNKNOWN保持来源 | 自有临时树/本地分支已清；原件保留，源码锁释放 |
 | T-378 | W6-03历史扩展步骤与本次Full授权两文档澄清（RAC-2798～2799） | 甲 | Codex 开发线3；验证线1；二审线4 | #1708已采用main b6f92222f；准确adf31b2a2的审验/CI齐，patch-id与整树同，合入6550884059 | full=false；原通用Full规则不改，W6动态/RAC11不签完成 | EXTENSION-POINTS §3.1；PARALLEL本次覆盖说明/短引用；根显式分段交接，保留#1654 §3.5和#1673长段 |
+| T-379 | iframe内全局搜索快捷键（RAC-2800～2803） | 甲 | Codex 开发线4；验证线3/二审线4 | 本地ea67075d1冻结；作者先红有效、两完整7/7及README188/188，根核原件 | full=true；独立验证计划/二审进行，最终产物及CI未签；资源窗T208→T362→本单→T065 | 两生产/两浏览器文件见tasks/T-379.md；README/S-30根串行，+179/+360B未冻结许可 |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
 | T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
@@ -428,3 +429,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 00:45Z：T116后继MOUNT四项修订已核存：保留两类来源入口、可信surface根与精确文档刷新、来源数据请求世代、意图当刻固定作用pane。API安全窄核保存；真实Runtime activation/同caller availability为工程补线，Feed新增Home Functions管理权是明确用户WAIT（A完整权限/默认发放范围或B本人编辑面），没有开放。账号分支新增T121实际采用/最终slot合同前置，不能照旧main重造换账号语义。场景8同E正常Host重启局部结果及独立核收已收，works list只有前后两次，原详情reload恢复未签；不重跑当前子步。
 
 2026-11-01 00:48Z：T377 #1707实际采用8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987（00:47:11Z），原H与采用stable patch-id同832459dc；准确Verify/独立9例/二审/SI及Full41253219144全部齐，Full16片及聚合通过，保Pages首败retry/UNKNOWN。以该main冻结：开发线2执行T208（资源首窗），开发线1接T143同步，开发线3接T116 PR1a同步后再T362；验证线4执行场景5，开发线4继续T379。四writer独立树、公共机器槽；没有重复旧整批，T377自有树待核占用后清理。
+
+2026-11-01 01:03Z：T377已核无占用并正常清理自有树与本地分支；T379实际四文件候选根已核diff/原生回执/作者红绿，独立验证线3先出最小计划、二审线4只读审；开发线4已接T065准确main最小同步，6551433802留审计，四writer不增员。资源窗口T208→T362→T379→T065；T065先匹配构建/实测但不抢账本冻结。其余后继Full的必要同步由补充线只读核最小差集，不重演旧有效整批。

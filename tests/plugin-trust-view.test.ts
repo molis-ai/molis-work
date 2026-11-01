@@ -1,3 +1,4 @@
+import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +13,7 @@ import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platfo
 import { platformPermissionMeaning } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginInstallActions, pluginInstallProvider, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
+import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginInstallActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 
 // ac-trust T7: what the install preview and the plugin's detail page tell the person. RAC-405 the platform says what a permission is

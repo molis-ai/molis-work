@@ -125,7 +125,6 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
-export { sandboxDerivedPermissions, sandboxOperationPermissions, sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { installedStageSection } from "./installed-stage-section.js";

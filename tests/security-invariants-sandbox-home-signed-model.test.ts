@@ -1,3 +1,4 @@
+import { effectsFromContract, sandboxDerivedPermissions, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -5,12 +6,12 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { sandboxDerivedPermissions, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
+
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
-import { effectsFromContract } from "@molis-ai/molis-work-plugin-sandbox";
+
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, runtimeStore } from "./fixtures/home-sandbox.js";

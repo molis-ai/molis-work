@@ -1,3 +1,4 @@
+import { sandboxOperationPermissions } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * An installed generated plugin offers its functions to the rest of the product (D16): each operation becomes an
  * action of the project's unified directory, provided by the plugin itself, so a person, the Home AI, an external MCP
@@ -10,7 +11,7 @@ import { ActionError, type ActionAvailability, type ActionDefinition, type Actio
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { runInPluginAction, type PluginInstance } from '@molis-ai/molis-work-plugin-runtime';
-import { sandboxOperationPermissions } from '../sandbox-plugin-manifest.js';
+
 import type { ProjectActions } from './catalog.js';
 import { latestCapability, type CapabilityExecution } from './capabilities.js';
 

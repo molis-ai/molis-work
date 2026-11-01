@@ -1,3 +1,4 @@
+import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { randomUUID } from 'node:crypto';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { pluginComponentChoices, resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
@@ -9,7 +10,7 @@ import { AgentBuilderStore } from './agent-store.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
 import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT } from './choice-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
-import { contractEffects, validateAgentDesign } from './agent-validation.js';
+import { validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './model-json.js';
 import { expandDesign, normalizeProposal } from './agent-authoring.js';
 import { presentationTask, presentationReviewTask, acceptPresentation } from './agent-presentation.js';
@@ -348,7 +349,7 @@ export class AgentBuilderWorkflow {
   /** Freezes a design: a new build directory keeps unchanged operations' code; unchanged parts and wiring stay. */
   private async adopt(id: string, token: string, result: { design: AgentDesign; dropped: string[]; source: string; rework?: Record<string, string> }, stepId: string, summary: string) {
     const before = this.store.require(id), design = result.design;
-    const manifest: BuildManifest = { version: 1, pluginId: design.contract.pluginId, revision: design.contract.revision, effects: contractEffects(design) };
+    const manifest: BuildManifest = { version: 1, pluginId: design.contract.pluginId, revision: design.contract.revision, effects: effectsFromContract(design.contract) };
     const directory = await this.ports.prepareBuild(before, design, manifest); this.current(id, token);
     const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
     const kept = before.design ? before.nodes.filter(node => { const { kind: _kind, ...plan } = node; const next = design.parts.find(part => part.id === node.id); return !!next && same(plan, next); }) : [];
@@ -737,7 +738,7 @@ export class AgentBuilderWorkflow {
       if (build.phase !== 'ready' || !build.browserResult?.passed || !build.checks.global?.passed || !build.design) throw new Error('全部功能和浏览器验收通过后才能发布');
       const latest = this.store.versions(id)[0];
       if (latest && latest.design.contract.revision === build.design.contract.revision && JSON.stringify(latest.nodes) === JSON.stringify(build.nodes) && JSON.stringify(latest.design.presentation) === JSON.stringify(build.design.presentation)) throw new Error('v' + latest.version + ' 已经是当前这一版，没有新的改动可以发布');
-      const version = (this.store.versions(id)[0]?.version ?? 0) + 1, manifest: BuildManifest = { version: 1, pluginId: build.design.contract.pluginId, revision: build.design.contract.revision, effects: contractEffects(build.design) };
+      const version = (this.store.versions(id)[0]?.version ?? 0) + 1, manifest: BuildManifest = { version: 1, pluginId: build.design.contract.pluginId, revision: build.design.contract.revision, effects: effectsFromContract(build.design.contract) };
       const artifact = await this.ports.publish(build, manifest, build.checks.global.bundlePath!, version);
       const release: AgentRelease = { buildId: id, pluginId: build.design.contract.pluginId, version, design: build.design, nodes: build.nodes, manifest, permissions: manifest.effects, publishedAt: new Date().toISOString(), ...artifact }; this.store.release(release); return release;
     }

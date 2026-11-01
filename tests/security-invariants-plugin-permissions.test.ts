@@ -1,10 +1,11 @@
+import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginControlActions, pluginInstallActions, pluginInstallProvider, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
+import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, installedPluginViews, pluginControlActions, pluginInstallActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 
 // PG-002, S-94 (docs/system/SECURITY-INVARIANTS.md): `plugins.permissions.set@1` is the person's own act in a project's settings. RAC-946 only the

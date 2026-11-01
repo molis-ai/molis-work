@@ -13,9 +13,12 @@ import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 
 const errors = defineErrorCodes("host", { model_configuration_invalid: "invalid" });
+/** What the settings need of a declaration: where the choice is kept and the id of the consumer's own provider (a Home package's settings are derived without actions, BL-491). */
+export type ConsumerModelConfigurationDeclaration = Pick<PluginModelConfigurationDeclaration, "preference" | "custom_provider">;
+export const modelConfigurationInvalid = errors.model_configuration_invalid;
 interface PreferenceFile extends PluginModelSelection { schema_version: 1 }
-function preferencePath(home: string, declaration: PluginModelConfigurationDeclaration): string { return join(home, declaration.preference.store_name, declaration.preference.file_name); }
-function readPreference(home: string, declaration: PluginModelConfigurationDeclaration): PreferenceFile | undefined {
+function preferencePath(home: string, declaration: ConsumerModelConfigurationDeclaration): string { return join(home, declaration.preference.store_name, declaration.preference.file_name); }
+function readPreference(home: string, declaration: ConsumerModelConfigurationDeclaration): PreferenceFile | undefined {
   const path = preferencePath(home, declaration); if (!existsSync(path)) return undefined;
   const value: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (!value || typeof value !== "object" || Array.isArray(value)) throw errors.model_configuration_invalid("模型偏好文件无效，原文件已保留");
@@ -28,7 +31,7 @@ function atomicWrite(path: string, body: string): void {
   try { writeFileSync(temporary, body, { mode: 0o600, flag: "wx" }); renameSync(temporary, path); }
   finally { if (existsSync(temporary)) unlinkSync(temporary); }
 }
-function readSettings(home: string, declaration: PluginModelConfigurationDeclaration): PluginModelConfigurationView {
+function readSettings(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationView {
   const pref = readPreference(home, declaration), opened = openProviders(home);
   const connections = existsSync(join(home, "connectors", "connectors.db"))
     ? withConnectorConnections(home, store => store.list("model-api").map(connection => ({ connection_id: connection.connection_id,
@@ -46,7 +49,7 @@ function readSettings(home: string, declaration: PluginModelConfigurationDeclara
   if (!settings.configured && !pref && !settings.providers.length && hostCompleteText({ homeDirectory: home })) { settings.configured = true; settings.source = "environment"; }
   return settings;
 }
-function saveSettings(home: string, declaration: PluginModelConfigurationDeclaration, input: PluginModelConfigurationInput): PluginModelConfigurationView {
+function saveSettings(home: string, declaration: ConsumerModelConfigurationDeclaration, input: PluginModelConfigurationInput): PluginModelConfigurationView {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw errors.model_configuration_invalid("模型设置必须是对象");
   if (Object.keys(input).some(key => !["provider_id", "model_id", "base_url", "api_format", "connection_id"].includes(key))) throw errors.model_configuration_invalid("模型设置包含不支持的字段；请在 Connectors 中管理模型 API Key");
   for (const key of ["provider_id", "model_id", "base_url", "api_format", "connection_id"] as const) if (input[key] !== undefined && typeof input[key] !== "string") throw errors.model_configuration_invalid("模型设置字段必须是文本");
@@ -94,7 +97,7 @@ function saveSettings(home: string, declaration: PluginModelConfigurationDeclara
   return readSettings(home, declaration);
 }
 /** The Host owns this consumer binding; provider and connector facts remain behind their existing owners. */
-export function createConsumerModelConfiguration(home: string, declaration: PluginModelConfigurationDeclaration): PluginModelConfigurationPort {
+export function createConsumerModelConfiguration(home: string, declaration: ConsumerModelConfigurationDeclaration): PluginModelConfigurationPort {
   return {
     selection: () => { const value = readPreference(home, declaration); return value ? { provider_id: value.provider_id, model_id: value.model_id } : undefined; },
     read: () => readSettings(home, declaration),

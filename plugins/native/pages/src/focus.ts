@@ -2,6 +2,7 @@ import { Fragment, type Node } from "prosemirror-model";
 import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet, type EditorView } from "prosemirror-view";
 import { pagesSchema } from "./schema.js";
+import { wholeEnds } from "./whole-characters.js";
 
 /**
  * What the person has in hand in a Pages document, and the ranges they acted on (specs/archive/contextual-interaction §4.1).
@@ -82,7 +83,7 @@ const AROUND = 300;
 const EDITING_WINDOW_MS = 2500;
 
 function clip(text: string, max = TARGET_LIMIT): { text: string; truncated?: boolean } {
-  return text.length <= max ? { text } : { text: text.slice(0, max), truncated: true };
+  return text.length <= max ? { text } : { text: wholeEnds(text.slice(0, max)), truncated: true };
 }
 
 function hash(value: string): string {
@@ -126,7 +127,7 @@ export function headingPath(doc: Node, pos: number): string[] {
     if (offset >= pos || node.type.name !== "heading") return;
     const level = Number(node.attrs.level) || 1;
     while (stack.length && stack[stack.length - 1]!.level >= level) stack.pop();
-    stack.push({ level, text: node.textContent.trim().slice(0, 120) });
+    stack.push({ level, text: wholeEnds(node.textContent.trim().slice(0, 120)) });
   });
   return stack.map(item => item.text).filter(Boolean);
 }
@@ -155,8 +156,8 @@ export function readPagesFocus(state: EditorState, now = Date.now()): PagesFocus
   const selection = state.selection;
   const around = (from: number, to: number) => ({
     heading_path: headingPath(state.doc, from),
-    before: state.doc.textBetween(Math.max(0, from - AROUND), from, "\n").slice(-AROUND) || undefined,
-    after: state.doc.textBetween(to, Math.min(state.doc.content.size, to + AROUND), "\n").slice(0, AROUND) || undefined,
+    before: wholeEnds(state.doc.textBetween(Math.max(0, from - AROUND), from, "\n").slice(-AROUND)) || undefined,
+    after: wholeEnds(state.doc.textBetween(to, Math.min(state.doc.content.size, to + AROUND), "\n").slice(0, AROUND)) || undefined,
   });
   let focus: Omit<PagesFocus, "local_id"> | null = null;
   const done = plugin?.completed && now - plugin.completed.at < COMPLETED_WINDOW_MS ? plugin.completed : null;

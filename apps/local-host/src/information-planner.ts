@@ -5,6 +5,9 @@ import { textModelRequired, type HostCompleteText } from "./host-complete-text.j
 /** At most `max` whole characters: a two-unit character is never cut in half. */
 const wholeCharacters = (text: string, max: number) => [...text.slice(0, 2 * max)].slice(0, max).join("");
 
+/** At most this many sources are described in the prompt, as the items and inbox entries are capped at 20: the data stays bounded. */
+const SOURCE_LIMIT = 20;
+
 /** What the plan reads from Inbox's list. */
 export interface InformationPlanEntry {
   entry_id: string;
@@ -32,7 +35,7 @@ export async function planInformationWork(snapshot: InformationPlanSnapshot, pro
   const inbox = snapshot.inbox_entries.filter(entry => entry.subject_type === "feed_item" && ["open", "in_progress"].includes(entry.status))
     .slice(0, 20).map(entry => ({ entry_id: entry.entry_id, item_id: entry.subject_id, title: wholeCharacters(snapshot.feed_items.find(item => item.item_id === entry.subject_id)?.title ?? "", 200) }));
   const context = { project_id: projectId, selected_item_id: items.some(item => item.id === body.selected_item_id) ? body.selected_item_id : null,
-    sources: snapshot.sources.filter(source => sourceIds.has(source.source_id)).map(source => ({ source_id: source.source_id, name: wholeCharacters(source.name, 200) })), items, inbox };
+    sources: snapshot.sources.filter(source => sourceIds.has(source.source_id)).slice(0, SOURCE_LIMIT).map(source => ({ source_id: source.source_id, name: wholeCharacters(source.name, 200) })), items, inbox };
   await authority?.beforeDispatch?.();
   const result = await completeText((resolve ?? (value => composeInstructedPrompt(value.instruction.body, value.data)))(
     instructed(INFORMATION_PLANNER, ["当前范围：" + JSON.stringify(context), "用户请求：" + prompt].join("\n\n"))), authority);

@@ -4,7 +4,8 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
+import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_EN, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
 
 async function fixture(t: test.TestContext) {
@@ -239,4 +240,35 @@ test("W5-01-ALC-RES-AUTH-04: exactly the four model actions declare model:invoke
   assert.equal(f.requests.length, 0);
   assert.equal((await f.bound.invoke(a.bootstrap, {})).directions[0]!.id, direction.id);
   await f.bound.invoke(a.runList, {});
+});
+
+test("RAC-2723: a lens job refused for material over the prompt's data position tells the page the material-too-long reason", async t => {
+  // The Host port refuses with alchemist.prompt_too_long. The lens job must keep that reason (not the generic research_runtime_failed)
+  // in the run the page reads; the page then shows the localized material-too-long text (the character excess gets a dedicated
+  // error-detail field in a later change, so it is not carried in the code).
+  const home = await mkdtemp(join(tmpdir(), "alchemist-prompt-too-long-")), f = alchemistFixture(home);
+  t.after(async () => { await f.close(); await rm(home, { recursive: true, force: true }); });
+  const original = f.ai.generate;
+  f.ai.generate = async input => {
+    const fields = (input.jsonSchema as { properties?: Record<string, unknown> }).properties ?? {};
+    if (fields.summary || fields.judgments) throw new ActionError("alchemist.prompt_too_long",
+      "任务材料转成提示后 200267 字，超过提示上限 200100 字，多 167 个字；请减少材料或缩短任务后重试");
+    return original(input);
+  };
+  const { direction } = await f.bound.invoke(f.actions.directionCreate, { title: "超长材料", description: "研究材料超过提示的数据位" });
+  const receipt = await f.bound.invoke(f.actions.explorationStart, { id: direction.id }); await f.runtime.runPending();
+  const exploration = (await f.bound.invoke(f.actions.explorationGet, { id: receipt.runId })).exploration;
+  const { idea } = await f.bound.invoke(f.actions.cardKeep, { id: exploration.cards[0]!.id });
+  const { plan } = await f.bound.invoke(f.actions.researchPlan, { id: idea.id, ideaVersion: 1, lens: "market_space", modelPolicy: "auto", budget: { kind: "calls", limit: 3 } });
+  const { run } = await f.bound.invoke(f.actions.researchStart, { id: idea.id, lens: "market_space", planId: plan.id });
+  await f.runtime.runPending();
+  const lens = (await f.bound.invoke(f.actions.researchGet, { id: idea.id, version: 1 })).lenses.market_space;
+  assert.equal(lens.status, "failed", "the lens run fails rather than presenting a partial report");
+  assert.equal(lens.run?.errorCode, "alchemist.prompt_too_long", "the page reads the material-too-long reason, not the generic runtime failure");
+  assert.equal(lens.run?.jobId, run.jobId);
+  // The page renders the reason: this code has its own sentence (and its English pair), so deleting the branch or the dictionary line fails here.
+  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /alchemist\.prompt_too_long/u, "the page knows this code");
+  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /材料太长，请减少材料或缩短任务后重试。/u, "and shows the material-too-long sentence for it");
+  assert.ok(ALCHEMIST_EN["材料太长，请减少材料或缩短任务后重试。"], "the sentence has its English line");
+  assert.match(ALCHEMIST_EN["材料太长，请减少材料或缩短任务后重试。"] ?? "", /Too much material/u, "the English says the material is too long");
 });

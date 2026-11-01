@@ -1,4 +1,4 @@
-import { FUNCTIONS_STYLES } from "./functions/styles.js";
+import { FUNCTIONS_STYLES } from "./judgment-rules/styles.js";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { SIDE_PANEL_STYLES, SIDE_PANEL_SCRIPT, SIDE_LINKS_SCRIPT } from "./side-panel.js";
 import { SIDE_BROWSER_STYLES, SIDE_BROWSER_SCRIPT } from "./side-panel-browser.js";

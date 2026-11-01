@@ -16,9 +16,9 @@ import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpSettings, renderRuntimeSettings } from "./settings-runtimes.js";
 import { renderProjectSettings } from "./settings-project-manager.js";
-import { renderFunctionsWorkbench } from "./functions/ui.js";
+import { renderFunctionsWorkbench } from "./judgment-rules/ui.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
-import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./functions/bootstrap.js";
+import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./judgment-rules/bootstrap.js";
 /** The docs page that lists every outbound network class (docs/platform/NETWORK.md), per interface language. */
 const NETWORK_DOC_HREF = {
   zh: "https://github.com/molis-ai/molis-work/blob/main/docs/platform/NETWORK.md",

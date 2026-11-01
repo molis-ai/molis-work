@@ -23,7 +23,7 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
   // prompts: settings-prompts.ts reads role (and project/desktop from the defaults).
   prompts: "role",
   // library (the 能力 catalogue and the rules editor inside it): web-capabilities.ts:22-35 reads project/q/kind/action/version;
-  // the rules editor (apps/workbench/src/functions/client-events.ts:305) reads rule/key. It does not read provider.
+  // the rules editor (apps/workbench/src/judgment-rules/client-events.ts:305) reads rule/key. It does not read provider.
   library: "rule key q kind action version",
   // connections: web-connector-settings.ts:14 reads setup; scripts/connectors-settings.ts:43,324-335 reads connector/connected/connection_error.
   connections: "setup connector connected connection_error",

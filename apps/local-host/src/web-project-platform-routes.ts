@@ -16,7 +16,7 @@ import { configuredModelChoices } from "./configured-models.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { handleProjectWorkspaceHttp } from "./project-workspace-http.js";
 import { pickLocalDirectory } from "./directory-picker.js";
-import { handleFunctionsHttp } from "./functions-http.js";
+import { handleFunctionsHttp } from "./judgment-rules-http.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { inspectGitIndex } from "./workspace-git-index.js";

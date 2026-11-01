@@ -52,7 +52,7 @@
     "@molis-ai/molis-work-module-attention-resumption": "workspace:*",
     "@molis-ai/molis-work-module-characters": "workspace:*",
     "@molis-ai/molis-work-module-context-ledger": "workspace:*",
-    "@molis-ai/molis-work-module-functions": "workspace:*",
+    "@molis-ai/molis-work-module-judgment-rules": "workspace:*",
     "@molis-ai/molis-work-module-private-work-context": "workspace:*",
     "@molis-ai/molis-work-module-projects": "workspace:*",
     "@molis-ai/molis-work-module-shelf": "workspace:*",

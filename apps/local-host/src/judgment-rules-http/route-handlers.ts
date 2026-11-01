@@ -1,4 +1,4 @@
-import { functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-functions";
+import { functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FunctionsHttpRouteContext, FunctionsHttpRouteHandler } from "./routes.js";
 

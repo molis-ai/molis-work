@@ -1,7 +1,7 @@
 import { ARTIFACTS_HOME_STORE } from "@molis-ai/molis-work-module-artifacts";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
-import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-functions";
+import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-judgment-rules";
 import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, homeStoreRegistry, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { AGENT_DEFINITIONS_HOME_STORE } from "./agent-definitions/agent-definitions.js";
 import { AGENT_DECLARATIONS_HOME_STORE } from "./agent-definitions/agent-declarations.js";

@@ -1,5 +1,5 @@
 import { icon as designIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderFunctionsSettings } from "./functions/settings-ui.js";
+import { renderFunctionsSettings } from "./judgment-rules/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorCardText, CONNECTOR_NAME_MAX_CHARS, CONNECTOR_SOURCE_MAX_CHARS, CONNECTOR_SUMMARY_MAX_CHARS, connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
 import { connectorMark } from "./connector-marks.js";

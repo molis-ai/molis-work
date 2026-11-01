@@ -1,5 +1,5 @@
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { forgetDeclaredRulesIn, forgetInstallJudgmentsIn } from "@molis-ai/molis-work-module-functions";
+import { forgetDeclaredRulesIn, forgetInstallJudgmentsIn } from "@molis-ai/molis-work-module-judgment-rules";
 import { forgetInstallationBindings, forgetInstallationProjectBindings, installationIdsWithBindings } from "./connector-plugin-requests.js";
 import { forgetInstallationOriginalFiles } from "./material-original-files.js";
 import { hostLog } from "./host-log.js";

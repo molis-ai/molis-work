@@ -8,7 +8,7 @@ import { bindActionClient, type ActionCallContext, type ActionReference } from "
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
-import type { FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import type { FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { homeActions, HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
 import { prepareSubjectOffers } from "../apps/local-host/dist/contextual/contextual-service.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";

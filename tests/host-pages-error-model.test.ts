@@ -13,7 +13,7 @@ import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
-import * as functionsModule from "@molis-ai/molis-work-module-functions";
+import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -458,9 +458,9 @@ test("the mapper, the catalog class, the artifact classes and the Functions clas
   const found = spawnSync("git", ["grep", "-n", "-E", `\\b(${OLD.join("|")})\\b`, "--", "apps", "packages", "modules", "plugins", "horizontal", "scripts", "tests", `:!${here}`],
     { cwd: REPOSITORY, encoding: "utf8" });
   assert.deepEqual([found.status, found.stdout.trim()], [1, ""], "no source names the removed classes or the mapper");
-  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/functions-http/route-error.ts")), false);
-  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/functions-http.ts", "apps/local-host/src/web-project-reference.ts",
-    "apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/functions/src"],
+  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/judgment-rules-http/route-error.ts")), false);
+  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/judgment-rules-http.ts", "apps/local-host/src/web-project-reference.ts",
+    "apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/judgment-rules/src"],
   { cwd: REPOSITORY, encoding: "utf8" });
   const bare = scan.stdout.trim().split("\n").filter(line => line && !/\/\/ .*new Error\(|object required/.test(line));
   assert.deepEqual(bare, [], "a caller's mistake on these edges has a code (a bare Error would answer 500)");

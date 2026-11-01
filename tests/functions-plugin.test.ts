@@ -1,10 +1,10 @@
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
+import { functionsActionProvider } from "@molis-ai/molis-work-module-judgment-rules";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
-function registeredFunctionActions(service: import("@molis-ai/molis-work-module-functions").FunctionsService) {
+function registeredFunctionActions(service: import("@molis-ai/molis-work-module-judgment-rules").FunctionsService) {
   const actions = new ActionService();
   actions.registerProvider(functionsActionProvider({ read: run => run(service), run: run => run(service), credentialAvailable: () => service.settingsStatus().has_credential }));
   return bindActionClient(actions, () => ({ actor_id: "test", project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] }));
@@ -35,12 +35,12 @@ import {
   hashFunctionConfig,
   readAnswer,
   type TypeSafeProvider,
-} from "@molis-ai/molis-work-module-functions";
-import { FunctionsHttpRouteTable } from "../apps/local-host/dist/functions-http/routes.js";
-import { createFunctionsRouteHandlers } from "../apps/local-host/dist/functions-http/route-handlers.js";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
-import { renderFunctionsWorkbench } from "../apps/workbench/dist/functions/ui.js";
-import { renderFunctionsSettings } from "../apps/workbench/dist/functions/settings-ui.js";
+} from "@molis-ai/molis-work-module-judgment-rules";
+import { FunctionsHttpRouteTable } from "../apps/local-host/dist/judgment-rules-http/routes.js";
+import { createFunctionsRouteHandlers } from "../apps/local-host/dist/judgment-rules-http/route-handlers.js";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/judgment-rules/client.js";
+import { renderFunctionsWorkbench } from "../apps/workbench/dist/judgment-rules/ui.js";
+import { renderFunctionsSettings } from "../apps/workbench/dist/judgment-rules/settings-ui.js";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")
@@ -102,6 +102,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
+// RAC-2844 / RA4-02: exercise the existing judgment lifecycle through the renamed implementation and HTTP modules.
 test("config hash ignores criteria order and changes when instructions change", () => {
   const left = hashChoiceConfig({
     instructions: "Route this.",

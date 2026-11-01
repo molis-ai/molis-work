@@ -635,11 +635,11 @@
   - `boundToken` 调 `resolveApiConnection(home, id, connectorAccountControl(...), "github")`，C 只给它加了 control 参数。
   - 只给 `https://api.github.com` 加 Bearer，出错就退回匿名，并记一行宿主日志。
   - 它不发起授权，也没有自己的回调，只是宿主里一个 Home 级的消费者直接取令牌。
-- **这一轮**：代码不改（R3）。出处是 2026-10-23「本轮不删」：PG-092 `privileges.md:288`、BL-376 `specs/BACKLOG.md:162`。10-21 那份「防腐收尾后删掉重做」的计划不执行（N3）。不删 Alchemist，也不删创作台。
+- **这一轮**：代码不改（R3）。2026-10-23 的“不迁、不删”与后续重做边界见 [privileges 的 PG-092](../privileges.md) 及 [BACKLOG 的 BL-376](../../BACKLOG.md)；按标题/编号定位，不沿旧行号。10-21 删除计划不执行，不删 Alchemist，也不删创作台。
 - **§2.6 之后会怎样**：
   - 绑的是 **OAuth 连接**：取令牌走通用刷新。GitHub 集成插件没启用时被拒，沿用它现在的退回匿名（RAC-1088 只管这一半）。
   - 绑的是 **token 连接**：插件停用后照样发往 `api.github.com`。今天就是这样，不算放宽；拒绝 token 连接是 BL-794，不在本线。
-- **例外到什么时候**：Alchemist 重做、进 Plugin Runtime，并经 `services.connections` 的槽（S-57）拿连接为止。到那天删掉这一行例外，以及 `resolveApiConnection` 里还收的 `service` 参数。
+- **例外到什么时候**：Alchemist 重做进入 Plugin Runtime，并经 `services.connections` 的槽（S-57）接管连接绑定与请求后再移除。T396 已在 T395 候选实现三类内置 API 提供方统一取钥，最终验证与实际采用仍待结算；PG-045 整行不因 OAuth 声明化或本文收口而关闭，也不承诺删除仍有真实调用者的参数。
 - **措辞要改的地方**（第 9 片做）：
   - **`privileges.md` PG-045 第 218 行**：句尾改成「OAuth 的数据与流程已由 W5-11 移进集成插件的声明；T1 之前只有宿主构建的插件能写带数据的 oauth（按签名区分的安装信任，W5-11 §2.8）；Alchemist 的 GitHub 脉冲仍由宿主绑定、直接取令牌，不迁、本轮不删（2026-10-23，PG-092、BL-376），等它重做进 Plugin Runtime、经 `services.connections` 拿连接时删掉」。行尾那句 10-21 的旧说法一起换掉。
   - **PG-092 第 288 行**：加同样的一句，出处写 10-23。
@@ -717,6 +717,13 @@
 - 第 1、2 片可以和 C 并行，统筹 10-27 已放行；第 2 片先做，第 1 片的合同照 §2.1.1 的写法。
 - 第 3～8 片都碰 C 改过的连接器文件，等 C 进 main 后按表里的顺序做，每片一个 PR，交给评审会话。
 - 统筹 10-27 的负载控制下，一次只跑一项重活。
+
+### 7.1 T067 文档收口与父采用占位
+
+- **OAuth 父实际采用提交：`T067_PARENT_ADOPTION_PENDING`；当前未回填，不是已采用。** 文档定位使用 T395 候选来源，不把作者实现、CI 或父分支 HEAD 当 main 采用证明。统筹在父实际采用后填准确提交，再逐项合第 3～8 片状态；原“已做/待评审”和历史测试保留原执行来源，不改署新头。
+- **第 9 片文档实际采用：`T067_DOCUMENT_ADOPTION_PENDING`。** 候选覆盖 CALL-CHAINS、privileges、EXTENSION-POINTS、SECURITY-INVARIANTS、AGENTS A3 和升级须知；未签产品运行、Full、真实账号或用户验收。
+- 本轮编号：S-105 属 T144 签名正文，T066 设备授权为 S-106，T145 预留 S-107；不沿 T066 候选旧 S-109，不为预留号新增安全表占位。
+- 第 10 片 BL-790/T068 仍未采用；按统筹授权可在 T395 准确冻结父上提前实施候选，发布/采用仍排父后。第 9 片完成不等于 W5-11 全完成；PG-045 三类 API 提供方取钥已由 T396 在 T395 候选实现，待最终验证与承载实际采用，仍不结清 PG-045 整行；BL-791 本机服务和其余保留项各自结账。
 
 ## 8. 验收
 

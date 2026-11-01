@@ -31,6 +31,7 @@ export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.j
 export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
+export { SANDBOX_HOME_SCHEMA_LIMITS, assertPluginHomeSchema, inspectPluginHomeSchema } from "./project-database.js";
 export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
 export {
   createPluginRuntimeReleaseArtifact,

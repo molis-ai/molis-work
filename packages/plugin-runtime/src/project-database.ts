@@ -124,17 +124,44 @@ function balanced(masked: string): boolean {
  * foreign keys only to its own tables or the project's root row.
  */
 export function inspectPluginProjectSchema(declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector): DeclaredSchema {
-  const parts = statements(declaration.schema);
+  assertSchemaStatements(declaration.schema);
+  return inspectSchema(declaration.schema, inspector, PROJECT_ROOT_REFERENCE);
+}
+
+/** Only sandboxed Home declarations have these limits; the project's existing declaration contract is unchanged. */
+export const SANDBOX_HOME_SCHEMA_LIMITS = Object.freeze({ bytes: 256 * 1024, statements: 128 });
+
+/** Pure, bounded lexical validation. The package reader uses this without executing any SQLite. */
+export function assertPluginHomeSchema(schema: string): void {
+  if (new TextEncoder().encode(schema).byteLength > SANDBOX_HOME_SCHEMA_LIMITS.bytes) {
+    throw invalid(`Home 库声明最多 ${SANDBOX_HOME_SCHEMA_LIMITS.bytes} 个 UTF-8 字节`);
+  }
+  assertSchemaStatements(schema, SANDBOX_HOME_SCHEMA_LIMITS.statements);
+}
+
+/** Home declarations use the same CREATE/object rules, without the project's root-row exception. Runs only in the SQL Worker. */
+export function inspectPluginHomeSchema(declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector): DeclaredSchema {
+  assertPluginHomeSchema(declaration.schema);
+  return inspectSchema(declaration.schema, inspector);
+}
+
+function assertSchemaStatements(schema: string, maximum?: number): void {
+  const parts = statements(schema);
   if (parts.length === 0) throw invalid("项目库声明没有建表语句");
+  if (maximum !== undefined && parts.length > maximum) throw invalid(`Home 库声明最多 ${maximum} 条显式 CREATE TABLE 或 CREATE INDEX 语句`);
   for (const part of parts) {
-    if (!balanced(part.masked) || !(CREATE_TABLE.test(part.masked) || CREATE_INDEX.test(part.masked))) {
+    if (!balanced(part.masked) || !(CREATE_TABLE.test(part.masked) || CREATE_INDEX.test(part.masked)) || /\bAS\s+SELECT\b/iu.test(part.masked)) {
       throw invalid(`项目库声明只能建表和索引，名字不带库名，不能从查询建表：${part.text.slice(0, 80)}`);
     }
   }
+}
+
+function inspectSchema(schema: string, inspector: PluginProjectSchemaInspector,
+  reference?: { readonly table: string; readonly column: string }): DeclaredSchema {
   const scratch = inspector.scratch();
   let objects: readonly PluginSchemaObject[], shape: PluginSchemaShape;
   try {
-    try { scratch.exec(declaration.schema); } catch (error) { throw invalid(`建表语句在空库里执行失败：${error instanceof Error ? error.message : String(error)}`); }
+    try { scratch.exec(schema); } catch (error) { throw invalid(`建表语句在空库里执行失败：${error instanceof Error ? error.message : String(error)}`); }
     objects = inspector.objects(scratch);
     shape = inspector.shape(scratch);
   } finally { scratch.close(); }
@@ -147,9 +174,9 @@ export function inspectPluginProjectSchema(declaration: PluginDatabaseDeclaratio
   const own = new Set(tables.map(fold));
   for (const [table, described] of Object.entries(shape.tables)) {
     for (const key of described.foreign_keys) {
-      const root = fold(key.table) === PROJECT_ROOT_REFERENCE.table && (key.to === null || fold(key.to) === PROJECT_ROOT_REFERENCE.column);
+      const root = reference && fold(key.table) === reference.table && (key.to === null || fold(key.to) === reference.column);
       if (!own.has(fold(key.table)) && !root) {
-        throw invalid(`表 ${table} 的外键只能指向本插件自己的表或 ${PROJECT_ROOT_REFERENCE.table}(${PROJECT_ROOT_REFERENCE.column})，不能指向 ${key.table}`);
+        throw invalid(`表 ${table} 的外键只能指向本插件自己的表${reference ? `或 ${reference.table}(${reference.column})` : ""}，不能指向 ${key.table}`);
       }
     }
   }

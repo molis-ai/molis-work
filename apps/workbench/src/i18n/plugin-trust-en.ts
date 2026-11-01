@@ -9,6 +9,7 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "你固定过的发布者。他们之后签的包会按这份信任安装。": "Publishers you have pinned. Packages they sign later are installed under that trust.",
   "可访问的服务地址": "Service addresses it may access",
   "它要的权限": "What it asks for",
+  "本次未请求": "Not requested this time",
   "没有要任何权限": "It asks for no permissions",
   "它在后台常做的事": "What it keeps doing in the background",
   "没有后台任务": "No background jobs",

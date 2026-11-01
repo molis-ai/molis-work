@@ -89,7 +89,7 @@ return box;
 const row = (head, ...notes) => { const item = el("li"); item.append(el("span", "", head)); notes.filter(Boolean).forEach((note) => item.append(el("span", "settings-muted", note))); return item; };
 // What a plugin asked for: its own reason, and what the platform itself says the permission is.
 const permissions = (items) => group(L("它要的权限"), L("没有要任何权限"), items.map((item) =>
-row(item.permission + (item.required ? "" : " · " + L("可选")), item.reason, item.meaning)));
+row(item.permission + (item.requested ? (item.required ? "" : " · " + L("可选")) : " · " + L("本次未请求")), item.reason, item.meaning)));
 // A job whose permission the person switched off is paused: its activation needs the grant at every step.
 const jobs = (items, held) => group(L("它在后台常做的事"), L("没有后台任务"), items.map((item) => {
 const off = (held || []).filter((view) => !view.granted && item.permissions.includes(view.permission)).map((view) => view.permission);
@@ -98,8 +98,8 @@ return row(item.job_id, item.reason, item.permissions.length ? L("用到 {permis
 // The four that reach out of the project or spend money are confirmed before they are switched on; the rest take one click.
 const WIDE = (permission) => permission === "actions:delegate" || permission === "model:invoke" || /^(network|secret):/.test(permission);
 const grants = (plugin, repaint, send) => group(L("它要的权限"), L("没有要任何权限"), plugin.permissions.map((item) => {
-const line = row(item.permission + " · " + (item.required ? L("必需") : L("可选")), item.reason, item.meaning);
-if (item.required) return line;
+const line = row(item.permission + " · " + (!item.requested ? L("本次未请求") : item.required ? L("必需") : L("可选")), item.reason, item.meaning);
+if (item.required || !item.requested) return line;
 const control = el("span", "mw-switch"), toggle = el("input"), track = el("span", "mw-switch__track");
 toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = item.granted; toggle.setAttribute("aria-label", item.permission);
 track.setAttribute("aria-hidden", "true"); control.append(toggle, track); line.append(control);

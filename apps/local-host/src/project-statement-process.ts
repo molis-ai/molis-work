@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
-import type { StatementCall, StatementFatal, StatementMessage, StatementReply, StatementRow, StatementValue } from "./project-statement-protocol.js";
+import type { HomePreparationCall, StatementCall, StatementFatal, StatementMessage, StatementReply, StatementRow, StatementValue } from "./project-statement-protocol.js";
 
 // The process that runs one sandboxed plugin's statements (specs/repository-anti-corruption/slices/sandbox-project-database-limits.md
 // §2). Neither SQLite driver the Host has can interrupt a statement that is running, and `Worker.terminate()` cannot stop a native
@@ -39,9 +39,10 @@ export const DEFAULT_STATEMENT_LIMITS: StatementLimits = Object.freeze({
 
 const WORKER = fileURLToPath(new URL("./project-statement-worker.js", import.meta.url));
 
-type Step = Exclude<StatementCall, { readonly op: "open" }>;
+type Step = Exclude<StatementCall, { readonly op: "open" } | { readonly op: HomePreparationCall["op"] }>;
 type Answered = Extract<StatementReply, { ok: true }>;
 interface Waiting { readonly id: number; settle(reply: StatementReply): void; fail(error: unknown): void }
+type HomePreparationResult = { readonly ok: true } | { readonly ok: false; readonly error: unknown; readonly interrupted: boolean };
 
 /** The steps of one write transaction, between its BEGIN and its COMMIT; the process is held for it. */
 export interface StatementTransaction {
@@ -53,6 +54,7 @@ export class ProjectStatementProcess {
   private readonly limits: StatementLimits;
   private child: ChildProcess | undefined;
   private readonly ended = new WeakMap<ChildProcess, unknown>();
+  private readonly exits = new WeakMap<ChildProcess, Promise<void>>();
   private waiting: Waiting | undefined;
   private tail: Promise<unknown> = Promise.resolve();
   private queued = 0;
@@ -62,6 +64,35 @@ export class ProjectStatementProcess {
 
   constructor(private readonly path: string, private readonly record: PluginProjectDatabaseRecord | null, limits: Partial<StatementLimits> = {}) {
     this.limits = Object.freeze({ ...DEFAULT_STATEMENT_LIMITS, ...limits });
+  }
+
+  /** Both scratch validation and real initialization run on the existing SQL Worker, under its independent controller. */
+  async prepareHome(request: HomePreparationCall, signal?: AbortSignal): Promise<HomePreparationResult> {
+    return await this.exclusive(async () => {
+      signal?.throwIfAborted();
+      const child = this.spawn();
+      // Preparation must keep its caller alive until the process has actually exited, including after a lost IPC reply.
+      child.ref(); child.channel?.ref();
+      const { heapMb, rssMb, sampleMs, startMs, transactionMs: executionMs } = this.limits;
+      const startDeadline = Date.now() + startMs;
+      let replied = false;
+      try {
+        const reply = await this.exchange(child, { ...request, limits: { heapMb, rssMb, sampleMs }, startDeadline, executionMs }, startDeadline + executionMs, signal);
+        replied = true;
+        if (!reply.ok) {
+          const coded = reply.preparationError;
+          if (coded) throw new ActionError(coded.code, reply.message, { kind: coded.kind, details: coded.details });
+          throw new Error(reply.message);
+        }
+        return { ok: true } as const;
+      } catch (error) {
+        // This marker is Host control state, never a value accepted from plugin/Worker error JSON.
+        return { ok: false, error, interrupted: !replied } as const;
+      } finally {
+        if (this.child === child) this.kill(undefined);
+        await this.exits.get(child);
+      }
+    });
   }
 
   async get(sql: string, parameters: readonly StatementValue[], limits: { readonly bytes: number }, signal?: AbortSignal): Promise<StatementRow | null> {
@@ -135,13 +166,14 @@ export class ProjectStatementProcess {
     throw new Error(reply.message);
   }
 
-  private async start(): Promise<ChildProcess> {
+  private spawn(): ChildProcess {
     const child = fork(WORKER, [], { execArgv: [`--max-old-space-size=${this.limits.heapMb}`], stdio: ["ignore", "ignore", "ignore", "ipc"],
       env: { TMPDIR: tmpdir() }, cwd: tmpdir(), serialization: "json" });
     // The Host does not wait for it to leave, and it leaves on its own when the Host's end of the channel closes.
     child.unref();
     child.channel?.unref();
     this.child = child;
+    this.exits.set(child, new Promise(resolve => child.once("close", () => resolve())));
     child.on("message", reply => {
       const message = reply as StatementMessage;
       if (this.child === child && "fatal" in message) { this.kill(fatalError(message)); return; }
@@ -156,6 +188,11 @@ export class ProjectStatementProcess {
       if (this.child !== child) return;
       this.kill(pluginProjectDatabaseErrors.process_failed(`项目库的语句进程无法运行：${error.message}`));
     });
+    return child;
+  }
+
+  private async start(): Promise<ChildProcess> {
+    const child = this.spawn();
     try {
       const { heapMb, rssMb, sampleMs } = this.limits;
       const reply = await this.exchange(child, { op: "open", path: this.path, record: this.record, limits: { heapMb, rssMb, sampleMs } }, Date.now() + this.limits.startMs);

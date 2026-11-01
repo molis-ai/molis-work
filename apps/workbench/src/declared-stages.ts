@@ -1,7 +1,7 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import type { StagePagePresentation, UiContribution, UiRenderRequest, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { StagePagePresentation, UiContribution, UiRenderRequest, UiSurfaceDescriptor, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
@@ -23,6 +23,26 @@ export function stageOpeningView(manifest: PluginManifest): UiViewDeclaration | 
 export function stageDataAction(manifest: PluginManifest): ActionDefinition | undefined {
   const declared = stageOpeningView(manifest)?.stage_data?.action;
   return declared ? manifest.actions?.find(item => item.capability_id === declared) : undefined;
+}
+
+/** One object's read is declared independently of the stage read, but belongs to the same Manifest. */
+export function stageObjectAction(manifest: PluginManifest): ActionDefinition | undefined {
+  const declared = stageOpeningView(manifest)?.stage_data?.object_action;
+  return declared ? manifest.actions?.find(item => item.capability_id === declared) : undefined;
+}
+
+/** Finite automatic mounts: explicit main surfaces, then directory/overlay surfaces in descriptor order. */
+export function stageSurfaceDescriptors(manifest: PluginManifest, contribution: UiContribution): readonly UiSurfaceDescriptor[] {
+  const names = stageOpeningView(manifest)?.stage_surfaces ?? ["workbench"];
+  const declared = contribution.descriptor.surfaces ?? [];
+  const main = names.map(name => {
+    const found = declared.find(surface => surface.surface_id === name && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html");
+    if (!found) throw new Error(`Stage main surface is not declared by ${contribution.descriptor.contribution_id}: ${name}`);
+    return found;
+  });
+  const seen = new Set(main.map(surface => surface.surface_id));
+  return [...main, ...declared.filter(surface => ["workbench.directory", "workbench.overlay"].includes(surface.target_slot_id)
+    && surface.format === "declarative-html" && !seen.has(surface.surface_id))];
 }
 
 /** The request parameters the stage-opening view names in `stage_data.input` (T-116): the only part of a request its stage is given. */
@@ -50,8 +70,9 @@ export function declaredStageContributionId(entry: PluginRegistration): string |
 export interface DeclaredStageOptions {
   /** The plugins this project shows. */
   enabled: readonly string[];
-  /** Contribution ids a host stage path has already drawn (`plugin_stage_ids`). */
-  rendered: readonly string[];
+  /** Exact contribution/surface pairs already drawn by a Host path. */
+  rendered: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
+  unavailable?: readonly string[];
   /** The model a plugin's stage is drawn with. */
   model(projectPluginId: string): unknown;
   /** Trusted owner of the matched page route, not a value from the request. */
@@ -76,13 +97,18 @@ export function withoutPagePublisher(model: unknown): unknown {
 
 /** Draw once, then adopt a page publication only if the main surface and same-contribution overlays all succeeded. */
 export function renderStagePage(contribution: UiContribution, model: unknown, owner: string, pageOwner: boolean,
-  draw: (request: UiRenderRequest) => string = request => contribution.render(request)): { html: string; page?: RenderedStagePage } {
-  if (!contribution.descriptor.surfaces?.some(surface => surface.surface_id === "workbench"
-    && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html")) {
-    throw new Error(`Stage main surface is not declared by ${contribution.descriptor.contribution_id}`);
+  draw: (request: UiRenderRequest) => string = request => contribution.render(request),
+  options?: { manifest?: PluginManifest; rendered?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">> }) {
+  const contribution_id = contribution.descriptor.contribution_id;
+  const selected = options?.manifest ? stageSurfaceDescriptors(options.manifest, contribution)
+    : (contribution.descriptor.surfaces ?? []).filter(surface => surface.surface_id === "workbench");
+  if (!selected.some(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html")) {
+    throw new Error(`Stage main surface is not declared by ${contribution_id}`);
   }
+  const prior = new Set((options?.rendered ?? []).filter(item => item.contribution_id === contribution_id).map(item => item.surface));
+  const surfaces: Array<Pick<UiRenderRequest, "contribution_id" | "surface">> = [];
   const own = withoutPagePublisher(model);
-  let active = pageOwner, parts: StagePagePresentation | undefined;
+  let active = false, parts: StagePagePresentation | undefined;
   const page = { publish(value: StagePagePresentation) {
     if (active) parts = { ...value, body_attributes: value.body_attributes ? { ...value.body_attributes } : undefined,
       workspace_classes: value.workspace_classes ? [...value.workspace_classes] : undefined,
@@ -90,21 +116,35 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
       overlays: value.overlays ? { ...value.overlays } : undefined };
   } };
   const scoped = pageOwner && own && typeof own === "object" ? { ...own, page } : own;
-  const contribution_id = contribution.descriptor.contribution_id;
-  let html: string;
-  try { html = draw({ contribution_id, surface: "workbench", model: scoped }); }
-  finally { active = false; }
-  if (!parts) return { html };
+  const once = (surface: string, publishing = false): string => {
+    if (prior.has(surface)) return "";
+    prior.add(surface); active = publishing;
+    try {
+      const html = draw({ contribution_id, surface, model: publishing ? scoped : own });
+      surfaces.push({ contribution_id, surface });
+      return html;
+    } finally { active = false; }
+  };
+  const main: string[] = [];
+  let mainPage = "";
+  for (const surface of selected.filter(item => item.target_slot_id === "workbench.main")) {
+    const html = once(surface.surface_id, pageOwner && surface.surface_id === "workbench");
+    if (surface.surface_id === "workbench") mainPage = html;
+    else main.push(html);
+  }
   const overlay = (surface: string | undefined): string => {
     if (!surface) return "";
     if (!contribution.descriptor.surfaces?.some(item => item.surface_id === surface && item.target_slot_id === "workbench.overlay" && item.format === "declarative-html")) {
       throw new Error(`Page overlay is not declared by ${contribution_id}: ${surface}`);
     }
-    return draw({ contribution_id, surface, model: own });
+    return once(surface);
   };
-  return { html, page: { owner, html, parts,
-    before_global_search: overlay(parts.overlays?.before_global_search),
-    after_global_search: overlay(parts.overlays?.after_global_search) } };
+  let renderedPage: RenderedStagePage | undefined;
+  if (parts) renderedPage = { owner, html: mainPage, parts,
+    before_global_search: overlay(parts.overlays?.before_global_search), after_global_search: overlay(parts.overlays?.after_global_search) };
+  const panels = selected.filter(item => item.target_slot_id === "workbench.directory").map(item => once(item.surface_id)).join("");
+  const overlays = selected.filter(item => item.target_slot_id === "workbench.overlay").map(item => once(item.surface_id)).join("");
+  return { html: (renderedPage ? main : [mainPage, ...main]).join(""), panels, overlays, surfaces, ...(renderedPage ? { page: renderedPage } : {}) };
 }
 
 /**
@@ -112,18 +152,24 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
  * contribution's `workbench` surface is mounted in the slot it declares, which must be the main slot. No per-plugin row and no
  * host branch; a plugin without such a view or surface has no stage here, and one a host path has drawn is not drawn twice.
  */
-export function renderDeclaredStages({ enabled, rendered, model, page_owner }: DeclaredStageOptions): { html: string[]; page?: RenderedStagePage } {
-  const shown = new Set(enabled), already = new Set(rendered);
+export function renderDeclaredStages({ enabled, rendered, model, page_owner, unavailable = [] }: DeclaredStageOptions) {
+  const shown = new Set(enabled), refused = new Set(unavailable);
   let page: RenderedStagePage | undefined;
+  const panels: Record<string, string> = {}, overlays: string[] = [], surfaces: Array<Pick<UiRenderRequest, "contribution_id" | "surface">> = [];
   const html = BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
-    if (!shown.has(entry.project_plugin_id)) return [];
+    if (!shown.has(entry.project_plugin_id) || refused.has(entry.project_plugin_id)) return [];
     const contributionId = declaredStageContributionId(entry);
-    if (!contributionId || already.has(contributionId)) return [];
+    if (!contributionId) return [];
     const contribution = entry.workbench.contributions.find(item => item.descriptor.contribution_id === contributionId)!;
+    const selected = stageSurfaceDescriptors(entry.manifest, contribution);
+    if (selected.every(item => rendered.some(prior => prior.contribution_id === contributionId && prior.surface === item.surface_id))) return [];
     const result = renderStagePage(contribution, model(entry.project_plugin_id), entry.project_plugin_id, page_owner === entry.manifest.plugin_id,
-      request => renderWorkbenchContribution(request.contribution_id, request.surface, request.model));
-    if (result.page) { page = result.page; return []; }
-    return [result.html];
+      request => renderWorkbenchContribution(request.contribution_id, request.surface, request.model), { manifest: entry.manifest, rendered });
+    if (result.page) page = result.page;
+    if (result.panels) panels[entry.project_plugin_id] = result.panels;
+    if (result.overlays) overlays.push(result.overlays);
+    surfaces.push(...result.surfaces);
+    return result.html ? [result.html] : [];
   });
-  return { html, ...(page ? { page } : {}) };
+  return { html, panels, overlays, surfaces, ...(page ? { page } : {}) };
 }

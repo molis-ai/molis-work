@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { reservedHomeName } from "./sandbox-home-names.js";
-import { describeSqliteBaseline, describeSqliteSchema, snapshotFileStat, openBaselineHomeSqlite, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { inspectPluginHomeSchema, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
+import { describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 // A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/repository-anti-corruption/slices/pg022-manifest-declarations.md).
 // The plugin declares it in its Manifest (`databases.home`), like a shipped one; what a shipped plugin has from the Host's store registry
@@ -86,6 +87,70 @@ function holderOf(name: string, reserved: HomeStoreRegistry): string | undefined
 
 const digestOf = (declaration: HomePluginDatabaseDeclaration) => createHash("sha256").update(declaration.schema).digest("hex");
 
+const homeInspector: PluginProjectSchemaInspector = {
+  scratch: () => openHomeSqliteFile(":memory:"),
+  objects: db => listSqliteObjects(db),
+  shape: db => describeSqliteSchema(db),
+};
+
+/** SQL Worker only: the shared DDL rules, with no project's root-row exception. */
+export function validateInstalledSandboxHomeSchema(declaration: HomePluginDatabaseDeclaration): void {
+  inspectPluginHomeSchema(declaration, homeInspector);
+}
+
+/** SQL Worker only: the existing ledger owner still controls both first creation and every reopen. */
+export function initializeInstalledSandboxHomeLibrary(home: string, owner: InstalledLibraryOwner,
+  declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry): void {
+  validateInstalledSandboxHomeSchema(declaration);
+  openInstalledPluginLibrary(home, owner, declaration, reserved, created => {
+    if (!created) {
+      if (!existsSync(homeSqlitePath(home, declaration.store_name))) throw installedLibraryErrors.shape_mismatch("已有归属记录的 Home 库文件缺失，不会重放初始化");
+      const inspection = openReadOnlyHomeSqlite(home, declaration.store_name);
+      try {
+        if (Number(inspection.prepare("PRAGMA user_version").get()?.user_version) !== declaration.version) {
+          throw installedLibraryErrors.version_mismatch("已有归属记录的 Home 库实际版本不符，不会重放初始化");
+        }
+        if (JSON.stringify(describeSqliteSchema(inspection)) !== JSON.stringify(describeSqliteBaseline(declaration))) {
+          throw installedLibraryErrors.shape_mismatch("已有归属记录的 Home 库结构不符，不会重放初始化");
+        }
+      } finally { inspection.close(); }
+    }
+    const db = created ? openBaselineHomeSqlite(home, declaration.store_name, declaration) : openHomeSqliteFile(homeSqlitePath(home, declaration.store_name));
+    try { db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1000;"); return db; }
+    catch (error) { db.close(); throw error; }
+  }).close();
+}
+
+/** One local attempt, not an approval or a persistent schema ticket. No write lock survives this snapshot. */
+export function installedLibraryAttempt(home: string, declaration: HomePluginDatabaseDeclaration): { readonly home: string; readonly existed: boolean } {
+  if (!INSTALLED_LIBRARY_NAME.test(declaration.store_name)) throw pluginErrors.declaration_invalid("插件库名称必须是可信的单个目录名");
+  const root = realpathSync(home);
+  let existed: boolean;
+  try { lstatSync(join(root, declaration.store_name)); existed = true; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; existed = false; }
+  return { home: root, existed };
+}
+
+/** After the whole preparation process exits, reconcile through this same ledger owner before considering any cleanup. */
+export function reconcileInterruptedInstalledLibrary(home: string, owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration,
+  reserved: HomeStoreRegistry, attempt: ReturnType<typeof installedLibraryAttempt>): void {
+  if (realpathSync(home) !== attempt.home) throw installedLibraryErrors.object_taken("Home 的真实位置已经变化，保留初始化结果待核对");
+  const rows = installedLibrarySnapshots(home, reserved);
+  const recorded = rows.find(row => row.plugin_id === owner.plugin_id || row.store_name === declaration.store_name);
+  if (recorded) {
+    throw new ActionError("actions.outcome_unknown", "Home 库初始化的确认丢失，已保留库和归属账本；下次启动只核对归属与基线，不重放初始化",
+      { details: { plugin_id: owner.plugin_id, store_name: declaration.store_name } });
+  }
+  const path = join(attempt.home, declaration.store_name);
+  let current: ReturnType<typeof lstatSync>;
+  try { current = lstatSync(path); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  if (attempt.existed || !current.isDirectory() || current.isSymbolicLink()) {
+    throw installedLibraryErrors.object_taken("Home 库初始化没有归属记录，现有路径归属不明，已保留待核对");
+  }
+  rmSync(path, { recursive: true, force: true });
+}
+
 /**
  * Open an installed plugin's library, making it the first time. In one ledger transaction: with no row for the plugin, the name must
  * be free (not a store the Host's registry holds, not another plugin's row, no directory of that name in the Home) and `open` makes the
@@ -94,7 +159,7 @@ const digestOf = (declaration: HomePluginDatabaseDeclaration) => createHash("sha
  * removed again. `reserved` is the Home's store registry.
  */
 export function openInstalledPluginLibrary<Opened extends { close(): void }>(home: string, owner: InstalledLibraryOwner,
-  declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry, open: () => Opened, now: () => Date = () => new Date()): Opened {
+  declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry, open: (created: boolean) => Opened, now: () => Date = () => new Date()): Opened {
   const name = declaration.store_name, who = `插件 ${owner.plugin_id} 的 Home 库 ${name}`;
   if (!INSTALLED_LIBRARY_NAME.test(name)) throw pluginErrors.declaration_invalid(`${who}：库名必须是一个目录名（小写字母开头，只含小写字母、数字和连字符）`);
   if (declaration.partition !== undefined) {
@@ -123,7 +188,7 @@ export function openInstalledPluginLibrary<Opened extends { close(): void }>(hom
       if (existsSync(join(home, name))) throw installedLibraryErrors.object_taken(`${who}：Home 里已经有叫 ${name} 的目录，不是这个插件建的`);
       made = true;
     }
-    opened = open();
+    opened = open(made);
     if (made) {
       ledger.prepare("INSERT INTO plugin_home_libraries (plugin_id, publisher_signature, store_name, version, schema_digest, created_at) VALUES (?, ?, ?, ?, ?, ?)")
         .run(owner.plugin_id, owner.publisher_signature, name, declaration.version, digest, now().toISOString());

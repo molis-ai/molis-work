@@ -42,7 +42,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       return;
     }
     collapsePluginStage(plugin);
-    if (plugin === "feed") setFeedTask?.(topLevelSurface(plugin)?.dataset.selectedSource || "all", false);
+    if (plugin === "feed") setFeedTask?.(readView(ops.focused(state).id) ?? "all", false, "restore");
   };
   // Goals are drawn by the workbench itself: name the open Goal on its frame and document, as every plugin names its
   // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
@@ -162,14 +162,11 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     }, quiet ? 8000 : 10000);
     frame?.addEventListener('load', watch); watch();
   };
-  const openItem = (plugin, itemId, title, goalView) => {
-    if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), goalView }); return; }
+  const openItem = (plugin, itemId, title, view) => {
+    if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), view }); return; }
     if (openInSide(plugin, itemId, title)) return;
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
-    if (plugin === "goals" && goalView === "frame") {
-      delete tab.goalView;
-      panesEl.querySelector('iframe[data-pane-tab="' + tab.id + '"]')?.contentWindow?.postMessage({type:"workbench-goal-view", view:"frame"}, location.origin);
-    }
+    if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);
     apply();
     persist();
   };
@@ -194,8 +191,8 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   const openGoalWork = () => {
     const tab = ops.activeTab(state);
     if (tab?.plugin !== "goals" || tab.kind !== "item") return;
-    tab.goalView = "work"; apply(); persist();
-    if (embedded) notifyParent("workbench-pane-goal-view", { view: "work", goalId: tab.itemId, title: tab.title });
+    writeView(ops.focused(state).id, "work", tab.id);
+    if (embedded) notifyParent("workbench-pane-view", { view: "work" });
   };
   const addFeedTask = () => {
     openPlugin("feed");

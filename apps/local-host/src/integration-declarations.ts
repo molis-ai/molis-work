@@ -28,7 +28,8 @@ export interface RegisteredIntegration {
 export class IntegrationDeclarations {
   private readonly services = new Map<string, RegisteredConnectionService>();
   private readonly integrations = new Map<string, RegisteredIntegration>();
-  private readonly declared = new Map<string, { services: readonly string[]; integrations: readonly string[] }>();
+  private readonly presentations = new Map<string, { readonly plugin_id: string }>();
+  private readonly declared = new Map<string, { services: readonly string[]; integrations: readonly string[]; presentations: readonly string[] }>();
   /** The display name each declaring plugin's Manifest gives it, for the cards that say where a service comes from. */
   private readonly names = new Map<string, string>();
 
@@ -41,6 +42,10 @@ export class IntegrationDeclarations {
 
   /** Refuse when an id this Manifest declares is held by another. Nothing is recorded. */
   assertFree(manifest: PluginManifest): void {
+    for (const id of manifest.source_presentations ?? []) {
+      const holder = this.presentations.get(id);
+      if (holder && holder.plugin_id !== manifest.plugin_id) throw conflict("来源展示", id, holder.plugin_id);
+    }
     for (const service of manifest.connection_services ?? []) {
       const holder = this.services.get(service.service_id);
       if (holder && holder.owner !== manifest.plugin_id) throw conflict("连接服务", service.service_id, holder.owner);
@@ -71,7 +76,9 @@ export class IntegrationDeclarations {
     const integrations = manifest.integrations ?? [];
     for (const declaration of services) this.services.set(declaration.service_id, { declaration, owner: manifest.plugin_id });
     for (const declaration of integrations) this.integrations.set(declaration.integration_id, { declaration, plugin_id: manifest.plugin_id });
-    this.declared.set(manifest.plugin_id, { services: services.map(item => item.service_id), integrations: integrations.map(item => item.integration_id) });
+    const presentations = manifest.source_presentations ?? [];
+    for (const id of presentations) this.presentations.set(id, { plugin_id: manifest.plugin_id });
+    this.declared.set(manifest.plugin_id, { services: services.map(item => item.service_id), integrations: integrations.map(item => item.integration_id), presentations });
   }
 
   /** The ids this plugin held are free again. */
@@ -82,6 +89,7 @@ export class IntegrationDeclarations {
     this.names.delete(pluginId);
     for (const id of held.services) this.services.delete(id);
     for (const id of held.integrations) this.integrations.delete(id);
+    for (const id of held.presentations) this.presentations.delete(id);
   }
 
   has(pluginId: string): boolean {
@@ -105,6 +113,10 @@ export class IntegrationDeclarations {
 
   integration(integrationId: string): RegisteredIntegration | undefined {
     return this.integrations.get(integrationId);
+  }
+
+  presentation(id: string): { readonly plugin_id: string } | undefined {
+    return this.presentations.get(id);
   }
 
   listIntegrations(kind?: IntegrationKind): readonly RegisteredIntegration[] {

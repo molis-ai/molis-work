@@ -1,5 +1,8 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { InboxStageData } from "./actions.js";
 import type { InboxJudgmentSummary } from "./route-handlers.js";
 import type {
+  StagePageModel,
   UiContribution,
   UiContributionDeclaration,
   UiRenderRequest,
@@ -11,7 +14,7 @@ import {
   INBOX_VERIFY_OPTION_ID,
   defaultInboxNextBehaviorIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
-import { isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
+import { buildInboxUiEntries, isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
 
 export const INBOX_UI_CONTRIBUTION_ID = "io.molis.work.native.inbox.ui.v1";
 
@@ -44,19 +47,40 @@ export const inboxUiDescriptor: UiContributionDeclaration = {
   slots: [],
 };
 
-export const inboxUiContribution: UiContribution<InboxUiModel> = {
+export const inboxUiContribution: UiContribution<InboxUiModel | StagePageModel<InboxStageData>> = {
   descriptor: inboxUiDescriptor,
-  render(request: UiRenderRequest<InboxUiModel>): string {
+  render(request: UiRenderRequest<InboxUiModel | StagePageModel<InboxStageData>>): string {
+    const model = "entries" in request.model ? request.model : inboxStageModel(request.model);
     switch (request.surface as InboxUiSurface) {
       case "directory":
-        return renderInboxDirectory(request.model);
+        return renderInboxDirectory(model);
       case "workbench":
-        return renderInboxWorkbench(request.model);
+        return renderInboxWorkbench(model);
       default:
         throw new Error(`Inbox UI surface ${(request as UiRenderRequest).surface} 不存在`);
     }
   },
 };
+
+function inboxStageModel(model: StagePageModel<InboxStageData>): InboxUiModel {
+  if (!model.data) throw new ActionError("actions.dependency_missing", "Inbox 舞台数据不可用");
+  const { entries, subjects, judgments, judgment } = model.data, p = model.primitives;
+  const byEntry = new Map(judgments.map(record => [record.subject.id, record]));
+  const names = new Map(subjects.map(subject => [subject.entry_id, subject]));
+  return { route_prefix: model.route_prefix, filter: "active", judgment, primitives: p,
+    entries: buildInboxUiEntries(entries.map(entry => {
+      const current = byEntry.get(entry.entry_id) ?? null;
+      return { ...entry, next_judgment: current, suggested_behavior_ids: current?.outcome === "ok" ? current.suggested_behavior_ids : [] };
+    }), entry => {
+      const subject = names.get(entry.entry_id), available = subject?.title !== undefined && subject.title !== null;
+      if (entry.subject_type === "feed_item") return { available, title: subject?.title || p.text("原 Feed Item 已不可用"),
+        source_label: subject?.source_label || "Feed", open: available ? { kind: "feed", item_id: entry.subject_id } : null };
+      if (entry.subject_type === "source_fault") return { available, title: available ? p.text("来源「{source}」需要处理", { source: subject!.title! }) : p.text("原来源已不可用"),
+        source_label: subject?.source_label || p.text("其他来源"), open: available ? { kind: "source", source_id: entry.subject_id } : null };
+      return { available, title: subject?.title || p.text("原 Goal 已不可用"), source_label: "Molis Work",
+        open: available ? { kind: "goal", href: `${model.route_prefix}/goals/${encodeURIComponent(entry.subject_id)}` } : null };
+    }, p.text) };
+}
 
 export function renderInboxDirectory(_model: InboxUiModel): string {
   return "";

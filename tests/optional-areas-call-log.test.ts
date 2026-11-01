@@ -81,7 +81,7 @@ test("OPTAREA-03 a project that has the optional plugins still shows them on its
   await withProject(["feed", "inbox", "schedule"], async ({ base, host, projectId }) => {
     const { status } = await get(`${base}/projects/${projectId}/`);
     assert.equal(status, 200);
-    assert.equal(((await (await fetch(`${base}/projects/${projectId}/api/board`)).json()) as { feed_source_catalog: unknown[] }).feed_source_catalog.length > 0, true, "Feed is asked for and answers");
+    assert.equal(((await (await fetch(`${base}/projects/${projectId}/api/board`)).json()) as { stage_data: { feed: { source_catalog: unknown[] } } }).stage_data.feed.source_catalog.length > 0, true, "Feed is asked for and answers its own stage");
     assert.deepEqual(host.callLog!.recent(50, { failedOnly: true }), []);
     assert.deepEqual(host.callLog!.list(projectId).filter(row => row.operation !== "command"), []);
   });
@@ -89,12 +89,12 @@ test("OPTAREA-03 a project that has the optional plugins still shows them on its
 
 test("OPTAREA-04 the page follows the project's plugins as they change: enabling Feed makes its area appear without a restart, and removing it makes it go, with no row either way", { timeout: 60_000 }, async () => {
   await withProject([], async ({ base, host, catalog, projectId }) => {
-    const board = async () => (await (await fetch(`${base}/projects/${projectId}/api/board`)).json()) as { feed_source_catalog: unknown[] };
-    assert.equal((await board()).feed_source_catalog.length, 0);
+    const board = async () => (await (await fetch(`${base}/projects/${projectId}/api/board`)).json()) as { stage_data: { feed?: { source_catalog: unknown[] } } };
+    assert.equal((await board()).stage_data.feed, undefined);
     catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "test" });
-    assert.equal((await board()).feed_source_catalog.length > 0, true);
+    assert.equal((await board()).stage_data.feed!.source_catalog.length > 0, true);
     catalog.removeProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "test" });
-    assert.equal((await board()).feed_source_catalog.length, 0);
+    assert.equal((await board()).stage_data.feed, undefined);
     assert.deepEqual(host.callLog!.recent(50, { failedOnly: true }), []);
   });
 });

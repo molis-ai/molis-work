@@ -1,6 +1,5 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import type { FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
@@ -56,19 +55,17 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   });
 
   const { renderMolisWorkWeb } =
-    createWorkbenchGoalsPageRenderer<MolisWorkWebView, FeedSupplementalEntry>({
+    createWorkbenchGoalsPageRenderer<MolisWorkWebView>({
       L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
       renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument,
       renderDesktopProjectChrome, renderProjectSwitcher,
-      renderFeedNativePluginSurface: stages.renderFeedNativePluginSurface, stageModel: stages.declaredStageModel,
+      stageModel: stages.declaredStageModel,
     });
   return {
     renderMolisWorkProjectIndex,
     renderMolisWorkProjectBrief,
     renderMolisWorkSettings,
-    renderPersistedFeedItemDetail: stages.renderPersistedFeedItemDetail,
-    renderFeedWorkbenchFragment: stages.renderFeedWorkbenchFragment,
-    renderInboxWorkbenchFragment: stages.renderInboxWorkbenchFragment,
+    stageFragmentModel: stages.stageFragmentModel,
     declaredStageFragment: stages.declaredStageFragment,
     declaredPageSurface: stages.declaredPageSurface,
     renderMolisWorkOnboarding,

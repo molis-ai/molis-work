@@ -45,7 +45,7 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
   const secretStore = options.secretStore ?? createLazyFileSecretStore(home);
   const content = options.content ?? runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore }));
   return {
-    vocabulary: createSourceVocabulary(),
+    vocabulary: createSourceVocabulary(options.integrations ?? (() => homeIntegrationRegistry(home))),
     connector: createConnectorSourcePort({ home, registry: options.integrations ?? (() => homeIntegrationRegistry(home)) }),
     plan: request => ({ intent_fingerprint: sourcePullFingerprint(request) }),
     async pull(request, run) {

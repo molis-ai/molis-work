@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("project workbench adds tabs without replacing existing ones and keeps split panes", { timeout: 90_000 }, async (t) => {
@@ -44,6 +46,12 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=home]') != null"), true);
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
+  // RAC-2687: the same Goal tab changes view, then returns to its absent/default Frame view.
+  const layoutKey = "molis-work-tab-workspace:" + projectId;
+  await click('[data-frame-goal-work]');
+  await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).panes.some(p=>p.tabs.some(t=>t.itemId==='CORE'&&t.view==='work'))`);
+  await click('[data-goal-collapse]');
+  await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).panes.every(p=>p.tabs.filter(t=>t.itemId==='CORE').every(t=>!Object.hasOwn(t,'view')))`);
   assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=mother]')"), null);
   assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]').hasAttribute('data-preview')"), false);
   const coreTabId = await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
@@ -126,4 +134,40 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
+});
+
+test("RAC-2687 the real cross-project placement card opens the associated Goal's generic work view", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "pages", actor_id: "pr2-placement" });
+  const target = await catalog.createProject({ display_name: "PR2 destination", actor_id: "pr2-placement" });
+  catalog.close();
+  await seedDemoGoals(target.database_path, target.project_id);
+  const pages = openPagesStore(homeDirectory);
+  const page = pages.create({ project_id: projectId!, title: "跨项目输入", body: { type: "doc", content: [] } });
+  pages.close();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  // A host-rendered object slot, using the public placement UI and the actual owner object, not a mocked response.
+  await evaluate(`(async () => {
+    const object={kind:'pages_document',id:${JSON.stringify(page.id)},project_id:${JSON.stringify(projectId)}};
+    await molisWorkRequest('/projects/'+${JSON.stringify(projectId)}+'/api/placement/link',{body:{object,project_id:${JSON.stringify(target.project_id)}}});
+    const slot=document.createElement('div');slot.dataset.placementSlot='';slot.id='pr2-placement-slot';
+    slot.setAttribute('data-assistant-context',JSON.stringify({object}));
+    slot.style.cssText='position:fixed;left:300px;top:160px;z-index:10';document.body.append(slot);
+    await molisPlacement.paintBar(slot);
+  })()`);
+  await click('#pr2-placement-slot .placement-bar');
+  await waitFor("Boolean(document.querySelector('.placement-panel [data-placement-action=goal]'))");
+  await click('.placement-panel [data-placement-action=goal]');
+  await waitFor(`Boolean(document.querySelector('dialog.placement-dialog input[name=goal][value="${target.project_id}|CORE"]'))`);
+  await click(`dialog.placement-dialog input[name=goal][value="${target.project_id}|CORE"]`);
+  await click('dialog.placement-dialog [data-placement-confirm]');
+  await waitFor("[...document.querySelectorAll('.placement-toast button')].some(b=>b.textContent==='打开 Goal')");
+  await navigate(() => evaluate("[...document.querySelectorAll('.placement-toast button')].find(b=>b.textContent==='打开 Goal').click()"));
+  await waitFor(`document.body.dataset.projectId===${JSON.stringify(target.project_id)} && document.querySelector('[data-goal-node-workspace]')?.hidden===false`);
+  const saved = await evaluate<string>(`localStorage.getItem('molis-work-tab-workspace:'+${JSON.stringify(target.project_id)})`);
+  assert.ok(JSON.parse(saved).panes.some((pane: { tabs: Array<{ itemId?: string; view?: string }> }) => pane.tabs.some(tab => tab.itemId === "CORE" && tab.view === "work")));
+  assert.doesNotMatch(saved, /"goalView"|"feedTask"/);
 });

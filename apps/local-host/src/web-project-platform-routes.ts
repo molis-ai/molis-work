@@ -142,12 +142,13 @@ export const projectWriteCheckersRoute: WebRoute<ProjectRuntimeContext> = { id: 
 } };
 
 /** The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends. */
-export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken }) =>
+export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken, localHost }) =>
   handleAgentStudioHttp(request, response, url, { store, projectId: options.projectId, homeDirectory: serverOptions.homeDirectory,
     routePrefix: projectRoutePrefix(options),
     // The one model list the platform keeps (V-13): what plugins read through `services.model`.
     models: async () => serverOptions.homeDirectory ? configuredModelChoices(serverOptions.homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID,
     actions: pluginServices.actions,
+    homeActions: { registry: localHost.actionRegistry(), client: localHost.homeActionClient(), inspect: caller => localHost.inspectActions(caller), project_id: null },
     // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
     ...(options.project ? { enablePlugin: async (pluginId: string) => {
       const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === pluginId && !item.personal);
@@ -226,7 +227,8 @@ export const agentReviewsRoute: WebRoute<ProjectRuntimeContext> = { id: "agent-r
 
 export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle: async ({ request, response, url, readWebView }) => {
   if (request.method !== "GET" || url.pathname !== "/api/board") return false;
-  sendJson(response, 200, await readWebView());
+  const { plugin_stage_views: _views, ...view } = await readWebView();
+  sendJson(response, 200, view);
   return true;
 } };
 

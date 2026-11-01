@@ -29,6 +29,7 @@ export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox
 export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
 export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
 export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from "./plugin-builder/exposed-actions.js";
+export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
 export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
@@ -106,7 +107,6 @@ export { seedSceneRules, withFunctionsService } from "./judgment-rules-host.js";
 export { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 
-export { listFeedSourceCatalog } from "./source-vocabulary.js";
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
@@ -125,7 +125,7 @@ export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-in
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
-export { sandboxDerivedPermissions, sandboxOperationPermissions, sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
+
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { installedStageSection } from "./installed-stage-section.js";
@@ -165,8 +165,6 @@ export { connectorDirectory, connectorLoginReady } from "./connector-directory.j
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
-/** One Feed item for the shell's reader (`/api/stage/feed/items/<id>`), read through Feed's own actions. */
-export { feedItemForReader } from "./web-request.js";
 export { handleFunctionsHttp } from "./judgment-rules-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-library-http.js";

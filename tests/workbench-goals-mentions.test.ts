@@ -13,7 +13,7 @@ const GOALS_PACKAGE = /@molis-ai\/molis-work-plugin-goals\b/u;
 
 /** Who takes each remaining name out: T-117 owns remaining view types; settings forwards existing facts without Goals presentation types. */
 const WORKBENCH_FILES_NAMING_GOALS: ReadonlyArray<readonly [string, string]> = [
-  ["page-view.ts", "T-117 (PG-064): the view's Goal types"],
+  ["page-view.ts", "T-117 (PG-064): existing BoardSnapshot and GoalPolicyHistoryRecord facts from Goals /contract"],
   ["project-settings-pages.ts", "Existing ProjectGuidanceView and PlanningMethodPack facts from Goals /contract"],
 ];
 

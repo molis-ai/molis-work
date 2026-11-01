@@ -152,7 +152,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const defaultFeedPresetState = () => ({
       quick: "all",
       selected: "",
-      task: "all",
       query: "",
       source: "all",
       type: "all",

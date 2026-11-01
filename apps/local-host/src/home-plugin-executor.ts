@@ -93,7 +93,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const ui = createPluginUiClient(new UiHost({ drawingAs: withPluginWords }), context, manifest,
       { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
-    let sandboxLibrary: ReturnType<typeof openSandboxHomeLibrary> | undefined;
+    let sandboxLibrary: Awaited<ReturnType<typeof openSandboxHomeLibrary>> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
     let terminal: ReturnType<typeof pluginTerminalFor>;
@@ -116,7 +116,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const declaration = library?.declaration;
       if (library && definition.execution === "sandbox") {
         // The package's code is not in this process: its statements run in a process the Host can kill, over a library the ledger made for it (BL-490).
-        sandboxLibrary = openSandboxHomeLibrary(this.options.home, library.installed!, library.declaration, home.stores, authorize, context);
+        sandboxLibrary = await openSandboxHomeLibrary(this.options.home, library.installed!, library.declaration, home.stores, authorize, context);
       }
       else if (declaration?.partition === "project") {
         partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));

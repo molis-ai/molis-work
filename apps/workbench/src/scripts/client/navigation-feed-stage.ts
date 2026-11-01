@@ -96,7 +96,7 @@ export const NAVIGATION_FEED_STAGE_PART = `
         setFeedDetailPlaceholder(FL("正在载入 Item…"), "");
       }
       try {
-        const html = await molisWorkRequest(route("/api/stage/feed/items/" + encodeURIComponent(itemId)), {as:"text",signal:controller.signal,fallback:FL("无法读取这条 Item")});
+        const html = await molisWorkRequest(route("/api/stage/feed/objects/" + encodeURIComponent(itemId) + "?surface=persisted-detail"), {as:"text",signal:controller.signal,fallback:FL("无法读取这条 Item")});
         const template = document.createElement("template");
         template.innerHTML = html.trim();
         const detail = template.content.querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');
@@ -398,7 +398,6 @@ export const NAVIGATION_FEED_STAGE_PART = `
       feedPresetState[activeFeedPreset] = {
         quick: feedQuickFilter,
         selected: selectedFeedItem,
-        task: selectedFeedTask || "all",
         query: String(feedSearch?.value || ""),
         source: feedSourceFilter?.value || "all",
         type: feedTypeFilter?.value || "all",
@@ -411,7 +410,6 @@ export const NAVIGATION_FEED_STAGE_PART = `
     const restoreFeedPresetState = (preset) => {
       const saved = feedPresetState[preset] || defaultFeedPresetState();
       selectedFeedItem = String(saved.selected || "");
-      selectedFeedTask = String(saved.task || "all");
       feedQuickFilter = ["unread", "saved"].includes(saved.quick) ? saved.quick : "all";
       syncFeedQuickFilter();
       if (feedSearch) feedSearch.value = String(saved.query || "");

@@ -1,16 +1,9 @@
 import { pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 import { validateExperience } from './agent-experience.js';
-import type { SandboxEffects, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 export function parseBuilderJson(text: string): unknown { const clean = text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, ''); return JSON.parse(clean); }
-export function contractEffects(design: AgentDesign): SandboxEffects {
-  const effects: SandboxEffects = {};
-  for (const operation of design.contract.operations) for (const [key, values] of Object.entries(operation.effects)) {
-    const field = key as keyof SandboxEffects; (effects as Record<string, string[]>)[field] = [...new Set([...(effects[field] ?? []), ...values])].sort();
-  }
-  return effects;
-}
 /** A schema error in words the designer can act on: which operation, which field, what to write. */
 function explainContract(error: unknown, contract: unknown): string {
   const message = error instanceof Error ? error.message : String(error), missing = /missing (\w+)/.exec(message)?.[1];

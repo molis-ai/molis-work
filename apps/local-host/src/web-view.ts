@@ -1,14 +1,14 @@
 import { emptyGoalsDocumentCollection, goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
-import { listFeedSourceCatalog } from "./source-vocabulary.js";
-import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { shownProjectPlugins } from "./plugin-registry.js";
+
+/** The Host retains Goals' owner collection while the shell consumes only its platform view. */
+export type GoalsWebView = MolisWorkWebView & GoalsDocumentCollectionView;
 
 export interface WebViewOptions {
   databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
@@ -19,13 +19,12 @@ export interface WebViewOptions {
 interface MolisWorkWebViewCacheEntry {
   cursor: number;
   optionsFingerprint: string;
-  view: MolisWorkWebView;
+  view: GoalsWebView;
 }
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
-type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "stage_data">;
-const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] });
+type PluginProjection = Pick<MolisWorkWebView, "stage_data">;
 
 /**
  * A page looks for the areas of the plugins a project may not have (Feed, Inbox, declared stage reads, Artifacts) on every request. "Not enabled" or no registered action is
@@ -51,7 +50,7 @@ export async function optionalPluginQuery<I, O>(actions: BoundActionClient, defi
   }
 }
 
-export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = { feed: emptyFeed() }): MolisWorkWebView {
+export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = {}): GoalsWebView {
   return {
     snapshot: options.project
       ? { ...collection.snapshot, board: { ...collection.snapshot.board, project_id: "" } }
@@ -75,7 +74,7 @@ export async function cachedMolisWorkWebView(
   options: WebViewOptions,
   actions: BoundActionClient,
   goalsHere = true,
-): Promise<MolisWorkWebView> {
+): Promise<GoalsWebView> {
   // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400, by its plugin list)
   // reads as one with none; in a project with Goals, a read Goals refuses is an error to show.
   const collection = goalsHere ? await actions.invoke(goalsActions.collection, {}) : emptyGoalsDocumentCollection(options.projectId);
@@ -98,27 +97,17 @@ export async function cachedMolisWorkWebView(
   const base = cached?.cursor === cursor && cached.optionsFingerprint === optionsFingerprint
     ? cached.view : buildMolisWorkWebView(store, collection, options);
   cache.set(options.databasePath, { cursor, optionsFingerprint, view: base });
-  // Plugin state does not share the Goals journal cursor. Never cache it behind that cursor,
-  // and always use each owner's current authority, even when the base page is a cache hit.
-  const [feed, inbox, connections] = await Promise.all([
-    optionalPluginQuery(actions, feedQueryActions.snapshot, {}),
-    optionalPluginQuery(actions, inboxActions.list, {}),
-    optionalPluginQuery(actions, feedQueryActions.connections, {}),
-  ]);
-  return { ...base, feed: { ...(feed ?? emptyFeed()), inbox_entries: [...(inbox?.entries ?? [])] },
-    feed_source_catalog: feed ? listFeedSourceCatalog() : [], feed_connector_auth: connections,
-    // Read per request, like the plugin state above, never kept behind the Goals cursor.
-    developer_mode: developerMode() };
+  return { ...base, developer_mode: developerMode() };
 }
 
 export async function withSelectedEventDocument(
-  view: MolisWorkWebView,
+  view: GoalsWebView,
   goalId: string | undefined,
   actions: BoundActionClient,
-): Promise<MolisWorkWebView> {
+): Promise<GoalsWebView> {
   if (!goalId || ![...view.goals, ...view.archived_goals, ...view.trashed_goals].some(item => item.goal.goal_id === goalId)) return view;
   const eventDocument = await actions.invoke(goalsActions.document, { goal_id: goalId });
-  const decorate = (item: MolisWorkWebView["goals"][number]) =>
+  const decorate = (item: GoalsWebView["goals"][number]) =>
     item.goal.goal_id === goalId ? { ...item, event_document: eventDocument } : item;
   return { ...view, goals: view.goals.map(decorate), archived_goals: view.archived_goals.map(decorate), trashed_goals: view.trashed_goals.map(decorate) };
 }

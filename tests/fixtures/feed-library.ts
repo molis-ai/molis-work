@@ -7,9 +7,10 @@ import { createDemoFeedApplication, createDemoFeedSourceService, homeIntegration
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
-  FeedConnectorSync, FeedSourceScheduler, createFeedSourceSyncLease, integrationKeyOf, providerItemOf,
+  feedSourceCatalog, FeedConnectorSync, FeedSourceScheduler, createFeedSourceSyncLease, integrationKeyOf, providerItemOf,
   type FeedApplication, type FeedSourceRecord, type FeedSourceSchedulerDispatch, type FeedSourceService, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
+import { listRegisterableFeeds, FEED_CATEGORY_LABEL } from "@molis-ai/molis-work-integration-rss";
 import { ListenerHost, SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
 
 // A Feed library arranged without the Plugin Runtime: the tests that need rows in a project library before (or beside) the Host starts the
@@ -91,3 +92,9 @@ export function createLocalFeedConnectorSync(db: SqliteDatabase, projectId: stri
     },
   }, projectId);
 }
+
+/** Public catalog fixture arranged through Feed's own projection, without the deleted Host business export. */
+export const listTestFeedSourceCatalog = () => feedSourceCatalog({ catalog: () => listRegisterableFeeds().map(source => ({
+  source_id: source.sourceId, name: source.name, feed_url: source.feedUrl, enabled: source.enabled, category: source.category,
+  category_label: FEED_CATEGORY_LABEL[source.category], limitations: [...(source.limitations ?? [])],
+})) });

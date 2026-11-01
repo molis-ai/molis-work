@@ -26,6 +26,8 @@ export function assertHomeOnlyDeclarations(homeEntries: readonly { definition: P
     const id = definition.manifest.plugin_id;
     if (homeEntries.some(other => other.dual_instance && other.definition.manifest.plugin_id === id)) continue;
     for (const [field, service] of HOME_ONLY) {
+      // Sandbox files use the existing installation-scoped port in either scope, never the native Home root.
+      if (field === "owner_files" && definition.execution === "sandbox") continue;
       if (definition.manifest[field] !== undefined) throw pluginErrors.declaration_invalid(`项目插件 ${id} 不能声明${service}：它不是双实例插件在项目里的那一半`);
     }
   }

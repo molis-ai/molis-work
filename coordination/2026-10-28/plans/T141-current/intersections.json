@@ -1,0 +1,425 @@
+{
+  "M": "08642dcb92dbdad029d990813da56682d6864a23",
+  "primary": [
+    "apps/local-host/src/plugin-install-service.ts",
+    "apps/local-host/src/home-installed-plugins.ts",
+    "apps/local-host/src/integration-registry.ts",
+    "apps/workbench/src/settings-plugins.ts",
+    "apps/workbench/src/i18n/plugin-trust-en.ts",
+    "tests/home-installed-plugins.test.ts",
+    "tests/security-invariants-sandbox-home-instance.test.ts",
+    "tests/security-invariants-plugin-install.test.ts",
+    "tests/plugin-trust-view.test.ts",
+    "tests/installed-plugin-host.test.ts",
+    "tests/sandbox-integration-home.test.ts",
+    "tests/integration-registry.test.ts",
+    "tests/plugin-trust-home-upgrade.e2e.test.ts",
+    "tests/fixtures/home-upgrade-source.ts",
+    "tests/fixtures/home-upgrade-lifecycle.mjs"
+  ],
+  "conditional_not_authorized": [
+    "apps/local-host/src/installed-plugin-version.ts",
+    "apps/local-host/src/installed-plugin-lifecycle.ts",
+    "apps/local-host/src/integration-declarations.ts",
+    "apps/local-host/src/sandbox-integration.ts",
+    "apps/local-host/src/home-plugins.ts"
+  ],
+  "shared_candidate_windows": [
+    "docs/system/SECURITY-INVARIANTS.md",
+    "specs/repository-anti-corruption/slices/pg011-pg017-remaining.md",
+    "apps/local-host/README.md",
+    "apps/workbench/README.md",
+    "tooling/gates/giant-exceptions.json",
+    "tooling/gates/page-assets.json",
+    "scripts/gates/page-assets.mjs",
+    "specs/repository-anti-corruption/privileges.md",
+    "specs/BACKLOG.md",
+    "package.json"
+  ],
+  "heads": [
+    {
+      "headRefOid": "3862de92dee5683543fef60d669750053562e330",
+      "number": 1714,
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "changed_count": 10,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "44efe84d925b7f01e6f8f837c0bf284471ae7659",
+      "number": 1713,
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "changed_count": 10,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "c52dcc200ad706d48fe693c59a67c9e9736c60a2",
+      "number": 1700,
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "changed_count": 2,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "07592e0fc36375b8d191d24ceafbd5e58d36d403",
+      "number": 1683,
+      "base": "dc544a39790c3c73cb43756ffeb847b83e960982",
+      "changed_count": 36,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "scripts/gates/page-assets.mjs",
+        "tooling/gates/page-assets.json"
+      ]
+    },
+    {
+      "headRefOid": "2de956e7ac3b4ad1ef7df936b2e48b5b5ee72d09",
+      "number": 1682,
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "changed_count": 30,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "scripts/gates/page-assets.mjs",
+        "tooling/gates/page-assets.json"
+      ]
+    },
+    {
+      "headRefOid": "d37ec34c8498ab755bf9e34ba430e5648dacb0a8",
+      "number": 1680,
+      "base": "31315ea6c7a12aec35cceb0b064cc0d649d53237",
+      "changed_count": 85,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "apps/workbench/README.md",
+        "specs/repository-anti-corruption/privileges.md"
+      ]
+    },
+    {
+      "headRefOid": "c2502b62dc2af4cb090ce740f12d394646e7bdeb",
+      "number": 1677,
+      "base": "c05698a13f1c0f17c4eb7578d42fd77467fc57fb",
+      "changed_count": 45,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "apps/local-host/README.md",
+        "docs/system/SECURITY-INVARIANTS.md",
+        "scripts/gates/page-assets.mjs",
+        "specs/BACKLOG.md",
+        "specs/repository-anti-corruption/privileges.md",
+        "tooling/gates/page-assets.json"
+      ]
+    },
+    {
+      "headRefOid": "c35ad3036b7ed2e296d5b1b6fce383546b1dafb9",
+      "number": 1676,
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "changed_count": 6,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "apps/workbench/README.md",
+        "specs/repository-anti-corruption/privileges.md",
+        "tooling/gates/page-assets.json"
+      ]
+    },
+    {
+      "headRefOid": "d4f77755a7a8120f429abd3274d25326d65c2d95",
+      "number": 1673,
+      "base": "562f207c7b996bf9d71f8e55ebaea74ca3b83681",
+      "changed_count": 14,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "docs/system/SECURITY-INVARIANTS.md",
+        "specs/BACKLOG.md"
+      ]
+    },
+    {
+      "headRefOid": "ebcd6536cfec7a457802d1d87c24d2c4a242fda0",
+      "number": 1672,
+      "base": "c95f6f305b9f428de41ea6433104d0d13528260f",
+      "changed_count": 66,
+      "primary": [
+        "apps/local-host/src/integration-registry.ts"
+      ],
+      "conditional_read_only": [],
+      "shared": [
+        "docs/system/SECURITY-INVARIANTS.md",
+        "package.json",
+        "specs/BACKLOG.md",
+        "tooling/gates/page-assets.json"
+      ]
+    },
+    {
+      "headRefOid": "afbcdaad6fe879a0feb99e9276ed01d960348e11",
+      "number": 1671,
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "changed_count": 1,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "94861f093ab3971c6370b824cdd2bfcc30caf14d",
+      "number": 1669,
+      "base": "717d14f2ab8c9cb1b447003fabb120a70b6d9dd3",
+      "changed_count": 38,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "docs/system/SECURITY-INVARIANTS.md",
+        "package.json",
+        "specs/BACKLOG.md",
+        "tooling/gates/page-assets.json"
+      ]
+    },
+    {
+      "headRefOid": "170777c2a8c61257e7e840afc0ebfcadd382efcb",
+      "number": 1665,
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "changed_count": 2,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "815d6e11be8f8ae28631183a90cfcdd2b352c6e4",
+      "number": 1664,
+      "base": "3fd857792a27352030ac8f3544a3b57d418febc1",
+      "changed_count": 8,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "4e6055767a77a0129c153c07b1cd0a4de1a524ab",
+      "number": 1663,
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "changed_count": 7,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "9b4372eb9072992c15a2a369ff599bfafcc3411d",
+      "number": 1526,
+      "base": "7ca846cd7d6b576b423e02a5e6271ec56dfe11ef",
+      "changed_count": 12,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "2b38b5f5fef4bf70617c3c05b22b6d446771d693",
+      "number": 1101,
+      "base": "b707895b45c20fcaa8727ae85c093bb5c04ee61b",
+      "changed_count": 584,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "apps/local-host/README.md",
+        "apps/workbench/README.md",
+        "docs/system/SECURITY-INVARIANTS.md",
+        "scripts/gates/page-assets.mjs",
+        "tooling/gates/giant-exceptions.json",
+        "tooling/gates/page-assets.json"
+      ]
+    },
+    {
+      "headRefOid": "c886c603bd2678bcabaf5128dd8879e0d7a08607",
+      "number": 1059,
+      "base": "c3213d1fca19b4708e04dcfd61e3e33a28e2cb1d",
+      "changed_count": 18,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "headRefOid": "a1ffb2aca95e903e1b33fbe89bdd5bca9b220a15",
+      "number": 784,
+      "base": "71e4b9b69f610ae4363f632f431fc6bcfb0902c8",
+      "changed_count": 3,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "specs/BACKLOG.md"
+      ]
+    },
+    {
+      "headRefOid": "e4893423ec80a5275600f574d69e4fa7bc6d65f8",
+      "number": 734,
+      "base": "e5adc24c284f0728a9a308d900755b7fb79dd8e9",
+      "changed_count": 1,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": []
+    },
+    {
+      "number": "PR1b-current",
+      "headRefOid": "d5a1ee558a622aa264d19da42921b3ab8aaa2d32",
+      "base": "db29f18d4f602fa8d9efb689a6a766aa9b07625f",
+      "changed_count": 46,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "specs/repository-anti-corruption/privileges.md"
+      ]
+    },
+    {
+      "number": "T390-new",
+      "headRefOid": "b7eee1b15353b74c586da601d45418c403e0ff5f",
+      "base": "db29f18d4f602fa8d9efb689a6a766aa9b07625f",
+      "changed_count": 5,
+      "primary": [],
+      "conditional_read_only": [],
+      "shared": [
+        "docs/system/SECURITY-INVARIANTS.md",
+        "package.json"
+      ]
+    }
+  ],
+  "T144": {
+    "allowed_paths": [
+      "apps/local-host/src/agent-definitions/agent-declarations.ts",
+      "apps/local-host/src/agent-definitions/agent-definitions-http.ts",
+      "apps/local-host/src/agent-definitions/agent-definitions.ts",
+      "apps/local-host/src/assistant/assistant-dispatch.ts",
+      "apps/local-host/src/assistant/assistant-executor.ts",
+      "apps/local-host/src/assistant/assistant-http.ts",
+      "apps/local-host/src/assistant/assistant-inputs.ts",
+      "apps/local-host/src/assistant/assistant-present.ts",
+      "apps/local-host/src/assistant/assistant-round-materials.ts",
+      "apps/local-host/src/assistant/assistant-rule-actions.ts",
+      "apps/local-host/src/assistant/assistant-send-materials.ts",
+      "apps/local-host/src/assistant/assistant-service-shared.ts",
+      "apps/local-host/src/assistant/assistant-service.ts",
+      "apps/local-host/src/assistant/assistant-store.ts",
+      "apps/local-host/src/assistant/assistant-work-reads.ts",
+      "apps/local-host/src/home-installed-plugins.ts",
+      "apps/local-host/src/home-plugin-executor.ts",
+      "apps/local-host/src/installed-plugin-definition.ts",
+      "apps/local-host/src/installed-plugin-host.ts",
+      "apps/local-host/src/installed-plugin-lifecycle.ts",
+      "apps/local-host/src/installed-plugin-version.ts",
+      "apps/local-host/src/installed-release.ts",
+      "apps/local-host/src/plugin-builder/installed.ts",
+      "apps/local-host/src/plugin-builder/prompts.ts",
+      "apps/local-host/src/plugin-host-services.ts",
+      "apps/local-host/src/plugin-install-actions.ts",
+      "apps/local-host/src/plugin-install-service.ts",
+      "apps/local-host/src/plugin-instructions.ts",
+      "apps/local-host/src/sandbox-agent-bodies.ts",
+      "apps/local-host/src/sandbox-package-store.ts",
+      "apps/local-host/src/sandbox-package.ts",
+      "apps/local-host/src/sandbox-plugin-manifest.ts",
+      "apps/workbench/src/i18n/en.ts",
+      "apps/workbench/src/scripts/client/assistant-composer.ts",
+      "apps/workbench/src/scripts/client/assistant-send.ts",
+      "apps/workbench/src/settings-plugins.ts",
+      "apps/workbench/src/settings-prompts.ts",
+      "docs/platform/PLUGIN-DEVELOPMENT.md",
+      "docs/platform/PROLOGUE-AI.md",
+      "docs/releases/CHECKLIST.md",
+      "docs/system/SECURITY-INVARIANTS.md",
+      "packages/contracts/src/platform/plugin-package.ts",
+      "packages/contracts/src/platform/plugin.ts",
+      "packages/contracts/src/services/agent-definitions.ts",
+      "packages/contracts/src/services/assistant.ts",
+      "packages/plugin-runtime/src/package-verification.ts",
+      "packages/plugin-sandbox/src/services.ts",
+      "packages/plugin-sdk/src/agent-declarations.ts",
+      "packages/plugin-sdk/src/index.ts",
+      "packages/plugin-sdk/src/manifest.ts",
+      "packages/plugin-sdk/src/sandbox-agent-declarations.ts",
+      "skills/molis-plugin-dev/SKILL.md",
+      "skills/molis-plugin-dev/authoring.md",
+      "skills/molis-plugin-dev/generated-ai.md",
+      "specs/BACKLOG.md",
+      "specs/repository-anti-corruption/privileges.md",
+      "specs/repository-anti-corruption/slices/pg011-pg017-remaining.md",
+      "specs/repository-anti-corruption/slices/pg017-sandbox-services.md",
+      "tests/agent-definitions.test.ts",
+      "tests/agent-workspace-none.test.ts",
+      "tests/assistant-executor-product.test.ts",
+      "tests/assistant-executor.test.ts",
+      "tests/assistant-input-correct.test.ts",
+      "tests/assistant-input-receipts.e2e.test.ts",
+      "tests/assistant-material.test.ts",
+      "tests/assistant-methods.test.ts",
+      "tests/assistant-original-inputs.test.ts",
+      "tests/assistant-send-intent.e2e.test.ts",
+      "tests/fixtures/home-store-schemas/agent-definitions.sql",
+      "tests/fixtures/sandbox-package.ts",
+      "tests/fixtures/signed-package-host.ts",
+      "tests/generated-plugin-prompt-binding.test.ts",
+      "tests/generated-plugin-prompts.test.ts",
+      "tests/home-store-baselines.test.ts",
+      "tests/plugin-install-trust-call-sites.test.ts",
+      "tests/plugin-methods-runtime.test.ts",
+      "tests/plugin-package.test.ts",
+      "tests/sandbox-agent-bodies.e2e.test.ts",
+      "tests/sandbox-package-icon.test.ts",
+      "tests/security-invariants-plugin-install.test.ts",
+      "tests/security-invariants-sandbox-agent-bodies.test.ts",
+      "tests/security-invariants-sandbox-home-signed-model.test.ts",
+      "tests/security-invariants-sandbox-services.test.ts",
+      "tooling/gates/actions/host-actions.tsv",
+      "tooling/gates/api/contracts/platform/plugin.txt",
+      "tooling/gates/api/contracts/services/agent-definitions.txt",
+      "tooling/gates/api/contracts/services/assistant.txt",
+      "tooling/gates/api/plugin-sdk/index.txt"
+    ],
+    "primary": [
+      "apps/local-host/src/home-installed-plugins.ts",
+      "apps/local-host/src/plugin-install-service.ts",
+      "apps/workbench/src/settings-plugins.ts",
+      "tests/security-invariants-plugin-install.test.ts"
+    ],
+    "conditional": [
+      "apps/local-host/src/installed-plugin-lifecycle.ts",
+      "apps/local-host/src/installed-plugin-version.ts"
+    ],
+    "shared": [
+      "docs/system/SECURITY-INVARIANTS.md",
+      "specs/BACKLOG.md",
+      "specs/repository-anti-corruption/privileges.md",
+      "specs/repository-anti-corruption/slices/pg011-pg017-remaining.md"
+    ],
+    "additional_normalized_test_overlaps": [
+      "tests/security-invariants-plugin-install.test.ts"
+    ]
+  },
+  "parallel_snapshot_intersections": {
+    "PR1b": {
+      "primary": [],
+      "conditional": [],
+      "shared": [
+        "specs/repository-anti-corruption/privileges.md"
+      ]
+    },
+    "W6": {
+      "primary": [],
+      "conditional": [],
+      "shared": []
+    },
+    "Feed": {
+      "primary": [],
+      "conditional": [],
+      "shared": []
+    },
+    "T390": {
+      "primary": [],
+      "conditional": [],
+      "shared": [
+        "docs/system/SECURITY-INVARIANTS.md"
+      ]
+    }
+  }
+}

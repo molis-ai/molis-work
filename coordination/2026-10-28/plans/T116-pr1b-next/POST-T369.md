@@ -43,3 +43,8 @@ T369新测试不改生产，支持相关父构建/父DUMP按输入核抵；它�
 根已核实际merge绑定与19冲突，全文读[作者合流计划](MERGE-PLAN.md)及[独立二审](MERGE-REVIEW.md)，接受继续解冲突。真实共同祖先31315不是slice基点7f；原预测只说明内容增量可合，不能当普通merge零冲突证据。保当前HEAD=M db29/MERGE_HEAD=原H d37的正常双亲关系；内容以准确M加7f→d37的44路径自有差量为期望，全部路径都检查，不只清19冲突。三条slice外README/ports/golden保准确M，非冲突区域亦不得带回旧父贡献。manifest相邻终端import与privileges相邻PG058按精确自有hunk投影，不模糊匹配或整文件取旧边。
 
 纯合流scope/tree确认后，继续原三必修及两叶子扩展，golden/view/terminalsRoute/settings_address/现行Manifest与Artifact路径保父。最终两Goals路由完整文件按实际接缝补验或有明确相同输入核抵，不用旧跑过充数。四负例、66完整HTML、匹配build/48响应、README必要集合、full=true与全部禁区不变。此裁定不新增产品语义或新任务号，也不解除Full暂停。
+
+
+### 根现行输入回归补足（2026-11-01 06:56Z）
+
+已手读mandatory-resume完整文件原件：140文件自然结束139通过，plugin-declaration-rules的既有views-not-list唯一失败为pageRouteProblems在已记录原非数组错误后仍for-of导致TypeError。根把该既有错误合同回归纳入同一PR1b，不另开产品语义或任务号。只在packages/plugin-sdk/src/page-routes.ts把views循环限定为Array.isArray的列表，非数组继续由inspectViewDeclarations产生原plugin.declaration_invalid/invalid；不改错误、断言、matcher/投影、导出、Manifest共享四文件或新增兼容。待批次自然结束再应用（本次已结束）。最终匹配整体build、完整plugin-declaration-rules与stage-data-input、必要最终门禁/绑定；原四有效负例与正常66完整HTML/141文件已通过部分按实际生产输入影响核抵，不机械全批重跑。原失败和准备期npm配置中断保留。最终资源48项大小全同而plugin-frame仅14个minifier局部变量拼写变化的结论须由独立验证另核，不能写成48项hash全同。

@@ -1,0 +1,51 @@
+origin/main:apps/local-host/src/functions-actions.ts:5:import { functionsConnectionId, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
+origin/main:apps/local-host/src/functions-http.ts:2:import { functionsConnectionStatus } from "./functions-host.js";
+origin/main:apps/local-host/src/functions-http.ts:4:import { FunctionsHttpRouteTable } from "./functions-http/routes.js";
+origin/main:apps/local-host/src/functions-http.ts:5:import { createFunctionsRouteHandlers } from "./functions-http/route-handlers.js";
+origin/main:apps/local-host/src/home-actions.ts:11:import { withFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
+origin/main:apps/local-host/src/home-dock-http.ts:5:import { parseSceneFunctionKey } from "./functions-host.js";
+origin/main:apps/local-host/src/index.ts:96:export { seedSceneRules, withFunctionsService } from "./functions-host.js";
+origin/main:apps/local-host/src/index.ts:161:export { handleFunctionsHttp } from "./functions-http.js";
+origin/main:apps/local-host/src/plugin-judgments-service.ts:7:import { withFunctionsService } from "./functions-host.js";
+origin/main:apps/local-host/src/project-host.ts:26:import { SystemFunctionsActions } from "./functions-actions.js";
+origin/main:apps/local-host/src/project-host.ts:27:import { seedSceneRules, type FunctionsHostOptions } from "./functions-host.js";
+origin/main:apps/local-host/src/scene-rule-admission.ts:3:import { admitSceneRules, ruleDeclarer } from "./functions-host.js";
+origin/main:apps/local-host/src/web-catalog-routes.ts:12:import { handleFunctionsHttp } from "./functions-http.js";
+origin/main:apps/local-host/src/web-catalog-settings.ts:7:import { functionsConnectionStatus } from "./functions-host.js";
+origin/main:apps/local-host/src/web-project-platform-routes.ts:19:import { handleFunctionsHttp } from "./functions-http.js";
+origin/main:apps/workbench/src/i18n/en.ts:2:import { FUNCTIONS_EN } from "../functions/en.js";
+origin/main:apps/workbench/src/page-assets.ts:1:import { FUNCTIONS_STYLES } from "./functions/styles.js";
+origin/main:apps/workbench/src/scripts/capabilities-client.ts:1:import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "../functions/bootstrap.js";
+origin/main:apps/workbench/src/scripts/capabilities-client.ts:2:import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../functions/settings-client.js";
+origin/main:apps/workbench/src/scripts/settings.ts:12:import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../functions/settings-client.js";
+origin/main:apps/workbench/src/settings-connectors.ts:2:import { renderFunctionsSettings } from "./functions/settings-ui.js";
+origin/main:apps/workbench/src/settings-renderer.ts:19:import { renderFunctionsWorkbench } from "./functions/ui.js";
+origin/main:apps/workbench/src/settings-renderer.ts:21:import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./functions/bootstrap.js";
+origin/main:apps/workbench/src/settings-view.ts:44:  functions_settings?: Omit<import("./functions/settings-ui.js").FunctionsSettingsUiModel, "primitives">;
+
+# REVIEW R1 supplement, source 0b8571fae60333c17dee332906cd9b6a31390795; active dist consumers (symbols and assertions unchanged)
+tests/contextual-dock-parity.test.ts:11: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/feed-capture-scenes.test.ts:10: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/function-agent-authoring.e2e.test.ts:11: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/function-scene-authoring.e2e.test.ts:10: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/functions-authoring-actions.test.ts:14: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/functions-effect-boundaries.test.ts:10: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/functions-plugin.test.ts:41: ../apps/workbench/dist/functions/client.js -> ../apps/workbench/dist/judgment-rules/client.js
+tests/functions-scene-configuration.test.ts:11: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/home-action-scenes.test.ts:17: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/home-mcp-actions.test.ts:18: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/home-offers.e2e.test.ts:10: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/inbox-action-scenes.test.ts:13: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/inbox-automatic-scenes.test.ts:18: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/inbox-current.e2e.test.ts:11: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/list-silent-refresh.test.ts:8: ../apps/workbench/dist/functions/client.js -> ../apps/workbench/dist/judgment-rules/client.js
+tests/personal-plugins-review-fixes.test.ts:35: ../apps/workbench/dist/functions/client.js -> ../apps/workbench/dist/judgment-rules/client.js
+tests/secret-store-keychain-retry.test.ts:11: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/system-functions-actions.test.ts:13: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+tests/workflows-judgment-link.test.ts:12: ../apps/local-host/dist/functions-host.js -> ../apps/local-host/dist/judgment-rules-host.js
+
+# Current-ready REVIEW supplement; source 08642dcb92dbdad029d990813da56682d6864a23; original 19 + 4 = 23, same existing test file
+tests/functions-plugin.test.ts:39: ../apps/local-host/dist/functions-http/routes.js -> ../apps/local-host/dist/judgment-rules-http/routes.js
+tests/functions-plugin.test.ts:40: ../apps/local-host/dist/functions-http/route-handlers.js -> ../apps/local-host/dist/judgment-rules-http/route-handlers.js
+tests/functions-plugin.test.ts:42: ../apps/workbench/dist/functions/ui.js -> ../apps/workbench/dist/judgment-rules/ui.js
+tests/functions-plugin.test.ts:43: ../apps/workbench/dist/functions/settings-ui.js -> ../apps/workbench/dist/judgment-rules/settings-ui.js

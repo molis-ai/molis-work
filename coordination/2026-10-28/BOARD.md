@@ -333,7 +333,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-381 | Goals创建后返回导航重复超时（RAC-2807～2809） | 丙 | Codex 开发线2；验证线3/二审线5 | #1709已采用main328d5b612；合入6552463056；patch-id/整树同 | full=false；独立最终3/3、二审、Verify齐；历史超时因果UNKNOWN保留 | 自有作者树/本地分支已清，原件与独立副本保留；测试锁释放 |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
-| T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
+| T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex开发线1；验证线4；加强二审线2 | 现行接续与独立窄审通过，已交具体窗口开始完整实现 | full=true；M08642；T143/#1701旧WAIT解除，attach与T144共享窗口见NEXT-WINDOWS | tasks/T-141.md；共享SI/slice/资源根串行 |
 | T-144 | 签名包角色/方法正文来源、取材与末端复核（RAC-2636～2643） | 甲 | Codex开发线3；独立二审线1 | A–D工程书及当前父合同窄核已接受 | T143采用等待已解除；SDK冻结与Assistant具体交接未结，full=true | 详plans/T144-current；保护分支不动 |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给Goals并走平台启动终端服务（BL-695/637/508） | 甲 | Codex 开发线1 | 已合 #1643 → `0926d15a9`；patch-id核同；自有树/分支已清理 | 后片T-148已交开发线4 | 已释放 |
@@ -501,3 +501,7 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 06:32Z：T391实际采用/patch-id/队列原件/自有树清理结账。T389最终H本地38业务文件271/271及资源门171/171、48响应47同/+99B已核，独立审验通过后普通推送开#1718；根人工full=true仅给修复首次Linux全量，准确Verify待结。T386根接受+179/+559精确tuple并串行应用README/S30，作者收最终配套；T390独立CI方案接受，仅追加project-catalog至SI，保正在跑的批自然结束和原测试修订失败原件。PR1b三必修、正常66完整HTML与负例/README批进行中。T065接续只读准备明确由开发4移交开发2，无新产品语义或实现授权。
 
 2026-11-01 06:50Z：T390准确b7eee1b已开#1719，本地原副作用红、最终25/25加64文件625/625沿用及独立审验经根核收；full=false、真实SI/CI待结。T389审验两评论获用户具体批准后原样发布，首次Full在跑。T386最终cb931作者/独立验证/二审核收，171门禁只拿build槽的偏差明确保留，不重跑补历史；等T389采用后真实资源合流。T065当前同步书独立审通过，开发2可先非资源普通merge/证据窄核；T144父等待解除，SDK/Assistant窗口另结。
+
+| T-392 | W5-14 R-A4 判断规则实现包/路径原子迁移 | 甲 | Codex开发线4；验证线3；加强二审线1 | 工程书R1/R2与当前23 dist补正已核，已交独立窗口 | full=true；M08642；公开合同/数据身份不变，保护分支不动 | tasks/T-392.md；共表/资源根串行 |
+
+2026-11-01 07:01Z：根fresh22 open/准确M不变，核收T141与R-A4接续及独立审查并交两条独立实现窗口；T141归开发1，R-A4登记T392归开发4，完整范围不拆片。T144原owner保留，仅具体安装/设置接缝等T141冻结；SDK已释放。T065第一段4accb7d普通同步完成且原37路径/34blob与M资源账本完整保留，无新运行结论。T390两审计已按用户具体批准原样发布6554723182/6554723753。T389 Linux Full新菜单完整2/2首轮、shard1全102/102已根读raw，原journey仍待后片。

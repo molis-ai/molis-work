@@ -1,0 +1,421 @@
+{
+  "M": "08642dcb92dbdad029d990813da56682d6864a23",
+  "original_inventory_base": "717d14f2ab8c9cb1b447003fabb120a70b6d9dd3",
+  "move_count": 37,
+  "new_moves": [],
+  "removed_moves": [],
+  "new_reference_hit_paths": [
+    "apps/local-host/src/plugin-builder-surface.ts",
+    "apps/local-host/src/recommendation-catalog.ts",
+    "apps/local-host/src/typesafe-connection.ts",
+    "apps/workbench/src/capabilities.ts",
+    "apps/workbench/src/scripts/client/feed-rule-authoring.ts",
+    "docs/archive/handoffs/ui-audit-handoff-2026-09-22.md",
+    "packages/contracts/package.json",
+    "packages/contracts/src/platform/plugin-judgments.ts",
+    "plugins/native/feed/src/application-capture.ts",
+    "plugins/native/feed/src/projection.ts",
+    "plugins/native/feed/src/scene-runtime.ts",
+    "plugins/native/feed/src/scenes.ts",
+    "plugins/native/feed/src/ui.ts",
+    "plugins/native/inbox/src/actions.ts",
+    "plugins/native/inbox/src/plugin.ts",
+    "plugins/native/inbox/src/projection.ts",
+    "plugins/native/inbox/src/scene-runtime.ts",
+    "plugins/native/inbox/src/scenes.ts",
+    "plugins/native/inbox/src/ui.ts",
+    "scripts/contextual-slice/dock-compare.mts",
+    "specs/archive/bp-delivery-parallel/dispatch.md",
+    "specs/archive/bp-delivery-parallel/work-items/prologue-convergence/spec.md",
+    "specs/archive/connectors-settings-behaviors/spec.md",
+    "specs/archive/function-scene-action-scope/spec.md",
+    "specs/archive/functions-independent-authoring/spec.md",
+    "specs/archive/functions-plugin/spec.md",
+    "specs/archive/functions-product-authoring/spec.md",
+    "specs/archive/functions-system-capability/spec.md",
+    "specs/archive/functions-write-and-invoke/spec.md",
+    "specs/archive/plugin-builder/design.md",
+    "specs/archive/plugin-builder/spec.md",
+    "specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md",
+    "specs/archive/plugin-outbound-mcp/spec.md",
+    "tests/feed-capture-fixture.ts",
+    "tests/feed-inbox-scene-runtime.test.ts",
+    "tests/feed-out-rules.test.ts",
+    "tests/fixtures/home-dock-scene.ts",
+    "tests/home-judgment-plugin-caller.test.ts",
+    "tests/w5-14-option-skill-names.test.ts",
+    "tests/workbench-functions-late.e2e.test.ts",
+    "tooling/gates/api/contracts/modules/functions.txt"
+  ],
+  "missing_old_candidate_paths": [],
+  "changed_old_candidate_paths": [
+    "apps/local-host/src/index.ts",
+    "apps/local-host/src/plugin-installation-cleanup.ts",
+    "apps/local-host/src/web-project-platform-routes.ts",
+    "docs/SSOT-MATRIX.md",
+    "docs/platform/LOCAL-HOST.md",
+    "docs/releases/CHANGELOG.md",
+    "docs/system/EXTENSION-POINTS.md",
+    "docs/system/GLOSSARY.md",
+    "docs/system/HOME-DATA.md",
+    "docs/system/RUNTIME-MIGRATION.md",
+    "scripts/workspace-packages.mjs",
+    "specs/BACKLOG.md",
+    "specs/repository-anti-corruption/privileges.md",
+    "specs/repository-anti-corruption/slices/w6-01-aliases.md",
+    "specs/repository-anti-corruption/spec.md",
+    "specs/repository-cleanup/inventory.md",
+    "tests/host-pages-error-model.test.ts",
+    "tooling/gates/error-owners.json"
+  ],
+  "open0630": [
+    {
+      "number": 1714,
+      "head": "3862de92dee5683543fef60d669750053562e330",
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "paths": [
+        "specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md"
+      ]
+    },
+    {
+      "number": 1713,
+      "head": "44efe84d925b7f01e6f8f837c0bf284471ae7659",
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "paths": [
+        "docs/releases/CHECKLIST.md",
+        "docs/system/CALL-CHAINS.md",
+        "tooling/gates/error-owners.json"
+      ]
+    },
+    {
+      "number": 1700,
+      "head": "c52dcc200ad706d48fe693c59a67c9e9736c60a2",
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "paths": []
+    },
+    {
+      "number": 1683,
+      "head": "07592e0fc36375b8d191d24ceafbd5e58d36d403",
+      "base": "dc544a39790c3c73cb43756ffeb847b83e960982",
+      "paths": [
+        "pnpm-lock.yaml",
+        "scripts/workspace-packages.mjs"
+      ]
+    },
+    {
+      "number": 1682,
+      "head": "2de956e7ac3b4ad1ef7df936b2e48b5b5ee72d09",
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "paths": [
+        "pnpm-lock.yaml",
+        "scripts/workspace-packages.mjs"
+      ]
+    },
+    {
+      "number": 1680,
+      "head": "d37ec34c8498ab755bf9e34ba430e5648dacb0a8",
+      "base": "7f389082cc2440875d3a42376a03309efe2b043e",
+      "paths": [
+        "apps/local-host/src/index.ts",
+        "specs/repository-anti-corruption/privileges.md"
+      ]
+    },
+    {
+      "number": 1677,
+      "head": "c2502b62dc2af4cb090ce740f12d394646e7bdeb",
+      "base": "c05698a13f1c0f17c4eb7578d42fd77467fc57fb",
+      "paths": [
+        "apps/local-host/src/index.ts",
+        "docs/releases/CHANGELOG.md",
+        "specs/BACKLOG.md",
+        "specs/repository-anti-corruption/privileges.md",
+        "specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md",
+        "tests/connector-consumer-usages.test.ts"
+      ]
+    },
+    {
+      "number": 1676,
+      "head": "c35ad3036b7ed2e296d5b1b6fce383546b1dafb9",
+      "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+      "paths": [
+        "apps/workbench/src/page-assets.ts",
+        "specs/repository-anti-corruption/privileges.md"
+      ]
+    },
+    {
+      "number": 1673,
+      "head": "d4f77755a7a8120f429abd3274d25326d65c2d95",
+      "base": "562f207c7b996bf9d71f8e55ebaea74ca3b83681",
+      "paths": [
+        "specs/BACKLOG.md",
+        "specs/repository-anti-corruption/spec.md"
+      ]
+    },
+    {
+      "number": 1672,
+      "head": "ebcd6536cfec7a457802d1d87c24d2c4a242fda0",
+      "base": "c95f6f305b9f428de41ea6433104d0d13528260f",
+      "paths": [
+        "apps/local-host/src/index.ts",
+        "apps/workbench/src/settings-connectors.ts",
+        "apps/workbench/src/settings-view.ts",
+        "docs/releases/CHANGELOG.md",
+        "docs/system/CALL-CHAINS.md",
+        "package.json",
+        "specs/BACKLOG.md",
+        "tests/connectors-settings-behaviors.test.ts",
+        "tooling/gates/baseline.json"
+      ]
+    },
+    {
+      "number": 1671,
+      "head": "afbcdaad6fe879a0feb99e9276ed01d960348e11",
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "paths": []
+    },
+    {
+      "number": 1669,
+      "head": "94861f093ab3971c6370b824cdd2bfcc30caf14d",
+      "base": "717d14f2ab8c9cb1b447003fabb120a70b6d9dd3",
+      "paths": [
+        "apps/workbench/src/settings-view.ts",
+        "docs/releases/CHANGELOG.md",
+        "docs/system/CALL-CHAINS.md",
+        "package.json",
+        "specs/BACKLOG.md",
+        "tests/connectors-settings-behaviors.test.ts"
+      ]
+    },
+    {
+      "number": 1665,
+      "head": "170777c2a8c61257e7e840afc0ebfcadd382efcb",
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "paths": []
+    },
+    {
+      "number": 1664,
+      "head": "815d6e11be8f8ae28631183a90cfcdd2b352c6e4",
+      "base": "3fd857792a27352030ac8f3544a3b57d418febc1",
+      "paths": [
+        "docs/releases/CHECKLIST.md",
+        "docs/system/CALL-CHAINS.md",
+        "tooling/gates/error-owners.json"
+      ]
+    },
+    {
+      "number": 1663,
+      "head": "4e6055767a77a0129c153c07b1cd0a4de1a524ab",
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "paths": [
+        "specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md"
+      ]
+    },
+    {
+      "number": 1526,
+      "head": "9b4372eb9072992c15a2a369ff599bfafcc3411d",
+      "base": "7ca846cd7d6b576b423e02a5e6271ec56dfe11ef",
+      "paths": []
+    },
+    {
+      "number": 1101,
+      "head": "2b38b5f5fef4bf70617c3c05b22b6d446771d693",
+      "protected": true,
+      "metadata_file_count": 584,
+      "paths": [
+        "apps/local-host/src/index.ts",
+        "apps/local-host/src/project-deleted-owners.ts",
+        "apps/local-host/src/project-host.ts",
+        "apps/workbench/src/page-assets.ts",
+        "docs/platform/PROLOGUE-AI.md",
+        "docs/releases/CHANGELOG.md",
+        "docs/releases/CHECKLIST.md",
+        "docs/system/HOME-DATA.md",
+        "docs/system/HUGE-CLASS-MIGRATION.md",
+        "modules/functions/src/project-data.ts",
+        "pnpm-lock.yaml",
+        "scripts/workspace-packages.mjs",
+        "skills/molis-plugin-dev/SKILL.md",
+        "specs/repository-anti-corruption/spec.md",
+        "tests/functions-authoring-actions.test.ts",
+        "tests/system-functions-actions.test.ts",
+        "tooling/gates/baseline.json"
+      ]
+    },
+    {
+      "number": 1059,
+      "head": "c886c603bd2678bcabaf5128dd8879e0d7a08607",
+      "protected": true,
+      "metadata_file_count": 18,
+      "paths": [
+        "tooling/gates/baseline.json"
+      ],
+      "metadata_matched": true
+    },
+    {
+      "number": 784,
+      "head": "a1ffb2aca95e903e1b33fbe89bdd5bca9b220a15",
+      "protected": true,
+      "metadata_file_count": 3,
+      "paths": [
+        "specs/BACKLOG.md"
+      ],
+      "metadata_matched": true
+    },
+    {
+      "number": 734,
+      "head": "e4893423ec80a5275600f574d69e4fa7bc6d65f8",
+      "protected": true,
+      "metadata_file_count": 1,
+      "paths": [],
+      "metadata_matched": true
+    }
+  ],
+  "active_candidates": [
+    {
+      "label": "PR1b",
+      "head": "d5a1ee558a622aa264d19da42921b3ab8aaa2d32",
+      "base": "db29f18d4f602fa8d9efb689a6a766aa9b07625f",
+      "paths": [
+        "apps/local-host/src/index.ts",
+        "specs/repository-anti-corruption/privileges.md"
+      ]
+    },
+    {
+      "label": "T390",
+      "head": "b7eee1b15353b74c586da601d45418c403e0ff5f",
+      "base": "db29f18d4f602fa8d9efb689a6a766aa9b07625f",
+      "paths": [
+        "package.json"
+      ]
+    },
+    {
+      "label": "T389",
+      "head": "13767116bd339558596e13ad6b36a3a3ed19f3cc",
+      "base": "db29f18d4f602fa8d9efb689a6a766aa9b07625f",
+      "paths": []
+    },
+    {
+      "label": "T386",
+      "head": "cb931d6537276952d716b6ca3c3b2b225b222406",
+      "base": "db29f18d4f602fa8d9efb689a6a766aa9b07625f",
+      "paths": []
+    },
+    {
+      "label": "T065",
+      "head": "df4d3f92dde968062a232bd5ceb5f402da8dec5f",
+      "base": "8a46c2cb7c596ffec0241dcfcfcfb3cf7552f987",
+      "paths": [
+        "apps/workbench/src/settings-view.ts",
+        "docs/releases/CHANGELOG.md",
+        "docs/system/CALL-CHAINS.md",
+        "package.json",
+        "specs/BACKLOG.md",
+        "tests/connectors-settings-behaviors.test.ts"
+      ]
+    }
+  ],
+  "reference_counts": {
+    "implementation_package": {
+      "count": 59,
+      "membership_unchanged": true
+    },
+    "module_path": {
+      "count": 111,
+      "membership_unchanged": true
+    },
+    "workbench_path": {
+      "count": 25,
+      "membership_unchanged": true
+    },
+    "host_path": {
+      "count": 18,
+      "membership_unchanged": true
+    },
+    "contract_import": {
+      "count": 58,
+      "membership_unchanged": true
+    }
+  },
+  "active_dist_mappings_all_present": 23,
+  "actual_additional_physical_reference": {
+    "file": "apps/local-host/src/typesafe-connection.ts",
+    "line": 5,
+    "kind": "source explanatory comment, present already at original base; retain slot functions",
+    "replacement": "modules/judgment-rules"
+  },
+  "excluded_new_hits": [
+    "apps/local-host/src/plugin-builder-surface.ts",
+    "apps/local-host/src/recommendation-catalog.ts",
+    "apps/workbench/src/capabilities.ts",
+    "apps/workbench/src/scripts/client/feed-rule-authoring.ts",
+    "docs/archive/handoffs/ui-audit-handoff-2026-09-22.md",
+    "packages/contracts/package.json",
+    "packages/contracts/src/platform/plugin-judgments.ts",
+    "plugins/native/feed/src/application-capture.ts",
+    "plugins/native/feed/src/projection.ts",
+    "plugins/native/feed/src/scene-runtime.ts",
+    "plugins/native/feed/src/scenes.ts",
+    "plugins/native/feed/src/ui.ts",
+    "plugins/native/inbox/src/actions.ts",
+    "plugins/native/inbox/src/plugin.ts",
+    "plugins/native/inbox/src/projection.ts",
+    "plugins/native/inbox/src/scene-runtime.ts",
+    "plugins/native/inbox/src/scenes.ts",
+    "plugins/native/inbox/src/ui.ts",
+    "scripts/contextual-slice/dock-compare.mts",
+    "specs/archive/bp-delivery-parallel/dispatch.md",
+    "specs/archive/bp-delivery-parallel/work-items/prologue-convergence/spec.md",
+    "specs/archive/connectors-settings-behaviors/spec.md",
+    "specs/archive/function-scene-action-scope/spec.md",
+    "specs/archive/functions-independent-authoring/spec.md",
+    "specs/archive/functions-plugin/spec.md",
+    "specs/archive/functions-product-authoring/spec.md",
+    "specs/archive/functions-system-capability/spec.md",
+    "specs/archive/functions-write-and-invoke/spec.md",
+    "specs/archive/plugin-builder/design.md",
+    "specs/archive/plugin-builder/spec.md",
+    "specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md",
+    "specs/archive/plugin-outbound-mcp/spec.md",
+    "tests/feed-capture-fixture.ts",
+    "tests/feed-inbox-scene-runtime.test.ts",
+    "tests/feed-out-rules.test.ts",
+    "tests/fixtures/home-dock-scene.ts",
+    "tests/home-judgment-plugin-caller.test.ts",
+    "tests/w5-14-option-skill-names.test.ts",
+    "tests/workbench-functions-late.e2e.test.ts",
+    "tooling/gates/api/contracts/modules/functions.txt"
+  ],
+  "active_dist_mapping_correction": {
+    "original_listed": 19,
+    "added": [
+      {
+        "file": "tests/functions-plugin.test.ts",
+        "line": 39,
+        "old": "../apps/local-host/dist/functions-http/routes.js",
+        "new": "../apps/local-host/dist/judgment-rules-http/routes.js"
+      },
+      {
+        "file": "tests/functions-plugin.test.ts",
+        "line": 40,
+        "old": "../apps/local-host/dist/functions-http/route-handlers.js",
+        "new": "../apps/local-host/dist/judgment-rules-http/route-handlers.js"
+      },
+      {
+        "file": "tests/functions-plugin.test.ts",
+        "line": 42,
+        "old": "../apps/workbench/dist/functions/ui.js",
+        "new": "../apps/workbench/dist/judgment-rules/ui.js"
+      },
+      {
+        "file": "tests/functions-plugin.test.ts",
+        "line": 43,
+        "old": "../apps/workbench/dist/functions/settings-ui.js",
+        "new": "../apps/workbench/dist/judgment-rules/settings-ui.js"
+      }
+    ],
+    "total": 23,
+    "source": "08642dcb92dbdad029d990813da56682d6864a23",
+    "also_present_at_original_base": true,
+    "new_test_files": 0
+  }
+}

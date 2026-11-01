@@ -9,7 +9,7 @@ import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
   ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
-  EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
+  EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactImportResult, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
 import { artifactWorkbench, withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
@@ -133,8 +133,8 @@ export function createLocalArtifactHttp() {
         const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
           const transport = on_progress ? { on_progress } : undefined;
           const saved = input.source === "file"
-            ? await context.actions.invoke(artifactsActions.importFile, input as unknown as ArtifactFileImport, undefined, transport)
-            : await context.actions.invoke(artifactsActions.importExternal, input as unknown as ArtifactExternalImport, undefined, transport);
+            ? await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importFile, input, undefined, transport)
+            : await context.actions.invoke<unknown, ArtifactImportResult>(artifactsActions.importExternal, input, undefined, transport);
           const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
           return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => L(warning)) } };
         };

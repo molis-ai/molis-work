@@ -4,7 +4,7 @@ import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { createLocalPanelHttp } from "./web-panel.js";
 import { createLocalProjectSettingsHttp, type LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createLocalWebAssets } from "./web-assets.js";
-import { createLocalArtifactHttp } from "./artifact-native-plugin-http.js";
+import { createLocalArtifactHttp } from "./artifact-library-http.js";
 import { createLocalHostCapsule } from "./capsule.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
 import { createLocalPlanningHttp } from "./web-planning.js";

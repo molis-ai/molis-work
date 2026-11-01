@@ -48,7 +48,7 @@ Use the user's existing authorization for the precise effect. Choosing another p
 
 ## A Goal opened beside a Runtime
 
-After connection resolves, read the explicit Goal using goals.state.read. A Host-provided MOLIS_WORK_GOAL_ID identifies page context; it does not itself authorize doing the work.
+After connection resolves, read the explicit Goal using goals.state.read. A Host-provided MOLIS_WORK_FOCUS_ID (the Goal the terminal was opened for) identifies page context; it does not itself authorize doing the work.
 
 When the user asks to advance it, continue from current agreement, requirements, progress and gaps. Updating another Goal never silently retargets the existing terminal. Do not invent MOLIS_WORK_WORK_CONTEXT_ID or MOLIS_WORK_PANEL_ID, ask the user to paste a Session ID, or send to a terminal as part of Goal navigation.
 

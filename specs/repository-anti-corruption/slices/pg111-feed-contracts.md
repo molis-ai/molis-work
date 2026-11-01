@@ -1,6 +1,6 @@
 # PG-111：Feed 的合同归 Feed（T-110）
 
-状态：工程验证中（2026-10-29，Claude（设备 A），分支 `task/T110-ca`）。做法同 [Form、灵光等六份的那一片](pg111-leaf-plugin-contracts.md)；方案在 #1332【方案 T-110】，四个待决点按方案的推荐定（统筹 6486335681：设备 A 的甲档方案自己定）。验收号 RAC-1750～1754。
+状态：实现已随 [#1440](https://github.com/molis-ai/molis-work/pull/1440) → `9170e7eb5022a238430b5c9079a83643cc9286fb` 合入并被当前 main 采用（2026-10-31 核收；历史实现负责人 Claude（设备 A），原分支 `task/T110-ca`；本次文档作者 Codex）。做法同 [Form、灵光等六份的那一片](pg111-leaf-plugin-contracts.md)；方案在 #1332【方案 T-110】，四个待决点按方案的推荐定（统筹 6486335681：设备 A 的甲档方案自己定）。验收号 RAC-1750～1754。
 
 ## 1. 为什么不能整份挪
 
@@ -36,3 +36,10 @@
 | RAC-1752 | `platform/plugin-source-pull` 的 `ConnectorSignalDraft`、`RawEventAdapter`、`RssFetchReceipt` 与写出的期望形状逐字段相等（测试里调 TypeScript 做类型检查，不靠运行器）；`bind().signal_adapter` 的类型就是 `RawEventAdapter`；SDK 自己的 `pollingIntegrationBinding` 造的草稿正好是那六个字段 |
 | RAC-1753 | RSS 的三种拒绝、YouTube 的一种拒绝以各自的名字、400 出来：直接调真实的规范化函数（`tests/plugin-contract-ownership.test.ts`）、经 Feed 的来源登记（`tests/feed-sources.test.ts`，同时钉住 Feed 自己的 `feed.source_query_invalid`、`feed.source_definition_unavailable`），以及经平台服务（`tests/security-invariants-plugin-source-pull.test.ts`：词表的两种拒绝，`plan` 的短查询与未知目录项是 `actions.input_invalid`） |
 | RAC-1754 | 宿主、RSS、YouTube、`plugin-runtime`、`plugin-sdk`、平台合同的源码里不出现 Feed 的合同路径；点名 `@molis-ai/molis-work-plugin-feed` 的只有原来就点名的十个宿主文件 |
+
+
+采用来源与证据边界（T-371，2026-10-31）：#1440 的准确作者头为 `3734bb9e5b512cece971683123fb8b6ec8c16f88`，合入提交是本次核收基点 `c6353876dec041a3c7bd3d2c62c7ec50154d5ef1` 的祖先。当前 Feed 的 `./contract` 出口及四份合同已采用，平台四个旧子路径已移除；`ConnectorSignalDraft`、`RawEventAdapter`、`RssFetchReceipt` 仍归平台，RSS、YouTube、平台与 Feed 的错误码边界按第 1、3 节保留。
+
+原 RAC-1750～1754 的运行证据来自该作者头的[独立验证 PASSED](https://github.com/molis-ai/molis-work/pull/1440#issuecomment-6489994565)：关键 15 文件 241/241（含五项 RAC），另补 Darwin 材料权限文件 23/23；[二审可合](https://github.com/molis-ai/molis-work/pull/1440#issuecomment-6491941322)未重跑测试。[普通 CI 40819102466](https://github.com/molis-ai/molis-work/actions/runs/40819102466) 与 [Full 40821028605](https://github.com/molis-ai/molis-work/actions/runs/40821028605)成功，实际检出为 `c1cabc1dcaa616de8fbeed89e1f560fb4a133af6`（`18dc2330cf151637919aad35778e3ddfd2b55a1e` + 作者头，tree `c305cbe707fb77812f6df8e7cabcda3cae14729c`），不是当前 main 的运行。原验证保留的 24 条生产路径静态未覆盖、Full 14 个逐例 unknown、onboarding 一次 retry 后通过且首次失败原因 unknown，以及旧调用记录错误码未覆盖，均不因合入或本次核收而清零。
+
+本次只核当前源码采用、公开原证据与文档，不新增运行原合同测试、变异、产品构建、浏览器或 Full，不接触真实 Home；当前 main 的全部 RAC 动态行为未由本次重验。本文状态不代表整个 W5 或产品、用户验收完成，原验收表与调用方影响不变。

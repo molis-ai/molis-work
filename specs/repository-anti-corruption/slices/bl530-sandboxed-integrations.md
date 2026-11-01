@@ -177,15 +177,25 @@
 
 ### 7.3 T-122 配置／队列采用核收（2026-10-31）
 
-本节只核收已采用的配置边界、登记队列及其工程证据，不关闭 BL-691／PG-046。准确读取基点为 main `dc544a39790c3c73cb43756ffeb847b83e960982`；本轮没有构建、测试或真实 Home 操作。
+本节只核收已采用的配置边界、登记队列及其工程证据，不关闭 BL-691／PG-046。原 [#1696](https://github.com/molis-ai/molis-work/pull/1696) 只采用文档核收，读取基点为 main `dc544a39790c3c73cb43756ffeb847b83e960982`，当时没有构建、测试或真实 Home 操作；后续独立工程补证另列如下，不倒填为 #1696 的执行结果。
 
 | 范围 | 实际 owner 与采用 | 验证来源及局限 |
 | --- | --- | --- |
 | RAC-895-CONFIG 配置限额 | `sandboxIntegrationContribution.bind` 在 JSON 序列化后按 UTF-8 字节计限，超限在沙箱调用前拒；修复与同名测试首次随 #1295（`9efbf8d04`）进入 main | 当前 `tests/sandbox-integration.test.ts` 覆盖中文／ASCII 刚好限额和超限、拒绝时调用数为零。#1295 的最终工程验证沿用其准确头记录；本轮仅核代码与采用，不补称当前实跑 |
 | RAC-1001-QUEUE 登记接续 | Home 安装 owner 缓存同一个 registry Promise，并以激活 marker 防止旧清理撤掉新注册；`IntegrationRegistry` 的 attach/detach 进入同一队列。修复与测试首次随 #1295 进入 main | `tests/sandbox-integration-home.test.ts` 制造真实登记等待、停用后立即启用，核旧 attach=false、新 attach=true及最终停用无残留。#1295 正文记录修正后该整文件 6/6；这是原执行证据，不是本轮新跑 |
-| T-134 连接声明者前置 | #1649（`daa8fd23c`）已合；连接库记声明者，登记与平台连接端口在读令牌／发送前核当前安装（S-104） | [正式验证](https://github.com/molis-ai/molis-work/pull/1649#issuecomment-6542996661)及[合 main 等价核对](https://github.com/molis-ai/molis-work/pull/1649#issuecomment-6545745870)沿用原证据；三份沙箱文件有 Linux 分支跳过，真实签包的完整 Mac 端到端未独立实跑，不以 Full 绿补造覆盖 |
-| 当前组合 | 上述配置、队列、连接链的 13 个相关生产／测试文件，相对 #1649 合入头到本读取基点没有差异；#1295 后的调用控制与 T-134 变化保留在现行路径 | 配置／队列“尚未修复采用”的旧状态可以更正；当前源码相同只支持相关输入沿用，不代表新的 Mac 沙箱实跑、实际 UI、真实外部来源或本人验收 |
+| T-134 连接声明者前置 | #1649（`daa8fd23c`）已合；连接库记声明者，登记与平台连接端口在读令牌／发送前核当前安装（S-104） | [正式验证](https://github.com/molis-ai/molis-work/pull/1649#issuecomment-6542996661)及[合 main 等价核对](https://github.com/molis-ai/molis-work/pull/1649#issuecomment-6545745870)沿用原证据；该轮三份沙箱文件有 Linux 分支跳过，当时未独立实跑完整 Mac 路径；保留当时的 skip，不以 Full 绿补造覆盖 |
+| 原读取时点的组合 | 上述配置、队列、连接链的 13 个相关生产／测试文件，相对 #1649 合入头到本读取基点没有差异；#1295 后的调用控制与 T-134 变化保留在现行路径 | 配置／队列“尚未修复采用”的旧状态可以更正；当前源码相同只支持相关输入沿用，不代表新的 Mac 沙箱实跑、实际 UI、真实外部来源或本人验收 |
 
 #1295 的准确最终头 `63d7b896e8e50f08db6d2810ab8a5cc59a09903c`、CI／Full 与首败保留在[原 PR](https://github.com/molis-ai/molis-work/pull/1295)；原两阶段评审为 [6408543790](https://github.com/molis-ai/molis-work/pull/1311#issuecomment-6408543790)、[6410757538](https://github.com/molis-ai/molis-work/pull/1311#issuecomment-6410757538)，各自只支持原固定范围，不能替代后续组合证据。
+
+后续独立工程补证（2026-10-31，Codex 验证线3）：在冻结 main [`77f4fd172a380648535ac0f101bb2d6c8654c1bd`](https://github.com/molis-ai/molis-work/commit/77f4fd172a380648535ac0f101bb2d6c8654c1bd) 及匹配整体构建上，依次各执行一次以下完整文件，合计 **23/23**；`jobs=1`、`retries=0`，fail／skip／cancel／todo 均为 0。本次为该冻结头的独立 Mac 工程证据，不是原 #1696 或历史 Linux 结果的重记。
+
+| 完整文件 | 本次结果与覆盖 |
+| --- | --- |
+| `tests/sandbox-integration-home.test.ts` | 6/6；真实签名 source 包经预览／确认、Home 沙箱安装、登记／拉取、停用再启用与 Host 重启，含 RAC-1001-QUEUE 的真实队列等待；origins 仅核 API |
+| `tests/sandbox-integration.test.ts` | 9/9；RAC-895-CONFIG 的中文／ASCII UTF-8 序列化边界、超限沙箱零调用，以及真实 runner 的拉取／cursor／信号草稿、无效返回拒绝与 stop／revoke 后旧调用拒绝；直接构造 runner 的用例不冒称签名安装 |
+| `tests/security-invariants-call-connections.test.ts` | 8/8；临时 source 槽、精确 origin、调用结束与 DNS 后 current 拒绝，以及真实 broker refresh 的取消／停用不同写回：用户取消保留已发 refresh 的凭据轮换、不写配置／连接记录；runner.stop 不保存回答，二者均不再发数据请求 |
+
+本次 23 项补齐上述冻结头的三完整文件证据；历史 Linux skip 与旧 UNKNOWN 仍按原头保留，T-134 的 S-104 另一发布者／安装拒绝继续沿用原独立采用证据，不改称本次重跑全 T-134。文档候选基于 main `b0567bf545a74b858e4fdeddd5e66432b1065b21`，与冻结头相比上述配置、登记、安装、连接链及相关测试的 13 个文件未变，因此仅核抵未变范围，未在该后继头重跑；后续链路变化须另核增量。本次未验证升级、设置 DOM、真实外部服务或本人体验，不结清 T-141、BL-691／整个 PG-046。
 
 仍待：T-141 的初装／升级 origins 实际设置展示与浏览器验证；BL-692 的撞 id 启动原因展示、BL-693 的真实来源额度／超时评估、BL-694 的外部文档导入。连接事务的 secret 回滚补证与辅助函数归位按各自 MISC 接续，不从本节销账。PG-045 三种提供方取钥统一另列，不混入本配置／队列核收。

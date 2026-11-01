@@ -217,6 +217,7 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "调用上限": "Call limit",
   "转为方向": "Turn into a direction",
   "返回列表": "Back to list",
+  "材料太长，请减少材料或缩短任务后重试。": "Too much material. Remove material or shorten the task and retry.",
   "还没有可用模型。连接模型后再试，已有的内容不会丢失。": "No model is available. Connect a model and try again. Nothing you have here is lost.",
   "还没有活动记录。": "No activity yet.",
   "这次炼化未完成，方向已保存。检查模型后可重新炼化。": "Refining failed. Your direction is saved. Check the model and retry.",

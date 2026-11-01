@@ -1,6 +1,6 @@
 import { blankLeaving, dropBlank } from "./blank.js";
 import { loadList, openDocument, save } from "./document.js";
-import { required, said, statusOf } from "./dom.js";
+import { firstCharacters, required, said, statusOf } from "./dom.js";
 import { closeCreate, closeMore, closeMove } from "./menus.js";
 import { noteFailure } from "./notes.js";
 import type { PagesPage } from "./page.js";
@@ -83,7 +83,7 @@ export function bindImport(page: PagesPage) {
       const summary = document.createElement("summary"); summary.textContent = L("pages.import.preview-body");
       const content = document.createElement("div"); content.className = "pages-import-body";
       // Plain text preview never inserts source HTML or follows imported links.
-      const text = importText(doc.body); content.textContent = text.slice(0, 4000) + (text.length > 4000 ? "…" : "");
+      const text = importText(doc.body), preview = firstCharacters(text, 4000); content.textContent = preview + (preview.length < text.length ? "…" : "");
       details.append(summary, content); card.append(details); documents.append(card);
     }
     preview.hidden = false;

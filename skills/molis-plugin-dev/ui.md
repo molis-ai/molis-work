@@ -70,6 +70,8 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 舞台要自己的数据时，在打开舞台的那个 view（有 `stage` view 就是它，否则是第一个 `navigator` view）上写 `stage_data: { action: "<本 Manifest 里只读、面向 user、只有一个版本的查询>" }`，规则与 `settings_data` 相同，写在别的 view 上或指向别人的动作，Manifest 当场被拒。宿主按页面上的这个人、只带这个动作自己声明的权限调用它（不带输入），结果放在 `StagePageModel.data` 里，连同 `route_prefix`、`shown_plugins` 和 `primitives`（`escape`、`text`、`icon`、`formatDate`）交给舞台的 `workbench` surface；插件不在、未启用或被拒时没有 `data`，按空的舞台画。页面整页画一次，`GET /api/stage/<project_plugin_id>` 原地重画一次，都走同一条路，宿主里没有按插件名的分支（T-133，Schedule 是第一个这样画的）。**目前这条路只对内置目录兑现**，已安装插件的舞台仍由运行中的实例按原来的通用模型画。
 
+设置页要从地址里读别的参数时，在同一个 `settings` view 声明 `settings_address: { query: ["tab"], hash: ["#section"] }`：外壳把插件页交来的设置地址转交时，只保留声明的参数与片段加上每个设置页都有的默认 `project`/`desktop`，没声明的一律丢掉；参数名只许 `[A-Za-z0-9_-]{1,32}`、片段以 `#` 起头，各至多 8 个，`project`/`desktop`/`settings`/`settingsPath`/`embed` 是外壳自己的不能声明，写错在 Manifest 解析处就被拒（BL-543）。
+
 设置页实际需要平台的 Agent 运行时列表时，在同一个 `settings` view 声明 `settings_runtimes: true`（例如 Coding）。不声明时宿主不查询，`context.runtimes` 是未请求的空集合；声明后查询失败会走原 HTTP 错误链，不会伪装成「没有运行时」。这个声明独立于 `settings_data`，值只许 `true`，其他槽不能使用。现有内置设置接线范围同上，未扩为已安装 Runtime 插件的动态设置支持。
 
 不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。

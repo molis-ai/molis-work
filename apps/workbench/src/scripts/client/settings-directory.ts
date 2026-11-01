@@ -50,14 +50,21 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const ADDRESS_HASHES = ${JSON.stringify(SETTINGS_ADDRESS_HASHES)};
   const PROJECT_ID_HASH_SECTION = ${JSON.stringify(PROJECT_ID_HASH_SECTION)};
   const declared = (table, key) => Object.prototype.hasOwnProperty.call(table, key) ? table[key] : "";
+  // A plugin settings page's own address parameters (BL-543) come from its directory row: the Manifest declares them, the server
+  // renders them as data-settings-address-*, and only the pages that declared some have them.
+  const addressOf = (section) => {
+    const row = [...document.querySelectorAll("[data-directory-panel=settings] [data-settings-section]")]
+      .find((row) => row.dataset.settingsSection === section);
+    return { query: row?.dataset.settingsAddressQuery || "", hash: row?.dataset.settingsAddressHash || "" };
+  };
   const keptQuery = (search, defaults, extras, section) => {
-    const allowed = (defaults + " " + declared(extras, section)).trim().split(/ +/);
+    const allowed = (defaults + " " + (declared(extras, section) || addressOf(section).query)).trim().split(/ +/);
     const kept = new URLSearchParams();
     for (const [key, value] of new URLSearchParams(search || "")) if (allowed.includes(key)) kept.append(key, value);
     const text = kept.toString();
     return text ? "?" + text : "";
   };
-  const keptHash = (hash, section) => !hash ? "" : declared(ADDRESS_HASHES, section).split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
+  const keptHash = (hash, section) => !hash ? "" : (declared(ADDRESS_HASHES, section) + " " + addressOf(section).hash).split(" ").includes(hash) || (section === PROJECT_ID_HASH_SECTION && /^#[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/u.test(hash)) ? hash : "";
   const keptAddress = (url, defaults, extras, section) => keptQuery(url.search, defaults, extras, section) + keptHash(url.hash, section);
   const CAPABILITY_SECTIONS = ["library", "connections", "access", "history"];
   const pageOf = (root) => ({

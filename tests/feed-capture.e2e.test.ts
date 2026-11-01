@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -15,7 +16,8 @@ import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixt
 
 test("Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
-  const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, origin } = b;
+  const { localHost, store, projectId, homeDirectory, command, sessionId, navigate, origin } = b;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "feed");
   assert.ok(localHost); assert.ok(projectId);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "fixture" }); catalog.close();
@@ -40,7 +42,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
   try {
     await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-    await waitFor("document.querySelector('[data-plugin-id=feed]')"); await click('[data-plugin-id="feed"]');
+    await b.waitFor("document.querySelector('[data-plugin-id=feed]')"); await b.click('[data-plugin-id="feed"]');
     await waitFor(`document.querySelector('[data-feed-task="${source.source_id}"]')`); await click(`[data-feed-task="${source.source_id}"]`);
     await click('button[data-feed-view="rules"]');
     await waitFor(`document.querySelector('${section}')`);

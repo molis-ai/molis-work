@@ -55,10 +55,10 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
         || !renderedRecord(root, message.slot_id, message.record_key)) throw new Error(translate("原连接已不可用"));
       const current = await request("read"); check();
       if (message.mode === "read" || current.connection) { send(current.connection); return; }
-      const result = await molisWorkRequest<{ connections: ConnectorConnectionView[] }>(
+      const result = await molisWorkRequest<{ connections: Array<ConnectorConnectionView | { project_id: string }> }>(
         "/api/settings/connectors/connections?service_id=" + encodeURIComponent(current.service_id), { scope });
       check();
-      const accounts = result.connections.filter(connection => !connection.project_id);
+      const accounts = result.connections.filter((connection): connection is ConnectorConnectionView => !("project_id" in connection));
       const popup = document.createElement("dialog"); popup.className = "mw-dialog mw-dialog--form";
       popup.setAttribute("aria-label", translate("请选择账号连接"));
       const area = document.createElement("div"); area.className = "mw-dialog__body"; popup.append(area);

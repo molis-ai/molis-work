@@ -62,6 +62,7 @@ export function feedSources(page: FeedPage) {
     if (intent !== "restore" || changed) { workbench.dataset.railOpen = "false"; const menu = q<HTMLDetailsElement>("[data-feed-source-menu]"); if (menu) menu.open = false; q("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", "false"); }
     if (changed && page.panel === "messages") show("messages");
   };
+  page.listen("toggle", event => { const menu = event.target instanceof HTMLDetailsElement && event.target.matches("[data-feed-source-menu]") ? event.target : null; if (!menu) return; (q("[data-feed-workbench]") || host.root).dataset.railOpen = String(menu.open); q("[data-feed-rail-toggle]", menu)?.setAttribute("aria-expanded", String(menu.open)); });
   const filterSources = () => {
     const rows = all("[data-source-entry-id]"); let count = 0;
     rows.forEach(row => { const kind = row.dataset.sourceKind; row.hidden = !(filter === "all" || filter === "account" && ["github", "gmail", "connector"].includes(kind || "") || filter === "public" && kind === "rss" || filter === "attention" && row.dataset.sourceStatus === "attention"); if (!row.hidden) count++; });

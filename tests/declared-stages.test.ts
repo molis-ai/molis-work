@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BUILTIN_PLUGIN_CATALOG, stageContributionId } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, renderStagePage, stageContributionId } from "@molis-ai/molis-work-app-workbench";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
@@ -17,6 +18,23 @@ test("FIX-2 the shared view contribution rule preserves default ids and explicit
   const view = { view_id: "main", slot: "stage" as const, title: "Probe" };
   assert.equal(stageContributionId({ ...manifest, ui: { views: [view] } }), "io.molis.work.id-probe.main");
   assert.equal(stageContributionId({ ...manifest, ui: { views: [{ ...view, contribution_id: "explicit.probe" }] } }), "explicit.probe");
+});
+
+test("RAC-2519 a registration outside the builtin catalog mounts its declared surfaces independently and keeps main-only factories unchanged", () => {
+  const id = "io.example.surface-owner", contribution_id = id + ".stage";
+  const manifest = { ...BUILTIN_PLUGIN_CATALOG[0]!.manifest, plugin_id: id, name: "External owner", ui: { contributions: [contribution_id], views: [{ view_id: "main", title: "External owner", slot: "stage" as const, contribution_id }] } };
+  const contribution: UiContribution = { descriptor: { contribution_id, surfaces: [
+    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
+    { surface_id: "overlays", target_slot_id: "workbench.overlay", format: "declarative-html" },
+  ] }, render: request => request.surface === "overlays" ? "" : request.surface === "directory" ? '<aside data-directory-panel="external"><button>Own directory</button></aside>' : '<main data-work-surface="external">Own workbench</main>' };
+  const mounted = renderStagePage(contribution, {}, "external", false, undefined, { manifest, client: { clientFactory: "host => {}", clientMounts: "surfaces" } });
+  assert.match(mounted.html, /data-plugin-owner="io.example.surface-owner".*data-plugin-contribution="io.example.surface-owner.stage".*data-plugin-surface="workbench".*data-plugin-slot="workbench.main"/);
+  assert.match(mounted.panels, /data-plugin-surface="directory".*data-plugin-slot="workbench.directory"/);
+  assert.equal(mounted.overlays, "", "empty optional surfaces never mount a second frame");
+  assert.match(mounted.html, /data-plugin-document/); assert.match(mounted.panels, /data-plugin-document/);
+  const old = renderStagePage(contribution, {}, "external", false, undefined, { manifest, client: { clientFactory: "host => {}" } });
+  assert.equal(old.panels.includes("data-plugin-document"), false, "a preexisting factory is still main-only");
 });
 
 function emptyView(): MolisWorkWebView {
@@ -115,8 +133,8 @@ test("W5-06 Feed and Inbox draw their stage from this page's view, not the share
     feed: { ...view.feed, feed_items: [item] },
     inbox_judgment: { name: "Pinned judgment", enabled: true, available: true, reason: null },
   } as MolisWorkWebView);
-  assert.match(stage(html, "feed"), /data-feed-item-id="stage-pin-item"/, "Feed's stage lists the view's feed items");
-  const inbox = stage(html, "inbox");
+  assert.match(pluginDocuments(stage(html, "feed")).join("\n"), /data-feed-item-id="stage-pin-item"/, "Feed's stage lists the view's feed items");
+  const inbox = pluginDocuments(stage(html, "inbox")).join("\n");
   assert.match(inbox, /data-inbox-functions/, "Inbox's stage reads the view's judgment");
   assert.match(inbox, /Pinned judgment/);
 });

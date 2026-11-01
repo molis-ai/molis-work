@@ -16,7 +16,7 @@ export function feedRules(page: FeedPage) {
   const state = (section: HTMLElement): RuleDraft => { const id = key(section); if (!drafts.has(id)) { let value: RuleDraft = {}; try { value = JSON.parse(sessionStorage.getItem(id) || "{}"); } catch { /* No saved draft. */ } drafts.set(id, value); } return drafts.get(id)!; };
   const value = (section: HTMLElement, attr: string) => q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[" + attr + "]", section)?.value.trim() || "";
   const remember = (section: HTMLElement) => { const draft = state(section); draft.mode = section.dataset.ruleMode || "keyword"; draft.fields = Object.fromEntries(fields.map(attr => [attr, value(section, attr)])); try { sessionStorage.setItem(key(section), JSON.stringify(draft)); } catch { /* The current in-memory draft remains. */ } };
-  const status = (section: HTMLElement, message: unknown) => { const node = q("[data-feed-rule-status]", section); if (!node) return; node.hidden = !message; if (typeof message === "string") node.textContent = message; else molisWorkRequest.show(node, message); };
+  const status = (section: HTMLElement, message: unknown) => { const node = q("[data-feed-rule-status]", section); if (!node) return; node.hidden = !message; node.dataset.error = String(Boolean(message) && typeof message !== "string"); if (typeof message === "string") node.textContent = message; else molisWorkRequest.show(node, message); };
   const mode = (section: HTMLElement, next: string) => { section.dataset.ruleMode = next; all("[data-feed-rule-mode]", section).forEach(button => button.setAttribute("aria-pressed", String(button.dataset.feedRuleMode === next))); all("[data-feed-rule-field]", section).forEach(field => field.hidden = field.dataset.feedRuleField !== next); };
   const action = async <T>(name: "list" | "create" | "update" | "preview" | "publish", input: unknown): Promise<T> => { const check = page.guard(); const result = await host.invokeAction<T>({ capability_id: "functions.authoring." + name, version: 1, provider_id: "system.functions" }, input); check(); return result; };
   const catalog = async (section: HTMLElement) => {
@@ -43,12 +43,12 @@ export function feedRules(page: FeedPage) {
     return { mode: current, instructions, contains, judgment: selected ? JSON.parse(selected) as ActionReference : null, name: value(section, "data-feed-out-rule-name") || contains || instructions.slice(0, 40), admission: value(section, "data-feed-out-rule-admission") || "suggest" };
   };
   const ensureDraft = async (section: HTMLElement, rule: RuleInput) => {
-    const saved = state(section), content = JSON.stringify({ name: rule.name, instructions: rule.instructions });
+    const check = page.guard(), saved = state(section), content = JSON.stringify({ name: rule.name, instructions: rule.instructions });
     if (saved.function?.status === "published" && saved.functionContent !== content) { delete saved.function; delete saved.functionKey; delete saved.previewContent; }
     if (!saved.function) {
       saved.functionKey ||= "feed_rule_" + crypto.randomUUID().replaceAll("-", ""); remember(section);
       try { saved.function = (await action<{ function: JudgmentRuleRecord }>("create", { name: rule.name, function_key: saved.functionKey, primitive: "noul" })).function; }
-      catch (error) { const check = page.guard(); check(); const listed = await action<{ functions: JudgmentRuleRecord[] }>("list", {}); saved.function = listed.functions.find(fn => fn.function_key === saved.functionKey); if (!saved.function) throw error; } remember(section);
+      catch (error) { check(); const listed = await action<{ functions: JudgmentRuleRecord[] }>("list", {}); saved.function = listed.functions.find(fn => fn.function_key === saved.functionKey); if (!saved.function) throw error; } remember(section);
     }
     if (saved.functionContent !== content) {
       saved.function = (await action<{ function: JudgmentRuleRecord }>("update", { id: saved.function.id, updated_at: saved.function.updated_at, patch: { name: rule.name, instructions: rule.instructions, criteria: { true_description: "符合用户描述，值得关注。", false_description: "不符合用户描述，无需关注。" }, scene_id: FEED_CAPTURE_SCENE_ID, subject_kinds: ["feed_item"], scene_map: { true: INBOX_ADMIT_OPTION_ID, false: FEED_OPEN_OPTION_ID } } })).function;

@@ -32,7 +32,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const openInSide = (${openPluginInSide}).bind(null, ${sideOpenedTabs()});
   const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
-  document.querySelectorAll("[data-work-surface][data-installed-plugin]").forEach((surface) => { PLUGIN_TAB_TITLES[surface.dataset.workSurface] = surface.dataset.workSurfaceLabel; PLUGIN_TAB_ICON[surface.dataset.workSurface] = "package"; });
+  document.querySelectorAll("[data-work-surface]").forEach((surface) => { const id = surface.dataset.workSurface; if (surface.dataset.workSurfaceLabel) PLUGIN_TAB_TITLES[id] = surface.dataset.workSurfaceLabel; if (!PLUGIN_TAB_ICON[id]) PLUGIN_TAB_ICON[id] = PLUGIN_TAB_ICON[surface.dataset.pluginClient] || "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
   const ops = (${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()});
 ${TAB_WORKSPACE_PANES_PART}
@@ -481,6 +481,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (event.data.type === "workbench-view-invalidate") { const surface = topLevelSurface(ops.shownPlugin(ops.focused(state))); if (surface) invalidateView(surface, false); return; }
       if (event.data.type !== "workbench-view") return;
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
+      if (event.data.intent === "open" || event.data.intent === "select") { const tab = ops.activeTab(state); selectItem(topLevelSurface(ops.shownPlugin(ops.focused(state))), tab?.kind === "item" ? tab.itemId : null, event.data.view, event.data.intent, event.data.panel); }
       return;
     }
     const frame = panes.from(event);
@@ -511,7 +512,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       state.focusedPaneId = pane.id;
       if (event.data.background === true && event.data.itemId) pluginGroups.openBehind(event.data.plugin, event.data.itemId, event.data.title);
       else if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
-      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view); else openPlugin(event.data.plugin);
+      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view); else { openPlugin(event.data.plugin); if (Object.hasOwn(event.data, "view")) selectPluginView(pane, event.data.plugin, { id: event.data.view, panel: event.data.panel, intent: event.data.viewIntent || "open" }); }
     }
   });
   document.addEventListener("click", (event) => {
@@ -547,6 +548,10 @@ ${TAB_WORKSPACE_DRAG_PART}
     loadingGoalId = goalId;
     apply(); persist();
     if (loadingGoalId === goalId) loadingGoalId = loading;
+  });
+  document.addEventListener("workbench-open-group", event => {
+    if (typeof event.detail?.surface !== "string" || typeof event.detail.id !== "string") return;
+    openPlugin(event.detail.surface, event.detail.id);
   });
   return { apply, readView, writeView, openView, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,

@@ -39,7 +39,9 @@
       "inbox.http-routes.v1"
     ],
     "registration": "./registration",
-    "extraWorkspaceDependencies": [],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
     "extraDependencies": {}
   },
   "devDependencies": {

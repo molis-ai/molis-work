@@ -604,13 +604,15 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   readonly scope: UiClientScope;
   readonly translate: UiClientTranslate;
   readonly mount: UiClientMount | null;
+  /** Public navigation parameters of the enclosing workbench; they grant no action or record access. */
+  readonly search?: string;
   readonly view: UiPageView<Element>;
   openView(selection: UiViewSelection): void;
   invalidateView(): void;
   connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
   openItem(surface: string, itemId: string, title?: string): void;
   openBeside(surface: string, itemId: string, title?: string): void;
-  openPlugin(surface: string): void;
+  openPlugin(surface: string, view?: string, panel?: string): void;
   hideDirectory(): void;
   showToast(message: string, failure?: boolean): void;
   /** From the owning Manifest; presentation only, never accepted as authority by the parent. */

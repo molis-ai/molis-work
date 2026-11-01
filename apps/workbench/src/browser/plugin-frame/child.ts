@@ -71,7 +71,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const select = pageSelection(root, scope, config.searchRow);
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
-    mount: config.mount, connectionSlot: childConnectionSlot(port, scope),
+    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),

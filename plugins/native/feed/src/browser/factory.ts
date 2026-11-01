@@ -4,7 +4,7 @@ import { feedStage } from "./stage.js";
 import { feedSources } from "./sources.js";
 import { feedRules } from "./rule-authoring.js";
 
-export type FeedHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "translate" | "pluginRoute" | "route" | "mount" | "view" | "openView" | "openItem" | "openPlugin" | "showToast" | "invalidateView" | "connectionSlot" | "invokeAction" | "actionAvailability" | "confirm">;
+export type FeedHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "translate" | "pluginRoute" | "route" | "mount" | "search" | "view" | "openView" | "openItem" | "openPlugin" | "showToast" | "invalidateView" | "connectionSlot" | "invokeAction" | "actionAvailability" | "confirm">;
 export interface FeedPage {
   host: FeedHost;
   q<T extends HTMLElement = HTMLElement>(selector: string, within?: ParentNode): T | null;
@@ -12,7 +12,7 @@ export interface FeedPage {
   listen<K extends keyof HTMLElementEventMap>(type: K, handler: (event: HTMLElementEventMap[K]) => void): void;
   guard(): () => void;
   change(): void;
-  api<T = Record<string, unknown>>(path: string, method?: string, body?: unknown): Promise<T>;
+  api<T = Record<string, unknown>>(path: string, method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", body?: unknown): Promise<T>;
   text(path: string, signal?: AbortSignal): Promise<string>;
   selection: string;
   panel: string;
@@ -27,15 +27,15 @@ export function feedClient(host: FeedHost): void {
   const { root, scope } = host;
   const page: FeedPage = {
     host, selection: "all", panel: "messages",
-    q: (selector, within = root) => within.querySelector(selector),
-    all: (selector, within = root) => [...within.querySelectorAll(selector)],
-    listen: (type, handler) => { root.addEventListener(type, handler); scope.own(() => root.removeEventListener(type, handler)); },
+    q: <T extends HTMLElement = HTMLElement>(selector: string, within: ParentNode = root) => within.querySelector<T>(selector),
+    all: <T extends HTMLElement = HTMLElement>(selector: string, within: ParentNode = root) => [...within.querySelectorAll<T>(selector)],
+    listen: (type, handler) => { root.addEventListener(type, handler, { capture: type === "scroll" || type === "toggle" }); scope.own(() => root.removeEventListener(type, handler, { capture: type === "scroll" || type === "toggle" })); },
     guard: () => {
       const original = epoch;
       return () => { scope.assertCurrent(); if (!scope.visible || !root.isConnected || original !== epoch) throw new DOMException("View changed", "AbortError"); };
     },
     change: () => { epoch++; reads.abort(); reads = new AbortController(); },
-    api: async <T>(path: string, method = "GET", body?: unknown): Promise<T> => {
+    api: async <T>(path: string, method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE" = "GET", body?: unknown): Promise<T> => {
       const check = page.guard();
       const result = await molisWorkRequest<T>(host.pluginRoute(path), { method, body, scope, signal: reads.signal }); check(); return result;
     },
@@ -67,6 +67,15 @@ export function feedClient(host: FeedHost): void {
       }
       for (const details of replacement.querySelectorAll("details")) details.open = [...previous.querySelectorAll("details[open]")].some(old => old.querySelector("summary")?.textContent === details.querySelector("summary")?.textContent);
     }
+    // Keep the disclosure, its Add control, and the inline form while rows/configuration refresh beneath them.
+    const menu = page.q("[data-feed-source-menu]"), nextMenu = page.q("[data-feed-source-menu]", next);
+    if (menu && nextMenu) {
+      const rail = page.q("[data-feed-source-rail]", menu), nextRail = page.q("[data-feed-source-rail]", nextMenu);
+      if (rail && nextRail) { const nav = rail.querySelector("nav"), nextNav = nextRail.querySelector("nav"); if (nav && nextNav) nav.replaceChildren(...nextNav.childNodes); const count = rail.querySelector('[data-feed-task="all"] em'), nextCount = nextRail.querySelector('[data-feed-task="all"] em'); if (count && nextCount) count.textContent = nextCount.textContent; }
+      nextMenu.replaceWith(menu);
+    }
+    const dialog = page.q("[data-feed-sources-dialog]"), nextDialog = page.q("[data-feed-sources-dialog]", next);
+    if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }
     const scroll = stage.scroll(); root.replaceChildren(...next.childNodes);
     page.select(page.selection, "restore", page.panel); stage.restoreScroll(scroll); rules.hydrate();
   };
@@ -88,9 +97,15 @@ export function feedClient(host: FeedHost): void {
     const target = event.target instanceof Element ? event.target : null; if (!target) return;
     void (async () => { if (await rules.click(target)) return; if (await sources.click(target, event)) return; await stage.click(target, event); })().catch(error => page.error(error));
   });
-  scope.whenVisible(() => { page.change(); return () => page.change(); });
+  scope.whenVisible(() => { page.change(); page.all("[data-feed-rule-composer][aria-busy]").forEach(composer => { composer.inert = false; composer.removeAttribute("aria-busy"); }); return () => page.change(); });
   scope.own(() => reads.abort());
   page.select("all");
+  const requested = new URLSearchParams(host.search).get("feedRule");
+  if (requested && host.mount?.surface === "workbench") {
+    const row = page.q('[data-feed-out-rule-row="' + CSS.escape(requested) + '"]'), id = row?.closest<HTMLElement>("[data-feed-out-rules]")?.dataset.feedOutRules;
+    if (id) { page.select(id, "open", "rules"); host.openView({ surface: "workbench", id, panel: "rules", intent: "open" }); scope.frame(() => row?.scrollIntoView({ block: "nearest", behavior: "instant" })); }
+    else host.showToast(host.translate("原捕捉规则不存在，可能已经删除。"));
+  }
 }
 
 declare const host: FeedHost;

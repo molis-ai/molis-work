@@ -205,6 +205,38 @@ test("SYS-15 S-47 page actions use the real definition, declared dependencies an
   assert.equal((await (await f.request(`/api/plugins/${target.id}/state`)).json()).value, "target-owned");
 });
 
+test("RAC-2518 S-47 page availability uses the same caller and grants, executes nothing and refuses a withdrawal during discovery", { timeout: 30000 }, async t => {
+  const source = homeProbe("pageavailability"), target = homeProbe("pageavailabletarget"), entered = deferred(), release = deferred();
+  let block = false;
+  target.state.action.audiences.push("plugin");
+  source.definition.manifest.capabilities.consumes.push(target.state.capability_id);
+  source.definition.manifest.permissions.push({ permission: target.permissions[1]!, required: false, reason: "Read declared availability" });
+  const start = target.definition.start!;
+  target.definition.start = async context => {
+    const result = await start(context);
+    if (!result || result.kind !== "app") return result;
+    return { ...result, actions: result.actions?.map(binding => binding.capability_id === target.state.capability_id
+      ? { ...binding, availability: async () => { if (block) { entered.resolve(); await release.promise; } return { available: true as const }; } } : binding) };
+  };
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [source.definition, target.definition] } });
+  await grantHomeProbe(f.host, target); await grantHomeProbe(f.host, source, [...source.permissions, target.permissions[1]!]);
+  const response = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: source.id } });
+  assert.equal(response.status, 200, await response.clone().text());
+  const { page_id } = await response.json(), headers = { "x-molis-plugin-page": page_id };
+  const availability = (reference: { capability_id: string; version: number; provider_id?: string }) => f.request("/api/host/plugin-page-actions", { method: "POST", headers, body: { mode: "availability", reference } });
+  const allowed = await availability(target.state); assert.equal(allowed.status, 200, await allowed.clone().text());
+  assert.deepEqual(await allowed.json(), { available: true }); assert.equal(target.seen.length, 0, "metadata never calls the state handler");
+  assert.equal((await availability(target.save)).status, 403, "a name outside consumes is refused before discovery");
+  assert.equal((await availability({ ...source.state, provider_id: target.id })).status, 403, "an own action cannot select another provider");
+  assert.equal((await f.request("/api/host/plugin-page-actions", { method: "POST", headers, body: { mode: "availability", reference: target.state, input: {} } })).status, 400);
+  block = true;
+  const pending = availability(target.state);
+  try { await entered.promise; await grantHomeProbe(f.host, source, source.permissions); }
+  finally { release.resolve(); }
+  const refused = await pending; assert.equal(refused.status, 403, await refused.clone().text());
+  assert.equal(target.seen.length, 0, "withdrawal during the await releases no business data and executes nothing");
+});
+
 for (const transport of ["route", "action"] as const) test(`SYS-15 S-47 ${transport} accepted background work outlives the page but retains installation authority`, async t => {
   const probe = backgroundProbe("pagejob" + transport), entered = deferred(), release = deferred();
   probe.behavior.work = async () => { entered.resolve(); await release.promise; return "accepted work"; };

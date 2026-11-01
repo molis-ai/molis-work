@@ -219,8 +219,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const showDecisionReceipt = (message, context) => {
       const receiptHost = document.querySelector("[data-goal-decision-panel]")
-        || document.querySelector("[data-goal-event-document]")
-        || feedWorkbench?.querySelector('[data-feed-detail]:not([hidden])');
+        || document.querySelector("[data-goal-event-document]");
       if (!receiptHost) {
         showToast(message);
         return;

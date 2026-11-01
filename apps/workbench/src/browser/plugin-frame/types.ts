@@ -46,6 +46,7 @@ export interface FrameConfig {
   subjectSurfaces: Readonly<Record<string, string>>;
   stage: { title: string; description: string };
   shortcuts: string[];
+  search?: string;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   messages: Record<string, string>; titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }

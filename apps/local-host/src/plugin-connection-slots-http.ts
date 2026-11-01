@@ -8,7 +8,7 @@ import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runti
 import { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { localWebActionContext } from "./local-web-actions.js";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WebRequestContext } from "./web-route-table.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -40,13 +40,13 @@ export async function pageConnectionSlot(context: WebRequestContext, project: Lo
   const caller: ActionCallContext = { ...original,
     validate_authority: async (...args) => { await original.validate_authority?.(...args); await page.beforeEffect(); },
     assert_authority_current: (...args) => { original.assert_authority_current?.(...args); page.assertCurrent(); } };
-  const client = context.localHost.actionClient(project), record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
-  const current = await client.invoke(caller, connectorPluginSlotActions.readRecord, record);
+  const client = bindActionClient(context.localHost.actionClient(project), () => caller), record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
+  const current = await client.invoke(connectorPluginSlotActions.readRecord, record);
   await page.beforeEffect();
   if (body.mode === "bind") {
     if (typeof body.connection_id !== "string" || !body.connection_id || current.connection && current.connection.connection_id !== body.connection_id)
       throw new ActionError("actions.conflict", "这条记录已经选好账号；要换账号，先断开");
-    const result = await client.invoke(caller, connectorPluginSlotActions.bindRecord, { ...record, service_id: slot.service_id, connection_id: body.connection_id });
+    const result = await client.invoke(connectorPluginSlotActions.bindRecord, { ...record, service_id: slot.service_id, connection_id: body.connection_id });
     await page.beforeEffect();
     return { service_id: slot.service_id, connection: connectionChoice(result.connection) };
   }

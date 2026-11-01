@@ -35,14 +35,13 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (!plugin) return;
     shellCollapse.add(plugin);
     queueMicrotask(() => shellCollapse.delete(plugin));
-    selectItem(topLevelSurface(plugin), null);
+    selectItem(topLevelSurface(plugin), null, readView(ops.focused(state).id));
     if (plugin === "goals") {
       document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
       (restoreBoard || showCanvas)?.();
       return;
     }
     collapsePluginStage(plugin);
-    selectItem(topLevelSurface(plugin), null, readView(ops.focused(state).id));
   };
   // Goals are drawn by the workbench itself: name the open Goal on its frame and document, as every plugin names its
   // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
@@ -70,14 +69,16 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (had) notePlace();
   };
   const openSettingsPage = (plugin) => document.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: plugin } }));
-  const openPlugin = (plugin) => {
-    if (embedded) { notifyParent("workbench-pane-open", { plugin }); return; }
+  const openPlugin = (plugin, view, panel) => {
+    if (embedded) { notifyParent("workbench-pane-open", { plugin, ...(typeof view === "string" ? { view, panel, viewIntent: "open" } : {}) }); return; }
     if (openInSide(plugin)) return;
     if (settingsPageOf(plugin)) { openSettingsPage(plugin); return; }
     state.focusedPaneId = ops.focused(state).id;
     ops.openPlugin(state, plugin);
+    const pane = ops.focused(state);
     apply();
     persist();
+    if (typeof view === "string") selectPluginView(pane, plugin, { id: view, panel, intent: "open" });
   };
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).
@@ -209,6 +210,16 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       if (tab?.plugin === plugin || frame.dataset.paneKey === "plugin:" + plugin) frame.contentWindow?.postMessage({ type: "workbench-view-invalidate" }, location.origin);
     });
   };
+  const selectPluginView = (pane, plugin, selection) => {
+    const tab = pane.tabs.find(tab => tab.id === pane.activeTabId) || pane.tabs.find(tab => tab.kind === "plugin" && tab.plugin === plugin);
+    if (!tab || tab.plugin !== plugin || !writeView(pane.id, selection.id, tab.id)) return false;
+    const target = topLevelSurface(plugin), frame = panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(paneFrameKey(pane)) + '"]');
+    if (frame) {
+      const project = () => { if (frame.isConnected && paneById(pane.id) === pane && (pane.tabs.find(item => item.id === pane.activeTabId) || pane.tabs.find(item => item.kind === "plugin" && item.plugin === pane.viewPlugin)) === tab) frame.contentWindow?.postMessage({ type: "workbench-view", view: selection.id, panel: selection.panel, intent: selection.intent || "open" }, location.origin); };
+      if (frame.contentDocument?.body?.hasAttribute("data-pane-embedded")) project(); else frame.addEventListener("load", project, { once: true });
+    } else selectItem(target, tab.kind === "item" ? tab.itemId : null, selection.id, selection.intent || "open", selection.panel);
+    return true;
+  };
   const openView = (origin, selection) => {
     if (!origin?.isConnected || origin.closest('[hidden]')) return false;
     const target = ownSurfaces(origin).find(node => node.dataset.pluginSurface === selection.surface && node.dataset.pluginSlot === "workbench.main");
@@ -216,11 +227,10 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const pane = embedded ? state.panes[0] : paneById(origin.closest('[data-tab-pane]')?.dataset.tabPane) || ops.focused(state);
     if (!pane) return false;
     const plugin = target.dataset.workSurface;
-    if (selection.intent !== "select") { state.focusedPaneId = pane.id; ops.openPlugin(state, plugin); }
-    const tab = pane.tabs.find(tab => tab.id === pane.activeTabId) || pane.tabs.find(tab => tab.kind === "plugin" && tab.plugin === plugin);
-    if (!tab || tab.plugin !== plugin) return false;
-    if (!writeView(pane.id, selection.id, tab.id)) return false;
-    if (embedded) notifyParent("workbench-pane-view", { view: selection.id });
-    selectItem(target, tab.kind === "item" ? tab.itemId : null, selection.id, selection.intent || "open", selection.panel);
-    return true;
+    if (embedded && (selection.intent !== "select" || ops.shownPlugin(pane) !== plugin)) { notifyParent("workbench-pane-open", { plugin, view: selection.id, panel: selection.panel, viewIntent: selection.intent || "open" }); return true; }
+    // A select previews the declared default page; it never creates an object tab.
+    if (selection.intent !== "select" || ops.shownPlugin(pane) !== plugin) { state.focusedPaneId = pane.id; ops.openPlugin(state, plugin); }
+    const result = selectPluginView(pane, plugin, selection);
+    if (result && embedded) notifyParent("workbench-pane-view", { view: selection.id });
+    return result;
   };`;

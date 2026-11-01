@@ -65,9 +65,9 @@ function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>
 }
 
 /** An installed surface may have appeared since this shell loaded. The server rebuilds the current project's catalog. */
-function openPlugin(host: FrameHost, surface: unknown, prefix: string): void {
+function openPlugin(host: FrameHost, surface: unknown, prefix: string, view?: unknown, panel?: unknown): void {
   if (typeof surface !== "string" || !/^[a-z][a-z0-9-]{0,100}$/u.test(surface)) return;
-  if (host.openPlugin && document.querySelector('[data-work-surface="' + CSS.escape(surface) + '"]')) host.openPlugin(surface);
+  if (host.openPlugin && document.querySelector('[data-work-surface="' + CSS.escape(surface) + '"]')) host.openPlugin(surface, typeof view === "string" && view.length <= 1000 ? view : undefined, typeof panel === "string" && panel.length <= 100 ? panel : undefined);
   else location.assign(prefix + "/?openSurface=" + encodeURIComponent(surface));
 }
 
@@ -88,7 +88,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
   const frame = document.createElement("iframe"), channel = new MessageChannel();
   frame.setAttribute("sandbox", "allow-scripts allow-forms"); frame.setAttribute("referrerpolicy", "no-referrer");
-  frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = pack.id;
+  frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = mount?.target_slot_id === "workbench.directory" ? pack.id + ":" + mount.surface : root.dataset.workSurface || pack.id;
   frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent";
   const port = channel.port1, requests = frameRequests(port, grant.page_id, scope);
   const terminal = frameTerminal(port, scope, grant.page_id);
@@ -122,6 +122,21 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
   scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
+  // Structured surfaces follow the Runtime's existing display revision; each read is cancelled on hiding.
+  let revision: string | undefined;
+  if (mount) scope.whenVisible(() => {
+    const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = async () => {
+      try {
+        const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pack.plugin_id + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": grant.page_id } });
+        scope.assertCurrent(); if (controller.signal.aborted) return;
+        if (revision !== undefined && revision !== value.revision) port.postMessage({ type: "select", detail: { invalidate: true } });
+        revision = value.revision;
+      } catch { /* A hidden or withdrawn page cannot publish a display update. */ }
+      if (!controller.signal.aborted && scope.alive) timer = setTimeout(() => void read(), 1500);
+    };
+    void read(); return () => { controller.abort(); clearTimeout(timer); };
+  });
   const fail = (error: Error) => {
     clearTimeout(deadline);
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
@@ -178,7 +193,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui" && Array.isArray(message.args)) {
         if (message.name === "showToast" && typeof message.args[0] === "string") host.showToast?.(message.args[0], message.args[1] === true);
-        else if (message.name === "openPlugin") openPlugin(host, message.args[0], route(""));
+        else if (message.name === "openPlugin") openPlugin(host, message.args[0], route(""), message.args[1], message.args[2]);
         else if (["openItem", "openBeside", "hideDirectory", "status"].includes(message.name)) host[message.name as "openItem"]?.(...message.args);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
@@ -204,7 +219,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { mount, subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
+    const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,

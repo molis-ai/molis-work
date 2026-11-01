@@ -14,6 +14,29 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 const PATH = "/api/settings/connectors/plugin-slots/record";
 const BEARER_VALUE = "fixture-bearer-value-for-record-slots";
 
+test("RAC-2518 S-71 opaque pages cannot bind accounts; the trusted picker retains page/project authority and returns only its chosen account", async t => {
+  const probe = connectionsProbe("recordslotmount", { binding: "per_record" });
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const { install } = await grantConnections(f.host, probe), project = await f.project("Picker authority"), other = await f.project("Other picker project");
+  const prefix = `/projects/${project.project_id}`;
+  const account = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Selected account", token: BEARER_VALUE }));
+  const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(opened.status, 200, await opened.clone().text()); const { page_id } = await opened.json();
+  const read = { mode: "read", slot_id: "github", record_key: "source-one" }, bind = { ...read, mode: "bind", connection_id: account.connection_id };
+  const endpoint = prefix + "/api/host/plugin-page-slot", trusted = { "x-molis-context-page": page_id }, child = { "x-molis-plugin-page": page_id };
+  for (const headers of [{}, child, { ...trusted, ...child }]) assert.equal((await f.request(endpoint, { method: "POST", headers, body: bind })).status, 403);
+  assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: install.install_id, project_id: project.project_id, record_key: "source-one" }), probe.id, "github")), null);
+  const before = await f.request(endpoint, { method: "POST", headers: trusted, body: read }); assert.equal(before.status, 200, await before.clone().text()); assert.equal((await before.json()).connection, null);
+  for (const extra of [{ install_id: install.install_id }, { plugin_id: probe.id }, { service_id: "gmail" }, { project_id: other.project_id }]) assert.equal((await f.request(endpoint, { method: "POST", headers: trusted, body: { ...bind, ...extra } })).status, 400);
+  assert.equal((await f.request(`/projects/${other.project_id}/api/host/plugin-page-slot`, { method: "POST", headers: trusted, body: bind })).status, 403);
+  const saved = await f.request(endpoint, { method: "POST", headers: trusted, body: bind }); assert.equal(saved.status, 200, await saved.clone().text());
+  const value = await saved.json(); assert.equal(value.connection.connection_id, account.connection_id);
+  assert.deepEqual(Object.keys(value.connection).sort(), ["auth_method", "connection_id", "label", "state"]); assert.equal(JSON.stringify(value).includes(BEARER_VALUE), false);
+  await f.request(prefix + "/api/host/plugin-pages/" + page_id, { method: "DELETE" });
+  assert.equal((await f.request(endpoint, { method: "POST", headers: trusted, body: { ...bind, record_key: "source-two" } })).status, 403);
+  assert.equal(withConnectorConnections(f.home, store => store.binding(pluginBindingScope({ install_id: install.install_id, project_id: project.project_id, record_key: "source-two" }), probe.id, "github")), null, "a closed page leaves no late binding");
+});
+
 test("S-71 RAC-2666 the record-slot path binds and reads a record's account as the person, the installation found by the Host, and refuses any other name", { timeout: 60_000 }, async t => {
   const records = connectionsProbe("recordslotpage", { binding: "per_record" }), whole = connectionsProbe("recordslotwhole");
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [records.definition, whole.definition] } });

@@ -1,0 +1,17 @@
+{
+  "H": "95ef66c1ef3a174eacbf0260e0f98adc4f19fe0f",
+  "B": "328d5b612ef47214378ecd55e32a648228c120f3",
+  "adoptedMain": "6729a2d4655caa603daa369f99884e09c4726bde",
+  "parent": "4b04947e7d17bbb046ca67e2ba0e2728fcd25ea6",
+  "patchID": "6385b0592a52eb03974a5b662e87b87b07d5d6db",
+  "adoptedPatchID": "6385b0592a52eb03974a5b662e87b87b07d5d6db",
+  "fullPatchIdentical": true,
+  "Htree": "0c73ae94dbca46e247d4c7f99b5d73873957e8a7",
+  "Mtree": "5df7692e7cf4affb0ca1942e8c1cf9ee29497066",
+  "changed": [
+    "tests/pages-actions.e2e.test.ts"
+  ],
+  "merge_group": 41268907018,
+  "queueVerify": 124738529110,
+  "note": "M tree contains earlier T382; H and M are not globally equal"
+}

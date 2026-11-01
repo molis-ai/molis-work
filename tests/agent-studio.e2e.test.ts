@@ -1,3 +1,4 @@
+import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@molis-ai/molis-work-app-local-host';
 import { framedStudioPage, studioFrameAsset, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
@@ -439,13 +440,23 @@ test('studio in English: its controls, labels, phases and boards are English', {
 test('upgrade consent saves the new secret and the upgraded plugin uses it on its actual HTTPS request', { timeout: 90_000, skip: process.platform !== 'darwin' }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'studio-upgrade-network-')), browser = await openStudioChrome(join(home, 'chrome'));
   if (!browser) { await rm(home, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
+  const cleanups: Array<() => void | Promise<unknown>> = [];
+  t.after(async () => {
+    const failures: unknown[] = [];
+    for (const close of [() => browser.close(), ...cleanups.reverse(), () => rm(home, { recursive: true, force: true })]) {
+      try { await close(); } catch (error) { failures.push(error); }
+    }
+    if (failures.length) throw new AggregateError(failures, 'Network fixture cleanup failed');
+  });
   try { execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=api.weather.example', '-addext', 'subjectAltName=DNS:api.weather.example', '-keyout', join(home, 'key.pem'), '-out', join(home, 'cert.pem')], { stdio: 'ignore' }); }
   catch { await browser.close(); await rm(home, { recursive: true, force: true }); t.skip('openssl is required'); return; }
   const [key, cert] = await Promise.all([readFile(join(home, 'key.pem')), readFile(join(home, 'cert.pem'))]), received = Promise.withResolvers<string>();
   const tlsServer = createHttpsServer({ key, cert }, (request, response) => { received.resolve(String(request.headers.authorization)); response.end('received'); });
+  cleanups.push(async () => { tlsServer.closeAllConnections(); await new Promise<void>(resolve => tlsServer.close(() => resolve())); });
   await new Promise<void>(resolve => tlsServer.listen(0, '127.0.0.1', resolve)); const tlsAddress = tlsServer.address(); assert.ok(tlsAddress && typeof tlsAddress === 'object');
   const originalLookup = dns.lookup, dnsMock = t.mock.method(dns, 'lookup', (hostname, options, callback) => hostname === 'api.weather.example'
     ? callback(null, [{ address: '93.184.216.34', family: 4 }]) : originalLookup(hostname, options, callback)); syncBuiltinESMExports();
+  cleanups.push(() => { dnsMock.mock.restore(); syncBuiltinESMExports(); });
   let fixtureConnections = 0, checkedResolutions = 0;
   // Production uses agent:false so each request gets a new Agent; the global Agent is never consulted.
   const originalConnect = Agent.prototype.createConnection, transport = t.mock.method(Agent.prototype, 'createConnection', function(this: Agent, options, callback) {
@@ -458,7 +469,9 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
       if (error) done(error, [], 4); else done(null, lookupOptions?.all ? [{ address: '127.0.0.1', family: 4 }] : '127.0.0.1', 4);
     }) });
   });
+  cleanups.push(() => transport.mock.restore());
   const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file), token = randomUUID(), mutations = new Map<string, LocalMutationState>();
+  cleanups.push(async () => { await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); });
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
   const build = installed.releases.create('Network upgrade fixture'), pluginId = 'io.molis.work.generated.' + build.id;
   // A design always has at least one page (agent-experience refuses one without); the studio canvas draws from the first.
@@ -467,11 +480,11 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   const bundlePath = join(home, 'v1.mjs'); await writeFile(bundlePath, 'export const operations={fetch:async()=>"v1"};');
   const first: AgentRelease = { buildId: build.id, pluginId, version: 1, directory: home, packagePath: home, bundlePath, nodes: [], prompts: [], permissions: {}, publishedAt: new Date().toISOString(),
     manifest: { version: 1, pluginId, revision: 'one', effects: {} }, design: { id: 'fixture', catalog: 'actions/1', title: 'Network fixture', description: 'A fixed upgrade test', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] } };
-  installed.releases.release(first); await installed.lifecycle('install', first, { consent: true });
+  publishCheckedStudioFixture(installed.storage, first); await installed.lifecycle('install', first, { consent: true });
   const permissions = { networkDomains: ['api.weather.example'], secretRefs: ['weather'] }, nextContract = { ...contract, revision: 'two', operations: [{ ...contract.operations[0]!, effects: permissions }] };
   const nextBundle = join(home, 'v2.mjs'); await writeFile(nextBundle, 'export const operations={fetch:async(_,sdk)=>(await sdk.network.request({url:"https://api.weather.example/today",secretRefs:["weather"]})).body};');
   const next: AgentRelease = { ...first, version: 2, bundlePath: nextBundle, permissions, manifest: { version: 1, pluginId, revision: 'two', effects: permissions }, design: { ...first.design, contract: nextContract } };
-  installed.releases.release(next); installed.releases.update(build.id, build.revision, value => { value.phase = 'ready'; value.design = next.design; value.connected = ['fetch']; });
+  publishCheckedStudioFixture(installed.storage, next);
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
@@ -480,8 +493,8 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
   });
+  cleanups.push(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); assert.ok(address && typeof address === 'object');
-  t.after(async () => { await browser.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); tlsServer.closeAllConnections(); await new Promise<void>(resolve => tlsServer.close(() => resolve())); transport.mock.restore(); dnsMock.mock.restore(); syncBuiltinESMExports(); await rm(home, { recursive: true, force: true }); });
   const page = await framedStudioPage(t, browser, await browser.page()); await page.command('Page.navigate', { url: `http://127.0.0.1:${address.port}` + STUDIO_HARNESS_PATH });
   await page.wait(`document.querySelector('[data-as-builds] option[value="${build.id}"]')`);
   await page.evaluate(`(()=>{const select=document.querySelector('[data-as-builds]');select.value=${JSON.stringify(build.id)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);

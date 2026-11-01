@@ -37,7 +37,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       }
       const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface);
       if (!nextSurface) {
-        if (surface === "goals") restoreLastGoal(true);
+        if (surface === "goals" && goalData) restoreLastGoal(true);
         return false;
       }
       const surfaceChanged = activeDesktopSurface !== surface;
@@ -65,7 +65,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       if (surfaceChanged) setWorkspaceMode(surface === "goals" ? goalWorkspaceMode : "focus", false, true);
       immersiveNavigation?.sync();
       const label = nextSurface.dataset.workSurfaceLabel || surface;
-      documentPane.setAttribute("aria-label", label);
+      if (goalData) documentPane.setAttribute("aria-label", label);
       requestAnimationFrame(() => {
         const scrollPane = surface === "goals" ? documentPane : surface === "feed" ? nextSurface.querySelector(".feed-stage-tree") || nextSurface : nextSurface;
         scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0; if (surfaceChanged && surface === "goals" && activeDesktopSurface === "goals" && !archiveView && !trashView && !visibleGoals().length && !document.querySelector("dialog[open]")) openCreate();

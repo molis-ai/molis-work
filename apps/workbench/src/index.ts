@@ -3,7 +3,7 @@ export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
-export { homeToolKeysScript } from "./home-plugin-navigation.js";
+export { homeToolKeysScript, renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";

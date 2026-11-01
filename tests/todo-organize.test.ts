@@ -545,3 +545,44 @@ test("RAC-2414: every shard is checked before the first model call, so a later s
   assert.equal(f.prompts.length, 0, "nothing is sent to the model: every shard is checked first");
   assert.deepEqual((await f.me.invoke(organize.list, { status: "all" })).batches, [], "no batch record is written");
 });
+
+test("TODO-ORGANIZE-DATA-LIMIT: the pre-check lets a part whose data is exactly the data position through and refuses one character more", async t => {
+  // The pre-check refuses a part whose prompt.data is over the port's data position (180,000 characters). The boundary is exact: exactly
+  // 180,000 passes and is dispatched; 180,001 is refused saying it is one character over. The answer is a plain one-candidate reply whose
+  // evidence is in the material, so a passing probe really runs the model and a batch is written.
+  let answer = "";
+  const f = fixture(t, () => answer);
+  for (let index = 0; index < 480; index += 1) await f.agent.invoke(todoActions.create, { title: `已有待办 ${"字".repeat(190)} ${index}` });
+  const answerCandidate = (title: string) => JSON.stringify({ candidates: [{ ref: "r1", kind: "request", title: "长材料", owner: { who: "你", stated: true },
+    due: { date: null, time: null, phrase: null }, evidence: [{ material: 1, excerpt: "xxx" }], uncertain: [], depends_on: [] }], reference_only: [] });
+  answer = answerCandidate("长材料");
+  /** Extract with a material of `length` ASCII characters and report either the refused over-count or the prompt data's character count. */
+  const probe = async (length: number): Promise<{ refused: number } | { dataChars: number }> => {
+    f.prompts.length = 0;
+    const outcome = await f.agent.invoke(organize.extract, { materials: [{ title: "长材料", text: "x".repeat(length) }] })
+      .then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error: error as Error & { code?: string; message?: string } }));
+    if (!outcome.ok) {
+      assert.equal(outcome.error.code, "todo.invalid", "only the data position refuses at this point");
+      const over = /多 (\d+) 个字/u.exec(outcome.error.message ?? "");
+      assert.ok(over, `the refusal says how far over it is: ${outcome.error.message}`);
+      return { refused: Number(over[1]) };
+    }
+    const data = f.prompts.at(-1)?.data;
+    assert.ok(typeof data === "string", "a passing probe dispatched the model once");
+    return { dataChars: [...data].length };
+  };
+  // Find the material length whose data is exactly the data position by walking the reported over/under amounts (deterministic, no sleeps).
+  let length = 30_000, exact = 0;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const result = await probe(length);
+    if ("refused" in result && result.refused === 0) {
+      assert.fail("a part whose data is exactly at the data position is dispatched, not refused");
+    }
+    const dataChars = "dataChars" in result ? result.dataChars : 180_000 + result.refused;
+    if ("dataChars" in result && dataChars === 180_000) { exact = length; break; }
+    length += 180_000 - dataChars;
+  }
+  assert.ok(exact > 0, "a material length whose part data is exactly 180,000 characters was found");
+  const refused = await probe(exact + 1);
+  assert.deepEqual(refused, { refused: 1 }, "one character over the data position is refused, saying it is one character over");
+});

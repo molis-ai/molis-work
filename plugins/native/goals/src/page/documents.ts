@@ -116,6 +116,7 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
         return { goal_id: child.goal.goal_id, title: child.goal.title, statusLabel: explanation.label, nextAction: explanation.nextAction };
       }),
       cliAvailability,
+      promptRoute: "/api/plugins/io.molis.work.goals/goals/:goalId/advance-prompt",
       text: L,
       icon,
     });

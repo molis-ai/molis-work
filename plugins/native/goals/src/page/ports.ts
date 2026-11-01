@@ -17,6 +17,7 @@ export interface GoalsTerminalPaneModel {
   selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
   children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
   cliAvailability: Record<string, boolean>;
+  promptRoute: string;
   text: (value: string, vars?: Record<string, string | number>) => string;
   icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }

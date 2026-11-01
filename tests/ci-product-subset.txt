@@ -43,6 +43,7 @@ tests/issue-naming.test.ts
 tests/jelly-actions.test.ts
 tests/home-plugin-project-cleanup.test.ts
 tests/home-plugin-project-routes.test.ts
+tests/home-plugin-stage-pages.test.ts
 tests/plugin-model-configuration.test.ts
 tests/plugin-image-generation.test.ts
 tests/local-web-actions.test.ts
@@ -351,6 +352,7 @@ tests/session-project-binding-router.test.ts
 
 # Other areas
 tests/alchemist-actions.test.ts
+tests/alchemist-host.test.ts
 tests/alchemist-plugin.test.ts
 tests/alchemist-pulse-cancel.test.ts
 tests/alchemist-pulse-close.test.ts

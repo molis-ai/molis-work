@@ -299,9 +299,10 @@
     "storage": {
       "paths": [
         "packages/storage/src/adapters/file-secret-store.ts",
-        "packages/storage/src/adapters/storage-owner.ts"
+        "packages/storage/src/adapters/storage-owner.ts",
+        "packages/storage/src/sqlite-baseline.ts"
       ],
-      "reason": "Platform storage owns sealed-vault integrity and the shared filesystem storage owner's exclusive lease and capability refusals."
+      "reason": "Platform storage owns sealed-vault integrity, the shared filesystem storage owner's exclusive lease and capability refusals, and a store's baseline refusals (version and structure)."
     },
     "ui_host": {
       "paths": [

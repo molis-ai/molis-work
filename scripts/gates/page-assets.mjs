@@ -243,10 +243,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T-389 (RAC-2840/2841) forwards open/restore through every Feed setter in passive UI restoration so later calls
-  // do not close the current source menu. Same-scope comment shortening saved no compiled bytes; the required
-  // intent propagation and conditional close add 99 B. Approved in T-389 stage3; exact served-byte tuple only.
-  "/assets/molis-work-workbench.js": [1150615, 1150714],
+  // T-353 (RAC-2726–2728): Jelly's row summary uses the SDK cutHead instead of a second inline implementation.
+  // +33 B for the shared import/call; an inline copy keeps the duplication and precomputation still needs this helper.
+  "/assets/molis-work-plugins/jelly.js": [76866, 76899],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

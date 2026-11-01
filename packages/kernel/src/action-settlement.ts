@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { requireSynchronous, type ActionCallContext, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { currentCallId, insideHandler, newCallId, withCallId, withCallIdSync } from "./call-scope.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /** One call as the host sees it: the caller's context, plus the number of the operation it belongs to. */
 export type CallContext = ActionCallContext & { readonly call_id: string };
@@ -94,7 +95,7 @@ export function describeCall(source: { descriptor(reference: ActionReference, pr
 function failure(error: unknown, call: object): CallOutcome {
   const code = (error as { code?: unknown } | null | undefined)?.code;
   const said = error instanceof Error ? error.message : String(error);
-  return { ok: false, ...(code === undefined ? {} : { code: String(code) }), message: said.length <= 200 ? said : said.slice(0, 200).replace(/[\uD800-\uDBFF]$/u, ""),
+  return { ok: false, ...(code === undefined ? {} : { code: String(code) }), message: cutHead(said, 200),
     ...(started.has(call) ? {} : { refused: true as const }) };
 }
 

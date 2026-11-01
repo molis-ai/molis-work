@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { ShelfItemKind } from "./contract.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export const MAX_EDIT_BYTES = 512 * 1024;
 const TEXT_EDIT_EXTENSIONS = new Set([
@@ -35,13 +36,13 @@ export function safeFilename(value: string): string {
   const extension = /\.([A-Za-z0-9]{1,10})$/u.exec(base)?.[0] ?? "";
   const room = 180 - extension.length;
   const stem = base.slice(0, base.length - extension.length);
-  return stem.slice(0, room).replace(/[\uD800-\uDBFF]$/u, "") + extension;
+  return cutHead(stem, room) + extension;
 }
 
 /** A folder's stored name: at most 180 UTF-16 units, cut between whole characters; a dotted tail is no extension here. */
 export function safeFolderName(value: string): string {
   const base = cleanedName(value);
-  return base.length <= 180 ? base : base.slice(0, 180).replace(/[\uD800-\uDBFF]$/u, "");
+  return cutHead(base, 180);
 }
 
 /** Folder entries stay inside the folder: no absolute paths, no `..`. */

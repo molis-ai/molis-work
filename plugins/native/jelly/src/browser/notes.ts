@@ -4,6 +4,7 @@ import { renderBacklinks } from "./note-sync.js";
 import { empty, keepListScroll, matches, run, setStatus } from "./page.js";
 import { renderView } from "./view.js";
 import { command } from "./workspace.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { dateLabel, esc, statusOf } from "./util.js";
 import type { JellyBlock, JellyNote, JellyPage } from "./types.js";
 
@@ -30,7 +31,7 @@ export function renderRecords(page: JellyPage): void {
   const records = page.ws().notes.filter((record) => Boolean(record.archived_at) === page.archived && matches(page, record, blockText(record)))
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updated_at.localeCompare(a.updated_at));
   const row = (record: JellyNote) => `<button type="button" class="jelly-row feed-stage-entry directory-list-row${page.selected?.id === record.id ? " is-selected" : ""}" data-jelly-record="${esc(record.id)}" data-jelly-id="${esc(record.id)}">`
-    + `<div class="jelly-row-main"><strong>${esc(record.title || page.L("jelly.note.untitled"))}</strong><p>${esc(blockText(record).replace(/\s+/g, " ").slice(0, 180).replace(/[\uD800-\uDBFF]$/, ""))}</p></div>`
+    + `<div class="jelly-row-main"><strong>${esc(record.title || page.L("jelly.note.untitled"))}</strong><p>${esc(cutHead(blockText(record).replace(/\s+/g, " "), 180))}</p></div>`
     + `<div class="jelly-row-meta">${record.pinned ? '<svg aria-hidden="true"><use href="#icon-pin"></use></svg>' : ""}${page.categoryDot(record.category_id)}<time>${esc(dateLabel(record.updated_at.slice(0, 10), true))}</time></div></button>`;
   keepListScroll(page, () => {
     page.content.innerHTML = records.length ? `<div class="jelly-rows">${records.map(row).join("")}</div>`

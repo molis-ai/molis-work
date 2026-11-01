@@ -12,6 +12,8 @@ import { backgroundErrors as errors, createActivationJobs, type ActivationJobGat
  */
 export function createPluginBackgroundClient(gate: PluginInstance & {
   assertActive(): void; requireGrant(permission: string): void;
+  /** Declared installation grants; live action permissions additionally include the caller's selected dependency permissions. */
+  installationPermissions: readonly string[];
   /** Present when the Manifest declares jobs (`background.jobs`). */
   jobs?: Omit<ActivationJobGate, keyof PluginInstance | "assertActive" | "requireGrant">;
 }): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): void; stopProjectJobs(projectId: string): void; close(): void } {
@@ -47,7 +49,7 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
         check = () => {
           if (!running) throw new ActionError("actions.expired", "这次后台执行已经结束");
           assertActive();
-          for (const permission of definition.action.permissions) gate.requireGrant(permission);
+          for (const permission of definition.action.permissions) if (gate.installationPermissions.includes(permission)) gate.requireGrant(permission);
           requireSynchronous(authority.assertCurrent(), "最终后台授权检查必须同步完成");
         };
         check(); options.signal?.throwIfAborted();

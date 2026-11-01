@@ -290,6 +290,14 @@ export interface SandboxOperationContract {
         description: string;
     }>;
     effects: SandboxEffects;
+    background_job?: {
+        status: string;
+        id: string;
+        input: string;
+        state: string;
+        done: readonly string[];
+        failed: readonly string[];
+    };
     examples: SandboxOperationExample[];
 }
 

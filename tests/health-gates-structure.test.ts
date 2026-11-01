@@ -22,7 +22,7 @@ const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
 // every commit, so a scenario that adds a package or moves a plugin still fails only for the rule it is written for. A registry
 // the generator cannot read (the "tidy" scenario empties it) leaves the document alone: the inventory gate skips such a tree.
 const inventoryScript = fileURLToPath(new URL("../scripts/gates/package-inventory.mjs", import.meta.url));
-const INVENTORY = "specs/repository-anti-corruption/spec.md";
+const INVENTORY = "docs/system/PACKAGE-BOUNDARIES.md";
 const refreshInventory = () => {
   git("add", "-A");
   const table = spawnSync(process.execPath, [inventoryScript, "--table", "--root", repo], { encoding: "utf8" });

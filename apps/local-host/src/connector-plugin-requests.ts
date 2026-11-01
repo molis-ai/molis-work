@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginConnectionDescription, PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { pluginBindingScope, type ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
@@ -239,7 +239,7 @@ async function send(dispatch: PluginConnectionDispatch, credential: Record<strin
   const response = await sendPublicHttps({ url: dispatch.url, method: dispatch.method, headers, ...(dispatch.body === undefined ? {} : { body: dispatch.body }),
     signal: dispatch.signal, beforeEffect: dispatch.beforeEffect, current: dispatch.current, ...(options.lookup ? { lookup: options.lookup } : {}),
     ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.testServer ? { testServer: options.testServer } : {}),
-    failure: (reason, detail) => FAILURES[reason](detail) });
+    failure: (reason, detail, outcome) => outcome === 'unknown' ? new ActionError('actions.outcome_unknown', detail + '；请求已发出，结果尚未确认，请先核对再决定是否重试') : FAILURES[reason](detail) });
   const visible: Record<string, string> = {};
   for (const [name, value] of Object.entries(response.headers)) if (typeof value === "string" && visibleHeader(name)) visible[name] = value;
   return { status: response.status, headers: visible, body: response.body, authenticated: credential !== undefined };

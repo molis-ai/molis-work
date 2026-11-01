@@ -1,17 +1,21 @@
 import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import type { IntegrationProviderPort, PluginDefinition, PluginManifest, PluginStartContext, PluginIntegrationContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationProviderPort, PluginDefinition, PluginManifest, PluginPackagePayload, PluginStartContext, PluginIntegrationContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   IntegrationBinding,
   PluginConnectionServiceDeclaration,
   PluginIntegrationDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { IntegrationRegistry, connectorDirectory, homeIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
+import { IntegrationRegistry, connectorDirectory, homeIntegrationRegistry, PluginInstallService, SandboxPackageStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MemoryPluginConsentLedger, signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+import { integrationPackage } from "./fixtures/home-upgrade-source.js";
+import { newPublisher } from "./fixtures/sandbox-package.js";
 import { integrationKeyOf } from "@molis-ai/molis-work-plugin-feed";
 import { definePollingIntegrationPlugin, parsePluginManifest, pollingIntegrationBinding } from "@molis-ai/molis-work-plugin-sdk";
 import { rssIntegrationManifest, rssSourcePresentation } from "@molis-ai/molis-work-integration-rss";
@@ -78,6 +82,67 @@ test("RAC-2507 an attached presentation cannot return data after its original pr
 // the declarations of the plugins enabled in it. The fixtures below are plugins nothing in the repository knows by name; they take the
 // same path as the built-in ones.
 const root = fileURLToPath(new URL("..", import.meta.url));
+
+test("RAC2880 signed data-MCP is refused by the real preview and attach, including an existing attachment", async () => {
+  const home = mkdtempSync(join(tmpdir(), "t068-mcp-preview-")), registry = new IntegrationRegistry();
+  const publisher = newPublisher(), original = integrationPackage(publisher);
+  const base = original.payload.manifest as PluginManifest;
+  const manifest: PluginManifest = { ...base, connection_services: base.connection_services!.map(service => ({
+    ...service, auth: { methods: [...service.auth.methods, { kind: "mcp" as const, endpoint: "https://api.example-feed.com/mcp", auth: "oauth" as const }] },
+  })) };
+  const payload: PluginPackagePayload = { ...original.payload, manifest, files: original.payload.files.map(file => file.path === "manifest.json"
+    ? { ...file, content_base64: Buffer.from(JSON.stringify(manifest)).toString("base64") } : file) };
+  const bundle = signPluginPackage({ payload, signature: null, publisher_key: null }, publisher.signer);
+  const ledger = new MemoryPluginConsentLedger(), installs: string[] = [];
+  const install = new PluginInstallService({ ledger, packages: new SandboxPackageStore(home),
+    assertIntegrationsFree: async value => registry.assertFree(value),
+    installed: async () => [], control: async () => "disabled",
+    installInProject: async () => { installs.push("project"); }, installInHome: async () => { installs.push("home"); } });
+  let contributions = 0;
+  try {
+    assert.ok(parsePluginManifest(manifest), "shape validation permits Host data; admission is the registry's boundary");
+    const bare: PluginManifest = { ...manifest, connection_services: manifest.connection_services!.map(service => ({
+      ...service, auth: { methods: [{ kind: "mcp" as const }] },
+    })) };
+    assert.equal(await registry.attach(bare, "same-install", () => null, () => true), true, "kind-only MCP remains admissible");
+    const before = registry.connectionServices();
+    await assert.rejects(install.preview({ bundle }, { project_id: "t068-preview", actor_id: "person" }),
+      { code: "plugin.declaration_invalid", message: /MCP.*example-feed.*宿主构建/ });
+    for (const live of [true, false]) await assert.rejects(registry.attach(manifest, "same-install", () => {
+      contributions++; return null;
+    }, () => live), { code: "plugin.declaration_invalid" });
+    assert.equal(contributions, 0);
+    assert.deepEqual(registry.connectionServices(), before);
+    assert.equal(registry.mcpOwner("example-feed"), undefined);
+    assert.deepEqual(ledger.publishers(), []);
+    assert.deepEqual(installs, []);
+    assert.deepEqual(readdirSync(home), [], "preview/attach created no package, installation, protocol or secret file");
+    assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAC2887 malformed remote MCP data refuses the whole manifest while valid data starts as a real Host contribution", async () => {
+  const method = { kind: "mcp", endpoint: "https://mcp.example.test/mcp", auth: "either" };
+  const declare = (value: Record<string, unknown>) => ({ ...manifestOf("io.molis.work.example.mcp-shape", [], []),
+    connection_services: [{ ...service("mcp-shape"), auth: { methods: [value] } }] });
+  for (const value of [
+    { ...method, extra: true }, { ...method, endpoint: "http://mcp.example.test/mcp" },
+    { ...method, endpoint: "https://person:password@mcp.example.test/mcp" },
+    { ...method, endpoint: "https://mcp.example.test/mcp#private" }, { ...method, endpoint: "https://mcp.example.test/mcp?token=fixture" },
+    { ...method, auth: "password" }, { ...method, auth: {} }, { ...method, registration: "dynamic" },
+    { ...method, token_scheme: "Unknown" }, { kind: "mcp", endpoint: method.endpoint },
+    { ...method, endpoint_pattern: ".*" }, { ...method, endpoint_pattern: { source: "https://.*", flags: "u" } },
+    { ...method, endpoint_pattern: { source: "^https://.*$", flags: "g" } },
+    { ...method, endpoint_pattern: { source: "^[$", flags: "u" } },
+  ]) assert.throws(() => parsePluginManifest(declare(value)), { code: "plugin.declaration_invalid" });
+  assert.ok(parsePluginManifest(declare({ kind: "mcp" })));
+  const valid = { kind: "mcp", endpoint: "https://mcp.example.test/mcp", auth: "either",
+    endpoint_pattern: { source: "^https://mcp\\.example\\.test/mcp$", flags: "iu" } } as const;
+  const registry = new IntegrationRegistry();
+  await registry.enable(fixturePlugin("io.molis.work.example.mcp-shape", [service("mcp-shape", { auth: { methods: [valid] } })], []));
+  assert.deepEqual(registry.mcpOwner("mcp-shape")?.method, valid);
+  assert.equal(registry.mcpOwner("mcp-shape")?.state, "running");
+});
 const source = (path: string) => readFileSync(join(root, path), "utf8");
 
 const service = (id: string, extra: Partial<PluginConnectionServiceDeclaration> = {}): PluginConnectionServiceDeclaration => ({

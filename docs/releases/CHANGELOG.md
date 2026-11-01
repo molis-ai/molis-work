@@ -6,6 +6,8 @@
 
 ### 升级须知（需要动手）
 
+- **远程 MCP 连接绑定声明来源**（2026-11-01，T-068 BL-790）：旧远程连接没有来源 pin 时不能继续使用，须在服务连接里新增连接，并重新选择 Agent 的工具连接；平台不按服务名自动补来源或迁移。已带合法 pin 的连接正常重启后仍可发起新操作，重启前 pending/held 或停用再启用前的在途操作失效。飞书/Lark stdio 和 Figma 本机例外保持；本片没有动作 id、版本或 MCP 工具名变更。
+
 - **Goals 工作终端的 open/list 升到 @2**（2026-10-31，T-148）：`goals.terminal.open@2` 新增可选的 `resume_session_id`，`goals.terminal.list@2` 的每行新增 `program`；`close/prompt` 仍为 @1。固定旧 open/list@1 的调用方（工作流步骤、绑定或脚本）保留原引用并收到能力未注册/版本失效，须显式重选 @2；平台不自动换号，也不提供旧版本别名。四个动作仍只给 `user`，没有 MCP 工具；HTTP 路径、权限与会话格式拒绝规则不变，产品/包版本不变。
 
 - **Feed 的「开始处理」链删除，`feed.items.promote` 与 `feed.items.offers` 升到 @2**（2026-10-31，BL-121 ② T-336）：`feed.items.promote@1` 不再存在，固定这个版本的调用方（工作流步骤与绑定、MCP 授权、脚本）要改到 `@2`；输入不再接受 `start_processing`（还发这个字段会得到 `actions.input_invalid`），输出不再有 `runtime_autofill`。`feed.items.offers@1` 不再存在，改到 `@2`（清单里 `feed.promote` 的 offer 指向 `feed.items.promote@2`）。MCP 工具名随之改变：`molis_work_v1_action_feed.items.promote__v1` 变成 `molis_work_v1_action_feed.items.promote__v2`、`molis_work_v1_action_feed.items.offers__v1` 变成 `…items.offers__v2`，旧名消失。HTTP `POST /api/feed/items/:id/start` 不再存在（400「Feed 动作不存在」）；`?feed-start=1`、终端自动填入与 `feed_item_id` 查询参数一并删除，界面上的「开始处理」入口早在此前已撤。按 CONTRACT-CHANGES 不留兼容。
@@ -18,7 +20,9 @@
 
 - **按问题选资料分节（`knowledge.locate`）升到 @3，输出多一个 `omitted`**（2026-10-30，T-132）：分节树太长时只把放得下的整节交给模型，`omitted` 是没给模型看的节数。固定了 `knowledge.locate@2` 的工作流步骤会报错并保留原引用，要在工作流里重选这个动作；直接调用（Agent、MCP、插件）不用改，只是多读到一个字段。
 - **「被谁引用」（`artifacts.links@1`）的输出按声明链接的插件分组**（2026-10-30，BL-646 T-113，`specs/repository-anti-corruption/slices/ac-artifacts.md` §3.5）：输出的 `goals`（`goal_id`、四值 `role`）换成 `plugins`（每组 `plugin_id`、`plugin_title` 与对象的 `id`、`title`、`role: input|output`、`proposal`、`open`）。直接读这个动作输出的调用方（工作流步骤、MCP 客户端、脚本）照新形状改；开发 Home 里固定了 `artifacts.links@1` 的工作流会读到新形状。MCP 客户端要看到 Goal 标题，需同时被授予 `goals.artifacts.link_subjects@1`（原先是 `goals.directory.read`），否则只看到 id。声明了 Manifest `artifacts.links` 的插件，要用 plugin SDK 导出的 `defineArtifactLinkSubjectsAction` 声明一个按 id 说出自己对象名字的动作，否则成果库只显示对象 id。
-- **GitHub 并进声明式 OAuth：设备授权成为平台的一种 grant，旧 GitHub 设备授权连接要新增一条，环境变量与路由改名，`ConnectorAuthKind` 收窄**（2026-10-31，W5-11 第 8 片，T-066，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.5，S-109、RAC-2540～2549）：
+- **Alchemist 的 GitHub 脉冲：旧 OAuth 连接需本人重选**（T-067；随 OAuth 父实际采用生效）：旧 GitHub OAuth 连接不可再读取或刷新；在新增 GitHub 连接并在 Alchemist 中重新选择以前，脉冲沿原行为使用匿名访问。新连接可用后，旧连接由本人删除，不自动迁移或清除；个人访问令牌（PAT）的原行为不变。Feed 本人换绑保留旧消息，Notion 导入每次选择连接，分别按下方 Gmail/Notion/GitHub 升级须知操作。
+
+- **GitHub 并进声明式 OAuth：设备授权成为平台的一种 grant，旧 GitHub 设备授权连接要新增一条，环境变量与路由改名，`ConnectorAuthKind` 收窄**（2026-10-31，W5-11 第 8 片，T-066，`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` §2.5，S-106、RAC-2540～2549）：
   - 原来用 GitHub 设备授权建立的连接（凭据不是 `connector-protocol:`）从这一版起标为“需重新授权”，不读、不刷新、不发请求；请新增一条 GitHub 连接，Feed 来源用到旧连接的，在来源详情的“使用的账号连接”里换。个人访问令牌（PAT）连接不受影响。
   - 路由：`/api/settings/connectors/github/device/start`、`…/device/poll`、`…/github/client` 删除，改用通用的 `/api/settings/connectors/methods/device/start`、`…/device/poll`（输入多一个 `service_id`）。
   - 平台自己的 GitHub 客户端环境变量改名，不留旧名：`MOLIS_WORK_GITHUB_CLIENT_ID`、`GITHUB_CLIENT_ID` → `MOLIS_WORK_CONNECTOR_GITHUB_OAUTH_CLIENT_ID`（设备授权不需要密钥）。设置页里存过的 `connector:github:client_id` 不再被读，`github_client_id_configured` 字段删除，是否能一键登录改读各 OAuth 方法的 `login_ready` 与 `oauth.device.login_ready`。

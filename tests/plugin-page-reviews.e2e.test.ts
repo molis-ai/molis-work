@@ -46,6 +46,7 @@ test("SYS-15-U10 S-47 Git reviews remain Host-owned and require a real Host conf
   assert.equal(git("diff", "--cached", "--name-only").trim(), "note.md", "real confirmation stages the exact requested file");
   await child.waitFor("!document.querySelector('[data-git-refresh]').disabled && [...document.querySelectorAll('[data-git-path]')].some(node=>JSON.parse(node.dataset.gitPath)[1]==='index')");
   await child.waitFor("document.querySelector('[data-git-notice]').dataset.decisionNoticed==='1' && !document.querySelector('[data-git-refresh]').disabled");
+  await child.click("[data-git-close]");
   await child.click("[data-git-path]");
   try { await child.click("[data-git-index-action]"); } catch(error){t.diagnostic(await child.evaluate("document.querySelector('[data-git-notice]').textContent"));throw error;}
   await browser.waitFor("document.querySelector('[data-host-review-slot] [data-agent-review-reject]')?.getClientRects().length");
@@ -53,6 +54,7 @@ test("SYS-15-U10 S-47 Git reviews remain Host-owned and require a real Host conf
   await browser.click("[data-page-dialog=confirm] [type=submit]");
   await browser.waitFor("!document.querySelector('[data-host-review-slot] [data-agent-review-reject]')");
   assert.equal(git("diff", "--cached", "--name-only").trim(), "note.md", "rejecting the unstage request preserves the index");
+  await child.click("[data-git-close]");
   await child.waitFor("!document.querySelector('[data-git-refresh]').disabled && !document.querySelector('[data-git-commit]').disabled");
   await child.evaluate("const field=document.querySelector('[data-git-commit-message]');field.value='reviewed commit';field.dispatchEvent(new Event('input',{bubbles:true}))");
   await child.click("[data-git-commit]");

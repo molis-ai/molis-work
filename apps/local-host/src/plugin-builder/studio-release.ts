@@ -83,7 +83,7 @@ export function createStudioPublisher(home: string, root: string): AgentBuilderP
       const candidate = (identity: string, compatible: string[] = []) => {
         const distributed = sandboxPluginManifest({ pluginId: design.contract.pluginId, name: design.title, version: releaseVersion(version),
           publisher: { publisher_id: 'molis-studio', signature: identity }, presentation: design.presentation !== undefined,
-          effects: manifest.effects, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });
+          effects: manifest.effects, contract: design.contract, upgradesFrom: compatible, ...(scope === 'home' ? { runtime: { scope: 'home' } } : {}) });
         const files = Object.entries({ ...originalFiles, 'manifest.json': JSON.stringify(distributed) }).map(([path, content]) => ({ path, content_base64: Buffer.from(content).toString('base64') }));
         return parsePluginPackage({ payload: { schema_version: 1, manifest: distributed, files }, signature: null, publisher_key: null });
       };

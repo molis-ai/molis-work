@@ -12,6 +12,7 @@ import type { ConnectorMethodKind } from "@molis-ai/molis-work-contracts/service
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { getCatalogSpec } from "./catalog.js";
 import { catalogOAuthMethod } from "./oauth-methods.js";
+import { catalogMcpMethod } from "./mcp-methods.js";
 import { catalogAccountPresentation } from "./provider.js";
 
 /**
@@ -30,6 +31,7 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
   const spec = getCatalogSpec(connectorId);
   const feed = spec.feed_available !== false;
   const oauth = catalogOAuthMethod(connectorId);
+  const mcp = catalogMcpMethod(connectorId);
   return {
     service_id: connectorId,
     // WeChat is Work WeChat here.
@@ -38,8 +40,8 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
     summary: spec.summary,
     auth_kind: connectorId === "loom" ? "none" : connectorId === "notion" ? "oauth" : connectorId === "feishu" ? "feishu" : "token",
     // A connector with no token to paste (Loom) is reached through MCP only. A service that connects by OAuth declares its flow as data.
-    auth: { methods: [...spec.token_label ? [{ kind: "token" as const, label: spec.token_label, placeholder: spec.token_placeholder }] : [{ kind: "mcp" as const }],
-      ...oauth ? [oauth] : []] },
+    auth: { methods: [...spec.token_label ? [{ kind: "token" as const, label: spec.token_label, placeholder: spec.token_placeholder }] : [],
+      ...oauth ? [oauth] : [], ...mcp ? [mcp] : !spec.token_label || connectorId === "feishu" || connectorId === "lark" ? [{ kind: "mcp" as const }] : []] },
     auth_help: spec.auth_help,
     capabilities: [
       { label: spec.inbound, fulfillment: feed ? "live" : "unfulfilled" },
@@ -71,7 +73,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`, and for a document
     // import the ways of connecting it reads with).
     // 1.3.0: a service that connects by OAuth declares its flow as data (W5-11).
-    version: "1.3.0",
+    version: "1.4.0",
     name: spec.title,
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },

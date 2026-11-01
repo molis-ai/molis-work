@@ -52,7 +52,7 @@ export async function packSandboxProject(directory: string, output: string, opti
   if (!code.length) invalid('plugin.mjs 不能为空');
   files.push({ path: SANDBOX_PACKAGE_FILES.entrypoint, content_base64: code.toString('base64') });
   const { agent: projectedAgent, methods: projectedMethods, ...fixed } = sandboxPluginManifest({
-    pluginId: contract.pluginId, name: options.name, version: options.version,
+    pluginId: contract.pluginId, name: options.name, version: options.version, contract,
     publisher: { publisher_id: options.publisherId, signature: options.publisherKeyId },
     presentation: surface.presentation !== undefined, effects: effectsFromContract(contract),
     ...(options.scope === 'home' ? { runtime: { scope: 'home' } } : {}),

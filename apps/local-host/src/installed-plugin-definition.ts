@@ -5,6 +5,7 @@ import { sandboxedPluginDefinition } from './plugin-builder/installed.js';
 import type { CatalogCapability } from './plugin-builder/catalog.js';
 import type { InstalledRelease } from './installed-release.js';
 import { covered } from './installed-plugin-lifecycle.js';
+import { rememberInstalledActionSource } from './installed-action-registration.js';
 
 /** What a project's installed plugins and the Home's both build their sandboxed definitions from (BL-628). */
 export interface InstalledDefinitionPorts {
@@ -62,6 +63,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
           try { await sandbox.stop?.(context); } finally { held?.(); }
         },
       } : sandbox;
+      if (value !== sandbox) rememberInstalledActionSource(value, release);
       definitions.set(keyOf(release), { pluginId: release.pluginId, value });
       return value;
     },

@@ -28,7 +28,7 @@ export { pluginModelFor } from "./plugin-model-service.js";
 export { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
 export { sandboxModelDeclaration, withSandboxModelSettings } from "./sandbox-model-settings.js";
 export { reservedHomeName, sandboxImageNamespace, sandboxProviderId } from "./sandbox-home-names.js";
-export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts } from "./plugin-builder/exposed-actions.js";
+export { exposeInstalledPlugin, exposedActionId, exposedOperationCosts, exposedOperationPolicies, type ExposedOperationPolicy } from "./plugin-builder/exposed-actions.js";
 export { createStudioPublisher, readStudioDistribution } from "./plugin-builder/studio-release.js";
 export { sandboxedPluginDefinition } from "./plugin-builder/installed.js";
 export { createPluginPlatform } from "./plugin-platform.js";

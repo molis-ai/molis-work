@@ -12,12 +12,13 @@ import type { PluginIconName } from './ui/icon.js';
 import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
+import { sandboxOperationActions, sandboxPackageBuildId } from './sandbox-actions.js';
 
 /** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
 const MODEL_READ = 'model:read', MODEL_INVOKE = 'model:invoke';
 
-type DerivedEffects = Pick<SandboxEffects, 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;
+type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;
 const HOME_READ = 'home-database:read', HOME_WRITE = 'home-database:write', FILE_READ = 'owner-files:read', FILE_WRITE = 'owner-files:write';
 
 /**
@@ -36,7 +37,7 @@ export function sandboxRequestedPermissions(effects: DerivedEffects | undefined)
 
 /** Exact per-operation service permissions. A read-only operation cannot borrow a write grant held by its installation. */
 export function sandboxOperationPermissions(effects: DerivedEffects | undefined): string[] {
-  return [...(effects?.homeDatabase?.length || effects?.ownerFiles?.length ? ['storage:private'] : []), ...serviceRows(effects).map(row => row.permission)];
+  return [...(effects?.background?.length || effects?.homeDatabase?.length || effects?.ownerFiles?.length ? ['storage:private'] : []), ...serviceRows(effects).map(row => row.permission)];
 }
 
 function serviceRows(effects: DerivedEffects | undefined, shape = false): Array<{ permission: string; reason: string; required: false }> {
@@ -86,6 +87,10 @@ export interface SandboxManifestInput {
   icon?: PluginIconName;
   /** Validated contract effects; the Manifest's optional permission rows are derived from them (`sandboxDerivedPermissions`). */
   effects?: DerivedEffects;
+  /** The validated contract is required for background launchers. Its static action projection is signed with the package. */
+  contract?: SandboxPluginContract;
+  /** A studio release already has a build identity and integer action version; distributed packages use their publisher identity. */
+  actionIdentity?: { buildId: string; version: number };
   /** Validated wire text declarations, projected once by the public SDK. */
   textDeclarations?: SandboxPackageManifest;
   /** The author chooses only version/schema; the store and read/write names are deterministic platform output. */
@@ -119,10 +124,19 @@ function sandboxResources(input: SandboxManifestInput): Pick<PluginManifest, 'da
 }
 
 export function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest {
+  if (input.contract) {
+    if (input.contract.pluginId !== input.pluginId) throw pluginErrors.declaration_invalid('合同与 Manifest 的插件身份不一致');
+    input = { ...input, effects: effectsFromContract(input.contract) };
+  }
   const uiId = sandboxUiContribution(input.pluginId);
+  if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
+  const actions = input.contract?.operations.some(operation => operation.background_job || operation.effects.background?.length)
+    ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
+      title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project' }) : undefined;
   return {
     schema_version: 2, host_api_version: 2, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
+    ...(actions ? { actions } : {}),
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),

@@ -284,12 +284,12 @@ function checkBaselineCalls(directories, declaredNames) {
       for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
-        // This one typed Host bridge forwards the trusted declaration, and the project of a library partitioned by project
-        // (specs/plugin-project-partition), which is not a baseline. Its declarations are counted above;
+        // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker, and the
+        // project of a library partitioned by project (specs/plugin-project-partition), which is not a baseline. Its declarations are counted above;
         // no other file, inline argument, or different call in this file is exempt from named-baseline checks.
         if (file === "apps/local-host/src/plugin-database.ts" && match[1] === "openBaselineHomeSqlite"
           && args.join(",") === "home,declaration.store_name,declaration,partition?.project_id"
-          && /function openPluginDatabase\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
+          && /function openPluginDatabaseConnection\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
         const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
         if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
         else if (!/^\w+$/.test(baseline)) problem(`${file}: ${match[1]} is called with an inline baseline; ${unnamed}`);

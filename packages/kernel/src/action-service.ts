@@ -48,7 +48,17 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {
-    const problems = [...inspectActionDeclarations(registration.definitions, registration.scenes), ...inspectActionCrossReferences(registration.definitions)];
+    // A background launcher may be replaced independently of its unchanged status query. Only an actual registered query
+    // of this provider and scope supplies that reference; callers cannot invent a declaration without a handler.
+    const statuses = registration.definitions.flatMap(definition => {
+      const reference = definition.action.background_job?.status;
+      if (!reference || registration.definitions.some(item => item.capability_id === reference.capability_id && item.version === reference.version)) return [];
+      const target = this.registry.descriptor(reference, registration.provider.project_id);
+      return target?.operation === 'query' && target.action && target.action.scope === definition.action.scope
+        && target.action_provider?.provider_id === registration.provider.provider_id
+        && target.action_provider.project_id === registration.provider.project_id ? [{ ...target, action: target.action }] : [];
+    });
+    const problems = [...inspectActionDeclarations(registration.definitions, registration.scenes), ...inspectActionCrossReferences([...registration.definitions, ...statuses])];
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
     const provider = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");

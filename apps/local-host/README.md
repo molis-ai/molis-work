@@ -131,6 +131,8 @@ Memory 形成复用登记的 `memory.extract` 与唯一 HostTextGeneration，由
 
 Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalHost 时归该 Host 所有，关闭或重建借用的 Web 传输仍保留连接，最终 Host 关闭才释放。借用时复核 owner/schema，查询不缓存授权或项目事实，关闭等待已有借用。当前 schema 的目录打开不取得初始化写事务，也不执行建表。首次准备遇到 SQLITE_BUSY 延迟重试目录准备，确定性 owner/schema 拒绝不自动重试，关闭取消待重试；不会重新执行失败的业务回调。`/health` 在请求校验后读取服务就绪状态，不通过目录数据库探活。
 
+远程 MCP 配置归集成方法声明，Host 只解释当前 running 来源。连接持久保存稳定来源 pin；pending、held 和每次操作固定安装世代，在网络及 SDK 回调、held 释放和最终同步激活前复核。目录和 setup 不授予部署客户端资格，Agent 缓存同时绑定世代；无 pin 的旧远程连接须重新连接。回归：`tests/connector-mcp.test.ts`（RAC2878–2886）、`tests/integration-registry.test.ts`（RAC2880、RAC2887）。飞书/Lark stdio 与 Figma 本机生命周期留 BL-791。
+
 - 负责：本机唯一的组合根：数据库、Module、横向服务、插件、动作目录、安装器，以及 Web 与 MCP 网关。
 - 不负责：第二个业务协调者，或面向用户的外壳。
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。

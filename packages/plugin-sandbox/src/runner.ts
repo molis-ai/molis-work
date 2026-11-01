@@ -30,12 +30,16 @@ export interface SandboxRunnerOptions {
 }
 export interface SandboxRunner {
   readonly pid: number;
+  /** The actual process lifetime, independent of any one caller's queued cancellation or refusal. */
+  readonly stopped: boolean;
   call(operationId: string, input: SandboxJson, control?: SandboxCallControl): Promise<SandboxJson>;
   stop(): Promise<void>;
 }
 /** Host-only controls; the worker receives only the operation id and JSON input. */
 export interface SandboxCallControl {
   signal?: AbortSignal; beforeEffect?(): void | Promise<void>;
+  /** The same retained Host authority's final synchronous check; never decoded from worker input. */
+  assert_authority_current?(): void;
   /** Opaque Host-issued project subject for this invocation only; never sent to the worker. */
   projectReach?: object;
   /** Trusted Host policy for this call only; never supplied by the worker or persisted plugin input. */
@@ -180,6 +184,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   try { await started; } catch (error) { await cleanup(); throw error; }
   return {
     pid: child.pid!,
+    get stopped() { return stopped !== undefined; },
     call(operationId, input, control) {
       try {
         const operation = contract.operations.find(o => o.id === operationId);
@@ -197,8 +202,21 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
           // The operation budget begins at the head of its queue and includes Host admission and result checks.
           const execution = createExecutionLifetime({ signal: lifetime.signal, timeout: { milliseconds: operationTimeoutMs, reason: new SandboxError('sandbox.operation_timeout', `Operation ${operationId} timed out`) } });
           const outcome: { uncertain?: SandboxError } = {};
+          let dispatched = false;
+          const retire = () => {
+            // The existing queue task owns the process through its final checks. Disposed/queued callers cannot stop another task.
+            if (dispatched && !execution.signal.aborted) shutdown(outcome.uncertain ?? new SandboxError('sandbox.cancelled', 'Sandbox invocation authority ended'));
+          };
           const assertActive = () => { execution.assertActive(); if (outcome.uncertain) throw outcome.uncertain; };
-          const beforeEffect = async () => { assertActive(); await control?.beforeEffect?.(); assertActive(); };
+          const beforeEffect = async () => {
+            assertActive();
+            try { await control?.beforeEffect?.(); control?.assert_authority_current?.(); }
+            catch (error) {
+              retire();
+              throw error;
+            }
+            assertActive();
+          };
           const abort = () => shutdown(execution.signal.reason instanceof SandboxError ? execution.signal.reason : new SandboxError('sandbox.cancelled', 'Sandbox invocation cancelled'));
           execution.signal.addEventListener('abort', abort, { once: true });
           try {
@@ -207,10 +225,15 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
               if (stopped) { reject(stopped); return; }
               const id = randomUUID(), controller = new AbortController();
               active = { id, operation, serviceTimeoutMs, ...(control?.connections ? { connections: control.connections } : {}), projectReach: control?.projectReach, outcome, controller, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
+              dispatched = true;
               try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.channel_error', 'Failed to start operation')); }
             }));
             await execution.wait(beforeEffect());
             return result;
+          } catch (error) {
+            // A worker error skips the success guard; finish this dispatched owner's authority check before releasing its queue slot.
+            if (dispatched && !execution.signal.aborted) { try { control?.assert_authority_current?.(); } catch { retire(); } }
+            throw error;
           } finally { execution.signal.removeEventListener('abort', abort); execution.dispose(); }
         });
         // Cancelling queued work stops its caller immediately without terminating the active operation.

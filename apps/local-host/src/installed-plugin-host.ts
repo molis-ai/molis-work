@@ -26,7 +26,7 @@ import { installedVersion, releaseVersion, type InstalledRelease } from './insta
 import { SandboxPackageStore } from './sandbox-package-store.js';
 import { HomeConsentLedger } from './home-plugin-store.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
-import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
@@ -95,7 +95,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         revision = exposureRevision; snapshot = await readCatalog();
         if (closed) return [];
         if (revision !== exposureRevision) continue;
-        const costs = exposedOperationCosts([...exposed.values()].map(entry => entry.release), snapshot);
+        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
         let changed = false;
         for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
         if (!changed) return snapshot;

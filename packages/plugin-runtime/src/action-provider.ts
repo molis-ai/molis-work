@@ -1,5 +1,5 @@
-import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginContribution, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginActionAvailability } from "./action-availability.js";
 import { pluginActionBeforeEffect, reservePluginInvocationPlace, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
@@ -13,6 +13,15 @@ export const PROJECT_REACH_PERMISSION = "projects:reach";
  * runs for the installation (PG-014). It reads the catalog each time. `undefined` means the Host does not give a list to this caller.
  */
 export type PluginProjectReach = (manifest: PluginManifest, context: ActionCallContext) => Promise<readonly string[] | undefined>;
+
+/** Host policy for fully redeemed actions; Runtime owns registration withdrawal on every lifecycle path. */
+export interface PluginRuntimeActions {
+  registry: ActionRegistryPort;
+  project_id?: string;
+  providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string;
+  projectReach?: PluginProjectReach;
+  register?(definition: PluginDefinition, contribution: PluginContribution, record: PluginInstanceRecord, registration: ActionProviderRegistration): (() => void) | undefined;
+}
 
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while

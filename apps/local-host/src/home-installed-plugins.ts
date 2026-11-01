@@ -18,7 +18,7 @@ import { assertHomePackageAllowed } from './home-package-admission.js';
 import { configuredModelChoices } from './configured-models.js';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
-import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
+import { exposedOperationPolicies, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
 import { pluginHomeFor } from './home-side.js';
@@ -114,7 +114,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
         catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
         if (isClosed()) return [];
         if (revision !== exposureRevision) continue;
-        const costs = exposedOperationCosts([...exposed.values()].map(entry => entry.release), snapshot);
+        const costs = exposedOperationPolicies([...exposed.values()].map(entry => entry.release), snapshot);
         let changed = false;
         for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
         if (!changed) return snapshot;

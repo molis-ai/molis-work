@@ -253,7 +253,7 @@ async function startRunner(options: BuildCheckOptions, bundlePath: string, contr
   const runner = await createSandboxRunner({ bundlePath, contract, identity: { ...options.identity, installationId: `${options.identity.installationId}:${suffix}:${randomUUID()}`, namespace: 'preview' }, grants: options.grants, services });
   const abort = () => { void runner.stop(); }; options.signal?.addEventListener('abort', abort, { once: true });
   if (options.signal?.aborted) { await runner.stop(); options.signal.throwIfAborted(); }
-  return { pid: runner.pid, call: (id, input) => runner.call(id, input), async stop() { options.signal?.removeEventListener('abort', abort); await runner.stop(); } };
+  return { pid: runner.pid, get stopped() { return runner.stopped; }, call: (id, input) => runner.call(id, input), async stop() { options.signal?.removeEventListener('abort', abort); await runner.stop(); } };
 }
 function mockHost(overrides?: SandboxServices): SandboxServices {
   const storage = new Map<string, SandboxJson>(), artifacts = new Map<string, SandboxJson>(); let next = 0;

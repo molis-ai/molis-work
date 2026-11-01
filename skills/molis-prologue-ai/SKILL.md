@@ -103,6 +103,8 @@ AI 要人补信息、确认一步或挑一个对象时，用下面四条共用�
 
 改了这四条中的任何一条，跑 `node scripts/run-tests.mjs tests/interaction-examples.test.ts tests/agent-question-types.test.ts tests/agent-reference-questions.test.ts tests/action-cards.test.ts tests/form-draft-questions.test.ts tests/security-invariants-object-references.test.ts`。
 
+Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
+
 ## 验证与验收
 
 - `node scripts/run-tests.mjs tests/action-model-scheduling.test.ts`（等模型的动作必须并发，例外要写理由）。

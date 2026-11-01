@@ -335,3 +335,20 @@ test('Host admission and final authority checks are bounded and runner stop rele
     } finally { await f.close(); }
   }
 });
+
+test('RAC2874 a dispatched call retains process ownership until its asynchronous final authority check settles', {...mac,timeout:10000},async()=>{
+  const entered=Promise.withResolvers<void>(),release=Promise.withResolvers<void>();let checks=0,current=true;
+  const f=await fixture(`export const operations={run:async(input)=>input};`);
+  try{
+    const first=f.runner.call('run','A',{beforeEffect:async()=>{if(++checks===2){entered.resolve();await release.promise;if(!current)throw new Error('caller retired')}},
+      assert_authority_current(){if(!current)throw new Error('caller retired')}});
+    const refused=first.then(value=>({value}),error=>({error}));await entered.promise;
+    const queued=f.runner.call('run','B').then(value=>({value}),error=>({error}));
+    current=false;release.resolve();const outcomes=await Promise.all([refused,queued]);
+    for(const outcome of outcomes){assert.ok('error' in outcome);assert.equal(outcome.error.code,'sandbox.cancelled')}
+    assert.equal(f.runner.stopped,true,'the dispatched owner must retire before another queued call can run');
+    const deadline=Date.now()+2000;
+    while(true){try{process.kill(f.runner.pid,0)}catch(error){assert.equal((error as NodeJS.ErrnoException).code,'ESRCH');break}
+      assert.ok(Date.now()<deadline,'the retired process exited');await new Promise(resolve=>setTimeout(resolve,20))}
+  }finally{release.resolve();await f.close()}
+});

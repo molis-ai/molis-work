@@ -320,6 +320,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-378 | W6-03历史扩展步骤与本次Full授权两文档澄清（RAC-2798～2799） | 甲 | Codex 开发线3；验证线1；二审线4 | #1708已采用main b6f92222f；准确adf31b2a2的审验/CI齐，patch-id与整树同，合入6550884059 | full=false；原通用Full规则不改，W6动态/RAC11不签完成 | EXTENSION-POINTS §3.1；PARALLEL本次覆盖说明/短引用；根显式分段交接，保留#1654 §3.5和#1673长段 |
 | T-379 | iframe内全局搜索快捷键（RAC-2800～2803） | 甲 | Codex 开发线4；验证线3/二审线4 | 本地ea67075d1冻结；独立两完整7/7及Todo/嵌套Issue原生K/F实操已核，二审无必修 | full=true；资源/共享文档/最终CI未结；运行中xterm未验；资源窗T208→T362→本单→T065 | 两生产/两浏览器文件见tasks/T-379.md；README/S-30根串行，+179/+360B未冻结许可 |
 | T-380 | 右分屏Goals首页可见状态接线修复（RAC-2804～2806） | 甲 | Codex 开发线1；验证线4/二审线1 | 已接受书审两修订，冻结B3fd857792；先动态诊断后范围内最小修复 | full=true；源码与真实验证可继续，最终资源窗口另交；不签W6整体 | 客户端tab-workspace/panes/plugins、frame-container、initialization、editing-graph；必要Goals momentum；原三份标签浏览器文件择实际范围 |
+| T-381 | Goals创建后返回导航重复超时（RAC-2807～2809） | 丙（产品/共享改动另裁） | Codex 开发线2；验证线3/二审线5 | 根已接受书审，冻结B3fd857792，先有界诊断 | 两Full首红/重试原件保持；新Full等处置，不随机重跑 | 初始仅tests/goals-dialogs.e2e.test.ts及临时诊断；产品/共享夹具不预交 |
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
 | T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
@@ -446,3 +447,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 根核收[T116 PR1b接续](plans/T116-pr1b-next/PLAN.md)及[独立审查](plans/T116-pr1b-next/REVIEW.md)后的金样修订：新父正常golden与66完整HTML比较，旧六红只属历史，不重录压红；三可信字段/类型/叶子import必修保持，实际父与T362交接未到不实施。根核收[PG070接续](plans/PG070-next/PLAN.md)及[独立审查](plans/PG070-next/REVIEW.md)，Characters CSS必须随被抽取section进入设置面，仍等T146采用。PG045的[短接续](plans/PG045-next/PLAN.md)保持accepted T066合同前置、T121仅具体文件交接，不新开服务或扩入Alchemist/Images。三项均只准备，不计READY/实现或减少24～32后继。
 
 2026-11-01 02:03Z：两当前Full的goals-dialogs RAC2700均在create持久化后backToBoard的Page.navigate首轮超时，分别2/3后retry3/3；根全文核两raw及独立归因报告，因果仍UNKNOWN。按README§9重复文件规则，候选T381正在起草有界诊断/最小修复书，不增加超时、不吞错、不概率重跑。现有Full继续，不取消；新Full先等该重复故障处置。T146本地b2cb0e158及两增量已核，先冻结不推，避免已知接续再触发一次CI。
+
+2026-11-01 02:08Z：T381已正式登记并交开发线2；两首败尚无同根归因，只按书内一轮被动观测定位，目标RAC2700所有业务断言保持。T380本地b4382ea8f的右pane stale CORE恢复根因和最小4行修复已有同B/H整文件2/3→3/3；根已读实际diff/时序，独立验证线4先给最小计划，二审线1核代码。+199B资源未许可，未签W6。

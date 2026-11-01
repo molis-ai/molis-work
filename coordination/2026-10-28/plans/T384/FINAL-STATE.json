@@ -1,0 +1,39 @@
+{
+  "H": "4404e142662cbd7895f46c1c6df6e5efe5e6e135",
+  "tree": "ecf513543c29653e1be8eb44cf684efc14a3800d",
+  "base": "6729a2d4655caa603daa369f99884e09c4726bde",
+  "source_digest": "1daeedd848e8d1a5f41a444f4df57771d828db9a4fd9fd329a2ae20f581b65a5",
+  "status": "",
+  "pending_merge": false,
+  "branch": "feature/t384-core-carrier",
+  "push": false,
+  "full": true,
+  "Pages_file_not_run": "Not run by writer; adopted T383 test is now in both endpoints, ready for independent line 5 Pages run at these frozen inputs",
+  "original_H760_evidence_retained_not_relabelled": true,
+  "R": "8214e9126158db285136af58d283b5e89d44d691",
+  "R_tree": "7dd31c5302603a5713fa8b9eda95d3ff975af730",
+  "R_source_digest": "8db8b26bcef29ed80ddaab64e8c49e870a6cc9e32af55c1659bfff29922041c7",
+  "shared_main_in_R_and_H": "6729a2d4655caa603daa369f99884e09c4726bde",
+  "R_prod_clean": true,
+  "R_test_view_expected_untracked_by_design": true,
+  "initial_66_HTML_source": {
+    "R": "26a184bd47e572b95b4e28e302dcd474e2c574e5",
+    "H": "760c9b42ef6003ebeccf57f29e35630241bb6d52"
+  },
+  "T382_runtime_lineage": "candidate and reference each have exact emitted path/label-only bridge, separate matching builds; original HTML evidence retains original heads",
+  "production_digests_unchanged_after_test_only_merge": true,
+  "new_build_or_old_batch_replay": false,
+  "health_on_final_M": {
+    "exit": 0,
+    "evidence": "candidate-after-T383/health-final-base.raw"
+  },
+  "boundary_inherited": {
+    "execution_head": "d9291973f6a9a534afabfc3681991b9eb15183e2",
+    "evidence": "candidate-after-T382/boundary.raw",
+    "reason": "only Pages test body changed; package roots src/tooling/bin and desktop launchers, boundary script/registries/dependencies/named fixtures unchanged"
+  },
+  "Pages_blob": "2edb63a08ad24d4b1a30c4ba8ceff56587e1a812",
+  "R_still_excludes_T116": true,
+  "frozen_golden_test_view_expected_unchanged": true,
+  "stage_source_detail": "EVIDENCE-STAGES.md"
+}

@@ -150,9 +150,8 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
   if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
 
-  const manifest = parsePluginManifest(payload.manifest);
+  const manifest = validated('清单', () => parsePluginManifest(payload.manifest));
   if (!isDeepStrictEqual(jsonFile(files, SANDBOX_PACKAGE_FILES.manifest), JSON.parse(JSON.stringify(manifest)))) refuse('manifest.json 与包的清单不一致');
-  validated('清单', () => parsePluginManifest(manifest));
   const services = manifest.connection_services ?? [], integrations = manifest.integrations ?? [];
   if (!integrations.length) refuse('集成包要在清单里声明 integrations');
   // One source and its one service: the registry binds a source to the plugin, so a package of two could not tell them apart.

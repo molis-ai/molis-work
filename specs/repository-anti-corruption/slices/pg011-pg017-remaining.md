@@ -393,6 +393,7 @@ BL-715 由 T-138 直接做。其余七项在设计上都有没定的地方，有
 - **宿主派生的形状与真实用法**：`agent`、`methods` 各收 `{ name, purpose, body }` 的可选数组，合计至多 64 条；`body` 引用包内资源，正文至多 8000 个 UTF-16 单元。宿主派生角色的 `roles`、`prompts` 与顶层 `methods`，不复制到 `agent.skills`、`agent_skills`；`workspace` 固定为 `none`，顶层方法 `tools` 固定为空数组，`host_tools`、`execution` 等一律不写。角色资料和方法都以有来源材料供消费者选择、读取，UI 区分两种 kind；携带角色正文不获得 Agent 执行入口、不增加 `agent:run`、目录、MCP 或子 Agent 权限。角色不能只登记而没有实际取材路径。
 - **正文的精确版本**：完整包 SemVer 复用 `AgentDefinitionSource.plugin_version`，与发布者签名身份、`plugin_id`、kind、条目 id 组成默认正文引用，不另建版本字段或版本计数器。派生 Agent 声明里的数字 1 仅为该投影内部占位，不改变公共 Agent 数字版本含义；签名正文的精确读取、覆盖默认更新提示、历史和采用记录均认完整来源引用。角色 prompt 沿用现有人的覆盖，实际正文标 `effective` 与 `user_revision`，不把人的改文称为发布者签名原文；顶层方法不新增编辑功能。
 - **派生 id 与校验**：同一 SDK 函数以 `plugin_id`、kind、完整 name 的确定编码做完整 SHA-256，保留原名称作显示，既不截短名称也不截短摘要；不同 plugin/kind 的同名不得混用。对外引用必须满足现有 200 长度的消费合同，名字与用途按 UTF-16 单元限 80/300。原 wire Manifest 与签名文件保持原样验证，完整运行 Manifest 由宿主派生后校验，两种形状不直接作整份相等比较。
+- **既有集成包拒绝合同保持**：`readSandboxIntegrationPackage` 的首次清单解析在现有 `validated('清单', …)` 内完成，非法声明仍以 `plugin.declaration_invalid` 拒绝；不重复解析，不改变包内清单一致性、固定形状检查或返回对象（RAC-893）。
 - **登记与恢复**：旧 prompts.json 指令、新角色和顶层方法由同一个完整 registration 组装函数提供，执行器及 Home/项目安装启停回调使用同一安装 scope，回调不能再以仅 prompts 的登记覆盖它。覆盖/history/uses 的签名默认来源引用由既有 AgentDefinitions owner 持久保存；重启继续使用当前来源和人的有效修订，不另建正文目录或身份账本。
 - 安装预览逐条列出 kind、名字与正文前 200 个 Unicode 码点；`plugins.install.preview` 升到 `@4`，加顶层可选 `agent_bodies`。升级按全文比较并标新增、变化、移除，不能因开头相同漏报正文变化。
 - 正文按提示注入面处理，对照 `docs/system/SECURITY-INVARIANTS.md` 里提示注入的几行：

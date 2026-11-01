@@ -81,3 +81,8 @@ boundary、merge-base health、test-import graph、推前secrets按实际diff执
 ## 8. 根执行前需要解除的条件
 
 先核原ac-registry作者是否有未采用样本；确认A3在最终基点适用差集；根批准本机Agent时段/成本与独立配置，确认本书两附件和runner精确修改范围，fresh核锁并串行文档。项目升级能力已在main，不等待T141/T143/T149，也不因BL589通用工具未做推迟本片机械测试包装。环境授权必须能兑现实际隔离，临时cwd不等于完整文件访问隔离；不得挂真实目录补能力。当前只交最终WAIT候选，不生成、签名运行、构建或安装，不占新号。
+
+
+## 2026-11-01 20:46Z 无模型runner部分执行窗口
+
+根核当前ad06c859def0eaa203af43de310df4b2ad19531c/treefd411650ca9d7e13227df6b0030e07474c481319的runner仍只directory/packed，原RAC790/791及corpus未变，已有真实项目签包安装/升级公开路径可用；现授权独立writer只实现本书§3的signed-package回放分支，不新增任务、本数或冒称W4-01完成。允许scripts/replay-plugins.mjs及tests/replay-plugins.test.ts两文件；只读复用公开签名/安装夹具，不改生产/SDK/Host/builder、默认corpus、真实样本与共享文档。临时机械真签包只证明runner，不称真实模型产物。原两路和三个坏样本保留，新增真签v1安装/固定业务写读/v2同install_id升级/重启读回，错误包/错误oracle稳定失败；非支持平台unsupported/ok=false/未执行null，不整文件skip。公共build/browser槽、jobs1，必要完整replay文件及相关正式门禁；不本机Full/真实Home/Keychain/模型/保护分支/push/GH。最终独立验证和二审另派，作者交自然H/tree与简洁原件；父CI新两首错另线修，最终普通接已冻结父，不改本片验收。模型生成、两真实样本、来源核对及完整W4-01继续WAIT原条件。

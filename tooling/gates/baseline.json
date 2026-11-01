@@ -34,7 +34,7 @@
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 396,
+      "lines": 406,
       "methods": 15
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -42,7 +42,7 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 623,
+      "lines": 624,
       "methods": 29
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -54,10 +54,10 @@
       "methods": 26
     },
     "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
-      "lines": 311,
+      "lines": 315,
       "methods": 9
     },
-    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
+    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 192,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
@@ -686,7 +686,7 @@
   "emptyCatches": {
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 146,
+  "unknownCastsTotal": 144,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -694,7 +694,6 @@
     "apps/local-host/src/placement-http.ts": 2,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 1,
     "apps/local-host/src/plugin-builder/catalog.ts": 2,
-    "apps/local-host/src/plugin-builder/exposed-actions.ts": 2,
     "apps/local-host/src/plugin-event-http.ts": 1,
     "apps/local-host/src/search-http.ts": 2,
     "horizontal/agent-host/src/adapters/plugin-builder.ts": 1,

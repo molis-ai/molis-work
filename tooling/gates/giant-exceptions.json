@@ -29,7 +29,7 @@
       "kind": "cohesive-unit",
       "reason": "动作服务：登记提供方（registerProvider 131 行，登记时的全部声明检查）、绑定、调用、场景和依赖可用性，共享同一份登记表；内核的唯一动作注册与调用入口，只超 300 行 96 行，拆开会让登记表有两个读写者。",
       "size": {
-        "lines": 396,
+        "lines": 406,
         "methods": 15
       }
     },
@@ -45,7 +45,7 @@
       "kind": "cohesive-unit",
       "reason": "插件安装生命周期状态机：安装、升级（changeVersion 117 行）、卸载、恢复、崩溃上报、启停，同一张安装记录表和同一套事务/恢复规则；各转移互相依赖前一状态，拆开会让状态转移散在几个类里。授权与兑换（grant、redeem、receipt）合计不到 60 行。",
       "size": {
-        "lines": 623,
+        "lines": 624,
         "methods": 29
       }
     },
@@ -135,7 +135,7 @@
     "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
       "kind": "cohesive-unit",
       "reason": "沙箱 SDK 请求的统一授权与派发边界：队列、执行生命周期、效果检查和动作退出校验共享同一调用上下文；模型请求只隔离正常 RPC 清理且保留真实取消转发，拆散会把同一安全边界的开始与结束分离。",
-      "size": { "lines": 311, "methods": 9 }
+      "size": { "lines": 315, "methods": 9 }
     },
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
       "kind": "cohesive-unit",
@@ -170,7 +170,7 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": {
       "kind": "cohesive-unit",
       "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
-      "size": 173
+      "size": 192
     },
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": {
       "kind": "cohesive-unit",

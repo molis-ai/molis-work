@@ -12,7 +12,7 @@ export const PAGE_ROUTE_LIMITS = Object.freeze({ routes: 32, segments: 8, query:
 const ROUTE_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const PARAM_NAME = /^[a-z][a-z0-9_]{0,31}$/u;
 const LITERAL = /^[a-z0-9_-]+$/u;
-const TRUSTED_PARAMS: readonly string[] = ["actor_id", "idempotency_key", "control_token"];
+const TRUSTED_PARAMS: readonly string[] = ["actor_id", "project_id", "install_id", "idempotency_key", "control_token"];
 
 type Segment = string | { readonly param: string };
 
@@ -65,7 +65,13 @@ export function pageRouteProblems(manifest: PluginManifest): string[] {
         problems.push(`页面路由 ${id} 的 query 必须是最多 ${PAGE_ROUTE_LIMITS.query} 个参数名（小写字母、数字、下划线）`);
         continue;
       }
-      const names = parameterNames(segments, query as string[]);
+      const constants = route.params;
+      if (constants !== undefined && (!isObject(constants) || Object.keys(constants).length > PAGE_ROUTE_LIMITS.input
+        || Object.entries(constants).some(([name, value]) => !PARAM_NAME.test(name) || typeof value !== "string" || !withinLimit(value)))) {
+        problems.push(`页面路由 ${id} 的 params 必须是最多 ${PAGE_ROUTE_LIMITS.input} 个合法参数名与有界字符串常量`);
+        continue;
+      }
+      const names = [...parameterNames(segments, query as string[]), ...Object.keys(constants ?? {})];
       for (const name of names) if (TRUSTED_PARAMS.includes(name)) problems.push(`页面路由 ${id} 不能声明可信字段 ${name}`);
       if (new Set(names).size !== names.length) problems.push(`页面路由 ${id} 的参数名重复`);
       for (const [other, otherSegments] of seen) if (overlap(segments, otherSegments)) problems.push(`页面路由 ${id} 与 ${other} 能匹配同一个路径`);
@@ -113,9 +119,10 @@ export function matchPageRoute(routes: readonly UiPageRouteDeclaration[], pathna
     const segments = declaredSegments(route.path);
     if (typeof segments === "string" || segments.length !== actual.length) continue;
     if (!segments.every((segment, index) => typeof segment === "string" ? segment === actual[index] : actual[index] !== "")) continue;
-    const params: Record<string, string> = {};
+    const params: Record<string, string> = { ...route.params };
     const outcome: { rejected?: NonNullable<PageRouteMatch["rejected"]> } = {};
     const take = (name: string, read: () => string | null): void => {
+      if (Object.hasOwn(route.params ?? {}, name)) return;
       if (outcome.rejected) return;
       let value: string | null;
       try { value = read(); } catch { outcome.rejected = { param: name, reason: "encoding" }; return; }

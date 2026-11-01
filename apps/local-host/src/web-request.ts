@@ -153,7 +153,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
@@ -165,8 +165,10 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
     // A stage is given only the request parameters it names in `stage_data.input`, from its own plugin's declared page route (T-116).
-    const stage_request = declaredStageRequests(view.shown_plugins ?? [], matchPageRoute(url));
-    view = { ...view, ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}), stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request) };
+    const pageMatch = matchPageRoute(url);
+    const stage_request = declaredStageRequests(view.shown_plugins ?? [], pageMatch);
+    view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
+      ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}), stage_data: await declaredStageData(view.shown_plugins ?? [], action => bindLocalWebAction(localHost, hostReference, action), stage_request) };
     const feedActions = bindLocalWebActions(localHost, hostReference, [...FEED_ACTION_PERMISSIONS, "functions:invoke"]);
     try {
       const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);
@@ -181,8 +183,8 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
         inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
-    const homeStages = await renderHomePluginStages(localHost.homePlugins);
-    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, home_plugin_nav: await localHost.homePlugins?.navigation() ?? [], plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
+    const homeStages = await renderHomePluginStages(localHost.homePlugins, { page_owner: view.page_owner, model: pluginId => composition.workbenchRenderer.declaredStageModel(pluginId, view) });
+    return { ...view, plugin_stages: homeStages.html, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable, home_plugin_nav: await localHost.homePlugins?.navigation() ?? [], plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
       ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };
 }

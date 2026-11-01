@@ -81,6 +81,8 @@ export interface PluginInstallPreview {
 export interface PluginPermissionView {
   readonly permission: string;
   readonly required: boolean;
+  /** False for a resource's shape-only permission which no validated operation requests. It cannot be granted. */
+  readonly requested: boolean;
   readonly reason: string;
   readonly meaning: string | null;
 }

@@ -49,10 +49,10 @@ function newHome(t: TestContext): string {
 }
 
 /** The sandbox's service over the package's Home library, with grants the test can take back. */
-function library(t: TestContext, home: string, options: { owner?: typeof owner; declaration?: HomePluginDatabaseDeclaration; limits?: Parameters<typeof openSandboxHomeLibrary>[7] } = {}) {
+async function library(t: TestContext, home: string, options: { owner?: typeof owner; declaration?: HomePluginDatabaseDeclaration; limits?: Parameters<typeof openSandboxHomeLibrary>[6] } = {}) {
   const grants = { revoked: false };
   const authorize = (permission: string) => { if (grants.revoked) throw new ActionError("actions.forbidden", `撤权了：${permission}`); };
-  const opened = openSandboxHomeLibrary(home, options.owner ?? owner, options.declaration ?? declaration, homeStores(), authorize, instance, options.limits);
+  const opened = await openSandboxHomeLibrary(home, options.owner ?? owner, options.declaration ?? declaration, homeStores(), authorize, instance, options.limits);
   t.after(() => opened.close());
   return { opened, grants, sandbox: sandboxDatabase(opened.statements) };
 }
@@ -70,7 +70,7 @@ const add = (text: string) => ({ sql: "INSERT INTO sbxhome_notes (text) VALUES (
 
 test("S-91 RAC-240 a sandboxed package's Home library is made under the ledger with the install record's publisher, and its statements run in a process, not on the Host", async t => {
   const home = newHome(t);
-  const { sandbox } = library(t, home);
+  const { sandbox } = await library(t, home);
   assert.deepEqual(ledger(home), [{ plugin_id: PLUGIN_ID, publisher_signature: "probe-sbxhome", store_name: "sbxhome" }]);
   const done = await sandbox.transaction(context(), [add("一行"), add("两行")]);
   assert.deepEqual(done, [{ changes: 1 }, { changes: 1 }]);
@@ -81,24 +81,24 @@ test("S-91 RAC-240 a sandboxed package's Home library is made under the ledger w
 
 test("S-91 RAC-241 another publisher's library, a name the Host or another plugin holds, and a library partitioned by project open nothing", async t => {
   const home = newHome(t);
-  library(t, home);
-  assert.throws(() => openSandboxHomeLibrary(home, { ...owner, publisher_signature: "someone-else" }, declaration, homeStores(), () => {}, instance),
+  await library(t, home);
+  await assert.rejects(openSandboxHomeLibrary(home, { ...owner, publisher_signature: "someone-else" }, declaration, homeStores(), () => {}, instance),
     { code: "plugin.home_database.publisher_mismatch" });
-  assert.throws(() => openSandboxHomeLibrary(home, { plugin_id: `${PLUGIN_ID}2`, publisher_signature: "probe-sbxhome" }, declaration, homeStores(), () => {}, instance),
+  await assert.rejects(openSandboxHomeLibrary(home, { plugin_id: `${PLUGIN_ID}2`, publisher_signature: "probe-sbxhome" }, declaration, homeStores(), () => {}, instance),
     { code: "plugin.home_database.object_taken" });
-  assert.throws(() => openSandboxHomeLibrary(home, { plugin_id: `${PLUGIN_ID}3`, publisher_signature: "probe-sbxhome" }, { ...declaration, store_name: "projects" }, homeStores(), () => {}, instance),
+  await assert.rejects(openSandboxHomeLibrary(home, { plugin_id: `${PLUGIN_ID}3`, publisher_signature: "probe-sbxhome" }, { ...declaration, store_name: "projects" }, homeStores(), () => {}, instance),
     { code: "plugin.home_database.object_taken" });
   const elsewhere = newHome(t);
   mkdirSync(join(elsewhere, "sbxother"));
-  assert.throws(() => openSandboxHomeLibrary(elsewhere, owner, { ...declaration, store_name: "sbxother" }, homeStores(), () => {}, instance), { code: "plugin.home_database.object_taken" });
-  assert.throws(() => openSandboxHomeLibrary(elsewhere, owner, { ...declaration, partition: "project" }, homeStores(), () => {}, instance), { code: "plugin.declaration_invalid" });
+  await assert.rejects(openSandboxHomeLibrary(elsewhere, owner, { ...declaration, store_name: "sbxother" }, homeStores(), () => {}, instance), { code: "plugin.home_database.object_taken" });
+  await assert.rejects(openSandboxHomeLibrary(elsewhere, owner, { ...declaration, partition: "project" }, homeStores(), () => {}, instance), { code: "plugin.declaration_invalid" });
   assert.equal(existsSync(file(elsewhere)), false, "a refusal makes no library");
   assert.equal(await nobodyRuns() || workers().length <= 1, true, "a refusal starts no process");
 });
 
 test("S-91 RAC-242 a grant taken back, or a closed library, stops the next call before it reaches the process", async t => {
   const home = newHome(t);
-  const { sandbox, grants, opened } = library(t, home);
+  const { sandbox, grants, opened } = await library(t, home);
   await sandbox.transaction(context(), [add("kept")]);
   grants.revoked = true;
   await assert.rejects(sandbox.all(context(), { sql: "SELECT text FROM sbxhome_notes", parameters: [] }), { code: "actions.forbidden" });
@@ -112,7 +112,7 @@ test("S-91 RAC-242 a grant taken back, or a closed library, stops the next call 
 
 test("S-91 RAC-243 the keyword filters of the Host's own client apply: a write is not a read, a read is not a write, and a read that starts as a query cannot write", async t => {
   const home = newHome(t);
-  const { sandbox } = library(t, home);
+  const { sandbox } = await library(t, home);
   await sandbox.transaction(context(), [add("a")]);
   const NOT_A_READ = { code: "sandbox.database_error", message: /SELECT 或 WITH/u }, NOT_A_WRITE = { code: "sandbox.database_error", message: /INSERT、UPDATE 或 DELETE/u };
   for (const sql of ["INSERT INTO sbxhome_notes (text) VALUES ('x')", "DELETE FROM sbxhome_notes", "PRAGMA journal_mode = DELETE", "ATTACH DATABASE '/tmp/x.db' AS other"]) {
@@ -128,7 +128,7 @@ test("S-91 RAC-243 the keyword filters of the Host's own client apply: a write i
 
 test("S-91 RAC-244 a read past its time is killed and answered with a code while the Host keeps running; the next read runs in a fresh process", async t => {
   const home = newHome(t);
-  const { sandbox } = library(t, home, { limits: { readMs: 500 } });
+  const { sandbox } = await library(t, home, { limits: { readMs: 500 } });
   await sandbox.transaction(context(), Array.from({ length: 300 }, (_, n) => add(`row ${n}`)));
   const slow = "SELECT count(*) AS n FROM sbxhome_notes AS a, sbxhome_notes AS b, sbxhome_notes AS c, sbxhome_notes AS d";
   await assert.rejects(sandbox.all(context(), { sql: slow, parameters: [] }), { code: "plugin.project_database.statement_timeout" });
@@ -141,7 +141,7 @@ test("S-91 RAC-244 a read past its time is killed and answered with a code while
 
 test("S-91 RAC-245 a write past its time is killed with its transaction: none of its statements stays and the next transaction runs", async t => {
   const home = newHome(t);
-  const { sandbox } = library(t, home, { limits: { writeMs: 500, transactionMs: 2000 } });
+  const { sandbox } = await library(t, home, { limits: { writeMs: 500, transactionMs: 2000 } });
   await sandbox.transaction(context(), Array.from({ length: 300 }, (_, n) => add(`row ${n}`)));
   const slow = "UPDATE sbxhome_notes SET text = (SELECT count(*) FROM sbxhome_notes AS a, sbxhome_notes AS b, sbxhome_notes AS c, sbxhome_notes AS d)";
   await assert.rejects(sandbox.transaction(context(), [add("before"), { sql: slow, parameters: [] }]), { code: "plugin.project_database.statement_timeout" });
@@ -158,7 +158,7 @@ const sandboxed = (id: string, kind: "query" | "command", effects: SandboxEffect
 
 test("S-91 RAC-246 a real sandbox reaches its Home library through the broker only when its operation declared it and the person approved it", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
   const home = newHome(t);
-  const { opened } = library(t, home);
+  const { opened } = await library(t, home);
   const bundlePath = join(home, "sandboxed.mjs");
   writeFileSync(bundlePath, `const attempt=async work=>{try{return {value:JSON.stringify(await work())}}catch(error){return {refused:String(error.code)}}};
     export const operations={

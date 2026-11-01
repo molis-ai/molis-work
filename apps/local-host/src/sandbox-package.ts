@@ -16,6 +16,7 @@ import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
 import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
+import { assertPluginHomeSchema } from '@molis-ai/molis-work-plugin-runtime';
 
 
 /** The longest plugin code the Host takes, as the studio's own publish does. */
@@ -112,12 +113,14 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
     presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, runtime: manifest.runtime, effects: permissions,
+    homeDatabase: manifest.databases?.home, connections: manifest.connections, ownerFiles: manifest.owner_files?.entries,
     ...(icon ? { icon } : {}), textDeclarations: manifest });
   const { agent: wireAgent, methods: wireMethods, ...fixed } = manifest;
   const { agent: projectedAgent, methods: projectedMethods, ...expectedFixed } = expected;
   void wireAgent; void wireMethods; void projectedAgent; void projectedMethods;
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(fixed)), JSON.parse(JSON.stringify(expectedFixed)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   validated('清单', () => parsePluginManifest(expected));
+  if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
   return { manifest: expected, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }
 

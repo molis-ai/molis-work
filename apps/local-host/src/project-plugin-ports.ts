@@ -5,7 +5,7 @@ import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { ensureInstalledPlugins } from "./installed-plugin-host.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
-import type { InstalledPluginEntry } from "./plugin-installed-view.js";
+import { assertPermissionSwitchTarget, type InstalledPluginEntry, type PermissionSwitchTarget } from "./plugin-installed-view.js";
 import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
@@ -98,7 +98,7 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
  * Switches one optional permission through the platform that owns this project's installation: its built-in plugins or its installed
  * packages. Only that Runtime stops the activation, saves its grants and starts it again.
  */
-export async function regrantPluginInProject(source: ProjectPluginHost, projectId: string, installId: string, permission: string, granted: boolean): Promise<void> {
+export async function regrantPluginInProject(source: ProjectPluginHost, projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   await ensureProjectPluginActions(source, reference);
@@ -106,6 +106,7 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
     const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
     const record = platform?.runtime.list().find(row => row.install_id === installId);
     if (platform && record && platform.supervisor.state(record.plugin_id)?.install_id === installId) {
+      assertPermissionSwitchTarget(record, expected);
       await platform.runtime.regrant(installId, permission, granted);
       return;
     }
@@ -113,6 +114,7 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
       const installed = await installedPluginsOf(source, reference, runtime);
       const owned = installed.records().find(row => row.install_id === installId);
       if (owned && installed.releaseFor(owned.plugin_id)) {
+        assertPermissionSwitchTarget(owned, expected);
         await installed.platform.runtime.regrant(installId, permission, granted);
         return;
       }
@@ -140,18 +142,19 @@ export async function installedHomePlugins(homePlugins: HomePluginHost | undefin
 export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean }): Promise<string> {
   if (!homePlugins) throw pluginErrors.state_invalid("这个宿主没有个人空间");
   await homePlugins.ready();
-  if (!homePlugins.hasPackage(pluginId)) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
+  if (!homePlugins.hasPackage(pluginId, action === "uninstall")) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
   await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data } : {});
   return homePlugins.installation(pluginId)?.state ?? "uninstalled";
 }
 
 /** Switches one optional permission of a Home instance: the Home platform's supervisor runs it, so the Home platform stops it and starts it again. */
-export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined, installId: string, permission: string, granted: boolean): Promise<void> {
+export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void> {
   const platform = await homePlugins?.ready();
   const record = platform?.runtime.list().find(row => row.install_id === installId && row.state !== "uninstalled");
   if (!platform || !record || !homePlugins?.manifest(record.plugin_id)) {
     throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
   }
+  assertPermissionSwitchTarget(record, expected);
   await platform.runtime.regrant(installId, permission, granted);
 }
 

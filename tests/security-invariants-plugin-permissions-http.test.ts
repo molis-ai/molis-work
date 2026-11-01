@@ -82,7 +82,7 @@ test("RAC-941 S-94 a required permission cannot be switched off, one the Manifes
   assert.equal(JSON.stringify((await f.overview()).plugins.find(item => item.install_id === plugin.install_id)!.permissions), before, "nothing moved");
 });
 
-test("RAC-951 RAC-952 the 插件 page gives each optional permission a switch, asks first only for the four that reach out or spend, and marks a job whose permission is off as paused", { timeout }, async t => {
+test("RAC-951 RAC-952 the 插件 page gives each requested optional permission a switch, asks first only for the four that reach out or spend, and marks a job whose permission is off as paused", { timeout }, async t => {
   const f = await setup(t);
   const html = await (await f.request(f.prefix + "/settings/plugins")).text();
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"));
@@ -93,7 +93,7 @@ test("RAC-951 RAC-952 the 插件 page gives each optional permission a switch, a
   for (const permission of ["storage:private", "model:read", "surface:browser", "issues:write", "networkx", "secretly"]) assert.equal(wide(permission), false, `${permission} takes one click`);
   const grants = script.slice(script.indexOf("const grants = "), script.indexOf("const draw = "));
   assert.match(grants, /setAttribute\("role", "switch"\)/, "a switch per permission");
-  assert.match(grants, /if \(item\.required\) return line;/, "a required permission has none");
+  assert.match(grants, /if \(item\.required \|\| !item\.requested\) return line;/, "required and shape-only permissions have none");
   assert.ok(grants.indexOf("WIDE(item.permission) && !await ask(") < grants.indexOf("await send("), "the confirmation comes before the call");
   assert.match(script, /send = \(payload\) => api\("\/permissions\/set", payload\)/, "a project's plugin sends to the project's route unless the caller gives another");
   assert.match(grants, /catch \(failure\) \{ toggle\.checked = !on; fail\(failure\); \}/, "a refused switch goes back");

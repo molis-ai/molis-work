@@ -105,7 +105,7 @@ export class HomePluginHost {
       ...this.installed?.running() ?? []];
   }
   /** Whether this is a signed package installed in the Home (BL-628), as opposed to a plugin of the Host's build or one of its fixtures. */
-  hasPackage(pluginId: string): boolean { return this.installed?.recordFor(pluginId) !== undefined; }
+  hasPackage(pluginId: string, retryUninstall = false): boolean { return this.installed?.recordFor(pluginId, retryUninstall) !== undefined; }
   async projectReachConsents(): Promise<ProjectReachConsents> {
     await this.ready();
     const consent = this.installed?.projectReach;
@@ -126,10 +126,10 @@ export class HomePluginHost {
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
   async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean } = {}): Promise<void> {
     await this.ready();
-    const installed = this.installed, record = installed?.recordFor(pluginId);
+    const installed = this.installed, record = installed?.recordFor(pluginId, action === "uninstall");
     if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
     // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one, and can still take it off.
-    const release = installed.packageOf(pluginId);
+    const release = installed.packageOf(pluginId, action === "uninstall");
     if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
     await installed.lifecycle(action, release, input);
     await installed.refreshPublicActions();

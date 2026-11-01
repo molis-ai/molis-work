@@ -102,12 +102,13 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         if (previous?.cost === cost) return;
         // Per-operation replacement preserves unrelated in-flight calls and their registration tokens.
         previous?.dispose(); registrations.delete(operationId);
+        const finalDefinition = { ...definition, action: { ...definition.action, execution: { cost } } };
         const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
-          definitions: [{ ...definition, action: { ...definition.action, execution: { cost } } }],
+          definitions: [finalDefinition],
           // The target owns the private write; its Runtime scope retains the original caller checks.
           handlers: [{ ...handlers[index]!, handle: (caller, input) => {
             const execute = () => handlers[index]!.handle(caller, input);
-            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition, caller }, execute) : execute();
+            return plugin ? runInPluginAction({ install_id: plugin.install_id, installation_generation: plugin.installation_generation, definition: finalDefinition, caller }, execute) : execute();
           } }], ...(availability ? { availability } : {}) });
         registrations.set(operationId, { cost, dispose: unregister }); changed = true;
       });

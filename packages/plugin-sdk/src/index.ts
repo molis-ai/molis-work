@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "./execution-lifetime.js";
 import { parsePluginManifest } from "./manifest.js";
 
-export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
+export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";

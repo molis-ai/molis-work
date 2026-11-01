@@ -77,10 +77,10 @@ export class IntegrationRegistry {
     const run = this.tail.then(() => {
       const parsed = parsePluginManifest(manifest);
       if (!live()) return false;
-      // The same installation enabled again: a signed package is not upgraded in place, so its declarations are the ones it holds.
+      // Validate the replacement before releasing anything the current installation holds. The queue keeps this change atomic.
       const entry = { declarer: { plugin_id: parsed.plugin_id, install_id: installId, plugin_title: parsed.name }, contribution: () => live() ? contribution() : null };
-      if (this.attached.has(parsed.plugin_id)) { this.attached.set(parsed.plugin_id, entry); return true; }
       this.assertFree(parsed);
+      if (this.attached.has(parsed.plugin_id)) this.declarations.release(parsed.plugin_id);
       this.declarations.declare(parsed);
       this.attached.set(parsed.plugin_id, entry);
       return true;

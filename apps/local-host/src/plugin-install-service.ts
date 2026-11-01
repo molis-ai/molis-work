@@ -153,17 +153,14 @@ export class PluginInstallService {
     await this.assertIntegrationsFree(held.pkg.manifest);
     const pin = this.pinOf(held.key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
-    // In a project, a package of a plugin already installed there is its upgrade, and only its own publisher's: another publisher's is refused
-    // before it can be pinned or kept, in a project or the Home. A Home package looks at the Home's installations of signed packages (an id of
-    // the Host's own plugins was refused at the preview), a project's at the project's. The Home does not upgrade a package in place (S-80,
-    // BL-628): its own publisher's is refused here too, before it is kept, with the code the Home's install answers.
+    // Each scope checks its own installations. Only the installed publisher can upgrade a signed package; another publisher is refused
+    // before it can be pinned or kept. An id belonging to the Host's own plugins was already refused at preview.
     const inHome = held.runtime_scope === 'home';
     const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
     const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
     if (present && present.record.publisher_signature !== held.key_id) {
       throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
     }
-    if (present && inHome) throw pluginErrors.state_invalid('这个插件已经装在 Home 里。Home 里的签名包不就地升级：先卸载（可保留数据），再装新包');
     // The two refusals the install makes after the package is kept, asked here instead: an id on the dotted path of another publisher's installed
     // plugin (the Runtime's, S-75), and a package of the plugin's own publisher that is not its upgrade (the install lifecycle's, BL-623).
     assertIdPathFree(held.pkg.manifest.plugin_id, held.key_id, entries);

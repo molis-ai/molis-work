@@ -422,3 +422,29 @@ test("RAC-2521 connectionDeclarer names the attached package and the install the
   await registry.detach("io.molis.work.example.packaged");
   assert.equal(registry.connectionDeclarer("packaged"), undefined, "a detached package declares nothing");
 });
+
+test("RAC-2615-REG reattaching the same installation replaces declarations atomically, and a refused replacement keeps the old owner", async () => {
+  const registry = new IntegrationRegistry();
+  const id = "io.molis.work.example.upgrade";
+  const first = manifestOf(id, [service("old", { origins: ["https://old.example.com"] })], [{ integration_id: "old-source", kind: "source", service_id: "old" }]);
+  const next = manifestOf(id, [service("new", { title: "New title", origins: ["https://new.example.com"] })], [{ integration_id: "new-source", kind: "source", service_id: "new" }]);
+  await registry.attach(first, "same-install", () => null, () => true);
+  await registry.attach(next, "same-install", () => null, () => true);
+  assert.equal(registry.integration("old-source"), undefined);
+  assert.equal(registry.integration("new-source")?.plugin_id, id);
+  assert.deepEqual(registry.connectionServices().map(entry => entry.declaration.service_id), ["new"]);
+  assert.deepEqual(registry.connectionDeclarer("new"), { plugin_id: id, install_id: "same-install", plugin_title: id });
+  const snapshot = registry.connectionServices();
+  const rival = manifestOf("io.molis.work.example.rival", [service("taken")], []);
+  await registry.attach(rival, "rival-install", () => null, () => true);
+  const conflict = manifestOf(id, [service("taken")], []);
+  await assert.rejects(registry.attach(conflict, "same-install", () => null, () => true), { code: "plugin.integration_declaration_conflict" });
+  assert.deepEqual(registry.connectionServices().filter(entry => entry.owner === id), snapshot);
+  assert.equal(registry.connectionDeclarer("new")?.install_id, "same-install");
+  const oauth = manifestOf(id, [service("asana", { auth: { methods: [{ kind: "oauth", grant: "authorization_code", authorize_url: "https://app.asana.com/-/oauth_authorize", token_url: "https://app.asana.com/-/oauth_token", scopes: [], identity: { url: "https://app.asana.com/api/1.0/users/me", account_id: [[], ["identity:/data/gid"]], label: ["identity:/data/name"] } }] } })], []);
+  assert.ok(parsePluginManifest(oauth));
+  await assert.rejects(registry.attach(oauth, "same-install", () => null, () => true), { code: "plugin.declaration_invalid", message: /宿主构建/ });
+  assert.deepEqual(registry.connectionServices().filter(entry => entry.owner === id), snapshot);
+  assert.equal(await registry.attach(first, "same-install", () => null, () => false), false);
+  assert.equal(registry.integration("new-source")?.plugin_id, id, "a stopped queued attachment cannot restore old declarations");
+});

@@ -18,6 +18,7 @@ import { pageIntake } from "./intake.js";
 import { subjectSurfaces } from "./subjects.js";
 import { pageModal } from "./modal.js";
 import { pagePresentation } from "./presentation.js";
+import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
@@ -77,7 +78,10 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   // The owner's deferred client already wrote the same guard before it called this; only the raw mounts own it.
   let own = false;
   try {
-  const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id }, scope });
+  const mount = root.dataset.pluginContribution && root.dataset.pluginSurface && root.dataset.pluginSlot
+    ? { contribution_id: root.dataset.pluginContribution, surface: root.dataset.pluginSurface, target_slot_id: root.dataset.pluginSlot } : null;
+  if (mount && root.dataset.pluginOwner !== pack.plugin_id) throw new Error("View owner changed");
+  const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount } : {}) }, scope });
   const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
   root.dataset.pluginPage = grant.page_id;
@@ -123,10 +127,21 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
     readyReject(error);
   };
+  const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, host.translate);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
+    if (message.type === "connection-slot") { void connectionSlot(message); return; }
+    if (message.type === "view-invalidate") { if (scope.visible) host.invalidateView?.(root); return; }
+    if (message.type === "view-open") {
+      const value = message.selection;
+      if (scope.visible && value && typeof value.surface === "string" && value.surface.length < 200
+        && (value.id === undefined || typeof value.id === "string" && value.id.length <= 1000)
+        && (value.panel === undefined || typeof value.panel === "string" && value.panel.length <= 100)
+        && (value.intent === undefined || value.intent === "open" || value.intent === "select")) host.openView?.(root, value);
+      return;
+    }
     if (message.type === "on-closing") {
       try { if (message.action === null || message.action && typeof message.action === "object" && JSON.stringify(message.action).length <= 16000) closing = message.action; }
       catch { /* A cyclic registration is not a closing action. */ }
@@ -189,7 +204,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
+    const config: FrameConfig = { mount, subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,

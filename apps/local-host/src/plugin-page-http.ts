@@ -10,6 +10,7 @@ import type { WebRequestContext } from "./web-route-table.js";
 import { runningProjectPlatform } from "./project-plugins.js";
 import { runtimeStageOwner } from "./project-plugin-stages.js";
 import { homeStageHalves } from "./home-plugin-http.js";
+import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
 
 /** Resolve the same running stage half as rendering; the request names a surface, never an installation. */
 async function stagePageSelection(context: WebRequestContext, project: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
@@ -43,11 +44,15 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
   const files = url.pathname === "/api/host/plugin-page-files" && request.method === "POST";
   const check = url.pathname === "/api/host/plugin-page-check" && request.method === "POST";
   const workspace = url.pathname === "/api/host/plugin-page-workspaces" && request.method === "POST";
-  if (!workspace && !files && !action && !check && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
+  const slot = url.pathname === "/api/host/plugin-page-slot" && request.method === "POST";
+  if (!slot && !workspace && !files && !action && !check && !(url.pathname === "/api/host/plugin-pages" && request.method === "POST") && !(close && request.method === "DELETE")) return false;
   try {
     if (!serverOptions.homeDirectory) throw new ActionError("actions.unavailable", "插件页面需要 Home");
     const pages = pluginPagesFor(serverOptions.homeDirectory);
     const body = await readLocalWebBody(request);
+    if (slot) {
+      sendLocalWebJson(response, 200, await pageConnectionSlot(context, project, body)); return true;
+    }
     if (close) {
       if (!body || Object.keys(body).some(key => key !== "closing")) throw new ActionError("actions.input_invalid", "关闭请求无效");
       await pages.finish(close[1]!, body.closing as { reference: ActionReference; input: unknown } | undefined);

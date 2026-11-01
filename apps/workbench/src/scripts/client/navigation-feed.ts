@@ -1,11 +1,7 @@
-import { FEED_RULE_AUTHORING_SCRIPT } from "./feed-rule-authoring.js";
 import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
-import { NAVIGATION_FEED_SOURCES_PART } from "./navigation-feed-sources.js";
-import { NAVIGATION_FEED_STAGE_PART } from "./navigation-feed-stage.js";
 
-/** AP3 Workbench client segment: navigation-feed. The directory and surface switching is here; the sources panel and the Feed stage are parts in the sibling files, joined in place, in order. */
+/** AP3 Workbench client segment: navigation-feed. The shell owns directory and work-surface switching. Plugin business clients live in their registered bundles. */
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
-${FEED_RULE_AUTHORING_SCRIPT}
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
     const directoryPanelFor = (directory) => directory;
 
@@ -31,10 +27,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
 
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true, intent = "open") => {
       if (!desktopWorkSurfaces.length) return false;
-      if (surface === "sources") {
-        setFeedTask(selectedSource || selectedFeedTask || "all", persist, intent);
-        surface = "feed";
-      }
       const nextSurface = desktopWorkSurfaces.find((candidate) => candidate.dataset.workSurface === surface);
       if (!nextSurface) {
         if (surface === "goals") restoreLastGoal(true);
@@ -44,7 +36,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       // Passive restore must not retry the current failed client.
       if (intent !== "restore" || surfaceChanged || nextSurface.dataset.uiClientState !== "failed") void deferredClients?.prepare(nextSurface);
       if (activeDesktopSurface && surfaceChanged) {
-        desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goals" ? documentPane : activeDesktopSurface === "feed" ? feedWorkbench?.querySelector(".feed-stage-tree") : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
+        desktopSurfaceScroll[activeDesktopSurface] = (activeDesktopSurface === "goals" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0;
         if (activeDesktopSurface === "goals") goalWorkspaceMode = workspace.dataset.workspaceMode || "graph";
       }
       activeDesktopSurface = surface;
@@ -56,8 +48,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         });
       }
       document.querySelectorAll("[data-work-surface-open], [data-work-surface-link]").forEach((item) => {
-        const active = (item.dataset.workSurfaceOpen || item.dataset.workSurfaceLink) === surface &&
-          (surface !== "feed" || !item.dataset.feedPreset || item.dataset.feedPreset === activeFeedPreset);
+        const active = (item.dataset.workSurfaceOpen || item.dataset.workSurfaceLink) === surface;
         item.classList.toggle("is-current", active);
         if (active) item.setAttribute("aria-current", "page");
         else item.removeAttribute("aria-current");
@@ -67,14 +58,10 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       const label = nextSurface.dataset.workSurfaceLabel || surface;
       documentPane.setAttribute("aria-label", label);
       requestAnimationFrame(() => {
-        const scrollPane = surface === "goals" ? documentPane : surface === "feed" ? nextSurface.querySelector(".feed-stage-tree") || nextSurface : nextSurface;
+        const scrollPane = surface === "goals" ? documentPane : nextSurface;
         scrollPane.scrollTop = restoreScroll ? Number(desktopSurfaceScroll[surface] || 0) : 0; if (surfaceChanged && surface === "goals" && activeDesktopSurface === "goals" && !archiveView && !trashView && !visibleGoals().length && !document.querySelector("dialog[open]")) openCreate();
       });
       pluginWorkbench?.open(surface);
-      if (surface === "feed") {
-        void ensureFeedWorkbenchLoaded();
-        setFeedTask(selectedFeedTask || "all", false, intent);
-      }
       frameContainer?.sync();
       if (persist) queueSave();
       return true;
@@ -162,16 +149,4 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       if (persist) queueSave();
     };
 
-    const setSourceDetailTab = (detail, tabName, focus = false) => {
-      if (!detail) return;
-      detail.querySelectorAll("[data-source-detail-tab]").forEach((tab) => {
-        const active = tab.dataset.sourceDetailTab === tabName;
-        tab.classList.toggle("is-active", active);
-        tab.setAttribute("aria-selected", String(active));
-        if (active && focus) tab.focus();
-      });
-      detail.querySelectorAll("[data-source-detail-panel]").forEach((panel) => {
-        panel.hidden = panel.dataset.sourceDetailPanel !== tabName;
-      });
-    };
-${NAVIGATION_FEED_SOURCES_PART}${NAVIGATION_FEED_STAGE_PART}`;
+`;

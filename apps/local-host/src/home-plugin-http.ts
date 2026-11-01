@@ -302,7 +302,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
   const sideOnly = sideOpenedPlugins(registered);
   const draw = (entry: (typeof registered)[number], view: UiContribution) => {
     const result = renderStagePage(view, options?.model(entry.project_plugin_id) ?? homeViewModel(entry.manifest.plugin_id), entry.project_plugin_id,
-      options?.page_owner === entry.manifest.plugin_id, request => view.render(request), { manifest: platform?.supervisor.manifest(entry.manifest.plugin_id) ?? entry.manifest });
+      options?.page_owner === entry.manifest.plugin_id, request => view.render(request), { manifest: platform?.supervisor.manifest(entry.manifest.plugin_id) ?? entry.manifest, client: entry.workbench });
     if (result.page) page = result.page;
     if (result.html) html.push(result.html);
     if (result.panels) panels[entry.project_plugin_id] = result.panels;

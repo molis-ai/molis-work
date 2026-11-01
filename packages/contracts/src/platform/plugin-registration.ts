@@ -60,6 +60,8 @@ export interface PluginWorkbenchRegistration {
    */
   readonly stylesheetUses?: readonly string[];
   readonly clientFactory?: string;
+  /** This factory handles each declared interactive surface in its own root/frame using Host mount metadata. */
+  readonly clientMounts?: "surfaces";
   /**
    * The shell sends `clientFactory` without its whole-line comments and indentation (the page does not run them). A script
    * whose multi-line strings or templates carry indentation as content cannot set this; tests/plugin-client-served.test.ts

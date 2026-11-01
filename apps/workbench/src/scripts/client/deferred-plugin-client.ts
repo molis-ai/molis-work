@@ -34,7 +34,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const prepare = root => {
     if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden], [data-surface-pool]')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
-    const pack = packs.find(pack => pack.id === root.dataset.workSurface);
+    const pack = packs.find(pack => pack.id === (root.dataset.pluginClient || root.dataset.workSurface));
     if (!pack) return Promise.resolve();
     // A real reopen replaces this surface's previous failure, just as its retry button does.
     for (const retry of root.querySelectorAll(':scope > div > [data-ui-client-retry]')) retry.parentElement.remove();

@@ -21,8 +21,8 @@ export { placeLayoutMenu } from "./tab-workspace-menus.js";
 
 /** Cross-plugin tabs and split panes. Goals canvas/kanban/Frame chrome stays in frame-container. */
 export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
-  const { showToast, showGoalFrame, setFeedAddOpen, setFeedTask, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
-    applySelection, loadGoalDocument, getDocumentGoalId, selectFeedItem, selectInboxEntry, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame } = host;
+  const { showToast, showGoalFrame, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
+    applySelection, loadGoalDocument, getDocumentGoalId, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame } = host;
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
@@ -478,6 +478,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   window.addEventListener("message", (event) => {
     if (embedded) {
       if (!panes.fromParent(event)) return;
+      if (event.data.type === "workbench-view-invalidate") { const surface = topLevelSurface(ops.shownPlugin(ops.focused(state))); if (surface) invalidateView(surface, false); return; }
       if (event.data.type !== "workbench-view") return;
       if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
       return;
@@ -487,10 +488,14 @@ ${TAB_WORKSPACE_DRAG_PART}
       document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
       return;
     }
-    if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history"].includes(event.data?.type)) return;
+    if (!["workbench-pane-invalidate", "workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history"].includes(event.data?.type)) return;
     const pane = paneById(frame?.dataset.paneOwner);
     if (!pane) return;
-    if (event.data.type === "workbench-pane-history") {
+    if (event.data.type === "workbench-pane-invalidate") {
+      const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab);
+      const plugin = tab?.plugin || (frame.dataset.paneKey?.startsWith("plugin:") ? frame.dataset.paneKey.slice(7) : "");
+      const surface = topLevelSurface(plugin); if (surface) invalidateView(surface);
+    } else if (event.data.type === "workbench-pane-history") {
       if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
       if (event.data.delta === -1 || event.data.delta === 1) goHistory(event.data.delta);
     } else if (event.data.type === "workbench-pane-view") {
@@ -543,12 +548,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     apply(); persist();
     if (loadingGoalId === goalId) loadingGoalId = loading;
   });
-  document.addEventListener("workbench-feed-task", (event) => {
-    if (typeof event.detail?.taskId !== "string") return;
-    const paneId = embedded ? state.panes[0]?.id : findTopLevelSurface("feed")?.closest("[data-tab-pane]")?.dataset.tabPane;
-    if (paneId && writeView(paneId, event.detail.taskId) && embedded) notifyParent("workbench-pane-view", { view: event.detail.taskId });
-  });
-  return { apply, readView, writeView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openView, invalidateView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };

@@ -7,6 +7,10 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
+import { localWebActionContext } from "./local-web-actions.js";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { WebRequestContext } from "./web-route-table.js";
+import { pluginPageRequest } from "./plugin-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { installedPluginManifest } from "./plugin-installation-directory.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -21,6 +25,38 @@ const SLOTS_PATH = "/api/settings/connectors/plugin-slots";
 const RECORD_PATH = `${SLOTS_PATH}/record`;
 // The record path takes exactly these: a name more (an `install_id` the page made up, say) is refused, not ignored.
 const RECORD_QUERY = ["project", "plugin_id", "slot_id", "record_key"], RECORD_BODY = ["plugin_id", "slot_id", "service_id", "record_key", "connection_id"];
+
+/** Trusted Host picker only: same owner actions as the person's record-slot UI, fenced by the current page. */
+export async function pageConnectionSlot(context: WebRequestContext, project: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
+  const page = pluginPageRequest(context.request);
+  if (!page || !context.request.headers["x-molis-context-page"] || !project || project.project_id !== page.project_id)
+    throw new ActionError("actions.forbidden", "账号选择需要当前项目的可信控件");
+  if (!body || !["read", "bind"].includes(String(body.mode)) || typeof body.slot_id !== "string" || typeof body.record_key !== "string"
+    || Object.keys(body).some(key => !["mode", "slot_id", "record_key", ...(body.mode === "bind" ? ["connection_id"] : [])].includes(key)))
+    throw new ActionError("actions.input_invalid", "连接槽请求无效");
+  const { install_id, plugin_id, slot } = page.connectionSlot(body.slot_id);
+  await page.beforeEffect();
+  const original = await localWebActionContext(context.localHost, project, LOCAL_OWNER_PERMISSIONS, page.signal);
+  const caller: ActionCallContext = { ...original,
+    validate_authority: async (...args) => { await original.validate_authority?.(...args); await page.beforeEffect(); },
+    assert_authority_current: (...args) => { original.assert_authority_current?.(...args); page.assertCurrent(); } };
+  const client = context.localHost.actionClient(project), record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
+  const current = await client.invoke(caller, connectorPluginSlotActions.readRecord, record);
+  await page.beforeEffect();
+  if (body.mode === "bind") {
+    if (typeof body.connection_id !== "string" || !body.connection_id || current.connection && current.connection.connection_id !== body.connection_id)
+      throw new ActionError("actions.conflict", "这条记录已经选好账号；要换账号，先断开");
+    const result = await client.invoke(caller, connectorPluginSlotActions.bindRecord, { ...record, service_id: slot.service_id, connection_id: body.connection_id });
+    await page.beforeEffect();
+    return { service_id: slot.service_id, connection: connectionChoice(result.connection) };
+  }
+  return { service_id: slot.service_id, connection: connectionChoice(current.connection) };
+}
+
+function connectionChoice(connection: import("@molis-ai/molis-work-contracts/services/connector-host").ConnectorConnectionView | null) {
+  return connection ? { connection_id: connection.connection_id, label: connection.account_label || connection.display_name,
+    auth_method: connection.auth_method, state: connection.state } : null;
+}
 
 /** The installations the person sees here: the Home's, then the project's; one install id once (a plugin with two instances). */
 async function installationsHere(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined) {

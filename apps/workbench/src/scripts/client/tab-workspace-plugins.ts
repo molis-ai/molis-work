@@ -24,12 +24,12 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const row = ((spec) => spec && [...document.querySelectorAll(spec[1])].find((el) => el.dataset[spec[2]] === itemId))(RECORD_ROWS.find(([id]) => id === plugin));
     return row?.getAttribute("data-frame-asset-title") || row?.querySelector("strong")?.textContent?.trim() || fallback || itemId;
   };
-  const selectItem = (surface, itemId) => {
+  const selectItem = (surface, itemId, view, intent = "restore", panel) => {
     if (!surface) return;
     const last = lastSelection.get(surface), now = Date.now();
-    if (last && last.itemId === itemId && now - last.at < 250 && (itemId || surface.getAttribute("data-expanded") !== "true")) return;
-    lastSelection.set(surface, { itemId, at: now });
-    surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
+    if (last && last.itemId === itemId && last.view === view && intent === "restore" && now - last.at < 250 && (itemId || surface.getAttribute("data-expanded") !== "true")) return;
+    lastSelection.set(surface, { itemId, view, at: now });
+    surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId, view, intent, panel } }));
   };
   const applyPluginDefault = (plugin) => {
     if (!plugin) return;
@@ -42,7 +42,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       return;
     }
     collapsePluginStage(plugin);
-    if (plugin === "feed") setFeedTask?.(readView(ops.focused(state).id) ?? "all", false, "restore");
+    selectItem(topLevelSurface(plugin), null, readView(ops.focused(state).id));
   };
   // Goals are drawn by the workbench itself: name the open Goal on its frame and document, as every plugin names its
   // object, so the Assistant and the context actions know it — and a passage selected in it belongs to that Goal.
@@ -194,8 +194,33 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     writeView(ops.focused(state).id, "work", tab.id);
     if (embedded) notifyParent("workbench-pane-view", { view: "work" });
   };
-  const addFeedTask = () => {
-    openPlugin("feed");
-    setFeedAddOpen?.(true);
-    setMobileView("document");
+  // The mount names its owner and surface. Layout remains the only owner of pane/tab selection.
+  const ownSurfaces = (origin) => origin.dataset.pluginOwner && origin.dataset.pluginContribution
+    ? [...document.querySelectorAll('[data-plugin-owner][data-plugin-contribution]')].filter(node => node.dataset.pluginOwner === origin.dataset.pluginOwner && node.dataset.pluginContribution === origin.dataset.pluginContribution) : [];
+  const invalidateLocal = (origin) => ownSurfaces(origin).forEach(node => node.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } })));
+  const invalidateView = (origin, relay = true) => {
+    if (!origin?.isConnected) return;
+    invalidateLocal(origin);
+    if (!relay) return;
+    if (embedded) { notifyParent("workbench-pane-invalidate"); return; }
+    const plugin = origin.dataset.pluginClient;
+    panesEl.querySelectorAll('iframe[data-pane-tab]').forEach(frame => {
+      const pane = paneById(frame.dataset.paneOwner), tab = pane?.tabs.find(tab => tab.id === frame.dataset.paneTab);
+      if (tab?.plugin === plugin || frame.dataset.paneKey === "plugin:" + plugin) frame.contentWindow?.postMessage({ type: "workbench-view-invalidate" }, location.origin);
+    });
+  };
+  const openView = (origin, selection) => {
+    if (!origin?.isConnected || origin.closest('[hidden]')) return false;
+    const target = ownSurfaces(origin).find(node => node.dataset.pluginSurface === selection.surface && node.dataset.pluginSlot === "workbench.main");
+    if (!target) return false;
+    const pane = embedded ? state.panes[0] : paneById(origin.closest('[data-tab-pane]')?.dataset.tabPane) || ops.focused(state);
+    if (!pane) return false;
+    const plugin = target.dataset.workSurface;
+    if (selection.intent !== "select") { state.focusedPaneId = pane.id; ops.openPlugin(state, plugin); }
+    const tab = pane.tabs.find(tab => tab.id === pane.activeTabId) || pane.tabs.find(tab => tab.kind === "plugin" && tab.plugin === plugin);
+    if (!tab || tab.plugin !== plugin) return false;
+    if (!writeView(pane.id, selection.id, tab.id)) return false;
+    if (embedded) notifyParent("workbench-pane-view", { view: selection.id });
+    selectItem(target, tab.kind === "item" ? tab.itemId : null, selection.id, selection.intent || "open", selection.panel);
+    return true;
   };`;

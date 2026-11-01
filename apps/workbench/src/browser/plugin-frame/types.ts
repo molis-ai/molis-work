@@ -3,6 +3,7 @@ import type { HostReviewFactory } from "./review-slots.js";
 import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
+import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type Translate = UiClientTranslate;
 export interface FrameScope extends UiClientScope {
@@ -27,12 +28,15 @@ export interface FrameHost {
   showToast?(message: string, failure?: boolean): void;
   readRefusal?(status: number, code: unknown): string;
   status?(...args: unknown[]): void;
+  openView?(root: HTMLElement, selection: UiViewSelection): void;
+  invalidateView?(root: HTMLElement): void;
 }
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];
   recordRow?: { selector: string; idDataset: string };
   searchRow?: { selector: string; idDataset: string };
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
+  mount: UiClientMount | null;
   searchRow?: FramePack["searchRow"];
   recordRow?: FramePack["recordRow"];
   surface: string;
@@ -52,6 +56,9 @@ export type FrameRequest = FrameFetch | { type: "abort" | "pull"; id: number };
 export type FrameAnswer = { type: "response"; id: number; status: number; statusText: string; headers: [string, string][] }
   | { type: "chunk"; id: number; bytes: ArrayBuffer } | { type: "end"; id: number } | { type: "fetch-error"; id: number; message: string };
 export type FrameUp =
+  | { type: "view-open"; selection: UiViewSelection }
+  | { type: "view-invalidate" }
+  | { type: "connection-slot"; id: number; slot_id: string; record_key: string; mode: "read" | "choose"; box?: { x: number; y: number; width: number; height: number } }
   | { type: "on-closing"; action: Parameters<UiPageView["onClosing"]>[0] }
   | { type: "placement-slots"; slots: Array<{ id: number; target: boolean; home: boolean; saved: boolean; box: {x: number; y: number; width: number; height: number} | null }> }
   | { type: "placement-open"; id: number }
@@ -78,6 +85,7 @@ export type FrameUp =
   | { type: "link"; url: string; download: boolean } | { type: "context"; value: string | null; expanded: string | null }
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
 export type FrameDown =
+  | { type: "connection-slot"; id: number; value?: UiConnectionSlotChoice | null; error?: string }
   | { type: "placement-label"; id: number; html: string }
   | { type: "review-size"; id: number; height: number }
   | { type: "review-shown"; id: number; error?: string }

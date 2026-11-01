@@ -22,7 +22,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
   const applyTabContent = (tab, keepFrame) => {
     if (!tab || tab.kind === "system") return;
     declareGoal(tab.plugin === "goals" && tab.kind === "item" ? tab.itemId : null, tab.title);
-    selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null);
+    selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null, tab.view);
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
       if (supportsGoalFrames() && tab.view !== "work") { applySelection?.(tab.itemId); showGoalFrame?.(tab.itemId); return; }
       releaseFrame?.();
@@ -50,9 +50,6 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       (restoreBoard || showCanvas)?.();
       return;
     }
-    if (tab.plugin === "feed") setFeedTask?.(tab.view ?? "all", false, "restore");
-    if (tab.plugin === "feed" && tab.kind === "item" && tab.itemId) selectFeedItem?.(tab.itemId, false, true, false);
-    if (tab.plugin === "inbox" && tab.kind === "item" && tab.itemId) selectInboxEntry?.(tab.itemId, false);
   };
   const mount = (pane, node) => {
     const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');
@@ -177,7 +174,6 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
         setDirectory(directoryOf(focusedTab.plugin), false, false);
       }
-      if (focusedTab.plugin === "feed") setFeedTask?.(focusedTab.view ?? "all", false, "restore");
       if (focusedTab.plugin === "goals" && focusedTab.kind === "item" && !embedded && (state.panes.length > 1 || panesEl.querySelector('iframe[data-pane-tab="' + focusedTab.id + '"]'))) applySelection?.(focusedTab.itemId);
       document.title = tabLabel(focusedTab) + " · Molis Work";
     } else if (focusedView) {
@@ -283,7 +279,7 @@ export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWork
               // A walk through history decides the record itself; otherwise returning from a tab shows the list.
               if (shown === undefined) reopenRecord(viewPlugin); else if (!historyLock) forgetRecord(viewPlugin);
             }
-            if (viewPlugin === "feed") setFeedTask?.(readView(pane.id) ?? "all", false, "restore");
+            selectItem(node, null, readView(pane.id));
           }
         }
       }

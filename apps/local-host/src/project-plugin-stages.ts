@@ -1,6 +1,7 @@
 import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionError, actionEffect, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
 import { optionalPluginQuery } from "./web-view.js";
@@ -14,7 +15,8 @@ import { projectPluginProblem, type ProjectPluginState } from "./project-plugins
 import { L } from "./web-locale.js";
 
 /** A plugin whose stage the project page draws: a catalog registration, or a Home dual-instance plugin outside the build. */
-export type StageEntry = { readonly project_plugin_id: string; readonly manifest: PluginManifest };
+export type StageEntry = { readonly project_plugin_id: string; readonly manifest: PluginManifest;
+  readonly workbench?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts"> };
 
 /** What a project page's plugin surfaces are drawn with: the project plugin services plus the page's escape. */
 export interface ProjectPluginSurfacePorts extends ProjectPluginHttpPorts {
@@ -133,7 +135,7 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
     const own = model(entry.project_plugin_id), nested = nestedContent(state, entry, view, own);
     const manifest = state.platform?.supervisor.manifest(pluginId) ?? entry.manifest;
     return renderStagePage(view, nested ? { ...own as Record<string, unknown>, nested } : own, entry.project_plugin_id, pageOwner,
-      request => view.render(request), { manifest, rendered: drawn });
+      request => view.render(request), { manifest, rendered: drawn, client: entry.workbench });
   } catch (error) {
     hostLog.warn("plugins", "project_stage_failed", error, { plugin_id: pluginId });
     return unavailableStage(state, entry, L("插件页面读取失败"));

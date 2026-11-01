@@ -116,7 +116,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     };
 
     const readUiState = () => {
-      rememberFeedPresetState();
       return ({
       selected,
       collapsed: getCollapsedTreeGoals(),
@@ -137,18 +136,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
-      feedPreset: activeFeedPreset,
-      feedSelected: selectedFeedItem,
-      feedQuery: feedSearch?.value || "",
-      feedSource: feedSourceFilter?.value || "all",
-      feedType: feedTypeFilter?.value || "all",
-      feedTime: feedTimeFilter?.value || "all",
-      feedStatus: feedStatusFilter?.value || "active",
-      feedSort: feedSort?.value || "newest",
-      feedPresets: feedPresetState,
-      sourceSelected: selectedSource,
-      sourceFilter: activeSourceFilter,
-      sourceDetailTab: sourceWorkbench?.querySelector('[data-source-detail="' + CSS.escape(selectedSource) + '"] [data-source-detail-tab][aria-selected="true"]')?.dataset.sourceDetailTab || "overview",
       goalFactor: documentPane.querySelector('[data-goal-factor-tab][aria-selected="true"]')?.dataset.goalFactorTab || "relations",
       });
     };
@@ -182,44 +169,8 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         canvasView: ui?.canvasView,
       });
       filterTree("");
-      if (feedDirectory || feedWorkbench) {
-        activeFeedPreset = "feed";
-        const persistedPresets = ui?.feedPresets && typeof ui.feedPresets === "object"
-          ? ui.feedPresets
-          : {};
-        feedPresetState = {
-          feed: { ...defaultFeedPresetState(), ...(persistedPresets.feed || {}) },
-        };
-        if (!ui?.feedPresets) {
-          feedPresetState[activeFeedPreset] = {
-            selected: String(ui?.feedSelected || selectedFeedItem || ""),
-            query: String(ui?.feedQuery || ""),
-            source: ui?.feedSource || "all",
-            type: ui?.feedType || "all",
-            time: ui?.feedTime || "all",
-            status: ui?.feedStatus || "active",
-            sort: ui?.feedSort || "newest",
-          };
-        }
-        setFeedPreset(activeFeedPreset, true, "restore");
-      }
-      if (sourceDirectory) {
-        const availableSourceFilters = new Set(["all", "account", "public", "attention"]);
-        activeSourceFilter = availableSourceFilters.has(ui?.sourceFilter) ? ui.sourceFilter : "all";
-        selectedSource = String(ui?.sourceSelected || selectedSource || "");
-        sourceDirectory.querySelectorAll("[data-source-filter]").forEach((button) => {
-          const active = button.dataset.sourceFilter === activeSourceFilter;
-          button.classList.toggle("is-active", active);
-          button.setAttribute("aria-pressed", String(active));
-        });
-        filterSources(true);
-        if (selectedSource) selectSource(selectedSource, false);
-      }
       setWorkspaceMode(ui?.workspaceMode || "graph", false, true);
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false, "restore");
-      if (nextDesktopSurface === "feed" && selectedFeedItem) {
-        selectFeedItem(selectedFeedItem, false, true, false);
-      }
       restoreGoalGraphViewport();
       bindGoalEventDocument();
       openEventReaderFromHash();

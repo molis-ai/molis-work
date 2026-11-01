@@ -70,12 +70,19 @@ export async function readPageDocument(port: MessagePort, id: number, root: HTML
     await check();
     const source = await molisWorkRequest<string>(location.pathname + location.search, { as: "text", scope });
     const document = new DOMParser().parseFromString(source, "text/html");
-    const surface = [...document.querySelectorAll<HTMLElement>("[data-work-surface]")].find(candidate => candidate.dataset.workSurface === root.dataset.workSurface);
+    const matches = root.dataset.pluginContribution
+      ? [...document.querySelectorAll<HTMLElement>("[data-plugin-contribution]")].filter(candidate =>
+        ["pluginOwner", "pluginContribution", "pluginSurface", "pluginSlot"].every(key => candidate.dataset[key] === root.dataset[key]))
+      : [...document.querySelectorAll<HTMLElement>("[data-work-surface]")].filter(candidate => candidate.dataset.workSurface === root.dataset.workSurface);
+    if (root.dataset.pluginContribution && matches.length !== 1) throw new Error("View unavailable");
+    const surface = matches[0];
     const data = surface?.querySelector("script[data-plugin-document]")?.textContent;
     if (!data) throw new Error("View unavailable");
     const html: unknown = JSON.parse(data);
     if (typeof html !== "string") throw new Error("View unavailable");
     await check(); scope.assertCurrent();
+    const payload = root.querySelector("script[data-plugin-document]");
+    if (payload) payload.textContent = JSON.stringify(html);
     port.postMessage({ type: "document", id, html } satisfies FrameDown);
   } catch (error) {
     if (scope.alive) port.postMessage({ type: "document", id, error: error instanceof Error ? error.message : "View unavailable" } satisfies FrameDown);

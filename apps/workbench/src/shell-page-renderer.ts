@@ -28,6 +28,7 @@ function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], paneP
   const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
   const isolatedIds = new Set(pluginSurfaceClients().map(client => client.id));
   return (html: string): string => {
+    if (html.includes("data-plugin-client=")) return html;
     const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
     if (!match || !deferredIds.has(match[3]!)) return html;
     if (panePlugin && panePlugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];

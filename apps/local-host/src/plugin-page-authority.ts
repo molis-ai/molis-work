@@ -174,10 +174,12 @@ export class PluginPageAuthority {
       && request.method === "POST" && ["/api/contextual/prepare", "/api/contextual/attach", "/api/placement/convert"].includes(pathname);
     const workspaceChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-workspaces";
+    const slotChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-slot";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
       && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery"].includes(pathname)
         || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery"].includes(pathname));
-    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
     const check = () => {
@@ -200,6 +202,13 @@ export function pluginPageRequest(request: IncomingMessage) {
   authority.check();
   return { plugin_id: authority.page.activation.manifest.plugin_id, project_id: authority.page.project_id,
     signal: authority.signal, assertCurrent: authority.check,
+    async beforeEffect() { await authority.page.assertScope?.(); authority.check(); },
+    connectionSlot(slotId: string) {
+      authority.check();
+      const slot = authority.page.activation.manifest.connections?.slots?.find(item => item.slot_id === slotId && item.binding === "per_record");
+      if (!slot || !authority.page.activation.install_id) throw refused();
+      return { install_id: authority.page.activation.install_id, plugin_id: authority.page.activation.manifest.plugin_id, slot };
+    },
     ownedObject(object: {kind: string; id: string; project_id?: string | null}) {
       authority.check();
       if (!object || typeof object.kind !== "string" || typeof object.id !== "string" || !object.id || object.id.length > 256) throw refused();

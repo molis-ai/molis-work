@@ -115,6 +115,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
     const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
+      openView: (root, selection) => tabWorkspace?.openView(root, selection),
+      invalidateView: root => tabWorkspace?.invalidateView(root),
       openBehind: (...args) => tabWorkspace?.openBehind(...args),
       mountPluginClient, interaction, receipts, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
@@ -135,9 +137,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     requestAnimationFrame(() => {
       const entryId = new URL(location.href).searchParams.get("inbox_entry");
       if (!entryId) return;
-      const row = inboxList?.querySelector('[data-inbox-entry-id="' + CSS.escape(entryId) + '"]');
-      if (row) tabWorkspace?.openItem("inbox", entryId, row.querySelector("strong")?.textContent);
-      else showToast(L("原 Inbox 材料在当前项目中不可用"), true);
+      tabWorkspace?.openItem("inbox", entryId);
     });
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
@@ -181,11 +181,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       }
       if (handleGoalFactorKeyboard(event)) return;
       if (handleTreeKeyboard(event)) return;
-      if (event.key === "Escape" && feedFilterPanel?.hidden === false) {
-        event.preventDefault();
-        setFeedFilterOpen(false);
-        feedFilterTrigger?.focus();
-      } else handleGoalDialogEscape(event);
+ else handleGoalDialogEscape(event);
     });
     addEventListener("resize", () => {
       const nextCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
@@ -236,7 +232,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openEventReaderFromHash();
       const initialFactor = goalFactorFromHash();
       if (initialFactor) setGoalFactor(initialFactor, false);
-      if (feedDirectory) setFeedPreset("feed", false);
       if (desktopDirectoryPanels.length) {
         setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
       }
@@ -339,7 +334,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
     }
-    openRequestedFeedRule();
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
     // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
     const askedSurface = new URLSearchParams(location.search).get("openSurface");

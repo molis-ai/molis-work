@@ -1,9 +1,10 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { StagePagePresentation, UiContribution, UiRenderRequest, UiSurfaceDescriptor, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
+import { renderPluginFrameSurface } from "./plugin-frame.js";
 
 /** The contribution a Manifest view names, or its existing plugin-and-view default. Kept inside the workbench package. */
 export function viewContributionId(manifest: PluginManifest, view: UiViewDeclaration): string {
@@ -98,8 +99,10 @@ export function withoutPagePublisher(model: unknown): unknown {
 /** Draw once, then adopt a page publication only if the main surface and same-contribution overlays all succeeded. */
 export function renderStagePage(contribution: UiContribution, model: unknown, owner: string, pageOwner: boolean,
   draw: (request: UiRenderRequest) => string = request => contribution.render(request),
-  options?: { manifest?: PluginManifest; rendered?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">> }) {
+  options?: { manifest?: PluginManifest; rendered?: ReadonlyArray<Pick<UiRenderRequest, "contribution_id" | "surface">>;
+    client?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts"> }) {
   const contribution_id = contribution.descriptor.contribution_id;
+  const client = options?.client;
   const selected = options?.manifest ? stageSurfaceDescriptors(options.manifest, contribution)
     : (contribution.descriptor.surfaces ?? []).filter(surface => surface.surface_id === "workbench");
   if (!selected.some(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html")) {
@@ -122,6 +125,14 @@ export function renderStagePage(contribution: UiContribution, model: unknown, ow
     try {
       const html = draw({ contribution_id, surface, model: publishing ? scoped : own });
       surfaces.push({ contribution_id, surface });
+      if (html.trim() && client?.clientMounts === "surfaces" && client.clientFactory) {
+        const descriptor = contribution.descriptor.surfaces?.find(item => item.surface_id === surface);
+        if (descriptor) {
+          const id = html.match(/\bdata-(?:work-surface|directory-panel)="([^"]+)"/)?.[1] ?? owner;
+          return renderPluginFrameSurface(html, id, options?.manifest?.name ?? owner, true, false, owner,
+            { contribution_id, surface, target_slot_id: descriptor.target_slot_id }, options?.manifest?.plugin_id);
+        }
+      }
       return html;
     } finally { active = false; }
   };
@@ -164,7 +175,7 @@ export function renderDeclaredStages({ enabled, rendered, model, page_owner, una
     const selected = stageSurfaceDescriptors(entry.manifest, contribution);
     if (selected.every(item => rendered.some(prior => prior.contribution_id === contributionId && prior.surface === item.surface_id))) return [];
     const result = renderStagePage(contribution, model(entry.project_plugin_id), entry.project_plugin_id, page_owner === entry.manifest.plugin_id,
-      request => renderWorkbenchContribution(request.contribution_id, request.surface, request.model), { manifest: entry.manifest, rendered });
+      request => renderWorkbenchContribution(request.contribution_id, request.surface, request.model), { manifest: entry.manifest, rendered, client: entry.workbench });
     if (result.page) page = result.page;
     if (result.panels) panels[entry.project_plugin_id] = result.panels;
     if (result.overlays) overlays.push(result.overlays);

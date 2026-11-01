@@ -195,7 +195,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: surface => deferredClients?.prepare(surface),
-        setFeedTask, setFeedAddOpen, showToast, paneMessages,
+        showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,
         getSurface: () => activeDesktopSurface,
@@ -206,8 +206,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         applySelection: (goalId) => applySelection(goalId, false),
         loadGoalDocument: (goalId) => loadGoalDocument(goalId),
         getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
-        selectFeedItem: (...args) => selectFeedItem(...args),
-        selectInboxEntry: (...args) => selectInboxEntry(...args),
         getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
         visibleGoals: () => visibleGoals(),
         showCanvas: () => frameContainer?.showCanvas(),

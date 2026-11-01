@@ -159,11 +159,12 @@ export type PluginTerminalDirectory =
 
 /**
  * What a plugin's terminal runs (S-103): one of the platform's runtime recipes by id (`codex`, `claude-code`, …), which also resumes the
- * runtime's own session when the terminal starts again; or a program the plugin's backend chose, an absolute path or a bare name the
- * platform finds on its PATH, with bounded arguments. Never a shell line.
+ * runtime's own session when the terminal starts again, or from its first start when `session` names one (letters, digits and `._:-`, at
+ * most 128, not starting with `-`; handed to the recipe's resume arguments as one argument, never to a shell); or a program the plugin's
+ * backend chose, an absolute path or a bare name the platform finds on its PATH, with bounded arguments. Never a shell line.
  */
 export type PluginTerminalProgram =
-  | { readonly runtime: string }
+  | { readonly runtime: string; readonly session?: string }
   | { readonly command: string; readonly args?: readonly string[] };
 
 /** One of this installation's terminals, for the person and project of the call. `running` is read when asked; nothing else is kept of the process. */
@@ -173,6 +174,8 @@ export interface PluginTerminalPanel {
   readonly title: string;
   /** The recipe id, or `command` for a program the plugin chose. */
   readonly runtime: string;
+  /** The program it was opened with, as `open` takes it: what starts it again under the same key. */
+  readonly program: PluginTerminalProgram;
   readonly subject: string | null;
   readonly running: boolean;
   readonly created_at: string;

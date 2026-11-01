@@ -1,11 +1,14 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { renderHint, renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { shownPagePlugins } from "./page-plugin-visibility.js";
+import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
+import { renderTerminalPane } from "./terminal/pane.js";
 import type { FeedSupplementalEntry } from "./feed-projection-ui.js";
-import { createWorkbenchGoalsDocuments } from "./goals-documents.js";
-import { DEFAULT_GOAL_POLICY, composePlanningMethodPacks, GOALS_PLUGIN_ID, type WebGoalView } from "./goals-plugin.js";
-import { createWorkbenchGoalsRenderers } from "./goals-renderers.js";
+import { GOALS_PLUGIN_ID, type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
+import { composePlanningMethodPacks } from "@molis-ai/molis-work-plugin-goals/module";
+import { createGoalsPage } from "@molis-ai/molis-work-plugin-goals/page";
 import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
-import { inWordsOf } from "./i18n.js";
+import { inWordsOf, withPluginWords } from "./i18n.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
   renderMolisWorkArrivalStylesheet as renderArrivalCss,
@@ -20,7 +23,7 @@ import { controlTokenMeta, createRendererHelpers, type RendererLocale } from "./
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
 import { createWorkbenchStageRenderers } from "./stage-renderers.js";
-import { renderWorkbenchDocument } from "./ui-composition.js";
+import { createArtifactReferenceRenderer, renderWorkbenchContribution, renderWorkbenchDocument } from "./ui-composition.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
   locale: RendererLocale;
@@ -33,8 +36,12 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { appendDesktopQueryToLocalHrefs, withDesktopQuery, bootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = ports.desktop;
   const { formatDate, renderList, prefixLocalLinks } = createRendererHelpers({ L, dateTimeLocale, appendDesktopQueryToLocalHrefs });
   const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, prefixLocalLinks });
-  const goals = createWorkbenchGoalsRenderers({ L, goalsL, currentLocale, listJoin, formatDate, renderList, defaultPolicy: DEFAULT_GOAL_POLICY });
-  const documents = createWorkbenchGoalsDocuments({ L, goalsL, formatDate, prefixLocalLinks, goals });
+  const { goals, documents, planningRenderer } = createGoalsPage<MolisWorkWebView>({
+    mount: renderWorkbenchContribution, L, goalsL, currentLocale, listJoin, formatDate, renderList, prefixLocalLinks,
+    renderReference: createArtifactReferenceRenderer({ escape: escapeHtml, icon, text: L }),
+    creatableKinds: view => creatableKinds(shownPagePlugins(view), pluginDirectoryFor(view.plugin_directory)),
+    inPluginWords: withPluginWords, renderTerminalPane, renderHint,
+  });
 
   const THEME_BOOTSTRAP_SCRIPT = `${BASE_THEME_BOOTSTRAP_SCRIPT}${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}`;
 
@@ -58,7 +65,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = createWorkbenchProjectSettingsPages({
     L, escapeHtml, formatDate, icon, htmlLang, listJoin, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-    navigation: { settingsContextHref, renderProjectSettingsNavigation, renderSettingsNavigation }, renderProjectPolicyDocument: goals.renderProjectPolicyDocument, composePlanningMethodPacks,
+    navigation: { settingsContextHref, renderProjectSettingsNavigation, renderSettingsNavigation }, renderProjectPolicyDocument: goals.renderProjectPolicyDocument, composePlanningMethodPacks, planningRenderer,
   });
 
   const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =

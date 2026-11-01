@@ -17,10 +17,7 @@ const exportDeclarations = entry.statements.filter(ts.isExportDeclaration);
 
 /** What `./ui-composition.js` gives out: the names that have a user outside it, each named here. */
 const UI_COMPOSITION_NAMES = [
-  "artifactWorkbench", "createArtifactReferenceRenderer", "createWorkbenchGoalsContextRenderer", "createWorkbenchGoalsDialogsRenderer",
-  "createWorkbenchGoalsDocumentRenderer", "createWorkbenchGoalsFactorsRenderer", "createWorkbenchGoalsMomentumRenderer",
-  "createWorkbenchGoalsPlanningRenderer", "createWorkbenchGoalsPolicyRenderer", "createWorkbenchGoalsRelationRenderer",
-  "createWorkbenchGoalsStatusRenderer", "createWorkbenchGoalsTreeRenderer", "createWorkbenchUiHost", "renderPluginSettingsContribution",
+  "artifactWorkbench", "createArtifactReferenceRenderer", "createWorkbenchUiHost", "renderPluginSettingsContribution",
   "renderWorkbenchDocument", "WORKBENCH_UI_SLOTS",
 ];
 
@@ -33,7 +30,7 @@ const PLUGIN_WORDS_USERS: Readonly<Record<string, readonly string[]>> = {
   // Takes a plugin's words out again; the Host has no path for it yet (an uninstalled plugin's words stay until restart), so only the tests call it.
   unregisterPluginMessages: ["tests/plugin-messages.test.ts", "tests/plugin-words-owned.test.ts"],
   // Every place the Host draws what a plugin supplies (a contribution, an action's title, a deletion dialog's data label) applies that plugin's words.
-  withPluginWords: ["apps/local-host/src/artifact-native-plugin-http.ts", "apps/local-host/src/home-plugin-executor.ts", "apps/local-host/src/installed-plugin-host.ts",
+  withPluginWords: ["apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/home-plugin-executor.ts", "apps/local-host/src/installed-plugin-host.ts",
     "apps/local-host/src/local-plugin-development.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/web-project-deletion.ts"],
 };
 
@@ -76,8 +73,7 @@ test("RAC-711 the names ui-composition, i18n and capsule-view give out are liste
 
 /** Names the entry gives out with no importer outside the workbench, each with why it stays. */
 const KEPT_WITHOUT_IMPORTER: Readonly<Record<string, string>> = {
-  ...Object.fromEntries(["createWorkbenchGoalsPageRenderer", "WorkbenchShellPageView", "WorkbenchShellPageOwners", "WorkbenchPlanningPageOwners",
-    "GoalsFragmentRenderers", "WorkbenchGoalPageSelection"].map(name => [name, "Goals' interface adapters, removed when Goals S11 moves them out"])),
+  ...Object.fromEntries(["createWorkbenchGoalsPageRenderer", "WorkbenchShellPageView", "WorkbenchShellPageOwners"].map(name => [name, "Goals' interface adapters, removed when Goals S11 moves them out"])),
   ...Object.fromEntries(["CapsuleGoalItem", "CapsuleSnapshot", "CapsuleState", "CapsuleStateKind", "CapsuleTab", "CapsuleTabKind", "ChooserArrival",
     "ProjectSettingsFoldId", "SideViewDocumentInput"].map(name => [name, "types the Host's declarations name without importing (TS2742 without)"])),
 };

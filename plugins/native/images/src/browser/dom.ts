@@ -33,3 +33,7 @@ export function dateLabel(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? "" : date.toLocaleString(document.documentElement.lang || undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+/** The first `max` characters of `value`, for names and titles a person reads. One character can be two UTF-16 units (an emoji, say); a cut by
+ * units can end between them, and encodeURIComponent on a name that ends on half of one throws. */
+export const firstCharacters = (value: string, max: number): string => [...value].slice(0, max).join("");

@@ -1,3 +1,4 @@
+// RAC-2810: the platform Artifact HTTP composition reads Manifest file declarations at its current path.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -57,6 +58,6 @@ test("RAC-418: the Manifest check refuses a file declaration that cannot work", 
 });
 
 test("RAC-419: the Host's 成果库 page names no Pages", () => {
-  const source = readFileSync(new URL("../apps/local-host/src/artifact-native-plugin-http.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../apps/local-host/src/artifact-library-http.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /PAGES_PLUGIN_ID|PAGES_READABLE_FILE|molis-work-plugin-pages/);
 });

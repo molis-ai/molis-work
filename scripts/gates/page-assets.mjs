@@ -242,11 +242,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-377 (RAC-2794–2797): reopening a failed plugin clears its old notice, while background restoration preserves its usable retry.
-// +219 B, approved in #1332 after source-level savings review: button-only cleanup misses reopen; a broad selector weakens ownership;
-// skipping every failed surface blocks explicit reopen. Reuses existing state and surface-change calculation; no new asset or state.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1150072, 1150291],
+  // T-362 (RAC-2743/2744, S-47) reads the current settings row's declared query/hash before forwarding an address.
+  // The stale row-map cache was removed, saving 97 B from the original +421 B implementation; the remaining read
+  // and filter are required. Approved in 6545370037 (<1 KB); this tuple is bound to the final main served bytes.
+  "/assets/molis-work-workbench.js": [1150291, 1150615],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

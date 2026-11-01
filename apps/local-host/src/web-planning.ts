@@ -3,7 +3,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions, personalPlanningActions, matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
-import { renderWorkbenchPlanningRequest, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { renderPlanningRequest } from "@molis-ai/molis-work-plugin-goals/page";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
@@ -44,7 +45,7 @@ export function createLocalPlanningHttp(ports: {
       try { methods = (await homeActions.invoke(personalPlanningActions.list, {})).methods; }
       catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
     }
-    const globalPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "personal", () => {
+    const globalPlanningPage = renderPlanningRequest(request.method, url.pathname, "personal", () => {
       return {
         methods,
         library: () => renderMolisWorkPlanningLibrary(methods, contextProject, controlToken, isDesktopShellRequest(request, url), projects, enabledPlugins),
@@ -95,7 +96,7 @@ export function createLocalPlanningHttp(ports: {
       catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
     }
     const pageView = route ? await readWebView() : null;
-    const projectPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "project", () => {
+    const projectPlanningPage = renderPlanningRequest(request.method, url.pathname, "project", () => {
       const view = pageView!;
       const methods = pageMethods;
       return {

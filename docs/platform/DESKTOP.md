@@ -5,33 +5,30 @@
 
 ## 1. 大白话说明
 
-Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开窗口、启动本地 Runtime、管理终端面板、显示菜单栏 Capsule，并在本地服务暂时不可用时恢复连接。它不判断 Goal 是否完成、不保存 Project 正式事实，也不复制 Feed、Session 或其他 Module 的业务规则。
+Desktop 是 Molis Work 在 macOS 上的“外壳和控制台”。它负责开窗口、启动本地服务、显示菜单栏 Capsule，并在本地服务暂时不可用时恢复连接。它不判断 Goal 是否完成、不保存 Project 正式事实，也不复制 Feed、Session 或其他 Module 的业务规则。
 
-例如，用户从一个 Goal 打开 Codex 面板时：
+例如，用户从一个 Goal 打开 Codex 终端时（T-148 起）：
 
-1. Desktop 根据 Runtime 类型生成启动命令和环境变量。
-2. Desktop Panel Service 检查用户确认、工作目录和面板生命周期。
-3. Project/Context port 只负责确认 Project 存在并记录关联；Desktop 不直接读取 Projects Store。
-4. Work 插件的终端客户端经受保护的 `/pty` WebSocket 调用 Local Host 终端服务；Tauri Adapter 控制窗口和原生入口。
+1. 工作台的终端客户端请 Goals 的路由 `…/goals/:goalId/terminals` 开终端；Goals 调平台的启动终端服务（`services.terminal`，S-103）。
+2. 平台按配方生成命令与环境变量，在项目关联的工作目录里起进程，记下终端（`plugin_terminal_panels`）并把它的 work context 绑到项目。
+3. 终端客户端经受保护的 `/pty` WebSocket 只附着、输入、改尺寸；这个通道不起进程。Desktop 不参与这条线，Tauri Adapter 控制窗口和原生入口。
 
 ## 2. 代码各管什么
 
 | 路径 | 职责 | 不负责 |
 | --- | --- | --- |
-| `apps/desktop/src/launch.ts` | Runtime 启动配方与面板环境变量 | 启动进程、保存 Session |
 | `apps/desktop/src/shell.ts` | 识别原生 Desktop 请求并保持本地链接的 `desktop=1` 上下文 | 页面业务渲染 |
-| `apps/desktop/src/panels.ts` | 面板打开、关闭、状态、别名和用户确认规则 | SQLite、Project 事实、PTY |
 | `apps/desktop/src/capsule-shell.ts` | Capsule 的 HTML、CSS、浏览器脚本和壳层交互 | Goal 工作状态组合 |
 | `apps/desktop/adapters/tauri/` | 窗口、菜单栏、PTY、本地 Web 服务启动与恢复 | Module 业务规则 |
-| `apps/desktop/src/adapters/sqlite-panels.ts` | Desktop Panel SQLite Repository | 面板业务判断 |
+| `apps/desktop/src/adapters/sqlite-panels.ts` | 已停用的桌面面板两张表的建表语句（T-148 起没有读写，何时删随 #1633 定） | 面板记录（Goal 的工作终端由 Goals 经平台的启动终端服务开，记录在 `plugin_terminal_panels`） |
 | `apps/desktop/src-tauri/` | Cargo/Tauri 配置、权限和打包资源 | Desktop 业务源码 |
 
 旧 `src/desktop/` 与 `src/web/desktop-shell.ts` 已删除；caller 使用 `@molis-ai/molis-work-app-desktop`。
 
 ## 3. 与其他边界怎样合作
 
-- Projects Module 只拥有 Project 身份和正式事实；Desktop Panel 是 App control state，不进入 Projects Module。
-- Private Work Context 拥有 Session 和 Runtime workspace 关联；Desktop 只保存面板到稳定 work context 的别名。
+- Projects Module 只拥有 Project 身份和正式事实；终端记录是平台的启动终端服务的（`apps/local-host/src/plugin-terminal-panels.ts`），不进入 Projects Module。
+- Private Work Context 拥有 Session 和 Runtime workspace 关联；终端记录只保存终端到稳定 work context 的别名。
 - Runtime Host 拥有通用 Runtime stream、重连和中断；当前工作台终端的连接在 `apps/workbench/src/terminal/connection.ts`，接 `apps/local-host/src/pty-socket.ts`。Tauri 仍登记原生 PTY 命令，其消费用途与 IPC 可达范围另待实探，不能以登记代替现行动线。
 - Workbench 提供共享页面壳；Desktop Capsule presentation 由 Desktop App 提供，Workbench 组合 read model，Local Host 注入主题与语言。
 - Feed Native Plugin 拥有外部内容脱敏规则；Desktop 推进提示直接调用其公开 API，不复制一份规则。
@@ -51,7 +48,7 @@ AP4 保持并迁移了以下既有能力：
 
 ## 5. 当前退出与发布状态
 
-原混合 Tauri main.rs 已按窗口、菜单、服务、面板等职责拆分；旧 Desktop 转发、Catalog 面板兼容方法与 Web Capsule 文件均已删除。Panel 持久化 Adapter 归 Desktop，Catalog 通过公开端口装配；Session 与 Runtime 规则归各 owner。
+原混合 Tauri main.rs 已按窗口、菜单、服务、面板等职责拆分；旧 Desktop 转发、Catalog 面板兼容方法与 Web Capsule 文件均已删除。面板服务与启动配方在 T-148 删掉，Desktop 只留两张旧表的建表语句；Session 与 Runtime 规则归各 owner。
 
 `apps/desktop/src-tauri/` 保留 Cargo/Tauri 发布配置和资源。最终 App、DMG、zip 与 ad-hoc 签名已构建，DMG 安装至临时目录后真实启动、退出并恢复原服务。没有升级现用安装，也未进行 Developer ID 公证或公开发布。
 

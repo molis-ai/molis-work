@@ -1,12 +1,12 @@
 # 桌面应用装配
 
-把本地 Web 产品接入桌面窗口、Panel、Capsule 和 Runtime 启动流程，并提供 macOS 发布工具。
+把本地 Web 产品接入桌面窗口与 Capsule，并提供 macOS 发布工具。
 
 包名：`@molis-ai/molis-work-app-desktop`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。Panel 和 Capsule 通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问。
+createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。Capsule 通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问。Goal 的工作终端由 Goals 经平台的启动终端服务开（S-103），本包不再有面板服务与启动配方（T-148）。
 
 ## 从哪里读代码
 
@@ -16,18 +16,13 @@ createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 o
 | --- | --- |
 | [src/web-host.ts](src/web-host.ts) | 桌面 Web Host 装配 |
 | [src/project-catalog.ts](src/project-catalog.ts) | 项目目录装配 |
-| [src/panels.ts](src/panels.ts) | Panel API |
-| [src/launch.ts](src/launch.ts) | Runtime 启动 |
+| [src/adapters/sqlite-panels.ts](src/adapters/sqlite-panels.ts) | 已停用的桌面面板两张表的建表语句（没有读写；何时删随 #1633 定） |
 
 可对照现有调用方 [apps/desktop/launchers/web/server.ts](../../apps/desktop/launchers/web/server.ts) 阅读装配方式。
 
 ## 接入与边界
 
 Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位页在 `webview-placeholder/`；本包不另建 Goal 状态机。App 构建、安装与 Developer ID 签名/公证是不同步骤，当前实现不能据此声称已公证或已公开发布。
-
-面板写入和 HTTP 启动准备共用 `desktopLaunchArgs` 检查：省略参数仍为 `[]`，提供时必须是字符串数组，空串、空格和每个字符串原样保留；非法输入以 `desktop.launch_args_input_invalid` / `invalid` 拒绝（HTTP 400），不写面板、别名、绑定或事件，也不生成启动计划。带 resume 的请求同样先检查显式参数，合法 resume 生成规则保持。
-
-面板持久化的 `launch_args` 只接受 JSON 字符串数组。损坏 JSON、非数组或含非字符串的数组以 `desktop.launch_args_invalid` / `internal` 拒绝完整记录读取（HTTP 500）；包含坏记录的本次列表，以及依赖读取的重开、状态修改、关闭和别名操作也拒绝。失败不改原数据、不生成启动参数，也不把坏记录当成无参数启动；其他 Goal 的合法面板仍可读取。整项目删除经面板 owner 的窄 `listIds` 检查进程中的存活终端，坏参数不会卡住已确认且无活终端的项目删除；原有删除事务仍清理面板、别名和绑定。本包不提供单条坏记录的自动修复或单独删除。
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
@@ -52,7 +47,7 @@ pnpm --filter @molis-ai/molis-work-app-desktop typecheck
 pnpm --filter @molis-ai/molis-work-app-desktop build
 ```
 
-已有行为示例与回归：[desktop-tui.test.ts](../../tests/desktop-tui.test.ts)、[持久化参数故障回归](../../tests/desktop-launch-args.test.ts)。完成上述构建后运行：
+已有行为示例与回归：[desktop-tui.test.ts](../../tests/desktop-tui.test.ts)。完成上述构建后运行：
 
 ```bash
 node scripts/run-tests.mjs tests/desktop-tui.test.ts

@@ -16,3 +16,10 @@
 共享文档仅交具体hunk：T390 S103；T386 S30与README由根串行采用已审patch；PR1b仅原privileges/边界hunk，不覆盖T121/#1672/保护PR其它行。各作者不得自行写page-assets预算或APPROVED_CEILINGS，先交准确M/H的48响应；根逐线给精确资源窗，兄弟补丁不能互相抵销或偷带。PR1b的公共API按最终源码生成，其后SDK工作继续等待。
 
 根继续独自GH/push/Full/merge/协调。新main到来只核实际输入变化，有效证据不机械重跑。在途兄弟补丁不是已采用main。Full暂停按T389旧Linux问题另结；保护分支、真实Home/Keychain/模型/凭据禁区不变。
+
+
+## 06:50Z 接续裁定
+
+T390已发布#1719，产品writer交回；T386最终本地核收后冻结，等待T389实际采用的准确资源组合。T065当前[PLAN](../T065-next/PLAN.md)及[独立REVIEW](../T065-next/REVIEW.md)已接受：开发线2现在可在独立树从prepared df4d3f92普通merge实际M08642dcb9，34非资源blob与3文档窄核/证据映射先做，不需等待资源窗；不改原作者树、不导入候选、不build/test或推送。最后资源冻结安排为T389实际采用→T386正常吸收、重新实测许可并实际采用→T065；此为减少重复资源工作的排程，不是T065功能前置。
+
+T144父T143已采用，当前接续[PLAN](../T144-current/PLAN.md)/[REVIEW](../T144-current/REVIEW.md)可解除旧父等待；仍待PR1b实际SDK/parser/export冻结确认和根Assistant接缝交接。准备稿关于保护合同的概括以REVIEW校正为准：准确#1101 assistant合同只新增PurgeSelection再导出。没有授权碰保护分支。T141及BL916当前接续正在有限核锁；不因材料陈旧保留已经解除的整单等待。

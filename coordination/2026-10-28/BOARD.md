@@ -16,14 +16,14 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-391 | EXTENSION-POINTS外加项现行措辞 | 丙 | Codex开发线4；验证线5/一审线2二审 | #1717实际采用08642dcb9，patch-id同；自有树/分支已清 | full=false，文案RAC2837～2839完成 | 唯一文档10行15项与历史限定；原件保留 |
-| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | 实施与完整文件验证；根已接受仅追加SI收录 | Mdb29；full最终实际diff裁定，Linux证据待CI | 原四路径+package.json test:security末尾单token；S103本行 |
+| T-390 | 非法MCP session写前拒绝alias与绑定 | 丙 | Codex开发线1；验证线4/二审线1 | #1719 @b7eee1b，根核本地审验及fresh secrets后普通发布 | full=false；准确CI/SI及采用未结 | 五路径，S103/安全命令末尾；候选冻结 |
 | T-369 | MCP alias等待中换连接拒绝证据 | 丙 | Codex开发线3；验证线3/二审线5 | 已合 #1716 → db29f18d4（05:46Z） | full=false；未新增Linux动态证据 | 作者树与本地分支已清，原件保留；合入审计6554193654按用户具体批准发布 |
-| T-389 | 项目动线添加来源失败诊断及当前菜单恢复修复 | 甲 | Codex开发线2；验证线1/二审线4 | #1718 @13767116，本地核收/独立终审通过 | full=true；等准确Verify后首次Full，旧LinuxUNKNOWN | 四client片段+永久测试+精确99B资源；作者已冻结 |
+| T-389 | 项目动线添加来源失败诊断及当前菜单恢复修复 | 甲 | Codex开发线2；验证线1/二审线4 | #1718 @13767116，Verify已过，首次Full41281594550在跑 | full=true；旧LinuxUNKNOWN保留；审验6554580999/6554581602按用户批准原样发布 | 七路径/99B资源；作者冻结 |
 | T-388 | stop-feedback测试等待pause持久化 | 丙 | Codex开发线4；验证线4/二审线5 | #1715实际采用820d9a0f5，补丁核同；自有作者树已清 | full=false；旧CI首败因果UNKNOWN保留 | 已释放；仅一行await |
 | T-384 | 四片共享核心合成与采用 | 甲 | Codex开发线4；验证线5/二审线1 | #1712实际采用15ad4f397；原四PR已按承载采用关闭 | Verify/SI/Full16片+聚合及队列通过；两retry-only保留UNKNOWN | 生产writer释放；冻结构建/金样原件暂供后继核抵 |
 | T-385 | T346/T347两片storage普通承载 | 甲 | Codex开发线1；验证线1/二审线4 | #1713 @44efe84d9；本地/普通CI核收，Full41271185187失败 | 390px project-user-journey同点首跑/retry红；只读归因中，未重跑/取消 | 两原片10路径不扩修；9片成功/1失败/6矩阵取消，旧失败保持 |
 | T-387 | T299/T345/T373三片普通承载 | 甲 | Codex开发线1；验证线3/二审线5 | #1714 @3862de92；本地构建/独立审验/推前secrets核收 | full=true；普通CI已核，等T389结论恢复Full调度；三原PR只读；48资源零增量 | 原三片10路径自有hunk；最终Full核ledger/runtime/aggregate三完整文件，原失败边界保持 |
-| T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线4；验证线3/一审线2二审 | 六行为合成/10用例与A/B核收；最终配套执行 | Mdb29；根批准两精确tuple，full=true待T389采用 | 六原文件+README/S30精确文案+资源配套；公共槽 |
+| T-386 | T379/T380双片W6修复普通承载 | 甲 | Codex开发线4；验证线3/一审线2二审 | 最终cb931本地作者/独立核验/二审核收，10例/A-B沿用有效输入 | full=true；等T389实际采用后最小同步；171门禁槽偏差保留 | 六行为+四配套冻结；资源后续按实际M重测 |
 | T-382 | BL-926平台成果库HTTP路径改名 | 丙 | Codex开发线4；验证线4/二审线1 | #1710实际采用main4b04947e7；patch-id同、原树/分支已清 | full=false；作者六完整64/64及边界97/97/三负例保来源，无新独立动态重复 | tasks/T-382.md精确清单；T116 Goals hunk不动 |
 | T-383 | Pages父上下文保存完成后再刷新 | 丙 | Codex开发线2；验证线3/二审线5 | #1711已实际采用main6729a2d46；完整patch/patch-id同，full=false | full=false；初轮私有槽不合格保留，历史Linux因果UNKNOWN | 仅tests/pages-actions.e2e.test.ts；保护#1101共享fixture不交写 |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
@@ -334,7 +334,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-375 | 文档来源冲突enable/attach零副作用证据（RAC-2787～2790） | 丙 | Codex 开发线3；验证线5/二审线3 | #1701 已合4b2f971a8；patch-id同，审计6549559978 | full=false；丙档不设一审；自有干净树/本地分支已清，测试锁释放 | 仅 `tests/integration-registry.test.ts` |
 | T-376 | Artifacts归属与插件动作消费两处文档校正（RAC-2791～2793） | 丙 | Codex 开发线4；验证线1/二审线1 | #1702 已合0b8571fae；patch-id同，审计6549560922 | full=false；自有干净树/本地分支已清，不签W6-03/RAC-11动态完成 | `docs/system/ARCHITECTURE.md`、`docs/platform/PLUGIN-PLATFORM.md` |
 | T-141 | Home app/source原地升级及origins真实设置预览（RAC-2615～2619） | 甲 | Codex 开发线1；独立二审线5终核 | 修订2完整工程书已接受；真实factory测试侧透传，无生产控制API | full=true；#1701测试锁已解；#1672 registry/T143 Home仍WAIT | 详见tasks/T-141.md；共享SI/slice根串行 |
-| T-144 | 签名包角色/方法正文来源、取材与末端复核（RAC-2636～2643） | 甲 | Codex 开发线3；独立二审线1 | A–D工程书已接受并保存plans/T144；唯一需求仍accepted slice§7 | WAIT T143采用及共享锁；full=true，未实施 | 详工程PLAN精确路径；不应用受锁主线候选diff |
+| T-144 | 签名包角色/方法正文来源、取材与末端复核（RAC-2636～2643） | 甲 | Codex开发线3；独立二审线1 | A–D工程书及当前父合同窄核已接受 | T143采用等待已解除；SDK冻结与Assistant具体交接未结，full=true | 详plans/T144-current；保护分支不动 |
 | T-136 | 平台的启动终端服务：宿主运行的插件（Home 与项目实例）按安装授权可用，工作目录只在允许的根里（S-103；RAC-2550～2559；BL-910；full=true；统筹大单，用户 10-30 裁） | 甲 | A-Claude | 统筹定 | 合并排在 #1549（S-102）之后；开发不等 | `packages/contracts/src/platform/plugin-host-services.ts`、`apps/local-host/src/plugin-terminal-service.ts`、`apps/local-host/src/home-plugin-executor.ts`、`apps/local-host/src/plugin-host-services.ts`、`apps/local-host/src/plugin-service-permissions.ts`、`packages/plugin-sandbox/src/services.ts`、`plugins/native/shelf/src/home-plugin.ts`、新 `tests/security-invariants-plugin-terminal-launch.test.ts`、`tests/dual-instance-services.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改新增的 S-103 行与 S-60 行 |
 | T-137 | 工作终端交给Goals并走平台启动终端服务（BL-695/637/508） | 甲 | Codex 开发线1 | 已合 #1643 → `0926d15a9`；patch-id核同；自有树/分支已清理 | 后片T-148已交开发线4 | 已释放 |
 | T-138 | 设置页里，个人空间的插件包说出没能启动的原因和被撤销信任，并能停用、启用、卸载（BL-715；PG-011 余项；RAC-2600～2607；BL-915；full=true；统筹大单） | 甲 | A-Claude | 已合（10-31，#1642 → `126851bb7`） | —（页面字节排在 #1551/#1569/#1594/#1607 后） | `packages/contracts/src/platform/plugin-trust.ts`、`tooling/gates/api/contracts/platform/plugin-trust.txt`、`apps/local-host/src/plugin-installed-view.ts`、`apps/local-host/src/project-plugin-ports.ts`、`apps/local-host/src/plugin-install-service.ts`、`apps/local-host/src/plugin-install-actions.ts`、`apps/local-host/src/plugin-trust-actions.ts`、`apps/local-host/src/plugin-permission-settings-http.ts`、`apps/workbench/src/settings-plugins.ts`、`apps/workbench/src/i18n/plugin-trust-en.ts`、`tests/plugin-trust-view.test.ts`、`tests/security-invariants-plugin-permissions.test.ts`、`tests/security-invariants-plugin-permissions-http.test.ts`、`tests/home-plugin-settings.test.ts`（新）；只改自己那一处：`docs/system/SECURITY-INVARIANTS.md`（只 S-94 行）、`tooling/gates/actions/host-actions.tsv`（只经 `actions:update`）、`tooling/gates/page-assets.json`、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS` 一条） |
@@ -499,3 +499,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 2026-11-01 06:12Z：按用户提高并行要求，根fresh核main db29与21个open PR，四线生产/测试路径两两无交集；T389/开发2继续，T390/开发1、PR1b/开发3、T386/开发4获独立树并行窗口。公共build/browser各1、资源与文档hunk根串行，实际后继依赖和Full暂停保留。详plans/parallel-2026-11-01/PLAN.md。
 
 2026-11-01 06:32Z：T391实际采用/patch-id/队列原件/自有树清理结账。T389最终H本地38业务文件271/271及资源门171/171、48响应47同/+99B已核，独立审验通过后普通推送开#1718；根人工full=true仅给修复首次Linux全量，准确Verify待结。T386根接受+179/+559精确tuple并串行应用README/S30，作者收最终配套；T390独立CI方案接受，仅追加project-catalog至SI，保正在跑的批自然结束和原测试修订失败原件。PR1b三必修、正常66完整HTML与负例/README批进行中。T065接续只读准备明确由开发4移交开发2，无新产品语义或实现授权。
+
+2026-11-01 06:50Z：T390准确b7eee1b已开#1719，本地原副作用红、最终25/25加64文件625/625沿用及独立审验经根核收；full=false、真实SI/CI待结。T389审验两评论获用户具体批准后原样发布，首次Full在跑。T386最终cb931作者/独立验证/二审核收，171门禁只拿build槽的偏差明确保留，不重跑补历史；等T389采用后真实资源合流。T065当前同步书独立审通过，开发2可先非资源普通merge/证据窄核；T144父等待解除，SDK/Assistant窗口另结。

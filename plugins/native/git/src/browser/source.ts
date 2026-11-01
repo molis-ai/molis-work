@@ -140,7 +140,7 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
     q("[data-git-diff]").replaceChildren();
     diffNotice.textContent = L("git.op.review-note");
     await showReviews(page);
-    if (current()) await loadOperations(page);
+    if (current()) await afterDecision(page, { workspaceId: page.workspace, state: "pending" });
   } catch (error) {
     if (current()) { scStatus.textContent = S(messageOf(error)); await loadSource(page); }
   }
@@ -173,6 +173,7 @@ export async function afterDecision(page: GitPage, outcome: DecisionOutcome): Pr
     try {
       const value = await request<{ workspace: { workspace_id: string }; operations: OperationRecord[] }>(page, "/operations");
       if (!current() || value.workspace.workspace_id !== workspace) return;
+      page.operations.replaceChildren(...value.operations.slice(0, 6).map(operation => recordItem(page, operation)));
       record = value.operations.find(operation => operation.review_id === prepared.reviewId);
     } catch {
       if (current()) scStatus.textContent = L("git.op.no-receipt", { reason });

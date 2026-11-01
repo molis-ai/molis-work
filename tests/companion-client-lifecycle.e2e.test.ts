@@ -388,6 +388,7 @@ test("T405-GIT-01 a late index decision cannot consume a preparing or pending co
   const reads = count("GET /git/state"), polls = count("GET /git/view-revision"), shows = await page.evaluate<number>("shows");
   revision++;
   await page.evaluate("decide('rejected')");
+  await until(() => count("GET /git/view-revision") > polls);
   await until(() => count("GET /git/view-revision") > polls + 1);
   assert.equal(count("GET /git/state"), reads, "neither the old receipt nor revision polling invalidates an operation being prepared");
   pending.get(post)![0]!.end(JSON.stringify({ review_id: "commit-current" }));
@@ -442,6 +443,34 @@ test("T405-GIT-02 a failed or hidden commit-result read preserves its identity a
   outcome = "succeeded"; await page.evaluate("decide('settled')");
   await page.wait("document.querySelector('[data-git-commit-message]').value===''");
   assert.equal(count("POST /git/operations"), 1, "hide and result-read failure do not repeat the operation");
+  assert.deepEqual(await page.evaluate("errors"), []);
+});
+
+test("T405-GIT-03 a commit settled before its prepare response arrives is reconciled from its own record", { timeout: 30_000 }, async t => {
+  let outcome = "pending";
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+    const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
+    window.boot=()=>(${pageFactory("git")})(host);boot();
+  `, path => {
+    if (path.endsWith("/view-revision")) return { revision: "one" };
+    if (path.endsWith("/summary")) return { workspace: { workspace_id: "ws" }, summary: {
+      branch: "main", head_commit: "head", remotes: [], branches: ["main"], staged: ["note.md"], conflicted: [], merging: false, revision: "one",
+    } };
+    if (path.endsWith("/operations")) return { workspace: { workspace_id: "ws" }, operations: [{ review_id: "commit-current", tool: "git-commit", outcome }] };
+    return state("git");
+  }); if (!f) return;
+  const { page, count, blocked, pending } = f, post = "POST /git/operations";
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelector('[data-git-branch]').textContent==='main' && !document.querySelector('[data-git-refresh]').disabled");
+  blocked.add(post);
+  await page.evaluate("document.querySelector('[data-git-commit-message]').value='already settled draft'");
+  await page.click("[data-git-commit]"); await until(() => pending.has(post));
+  outcome = "succeeded";
+  await page.evaluate("decide('settled')");
+  assert.equal(await page.evaluate("document.querySelector('[data-git-commit-message]').value"), "already settled draft", "no response identity has arrived yet");
+  pending.get(post)![0]!.end(JSON.stringify({ review_id: "commit-current" }));
+  await page.wait("document.querySelector('[data-git-commit-message]').value===''");
+  assert.equal(count(post), 1, "the original authoritative record settles the UI without replay or a second notification");
   assert.deepEqual(await page.evaluate("errors"), []);
 });
 

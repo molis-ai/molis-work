@@ -157,6 +157,11 @@
       "reason": "胶囊条目的投影：由目标与状态推出决定、可做、阻塞、进行中、等待、最近完成六类条目，共用 itemBase 与排序；一个投影按条目类别分支，每类 14 到 19 行。",
       "size": 229
     },
+    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": {
+      "kind": "cohesive-unit",
+      "reason": "单个不透明插件 frame 的生命周期与私有端口适配：消息分派共享同一个 scope、page、窗口和清理闭包，统一在显隐与卸载时撤销；业务处理已在独立模块，拆开此入口会分散同一端口的所有权和释放顺序。",
+      "size": 182
+    },
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
       "kind": "cohesive-unit",
       "reason": "标签布局的纯操作集（拆分、移动、并排打开、规范化、关闭、固定），对同一棵布局树做变换；它被 toString 注入浏览器，必须自成一体，W5-04 打包后才能分文件。",

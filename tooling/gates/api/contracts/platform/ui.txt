@@ -243,6 +243,12 @@ export declare const UI_VIEW_RAILS: readonly ["core", "extend"];
 
 export declare const UI_VIEW_SLOTS: readonly ["navigator", "stage", "settings", "island", "side"];
 
+export interface UiClientMount {
+    readonly contribution_id: string;
+    readonly surface: string;
+    readonly target_slot_id: string;
+}
+
 export interface UiClientScope extends UiRequestScope {
     readonly alive: boolean;
     readonly visible: boolean;
@@ -254,6 +260,24 @@ export interface UiClientScope extends UiRequestScope {
 }
 
 export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;
+
+export interface UiConnectionSlotChoice {
+    readonly connection_id: string;
+    readonly label: string;
+    readonly auth_method: string;
+    readonly state: string;
+}
+
+export type UiConnectionSlotRequest<Element = unknown> = {
+    readonly slot_id: string;
+    readonly record_key: string;
+    readonly signal?: AbortSignal;
+} & ({
+    readonly mode: "read";
+} | {
+    readonly mode: "choose";
+    readonly anchor: Element;
+});
 
 export interface UiContribution<TModel = unknown> {
     readonly descriptor: UiContributionDeclaration;
@@ -286,6 +310,11 @@ export interface UiFailureView {
     toast(target: UiToastTarget, error: unknown, fallback?: string, options?: UiToastOptions): void;
 }
 
+export interface UiFrameAssetReference {
+    readonly kind: string;
+    readonly id: string;
+}
+
 export interface UiHostApi {
     register<TModel>(contribution: OwnedUiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -312,6 +341,7 @@ export interface UiNestedContentModel {
 
 export interface UiPageActions {
     invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
+    actionAvailability(reference: ActionReference): Promise<ActionAvailability>;
 }
 
 export interface UiPageDialogs {
@@ -387,7 +417,13 @@ export interface UiPageTerminal<Element = unknown> {
 }
 
 export interface UiPageView<Element = unknown> {
-    readDocument(): Promise<string>;
+    readDocument(query?: {
+        object?: {
+            id: string;
+            surface: string;
+        };
+        signal?: AbortSignal;
+    }): Promise<string>;
     onClosing(action: {
         reference: ActionReference;
         input: unknown;
@@ -414,6 +450,17 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
     readonly root: Element;
     readonly scope: UiClientScope;
     readonly translate: UiClientTranslate;
+    readonly mount: UiClientMount | null;
+    readonly search?: string;
+    readonly view: UiPageView<Element>;
+    openView(selection: UiViewSelection): void;
+    invalidateView(): void;
+    connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+    openItem(surface: string, itemId: string, title?: string): void;
+    openBeside(surface: string, itemId: string, title?: string): void;
+    openPlugin(surface: string, view?: string, panel?: string): void;
+    hideDirectory(): void;
+    showToast(message: string, failure?: boolean): void;
     readonly pluginId: string;
     projectId(): string;
     projectTitle(): string;
@@ -623,6 +670,13 @@ export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 export type UiViewHue = (typeof UI_VIEW_HUES)[number];
 
 export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
+
+export interface UiViewSelection {
+    readonly surface: string;
+    readonly id?: string;
+    readonly panel?: string;
+    readonly intent?: "open" | "select";
+}
 
 export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 

@@ -461,7 +461,7 @@ export function settlePluginTabs(pane, newPluginTab, loose) {
   pane.tabs = pane.tabs.filter((tab) => tab.kind !== "plugin" || !heads.has(tab.plugin) && Boolean(heads.add(tab.plugin)));
   for (let index = 0; index < pane.tabs.length; index += 1) {
     const tab = pane.tabs[index];
-    if (tab.kind === "item" && loose(tab) && !heads.has(tab.plugin)) { pane.tabs.splice(index, 0, newPluginTab(tab.plugin)); index += 1; }
+    if (tab.kind === "item" && loose(tab) && !heads.has(tab.plugin)) { pane.tabs.splice(index, 0, newPluginTab(tab.plugin)); heads.add(tab.plugin); index += 1; }
   }
   if (pane.viewPlugin && pane.viewPlugin !== "home" && !heads.has(pane.viewPlugin)) pane.tabs.push(newPluginTab(pane.viewPlugin));
   const members = new Map();

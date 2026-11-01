@@ -233,8 +233,7 @@ async function* materialEvidence(home: string, id: string, references: ContextRe
     const body = await readStagedText(home, id, ref.text);
     let offset = 0, part = 1;
     while (offset < body.length) {
-      let end = Math.min(offset + 12_000, body.length);
-      if (end < body.length && /[\uD800-\uDBFF]/u.test(body[end - 1]!)) end--;
+      const end = cutHead(body, Math.min(offset + 12_000, body.length)).length;
       yield { labels: [ref.label], title: ref.title, part: part++, body: body.slice(offset, end) };
       offset = end;
     }
@@ -334,7 +333,7 @@ function partEndByUnits(text: string, offset: number, size: number): number {
   let end = Math.min(offset + size, text.length);
   const line = end < text.length ? text.lastIndexOf("\n", end - 1) : -1;
   if (line >= offset + size / 2) end = line + 1;
-  else if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end--;
+  else end = cutHead(text, end).length;
   return end;
 }
 /** Where the part that starts at `offset` ends, `size` counted in characters: a pair of units is one, so a part never ends inside it. */
@@ -431,8 +430,7 @@ async function* pageParts(pageBody: PageBody, text: string): AsyncGenerator<Pros
     try { body = await pageBody(part); }
     catch (error) { if ((error as { code?: unknown }).code !== "pages.body_too_large" || part.length < 2) throw error; }
     if (body && (part.length < 2 || JSON.stringify(body).length <= PAGE_BODY_MAX)) { yield body; continue; }
-    let half = Math.ceil(part.length / 2);
-    if (/[\uD800-\uDBFF]/u.test(part[half - 1]!)) half--;
+    const half = cutHead(part, Math.ceil(part.length / 2)).length;
     yield* pageParts(pageBody, part.slice(0, half)); yield* pageParts(pageBody, part.slice(half));
   }
 }

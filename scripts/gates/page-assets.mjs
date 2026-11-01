@@ -243,12 +243,14 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T-386 (RAC-2823/2824/2825, S-30): trusted frame search and Goals pane restoration reuse the existing bridge,
-  // source resolver and saved board view. The required source/visibility/terminal checks cannot be omitted;
-  // the source-level savings review found no equivalent reduction. Re-measured after T-389 adoption on
-  // 2026-11-01: +559 B workbench and +179 B plugin-frame, approved by the coordinator; no offset or slack.
-  "/assets/molis-work-plugin-frame.js": [190838, 191017],
-  "/assets/molis-work-workbench.js": [1150714, 1151273],
+  // T-394 (RAC-2855/2856): signed role/method previews and provenance handoff retain complete names,
+  // excerpts and change/source display, reusing T141's shared UI helpers. The combined feature adds
+  // 1,390 B after those existing savings. Measured against adopted e4bf46ca; the coordinator authorized
+  // this exact final carrier allowance, without changing the resource gate or adding a served path.
+  "/assets/molis-work-workbench.js": [1151273, 1152663],
+  // T-353 (RAC-2726–2728): Jelly's row summary uses the SDK cutHead instead of a second inline implementation.
+  // +33 B for the shared import/call; an inline copy keeps the duplication and precomputation still needs this helper.
+  "/assets/molis-work-plugins/jelly.js": [76866, 76899],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

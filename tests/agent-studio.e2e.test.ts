@@ -17,7 +17,7 @@ import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platf
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { STUDIO_HARNESS_PATH } from '../scripts/agent-studio-harness.mjs';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
@@ -37,7 +37,7 @@ test('studio: a request becomes a working, published plugin that the person can 
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0;
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
@@ -339,7 +339,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const databasePath = join(home, 'project.db'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
   const locale = createWorkbenchLocale(() => 'en');
   const server: Server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
@@ -459,7 +459,7 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
     }) });
   });
   const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file), token = randomUUID(), mutations = new Map<string, LocalMutationState>();
-  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) }, installed = await ensureInstalledPlugins(options);
   const build = installed.releases.create('Network upgrade fixture'), pluginId = 'io.molis.work.generated.' + build.id;
   // A design always has at least one page (agent-experience refuses one without); the studio canvas draws from the first.
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [{ id: 'main', title: '天气', regions: [{ id: 'main', title: '天气', operationIds: ['fetch'] }] }], acceptance: [], operations: [

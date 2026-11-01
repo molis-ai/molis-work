@@ -1,4 +1,4 @@
-import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
+import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -1074,7 +1074,7 @@ test('through the studio surface: the studio asks Jev the question the person sa
 // W2-18-BUILDER-LATE-01: a reset belonging to an older job cannot adopt or connect into its replacement.
 test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed build preview', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const home = mkdtempSync(join(tmpdir(), 'builder-reset-http-')), file = join(home, 'project.db'); seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) };
+  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0), browserExecutable: dedicatedBuilderBrowser() };
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
@@ -1171,10 +1171,10 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
     handlers: [{ ...projectProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
   let modelCalls = 0, enabledProjectPlugins = 0;
   const options = { store, projectId: project.project_id, homeDirectory: f.home, routePrefix: '/projects/' + project.project_id,
-    ...fixture, actorId: LOCAL_PERSON_ACTOR_ID, actions: { registry: actions, client: actions, project_id: project.project_id },
+    ...fixture, browserExecutable: dedicatedBuilderBrowser(), actorId: LOCAL_PERSON_ACTOR_ID, actions: { registry: actions, client: actions, project_id: project.project_id },
     homeActions: { registry: f.host.actionRegistry(), client: f.host.homeActionClient(), inspect: f.host.inspectActions.bind(f.host), project_id: null },
     enablePlugin: async () => { enabledProjectPlugins++; throw new Error('A Home check cannot enable a project plugin'); },
-    agents: async (build: AgentBuild) => { const agent = fixture.agents(build); return { ...agent, async run(request: BuilderAgentRequest) {
+    agents: async (build: AgentBuild) => { const agent = await fixture.agents(build); return { ...agent, async run(request: BuilderAgentRequest) {
       modelCalls++; const record = await agent.run(request);
       if (request.role === 'designer') { const answer = JSON.parse(record.output);
         if (answer.design) { answer.design.operations = answer.design.operations.filter((operation: { id: string }) => operation.id !== 'notes.expand');

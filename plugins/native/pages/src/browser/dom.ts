@@ -7,6 +7,23 @@ export function make<K extends keyof HTMLElementTagNameMap>(tag: K, className: s
   return node;
 }
 
+/** The first `limit` whole characters of `value`: never half of one (an emoji is one character, two UTF-16 units), and reads no further than that. */
+export function firstCharacters(value: string, limit: number): string {
+  let end = 0, count = 0;
+  for (const character of value) {
+    if (count === limit) break;
+    end += character.length;
+    count += 1;
+  }
+  return value.slice(0, end);
+}
+
+/** The first `limit` UTF-16 units of `value`, without leaving half a character at the end (a cut ending on a high surrogate drops it). */
+export function cutUnits(value: string, limit: number): string {
+  const cut = value.slice(0, limit), last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
 /** The node a page the server drew must have. */
 export function required<T extends Element = HTMLElement>(root: ParentNode, selector: string): T {
   const node = root.querySelector<T>(selector);

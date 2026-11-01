@@ -146,3 +146,6 @@ T068准许原§4指定精确模块：contracts/platform/plugin-integrations.ts�
 ## T395 翻译修复冻结父的接续窗口
 
 根已逐差量核T395修复源码冻结7f192b0c321db26e0796d2e138f9852406fffd7d/treec4c6951013c1a2a889128bcf0446fb35fff835b3，四生产路径和两测试严格限于既有跨owner翻译回调及空选择oracle，原书范围不变；作者已交回source writer，仅继续构建/raw。允许根在干净候选树普通merge该冻结父，只处理真实冲突，保持本片全部已核合同；公开API最终候选待根准确生成采纳，再正常合入metadata提交，不手改快照。此提前接父只调整本地排程，不签T395 Full/实际采用，不提前发布。新的生产输入需要各自一次matching build与必要raw；只补该翻译接口实际受影响的完整文件，不重跑原成员矩阵。PR2恢复前固定T399父，保其14路径WIP。
+
+
+18:09Z提速窗口：T068最终942be3bd的父修复matching build/63包、四完整文件和raw门禁已通过，原审验只核相同父增量。根普通push并开#1725；初始以T395为base未触发CI，核现行工作流只接受main且不监听edited后，于18:14Z改base为main、在确认无运行CI后关闭并立即重开，准确CI41335587875已运行。实际采用仍等T395；只在真实冲突时普通merge，不为步骤变化重复未变证据，最终按准确H的Verify/SI/Full及实际main结算。

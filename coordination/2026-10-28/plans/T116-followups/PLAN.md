@@ -205,3 +205,10 @@ RAC2686要求英文键真正归Goals，故RAC2680的原始全HTML字节恒等只
 ## 2026-11-01 18:05Z 用户提速：开发与采用分开排程
 
 用户明确要求加速并行，不再让后续开发等T395整单采用。保留原完整行为/验收，取消本任务之前由统筹保守设置的整线唯一writer及开发前实际main条件：PR2、T403各独立树实施；只有真实同hunk合流、公共build/browser槽、共享API/action/预算结算和最终发布采用串行。PR2已保存原WIP40f61de52，普通合T399 debaf12，默认head split丢view P1已在原ops/新view测试内修正；冻结3193473272b769cef618af2a1f91ee8842dbdb2b交T403，PR2作者继续原六完整文件/同profile真实浏览器重启，不能放宽断言。T403由开发线3从该准确冻结父在独立feature/t403-plugin-clients完整实施原六书/RAC2515～2519，平台/插件精确路径沿/tmp/t403-next/CURRENT.md；不等T395/T399实际采用才写代码，不复制PR2 WIP。后续PR2如修共享hunk，先冻结再普通merge，保双方合同。Functions A原批准保持，三个新资源先形成可审阅源码/实际字节，再交根具体询问；批准前不发布预算增长。最终合入仍在父采用及本头CI/Full满足后，不降低验收。
+
+
+## 2026-11-01 18:28Z PR2精确元数据与通用客户端接缝
+
+根核候选92234791的必要view读写与旧布局一次清理后，批准createTabWorkspaceOps现有cohesive登记425→441和workbench.js1157286→1158638（+1352B，无新URL）；作者已删除旧双状态/回填并合并消息，增长有必要。将该精确三元数据窗口委派原开发线1串行执行：原giant理由保留，删除已消费T399三项许可，仅加本项准确许可及原因，官方资源update以4880为base；不改算法/阈值。脚本改变后取一次最终matching整体build及所涉门禁，不重复已有效的产品浏览器矩阵。
+
+T403可按原mount合同增加packages/contracts/src/platform/plugin-registration.ts的有限clientMounts声明及API快照；必须由可信实际registration/client调用链消费，不能由BUILTIN_PLUGIN_CATALOG按owner点名赋权，补通用非内置owner正反例。该接缝属既有同待遇范围，不新增产品选择。三新资源实测审批仍独立保留。

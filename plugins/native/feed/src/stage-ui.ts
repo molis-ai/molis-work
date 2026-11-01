@@ -1,98 +1,54 @@
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type {
-  FeedUiEntry,
-  FeedUiItem,
-  FeedUiModel,
-  FeedUiPrimitives,
-  FeedUiSource,
-  PersistedFeedDetailModel,
-} from "@molis-ai/molis-work-plugin-feed";
-import { renderFeedContribution } from "./ui-composition.js";
-import { GMAIL_SCOPE_PRESETS } from "@molis-ai/molis-work-integration-gmail/scope";
-
-import type {
-  FeedItemRecord,
-  FeedItemType,
-  FeedSourceRecord,
-  InboxEntryRecord,
-} from "@molis-ai/molis-work-plugin-feed";
-import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { renderRichText, richPlainText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
-import type { MolisWorkWebView } from "./page-view.js";
+import type { FeedItemRecord, FeedItemType, FeedSourceRecord } from "./projection.js";
+import type { FeedStageData, FeedReaderData } from "./query-actions.js";
+import type { FeedUiEntry, FeedUiItem, FeedUiModel, FeedUiPrimitives, FeedUiSource, PersistedFeedDetailModel } from "./ui.js";
+import { feedSourceUiKind } from "./source-presentation.js";
 
-export type FeedSupplementalEntry = FeedUiEntry;
+type FeedText = { L: FeedUiPrimitives["text"] };
+type FeedStageView = { route_prefix: string; data: FeedStageData };
 
-/** The page's translation and date locale, which every Feed model and render reads. */
-type FeedText = {
-  L(text: string, values?: Record<string, string | number>): string;
-  dateTimeLocale(): string;
-};
-
-export function createWorkbenchFeedProjectionRenderer(text: FeedText) {
-  const ui = feedUiPrimitivesFor(text);
-  const buildFeedNativePluginModel = (
-    view: MolisWorkWebView,
-    preset: FeedItemType,
-    supplementalEntries: readonly FeedSupplementalEntry[] = [],
-    active = false,
-  ): FeedUiModel => buildFeedModel(text, ui, view, preset, supplementalEntries, active);
-
-  function renderFeedNativePluginSurface(
-    view: MolisWorkWebView,
-    surface: "directory" | "workbench" | "workbench-fragment" | "source-directory" | "source-workbench" | "overlays",
-    preset: FeedItemType,
-    supplementalEntries: readonly FeedSupplementalEntry[] = [],
-    active = false,
-  ): string {
-    return renderFeedContribution(
-      surface,
-      buildFeedModel(text, ui, view, preset, supplementalEntries, active),
-    );
-  }
-
-  function renderFeedNativePluginPersistedDetail(
-    item: FeedItemRecord,
-    routePrefix = "",
-    options: { entryId?: string; inboxActive?: boolean; promoteAvailable?: boolean; inboxEntry?: InboxEntryRecord | null; surface?: "frame-block" } = {},
-  ): string {
-    const model: PersistedFeedDetailModel = {
-      route_prefix: routePrefix,
-      entry_id: options.entryId ?? item.item_id,
-      item: itemModel(item),
-      inbox_entry: options.inboxEntry ?? null,
-      inbox_active: options.inboxActive ?? false, promote_available: options.promoteAvailable,
-      primitives: ui,
-    };
-    return renderFeedContribution(options.surface === "frame-block" ? "frame-block" : "persisted-detail", model);
-  }
-
-  return { buildFeedNativePluginModel, renderFeedNativePluginSurface, renderFeedNativePluginPersistedDetail };
+/** The owner converts its stage read into the same source, message and reader UI models. */
+export function buildFeedStageUiModel(model: StagePageModel<FeedStageData>): FeedUiModel {
+  if (!model.data) throw new ActionError("actions.plugin_unavailable", "Feed 舞台数据不可用");
+  return buildFeedModel({ L: model.primitives.text }, feedStagePrimitives(model), { route_prefix: model.route_prefix, data: model.data }, "feed");
+}
+export function buildFeedReaderUiModel(model: StagePageModel<FeedReaderData>): PersistedFeedDetailModel {
+  if (!model.data || !model.object) throw new ActionError("actions.plugin_unavailable", "Feed 对象数据不可用");
+  return { route_prefix: model.route_prefix, entry_id: model.object.id, item: itemModel(model.data.item), inbox_entry: null,
+    inbox_active: model.data.inbox_active, promote_available: model.data.promote_available, primitives: feedStagePrimitives(model) };
+}
+function feedStagePrimitives(model: Pick<StagePageModel, "primitives">): FeedUiPrimitives {
+  return { ...model.primitives, richText: renderRichText, plainText: richPlainText,
+    safeExternalHref(value) {
+      if (!value) return null;
+      try { return ["http:", "https:"].includes(new URL(value).protocol) ? value : null; } catch { return null; }
+    } };
 }
 
 function buildFeedModel(
   text: FeedText,
   ui: FeedUiPrimitives,
-  view: MolisWorkWebView,
+  view: FeedStageView,
   preset: FeedItemType,
-  supplementalEntries: readonly FeedSupplementalEntry[] = [],
-  active = false,
 ): FeedUiModel {
-  const sources = view.feed.sources.map((source) => sourceModel(source, view, text.L, ui));
+  const sources = view.data.snapshot.sources.map((source) => sourceModel(source, view, text.L, ui));
   return {
     route_prefix: view.route_prefix,
     preset,
-    entries: [...feedEntries(view, text.L), ...supplementalEntries],
+    entries: feedEntries(view, text.L),
     sources,
-    source_catalog: (view.feed_source_catalog ?? []).map((source) => ({
+    source_catalog: (view.data.source_catalog ?? []).map((source) => ({
       id: source.id,
       name: source.name,
       category_label: text.L(source.category_label),
     })),
     connector_auth: {
-      github: view.feed_connector_auth?.github ?? { bound: false },
-      gmail: view.feed_connector_auth?.gmail ?? { bound: false },
+      github: view.data.connector_auth?.github ?? { bound: false },
+      gmail: view.data.connector_auth?.gmail ?? { bound: false },
     },
-    out_rules: (view.feed.out_rules ?? []).map((rule) => ({
+    out_rules: (view.data.snapshot.out_rules ?? []).map((rule) => ({
       admission: rule.admission,
       rule_id: rule.rule_id,
       name: rule.name,
@@ -103,13 +59,13 @@ function buildFeedModel(
       judgment: rule.judgment,
     })),
     primitives: ui,
-    active,
+    active: false,
   };
 }
 
-function feedEntries(view: MolisWorkWebView, L: FeedText["L"]): FeedUiEntry[] {
+function feedEntries(view: FeedStageView, L: FeedText["L"]): FeedUiEntry[] {
   return [
-    ...view.feed.feed_items.map((item): FeedUiEntry => ({
+    ...view.data.snapshot.feed_items.map((item): FeedUiEntry => ({
       entry_id: item.item_id,
       item_id: item.item_id,
       inbox_entry: null,
@@ -161,24 +117,17 @@ function itemModel(item: FeedItemRecord): FeedUiItem {
   };
 }
 
-function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView, L: FeedText["L"], ui: FeedUiPrimitives): FeedUiSource {
-  const runs = view.feed.runs.filter((run) => run.source_id === source.source_id);
-  const uiKind = source.kind === "research_library" ? "other" : source.sync_kind === "github"
-    ? "github"
-    : source.sync_kind === "gmail"
-      ? "gmail"
-      : source.sync_kind === "connector"
-        ? "connector"
-      : ["rss", "custom_rss"].includes(source.kind) || source.sync_kind === "public_source"
-        ? "rss"
-        : "other";
-  const rssHttp = uiKind === "rss" ? readRssHttpState(source.cursor) : null;
+function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText["L"], ui: FeedUiPrimitives): FeedUiSource {
+  const runs = view.data.snapshot.runs.filter((run) => run.source_id === source.source_id);
+  const uiKind = feedSourceUiKind(source);
+  const presentation = view.data.source_presentations[source.source_id];
+  if ((uiKind === "rss" || uiKind === "gmail") && !presentation) throw new ActionError("actions.plugin_unavailable", "来源展示尚未由原集成提供");
   const running = runs.some((run) => run.phase === "running");
   const attention = source.status === "error" || source.status === "disconnected";
   const statusKind = running ? "syncing" : attention ? "attention" : source.status === "paused" ? "paused" : "active";
   const retryAfterAt = runs.find((run) => run.error_code === "connector.rate_limited")?.receipt?.retry_after_at;
   const catalogFeedUrl = source.kind === "rss"
-    ? view.feed_source_catalog?.find((entry) => entry.id === source.definition_id)?.feed_url
+    ? view.data.source_catalog?.find((entry) => entry.id === source.definition_id)?.feed_url
     : undefined;
   const configuredEndpoint = uiKind === "gmail"
     ? "gmail.googleapis.com · gmail.readonly"
@@ -225,14 +174,14 @@ function sourceModel(source: FeedSourceRecord, view: MolisWorkWebView, L: FeedTe
       ? L("仅手动拉取")
       : source.schedule.enabled ? L("每 {count} 分钟", { count: source.schedule.interval_minutes }) : L("定时拉取已关闭"),
     scope_label: source.kind === "research_library" ? String(source.config.research_source ?? "") : L(scope),
-    scope_options: uiKind === "gmail" ? GMAIL_SCOPE_PRESETS.map((preset) => ({ value: preset.value, label: L(preset.label) })) : [],
+    scope_options: (presentation?.scope_options ?? []).map((preset) => ({ value: preset.value, label: L(preset.label) })),
     configured_endpoint: configuredEndpoint,
-    protocol_status: rssHttp
-      ? rssHttp.etag ? L("ETag 条件请求已启用") : rssHttp.last_modified ? L("Last-Modified 条件请求已启用") : rssHttp.last_success_at ? L("源站未提供条件校验；使用 Item 身份去重") : L("首次拉取后验证 Feed 并记录条件请求")
+    protocol_status: presentation?.conditional_request
+      ? L(({ etag: "ETag 条件请求已启用", "last-modified": "Last-Modified 条件请求已启用", unvalidated: "源站未提供条件校验；使用 Item 身份去重", "not-fetched": "首次拉取后验证 Feed 并记录条件请求" } as const)[presentation.conditional_request])
       : null,
-    home_url: rssHttp?.home_url ?? null,
+    home_url: presentation?.home_url ?? null,
     editable_endpoint: source.kind === "custom_rss",
-    messages: view.feed.feed_items.filter((item) => item.source_id === source.source_id).slice(0, 3).map((item) => item.title),
+    messages: view.data.snapshot.feed_items.filter((item) => item.source_id === source.source_id).slice(0, 3).map((item) => item.title),
     runs: runs.slice(0, 8).map((run) => ({
       phase: run.phase,
       outcome: run.outcome,
@@ -255,34 +204,4 @@ function provider(item: FeedItemRecord): FeedUiEntry["provider"] {
   if (value.includes("gmail") || value.includes("mail")) return "gmail";
   if (value.includes("rss") || value.includes("atom") || value.includes("feed")) return "rss";
   return "other";
-}
-
-function feedUiPrimitivesFor({ L, dateTimeLocale }: FeedText): FeedUiPrimitives {
-  return {
-    escape: escapeHtml,
-    icon,
-    text: L,
-    formatDate(value) {
-      if (!value) return "";
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return value;
-      return new Intl.DateTimeFormat(dateTimeLocale(), {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(date);
-    },
-    richText: renderRichText,
-    plainText: richPlainText,
-    safeExternalHref(value) {
-      if (!value) return null;
-      try {
-        const parsed = new URL(value);
-        return parsed.protocol === "http:" || parsed.protocol === "https:" ? value : null;
-      } catch {
-        return null;
-      }
-    },
-  };
 }

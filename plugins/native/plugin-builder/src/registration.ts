@@ -17,6 +17,7 @@ export const registration: PluginRegistration = {
       { method: "POST", path: "/api/plugin-builder/studio/builds" },
       { method: "GET", path: "/api/plugin-builder/studio/builds/:id" },
       { method: "GET", path: "/api/plugin-builder/studio/builds/:id/events" },
+      { method: "GET", path: "/api/plugin-builder/studio/builds/:id/download" },
       { method: "GET", path: "/api/plugin-builder/studio/builds/:id/mockups/:picture" },
       { method: "POST", path: "/api/plugin-builder/studio/builds/:id/action" },
       { method: "POST", path: "/api/plugin-builder/studio/builds/:id/call" },

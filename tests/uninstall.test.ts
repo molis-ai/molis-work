@@ -1,3 +1,5 @@
+import { readyPublication } from './fixtures/studio-publishing.js';
+import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
@@ -49,6 +51,11 @@ test("safe uninstall preview is read-only and confirmation preserves every user 
     const discussionDatabase = join(item.home, "server", "server.sqlite");
     await mkdir(dirname(discussionDatabase), { recursive: true });
     await writeFile(discussionDatabase, "discussion-store\n");
+    // CLEAN-1: ordinary app uninstall preserves the publisher that two projects can share.
+    const publishing = readyPublication(item.home, item.userProject.project_id);
+    await publishing.publish(); await publishing.workflow.close();
+    const publisherFile = join(item.home, "config", "plugin-publisher.json"), publisherBefore = await readFile(publisherFile, "utf8");
+    const publisherRef = (JSON.parse(publisherBefore) as { secret_ref: string }).secret_ref;
     const plan = await item.service.prepare();
     assert.equal(plan.status, "ready");
     assert.equal(plan.user_project_count, 1);
@@ -59,6 +66,8 @@ test("safe uninstall preview is read-only and confirmation preserves every user 
 
     const result = await item.service.confirm({ plan_id: plan.plan_id, decision: "confirmed" });
     assert.equal(result.status, "uninstalled");
+    assert.equal(await readFile(publisherFile, "utf8"), publisherBefore);
+    assert.ok(createLazyFileSecretStore(item.home).get(publisherRef), "ordinary app uninstall retains the sealed signing key");
     await assert.rejects(stat(installManifest));
     assert.equal((await stat(item.userProject.database_path)).isFile(), true);
     assert.equal((await stat(discussionDatabase)).isFile(), true);
@@ -134,7 +143,7 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     const registered = ["assistant/assistant.db", "placement/placement.db", "agent-definitions/agent-definitions.db", "characters/characters.sqlite",
       "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "feed/secrets.json", "feed/evidence/blobs/one", "browser/sites.json",
       "browser/profile/Cookies", "plugin-builder/project/design/one.json", "cache/research-library/one/HEAD", "directory-access/bookmarks.json",
-      "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/project-arrival.json",
+      "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json",
       "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json"];
     for (const file of registered) {
       await mkdir(dirname(join(item.home, file)), { recursive: true });

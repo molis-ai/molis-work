@@ -19,6 +19,7 @@ export declare const SANDBOX_INTEGRATION_OPERATIONS: {
     readonly health: "integration.health";
     readonly poll: "integration.poll";
     readonly account: "integration.account";
+    readonly presentation: "integration.presentation";
 };
 
 export declare const SANDBOX_INTEGRATION_SOURCE_SLOT = "source";

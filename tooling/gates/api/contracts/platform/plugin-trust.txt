@@ -3,25 +3,23 @@
 // say what it means for them in the PR.
 
 export interface PluginConsentGrant {
-    readonly kind: PluginConsentKind;
+    readonly kind: Exclude<PluginConsentKind, "project_reach">;
     readonly subject: string;
 }
 
 export type PluginConsentGranter = "user" | "host_build";
 
-export type PluginConsentKind = "always_on" | "default_wiring" | "default_group" | "local_directory";
+export type PluginConsentKind = "always_on" | "default_wiring" | "default_group" | "local_directory" | "project_reach";
 
-export interface PluginConsentRecord {
-    readonly consent_id: string;
-    readonly plugin_id: string;
-    readonly publisher_signature: string;
-    readonly kind: PluginConsentKind;
-    readonly subject: string;
-    readonly manifest_digest: string;
-    readonly granted_at: string;
+export type PluginConsentRecord = PluginConsentRecordFields & ({
+    readonly kind: "project_reach";
+    readonly granted_by: "user";
+    readonly approved_capability_ids: readonly string[];
+} | {
+    readonly kind: Exclude<PluginConsentKind, "project_reach">;
     readonly granted_by: PluginConsentGranter;
-    readonly revoked_at: string | null;
-}
+    readonly approved_capability_ids: null;
+});
 
 export interface PluginDeclarationNeedingConsent {
     readonly kind: PluginConsentKind;
@@ -69,6 +67,7 @@ export interface PluginJobView {
 export interface PluginPermissionView {
     readonly permission: string;
     readonly required: boolean;
+    readonly requested: boolean;
     readonly reason: string;
     readonly meaning: string | null;
 }
@@ -94,3 +93,15 @@ export type PluginTrust = {
 export type PluginTrustLevel = "host" | "pinned" | "unsigned";
 
 export declare function platformPermissionMeaning(permission: string): string | null;
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+interface PluginConsentRecordFields {
+    readonly consent_id: string;
+    readonly plugin_id: string;
+    readonly publisher_signature: string;
+    readonly subject: string;
+    readonly manifest_digest: string;
+    readonly granted_at: string;
+    readonly revoked_at: string | null;
+}

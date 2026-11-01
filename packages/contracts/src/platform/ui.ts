@@ -3,6 +3,9 @@ import type { ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
 
+/** A renderer contract requirement, not a callable business capability. */
+export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: 1 } as const;
+
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
 /** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
@@ -187,6 +190,8 @@ export interface UiSettingsAddressParamsDeclaration {
  */
 export interface UiStageDataDeclaration {
   readonly action: string;
+  /** The same owner's read-only query for one object, called with exactly `{ object_id }`. */
+  readonly object_action?: string;
   /**
    * The request parameters the stage reads (T-116, PG-060): names of parameters the same Manifest's `page_routes` declare, in a path
    * (`:name`) or in a query. When the page was opened by one of those routes, the Host takes exactly these parameters from the request,
@@ -216,6 +221,72 @@ export interface UiPageRouteDeclaration {
   readonly route_id: string;
   readonly path: string;
   readonly query?: readonly string[];
+  /** Bounded declaration constants, disjoint from path/query names; the request cannot override them. */
+  readonly params?: Readonly<Record<string, string>>;
+}
+
+/** The finite page presentation a matched route's actual stage owner can publish during its synchronous render. */
+export interface StagePagePresentation {
+  readonly title?: string;
+  readonly body_attributes?: Readonly<Record<string, string | boolean | null | undefined>>;
+  readonly workspace_classes?: readonly string[];
+  readonly terminal_client?: boolean;
+  readonly open_stage?: boolean;
+  readonly bootstrap?: { readonly id: string; readonly value: unknown };
+  /** Surface ids of this same contribution, both targeting workbench.overlay. */
+  readonly overlays?: { readonly before_global_search?: string; readonly after_global_search?: string };
+}
+
+export interface StagePagePublisher {
+  /** Only effective during this main render; failed renders publish nothing. Never passed to another owner. */
+  publish(parts: StagePagePresentation): void;
+}
+
+/** The existing terminal pane's presentation model; routes are supplied by the content owner. */
+export interface StageTerminalPaneModel {
+  selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
+  children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
+  cliAvailability: Record<string, boolean>;
+  promptRoute: string;
+  terminalsRoute: string;
+  text: (value: string, vars?: Record<string, string | number>) => string;
+  icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
+}
+
+/** Existing shell drawing services, bound to this stage's owner and the current page. No execution authority. */
+export interface StagePageDrawing {
+  mount: (contributionId: string, surface: string, model: unknown) => string;
+  currentLocale: () => "zh" | "en";
+  listJoin: (values: readonly string[]) => string;
+  formatDocumentDate: (value: string | null | undefined) => string;
+  renderList: (values: string[], empty: string) => string;
+  prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
+  renderReference: (value: string, label?: string) => string;
+  creatableKinds: readonly { readonly station: string; readonly title: string; readonly plugin_id: string }[];
+  /** Runs synchronously in that plugin's words and supplies its translator for cross-owner text. */
+  inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
+  renderTerminalPane: (model: StageTerminalPaneModel) => string;
+  renderHint: (options: { id: string; label: string; text?: string; html?: string; iconName?: string }) => string;
+  withDesktopQuery: (path: string) => string;
+  settingsContextHref: (path: string, project: { project_id: string } | null, desktop: boolean) => string;
+  /** Existing settings document services; omitted when drawing an embedded body. */
+  document?: {
+    readonly lang: string;
+    readonly navigation_html: string;
+    readonly client_i18n: string;
+    readonly request_client: string;
+    readonly foundation_client: string;
+    render(request: WorkbenchDocumentRenderRequest): string;
+  };
+}
+
+/** Page context supplied by the shell; business facts remain in the declared action's data. */
+export interface StagePageContext {
+  readonly project: { readonly project_id: string; readonly display_name: string } | null;
+  readonly demo: boolean;
+  readonly cli_availability: Record<string, boolean>;
+  /** Optional client-side projections already read by their owners for this page. */
+  readonly client_data?: Readonly<Record<string, unknown>>;
 }
 
 /** What the Host writes text and markup with on a plugin's stage, in the page's locale. */
@@ -240,7 +311,13 @@ export interface StagePageModel<Data = unknown> {
    * (T-116). Absent when the stage names none, or the page was not opened by one of the plugin's `page_routes`.
    */
   readonly request?: Readonly<Record<string, string>>;
+  /** One explicit main surface of the same actual owner; never a raw URL or arbitrary query. */
+  readonly object?: { readonly id: string; readonly surface: string };
   readonly primitives: StagePagePrimitives;
+  readonly drawing?: StagePageDrawing;
+  readonly context?: StagePageContext;
+  /** Only the actual stage owner of the matched page route receives this request-local port. */
+  readonly page?: StagePagePublisher;
 }
 
 /** The platform facts the Host gives every plugin's settings page, in this one shape, whatever the plugin is. */
@@ -336,6 +413,8 @@ export interface UiViewDeclaration {
    * data. The Host calls it as the person and hands the answer to the stage, on the page and when the stage is redrawn in place.
    */
   readonly stage_data?: UiStageDataDeclaration;
+  /** The main surfaces mounted with the stage, in order. Defaults to `["workbench"]`; must include it exactly once. */
+  readonly stage_surfaces?: readonly string[];
   /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
   readonly creates?: UiViewCreateEntry;
   /** `navigator` and `island` views only: the project home's way to start with this plugin. */

@@ -147,3 +147,16 @@ export interface PluginOAuthMethodDeclaration {
     };
     readonly note?: string;
 }
+
+export interface SourcePresentation {
+    readonly scope_options?: readonly {
+        readonly value: string;
+        readonly label: string;
+    }[];
+    readonly conditional_request?: "etag" | "last-modified" | "unvalidated" | "not-fetched";
+    readonly home_url?: string | null;
+}
+
+export interface SourcePresentationInput {
+    readonly cursor?: unknown;
+}

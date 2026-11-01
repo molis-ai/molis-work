@@ -1,3 +1,4 @@
+import { sandboxDerivedPermissions, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
@@ -8,8 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginImageGenerationClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { MolisWorkLocalHost, forgetSandboxImageBindings, homeStores, pluginImageGenerationFor, pluginModelFor, installedLibrarySnapshots, openSandboxHomeLibrary, reservedHomeName, sandboxDerivedPermissions, sandboxImageGenerationFor,
-  sandboxImageNamespace, sandboxModelDeclaration, sandboxPluginManifest, sandboxProviderId, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, forgetSandboxImageBindings, homeStores, pluginImageGenerationFor, pluginModelFor, installedLibrarySnapshots, openSandboxHomeLibrary, reservedHomeName, sandboxImageGenerationFor, sandboxImageNamespace, sandboxModelDeclaration, sandboxProviderId, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runInPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { IMAGE_PNG } from "./fixtures/images-runtime.js";
@@ -40,10 +40,10 @@ test("BL-491 RAC-2631 the derived names are 32 hex digits of the installation id
   const declaration = (store_name: string): HomePluginDatabaseDeclaration => ({ store_name, version: 1, read_permission: "names:read", write_permission: "names:write", schema: "CREATE TABLE names_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" });
   const owner = { plugin_id: PLUGIN, publisher_signature: "probe-names" }, instance = { install_id: "names", installation_generation: "1" };
   for (const name of [sandboxImageNamespace(OTHER_INSTALL), sandboxProviderId(OTHER_INSTALL), "imageconn-mine", "sbx-mine"]) {
-    assert.throws(() => openSandboxHomeLibrary(home, owner, declaration(name), homeStores(), () => {}, instance), refused("plugin.home_database.object_taken"), name);
+    await assert.rejects(() => openSandboxHomeLibrary(home, owner, declaration(name), homeStores(), () => {}, instance), refused("plugin.home_database.object_taken"), name);
   }
   // The path that lists them: a ledger row that holds a reserved name makes the whole ledger unreadable, as any other held name does.
-  const library = openSandboxHomeLibrary(home, owner, declaration("names-notes"), homeStores(), () => {}, instance);
+  const library = await openSandboxHomeLibrary(home, owner, declaration("names-notes"), homeStores(), () => {}, instance);
   library.close();
   assert.deepEqual(installedLibrarySnapshots(home, homeStores()).map(row => row.store_name), ["names-notes"]);
   const ledger = new DatabaseSync(join(home, "plugin-libraries", "plugin-libraries.db"));

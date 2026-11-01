@@ -265,11 +265,12 @@ export function renderDirectoryPluginSections(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
   panels: Readonly<Record<string, string>>,
+  directory: PluginDirectory,
   activeDirectory = "root",
   settingsSection = "",
 ): string {
   const current = currentListPlugin(activeDirectory);
-  const plugins = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).flatMap((plugin) => {
+  const plugins = directoryPlugins(directory, enabled, english(primitives)).flatMap((plugin) => {
     const panel = panels[plugin.id] || "";
     if (!panel) return [];
     const visible = plugin.id === current;

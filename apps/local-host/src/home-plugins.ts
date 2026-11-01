@@ -1,11 +1,11 @@
-import type { HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
+import { stageContributionId, type HomePluginNavigationEntry } from "@molis-ai/molis-work-app-workbench";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
 import type { InstalledRelease } from "./installed-release.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
+import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-contracts/platform/ui";
 import { randomUUID } from "node:crypto";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor } from "./declaration-owners.js";
@@ -29,6 +29,8 @@ import { bindHomeRegistration } from "./home-registration.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
+import type { ProjectActions } from "./plugin-builder/catalog.js";
+import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -59,6 +61,7 @@ export class HomePluginHost {
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;
+    projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
     /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
     inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }) {
     this.releaseRegistration = bindHomeRegistration(options.home, this, () => this.outsideBuild());
@@ -102,7 +105,13 @@ export class HomePluginHost {
       ...this.installed?.running() ?? []];
   }
   /** Whether this is a signed package installed in the Home (BL-628), as opposed to a plugin of the Host's build or one of its fixtures. */
-  hasPackage(pluginId: string): boolean { return this.installed?.recordFor(pluginId) !== undefined; }
+  hasPackage(pluginId: string, retryUninstall = false): boolean { return this.installed?.recordFor(pluginId, retryUninstall) !== undefined; }
+  async projectReachConsents(): Promise<ProjectReachConsents> {
+    await this.ready();
+    const consent = this.installed?.projectReach;
+    if (!consent || this.closed) throw new ActionError("actions.unavailable", "Home 插件的项目同意服务不可用");
+    return consent;
+  }
   /**
    * Installs a release read from a signed package in the Home, for the person who confirmed it (`PluginInstallService`). It runs in the
    * sandbox, under the pin that confirmation made, and appears among the personal plugins every project reaches (#679).
@@ -117,10 +126,10 @@ export class HomePluginHost {
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
   async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean } = {}): Promise<void> {
     await this.ready();
-    const installed = this.installed, record = installed?.recordFor(pluginId);
+    const installed = this.installed, record = installed?.recordFor(pluginId, action === "uninstall");
     if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
     // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one, and can still take it off.
-    const release = installed.packageOf(pluginId);
+    const release = installed.packageOf(pluginId, action === "uninstall");
     if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
     await installed.lifecycle(action, release, input);
     await installed.refreshPublicActions();
@@ -132,13 +141,24 @@ export class HomePluginHost {
    * back (their page says why), by name. A Home that did not start offers none, nor one whose library cannot be read now.
    */
   async navigation(): Promise<HomePluginNavigationEntry[]> {
-    let pages: { key: string; manifest: PluginManifest }[];
-    try { await this.ready(); pages = this.installed?.pages() ?? []; }
+    let pages: { key: string; manifest: PluginManifest }[], platform: HomePluginPlatform;
+    try { platform = await this.ready(); pages = this.installed?.pages() ?? []; }
     catch { return []; /* A Home that did not start, or whose library broke since, has no packages to offer. */ }
-    return pages.map(({ key, manifest }) => {
+    // A dual instance offers a Home tool only when that actual half supplies the Manifest's stage.
+    const dual = this.registered().flatMap(entry => {
+      const stage = this.dualInstance(entry.manifest.plugin_id) && entry.manifest.ui?.views?.find(view => view.slot === "stage");
+      if (!stage) return [];
+      const contribution = platform.supervisor.contribution(entry.manifest.plugin_id), id = stageContributionId(entry.manifest);
+      const view = contribution?.kind === "app" && contribution.views?.find(view => view.descriptor.contribution_id === id
+        && view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main"));
+      if (!view) return [];
+      const icon = entry.manifest.ui?.views?.find(view => view.slot === "navigator")?.icon;
+      return [{ plugin_id: entry.key, name: entry.manifest.name, ...icon ? { icon } : {}, surface: stage.view_id }];
+    });
+    return [...dual, ...pages.map(({ key, manifest }) => {
       const icon = manifest.ui?.views?.find(view => view.slot === "stage")?.icon;
       return { plugin_id: key, name: manifest.name, ...icon ? { icon } : {}, surface: this.packageSurface(key) ?? key };
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a, b) => a.name.localeCompare(b.name))];
   }
   /**
    * The id of a running installed package's stage in the workbench: its plugin id, which is also the key the Home registered it under, so the
@@ -149,9 +169,13 @@ export class HomePluginHost {
     return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
   }
   /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
-  packageDocument(pluginId: string, controlToken: string): string | undefined {
+  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null): string | undefined {
     const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;
-    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken }) : undefined;
+    return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId,
+      assertProject: projectId ? async () => {
+        if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");
+        await this.options.projectActions(projectId, pluginId);
+      } : undefined }) : undefined;
   }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
@@ -269,7 +293,7 @@ export class HomePluginHost {
     // The packages installed in the Home start after the Host's own plugins, each on its own: one that cannot start leaves its reason and nothing else less (BL-628).
     // The way to start one is not on the platform this method returns: only a sandboxed definition under a pinned publisher goes through it (S-80).
     this.installed = await openHomeInstalledPlugins({ home: this.options.home, actorId: this.options.actorId, actions: { registry: this.options.registry, client: this.options.client, ...this.options.inspect ? { inspect: this.options.inspect } : {} },
-      db, privateStorage: storage, closed: () => this.closed,
+      db, privateStorage: storage, closed: () => this.closed, projectActions: this.options.projectActions,
       // An integration package's sources go to the Home's one registry, the one every project's Feed binds through (BL-530).
       integrations: { registry: () => homeIntegrationRegistry(this.options.home), connections: createCallConnectionsPort(this.options.home) },
       platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),

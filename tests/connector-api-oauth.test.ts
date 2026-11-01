@@ -102,33 +102,6 @@ test("ASC-19 ASC-35: disabling and reenabling during API refresh refuses stale t
     assert.equal(withConnectorConnections(directory, store => store.state(store.require(first.connection_id))), "connected");
   } finally { release(); rmSync(directory, { recursive: true, force: true }); }
 });
-for (const service of ["notion"] as const) test(`ASC-19 ASC-35: ${service} refresh cannot write after disable and reenable`, async t => {
-  const directory = home(), id = crypto.randomUUID(), prefix = `connector-connection:${id}`;
-  let release!: () => void, entered!: () => void;
-  const waiting = new Promise<void>(resolve => { release = resolve; });
-  const reached = new Promise<void>(resolve => { entered = resolve; });
-  try {
-    await runWithMolisWorkHome(directory, async () => {
-      const secrets = createFileSecretStore();
-      const saved = { [`${prefix}:access`]: "current-access", [`${prefix}:refresh`]: "current-refresh", [`${prefix}:expires_at`]: new Date(0).toISOString(),
-        [`${prefix}:access:client`]: JSON.stringify({ clientId: "fixture-client", clientSecret: "fixture-secret" }) };
-      for (const [key, value] of Object.entries(saved)) secrets.put(key, value);
-      withConnectorConnections(directory, store => store.upsertOAuth({ connectionId: id, serviceId: service, displayName: "Work",
-        accessRef: `${prefix}:access`, refreshRef: `${prefix}:refresh`, expiresRef: `${prefix}:expires_at` }));
-      t.mock.method(globalThis, "fetch", async () => {
-        entered(); await waiting;
-        return json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
-      });
-      const refreshing = resolveApiConnection(directory, id, connectorControl(), service, true);
-      const rejected = assert.rejects(refreshing);
-      await reached;
-      withConnectorConnections(directory, store => { store.setEnabled(id, false); store.setEnabled(id, true); });
-      release(); await rejected;
-      assert.deepEqual(Object.fromEntries(Object.keys(saved).map(key => [key, secrets.get(key)])), saved);
-      assert.equal(withConnectorConnections(directory, store => store.state(store.require(id))), "connected");
-    });
-  } finally { release(); rmSync(directory, { recursive: true, force: true }); }
-});
 test("reauthorization rejects same display name from another account and allows a renamed original account", async () => {
   const directory = home();
   try {

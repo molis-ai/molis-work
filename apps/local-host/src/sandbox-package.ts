@@ -1,3 +1,4 @@
+import { effectsFromContract, sandboxIntegrationManifest, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * Reads a sandbox package (the public format in `SANDBOX_PACKAGE_FILES`, described in docs/platform/PLUGIN-DEVELOPMENT.md) into what the
  * Host runs it from. The plugin studio is one author of the format; this reads the format and nothing of the studio. It writes nothing:
@@ -11,11 +12,12 @@ import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type Sand
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
 import { parsePluginManifest, parsePluginPackageManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
-import { assertContract, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
+import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
 import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
-import { sandboxIntegrationManifest, sandboxPluginManifest } from './sandbox-plugin-manifest.js';
+import { assertPluginHomeSchema } from '@molis-ai/molis-work-plugin-runtime';
+
 
 /** The longest plugin code the Host takes, as the studio's own publish does. */
 const MAX_ENTRYPOINT_BYTES = 8 * 1024 * 1024;
@@ -111,12 +113,14 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const icon = PLUGIN_ICON_NAMES.find(name => name === named);
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
     presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, runtime: manifest.runtime, effects: permissions,
+    homeDatabase: manifest.databases?.home, connections: manifest.connections, ownerFiles: manifest.owner_files?.entries,
     ...(icon ? { icon } : {}), textDeclarations: manifest });
   const { agent: wireAgent, methods: wireMethods, ...fixed } = manifest;
   const { agent: projectedAgent, methods: projectedMethods, ...expectedFixed } = expected;
   void wireAgent; void wireMethods; void projectedAgent; void projectedMethods;
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(fixed)), JSON.parse(JSON.stringify(expectedFixed)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   validated('清单', () => parsePluginManifest(expected));
+  if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
   return { manifest: expected, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }
 
@@ -164,7 +168,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
     if (!platform && !service.origins) refuse('服务 ' + service.service_id + ' 不在平台的请求表里，要写它的 origins');
   }
   const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
-    upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations });
+    upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations, source_presentations: manifest.source_presentations });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
 
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
@@ -179,6 +183,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
     }
   }
   for (const id of [SANDBOX_INTEGRATION_OPERATIONS.health, SANDBOX_INTEGRATION_OPERATIONS.poll]) if (!contract.operations.some(item => item.id === id)) refuse('合同缺少操作 ' + id);
+  if (Boolean(manifest.source_presentations?.length) !== contract.operations.some(item => item.id === SANDBOX_INTEGRATION_OPERATIONS.presentation)) refuse('来源展示声明与 integration.presentation 操作必须一同兑现');
   const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
   return { manifest, contract, entrypoint, permissions };
 }

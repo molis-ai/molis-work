@@ -30,7 +30,7 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const detail = async () => {
-      const response = await fetch(`http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}/api/stage/feed/items/${itemId}`);
+      const response = await fetch(`http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}/api/stage/feed/objects/${encodeURIComponent(itemId)}?surface=persisted-detail`);
       assert.equal(response.status, 200);
       return response.text();
     };

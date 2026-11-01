@@ -82,7 +82,7 @@ test("RAC-941 S-94 a required permission cannot be switched off, one the Manifes
   assert.equal(JSON.stringify((await f.overview()).plugins.find(item => item.install_id === plugin.install_id)!.permissions), before, "nothing moved");
 });
 
-test("RAC-951 RAC-952 the 插件 page gives each optional permission a switch, asks first only for the four that reach out or spend, and marks a job whose permission is off as paused", { timeout }, async t => {
+test("RAC-951 RAC-952 the 插件 page gives each requested optional permission a switch, asks first only for the four that reach out or spend, and marks a job whose permission is off as paused", { timeout }, async t => {
   const f = await setup(t);
   const html = await (await f.request(f.prefix + "/settings/plugins")).text();
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"));
@@ -93,7 +93,7 @@ test("RAC-951 RAC-952 the 插件 page gives each optional permission a switch, a
   for (const permission of ["storage:private", "model:read", "surface:browser", "issues:write", "networkx", "secretly"]) assert.equal(wide(permission), false, `${permission} takes one click`);
   const grants = script.slice(script.indexOf("const grants = "), script.indexOf("const draw = "));
   assert.match(grants, /setAttribute\("role", "switch"\)/, "a switch per permission");
-  assert.match(grants, /if \(item\.required\) return line;/, "a required permission has none");
+  assert.match(grants, /if \(item\.required \|\| !item\.requested\) return line;/, "required and shape-only permissions have none");
   assert.ok(grants.indexOf("WIDE(item.permission) && !await ask(") < grants.indexOf("await send("), "the confirmation comes before the call");
   assert.match(script, /send = \(payload\) => api\("\/permissions\/set", payload\)/, "a project's plugin sends to the project's route unless the caller gives another");
   assert.match(grants, /catch \(failure\) \{ toggle\.checked = !on; fail\(failure\); \}/, "a refused switch goes back");
@@ -157,7 +157,8 @@ test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it
   assert.match(html, /data-plugin-trust-home/);
   const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
   assert.match(script, /^const homeApi = \(name, payload = \{\}\) => molisWorkRequest\("\/api\/settings\/plugin-permissions\/" \+ name, \{ body: payload \}\);$/m, "the shared Home helper uses the absolute Host door and forwards its payload");
-  assert.match(script, /^personal = \(await homeApi\("list"\)\)\.plugins;$/m, "the Home rows come from that door's list");
+  assert.match(script, /^const homeData = \(await homeApi\("list"\)\)\.plugins;$/m, "the Home rows come from that door's list");
+  assert.match(script, /^current = data\.plugins; personal = homeData;/m, "the latest complete response supplies those Home rows");
   assert.match(script, /^const homeSend = \(payload\) => homeApi\("set", payload\);$/m, "the permission switch forwards its payload through that door's set");
   assert.match(script, /^draw\(\$\("home"\), L\("个人空间里没有插件"\), personal\.map\(\(plugin\) => installed\(plugin, homeSend, revoked, homeApi\)\)\);$/m, "the Home's rows send their switch to the Home door, and their lifecycle too (BL-715)");
   assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null, act\)/, "a project's rows send theirs to the project's route");

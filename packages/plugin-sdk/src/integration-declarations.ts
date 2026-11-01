@@ -10,18 +10,22 @@ const SERVICE_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const INTEGRATION_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const DOCUMENT_SOURCE = /^[a-z][a-z0-9-]{0,63}$/u;
 const GROUPS = new Set(["mail", "files", "chat", "code", "work", "design", "crm", "social"]);
-const AUTH_KINDS = new Set(["github", "gmail", "notion", "feishu", "token", "none"]);
+const AUTH_KINDS = new Set(["oauth", "feishu", "token", "none"]);
 const METHOD_KINDS = new Set(["oauth", "cli", "token", "mcp"]);
 const FULFILLMENTS = new Set(["live", "unfulfilled"]);
 const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins"]);
 const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
-export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown }): string[] {
-  const { connection_services: services, integrations } = manifest;
-  if (services === undefined && integrations === undefined) return [];
+export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
+  const { connection_services: services, integrations, source_presentations: presentations } = manifest;
+  if (services === undefined && integrations === undefined && presentations === undefined) return [];
   if (manifest.kind !== "integration") return ["只有 Integration Plugin 能声明 connection_services 和 integrations"];
   const problems: string[] = [];
+  if (presentations !== undefined && (!Array.isArray(presentations) || !presentations.length || presentations.length > 32
+    || presentations.some(id => typeof id !== "string" || !INTEGRATION_ID.test(id)) || new Set(presentations).size !== presentations.length)) {
+    problems.push("source_presentations 必须是 1 到 32 个不重复的集成名字");
+  }
   const serviceIds = new Set<string>();
   if (services !== undefined) {
     if (!Array.isArray(services) || services.length === 0) problems.push("connection_services 必须是至少一项的数组");
@@ -96,8 +100,10 @@ function methodProblems(id: string, auth: unknown): string[] {
       problems.push(`连接服务 ${id} 的接入方式 kind 必须是 oauth、cli、token、mcp 之一`);
       continue;
     }
-    if (kinds.has(method.kind)) { problems.push(`连接服务 ${id} 的接入方式重复：${method.kind}`); continue; }
-    kinds.add(method.kind);
+    // An `oauth` method is one per grant (the web flow and the device grant side by side); every other kind is once.
+    const slot = method.kind === "oauth" ? `oauth:${method.grant === "device" ? "device" : "authorization_code"}` : method.kind;
+    if (kinds.has(slot)) { problems.push(`连接服务 ${id} 的接入方式重复：${slot === "oauth:device" ? "oauth（device）" : method.kind}`); continue; }
+    kinds.add(slot);
     if (method.kind === "oauth") { problems.push(...oauthMethodProblems(id, method)); continue; }
     if (method.kind !== "token") {
       if (Object.keys(method).length !== 1) problems.push(`连接服务 ${id} 的 ${method.kind} 接入方式现在只写 kind，数据仍在平台的表里`);

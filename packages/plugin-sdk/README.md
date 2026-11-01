@@ -54,6 +54,10 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 
 可从[本地 Plugin 示例](../../examples/plugin-sample/README.md)开始：示例使用 context.services 存取私人状态、发布 Artifact 并注册 UI，完整授权和开发步骤见开发指南。
 
+沙箱 Manifest 的唯一生成模块是 SDK 的 `sandbox-manifest`（由根入口具名导出）：`sandboxPluginManifest` / `sandboxIntegrationManifest` 生成平台认可的形状，`effectsFromContract` 合并并排序操作的效果，`sandboxDerivedPermissions` / `sandboxRequestedPermissions` / `sandboxOperationPermissions` 分别派生资源形状、整包实际请求与单次操作权限；read/write 形状不把只读操作变成写授权。创作台、Host reader 与 CLI 使用同一实现。整页呈现的协议标识 `PLUGIN_PRESENTATION_CAPABILITY` 来自 contracts 的 `platform/ui`；渲染器实现仍属于 design-system。
+
+schema/API 2 的 Integration Manifest 用 `source_presentations` 声明纯展示；`definePollingIntegrationPlugin` 的 `presentSource(id, input)` 只收展示 id 与普通数据，不接收启动 context 或来源 binding。输入只含可选 cursor，返回只含可选 `scope_options`、`conditional_request`、`home_url`（可为 null），由同一 `checkedSourcePresentationInput` / `checkedSourcePresentation` 检查。沙箱展示固定 query、`effects: {}`，不取得拉取的连接效果。回归：`tests/integration-registry.test.ts`、`tests/sandbox-integration.test.ts`。
+
 签名 app 包的原始清单使用 `parsePluginPackageManifest` 校验；验签后由 `sandboxAgentDeclarations` 唯一派生纯文字角色与空工具方法，启动时用 `assertSandboxAgentDefinition` 核对同一限制。`sandboxAgentBodyIdentity` 保留完整 plugin/kind/name 身份；派生数字版本不代替签名包的完整版本。包内正文格式与上限见[插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。这些文字只作为有来源的不可信材料，不授予执行权限。
 
 ## 富文本子路径 `/rich-text`

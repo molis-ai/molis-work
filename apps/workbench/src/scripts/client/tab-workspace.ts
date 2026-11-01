@@ -72,7 +72,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   }
   let state = ops.create();
   let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
-  const restore = (requestedGoalId = "") => {
+  const restore = (requestedGoalId = "", resetLayout = false) => {
     if (embedded) {
       state = ops.create();
       const pane = ops.focused(state);
@@ -81,8 +81,7 @@ ${TAB_WORKSPACE_DRAG_PART}
         pane.tabs = [];
         pane.activeTabId = null;
         pane.groups = [];
-        const tab = ops.openItem(state, plugin, paneParams.get("paneItem"), paneParams.get("paneTitle"));
-        if (plugin === "goals" && paneParams.get("paneGoalView") === "work") tab.goalView = "work";
+        ops.openItem(state, plugin, paneParams.get("paneItem"), paneParams.get("paneTitle"));
       } else if (plugin === "home") {
         ops.openPlugin(state, "home");
       } else {
@@ -91,6 +90,7 @@ ${TAB_WORKSPACE_DRAG_PART}
         pane.groups = [];
         ops.openPlugin(state, plugin);
       }
+      if (paneParams.has("paneView")) ops.writeView(state, pane.id, paneParams.get("paneView"));
       apply();
       return;
     }
@@ -99,9 +99,11 @@ ${TAB_WORKSPACE_DRAG_PART}
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
       const plugins = { ...PLUGIN_TAB_ICON }; if (!offeredPlugin("goals")) delete plugins.goals; // a layout saved with Goals starts fresh in a project without it, as for any plugin gone
       document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
-      if (isCurrent(stored, plugins)) {
+      if (!resetLayout && isCurrent(stored, plugins)) {
         state = ops.ensureHome(stored);
-        persist();
+      } else if (stored || resetLayout) {
+        state = ops.create();
+        tabHistory.clear(); sessionStorage.removeItem(HISTORY_KEY);
       }
     } catch {}
     if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
@@ -112,9 +114,8 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem && offeredPlugin(requestedPlugin)) {
       ops.setExclusive(state, null);
       const opened = ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
-      // A Goal opened for its materials lands on its work view rather than the Frame canvas.
-      if (requestedPlugin === "goals" && paneParams.get("openGoalView") === "work" && opened) opened.goalView = "work";
-      dropParams("openPlugin", "openItem", "openTitle", "openGoalView");
+      if (opened && paneParams.has("openView")) ops.writeView(state, ops.focused(state).id, paneParams.get("openView"), opened.id);
+      dropParams("openPlugin", "openItem", "openTitle", "openView");
     }
     // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
     const requestedRecord = paneParams.get("openRecord");
@@ -123,10 +124,11 @@ ${TAB_WORKSPACE_DRAG_PART}
       if (offeredPlugin(requestedPlugin)) {
         ops.setExclusive(state, null);
         state.focusedPaneId = ops.focused(state).id;
-        ops.openPlugin(state, requestedPlugin);
+        const opened = ops.openPlugin(state, requestedPlugin);
+        if (opened && paneParams.has("openView")) ops.writeView(state, ops.focused(state).id, paneParams.get("openView"), opened.id);
         pluginRequestedOnLoad = true;
       }
-      dropParams("openPlugin");
+      dropParams("openPlugin", "openView");
     }
     if (requestedPlugin && requestedRecord) {
       dropParams("openPlugin", "openRecord");
@@ -476,13 +478,8 @@ ${TAB_WORKSPACE_DRAG_PART}
   window.addEventListener("message", (event) => {
     if (embedded) {
       if (!panes.fromParent(event)) return;
-      if (event.data.type === "workbench-feed-task") setFeedTask?.(event.data.taskId, false);
-      if (event.data.type !== "workbench-goal-view") return;
-      const tab = ops.activeTab(state);
-      if (tab?.plugin === "goals" && tab.kind === "item") {
-        if (event.data.view === "work") tab.goalView = "work"; else delete tab.goalView;
-      }
-      apply();
+      if (event.data.type !== "workbench-view") return;
+      if (ops.writeView(state, state.panes[0]?.id, event.data.view)) apply();
       return;
     }
     const frame = panes.from(event);
@@ -490,18 +487,16 @@ ${TAB_WORKSPACE_DRAG_PART}
       document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
       return;
     }
-    if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-goal-view", "workbench-pane-history"].includes(event.data?.type)) return;
+    if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-view", "workbench-pane-history"].includes(event.data?.type)) return;
     const pane = paneById(frame?.dataset.paneOwner);
     if (!pane) return;
     if (event.data.type === "workbench-pane-history") {
       if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
       if (event.data.delta === -1 || event.data.delta === 1) goHistory(event.data.delta);
-    } else if (event.data.type === "workbench-pane-goal-view") {
-      const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab);
-      if (tab?.plugin === "goals" && tab.kind === "item") {
-        if (event.data.view === "work") tab.goalView = "work"; else delete tab.goalView;
-        persist(); apply();
-      }
+    } else if (event.data.type === "workbench-pane-view") {
+      const tab = pane.tabs.find(tab => tab.id === frame.dataset.paneTab)
+        || (frame.dataset.paneTab === pane.id + ":view" && pane.tabs.find(tab => tab.kind === "plugin" && "plugin:" + tab.plugin === frame.dataset.paneKey));
+      if (tab) writeView(pane.id, event.data.view, tab.id);
     } else if (event.data.type === "workbench-pane-focus") {
       if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
     } else if (event.data.type === "workbench-pane-open-beside") {
@@ -511,7 +506,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       state.focusedPaneId = pane.id;
       if (event.data.background === true && event.data.itemId) pluginGroups.openBehind(event.data.plugin, event.data.itemId, event.data.title);
       else if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
-      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.goalView); else openPlugin(event.data.plugin);
+      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.view); else openPlugin(event.data.plugin);
     }
   });
   document.addEventListener("click", (event) => {
@@ -527,7 +522,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     }
     if (event.target.closest("[data-goal-collapse]")) {
       const tab = ops.activeTab(state);
-      if (tab?.plugin === "goals" && tab.kind === "item") { delete tab.goalView; apply(); persist(); if (embedded) notifyParent("workbench-pane-goal-view", {view:"frame"}); }
+      if (tab?.plugin === "goals" && tab.kind === "item") { writeView(ops.focused(state).id, undefined, tab.id); if (embedded) notifyParent("workbench-pane-view", { view: undefined }); }
     }
   });
   // Choosing another Goal inside a Goal tab (its workspace directory, a relation link) takes the tab with it, so its
@@ -538,7 +533,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     const pane = ops.focused(state), tab = ops.activeTab(state);
     if (!pane || tab?.plugin !== "goals" || tab.kind !== "item" || tab.itemId === goalId) return;
     const existing = pane.tabs.find((item) => item.plugin === "goals" && item.kind === "item" && item.itemId === goalId);
-    if (existing) { if (tab.goalView === "work") existing.goalView = "work"; activate(pane.id, existing.id); return; }
+    if (existing) { if (tab.view === "work") existing.view = "work"; activate(pane.id, existing.id); return; }
     tab.itemId = goalId;
     if (event.detail.goalTitle) tab.title = event.detail.goalTitle;
     // The selection that fired this is already loading the Goal's document; redraw the tab without a second load,
@@ -549,16 +544,11 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (loadingGoalId === goalId) loadingGoalId = loading;
   });
   document.addEventListener("workbench-feed-task", (event) => {
-    if (embedded) return;
-    const tab = ops.activeTab(state);
-    if (tab?.plugin !== "feed") return;
-    tab.feedTask = event.detail.taskId;
-    const frame = panesEl.querySelector('iframe[data-pane-tab="' + tab.id + '"]');
-    frame?.contentWindow?.postMessage({ type: "workbench-feed-task", taskId: tab.feedTask }, location.origin);
-    persist();
+    if (typeof event.detail?.taskId !== "string") return;
+    const paneId = embedded ? state.panes[0]?.id : findTopLevelSurface("feed")?.closest("[data-tab-pane]")?.dataset.tabPane;
+    if (paneId && writeView(paneId, event.detail.taskId) && embedded) notifyParent("workbench-pane-view", { view: event.detail.taskId });
   });
-  if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
+  return { apply, readView, writeView, openPlugin, openPluginRecord, openItem, openBeside, openBehind: pluginGroups.openBehind, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,
     pluginTitle: ops.pluginTitle, leavePlugin, closeCover, openCover, registerCover, noteCover, coverPlace: restoredCoverPlace, goHistory,
     shownPlugin: () => state.exclusive ? null : ops.shownPlugin(ops.focused(state)),
     exclusive: () => state.exclusive, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };

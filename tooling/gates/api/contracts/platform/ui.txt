@@ -18,6 +18,11 @@ export interface OwnedUiContribution<TModel = unknown> {
     render(request: UiRenderRequest<TModel>): string;
 }
 
+export declare const PLUGIN_PRESENTATION_CAPABILITY: {
+    readonly capability_id: "ui.plugin-presentation";
+    readonly version: 1;
+};
+
 export declare const RECEIPT_WORDS: {
     FACT: {
         received: string;
@@ -118,12 +123,81 @@ export interface SettingsPagePrimitives {
     text(value: string, values?: Record<string, string | number>): string;
 }
 
+export interface StagePageContext {
+    readonly project: {
+        readonly project_id: string;
+        readonly display_name: string;
+    } | null;
+    readonly demo: boolean;
+    readonly cli_availability: Record<string, boolean>;
+    readonly client_data?: Readonly<Record<string, unknown>>;
+}
+
+export interface StagePageDrawing {
+    mount: (contributionId: string, surface: string, model: unknown) => string;
+    currentLocale: () => "zh" | "en";
+    listJoin: (values: readonly string[]) => string;
+    formatDocumentDate: (value: string | null | undefined) => string;
+    renderList: (values: string[], empty: string) => string;
+    prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
+    renderReference: (value: string, label?: string) => string;
+    creatableKinds: readonly {
+        readonly station: string;
+        readonly title: string;
+        readonly plugin_id: string;
+    }[];
+    inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
+    renderTerminalPane: (model: StageTerminalPaneModel) => string;
+    renderHint: (options: {
+        id: string;
+        label: string;
+        text?: string;
+        html?: string;
+        iconName?: string;
+    }) => string;
+    withDesktopQuery: (path: string) => string;
+    settingsContextHref: (path: string, project: {
+        project_id: string;
+    } | null, desktop: boolean) => string;
+    document?: {
+        readonly lang: string;
+        readonly navigation_html: string;
+        readonly client_i18n: string;
+        readonly request_client: string;
+        readonly foundation_client: string;
+        render(request: WorkbenchDocumentRenderRequest): string;
+    };
+}
+
 export interface StagePageModel<Data = unknown> {
     readonly route_prefix: string;
     readonly shown_plugins: readonly string[];
     readonly data?: Data;
     readonly request?: Readonly<Record<string, string>>;
+    readonly object?: {
+        readonly id: string;
+        readonly surface: string;
+    };
     readonly primitives: StagePagePrimitives;
+    readonly drawing?: StagePageDrawing;
+    readonly context?: StagePageContext;
+    readonly page?: StagePagePublisher;
+}
+
+export interface StagePagePresentation {
+    readonly title?: string;
+    readonly body_attributes?: Readonly<Record<string, string | boolean | null | undefined>>;
+    readonly workspace_classes?: readonly string[];
+    readonly terminal_client?: boolean;
+    readonly open_stage?: boolean;
+    readonly bootstrap?: {
+        readonly id: string;
+        readonly value: unknown;
+    };
+    readonly overlays?: {
+        readonly before_global_search?: string;
+        readonly after_global_search?: string;
+    };
 }
 
 export interface StagePagePrimitives {
@@ -131,6 +205,32 @@ export interface StagePagePrimitives {
     text(value: string, values?: Record<string, string | number>): string;
     icon(name: string): string;
     formatDate(value: string): string;
+}
+
+export interface StagePagePublisher {
+    publish(parts: StagePagePresentation): void;
+}
+
+export interface StageTerminalPaneModel {
+    selected?: {
+        goal_id: string;
+        title: string;
+        decomposition_state: string;
+        fulfillment_state: string;
+        statusHtml: string;
+        event_work?: boolean;
+    };
+    children: readonly {
+        goal_id: string;
+        title: string;
+        statusLabel: string;
+        nextAction: string;
+    }[];
+    cliAvailability: Record<string, boolean>;
+    promptRoute: string;
+    terminalsRoute: string;
+    text: (value: string, vars?: Record<string, string | number>) => string;
+    icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }
 
 export declare const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
@@ -277,6 +377,7 @@ export interface UiPageRouteDeclaration {
     readonly route_id: string;
     readonly path: string;
     readonly query?: readonly string[];
+    readonly params?: Readonly<Record<string, string>>;
 }
 
 export interface UiPageTerminal<Element = unknown> {
@@ -406,6 +507,7 @@ export interface UiSlotDescriptor {
 
 export interface UiStageDataDeclaration {
     readonly action: string;
+    readonly object_action?: string;
     readonly input?: readonly string[];
 }
 
@@ -511,6 +613,7 @@ export interface UiViewDeclaration {
     readonly settings_runtimes?: true;
     readonly settings_address?: UiSettingsAddressParamsDeclaration;
     readonly stage_data?: UiStageDataDeclaration;
+    readonly stage_surfaces?: readonly string[];
     readonly creates?: UiViewCreateEntry;
     readonly start?: UiViewStartEntry;
 }

@@ -49,7 +49,7 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - 负责：成果库与过程项的身份、版本、类型、内容引用、范围与来源。
 - 不负责：插件实现、跨对象关系、传输回执、插件私有草稿。
 - 公开入口：`@molis-ai/molis-work-module-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/artifacts`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只取 `whole-units` 的整字截，与其它层同一份规则）。方向：只依赖 contracts/modules、contracts/services、kernel 与公开 SDK；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Repository 只由包内装配；成果与过程项的 Module、service/query/commands 不提供 `repository` 成员，调用方通过业务服务发布和读取固定版本。
   - 错误由本包声明并抛出共同 `ActionError`，Host 不注入错误工厂；现行码、消息、详情与响应分类随 owner 保持。

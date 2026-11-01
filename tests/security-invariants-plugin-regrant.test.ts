@@ -50,6 +50,23 @@ function build(version: string, permissions: PluginManifest["permissions"], prob
 
 const newProbe = (): Probe => ({ starts: [], stops: 0, failStart: false, failStop: false });
 
+test("RAC2865 a permission switch waiting behind an upgrade cannot grant against the previous saved declaration", async () => {
+  const probe = newProbe(), { runtime, installId } = await running(probe);
+  await runtime.regrant(installId, OPTIONAL.permission, false);
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+  const target = build("2.0.0", [REQUIRED, OPTIONAL, OTHER], probe, false);
+  target.manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
+  target.validateUpgrade = async () => { enter(); await gate; };
+  const upgraded = runtime.upgrade({ install_id: installId, definition: target });
+  await entered;
+  const refused = assert.rejects(runtime.regrant(installId, OPTIONAL.permission, true), { code: "plugin.definition_conflict" });
+  release(); await upgraded; await refused;
+  assert.equal(runtime.get(installId).version, "2.0.0");
+  assert.equal(runtime.get(installId).grants.includes(OPTIONAL.permission), false);
+  await runtime.stop(installId);
+});
+
 /** A running plugin of the Host's build in a bare Runtime, the way a switch finds it. */
 async function running(probe: Probe, permissions: PluginManifest["permissions"] = [REQUIRED, OPTIONAL, OTHER]) {
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });

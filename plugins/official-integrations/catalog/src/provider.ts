@@ -141,7 +141,7 @@ export function createCatalogProvider(opts: {
       return result;
     } catch (error) {
       await control.beforeEffect(); control.current();
-      if ((spec.id !== "notion" && authExtras()?.auth_method !== "oauth") || !opts.resolveToken || !(error instanceof CatalogLiveError) || error.kind !== "needs_auth" || error.status === 403) throw error;
+      if (authExtras()?.auth_method !== "oauth" || !opts.resolveToken || !(error instanceof CatalogLiveError) || error.kind !== "needs_auth" || error.status === 403) throw error;
       const renewed = await resolveToken(control, true);
       if (!renewed) throw error;
       const result = await run(await resolveContext(spec, renewed, http, authExtras()), http);

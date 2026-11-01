@@ -26,11 +26,12 @@ export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElem
       const entry = slots.get(message.id); if (!entry) return;
       const box = message.box;
       if (!scope.visible || !box || ![box.x, box.y, box.width, box.height].every(Number.isFinite) || box.width <= 0) {
-        entry.holder.hidden = true; return;
+        entry.holder.style.visibility = "hidden"; return;
       }
       const owner = frame.getBoundingClientRect(), bounds = root.getBoundingClientRect();
       const left = Math.max(0, box.x), top = Math.max(0, box.y), right = Math.min(owner.width, box.x + box.width), bottom = Math.min(owner.height, box.y + box.height);
-      entry.holder.hidden = false;
+      // Layout can arrive after show. Geometry must not abort the review's owner-page lifetime.
+      entry.holder.style.removeProperty("visibility");
       Object.assign(entry.holder.style, { left: owner.left - bounds.left + left + "px", top: owner.top - bounds.top + top + "px",
         width: Math.max(0, right - left) + "px", height: Math.max(0, bottom - top) + "px" });
       Object.assign(entry.content.style, { left: box.x - left + "px", top: box.y - top + "px", width: box.width + "px" });
@@ -46,7 +47,7 @@ export function pageReviews(port: MessagePort, scope: FrameScope, root: HTMLElem
         if (slots.size >= 8) throw new Error("Review view unavailable");
         const holder = document.createElement("div"), content = document.createElement("div");
         holder.dataset.hostReviewSlot = String(message.id);
-        holder.style.cssText = "position:absolute;overflow:hidden;z-index:1;width:0;height:0";
+        holder.style.cssText = "position:absolute;overflow:hidden;visibility:hidden;z-index:1;width:0;height:0";
         content.style.cssText = "position:absolute;background:var(--surface);width:320px";
         holder.append(content); root.append(holder);
         const lifetime = host.mountPluginClient(holder); if (!lifetime) throw new Error("Review view unavailable");

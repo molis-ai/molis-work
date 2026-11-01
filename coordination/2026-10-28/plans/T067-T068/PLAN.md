@@ -122,3 +122,12 @@ Figma四项是原行为机械等价，不等未知owner私稿；Microsoft按实�
 ## 根增量采纳（2026-11-01 00:00Z）
 
 已全文核REVIEW增量并回读Runtime installIdentity、新安装randomUUID及原始构建声明：修正install_id/installation_generation事实，补publisher_signature与原Manifest资格参照。二审其余held/最终同步commit接缝无新增必修；本次仅把两处精确修正落到工程准备，保持父片/最终路径锁WAIT，不声称实现或运行通过。
+
+
+## 2026-11-01 12:02Z 正式执行窗口
+
+按用户最新增加并行实施线要求，T068正式交Codex验证线4转任本单开发，模型固定Sol6.1Max，甲档/full=true；原§5十类oracle依表顺序对应RAC2878～2887，行为和原安全边界不变。实际M e4bf46ca，T395已冻结源码a5d425e5f11df62a5ac62829d60d005b65234ad7（tree1be3df92d3f56f6973014324345790841e68a403），其中T065/T066/T121已同一正常合成；根明确允许候选在此准确父实施，正式发布/采用仍排T395实际采用后，不消费未冻结WIP。T067文档候选已交起草线，§3六段文档对应RAC2888～2893，仅父采用后写完成态，不把BL790或PG045签完成。
+
+T068准许原§4指定精确模块：contracts/platform/plugin-integrations.ts、SDK integration-declarations及现有method声明校验、catalog声明构造与gmail/github Manifest；Host connector-mcp、connector-mcp-endpoint、connector-mcp-configuration、connector-mcp-commit、connector-activation、connector-authorization-commit、host-connector-methods、connector-directory、connector-setup、agent-connector-ports、integration-registry、plugin-trust-actions中本书明确接缝及其现有具名测试。必要协议配置/待授权类型所在owner可作同一形状增量，不新增source账/迁移/兼容。保护分支不动；T396四工厂/GitHub provider只读使用resolver，与本片API OAuth实现分开，不改它们；T402 Feed/Inbox owner/objects不动。T149 SDK Manifest/index的派生导出与本片SDK校验imports/exports候选交根串行，不锁整个SDK。若真正同函数未定才报具体hunk，未受影响部分继续。
+
+完整迁入34纯远程配置与Figma远程分支，保本机例外、Microsoft36字符类iu及部署客户端原资格；稳定来源pin/在途generation、held/最终同步提交/后续发现刷新call与Agent直通同时闭合。旧配置缺pin按现行拒绝，不猜来源，不新增维护或迁移机制。所有真实验证在临时Home/file secrets/受控HTTPS及既有SDK夹具，无真实账号/密钥/模型。共享快照/安全表/基线/资源/状态根串行；原有效证据沿用，仅必要完整回归和有区分力的安全正反/交错，不重复父矩阵。公开build/test槽、jobs1/retries0；不本机Full/push/GH，准确候选交独立验证与加强二审，不为凑READY拆片。

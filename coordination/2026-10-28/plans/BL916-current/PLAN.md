@@ -43,3 +43,16 @@
 真实Home、真实模型/Keychain、付费账户不因本准备获得权限；用临时Home/file secrets/受控HTTPS与明确当次授权执行。原B会话HOLD不是永久禁止，也不能换设备规避当前限制。第一本只结四项、BL916仍留background；第二本五项真实证据齐后根才关行，T144/T145/T149和PG整行另账。
 
 根现在可更新原书一句状态：“T143采用前置满足；T144与上述共享hunk/采用父条件仍待”，保作者归属和两书内容。无需重开语义、重写方案、派新号或把当前准备改成READY。本轮到此停止。
+
+
+## 2026-11-01 11:55Z 统筹执行窗口：T397四资源／T398后继
+
+用户明确增加特权清理开发线；T397正式承接revision-3 four-resources完整范围，甲档/full=true，六项验收依序RAC2865～2870。负责人：Codex辅助开发线bl916_resources；原工程书作者归属保留。T398为background既有完整后继预留，七项验收RAC2871～2877，仍严格等T397实际采用，不派第二并发writer。不更改五项全部真实贯通才关BL916的要求。
+
+本轮以实际M e4bf46ca正常合冻结T3943878296ad为候选父，T143已实际采用，T144完整签包正文/升级实现已在冻结父内。根明确允许T397在父实际采用前开始独立候选实施，发布/采用仍排T394/T145/T149已交接组合之后。先改Runtime project-database词法/CREATE共用规则及其必要具名出口、Host现有ProjectStatementProcess/controller/SQL Worker的两个Home准备窄命令、installed-plugin-libraries唯一owner适配与独立DDL回归；不改保护#1101树、不消费其未采用inspect接口，当前main project wrapper和project_root特权原样保留。根承担将来保护分支合成责任。
+
+T149拥有唯一Manifest/effects迁入SDK的共享hunk，T397必须等其准确冻结后在新owner扩资源/Requested/Operation，禁止改旧Host派生文件或留副本。T145拥有home-plugin-executor.start、可信项目上下文与同一permission setter hunk，冻结后由根交一次串行窗口，T397只补异步Home初始化等待，不复制项目授权。T149的readSandboxPackage/installed/preview与T394已冻结正文/升级/UI都保留；未交接hunk先给最小候选，不消费WIP。其余不相交资源contract/DDL/服务真实测试可以直接推进。完整真签包预览批准安装恢复和四服务正反证同一任务交付，不能把DDL子步称完成。
+
+公共build/test槽、jobs1/retries0、隔离Home/file secrets/专用浏览器；不本机Full/真实Home4207/Keychain/真模型/保护分支/push/GH。只原必要相关回归与真实边界实验，父未变有效证据沿用，报告一页，原件只保定位需要。共享API/actions/SI/预算/基线/状态根串行。无需重新设计或重审已接受工程选择。
+
+2026-11-01 12:02Z：用户明确全部工作线Sol6.1Max；原Astra回合已中断，T397由Sol子代理t397_sol保留同一工作树与Runtime两文件WIP接续，范围、等待hunk和完整验收不变。

@@ -136,3 +136,14 @@ A/B/C按上述具体字段、固定对象输入与实际owner绑定采用为后�
 一骏要求优先W5并去掉非必要串行核验。原PR1b已在80e3bf2197d2d0ae9adf789fe1c4814288e53568冻结并独立审验通过，进入T394最终承载；解除仅为等待其Full/采用而停止PR1c源码开发的排程限制。开发线3可在独立树从实际main be0c777创建分支，再普通合入该准确PR1b，只实施本书§3及原RAC2682/2684/2685/2686。原父候选并非已采用，PR1c发布/最终采用仍排T394之后；届时普通合真实main并只核实际差量。
 
 T393当前生产写集与PR1c Goals舞台/词典/旧拼装范围无交集；T394保已审成员而不改此处渲染业务。共享API/actions、词典总表的各自hunk及文档/资源根串行，不能取T393未冻结内容。保完整原HTML/路由和可用性语义，T117类型/T402对象挂载/T116 PR2不偷带。作者直接实施，不重写总方案；仅实际缺契约/新产品取舍或同hunk冲突回根。必要golden/声明挂载正反和出口回归按原文件；旧未变验证沿用，不做全套重复matrix/多轮书审。独立验证和加强二审在最终候选各一次。
+
+
+### 2026-11-01 11:50Z 执行窗口：PR1c owner 接缝与 T402 并行
+
+负责人：Codex统筹。用户要求加速W5并新增未出PR的开发线；原产品语义、RAC与逐字节约束不变，仅将可独立候选实施提前，最终发布/采用仍排准确父之后。
+
+PR1c同一片补齐两个实际owner交接：Capsule的buildCapsuleSnapshot及capsule-items展示投影原样归Goals，Workbench只留外壳；现有capsule-view类型按真实消费者随owner迁移，不新增公共镜像DTO。设置/规划的私有kind/args/primitives适配归Goals，Workbench不消费GoalsPlanningPage等私有模型，页面回传沿现有WorkbenchDocumentRenderRequest。准确最小依据为 /private/tmp/t117-next/PARENT-SEAM.md；该补充闭合原RAC2682/2684/2685，不扩产品行为，不把两个行为缺口转嫁给T117 type-only。原JSON/HTML、脚本顺序与展示排序保留，必要Capsule/设置/金样回归即可；不重复旧矩阵。
+
+T402交开发线2完整负责（甲档），立即在独立树从M e4bf46ca正常合冻结父T394 3878296ad后，先实施§4已接受的Feed/Inbox owner数据/服务；plugin.ts必要handler端口接线明确纳入。PR1c未冻结的contracts/ui、SDK view-placement、Host stage与Workbench绘制hunk暂不改、不消费其WIP。T121冻结7ac67在manifest/plugin/query-actions/ui的账号绑定增量必须保留：先核自有hunk，最终只合根交付T395冻结父，重叠语义报根，不另写旧绑定替代。PR1c冻结后给一次共享接缝合流窗口，补object_action/stage_surfaces/objects路由、两客户端URL同步和旧查询/投影删除，完整RAC2507～2514同交；不能仅owner切片就宣告完成。精确路径和输入输出见 /private/tmp/t402-next/EXECUTION.md；T403只后续搬客户端，T117等owner模型真正移出。
+
+共享快照/词典/预算/基线/状态由根串行结算；作者只改本树允许范围。整机build1/test1公共machine-slot、jobs1/retries0、隔离Home和专用浏览器。只必要相关完整回归，旧有效证据沿用；不本机Full/真实Home4207/Keychain/真模型/push/GH。准确候选完成后独立验证及加强二审另派，一页报告即可。

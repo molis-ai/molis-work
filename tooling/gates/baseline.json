@@ -1,5 +1,5 @@
 {
-  "giantUnits": 44,
+  "giantUnits": 48,
   "giant": {
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "lines": 257,
@@ -14,12 +14,21 @@
       "methods": 45
     },
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
-    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 261,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 191,
+    "class apps/local-host/src/home-plugins.ts#HomePluginHost": {
+      "lines": 280,
+      "methods": 26
+    },
+    "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": 155,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 208,
       "methods": 32
+    },
+    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
+      "lines": 301,
+      "methods": 23
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
@@ -34,16 +43,17 @@
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 406,
+      "lines": 407,
       "methods": 15
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
       "methods": 23
     },
+    "file packages/plugin-runtime/src/index.ts": 828,
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 624,
-      "methods": 29
+      "lines": 654,
+      "methods": 31
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
       "lines": 567,

@@ -6,7 +6,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HomeConsentLedger, readStudioDistribution, pluginInstallActions, pluginControlActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, readStudioDistribution, pluginInstallActions, MolisWorkUninstallService, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
 import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { readyPublication, publicationAuthority } from './fixtures/studio-publishing.js';
@@ -214,7 +214,8 @@ test('RAC-2656 RAC-2657 RAC-2658 KEY-2 local signatures still require personal p
   assert.equal(foreign.preview.publisher_pinned, false);
   await assert.rejects(b.projectClient().invoke(person(), ref(pluginInstallActions.confirm), { preview_id: foreign.preview_id, consent: true }), refused('plugin.publisher_untrusted'));
   assert.equal(b.ledger.publishers().length, 1); assert.equal(b.host.homePlugins!.installation(pluginId), null);
-  await a.homeClient().invoke(person(null), ref(pluginControlActions.homeUninstall), { plugin_id: pluginId, keep_data: true });
+  // CLEAN-1 exercises the existing lifecycle owner; the settings-entry stamp is not synthesized by this fixture.
+  await a.host.homePlugins!.packageAction(pluginId, 'uninstall', { keepData: true });
   assert.equal(metadata(a.home).key_id, release.distribution!.publisher_key_id, 'CLEAN-1 uninstalling the published plugin preserves the Home publisher');
   a.ledger.revokePublisher(release.distribution!.publisher_key_id, new Date().toISOString()); laterRevision(source);
   await assert.rejects(source.publish(), /发布者已撤销/); assert.equal(metadata(a.home).key_id, release.distribution!.publisher_key_id);

@@ -29,6 +29,16 @@
 
 **原验收与最终产物**：RAC2682真实Goals stage声明/挂载，外壳无goal-canvas-shell业务拼装；2684无Goals ui-composition引入/死Schedule构造，出口名单同步；2685实际外部点名清单下降并保T117明确余项；2686英文键归Goals词典。2680金样仍是逐字节硬约束，2681/2683前片证据只按实际未变输入核抵。最终main若带新promptRoute/终端或shell属性，先用独立准确main输出冻结合法金样，候选不得自行RECORD重写期望；66份完整HTML的正常断言与RECORD运行分账，保留旧首败/skip/UNKNOWN。交付完整PR1采用清单、准确base/head/tree、scoped diff、词典迁移实际键/数量、金样与挂载正反控来源及未运行边界。
 
+### 3.1 2026-11-01 根补充：整页呈现的最小通用接缝
+
+当前StagePageModel与render:string不能承接原Goals标题、独立弹层、JSON和页面呈现选择；只把canvas函数搬到Goals后由renderer直接调仍是私线，不能结RAC2682。根采纳只读设计检查，以下是PR1c已授权的必要合同补充，产品行为和原HTML金样不变，不引入T402的stage_surfaces/object_action。
+
+保UiContribution.render():string。StagePageModel只为当前已匹配page route的实际stage owner提供请求内同步page.publish(parts)，parts为有限呈现字段：title、body_attributes、workspace_classes、terminal_client、open_stage、bootstrap:{id,value}，以及overlays:{before_global_search?,after_global_search?}两个同贡献surface id。主HTML仍由原render返回，放原主舞台锚点；其它stage原位置不变。overlays必须由同一实际贡献声明为workbench.overlay，用同模型经原渲染机制画；不接受跨owner HTML或任意新脚本。bootstrap由壳按现有安全JSON转义输出，属性/类同原转义规则，Host的项目/路由等保留属性最后覆盖。publish仅在这次同步render中有效，render成功后才采纳请求局部结果；失败丢弃，停用/缺失不能靠catalog补回。nestedContent/embeddedFragments给其它owner的模型必须剔除page口，不能抢改标题/JSON。保持原createDialog→globalSearch→trashDialog→JSON→scripts顺序，不新增持久状态或第二渲染框架。
+
+UiPageRouteDeclaration新增可选params:Readonly<Record<string,string>>作为声明常量输入；Goals在自身page_routes为current/archive/trash声明collection，stage_data.input列collection/goal_id。SDK沿原名字/长度/可信字段限制校验，常量键不得与path/query同名，请求不能覆盖；常量与路由参数只经既有stage_data.input投影进入action及render。不给raw URL，不让Host按Goals名字判断collection。stage_data动作必须返回原withSelectedGoalDocument所需完整详情，不能只迁集合后仍靠Host补业务模型。
+
+精确新增写窗：contracts/platform/ui.ts；SDK page-routes.ts与view-placement-declarations.ts及原路由/声明测试；Goals manifest/page-routes、stage action、page/workbench-stage与registration/plugin实际贡献登记；Workbench declared-stages/stage-renderers/shell-page-renderer/renderer；Host project-plugin-stages、project-stage-data、web-goals-read及对应home stage结果透传处。共享API/action快照按最终源码生成，根串行收取。只在这些实际caller补接缝，不扩T117真实类型或PR2布局。验收沿RAC2680/2682，原金样及未变证据沿用；现有owner负例补“其它owner无publish口”，原完整文件核声明常量不可覆盖与主渲染失败不采纳即可，不另造矩阵。
+
 ## 4. T402：需补明确的通用接口缺口
 
 **当前事实**：M的 `UiStageDataDeclaration` 仅action，`StagePageModel`仅route_prefix/shown_plugins/data/primitives；没有object_action/object模型。`plugin-stage-fragment-http.ts`仍有FEED_ITEM_STAGE、feedItem端口及feed/inbox具名分支；`project-stage-data.ts`是已存在的通用零输入读取；renderDeclaredStages消费同步model。T133原WO曾把object_action放片1目标，但实际未落地，不能当现成API调用，也不能重开整个片1。

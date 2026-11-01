@@ -173,7 +173,7 @@
 | T-319 事项接线证据（#1662，6544837150 建议1） | `apps/local-host/src/project-host.ts` 的 `createHomeEventHandlers` 接线；`tests/home-event-actions.test.ts` 或 Host 用例 | 旧变异 H 断开真实 Host 到事项路径的项目目录判断仍全绿；统筹明确允许本单留后续。补真实 Host/Catalog 经 `home.events.read` 的调用与 issue 断言，使断开接线必红；不改变 Runtime 的 A 裁定、不扩为新的产品合同。#1662 已合；已进 T-374/#1703，独立审验通过待CI/合入；仅改 home-event-actions 测试，home-actions第三参为隔离变异切点，不改受保护project-host。 | Codex 统筹 |
 
 | T-347 修复二审后续 | `deleteSecretEntriesWithPrefix` | 本单获批之外的前缀删除入口仍未校验留存坏条目；若要统一坏条目保证，另定删除/恢复合同。与结构合法认证失败延期同属后续，不扩大当前T-347。 | Codex 统筹 |
-| T-384 Full增量二审后续（#1712，6553736025） | onboarding-journey:172；page-interaction-flow:42 | 两个真实首败均整文件retry通过。前者是移除网页材料组后数量未退回1，后者是发Esc前真实隐藏展开层前置条件未成立；当前delta有装配/渲染交集但未定位必修回归，不以静态HTML或retry绿销账。缺失败现场状态，后续按同文件再现/相关代码改动有界处置，不盲重跑。 | Codex统筹，输入与因果UNKNOWN留存 |
+| T-384 Full增量二审后续（#1712，6553736025） | onboarding-journey:172；page-interaction-flow:42 | 两个真实首败均整文件retry通过。前者是移除网页材料组后数量未退回1，后者是发Esc前真实隐藏展开层前置条件未成立；当前delta有装配/渲染交集但未定位必修回归，不以静态HTML或retry绿销账。缺失败现场状态，后续按同文件再现/相关代码改动有界处置，不盲重跑。 T386自身Full41293422614同第42行同异常再现后retry3/3；独立比对确认不含T386三生产改动的T384已有逐字同签名，未建立T386新P1，底层原因仍UNKNOWN。 | Codex统筹，输入与因果UNKNOWN留存 |
 
 ## 2026-10-31 21:00Z 主线差集核收
 

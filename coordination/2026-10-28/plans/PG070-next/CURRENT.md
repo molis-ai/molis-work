@@ -4,7 +4,7 @@
 
 ## 目标、依据与准确基点
 
-本计划覆盖 ESTIMATE 中 **PG070 剩余整行的同一后继**：Coding 四条设置 CSS 和两处设置脚本归登记，独立入口撤 Shelf 重复拼接；Characters 从两张共用 CSS 移到实际 HTML section 内，两入口独立携带自身规则。Coding 与 Characters 一起实现、一起验收；任何一个未闭合，PG070 整行不完成。完成目标是既有功能/交互/持久化保持可用、必要真实浏览器路径验证，非新增 UI、权限、事实或产品语义。
+本计划覆盖 ESTIMATE 中 **PG070 剩余整行的同一后继**：Coding 四条设置 CSS 随已登记设置贡献的 section 携带，两处设置脚本归登记，独立入口撤 Shelf 重复拼接；Characters 从两张共用 CSS 移到实际 HTML section 内，两入口独立携带自身规则。Coding 与 Characters 一起实现、一起验收；任何一个未闭合，PG070 整行不完成。完成目标是既有功能/交互/持久化保持可用、必要真实浏览器路径验证，非新增 UI、权限、事实或产品语义。
 
 依据为协调 [ESTIMATE](/Users/yijunwang/code/mw-coord/coordination/2026-10-28/ESTIMATE.md) 的 PG070 拆账，以及 [CANDIDATE](/Users/yijunwang/code/mw-coord/coordination/2026-10-28/plans/PG070-next/CANDIDATE.md)、[PLAN](/Users/yijunwang/code/mw-coord/coordination/2026-10-28/plans/PG070-next/PLAN.md)、[REVIEW](/Users/yijunwang/code/mw-coord/coordination/2026-10-28/plans/PG070-next/REVIEW.md)。其冻结副本与 ESTIMATE 对应行见 [authority](/private/tmp/pg070-current/authority)。原“Coding writer 不做 Characters”“仅 Coding 子片”“Characters 后续再做”的分片边界由本次根派单覆盖；section 前放 style 的旧技术描述也不采用。
 
@@ -20,8 +20,8 @@
 
 | 路径 / 当前 hunk | 同一个 writer 的最终改动 |
 | --- | --- |
-| `C/registration.ts:2,13–22` | 保原 stylesheet/clientFactory/clientUses/git/files，新增 workbench.settingsStylesheet 指向本包四规则常量、settingsClient 指向现有 CODING_SETTINGS_CLIENT_SCRIPT。不改 Manifest/actions，不增公开出口。 |
-| 新 `C/settings-styles.ts`；`W/styles/settings.ts:504–507` | 四条 CSS 原值搬入本包私有设置常量，registration 直接导入：details margin-block、summary cursor/overflow-wrap、method-body 全套声明、mw-select max-width。宿主删原四条。不是恢复整张 CODING_STYLES；规则经现有聚合仍进入两共用表，改变的是 owner/装配。级联位置改变要用计算样式验。 |
+| `C/registration.ts:2,13–22` | 保原 stylesheet/clientFactory/clientUses/git/files，只新增 settingsClient 指向现有 CODING_SETTINGS_CLIENT_SCRIPT；四规则不进 settingsStylesheet，随既有 settings contribution 内容携带。不改 Manifest/actions，不增公开出口。 |
+| 新 `C/settings-styles.ts`；`C/ui.ts`；`W/styles/settings.ts:504–507` | 四条 CSS 原值搬入本包私有设置常量，由 renderCodingSettings 导入并在现有 settings-document.coding-settings section 内首个子节点输出静态 style；details、summary、method-body、mw-select 原声明不改。宿主删原四条，两共用表不再持有；内容抽取、缓存重挂保留 style，每个 section 一份。级联位置改变以实际计算样式验证。 |
 | `W/scripts/client/initialization.ts:1,125–126` | 删 Coding 专用 import 和 generic bootstrap 后的 Coding 直拼；保 pluginWorkbenchClientBootstrap(undefined,true) 与其它平台脚本顺序。deferClients 只跳过 clientFactory，不跳过 settingsClient，无需改公共聚合。 |
 | `W/scripts/settings.ts:7,11,115` | 删 Coding、Shelf 专用 import/拼接，导入既有 pluginSettingsClients()，在原插件脚本区域调用一次。保 request helper 前置及模型/连接器/平台脚本顺序，保 judgment-rules 路径。不按插件 id 写排除名单，不另加绑定注册器。 |
 | `W/characters/styles.ts:1–102` | 将角色项目页规则保在 Characters 自己样式模块；从整段拆出全局设置入口所需规则。原 `:88–91` 的 project-link 四规则只供入口；`:80` 的 hint 声明入口与项目页都需要（其余 editor-small 部分只供项目页）。两个常量/必要共用静态片段按实际选择组织，原值与媒体规则不变；不造运行时样式状态或第二份可变注册表。 |
@@ -33,10 +33,10 @@
 
 ```mermaid
 flowchart LR
-  CR["Coding registration\n四规则 + 既有 settingsClient"] --> CS[pluginSettingsStyles]
+  CR["Coding registration\n既有 settings contribution + settingsClient"] --> CS["Coding section 内四条静态规则"]
   CR --> CC[pluginSettingsClients]
   CR --> CB[pluginWorkbenchClientBootstrap]
-  CS --> CSS["workbench.css / settings.css"]
+  CS --> CSS["实际设置内容 / 抽取缓存重挂"]
   CC --> A["A 独立设置页"]
   CB --> B["B 工作台内嵌设置"]
   CC --> C["C 项目设置整页"]
@@ -67,7 +67,7 @@ flowchart LR
 1. 根正式窗口冻结最终 M，核本文 M 差异与完整写路径。使用根指定独立树；先对照 accepted 原行补同一 PG070 slice 的完整后继段与根分的验收号，不另起总 spec、T393/T394 或两套进度账。该共享 spec/文档由根指定串行写入方式。
 2. 在同一差分中迁 Coding 四规则/登记 settingsClient，撤 A/B 的 Coding 与 A 的 Shelf 直拼。先检查公共消费路径和 request helper 顺序，C 原样复用；不动 plugin-workbench 实现。
 3. 在同一差分中拆 Characters 入口最小规则、把 style 写进两个 section 内部，再删两共用表直接拼接。保静态原值/媒体断点，当前编辑器、弹窗、终端 HTML 与所有动作保持；不引入全局 loaded 标志、样式 URL 或新存储。
-4. 更新同一主题相关测试，给上述实际动作与回读加断言；原 T146 RAC-2590/2591/2592 等断言保持。四条 Coding 规则在成品共享表里仍应各一份（经 settingsStylesheet），不能将它们的存在误判为恢复整张 Coding 样式。
+4. 更新同一主题相关测试，给上述实际动作与回读加断言；原T146整表/框架内规则不回流等负控保持；RAC-2590中四条设置规则的载体正控从共用表迁到实际贡献section，补两共用表不含并同步slice旧载体表述。四条 Coding 规则在实际 settings section 内仅一份，两张共享表不再包含；T146 的共享表拒绝断言与现行门禁保持。
 5. 获公共 build/browser 槽后完成下节工程和真实路径验证；发现多监听/抽取丢 style/级联变化先定位原接缝，在同一完整范围修复，不以删除断言、调整产品、单做 Coding 交付结束。
 6. 最终资源结算与必要文档差量交根串行，冻结 head/tree、交 scoped diff 和证据。任何必要的资源增长在实测后按既有规则处理，不把本文当放行。CI/Full/推送/采用由根；完整后继全部验收/采用后才关 PG070 剩余整行。
 
@@ -77,7 +77,7 @@ flowchart LR
 
 | 行为 | 具体证明与现有文件 |
 | --- | --- |
-| Coding owner / 样式到达 | `tests/plugin-styles.test.ts`：本包登记的四规则与两成品表各一份，宿主原四规则消失；原 CODING_STYLES 整表不回流，coding/git/files 外链和现行 PG070 splitter/served CSS 合同保持。正常生产装配，不仅搜常量名。 |
+| Coding owner / 样式到达 | `tests/plugin-styles.test.ts`：本包四规则随实际 settings contribution 的 section 一份，抽取/缓存重挂后仍在，宿主原四规则及两成品表内四规则消失；原 CODING_STYLES 整表不回流，coding/git/files 外链和现行 PG070 splitter/served CSS 合同保持。正常生产装配，不仅搜常量名。 |
 | A/B Coding 方法与 MCP | 在 `tests/project-settings-standalone.e2e.test.ts` 增独立命名测试块，走现有导航/真实 Host。方法库用隔离目录中的固定方法：展开读取正文，发现→点安装，检查目标 POST `/methods/install` 只一次及随后读取的安装事实；MCP 保存一份隔离无凭据配置，POST `/mcp` 一次、刷新/API 读回同一记录，避免 dataset guard 掩盖重复脚本。原方法/MCP客户端不改。`coding-mcp-settings-client.test.ts` 既有禁用/错误/启用回归保持，不能替代实际三入口证明。 |
 | A/B Shelf 与 Goals / C 消费 | Shelf 走现有真实设置控件，POST 其 `/settings` 一次，并读回值/重开保持；不触发真实桌面快捷键或启动外部 CLI。Goals登记正控使用真实rules/planning/adoption DOM及其动作、owner回读；C至少操作真实规则页。guidance由Workbench另拼脚本，保原回归但不能独自证明settingsClient。A/B以有该DOM的真实入口为准，不造假DOM。各入口无 Coding/Shelf DOM 时无新增业务POST/副作用或新增脚本错误，原Shelf binder等正常GET单列，不为绝对零GET改生产。沿现有 standalone、settings-viewport 的完整业务回归，保失败后输入/重试断言。请求计数只数目标 URL/方法/意图，正常 GET 轮询另列，不把合法刷新当双执行。 |
 | Characters 全局入口 | 新浏览器上下文直接打开无项目角色入口，验证项目链接、空项目提示、窄屏排版、入口内部 style；抓取/嵌入其 settings-document 后再次核计算样式，不借之前页面残留的 CSS。用既有设置浏览器文件增对应命名块。 |
@@ -101,7 +101,7 @@ node scripts/run-tests.mjs --jobs 1 --retries 0 --verbose tests/plugin-styles.te
 
 - 所有运行走公共唯一 build/browser 槽，jobs1/retries0；独立 system HOME/CFFIXED/XDG/TMP/Molis Home/文件凭据、指定测试浏览器、finally 清理本次浏览器/profile。无真实 Home4207、个人 Chrome、Keychain、真实账号/模型/MCP。终端只用上述隔离 fixture，不另测真实 Agent 执行。
 - 最终 `page-assets:check` 和现行 48 项 served bodies 以准确 base/head 的真实响应量测（资源数量以最终 main 为准）。预计直接变化为 workbench.css、settings.css、workbench.js；**独立设置客户端是在 HTML 内联，不能虚构 settings.js 第四资源**。coding.css、git/files.css 与其它 body 仍逐项核实际值，未变也记录；不以源码字符数当 serving 字节。
-- 另量无项目 Characters 入口、项目 HTML（含隐藏角色 stage）以及独立设置页内联脚本的 HTML 响应前后字节，说明 Characters CSS 从可缓存共用资产移入 HTML 的实际成本。不要只报两 CSS 下降、忽略 HTML 增长，也不承诺本轮必定总字节减少。Coding 四规则原值迁移也可能有包装/顺序差。
+- 另量无项目 Characters 入口、项目 HTML（含隐藏角色 stage）以及独立设置页内联脚本的 HTML 响应前后字节，说明 Characters及Coding设置 CSS 从可缓存共用资产移入 HTML 的实际成本。不要只报两 CSS 下降、忽略 HTML 增长，也不承诺本轮必定总字节减少。Coding 四规则原值迁移也可能有包装/顺序差。
 - 预算/巨型单元快查只按最终合成真实结果由根串行更新。下降照常 update；必要增长先给准确资源/原因/字节与已尝试节省，遵现行一次性放行评审规则；新增资源或单项 >10KB 要用户决定。本文不预申请、不放宽门禁，不改 APPROVED_CEILINGS 或本地 baseline 压绿。推送前由根按既有授权安排 fetch/secrets，当前阶段不运行。
 - 工程通过、真实操作覆盖、用户验收和 CI/Full/采用分别报告。最终 Full=true 由根 CI 排；完整后继未实际采用之前不关闭 PG070，不能用 Coding 完成或少量截图替代 Characters。
 
@@ -129,3 +129,5 @@ node scripts/run-tests.mjs --jobs 1 --retries 0 --verbose tests/plugin-styles.te
 ## 根正式交接补充
 
 已核最新main仍be0。21个Open PR完整文件分页没有本片目标交集，唯一保护#1101的page-assets旧hunk为Coding整表删除/旧聚合，当前main已具相应通用聚合；本片只移除Characters直接拼接，不修改保护分支、不采用未合语义。T141当前b6与T144冻结候选的settings-plugins均非本片写路径。资源账本后续按真实合成结算，不算术抵消。独立计划复核三项已并入正文；其余旧只读交付描述保历史来源，不把计划当已实现。准确文件写窗与RAC-2848～2854见T-393。
+
+2026-11-01 10:54Z根接续：Coding四规则采用section内静态style，精确原因和边界见同一T-393书末；原settingsStylesheet方案由本行及上文现行写法替代。门禁9→13不予数值放行，不变更门禁算法或基线。

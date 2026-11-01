@@ -31,7 +31,7 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
     c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(nextApproval));
     if (!off) await c.expose(release, 'caller');
     if (!same(moved)) throw new Error('插件安装已变化，不能继续采用旧切换结果');
-    c.registerPrompts(release, off ? 'disabled' : 'enabled'); c.recoveryErrors.delete(pluginId);
+    c.registerPrompts(release, off ? 'disabled' : 'enabled', action === 'rollback'); c.recoveryErrors.delete(pluginId);
   } catch (error) {
     if ((error as { code?: unknown })?.code === 'actions.provider_replaced') throw error;
     if (!moved || !same(moved)) throw error;
@@ -47,7 +47,7 @@ export async function changeInstalledVersion(c: InstalledLifecycleContext, actio
         if (approval === null) c.storage.delete(APPROVED_KEY + pluginId); else c.storage.set(APPROVED_KEY + pluginId, approval);
         if (!off) await c.expose(earlier, 'caller');
         if (!same(restored)) throw new Error('原安装已变化，不能继续写入恢复结果');
-        c.registerPrompts(earlier, off ? 'disabled' : 'enabled');
+        c.registerPrompts(earlier, off ? 'disabled' : 'enabled', true);
       } catch (failure) { failures.push(failure); }
     } else failures.push(new Error('原发行物当前不可读，不能自动恢复原版本'));
     if (!failures.length) throw error;

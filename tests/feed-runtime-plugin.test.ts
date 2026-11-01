@@ -45,7 +45,7 @@ const RULES = [...WRITE, "attention:write", "judgments:write"];
  * provided by a plugin of its own, so the project instance asks it through the action directory as it will ask the real one.
  */
 async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void;
-  breakWrites(count: number): void; unmark(): void; pauseAfterWrite(pause: () => Promise<void>): void }> {
+  breakWrites(count: number): void; pauseAfterWrite(pause: () => Promise<void>): void }> {
   const db = new Database(join(home, "ledger.db"));
   db.exec(FEED_HOME_DATABASE.schema);
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
@@ -68,7 +68,6 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
   // The collector deletes from this Home's evidence store, as the platform's does (`runWithMolisWorkHome`), never from the process's default Home.
   const evidence = runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
   const ledger = createFeedContentLedger(store, { collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)) });
-  await ledger.markComplete(async () => {}, new Date().toISOString());
   const permissions = ["feed:read", "feed:write", "evidence:collect"].map(permission => ({ permission, required: true, reason: "The reference ledger" }));
   const actions = Object.values(feedContentLedgerActions);
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
@@ -76,7 +75,7 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
   async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
   return { definition, close: () => db.close(), forget: () => { db.exec("DELETE FROM feed_content_holds"); }, breakWrites: count => { broken = count; },
-    unmark: () => { db.exec("DELETE FROM feed_content_meta"); }, pauseAfterWrite: pause => { paused = pause; },
+    pauseAfterWrite: pause => { paused = pause; },
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
@@ -160,7 +159,7 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   // The bodies the platform keeps are this fixture Home's, sealed with its own key; never the Home the test process would resolve to by default.
   const bodies = () => runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
   return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(),
-    breakLedger: (count = 1) => homeHalf?.breakWrites(count), unmarkLedger: () => homeHalf?.unmark(), pauseLedger: (pause: () => Promise<void>) => homeHalf!.pauseAfterWrite(pause),
+    breakLedger: (count = 1) => homeHalf?.breakWrites(count), pauseLedger: (pause: () => Promise<void>) => homeHalf!.pauseAfterWrite(pause),
     clock: () => scheduleServiceFor(store.db), installId, bodies, goalsAsked, calls };
 }
 
@@ -302,7 +301,7 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 const CONNECTOR = ["connections:use", "sources:pull_connector"];
 const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
-const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write"];
+const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write", "connections:use"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
@@ -423,7 +422,7 @@ test("RAC-518 deleting a source that keeps its local history keeps its items, it
 
 // FI-C-06 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger is another service's write, so a deletion releases before it commits.
 // A release that fails commits nothing: the source, its rows and with them its references and operation ids stay, and deleting it again
-// finishes and records the deletion once. A ledger without the completeness mark is no failure: the source goes and its bodies stay.
+// finishes and records the deletion once.
 test("FI-C-06 a deletion the Home's ledger fails keeps the source and what it holds; deleting again finishes and records the deletion once", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-06-key" });
@@ -448,17 +447,6 @@ test("FI-C-06 a deletion the Home's ledger fails keeps the source and what it ho
   for (const ref of refs) assert.ok(!bodies.has(ref), "a body nobody else holds is gone");
   assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [1, 1], "the deletion is recorded once");
 
-  const unmarked = await syncing(t);
-  await unmarked.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: unmarked.sourceId, idempotency_key: "fi-c-06-unmarked" });
-  const held = unmarked.holds(), heldBodies = unmarked.bodies();
-  unmarked.unmarkLedger();
-  await unmarked.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: unmarked.sourceId, history_decision: "delete_local_history" });
-  assert.equal(unmarked.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", unmarked.sourceId), 0, "the source and its rows go");
-  assert.deepEqual(unmarked.holds(), held, "a ledger that cannot say nobody holds a body keeps every hold");
-  for (const hold of held) assert.ok(heldBodies.has(hold.content_ref), "and every body");
-  const released = unmarked.store.db.prepare(`SELECT payload_json AS payload FROM events WHERE object_id = ? AND type = '${FEED_PLUGIN_ID}:feed_source.history_released'`).all(unmarked.sourceId) as Array<{ payload: string }>;
-  assert.equal(released.length, 1);
-  assert.equal((JSON.parse(released[0]!.payload) as { complete: boolean }).complete, false, "the record says the history was kept, not that it is gone");
 });
 
 /** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */
@@ -712,6 +700,72 @@ test("RAC-1025 disconnecting an account source takes the person's binding off it
   assert.equal(f.calls.length, 0);
 });
 
+// T-121 (FI-7b): Feed makes an account source empty and never writes which account it reads with; the person binds one on the platform.
+test("RAC-2665 a Runtime Feed adds an account source with no account: the same service and name give it back (a deleted one stays deleted), and it is pulled once the person binds an account to it", async t => {
+  const f = await connecting(t);
+  const add = (input: unknown) => f.client.invoke(caller(WRITE).context, feedSourceActions.add_account, input) as Promise<{ source: { source_id: string; sync_kind: string; config: Record<string, unknown>; status: string }; registered: boolean }>;
+  const added = await add({ service: "github", name: "Work GitHub" });
+  assert.deepEqual([added.registered, added.source.sync_kind, added.source.config, added.source.status], [true, "github", {}, "active"]);
+  const again = await add({ service: "github", name: "Work GitHub" });
+  assert.deepEqual([again.registered, again.source.source_id], [false, added.source.source_id]);
+  // Only the services Feed declares an account slot and an integration for, a name, and nothing that names an account.
+  for (const input of [{ service: "notion", name: "Docs" }, { service: "github", name: "" }, { service: "github", name: "Work", connection_id: "c-1" }, { service: "github", name: "Work", install_id: "i-1" }]) {
+    await assert.rejects(add(input), { code: "actions.input_invalid" }, JSON.stringify(input));
+  }
+  const sync = (key: string) => f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: added.source.source_id, idempotency_key: key }) as Promise<{ created: number; run: { outcome: string } }>;
+  // The person has a working GitHub account, but has not chosen it for this source: the platform pulls with no account of its own choosing.
+  const account = f.connect();
+  await assert.rejects(sync("added-unbound"), { code: "feed.connector_failed" });
+  assert.equal(f.calls.length, 0, "an account not bound to the source is not used");
+  withConnectorConnections(f.home, store => store.bind({ scopeId: pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: added.source.source_id }),
+    pluginId: feedManifest.plugin_id, slotId: "github", serviceId: "github", connectionId: account.connection_id }));
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: added.source.source_id, enabled: true });
+  const pulled = await sync("added-bound");
+  assert.deepEqual([pulled.run.outcome, pulled.created, f.calls[0]?.source_id, f.calls[0]?.connection_id], ["completed", 1, added.source.source_id, account.connection_id]);
+  const row = f.store.db.prepare("SELECT config_json, credential_ref FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { config_json: string; credential_ref: string | null };
+  assert.deepEqual([JSON.parse(row.config_json), row.credential_ref], [{}, null], "the source holds nothing of the account");
+
+  // Deleting it (keeping its history) takes the person's binding off it, and the same service and name do not bring it back.
+  const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: added.source.source_id });
+  const boundNow = () => withConnectorConnections(f.home, store => store.binding(scope, feedManifest.plugin_id, "github"))?.connection_id ?? null;
+  assert.equal(boundNow(), account.connection_id);
+  await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: added.source.source_id, history_decision: "retain_history" });
+  assert.equal(boundNow(), null, "a deleted source keeps no account");
+  await assert.rejects(add({ service: "github", name: "Work GitHub" }), { code: "feed.source_invalid_state" });
+  const kept = f.store.db.prepare("SELECT status, enabled FROM feed_sources WHERE source_id = ?").get(added.source.source_id) as { status: string; enabled: number };
+  assert.deepEqual([kept.status, kept.enabled], ["disconnected", 0], "the deleted source stays deleted");
+});
+
+test("RAC-2664 feed.sources.update@2 changes a source's own fields only: an account is not one of them, and @1 is gone", async t => {
+  const f = await connecting(t), account = f.connect();
+  f.bind(account.connection_id);
+  const who = caller([...WRITE, "sources:pull_feed"]), update = (input: unknown) => f.client.invoke(who.context, feedSourceActions.update, input);
+  assert.equal(feedSourceActions.update.version, 2);
+  await assert.rejects(update({ source_id: f.sourceId, connection_id: account.connection_id }), { code: "actions.input_invalid" });
+  await assert.rejects(f.client.invoke(who.context, { ...feedSourceActions.update, version: 1 }, { source_id: f.sourceId, name: "Renamed" }), ActionError);
+  await update({ source_id: f.sourceId, name: "Renamed", description: "Work notifications" });
+  const row = f.row();
+  assert.deepEqual([row.name, JSON.parse(String(row.config_json)), row.credential_ref], ["Renamed", {}, null]);
+  assert.equal(JSON.stringify(row).includes(account.connection_id), false);
+  assert.ok(f.bound(), "renaming leaves the person's binding as it was");
+});
+
+test("RAC-2668 changing a source's account is disconnecting and binding again: the source keeps its id, and the next pull starts from no cursor", async t => {
+  const f = await connecting(t), first = f.connect("First");
+  f.bind(first.connection_id);
+  await f.sync("first-account");
+  const cursor = () => (f.store.db.prepare("SELECT cursor_json FROM listener_instances WHERE source_id = ?").get(f.sourceId) as { cursor_json: string } | undefined)?.cursor_json;
+  assert.notEqual(cursor(), "{}", "the first account's pull left a cursor");
+  await f.client.invoke(caller([...WRITE, "connections:use"]).context, feedSourceActions.disconnect, { source_id: f.sourceId });
+  assert.deepEqual([cursor(), f.bound()], ["{}", null], "disconnecting forgets the cursor and the binding");
+  const second = f.connect("Second");
+  f.bind(second.connection_id);
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: f.sourceId, enabled: true });
+  const pulled = await f.sync("second-account");
+  assert.deepEqual([pulled.run.outcome, f.calls.at(-1)?.connection_id, f.calls.at(-1)?.source_id], ["completed", second.connection_id, f.sourceId]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_sources"), 1, "no second source was made for the other account");
+});
+
 test("RAC-1026 an account the person changes while a pull is running ends the pull refused: nothing is written, not even the bookkeeping", async t => {
   let swap = () => {};
   const f = await connecting(t, { sync: () => swap() }), account = f.connect(), other = f.connect("Other");
@@ -774,7 +828,7 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   for (const permission of ["connections:use", "sources:pull_connector"]) assert.equal(feedManifest.permissions.find(declared => declared.permission === permission)?.required, true, `${permission} is required`);
   const declared = (definition: ActionDefinition) => feedManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.permissions;
   for (const permission of ["connections:use", "sources:pull_connector", "attention:write"]) assert.ok(declared(feedSourceActions.sync).includes(permission), `a sync declares ${permission}`);
-  assert.ok(declared(feedSourceActions.disconnect).includes("connections:use"));
+  for (const releases of [feedSourceActions.disconnect, feedSourceActions.delete]) assert.ok(declared(releases).includes("connections:use"), `${releases.capability_id} releases the binding`);
   assert.ok(declared(feedInboxActions.material).includes("connections:use"));
   // 4e-2f: the actions that give an item's retained text, and those that judge a new item by it, declare evidence:read; the status of accounts does not.
   for (const definition of [feedQueryActions.snapshot, feedQueryActions.item, feedInboxActions.material, feedInboxActions.content, feedContentActions.read, feedRuleActions.previewJudgment,
@@ -1322,20 +1376,19 @@ test("RAC-518 a Runtime Feed names every body its library keeps in the Home's le
 });
 
 // FI-C-07 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger may not answer when the instance starts (it starts on its own, maybe
-// later); the job tries again rather than leave the library's bodies unnamed, and a ledger without its completeness mark still keeps them.
-test("FI-C-07 a start the Home's ledger first refuses still names the library's bodies, and a ledger without its mark keeps every one", async t => {
+// later); the job tries again rather than leave the library's bodies unnamed.
+test("FI-C-07 a start the Home's ledger first refuses still names the library's bodies", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-07-key" });
   const held = f.holds().map(hold => hold.content_ref).sort(), bodies = f.bodies();
   assert.equal(held.length, 2);
   f.forgetHolds();
-  f.unmarkLedger();
   await f.running.runtime.stop(f.installId());
   f.breakLedger(1);
   await f.running.runtime.start(f.installId());
   await until(() => f.holds().length === held.length, "the ledger holds the library's bodies after it first refused");
   assert.deepEqual(f.holds().map(hold => hold.content_ref).sort(), held);
-  for (const ref of held) assert.ok(bodies.has(ref), "no body went while the ledger could not tell who holds it");
+  for (const ref of held) assert.ok(bodies.has(ref), "no body went: the library still holds them");
 });
 
 // FI-C-05 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a pull checks its source again as the first statement of

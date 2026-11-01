@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
@@ -8,13 +8,12 @@ import { createPluginArtifactOperations, projectVersionStores } from "@molis-ai/
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
 import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
-import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
-  FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedErrors, feedManifest, feedOwnedAttention,
+  FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedManifest, feedOwnedAttention,
   type FeedApplication, type FeedApplicationPorts, type FeedArtifactProducer, type FeedSourceRecord, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
 import { fromBetterSqlite, type FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
-import { withConnectorConnections } from "./connector-connection-store.js";
 import { pluginNamespace } from "./plugin-namespace.js";
 import { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 
@@ -99,13 +98,10 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
   });
 }
 
-/** The connector host's refusals (no such connection, another service's, a disconnected one) are the person choosing a connection Feed cannot use. */
-const CONNECTION_REFUSALS = ["connector.connection.invalid", "connector.connection.not_found", "connector.connection.service_mismatch", "connector.connection.disconnected"];
-
 /** Registers and configures sources over the same connection; a sync of a source is the Runtime plugin's (`feed.sources.sync`). */
 export function createDemoFeedSourceService(db: SqliteDatabase, projectId: string,
   runtimeFactory: (db: SqliteDatabase, source?: FeedSourceRecord) => SourcePullRuntime = (database, source) => createSourcePullRuntime({ db: database, sourceCursor: source?.cursor }),
-  now: () => Date = () => new Date(), homeDirectory?: string, options?: DemoFeedSourceOptions): FeedSourceService {
+  now: () => Date = () => new Date(), options?: DemoFeedSourceOptions): FeedSourceService {
   const journal = new LocalSqliteJournal(db);
   return new FeedSourceService({
     feed: createDemoFeedApplication(db, options), ...(options?.acquireSync ? { acquireSync: options.acquireSync } : {}),
@@ -118,19 +114,6 @@ export function createDemoFeedSourceService(db: SqliteDatabase, projectId: strin
     },
     createRuntime: source => runtimeFactory(db, source),
     transaction: operation => db.transaction(operation).immediate(),
-    resolveConnection: (serviceId, connectionId) => withConnectorConnections(homeDirectory ?? resolveMolisWorkHome(), connections => {
-      let connection;
-      try { connection = connections.require(connectionId, serviceId); }
-      catch (error) {
-        throw error instanceof ActionError && CONNECTION_REFUSALS.includes(error.code) ? feedErrors.source_invalid_configuration(error.message) : error;
-      }
-      if (!connection.enabled || connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "cli") throw feedErrors.source_invalid_configuration("Feed 自动同步请选择 API OAuth 或令牌连接");
-      if (connections.state(connection) !== "connected" || (!connection.credential_ref && connection.auth_method !== "none")) {
-        throw feedErrors.source_invalid_configuration("所选账号连接不可用，请在 Connectors 中重新授权");
-      }
-      return { credentialRef: connection.credential_ref, accountLabel: connection.account_label,
-        ...(connection.credential_ref && connection.refresh_ref && connection.expires_ref ? { tokenRefs: { access: connection.credential_ref, refresh: connection.refresh_ref, expiresAt: connection.expires_ref } } : {}) };
-    }),
     appendEvent: (eventProject, sourceId, type, reason, payload = {}) => {
       const value = `${sourceId}\u0000${type}\u0000${Date.now()}\u0000${Math.random()}`;
       journal.appendEvent({ eventId: `event-feed-${createHash("sha256").update(value).digest("hex").slice(0, 32)}`, projectId: eventProject, actorId: "feed-source-service", type,

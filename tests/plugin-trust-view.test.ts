@@ -1,3 +1,10 @@
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { ChromeHarness } from "@molis-ai/molis-work-test-kit/browser";
+import { EN } from "@molis-ai/molis-work-app-workbench";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -77,4 +84,45 @@ test("RAC-2600 the installed list says why an installation is not running when i
   assert.equal(broken!.state, "running", "the state is the record's own; the reason is said beside it");
   assert.equal(fine!.recovery_error, null);
   assert.deepEqual([fine!.name, fine!.trust, fine!.manifest_available, fine!.permissions.length], ["Example notes", "pinned", true, 1], "the other fields are what they were");
+});
+
+
+// View-only inputs exercise the existing client renderer with multiple services; signed source packages currently allow one service.
+// The separate RAC-2619 e2e file uses real signed files and real preview/confirm responses throughout.
+test("RAC-2619-VIEW service rows preserve multiple exact origins as text and omit an empty group", { skip: process.platform !== "darwin", timeout: 60_000 }, async t => {
+  const executable = process.env.MOLIS_WORK_TEST_CHROME;
+  assert.equal(executable, "/Users/yijunwang/.local/bin/molis-test-browser");
+  await access(executable, constants.X_OK);
+  await access("/Users/yijunwang/.local/share/molis-test-browser/engine/chrome-headless-shell", constants.X_OK);
+  const directory = await mkdtemp(join(tmpdir(), "t141-preview-view-"));
+  let browser: ChromeHarness | undefined;
+  t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  const home = await serveHomeRuntime(t, { completeText: null }), project = await home.project("Preview view");
+  browser = await ChromeHarness.start(directory, { executable });
+  const page = await browser.page();
+  await page.command("Page.navigate", { url: home.origin + `/projects/${project.project_id}/settings/plugins` });
+  await page.wait("!!document.querySelector('[data-plugin-trust-pick]')");
+  const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"),
+    installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [] });
+  const preview = await service.preview({ bundle: signedPackage(newPublisher()) }, { project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID });
+  const origins = [
+    { title: "One <img src=x onerror=alert(1)>", service_id: "one", origins: ["https://one.example.com", "https://second.example.com:8443"] },
+    { title: "Two & three", service_id: "two", origins: ["https://two.example.com"] },
+  ];
+  await page.evaluate(`(() => { const original = globalThis.molisWorkRequest; globalThis.molisWorkRequest = Object.assign((url, ...args) => url.endsWith('/install/preview') ? Promise.resolve(globalThis.previewViewFixture) : original(url, ...args), original); })()`);
+  for (const rows of [origins, []]) {
+    await page.evaluate(`globalThis.previewViewFixture = ${JSON.stringify({ ...preview, origins: rows })}`);
+    const file = join(directory, "view-" + rows.length + ".json"); await writeFile(file, "{}");
+    const doc = await page.command<{ root: { nodeId: number } }>("DOM.getDocument");
+    const input = await page.command<{ nodeId: number }>("DOM.querySelector", { nodeId: doc.root.nodeId, selector: "[data-plugin-trust-pick]" });
+    await page.command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] });
+    await page.wait("document.querySelector('[data-plugin-trust-preview]')?.hidden === false");
+    const text = await page.evaluate<string>("document.querySelector('[data-plugin-trust-preview]').innerText");
+    assert.equal(text.includes("可访问的服务地址"), rows.length > 0);
+    for (const row of rows) for (const value of [row.title, row.service_id, ...row.origins]) assert.ok(text.includes(value), value);
+    assert.equal(await page.evaluate("document.querySelectorAll('[data-plugin-trust-preview] img').length"), 0);
+    await page.click("[data-plugin-trust-preview] .mw-btn--secondary");
+    await page.wait("document.querySelector('[data-plugin-trust-preview]').hidden");
+  }
+  assert.equal(EN["可访问的服务地址"], "Service addresses it may access");
 });

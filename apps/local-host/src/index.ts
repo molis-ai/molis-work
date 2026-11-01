@@ -115,7 +115,7 @@ export { installManagedConnectorTool, removeManagedConnectorTool } from "./conne
 export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 export { connectorUsagesAction } from "./connector-usage-actions.js";
-export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
+export { connectorPluginSlotActions, connectorPluginSlotUsages } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 export { publisherStanding } from "./installed-publisher-standing.js";
 export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
@@ -152,7 +152,8 @@ export { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtoco
 export { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthClientAuth, oauthContextValue, oauthDeviceRequest, oauthEndpoint, oauthEndpointFingerprint, oauthExpiry, oauthKept, oauthMethodOption, oauthPinnedTenant, oauthScope, oauthSecretRequired, oauthTenantOrigin, oauthTokenRequest, resolveOAuthSettings } from "./connector-oauth-declarations.js";
 export { listConnectorConnectionViews } from "./connector-connection-views.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
-export * from "./github-oauth.js";
+export { startDeviceOAuth, pollDeviceOAuth, registerConnectorDevicePolling } from "./connector-device-oauth.js";
+export { createPeriodicTasks } from "./periodic-tasks.js";
 
 
 export { createGithubConnector } from "./github-connector.js";
@@ -177,7 +178,7 @@ export { createLocalHostCapsule } from "./capsule.js";
 export { attachMolisWorkPtySocket } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
-export { declaredStageData } from "./project-stage-data.js";
+export { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
 export { developerMode } from "./developer-mode.js";
 export { hostCompleteText, hostTextGeneration, textModelAvailability, textModelMissing, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 // Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).

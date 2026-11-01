@@ -324,7 +324,8 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a method without a summary", manifest: declarationManifest({ methods: [method({ summary: "" })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
   { rule: "a method with a summary over 300 characters", manifest: declarationManifest({ methods: [method({ summary: "s".repeat(301) })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
   // RAC-1757: renaming METHOD_TOOLS to SKILL_TOOLS and the SDK check to inspectSkillDeclarations (T-111) leaves these refusals word for word.
-  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
+  { rule: "RAC-2636: a text-only method explicitly declares an empty tools array", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "" },
+  { rule: "a method omitting its tools array", manifest: declarationManifest({ methods: [method({ tools: undefined })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
   { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
   { rule: "ASC-19: a business method can declare persistent waiting", manifest: declarationManifest({ methods: [method({ tools: ["board-wait"] })] }), expected: "" },
   // views

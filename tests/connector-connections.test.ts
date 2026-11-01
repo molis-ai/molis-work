@@ -1,22 +1,21 @@
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, connectorProtocolSecrets, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { connectorProtocolSecrets } from "@molis-ai/molis-work-app-local-host";
+import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
-import { refreshFeedConnectionState } from "./fixtures/feed-library.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
-import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
@@ -132,80 +131,10 @@ test("Images uses the chosen Connector credential for each generation and surviv
   }
 });
 
-test("Feed switching account creates a separate source and keeps the old history, plan and capture rule", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-connector-source-"));
-  const home = join(directory, "home");
-  const databasePath = join(home, "projects", "board", "molis-work.db");
-  const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
-  try {
-    process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-    resetSecretStoreCache();
-    mkdirSync(join(home, "projects"), { recursive: true });
-    const catalog = new DatabaseSync(join(home, "projects", "catalog.db"));
-    catalog.exec("CREATE TABLE projects (project_id TEXT NOT NULL)");
-    catalog.prepare("INSERT INTO projects (project_id) VALUES (?)").run("board");
-    mkdirSync(dirname(databasePath), { recursive: true });
-    catalog.close();
-    seedDemoBoard(databasePath);
-    const board = new LocalProjectDatabase(databasePath);
-    try {
-      const [first, second] = withConnectorConnections(home, (store) => [
-        store.createToken({ serviceId: "github", displayName: "账号 A", token: "github-token-account-a" }),
-        store.createToken({ serviceId: "github", displayName: "账号 B", token: "github-token-account-b" }),
-      ]);
-      const feed = createLocalFeedApplication(board.db);
-      const source = feed.sources.upsert({
-        project_id: DEMO_PROJECT_ID, source_id: "github-source-original", kind: "github", definition_id: "github",
-        sync_kind: "github", name: "GitHub A", description: "通知", status: "active", enabled: true,
-        item_count: 0, origin: "molis_work", config: { connection_id: first!.connection_id },
-        schedule: { mode: "interval", enabled: true, interval_minutes: 30, next_pull_at: "2026-09-24T12:00:00.000Z" },
-        cursor: { after: "old-checkpoint" }, credential_ref: first!.credential_ref,
-        account_label: "account-a", last_sync_at: "2026-09-24T10:00:00.000Z", last_outcome: "success",
-        last_error_code: null, imported_at: "2026-09-24T09:00:00.000Z", updated_at: "2026-09-24T10:00:00.000Z",
-      });
-      const historical = feed.ingestItem({
-        source, externalId: "account-a-message", title: "Old account message", summary: "Saved history",
-        occurredAt: "2026-09-24T09:30:00.000Z", attention: false,
-      }).item;
-      const rule = feed.outRules.create(DEMO_PROJECT_ID, {
-        name: "需要回应", match: { source_id: source.source_id, contains: "review" },
-        enabled: true, admission: "suggest",
-      });
-      const service = createLocalFeedSourceService(board.db, DEMO_PROJECT_ID, undefined, undefined, home);
-      const switched = service.update(source.source_id, { connection_id: second!.connection_id });
-      assert.notEqual(switched.source_id, source.source_id);
-      assert.equal(switched.credential_ref, second!.credential_ref);
-      assert.deepEqual(switched.cursor, {});
-      assert.equal(switched.schedule.mode, "interval");
-      assert.equal(switched.item_count, 0);
-      const old = feed.sources.get(DEMO_PROJECT_ID, source.source_id);
-      assert.equal(old.status, "paused");
-      assert.deepEqual(old.cursor, { after: "old-checkpoint" });
-      assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.find((item) => item.item_id === historical.item_id)?.source_id, old.source_id);
-      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).filter((item) => item.match.source_id === switched.source_id).length, 1);
-      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).find((item) => item.rule_id === rule.rule_id)?.match.source_id, source.source_id);
-      assert.equal(service.update(switched.source_id, { connection_id: second!.connection_id }).source_id, switched.source_id);
-      withConnectorConnections(home, store => store.disconnect(second!.connection_id));
-      refreshFeedConnectionState(home, second!.connection_id);
-      // J3C-01: disconnection changes the error fact; reconnect clears it.
-      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
-      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
-      assert.equal(feed.sources.get(DEMO_PROJECT_ID, source.source_id).status, "paused");
-      withConnectorConnections(home, store => store.replaceToken(second!.connection_id, "github-token-account-b-rotated"));
-      assert.equal(withConnectorConnections(home, store => store.state(store.require(second!.connection_id))), "connected");
-      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).enabled, true);
-      refreshFeedConnectionState(home, second!.connection_id);
-      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "active");
-      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
-      assert.deepEqual(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).cursor, {});
-    } finally { board.close(); }
-  } finally {
-    resetSecretStoreCache();
-    if (previousBackend == null) delete process.env.MOLIS_WORK_SECRET_BACKEND;
-    else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
+// J3C-01's account half (a disconnected account takes its source to disconnected with `sources.connector_disconnected`, a working one
+// gives it back) is proven on the Runtime path, where a source's account is the person's per_record binding (T-121):
+// `tests/feed-runtime-plugin.test.ts` RAC-1036 and RAC-1037. Switching account is disconnecting and binding again (RAC-2668), so the old
+// "a new account makes a separate source" case is gone with the re-key.
 
 test("managed Gmail OAuth creates a named connection and refuses reauthorizing it as another Google account", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-managed-gmail-"));
@@ -264,63 +193,6 @@ test("managed Gmail OAuth creates a named connection and refuses reauthorizing i
   }
 });
 
-test("managed Notion OAuth keeps workspace identity and the selected connection name", async t => {
-  const home = mkdtempSync(join(tmpdir(), "molis-managed-notion-"));
-  const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
-  process.env.MOLIS_WORK_HOME = home;
-  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  resetSecretStoreCache();
-  const controlToken = "managed-notion-test-control-token";
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address(); assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
-  let workspace = "workspace-a";
-  const actualFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-    if (String(input) === "https://api.notion.com/v1/oauth/token") {
-      return Response.json({ access_token: `notion-token-${workspace}`, refresh_token: "notion-refresh-token",
-        workspace_id: workspace, workspace_name: workspace, bot_id: "bot-1" });
-    }
-    return actualFetch(input, init);
-  });
-  const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken,
-    "x-molis-work-idempotency-key": crypto.randomUUID() });
-  async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/notion/oauth/start`, { method: "POST", headers: headers(),
-      body: JSON.stringify({ client_id: "notion-test-client", client_secret: "notion-test-secret", manage_connection: true,
-        display_name: "Notion 工作区", ...(connectionId ? { connection_id: connectionId } : {}) }) });
-    assert.equal(response.status, 200);
-    const started = await response.json() as { authorizationUrl: string; connection_id: string };
-    return { connectionId: started.connection_id, state: new URL(started.authorizationUrl).searchParams.get("state")! };
-  }
-  async function callback(state: string) {
-    return fetch(`http://localhost:${address.port}/api/settings/connectors/notion/oauth/callback?state=${state}&code=code`);
-  }
-  try {
-    const first = await start();
-    const completed = await callback(first.state);
-    assert.equal(completed.status, 200);
-    assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connectionId, "notion")), "notion-token-workspace-a");
-    const saved = withConnectorConnections(home, store => store.require(first.connectionId));
-    assert.equal(saved.display_name, "Notion 工作区");
-    assert.equal(saved.account_label, "workspace-a");
-    workspace = "workspace-b";
-    const second = await start(first.connectionId);
-    const mismatch = await callback(second.state);
-    assert.equal(mismatch.status, 200);
-    assert.match(mismatch.url, /connector=notion/);
-    assert.match(mismatch.url, /connection_error=failed/);
-    assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connectionId, "notion")), "notion-token-workspace-a");
-  } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));
-    resetSecretStoreCache();
-    if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;
-    if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
-    rmSync(home, { recursive: true, force: true });
-  }
-});
-
 // CONERR-01 / CONERR-02: real HTTP classification preserves authorization and masks private connection failures.
 test("MCP settings keep authorization at 401 and missing connections as safe provider failures", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-mcp-refusal-"));
@@ -359,36 +231,34 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
-  const actualFetch = globalThis.fetch;
   let hold = false, generation = 0, reached!: () => void, release!: () => void;
   let entered: Promise<void>, waiting: Promise<void>;
   function block() { hold = true; entered = new Promise<void>(resolve => { reached = resolve; }); waiting = new Promise<void>(resolve => { release = resolve; }); }
-  // Gmail signs in through the generic flow (W5-11 slice 6), whose requests leave by the Host's own sender; Notion's flow is still its own.
-  const generic = service === "gmail";
+  // Both sign in through the generic flow (W5-11 slices 6, 7), whose requests leave by the Host's own sender.
   const issue = async () => {
     const issued = ++generation; if (hold) { reached(); await waiting; }
     return Response.json({ access_token: `fixture-access-${issued}`, refresh_token: `fixture-refresh-${issued}`, expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
   };
-  if (generic) oauthNetwork(t, async url => url === "https://oauth2.googleapis.com/token" ? issue()
+  oauthNetwork(t, async url => url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token" ? issue()
+    : url === "https://api.notion.com/v1/users/me" ? Response.json({ object: "user", id: "bot", type: "bot", bot: { workspace_name: "Work" } })
     : (assert.equal(url, "https://openidconnect.googleapis.com/v1/userinfo"), Response.json({ sub: "work-sub", email: "work@example.test" })));
-  else t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
-    if (url === "https://api.notion.com/v1/oauth/token") return issue();
-    return actualFetch(input, init);
-  });
-  const secret = (id: string, kind: "access" | "refresh") => generic ? connectorProtocolSecrets(home, id).get(kind === "refresh" ? "oauth" : kind) ?? null
-    : runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${id}:${kind}`));
+  const secret = (id: string, kind: "access" | "refresh") => connectorProtocolSecrets(home, id).get(kind === "refresh" ? "oauth" : kind) ?? null;
   const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/${generic ? "methods" : service}/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
-      ...(generic ? { service_id: service } : { manage_connection: true }), client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work",
-      ...(generic ? {} : { redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback` }), ...(connectionId ? { connection_id: connectionId } : {}) }) });
+    const response = await fetch(`${origin}/api/settings/connectors/methods/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
+      service_id: service, client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work", ...(connectionId ? { connection_id: connectionId } : {}) }) });
     assert.equal(response.status, 200);
-    const result = await response.json() as { authorizationUrl?: string; authorization_url?: string; authorization_id: string; connection_id: string };
-    const consent = new URL((generic ? result.authorization_url : result.authorizationUrl)!), redirect = new URL(consent.searchParams.get("redirect_uri")!);
+    const result = await response.json() as { authorization_url: string; authorization_id: string; connection_id: string };
+    const consent = new URL(result.authorization_url), redirect = new URL(consent.searchParams.get("redirect_uri")!);
     return { ...result, callback: redirect.href + `?state=${consent.searchParams.get("state")}&code=fixture-code` };
   }
-  const complete = (attempt: Awaited<ReturnType<typeof start>>) => fetch(attempt.callback, { redirect: "manual" });
+  // The provider sends the browser to the address the redirect names (Notion's is `localhost`); the test Host listens on 127.0.0.1 only, so the request goes there with that Host.
+  const complete = (attempt: Awaited<ReturnType<typeof start>>) => new Promise<Response>((resolve, reject) => {
+    const url = new URL(attempt.callback);
+    httpRequest({ host: "127.0.0.1", port: address.port, path: url.pathname + url.search, method: "GET", headers: { host: url.host } }, response => {
+      response.resume(); response.on("end", () => resolve(new Response(null, { status: response.statusCode ?? 0, headers: response.headers.location ? { location: response.headers.location } : {} })));
+    }).on("error", reject).end();
+  });
   const cancel = async (attempt: Awaited<ReturnType<typeof start>>) => {
     const response = await fetch(`${origin}/api/settings/connectors/authorizations/${attempt.authorization_id}`, { method: "DELETE", headers: headers() });
     assert.equal(response.status, 200); return response.json() as Promise<{ status: string }>;

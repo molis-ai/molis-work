@@ -114,6 +114,16 @@ test("RAC-2680: the recorded pages differ by locale and name the Goals the view 
   assert.ok(Object.keys(recorded).length === 2 * Object.keys(pages).length || record, "every page has a record, no more");
 });
 
+// The view the pages are drawn from (`fixtures/goals-page-golden/view.json`, 210 KB) is made by `fixtures/goals-page-golden-view.ts`:
+// MOLIS_WORK_GOLDEN_VIEW=1 seeds the demo project into a temporary database, reads the view with the real owners, fixes the clock and
+// numbers the ids, and writes it. The same bytes come out on every run. To make the view again: build the workspace, run this file with
+// MOLIS_WORK_GOLDEN_VIEW=1 (it writes view.json and nothing else), then record the hashes (MOLIS_WORK_GOLDEN_RECORD=1) on the commit
+// before the change that is to be proved byte-for-byte. A view made again changes every page: do it only for a deliberate new baseline.
+test("RAC-2680: the view is made again", { skip: process.env.MOLIS_WORK_GOLDEN_VIEW !== "1" }, async () => {
+  const { recordGoldenView } = await import("./fixtures/goals-page-golden-view.js");
+  writeFileSync(new URL("view.json", GOLDEN), await recordGoldenView());
+});
+
 test("RAC-2680: recording writes the hashes", { skip: !record }, () => {
   writeFileSync(RECORDED, `${JSON.stringify(Object.fromEntries(Object.entries(recorded).sort(([a], [b]) => a.localeCompare(b))), null, 1)}\n`);
 });

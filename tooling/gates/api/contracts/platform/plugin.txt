@@ -2773,6 +2773,10 @@ export interface PluginDefinition {
     execution?: "host" | "sandbox";
     event_types?: readonly PluginEventType[];
     agent_prompts?: readonly AgentPromptText[];
+    agent_prompt_names?: Readonly<Record<string, {
+        title: string;
+        purpose: string;
+    }>>;
     agent_skills?: readonly AgentSkillDefinition[];
     instructions?: readonly InstructionPrompt[];
     methods?: readonly AgentSkillDefinition[];
@@ -3418,6 +3422,7 @@ export interface PluginManifest {
         contributions: string[];
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
+        page_routes?: UiPageRouteDeclaration[];
         messages?: PluginMessagesDeclaration;
         translations?: PluginTranslationsDeclaration;
     };
@@ -3727,9 +3732,11 @@ export interface PluginPackageFile {
     content_base64: string;
 }
 
+export type PluginPackageManifest = PluginManifest | SandboxPackageManifest;
+
 export interface PluginPackagePayload {
     schema_version: 1;
-    manifest: PluginManifest;
+    manifest: PluginPackageManifest;
     files: PluginPackageFile[];
 }
 
@@ -4715,12 +4722,32 @@ export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
 
+export interface SandboxAgentBody {
+    kind: "role" | "method";
+    entry_id: string;
+    prompt_id?: string;
+    name: string;
+    purpose: string;
+    body: string;
+}
+
+export interface SandboxAgentBodyDeclaration {
+    name: string;
+    purpose: string;
+    body: string;
+}
+
 export interface SandboxPackageInterface {
     parts: SandboxJson[];
     nodes: SandboxJson[];
     presentation?: SandboxJson;
     acceptance?: SandboxJson[];
 }
+
+export type SandboxPackageManifest = Omit<PluginManifest, "agent" | "methods"> & {
+    agent?: SandboxAgentBodyDeclaration[];
+    methods?: SandboxAgentBodyDeclaration[];
+};
 
 export interface SandboxPackagePrompt {
     id: string;

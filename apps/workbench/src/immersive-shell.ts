@@ -89,15 +89,6 @@ const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "推
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
 
 /**
- * The person's entries, the backbone and this project's tools (recent first, the rest one click away).
- *
- * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
- * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
- * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
- * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
- * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
- */
-/**
  * The plugin keys that go when one goes: `id` plus every member whose companions name something already going. The Projects service
  * applies the same closure on removal, so the Dock and the market both say it from the directory alone.
  */
@@ -110,6 +101,16 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
   going.delete(id);
   return [...going];
 }
+
+/**
+ * The person's entries, the backbone and this project's tools (recent first, the rest one click away).
+ *
+ * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
+ * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
+ * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
+ * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
+ * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
+ */
 
 /**
  * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:

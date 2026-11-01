@@ -295,6 +295,7 @@ const declarations = (home: string) => {
 
 test("BL-491 RAC-2628 RAC-2635 one signed instruction source survives disable and reopen, retains the human override, and disappears after uninstall", mac, async t => {
   const sent: string[] = [];
+  const signed = bundle("home");
   const f = await fixture(t, { completeText: async (prompt, options = {}) => { await options.beforeDispatch?.(); sent.push(prompt); return "摘要结果"; } });
   let web = await serveTestHost(null, { home: f.home, host: f.host });
   const reopen = async () => { await web.close(); await f.reopen(); web = await serveTestHost(null, { home: f.home, host: f.host }); };
@@ -302,14 +303,15 @@ test("BL-491 RAC-2628 RAC-2635 one signed instruction source survives disable an
   const prompts = async () => (await web.web.get<{ prompts: Array<{ owner_id: string; default_body: string; body: string; default_version: number; source: { kind: string; plugin_id: string; plugin_version: string; title: string; state: string } }> }>("/api/agent-definitions/prompts")).prompts.filter(p => p.owner_id === PACKAGE_PLUGIN_ID);
   const single = async (state: string) => {
     const rows = await prompts(); assert.equal(rows.length, 1);
-    assert.deepEqual(rows[0]!.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.0.0", title: "Example notes", state });
+    assert.deepEqual(rows[0]!.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.0.0", title: "Example notes", state,
+      publisher_signature: signed.payload.manifest.publisher.signature });
     assert.equal(rows[0]!.default_body, "把下面的材料压成一句话。"); assert.equal(rows[0]!.default_version, 1);
     const diagnostics = await web.web.get("/api/agent-definitions/diagnostics");
     assert.doesNotMatch(JSON.stringify(diagnostics), /此插件有多个安装/);
     assert.equal(declarations(f.home).length, 1);
   };
   try {
-    await f.install(bundle("home"));
+    await f.install(signed);
     const installId = f.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id;
     for (const permission of ALL) await (await f.host.homePlugins!.ready()).runtime.regrant(installId, permission, true);
     await single("enabled");

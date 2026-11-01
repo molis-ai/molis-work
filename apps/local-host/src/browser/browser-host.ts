@@ -1,4 +1,5 @@
 import { browserErrors, isBrowserError } from "./errors.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -765,7 +766,7 @@ export function safeFilename(name: string): string {
   const extension = /\.([A-Za-z0-9]{1,10})$/u.exec(cleaned)?.[0] ?? "";
   const room = 200 - extension.length;
   const base = cleaned.slice(0, cleaned.length - extension.length);
-  const kept = base.length <= room ? base : base.slice(0, room).replace(/[\uD800-\uDBFF]$/u, "");
+  const kept = cutHead(base, room);
   return kept + extension || "download";
 }
 

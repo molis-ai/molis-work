@@ -113,7 +113,7 @@
 
 ## 第 3 片：设置页样式表不再带 Coding 的样式（T-146，2026-10-30）
 
-状态：交付，待双核。范围：`apps/workbench/src/page-assets.ts` 的 `renderMolisWorkSettingsStylesheet()` 删掉 `${CODING_STYLES}` 与它的 import；Coding 的设置页（`plugins/native/coding/src/ui.ts` 的 `renderCodingSettings`）只画 `settings-document coding-settings`、`settings-section`、`mw-*` 控件和 `data-coding-*` 钩子，规则在外壳 `apps/workbench/src/styles/settings.ts:504-507`（`.coding-settings …`，保留），它的页面另外链接 `coding.css`（`pluginSettingsStyleLinks`），并继续链接 `git.css`、`files.css`（PG-070 第 1 片定的做法）。
+状态：T146 已采用（#1676，`be0c777002509b6eb4e2c2187eb3a5765a5440f6`）。该片范围：`apps/workbench/src/page-assets.ts` 的 `renderMolisWorkSettingsStylesheet()` 删掉 `${CODING_STYLES}` 与它的 import；Coding 的设置页（`plugins/native/coding/src/ui.ts` 的 `renderCodingSettings`）只画 `settings-document coding-settings`、`settings-section`、`mw-*` 控件和 `data-coding-*` 钩子，规则在外壳 `apps/workbench/src/styles/settings.ts:504-507`（当时保留 `.coding-settings …`；T393 将同四条迁入真实设置贡献 section），它的页面另外链接 `coding.css`（`pluginSettingsStyleLinks`），并继续链接 `git.css`、`files.css`（PG-070 第 1 片定的做法）。
 
 设置样式表的用户（`molis-work-settings.css` 的链接处：`apps/local-host/src/web-assets.ts:79` 路由、`settings-renderer.ts:103`、`project-settings-pages.ts:53`/`:106`、`plugin-store-unavailable.ts:31`、`primitive-catalog.ts:213`）都不画 `CODING_STYLES` 里的类：Coding 自己的规则在 `coding.css`，共用规则（`.tok-*`、`[data-coding-workbench] …`、`[data-coding-change-reader] …` 等）由工作台样式表带（`scripts/gates/plugin-styles.mjs` 的 5 插件 575 块里 Coding 9 块不变），设置页上连共用部分都没有用户。
 
@@ -125,10 +125,30 @@
 
 | 编号 | 行为与验收 |
 | --- | --- |
-| RAC-2590 | 设置样式表不含 Coding 的任何样式：自己的整段、共用的整段、`[data-coding-method-list]`、`.tok-keyword`、`[data-coding-change-reader] [data-coding-line]` 都不在；外壳 `.coding-settings .coding-method-body` 还在（正控） | `tests/plugin-styles.test.ts`；先红与变异见 T-146 的【方案】/PR |
+| RAC-2590 | 设置样式表不含 Coding 的任何样式：自己的整段、共用的整段、`[data-coding-method-list]`、`.tok-keyword`、`[data-coding-change-reader] [data-coding-line]` 都不在；同四条设置规则仍到达真实页面（T393 后正控迁至已登记设置贡献 section，两共用表均不含） | `tests/plugin-styles.test.ts`；先红与变异见 T-146 的【方案】/PR |
 | RAC-2591 | Coding 的规则仍到得了用它的页面：`coding.css` 含只点名 Coding 类的规则、工作台样式表含共用规则、设置页链接 `coding`/`git`/`files` 三张且排在 settings.css 之后 | 同上 |
 | RAC-2592 | `apps/workbench/src/page-assets.ts` 不再出现 `molis-work-plugin-coding`/`CODING_STYLES` | 同上 |
 | RAC-2593 | 页面资源只有 settings.css 变小，变化量等于实测；没有新资源、没有放行 | `node scripts/gates/page-assets.mjs --base origin/main`、`tooling/gates/page-assets.json`、`pnpm page-assets:check` |
 | RAC-2594 | 行为不变：Coding 设置页、工作台内设置面板与框架页的样式照旧 | 既有浏览器用例 `tests/plugin-picker-pins.e2e.test.ts`、`tests/english-surfaces.e2e.test.ts`、`tests/hover-actions.e2e.test.ts`；最终头由验证线跑 |
 
-限制：设置页仍按 PG-070 第 1 片链接 `git.css`、`files.css`（`stylesheetUses` 来自 `clientUses`），本片不改；`styles/settings.ts:504-507` 四条外壳替 Coding 设置页写的规则不搬（去向由统筹另开一单）；`CHARACTERS_STYLES` 等别的插件整张样式仍进设置样式表，属 PG-070 余项。
+限制：设置页仍按 PG-070 第 1 片链接 `git.css`、`files.css`（`stylesheetUses` 来自 `clientUses`），本片不改；该片当时保留的四条 Coding 设置规则和 Characters 共用表样式，由下列同一 T393 完整后继接续；不因 T146 单独采用关闭 PG-070。
+
+## 完整后继：Coding 设置登记与 Characters 随内容携带样式（T393）
+
+状态：实现候选；工程与实操证据随 T393 交付，独立审验、CI/Full 和实际采用由统筹结算，PG-070 整行尚未关闭。沿既有剩余范围一次完成 Coding 与 Characters。
+
+Coding 既有 settingsClient 由 registration 登记；工作台 initialization 取消 Coding 专用拼接，独立设置页使用公共聚合并取消旧 Shelf 重复拼接，项目设置整页复用原聚合。四条设置 CSS 原值随 codingSettingsContribution 的真实 section 内 style 携带，两张共用表不再持有。不进入 settingsStylesheet，计数门禁、预算、前缀和 CSS 语法不变。T146 原整表/框架规则回流负控及 RAC-2099 保留，RAC-2590 的同四条正控明确换到新真实载体。
+
+Characters 事实仍归 Module、页面归 Host。全局入口只携 project-link 与 hint 规则，项目角色 section 携编辑器、导入/来源/运行/确认弹窗与终端规则；style 放在被抽取 section 内而非前置兄弟节点。从两共用表移除直接拼接，不新增 URL、插件或动态样式状态，不改 CSP。项目页原本会先画隐藏角色 stage，样式随该 HTML 首次到达，不称未打开时零角色 CSS。
+
+| 编号 | 验收与证明路径 |
+| --- | --- |
+| RAC-2848 | 四条原值 CSS 随真实 Coding 设置贡献到达、抽取/重挂后保持计算样式；两共用表不含。`tests/plugin-styles.test.ts`、`tests/project-settings-standalone.e2e.test.ts`。 |
+| RAC-2849 | A/C 同源 iframe 载真实完整 HTTP 文档，先核 URL、settings-page 与无 workbench；B 正常工作台抽取/缓存。Coding 方法/MCP、Shelf、登记的 Goals rules 正控一次意图一次目标 POST，owner/重开读回。无 DOM 无新增 POST/副作用/脚本错误，原 GET 另列。上述 standalone 完整文件与 `tests/coding-mcp-settings-client.test.ts`。 |
+| RAC-2850 | 全局 Characters 入口的空态、项目链接与实际 section 抽取后计算样式；`tests/settings-viewport.e2e.test.ts`。 |
+| RAC-2851 | Characters 首开、保存、关闭重开、切项目返回保持样式和持久事实；`tests/characters-window-drafts.e2e.test.ts`。 |
+| RAC-2852 | 原导入/来源/运行/确认弹窗及隔离 CLI 终端可操作，桌面/窄屏、输出/输入/重附着保持；前述角色文件及 `tests/security-invariants-plugin-terminals.e2e.test.ts`，原安全断言保留。 |
+| RAC-2853 | 匹配整体构建，真实 serving 全部已登记资源及 HTML/内联脚本成本，单列 CSS 移入 HTML 的成本；正常 page-assets 门禁及实际 HTTP 原件，不用源码长度代替。 |
+| RAC-2854 | 原七个相关完整文件、普通相关门禁与其余 README 要求分别记真实输入；独立审验/CI/Full/采用后才关整行，不本机盲跑全量。 |
+
+七份本地定向完整文件另含 `tests/characters-appearance.test.ts`；README 未跑部分由最终准确 CI/Full 一次覆盖。构建与浏览器走公共槽，隔离 Home/文件凭据/测试浏览器，终端只用原隔离 CLI。共享账本按最终实测串行更新，不预放行资源增长。

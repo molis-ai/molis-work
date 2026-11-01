@@ -149,7 +149,7 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
     additionalProperties: boolean;
 };
 
-export type ConnectorAuthKind = "github" | "gmail" | "notion" | "feishu" | "token" | "none";
+export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
 
 export interface ConnectorCallControl {
     readonly signal: AbortSignal;
@@ -344,6 +344,10 @@ export interface ConnectorMethodOption {
         }[];
         readonly note?: string;
         readonly callback_path?: string;
+        readonly callback_host?: string;
+        readonly device?: {
+            readonly login_ready: boolean;
+        };
     };
     readonly cli?: {
         readonly binary: string;

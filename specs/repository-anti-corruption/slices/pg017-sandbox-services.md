@@ -59,7 +59,7 @@ P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂�
 ### 3.2 指令与方法（V-20）
 
 - **指令（`instructions`）**：给沙箱插件登记，走 PG-051 之后唯一的登记口（`registerPluginAgentDefinitions`，P2）。理由：模型调用必须用登记过的指令（3.1），不登记就没有模型；指令只给**本插件自己的** `services.model` 用，登记后人能在设置里看到、改，登记表仍是“一个主人一份”，登记别的主人的指令照旧拒绝启动。来源：沙箱定义随包带，宿主不替它手写。
-- **角色（`roles`）、方法（`methods`）正文**：**现在不给**（推荐）。它们会进**别的** Agent 的一轮（方法正文是别的 Agent 读到的文字），是提示注入面；宿主内的第三方插件靠“装的时候人确认了这个包”接受这一点，而沙箱插件今天没有对应的安装确认页（PG-001：外部插件没有统一安装确认）可以列出它们。所以条件是：安装确认能列出“这个包要给你的 Agent 加这些角色/方法”之后再给（BL-493）。这里是 10-18 同等待遇里“只有安装信任不同”的那一条的具体落点，**是要统筹拍板的一项**（第 6 节 Q2）。
+- **角色资料与方法正文**：T144 通过签名包的三字段 wire 与资源正文提供，见 [accepted §7](pg011-pg017-remaining.md)。安装预览 @4 列出每项名字与节选；角色派生 workspace:none、方法派生空工具，仅作其他 Agent 的不可信 JSON 材料。严格派生断言替代 `SANDBOX_NOT_GIVEN` 的 agent 行，完整 AgentManifest 与权限字段仍拒绝，并未开放 `agents.run`。真实模型质量、Full 与统筹采用证据分列。
 - **与在途 PR**：#1124（PG-051 P1）已改 `plugin-instructions.ts`，P2 还要动同一处；V-20 这一项要排在 P2 之后写代码，设计里只定方向。
 
 ### 3.3 连接（`connections.request`）
@@ -113,7 +113,6 @@ P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂�
 
 | 项 | 为什么 | 什么时候再看 |
 | --- | --- | --- |
-| 方法与角色的正文 | 进别的 Agent 的一轮，没有安装确认页能列出 | PG-001 已做完；BL-493，→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §7 |
 | 生图、项目清理的 `purge`（`files` 已在 PG-102 P2b 删去，主人文件 S-64 已给） | 声明只在宿主条目上，沙箱插件没有条目 | BL-491，→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §6 |
 | 模型设置 | Manifest `model_configuration` 已有；沙箱未提供对应端口与 broker 方法，声明即带码拒绝 | BL-491，→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §6 |
 | `model.complete` 的 `onText`/`images`、材料的字节输入大对象 | 回调/大字节过不了有界 JSON | 第二批，视需要 |
@@ -132,7 +131,7 @@ P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂�
    - 做了：`sandboxServicesFor` 一张映射（并入 `storage`/`projectDatabase`/`interaction`）；拒绝时的带码错误（§2 第 7 条）：宿主为激活建服务所认的权限名只在 `HOST_SERVICE_PERMISSIONS` 一处，宿主的每一项服务在 `SANDBOX_SERVICE_FATE` 里有一个决定，`NOT_GIVEN` 表覆盖所有不给的权限与 Manifest 声明（含项目成果、过程项、端口、事件），完整性测试看住；项目平台与 Home 执行器启动前共用一个检查。
    - 没做（顺延）：**broker 新效果键与通用的形状上限**——它们只在第一个要新效果键的 broker 方法那一片里才有用，没有方法时只是死代码，所以跟 P1 一起做；**沙箱定义工厂从 `installed.ts` 抽出**——要等创作台的策略和沙箱定义的通用部分能分开，创作台随 BL-377 重做，抽在它前面会抽错，所以不单独做，BL-377 时一并处理；**去掉宿主侧对 `sandbox` 的排除**——每个排除要和它的 broker 方法在同一片里去掉，所以随 P1～P3 逐个去（六个宿主条目里的抛错，等 PG-022/PG-102 把声明搬进 Manifest 时整体重写）。
 2. **P1 模型 + 指令**（V-20 的指令部分，PG-051 P2 已做完，S-66，本地分支 `claude/ac-pg017-p1-model-instructions`）：3.1、3.2，验收见下面「P1 验收」。落地时定的几处：
-   - 宿主两处去掉沙箱的排除：`pluginModelFor`（客户端照 Manifest 与授权建，沙箱与宿主内同一份）、`registerPluginAgentDefinitions`（沙箱也登记指令；角色、Agent 提示词、方法仍由 `SANDBOX_NOT_GIVEN` 的 `agent` 一行在启动时拒，在它之前，所以这里不再另写一道）。`SANDBOX_NOT_GIVEN` 删掉 `model` 与 `instructions` 两行，`SANDBOX_SERVICE_FATE.model` 改为给。
+   - 宿主两处去掉沙箱的排除：`pluginModelFor`（客户端照 Manifest 与授权建，沙箱与宿主内同一份）、`registerPluginAgentDefinitions`（沙箱也登记指令；T144 的签名纯文字角色/方法用严格派生断言，带权限的 Agent 定义仍拒绝）。`SANDBOX_NOT_GIVEN` 删掉 `model` 与 `instructions` 两行，`SANDBOX_SERVICE_FATE.model` 改为给。
    - broker 方法 `model.choices`、`model.availability`、`model.complete`；效果键 `model: ['read' | 'invoke']`，`invoke` 只给命令（合同层拒绝查询声明）。通道上的类型是沙箱自己的纯 JSON 类型（`SandboxModelChoice/Availability/Request/Result`），不 import 宿主服务类型（创作台隔离编译 G2 在 macOS 上只有 ES 库，见 P2b 的教训）；`choicesJson`、`availabilityJson`、`modelResultJson` 用这些类型接宿主的答复，宿主一改形状即编译不过。
    - 请求只写登记过的指令 id（`prompt_id`、可选 `system_id`）和这次的数据（≤ 200,000 字符），没有文字、图片、回调、信号；指令名单是 `sandboxServicesFor(host, { instructions })` 带进来的 `PluginDefinition.instructions`，名单里查不到的 id 答 `sandbox.instruction_unknown`；别的主人的指令即使进了名单，宿主客户端再拒（`plugin.model_instruction_refused`）。范围（超时、输出长度）不在 broker 钳，由宿主客户端按同一个码拒，保证与宿主内运行的插件同码（RAC-237）。
    - 等模型的操作：runner 对声明了 `model: ['invoke']` 的操作把服务截止时间和操作截止时间抬到宿主的模型上限（10 分钟）之后再加一点（`modelDeadlines`），否则 10 秒的服务截止先到，插件看到的是沙箱超时而不是宿主的拒绝；宿主调用方给的 `limits` 仍优先。

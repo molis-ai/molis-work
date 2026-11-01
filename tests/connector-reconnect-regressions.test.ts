@@ -1,15 +1,11 @@
 // Regression coverage promoted from the 2026-09-27 Connector review.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { join } from "node:path";
 import { startApiOAuth, completeApiOAuth } from "../apps/local-host/dist/connector-api-oauth.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { refreshFeedConnectionState } from "./fixtures/feed-library.js";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const origin = "http://localhost:19358";
 const app = { serviceId: "asana", displayName: "Review account", clientId: "review-app", clientSecret: "review-fixture-secret", origin };
@@ -37,35 +33,18 @@ test("product-configured OAuth can reconnect the disconnected account without as
   }
 });
 
-test("generic OAuth reconnect restores its bound Feed source after disconnect", async () => {
+// The account sources that read through a connection follow it in the Runtime Feed, which looks at them again when the Host says a connection
+// changed (RAC-1036, feed-runtime-plugin.test.ts); Feed keeps no connection of its own (T-121), so this checks only the connection itself.
+test("generic OAuth reconnect restores the same connection after disconnect", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-review-feed-"));
-  mkdirSync(join(home, "projects"));
-  const path = join(home, "projects", "review", "molis-work.db");
-  const catalog = new DatabaseSync(join(home, "projects", "catalog.db"));
-  catalog.exec("CREATE TABLE projects (project_id TEXT NOT NULL)");
-  catalog.prepare("INSERT INTO projects VALUES (?)").run("review"); catalog.close();
-  mkdirSync(dirname(path), { recursive: true });
-  seedDemoBoard(path);
-  const board = new LocalProjectDatabase(path);
   try {
     const first = await startApiOAuth(home, app);
     await complete(home, first.authorization_url);
-    const connection = withConnectorConnections(home, store => store.require(first.connection_id));
-    const feed = createLocalFeedApplication(board.db);
-    feed.sources.upsert({ project_id: DEMO_PROJECT_ID, source_id: "review-source", kind: "asana", definition_id: "asana", sync_kind: "connector",
-      name: "Review source", description: "Fixture", status: "active", enabled: true, item_count: 0, origin: "molis_work",
-      config: { connection_id: first.connection_id }, schedule: { mode: "manual", enabled: false }, cursor: {},
-      credential_ref: connection.credential_ref, account_label: "Review account", last_sync_at: null, last_outcome: null,
-      last_error_code: null, imported_at: new Date().toISOString(), updated_at: new Date().toISOString() });
     withConnectorConnections(home, store => store.disconnect(first.connection_id));
-    refreshFeedConnectionState(home, first.connection_id);
-    assert.equal(feed.sources.get(DEMO_PROJECT_ID, "review-source").status, "disconnected");
+    assert.equal(withConnectorConnections(home, store => store.state(store.require(first.connection_id))), "disconnected");
     // Supply fixture app credentials here to isolate this bug from the first one.
     const retry = await startApiOAuth(home, { ...app, connectionId: first.connection_id });
     await complete(home, retry.authorization_url);
     assert.equal(withConnectorConnections(home, store => store.state(store.require(first.connection_id))), "connected");
-    // The Runtime Feed brings its sources in step when the Host announces the change (feed-runtime-plugin.test.ts); this Home has no running Feed.
-    refreshFeedConnectionState(home, first.connection_id);
-    assert.equal(feed.sources.get(DEMO_PROJECT_ID, "review-source").status, "active");
-  } finally { board.close(); rmSync(home, { recursive: true, force: true }); }
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

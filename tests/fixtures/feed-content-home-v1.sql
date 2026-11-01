@@ -7,4 +7,3 @@ CREATE TABLE feed_content_holds (
   PRIMARY KEY (content_ref, project_id, source_id)
 );
 CREATE INDEX feed_content_holds_by_holder ON feed_content_holds (project_id, source_id);
-CREATE TABLE feed_content_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);

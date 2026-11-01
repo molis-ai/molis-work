@@ -36,7 +36,7 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
     title: connectorId === "wechat" ? "企业微信" : spec.title,
     group_id: spec.group_id,
     summary: spec.summary,
-    auth_kind: connectorId === "loom" ? "none" : connectorId === "notion" ? "notion" : connectorId === "feishu" ? "feishu" : "token",
+    auth_kind: connectorId === "loom" ? "none" : connectorId === "notion" ? "oauth" : connectorId === "feishu" ? "feishu" : "token",
     // A connector with no token to paste (Loom) is reached through MCP only. A service that connects by OAuth declares its flow as data.
     auth: { methods: [...spec.token_label ? [{ kind: "token" as const, label: spec.token_label, placeholder: spec.token_placeholder }] : [{ kind: "mcp" as const }],
       ...oauth ? [oauth] : []] },
@@ -121,4 +121,3 @@ export { catalogCloudOrigin } from "./targets.js";
 export type { CatalogFetch } from "./types.js";
 export { readExternalDocument, externalDocumentErrors } from "./document-import.js";
 export type { ExternalDocument, ExternalDocumentSource, ExternalDocumentImportErrorCode } from "./document-import.js";
-export { notionAuthorizationUrl, notionOAuthToken, NotionOAuthError, type NotionOAuthTokens } from "./notion-oauth.js";

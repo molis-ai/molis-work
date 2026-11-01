@@ -252,3 +252,6 @@ T403可按原mount合同增加packages/contracts/src/platform/plugin-registratio
 唯一 writer 开发3可在原范围外按实际必要差量补 frame-container/editing-graph、通用 plugin-frame wrapper/declared-stages、browser/plugin-frame 内共用 helper/types/parent/child/view、Feed/Inbox ui ref 标记；实际 producer 绑定只沿已存在 project-plugin-stages/plugin-page-http 捕获链补最小传递，不另猜 half 或新建注册表。公共 ui/dom-events 合同及 API 生成按实际新增部分同步，跨 pane 只复用现有 pane-messages 的来源检查。保 Frame 存储/相机/布局、artifact 和 Goal 拒绝语义；不扩大第三方业务能力或放松安全边界。
 
 验证沿原完整文件增补真正缺口：冷启动 picker 不先 mount Feed/Inbox，含 archived/history/Goal待决定范围及重载；真实原生跨 opaque/pane拖入；原接收模式真实点击且普通child消息不能添加；一组来源失效/迟到响应/目标切换交错。synthetic click/drop 旧证据仍只证目标handler，不冒充迁移端到端。候选设计仅线索，作者按当前代码可收小；超出该行为/信任范围先交具体缺口，不照报告机械造全套框架。
+
+
+2026-11-01 T403 原点击边界澄清：作者实查Feed/Inbox只有主区列表可见，切到Goal Frame会隐藏；根回读isFrameTabActive要求同document getSurface()===goals。原Frame用例对隐藏行的.click是合成触发，不能据此新造跨pane单击或宣称原有真实可见的一步路径。19:48窗的真实点击项据此收小：必要用户路径为冷picker与真实跨pane拖入；原测试保对象/块数/正文/持久化断言，触发改用原就存在的picker选择。只为不可达本document行点击新加的Host overlay部分可撤，不动原可见artifact路径；若发现实际可见旧路径再给证据。普通child消息仍不获直接Frame写权，不以新增接口/框架修一个不存在的用户入口。其余实际source授权/迟到/目标切换拒绝及原布局语义保持。

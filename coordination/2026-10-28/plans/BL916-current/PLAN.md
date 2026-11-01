@@ -73,3 +73,6 @@ T149拥有唯一Manifest/effects迁入SDK的共享hunk，T397必须等其准确�
 
 
 2026-11-01 19:34Z T398原HTTP-lost合同补正窗口：真签包受控TLS已收到请求后断响应，现行链仅普通错误、缺可信unknown。根核public-https→connector-plugin-requests→sandbox broker/runner，允许新增apps/local-host/src/public-https.ts和connector-plugin-requests.ts中send的最小生产差量；broker/bridge沿原窗口。传输层只记录请求局部的可信可能派出状态，派出前DNS/地址/授权/连接拒绝不冒作已生效未知；发送后丢确认由Host产生现有actions.outcome_unknown，broker仅由可信Host拒绝映射SandboxError.outcome，worker JSON伪造不得触发。保取消/撤权原拒绝语义与已提交部分事实，不自动重放、不补failed、不跨服务回滚，不改正常前台model预算。fresh 11 open中public-https与broker无交集；connector-plugin-requests父T395/T068/T121改binding列表，保护#1101仅import及forgetProjectConnectionBindings，当前send窗口无同hunk，保护分支不动。必要验证为原完整真签文件HTTP-lost/伪造/派出前拒绝及已受影响完整连接安全文件，保最初失败，不重演四资源父矩阵。和held-result、重复enable、10分钟/60秒原后台预算共同最终冻结后核增量。
+
+
+2026-11-01 20:18Z：T398修复候选73b1ea2ec/treea253已冻结，准确头真签完整文件16/16，原9完整文件101pass/1默认关闭外网集成skip按原输入保留。独立增量二审核出新的必要修复：background lane按单caller signal/authority失效就discard共享runner，会在A实际执行、B排队时仅取消B便杀A。根已回读确认，交原作者移除这项越界的lane判断，由现有runner派发/取消责任保queued隔离，实际executing取消及安装/世代stop仍结束所属进程；不加第二队列或状态表。补真实A持有/B排队取消或单caller撤权/A继续完成/显式C成功和B零副作用的必要用例。旧73b不终签，其他已有效证据不重复跑；API/SI/giant只在新源码冻结后一次生成并核收，最终CI/Full与采用仍未完成。

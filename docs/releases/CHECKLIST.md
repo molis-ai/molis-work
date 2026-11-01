@@ -133,3 +133,6 @@ for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
 - [ ] 合并后在合并提交上打 tag `v<版本>`，再在这个 tag 上手动运行 Release macOS Desktop 工作流（`.github/workflows/release-macos.yml` 现在只有 `workflow_dispatch`，推 tag 不会触发它；选 tag 运行才会做 `--tag` 核对并发布 GitHub Release）。Release 资产和校验和来自同一提交（`docs/installation.md`「发布后的最终产物验收」第 1 条）。
 - [ ] 按同一节的第 2 至 5 条逐层验收常驻服务、Runtime 接入、新 Session 和真实项目的用户可见结果，之后才能把消费者可见的修复标成「已安装」。
 - [ ] 发布 PR 里补上备份路径、维护记录位置和上面各项的结果。
+
+
+T144 的当前 Agent 定义 schema 仍以版本 1 为干净起点：`prompt_overrides.default_ref`、`prompt_history.default_ref`、`prompt_uses.source_ref` 为 nullable TEXT。Native 行为显式存 NULL，签名角色存完整默认/使用来源引用；fixtures 与当前 baseline 同步。不提供旧库缺列读取或 ALTER-on-open；真实 Home 搬开与重建依发布授权执行，不能把私有干净 Home 的测试当成真实 Home 迁移证据。

@@ -136,6 +136,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 公开入口：`@molis-ai/molis-work-app-local-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
+  - 签名包的角色资料与方法共用完整 `pluginAgentRegistration`，安装、启停、多项目持有与失败恢复不另写 prompts-only 登记。AgentDefinitions 在原覆盖、history、uses 中保存准确来源；新取材和最后 handoff 检查安装世代、范围、发布者、包版本和用户修订，接受后才记使用。后续撤销不抹掉已接受历史，也不放行新的读取或交付。正文及元数据只作为不可信 JSON 材料，原消费者授权检查保持。
   - 沙箱项目库（S-59）：SQL 只在子进程的 Worker 中运行，子进程控制器独立执行截止时间、进程总 RSS 上限与宿主断线终止；宿主逐句复查授权并固定事务所属进程。`get`/`all` 的字节上限在 Worker 中拒绝，事务外写也拒绝；提交中断保持结果未知。回归：`tests/security-invariants-sandbox-project-database-limits.test.ts`，包括宿主同步写等锁与父宿主被杀的真实进程路径。
   - 页面 JS 交付统一经 `src/served-page-text.ts` 的 esbuild 转换，直接读原程序，压缩空白和等价语法但保留绑定名与文字；不能先剥注释或缩进改变换行返回、模板正文。工作台、能力页与插件脚本走同一路径，转换失败保留原文；回归见 `tests/served-script-text.test.ts`，缓存、locale 与 HEAD 的既有合同保持。
   - 产品版本在宿主代码里只有 `src/product-version.ts` 的 `PRODUCT_VERSION` 一处：Feed 的 User-Agent 与 `app.version`、搜索运行时的 `app.version`、MCP 客户端、Codex 会话传输的客户端版本都取它，不另写一份；发版脚本核对这一行（`docs/releases/POLICY.md` 第 1 节，`tests/verify-release-versions.test.ts`）。

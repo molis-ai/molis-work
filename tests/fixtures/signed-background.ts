@@ -62,7 +62,7 @@ export const operations = {
   },
 };`;
 
-export function signedBackgroundPackage(publisher = newPublisher(), options: { dependency?: boolean; model?: boolean; version?: string; id?: string } = {}) {
+export function signedBackgroundPackage(publisher = newPublisher(), options: { dependency?: boolean; statusDependency?: boolean; model?: boolean; version?: string; id?: string } = {}) {
   return signedPackage(publisher, (files, manifest) => {
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const read = contract.operations[0]!, launch = contract.operations[1]!;
@@ -72,7 +72,7 @@ export function signedBackgroundPackage(publisher = newPublisher(), options: { d
     const op = (id: string, kind: 'command' | 'query', input: SandboxSchema, output: SandboxSchema, effects: SandboxOperationContract['effects'], sample: unknown): SandboxOperationContract =>
       ({ id, kind, input, output, effects, errors: [], examples: [sample as SandboxOperationContract['examples'][number]] });
     contract.operations.push(
-      op('job.status','query',jobInput,jobOutput,{homeDatabase:['read']},{input:{job_id:'example'},output:example}),
+      op('job.status','query',jobInput,jobOutput,{homeDatabase:['read'],...(options.statusDependency?{capabilities:['fixture.bgwait']}: {})},{input:{job_id:'example'},output:example}),
       ...['job.cancel','job.cancel.other'].map(id => ({...op(id,'command',object({job_id:text,execution_id:text}),jobOutput,
         {homeDatabase:['read'],background:['job.work'],...(id.endsWith('other') && options.dependency ? {capabilities:['fixture.bgwait']} : {})},
         {input:{job_id:'example',execution_id:'handle'},output:example}),background_job:metadata})),

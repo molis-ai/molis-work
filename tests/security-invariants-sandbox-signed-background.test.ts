@@ -152,7 +152,8 @@ test('RAC2873 static package reconstruction rejects invalid local metadata and a
 
 test('RAC2872 a real native dependency permission is part of the launcher, same-cost provider replacement revokes its old authority, and unrelated operations retain theirs',mac,async t=>{
   const dep=dependency();t.after(()=>dep.release.resolve());const r=await backgroundRig(t,{dependencies:[dep.definition]});
-  await r.h.install(signedBackgroundPackage(newPublisher(),{dependency:true}));await r.approve();
+  const pkg=signedBackgroundPackage(newPublisher(),{dependency:true}),signedManifest=JSON.stringify(pkg.payload.manifest);
+  await r.h.install(pkg);await r.approve();
   const client=r.h.homeClient(),views=await operationsOf(client,r.caller(),BACKGROUND_ID),launch=views.find(view=>view.action.local_id==='notes.add')!;
   assert.ok(launch.action.permissions.includes('fixture:write'));
   await assert.rejects(client.invoke(r.caller({permissions:BACKGROUND_PERMISSIONS.filter(permission=>permission!=='fixture:write')}),ref(launch),{text:'{"job_id":"caller-denied","mode":"dependency"}'}));
@@ -170,13 +171,35 @@ test('RAC2872 a real native dependency permission is part of the launcher, same-
   const heldPid=Number(r.read("SELECT pid FROM jobs WHERE job_id='dependency'")[0]!.pid);
   const platform=await r.h.host.homePlugins!.ready(),record=r.h.host.homePlugins!.installation(dep.definition.manifest.plugin_id)!;
   await platform.runtime.stop(record.install_id);
-  const replacement={...dep.action,action:{...dep.action.action}};
-  const remove=r.h.host.actionRegistry().registerProvider({provider:{provider_id:'replacement398',title:'Replacement',kind:'system'},definitions:[replacement],handlers:[{...replacement,handle:(_caller,input)=>input}]});t.after(remove);
+  const replacement={...dep.action,action:{...dep.action.action}},nextEntered=Promise.withResolvers<void>(),nextRelease=Promise.withResolvers<void>();t.after(()=>nextRelease.resolve());
+  const remove=r.h.host.actionRegistry().registerProvider({provider:{provider_id:'replacement398',title:'Replacement',kind:'system'},definitions:[replacement],handlers:[{...replacement,async handle(caller,input){
+    if(input==='version-cost'){nextEntered.resolve();await nextRelease.promise}await caller.beforeEffect();return input;
+  }}]});t.after(remove);
   await client.discover(r.caller());assert.notEqual(token(launch),oldLaunch,'same-cost provider change replaces the launcher token');assert.equal(token(stable),oldStatus,'unrelated query keeps its token');dep.release.resolve();
   await r.until(()=>processGone(heldPid));assert.equal((await r.call('job.cancel',{job_id:'dependency',execution_id:run.execution_id}) as Job).cancelled,false);
   assert.equal(r.read('SELECT * FROM results').length,0,'stale provider cannot finish a held target');
   assert.equal((await r.status('dependency')).last_state,'running');assert.equal(r.read("SELECT * FROM jobs WHERE state='failed'").length,0);
   await r.launch('new-provider','dependency');await r.until(async()=> (await r.status('new-provider')).state==='done');
+  const beforeVersion=token(launch);await r.launch('version-cost','dependency');await nextEntered.promise;
+  const next={...replacement,version:2,action:{...replacement.action,execution:{cost:'metered' as const,timeout_ms:60000}}};
+  const removeNext=r.h.host.actionRegistry().registerProvider({provider:{provider_id:'replacement398',title:'Replacement',kind:'system'},definitions:[next],handlers:[{...next,handle:(_caller,input)=>input}]});t.after(removeNext);
+  const refreshed=(await operationsOf(client,r.caller(),BACKGROUND_ID)).find(view=>view.action.local_id==='notes.add')!;
+  assert.equal(refreshed.action.execution?.cost,'metered');assert.notEqual(token(launch),beforeVersion);assert.equal(token(stable),oldStatus);nextRelease.resolve();
+  await r.until(async()=>!(await r.call('job.cancel',{job_id:'version-cost',execution_id:(await r.status('version-cost')).execution_id}) as Job).cancelled);
+  assert.equal(r.read("SELECT * FROM results WHERE id LIKE 'version-cost:%'").length,0,'the old version/cost binding cannot commit');
+  await r.launch('metered-provider','dependency');await r.until(async()=> (await r.status('metered-provider')).state==='done');
+  assert.equal(JSON.stringify(pkg.payload.manifest),signedManifest,'dynamic provider/version/cost never rewrites signed declarations');
+});
+
+test('RAC2872 signed installation rejects a local status query whose actual dependency is writing, metered or unavailable',mac,async t=>{
+  for(const mode of ['write','metered','unavailable'] as const)await t.test(mode,async s=>{
+    const dep=dependency(),action={...dep.action,operation:mode==='write'?'command' as const:'query' as const,action:{...dep.action.action,
+      execution:{cost:mode==='metered'?'metered' as const:'none' as const,timeout_ms:60000}}};
+    const definition:PluginDefinition={...dep.definition,manifest:{...dep.definition.manifest,actions:[action]},async start(){return {kind:'app',actions:[{...action,handle:(_caller,input)=>input}]}}};
+    const r=await backgroundRig(s,{dependencies:mode==='unavailable'?[]:[definition]});
+    await assert.rejects(r.h.install(signedBackgroundPackage(newPublisher(),{statusDependency:true})),error=>error instanceof ActionError&&error.code==='actions.definition_invalid'&&/状态查询/.test(error.message));
+    assert.deepEqual(await operationsOf(r.h.homeClient(),r.caller(),BACKGROUND_ID),[],'rejected status policy leaves no callable launcher');
+  });
 });
 
 test('RAC2874 a true signed acceptance stopped before its real handle returns cancels that late handle and leaves no terminal repair',mac,async t=>{

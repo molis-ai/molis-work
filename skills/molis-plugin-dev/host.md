@@ -72,7 +72,9 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 ### 已受理的后台执行
 
-需要返回任务编号后继续运行时，在本安装的活跃并发 command 中 `await context.services.background.start(async control => …, { signal? })`；动作须声明 `background_job`，沙箱与升级预检没有服务。句柄的 `result` 交付结果，`cancel()` 取消等待；任务记录、幂等与重启恢复由插件自己拥有，平台不自动重放。回调可用既有模型与数据服务，但写入必须用这个回调的新控制 `await control.beforeEffect()` 并在提交前同步核 `control.assert_authority_current?.()`，不保留旧处理器的 caller。
+需要返回任务编号后继续运行时，宿主自己运行的插件在本安装的活跃并发 command 中 `await context.services.background.start(async control => …, { signal? })`；动作须声明 `background_job`，升级预检没有服务。句柄的 `result` 交付结果，`cancel()` 取消等待；任务记录、幂等与重启恢复由插件自己拥有，平台不自动重放。回调可用既有模型与数据服务，但写入必须用这个回调的新控制 `await control.beforeEffect()` 并在提交前同步核 `control.assert_authority_current?.()`，不保留旧处理器的 caller。
+
+已安装的沙箱包用 `sdk.background.start(operation, input)` 与 `sdk.background.cancel(execution_id)`，不传回调、不获得结果 Promise 或 `keep` 服务。contract 声明本包目标与 `background_job`（写法见 [continuity.md](continuity.md#撤销后台任务与同一次注册)）；第二个沙箱进程共用同一安装身份、批准效果和宿主服务，单次操作 10 分钟、单次服务 60 秒。每个 broker 同时至多 4 个未结束执行，这不是安装总配额。quick/slow 共用一个后台 lane，停止或换代统一关闭；进程死去不重放那次调用，下一次明确获准的独立调用可起新进程。业务 job 与持久状态由包拥有，临时 execution_id 只在原 broker 内用于取消。
 
 正常 HTTP/MCP 断开不会取消已经受理的工作；原授权撤销、安装停用/升级、Host 关闭或显式取消后，成功和失败业务写入都拒绝。原身份、项目与注册一直保留，没有独立入口授权时仍沿用原 signal，因此不脱离 Agent 的取消。只受理一次有限执行，不在启动钩子、路由、过期计时器或后台回调里再开一轮。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「已受理的后台执行」。
 

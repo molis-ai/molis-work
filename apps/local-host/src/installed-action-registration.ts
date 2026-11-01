@@ -1,18 +1,18 @@
 import { ActionError, type ActionProviderRegistration, type ActionRegistryPort } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginContribution, PluginDefinition, PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { exposeInstalledPlugin, exposedActionId, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import type { ProjectActions } from './plugin-builder/catalog.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 
 // Only the Host's actual sandbox definition has a released contract. Nothing decoded from a package supplies this port.
-const sources = new WeakMap<PluginDefinition, AgentRelease>();
+type ActionRelease = InstalledPluginActions['release'];
+const sources = new WeakMap<PluginDefinition, ActionRelease>();
 const registrations = new WeakMap<ActionRegistryPort, Map<string, InstalledPluginActions>>();
 const registrationKey = (record: PluginInstanceRecord) => JSON.stringify([record.install_id, record.installation_generation, record.manifest_digest]);
-export function rememberInstalledActionSource(definition: PluginDefinition, release: AgentRelease): void { sources.set(definition, release); }
+export function rememberInstalledActionSource(definition: PluginDefinition, release: ActionRelease): void { sources.set(definition, release); }
 
 /** Permission switches restart an activation without changing its release. Refresh follows that activation; old releases cannot withdraw a new one. */
-export function followInstalledActions(registry: ActionRegistryPort, record: PluginInstanceRecord, release: AgentRelease): InstalledPluginActions | undefined {
+export function followInstalledActions(registry: ActionRegistryPort, record: PluginInstanceRecord, release: ActionRelease): InstalledPluginActions | undefined {
   const key = registrationKey(record), current = () => registrations.get(registry)?.get(key);
   if (!current()) return;
   let closed = false;

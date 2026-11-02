@@ -123,8 +123,6 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   const feedLibrary = createLocalFeedApplication(store.db);
   const make = (name: string) => feedLibrary.ingestItem({ source, externalId: "frame-binding-" + name, title: "Binding " + name, summary: "Item navigation after a display update", body: "Body " + name, occurredAt: new Date().toISOString(), attention: false }).item;
   const a = make("A"), b = make("B");
-  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId: projectId! }), runtime => runningProjectPlatform(runtime.store, runtime.project_id));
-  assert.ok(platform);
   let revisionRead!: () => void;
   const firstRevision = new Promise<void>(resolve => { revisionRead = resolve; });
   const observeRevision = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
@@ -145,6 +143,8 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");
   assert.equal(initial.itemId, a.item_id);
   await firstRevision;
+  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId: projectId! }), runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  assert.ok(platform);
   platform.invalidateView("io.molis.work.feed");
   await feed.waitFor("t403Invalidations>0 && t403PendingReads===0");
   await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]`);

@@ -161,7 +161,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
-  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw, homeDirectory, actorId: options.actorId ?? 'web-user',
+  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled,
     holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId),

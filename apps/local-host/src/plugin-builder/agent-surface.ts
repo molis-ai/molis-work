@@ -190,7 +190,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   const preview = /^\/plugin-builder\/studio\/preview\/([a-f0-9-]{36})$/u.exec(url.pathname);
   const api = /^\/api\/plugin-builder\/studio(\/.*)?$/u.exec(url.pathname);
   const installedPage = /^\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})$/u.exec(url.pathname);
-  const installedCall = /^\/api\/plugin-builder\/installed\/(io\.molis\.work\.generated\.[a-f0-9-]{36})\/call$/u.exec(url.pathname);
+  const installedCall = /^\/api\/plugins\/(io\.molis\.work\.generated\.[a-f0-9-]{36})\/call$/u.exec(url.pathname);
   if (!preview && !api && !installedPage && !installedCall) return false;
   const method = request.method ?? 'GET', prefix = options.routePrefix ?? '';
   // These pages are frame documents: the studio's trial or the host's own acceptance run asks for them with the frame
@@ -231,7 +231,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
         const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
         // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
         const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
-        html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugin-builder/installed/' + pluginId + '/call', view }, options, controlToken));
+        html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view }, options, controlToken));
         return true;
       }
     }

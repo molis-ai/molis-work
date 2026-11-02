@@ -530,7 +530,8 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   await assert.rejects(bound.invoke({ ...entry, provider_id: "wrong-provider" }, {}), { code: "actions.forbidden" });
   assert.deepEqual(counts, before, "non-entry requests never dispatch a handler");
   await assert.rejects(bound.invoke(entry, { mode: "undeclared" }), { code: "actions.forbidden" }); assert.equal(counts.other, 0);
-  for (const mode of ["write", "metered", "metadata-query", "metadata-directory"]) await assert.rejects(bound.invoke(entry, { mode }), { code: "actions.forbidden" });
+  for (const mode of ["write", "metered", "metadata-query"]) await assert.rejects(bound.invoke(entry, { mode }), { code: "actions.forbidden" });
+  await assert.rejects(bound.invoke(entry, { mode: "metadata-directory" }), { code: "actions.dependency_missing" }, "the original delegated executable directory cannot see the metadata-only target");
   assert.equal(counts.write, 0); assert.equal(counts.metered, 0);
   // The original person's snapshot still decides which precise child references may enter it.
   const inspect = host.inspectActions.bind(host), mock = t.mock.method(host, "inspectActions", async (...args: Parameters<typeof inspect>) => (await inspect(...args)).filter(view => view.capability_id !== source.capability_id));

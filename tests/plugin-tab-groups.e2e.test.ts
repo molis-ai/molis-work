@@ -340,6 +340,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   holdSaves = false; heldSaves.splice(0).forEach(release => release());
   await aRight.waitFor("document.querySelector('[data-pages-editor-status]').textContent==='已保存'");
   await aRight.click(`button[data-page-id="${b.id}"]`);
+  await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)})?.activeTabId===${JSON.stringify(bTab)}`);
   await bRight.waitFor("document.querySelector('[data-pages-title]').value==='Item B'");
   assert.equal(await itemCount(b.id), 1); assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, bTab, "B deduplicates to its original tab");
   await bRight.click(`button[data-page-id="${b.id}"]`);

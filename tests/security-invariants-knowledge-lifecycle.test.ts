@@ -1,4 +1,4 @@
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
@@ -45,7 +45,7 @@ for (const change of ["exclude", "delete"] as const) {
       const result = await home.web.get<KnowledgeCardsResponse>(prefix + "/api/knowledge/overview");
       return !result.listing && result.cards.length === 2 ? result : undefined;
     }, "both sources are indexed before the model is configured");
-    const model = await heldModel(t, home.home, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
+    const model = await heldModel(t, home.home, home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog);
     const cards = openKnowledgeCards({ homeDirectory: home.home });
     try {
       const caller = await home.host.localPersonContext(project.reference);
@@ -109,7 +109,7 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address === "object");
-  await seedConfiguredModels(home.home, [{ provider_id: "fixture", model_id: "fixture-model" }], `http://127.0.0.1:${address.port}`, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
+  await seedConfiguredModels(home.home, [{ provider_id: "fixture", model_id: "fixture-model" }], `http://127.0.0.1:${address.port}`, home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog);
   const caller = await home.host.localPersonContext(project.reference);
   await home.host.actionClient(project.reference).invoke(caller, { ...knowledgeActions.locate, provider_id: "system.knowledge" },
     { question: "这份资料讲什么？", subjects: [listed.cards[0]!.subject] });

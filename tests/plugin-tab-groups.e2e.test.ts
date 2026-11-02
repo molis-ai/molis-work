@@ -332,7 +332,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(sourceSelector)})===window.t405OriginalAFrame && window.t405OriginalAFrame.hidden`), true);
   assert.equal(await aLeft.evaluate("document.querySelector('[data-pages-title]').value==='Item A' && document.querySelector('[data-pages-editor] .ProseMirror')===window.t405OriginalEditorNode"), true);
   assert.equal(await evaluate(`new URL(document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).src).searchParams.get('paneItem')`), b.id, "read the actual B frame, not retained hidden A");
-  const selectTab = async (id: string) => { await click(`[data-titlebar-tabs] .tab-item[data-tab-id="${id}"] .tab-item-trigger`); };
+  const selectTab = async (id: string) => { await click(`[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-tab-id="${id}"] .tab-item-trigger`); };
   await selectTab(rightTab);
   await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
   assert.equal(await aRight.evaluate(`window.t405Editor===window.t405OriginalEditor && window.t405Editor.view.state.doc.textContent===${JSON.stringify(draft)}`), true);
@@ -373,7 +373,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   await bRight.evaluate(`window.t405Host.openItem('pages',${JSON.stringify(c.id)},'Item C')`);
   await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)}).tabs.some(t=>t.itemId===${JSON.stringify(c.id)})`);
   assert.equal(await itemCount(c.id), 1, "the existing untagged legal openItem still works");
-  await click('[data-titlebar-tabs] .tab-item[data-plugin=pages][data-tab-kind=plugin] .tab-item-trigger');
+  await click(`[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-plugin=pages][data-tab-kind=plugin] .tab-item-trigger`);
   await evaluate(`document.querySelector('iframe[data-pane-owner="${right}"]:not([hidden])').dataset.full16Owner='right-default'`);
   await defaultPage.waitFor("window.t405InitialItem===null && document.querySelector('[data-pages-rows]')");
   const defaultTab = (await layout()).panes.find(p => p.id === right)!.activeTabId;

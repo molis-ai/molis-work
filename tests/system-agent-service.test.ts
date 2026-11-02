@@ -71,8 +71,8 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     return actions.invoke(gitActions.prepareIndex, { workspace_id, path: ["note"], action: "stage", revision: selected.result.revision, operation_id: randomUUID() });
   };
   try {
-    assert.equal(ensureSystemAgentService(host, home, catalog), service);
-    assert.throws(() => ensureSystemAgentService(host, home + "-other", catalog), { code: "actions.home_mismatch" });
+    assert.equal(ensureSystemAgentService(host, home, withCatalog), service);
+    assert.throws(() => ensureSystemAgentService(host, home + "-other", withCatalog), { code: "actions.home_mismatch" });
     await actions.discover();
     assert.deepEqual(runtimeBusinessEntries(join(home, "agent-runtime")), [], "discovery must not initialize SDK storage beyond the Host's owner lock and SQLite sidecars");
     await assert.rejects(access(join(home, "agent-runtime/storage.key")), { code: "ENOENT" });
@@ -111,10 +111,11 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     const close = host.close(); assert.equal(host.close(), close); await close;
     assert.equal(service.agentHost.reviews.receipt(abandoned.review_id)?.status, "cancelled");
     await assert.rejects(service.ready, /已关闭/);
-    assert.throws(() => ensureSystemAgentService(host, home, catalog), { code: "host.closed" });
+    assert.throws(() => ensureSystemAgentService(host, home, withCatalog), { code: "host.closed" });
     const reopened = new MolisWorkLocalHost({ homeDirectory: home });
     try {
-      const next = ensureSystemAgentService(reopened, home, catalog); await next.ready;
+      const reopenedCatalog = reopened.configurePersonalPlanning(home, reopened.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+      const next = ensureSystemAgentService(reopened, home, reopenedCatalog); await next.ready;
       await next.agentHost.reviews.refresh(project.project_id);
       assert.equal(next.agentHost.reviews.receipt(first.review_id)?.effect_settled, true);
       assert.equal(next.agentHost.reviews.receipt(abandoned.review_id)?.status, "cancelled");

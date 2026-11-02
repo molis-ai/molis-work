@@ -157,7 +157,7 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
     await http(`${path}/conversations/${conversation.id}/messages`, { body: "已经断开" }, 503);
     assert.equal(f.requests.length, 1);
     assert.equal((await host.actionClient(ref).invoke(caller, lingguangActions.getConversation, { id: conversation.id })).messages.length, 2);
-  } finally { await close(web); await host.close(); }
+  } finally { await close(web); }
 }));
 
 test("discovery and Jelly settings never decrypt; explicit selections stay invalid rather than changing account", async t => fixture(async f => {
@@ -213,11 +213,9 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
       if (change === "replace-model") f.catalog.models.upsert({ ...f.catalog.models.get("configured")!, models: [{ model_id: "replacement", enabled: true }] });
       if (change === "delete") f.catalog.models.remove("configured");
     } finally { release(); }
-    try {
-      await rejected;
-      assert.equal((await client.invoke(caller, lingguangActions.getConversation, { id: conversation.id })).messages.length, 0);
-      assert.equal(f.requests.length, 1);
-    } finally { await host.close(); }
+    await rejected;
+    assert.equal((await client.invoke(caller, lingguangActions.getConversation, { id: conversation.id })).messages.length, 0);
+    assert.equal(f.requests.length, 1);
   }));
 }
 
@@ -298,32 +296,30 @@ test("Dataset uses the configured model connection, keeps local columns offline 
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
   const host = f.host;
-  try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
-    const client = host.actionClient(ref);
-    assert.equal((await client.discover(caller)).find(row => row.capability_id === datasetActions.generateAi.capability_id)!.availability.available, true);
-    const { dataset } = await client.invoke(caller, datasetActions.create, { title: "Private table contents are not sent" });
-    await client.invoke(caller, datasetActions.generate, { id: dataset.id, prompt: "Offline column" });
-    assert.equal(f.requests.length, 0);
-    f.answer(async () => ({ choices: [{ message: { content: "截止日期" } }] }));
-    const generated = await client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "计划的日期" });
-    assert.equal(generated.dataset.columns.at(-1)!.name, "截止日期");
-    assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
-    assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
-    assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
-    assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private table|Offline column/);
-    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-    f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: "不得保存" } }] }; });
-    const pending = client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "被撤权的请求", expected_version: generated.dataset.version });
-    const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
-    await entered.promise;
-    try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
-    finally { release.resolve(); }
-    await rejected;
-    assert.equal((await client.invoke(caller, datasetActions.get, { id: dataset.id })).dataset.columns.length, 2);
-    assert.equal((await client.invoke(caller, datasetActions.list, {})).ai_available, false);
-  } finally { await host.close(); }
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
+  const client = host.actionClient(ref);
+  assert.equal((await client.discover(caller)).find(row => row.capability_id === datasetActions.generateAi.capability_id)!.availability.available, true);
+  const { dataset } = await client.invoke(caller, datasetActions.create, { title: "Private table contents are not sent" });
+  await client.invoke(caller, datasetActions.generate, { id: dataset.id, prompt: "Offline column" });
+  assert.equal(f.requests.length, 0);
+  f.answer(async () => ({ choices: [{ message: { content: "截止日期" } }] }));
+  const generated = await client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "计划的日期" });
+  assert.equal(generated.dataset.columns.at(-1)!.name, "截止日期");
+  assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
+  assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
+  assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
+  assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private table|Offline column/);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: "不得保存" } }] }; });
+  const pending = client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "被撤权的请求", expected_version: generated.dataset.version });
+  const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
+  await entered.promise;
+  try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
+  finally { release.resolve(); }
+  await rejected;
+  assert.equal((await client.invoke(caller, datasetActions.get, { id: dataset.id })).dataset.columns.length, 2);
+  assert.equal((await client.invoke(caller, datasetActions.list, {})).ai_available, false);
 }));
 
 test("Form uses the configured model connection, keeps local questions offline and refuses revoked results", { timeout: 30_000 }, async () => fixture(async f => {
@@ -332,30 +328,28 @@ test("Form uses the configured model connection, keeps local questions offline a
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
   const host = f.host;
-  try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };
-    const client = host.actionClient(ref);
-    assert.equal((await client.discover(caller)).find(row => row.capability_id === formActions.draft.capability_id)!.availability.available, true);
-    const { form } = await client.invoke(caller, formActions.create, { title: "Private form contents are not sent" });
-    await client.invoke(caller, formActions.generate, { id: form.id, prompt: "Offline question" });
-    assert.equal(f.requests.length, 0);
-    f.answer(async () => ({ choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "截止日期", type: "date" }] }) } }] }));
-    const generated = await client.invoke(caller, formActions.draft, { id: form.id, prompt: "计划的日期" }) as { form: { version: number; questions: Array<{ title: string }> } };
-    assert.equal(generated.form.questions.at(-1)!.title, "截止日期");
-    assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
-    assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
-    assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
-    assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private form|Offline question/);
-    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-    f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "不得保存", type: "text" }] }) } }] }; });
-    const pending = client.invoke(caller, formActions.draft, { id: form.id, prompt: "被撤权的请求", expected_version: generated.form.version });
-    const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
-    await entered.promise;
-    try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
-    finally { release.resolve(); }
-    await rejected;
-    assert.equal((await client.invoke(caller, formActions.get, { id: form.id })).form.questions.length, 2);
-    assert.equal((await client.invoke(caller, formActions.list, {})).ai_available, false);
-  } finally { await host.close(); }
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };
+  const client = host.actionClient(ref);
+  assert.equal((await client.discover(caller)).find(row => row.capability_id === formActions.draft.capability_id)!.availability.available, true);
+  const { form } = await client.invoke(caller, formActions.create, { title: "Private form contents are not sent" });
+  await client.invoke(caller, formActions.generate, { id: form.id, prompt: "Offline question" });
+  assert.equal(f.requests.length, 0);
+  f.answer(async () => ({ choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "截止日期", type: "date" }] }) } }] }));
+  const generated = await client.invoke(caller, formActions.draft, { id: form.id, prompt: "计划的日期" }) as { form: { version: number; questions: Array<{ title: string }> } };
+  assert.equal(generated.form.questions.at(-1)!.title, "截止日期");
+  assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
+  assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
+  assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
+  assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private form|Offline question/);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "不得保存", type: "text" }] }) } }] }; });
+  const pending = client.invoke(caller, formActions.draft, { id: form.id, prompt: "被撤权的请求", expected_version: generated.form.version });
+  const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
+  await entered.promise;
+  try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
+  finally { release.resolve(); }
+  await rejected;
+  assert.equal((await client.invoke(caller, formActions.get, { id: form.id })).form.questions.length, 2);
+  assert.equal((await client.invoke(caller, formActions.list, {})).ai_available, false);
 }));

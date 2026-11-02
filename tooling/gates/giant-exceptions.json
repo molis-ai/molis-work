@@ -4,7 +4,7 @@
     "file plugins/native/plugin-builder/src/agent-authoring.ts": {
       "kind": "cohesive-unit",
       "reason": "设计答卷 DSL 的内聚解析与归一化单元，类型、操作、组件绑定和验收共用标识与诊断，联合展开为同一严格设计合同；拆开会分散同一语法的交叉引用和归一化顺序。",
-      "size": 806
+      "size": 821
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "kind": "cohesive-unit",
@@ -95,7 +95,7 @@
       "kind": "cohesive-unit",
       "reason": "一次插件创作的工作流状态机：提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用，每步读写同一份运行记录；40 个方法最长 53 行，是同一条流水线上的相邻阶段，拆开会让一次创作的状态散在几个类里。",
       "size": {
-        "lines": 658,
+        "lines": 664,
         "methods": 40
       }
     },

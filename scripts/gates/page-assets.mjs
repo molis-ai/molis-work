@@ -246,8 +246,9 @@ const APPROVED_CEILINGS = {
   // Final T395/T405/T403/T406 carrier against main e4e98ed331. Reuse the reviewed builder and Git allowances;
   // arrival +20 B preserves the selected directory's pre-paint geometry. The former workbench allowance is no longer needed.
   // T411 adds 621 B for query presence, full results and retained drafts, reusing the existing renderer/guards.
-  // The original 2272 B admission is still unconsumed on main: total growth is 2893 B, final measured ceiling 121565.
-  "/assets/molis-work-plugins/plugin-builder.js": [118672, 121565],
+  // T414 adds 1100 B for real required-field feedback, read retry and acceptance-only refresh/cleanup; existing rendering is reused.
+  // The original admission is still unconsumed on main: total reviewed growth is 3993 B, final measured ceiling 122665.
+  "/assets/molis-work-plugins/plugin-builder.js": [118672, 122665],
   "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
   "/assets/molis-work-plugins/git.js": [29496, 30295],
   "/assets/molis-work-arrival.css": [678738, 678758],

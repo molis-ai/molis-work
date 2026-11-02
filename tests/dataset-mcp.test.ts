@@ -19,8 +19,9 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   const home = await mkdtemp(join(tmpdir(), "dataset-mcp-"));
   let host: MolisWorkLocalHost | undefined, web: TestHostServer | undefined;
   const start = async () => {
-    host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home),
+    host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home),
       completeText: async () => "MCP 列名" });
+    const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     web = await serveTestHost(null, { home, host });
   };
   const stop = async () => { await web?.close(); await host?.close(); web = undefined; host = undefined; };

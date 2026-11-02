@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
@@ -45,6 +45,7 @@ test("S-12 RAC-2915 RAC-2918 RAC-2917: recovery refuses foreign or unsafe journa
     ["nonprivate originals declaration", value => { value.work_identity.mode = 0o755; }],
     ["unknown phase", value => { value.phase = "unknown-phase"; }],
     ["extra authority field", value => { Object.assign(value, { allow_fresh: true }); }],
+    ["extra directory field", value => { Object.assign(value.directories[0], { kind: "directory" }); }],
     ["parent path escape", value => { Object.assign(value, { files: [incoming("../outside-original.txt")] }); }],
     ["original key replacement", value => { Object.assign(value, { files: [incoming("agent-runtime/storage.key")] }); }],
     ["ownership inode replacement", value => { Object.assign(value, { files: [incoming("agent-runtime/.molis-runtime-owner.db")] }); }],
@@ -104,7 +105,10 @@ async function faultRestore(t: import("node:test").TestContext, home: string, ar
 
 test("RAC-2916: a real file publication failure rolls back original business bytes, retains originals and releases the same owner", async t => {
   const f = await restoreFixture(t);
+  const missing = join(f.home, "plugin-files", "missing");
+  mkdirSync(missing, { mode: 0o750 }); writeFileSync(join(missing, "archived.bin"), "archived child", { mode: 0o640 });
   await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+  rmSync(missing, { recursive: true });
   writeFileSync(join(f.home, "plugin-files", "original.bin"), "later state retained on failed restore");
   const before = retainedOriginalState(f.home);
   const result = await faultRestore(t, f.home, f.snapshot, "write-failure");
@@ -118,7 +122,10 @@ test("RAC-2916: a real file publication failure rolls back original business byt
 test("RAC-2916 RAC-2917: real prepared/partial/committed interruption and clear failure resume the same journal without default regeneration", async t => {
   for (const fault of ["prepared-kill", "partial-kill", "committed-kill", "clear-failure"]) await t.test(fault, async t => {
     const f = await restoreFixture(t);
+    const missing = join(f.home, "plugin-files", "missing");
+    mkdirSync(missing, { mode: 0o750 }); writeFileSync(join(missing, "archived.bin"), "archived child", { mode: 0o640 });
     await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+    rmSync(missing, { recursive: true });
     const original = readFileSync(join(f.home, "plugin-files", "original.bin"));
     const memory = inspectMemoryLedger({ homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID });
     writeFileSync(join(f.home, "plugin-files", "original.bin"), "later nonempty original");
@@ -133,7 +140,13 @@ test("RAC-2916 RAC-2917: real prepared/partial/committed interruption and clear 
     assert.equal(recovered.code, 0, recovered.stderr);
     const committed = journal.phase === "committed";
     assert.equal(JSON.parse(recovered.stdout).status, committed ? "finished" : "rolled_back");
-    if (committed) { assert.deepEqual(readFileSync(join(f.home, "plugin-files", "original.bin")), original); assert.deepEqual(inspectMemoryLedger({ homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID }), memory); }
+    if (committed) {
+      assert.deepEqual(readFileSync(join(f.home, "plugin-files", "original.bin")), original);
+      assert.equal(readFileSync(join(missing, "archived.bin"), "utf8"), "archived child");
+      assert.equal(lstatSync(missing).mode & 0o777, 0o750);
+      assert.equal(lstatSync(join(missing, "archived.bin")).mode & 0o777, 0o640);
+      assert.deepEqual(inspectMemoryLedger({ homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID }), memory);
+    }
     else assert.deepEqual(retainedOriginalState(f.home), before);
     assert.equal(lstatSync(marker, { throwIfNoEntry: false }), undefined);
     const after = retainedOriginalState(f.home), again = await restoreCli(t, ["restore", "--home", f.home, "--recover", "--json"]);

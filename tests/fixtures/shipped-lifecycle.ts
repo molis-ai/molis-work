@@ -58,8 +58,9 @@ type HostOptions = NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[
 /** The product's Host over the product's web server, as tests/fixtures/test-home.ts makes it, here opened again on the same Home. */
 export async function serve(home: string, host: Partial<HostOptions> = {}) {
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-    workspacesFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
-    actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home), ...host });
+    workspacesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home), ...host });
+  const withCatalog = local.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const served = await serveTestHost(null, { home, host: local });
   return { ...served, host: local, async shut() { await served.close(); await local.close(); } };
 }

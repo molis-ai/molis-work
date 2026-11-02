@@ -1,6 +1,6 @@
 # 全仓对抗式审查报告（2026-11-01）
 
-状态：审查完成。用户 2026-11-01 定**只出报告、不由本轮执行整治**；第 12 节分片与第 13 节裁定留给统筹排期。报告不改产品代码、门禁、测试、规格和真实 Home。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」；停下之前已经做了的，见第 15 节。
+状态：审查完成。用户 2026-11-01 定**只出报告、不由本轮执行整治**；第 12 节分片与第 13 节裁定留给统筹排期。报告不改产品代码、门禁、测试、规格和真实 Home。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」；停下之前已经做了的，见第 15 节。同日又用另一套方法把全部数字、重复逻辑与 #1727 逐项复查了一遍（语法树计数、全文检索、变异检验），改动处标「（复查更正）」，新发现与逐项结果见第 16 节。
 
 - **对象**：origin/main `e4e98ed33`（2026-11-01 15:13Z；该提交的 CI 与 Full 均为绿）。第 1 节的趋势数字取同一分支在 10-13、10-20、10-27 的提交。
 - **依据**：[防腐整理要求](../prompts/repository-anti-corruption.md)（四个目标、§4.1–4.19、§7 完成标准、附录 A），[系统整理要求](../prompts/repository-systematic-review.md)，`AGENTS.md` 与 `docs/system/` 的现行规则，[上一轮清理检查](cleanup-audit-2026-10-20.md)。
@@ -26,8 +26,8 @@
 
 2. **门禁看不到的地方在反向走（P1，已证实）**：
    - `apps/local-host/src` 从 10-13 的 45,620 行涨到 68,444 行（+50%）；原始需求 §4.4 与附录 R-03 要的是宿主瘦身。
-   - 宿主入口的命名导出从 304 涨到 558。包外的生产代码只用其中 39 个，其余的消费者是 927 个测试文件。
-   - 同一概念的小工具在变多：`isRecord` 从 14 份到 23 份，其中 12 份在插件 SDK 自己里面。
+   - 宿主入口的命名导出从 304 涨到 558。包外的生产代码只用其中 45 个，其余的消费者是 919 个测试文件（复查更正：按语法树数）。
+   - 同一概念的小工具在变多：`isRecord` 从 14 份到 23 份；插件 SDK 自己里面同义的判断有 11 份（`isRecord` 6、`isObject` 4、`isRecordValue` 1）（复查更正）。
    - 死翻译键从 2,472 涨到 2,518。
 3. **门禁本身成了最热的冲突点（P1，已证实）**：10-18 以来 main 上有 755 个提交，其中
    - `tooling/gates/page-assets.json` 被改了 176 次；
@@ -54,7 +54,7 @@
 | 项 | 现值 | 怎么量 |
 | --- | --- | --- |
 | 宿主入口命名导出 / `export *` | 558 / 8（10-13 为 304 / 11，10-20 为 376 / 11，10-27 为 516 / 9） | 解析 `apps/local-host/src/index.ts` 的 `export {…}` |
-| 宿主入口的包外消费者 | 954 个文件 import 它；927 个是测试；27 个非测试文件共用 39 个名字 | 按包名 `@molis-ai/molis-work-app-local-host` 搜 import |
+| 宿主入口的包外消费者 | 945 个文件 import 它；919 个是测试；26 个非测试文件共用 45 个名字，其中桌面与 `apps/server` 的 11 个文件用 23 个（复查更正） | 按语法树找 `@molis-ai/molis-work-app-local-host` 的 import 与 export…from |
 | `apps/local-host/src` | 693 个 `.ts`，68,444 行（10-13 为 45,620，10-20 为 54,842，10-27 为 66,613） | `git ls-files` 行数 |
 | 浏览器文本程序 | `*_SCRIPT` 98 个程序 / 69 个文件；空 catch 74；裸 fetch 6 | `node scripts/check-health-gates.mjs --report` |
 | `AGENTS.md` | 29,628 字节；「构建与测试」一节约占 60% | `wc -c`、按节统计 |
@@ -63,9 +63,9 @@
 | `specs/` + `docs/` | 约 92 MB：PNG 49.9 MB（217 个）、Markdown 20.6 MB（994 个）、JPG 8 MB、MP4 3 MB | `git ls-files` 按扩展名 |
 | 验收编号 | 61 份在进行的 spec，992 条验收里 294 条有测试引用；570 个编号没有任何证明 | `node scripts/check-spec-coverage.mjs` |
 | BACKLOG | 254 行；163 行没有主人；17 行列数不对 | 解析 `specs/BACKLOG.md` |
-| 「2026-10-18 改」/「暂定·暂记·先不挡」 | 73 处（28 个文件）/ 73 处（27 个文件） | `git grep` |
+| 「2026-10-18 改」/「暂定·暂记·先不挡」 | 77 处（30 个文件）/ 81 处（31 个文件，不含 `archive/`）（复查更正：初次统计漏了中文路径的文件） | `git -c core.quotepath=off grep -o` |
 | 压制注释 | `@ts-expect-error` 20（全在测试）、`eslint-disable` 3、`biome-ignore` 0 | `git grep` |
-| 测试 skip / todo | 64 处 / 39 个文件，绝大多数按平台或环境条件跳过 | `git grep` |
+| 测试 skip / todo | 64 处 / 39 个文件（按文本）；按调用形状数，直接写在 `test()` 上的有 50 处、31 个文件，另有 4 个共用的选项对象。全部是条件跳过，没有无条件的 skip（复查） | `git grep`；语法树 |
 | 生产代码里的裸 `new Error(` | 1,708 处 / 494 个文件 | `git grep` |
 | 代码注释里的过程编号 | 573 个生产文件；PG 406、S 326、BL 256、W5 139、日期 109、T 61、RAC 40 | `git grep` |
 | 工作树 / 本地分支 / 远端分支 | 158 / 1,123 / 1,116；主检出落后 origin/main 175 个提交 | `git worktree list`、`git branch` |
@@ -87,7 +87,7 @@
 | 巨大单元门禁生效、清单缩小 | 符合，有一处遗漏 | 123 → 43；`horizontal/memory/src/service.ts` 与 `MemoryService` 没有登记，与用户 10-30 的决定不符（I-6） |
 | 测试引用内部明显下降 | 符合，但被绕开 | 942 → 412；同期宿主入口 304 → 558，测试改从宽入口拿内部（G3） |
 | 兼容逻辑删除、保留项写明 | 符合 | 兼容标记 8 处全是误报（J 节）；读取只认现行版本（`schema_version !== 1` 一类严格判断） |
-| 每个库一份建库代码，版本不符拒绝 | 符合，有重复 | `packages/storage/src/sqlite-baseline.ts`；但有 4 份手写的只读预检、7 个构造器重复执行建表语句（B7、B8） |
+| 每个库一份建库代码，版本不符拒绝 | 符合，有重复 | `packages/storage/src/sqlite-baseline.ts`；但有 4 份手写的只读预检、7 个构造器重复执行建表语句（B3、B4；复查更正：原写成 B7、B8） |
 | 真实 Home 按决定重建 | **未完成** | 用户 10-30 定清空重建，等用户说「开始」；前提见 `docs/releases/CHECKLIST.md` |
 | 防回流门禁 | 符合 | 兼容标记按文件只许减少 |
 | 体检、附录 A、交接清单每项有结论 | 部分 | 防腐 spec §3.1 有逐项闭环；R-03（宿主）与 N-11（入口）倒退，R-13（主检出落后）与 N-07（工作树堆积）复发 |
@@ -109,10 +109,10 @@
 ### B1 宿主入口过宽（P1，已证实）
 
 - `apps/local-host/src/index.ts`：558 个命名导出加 8 个 `export *`。
-- 954 个文件 import 这个包，其中 927 个是测试。27 个非测试文件（桌面启动器、`apps/server`、脚本）一共只用 39 个名字。
+- 945 个文件 import 这个包，其中 919 个是测试。26 个非测试文件（桌面启动器、`apps/server`、脚本）一共只用 45 个名字（复查更正：初次按文本数，是 954 / 927 / 27 / 39）。
 - 原始需求要「分清 Host 装配接口与普通消费者接口」，10-20 清理检查的 P2 第一批也是「公开面收窄」，都没做；而且宽度一周涨了 42 个。
 - 建议拆成两个出口：
-  - `.` 只留装配接口，就是那 39 个名字；
+  - `.` 只留装配接口，就是那 45 个名字；
   - 测试要的东西走 `@molis-ai/molis-work-test-kit` 或一个只给测试的子路径；
   - 再给入口宽度加一条只许减少的门禁。
 - 这一片会碰到几百个测试文件，按目录分批做。
@@ -121,12 +121,12 @@
 
 | 工具 | 份数 | 位置与说明 | 建议 |
 | --- | --- | --- | --- |
-| `isRecord` | 23 份、6 种写法 | 插件 SDK 自己有 12 份（每个 `*-declarations.ts` 一份，加 `errors.ts`）；contracts、kernel、宿主、Module、Coding、Git 也各有 | SDK 内一份、导出给平台与插件 |
+| `isRecord` | 23 份、3 种写法，语义完全相同（复查更正：原写 6 种） | 插件 SDK 自己有同义的 11 份（`isRecord` 6、`isObject` 4、`isRecordValue` 1）；contracts、kernel、宿主、Module、Coding、Git 也各有；另有 `isPlainObject` 4 份（Gmail 3、storage 1） | SDK 内一份、导出给平台与插件；合并不改行为 |
 | schema 构造 `object` / `array` / `nullable` | 51 / 12 / 11 个文件，19 / 4 / 4 种写法 | 每个插件的 `actions.ts` 自己写，SDK 没有 | SDK 给一组 schema 构造器（改公开 API，跑 `pnpm api:update`） |
-| HTML 转义 | SDK 已导出 `escapeHtml`（`packages/plugin-sdk/src/ui/html.ts`），另有 12 份 | 6 个插件自写 `esc`（cognia、issues、jelly、workflows、form、ppt），Pages 自写两份 `escapeHtml`，工作台终端一份 | 改用 SDK 那份 |
-| `messageOf` | 14 份、3 种写法 | 各插件 `src/browser/dom.ts` | SDK 浏览器工具 |
+| HTML 转义 | SDK 已导出 `escapeHtml`（`packages/plugin-sdk/src/ui/html.ts`），另有 16 份（复查更正：原写 12 份） | 能改 import 的 8 份：cognia、issues、jelly、workflows、form 的 `esc`，Pages 两份 `escapeHtml`，工作台终端一份；PPT 的 `esc` 转的是 XML，另算；7 份在浏览器文本程序里（首页动作、项目首页、侧栏三个面板、Alchemist、创作台），import 不了 SDK，要随打包线换。只有 SDK 与 3 份转单引号 | 能 import 的改用 SDK 那份（转得更多，不会少转） |
+| `messageOf` | 14 份、3 种写法 | 各插件 `src/browser/dom.ts`。13 份是同一个意思（`instanceof Error` 取 message，否则 `String()`）；工作台 `characters/common.ts:67` 那份对非 Error 返回空串，意思不同（复查） | SDK 浏览器工具；合并时那一份要单独看 |
 | `requestHash` | 5 份，逐字相同 | 全在 Goals 一个包里：`goal-tree-check.ts`、`goal-tree-decision.ts`、`goal-tree-submission.ts`、`module/command-support.ts`、`proposal-baselines.ts` | 包内收成一份。10-20 的建议只做了 `canonicalize` 那一半（已改用 SDK 的 `canonicalJsonValue`） |
-| 规范化 JSON | `packages/plugin-runtime` 自写 3 份：`identity.ts:9`、`package-verification.ts:116`、`project-database.ts:159` | `AGENTS.md` 要求平台各层从 SDK 取同一份；Runtime 的写法按码位排序，SDK 的按 `localeCompare` | 同一输入在两层的规范形式可能不同（推断，目前各自只自比，没有交叉比较） |
+| 规范化 JSON | 按键排序的递归写法共 12 份（复查更正：原只列 Runtime 3 份）：Runtime 3 份、agent-host `action-digest.ts`、contracts `artifact-pins.ts`、SDK 2 份、宿主 `home-actions.ts`、`installer/runtime-config-text.ts`、`plugin-builder/build-project.ts`、工作台 `home-offers.ts`、Feed `signals.ts`；5 份用 `localeCompare`，7 份按码位 | `AGENTS.md` 要求平台各层从 SDK 取同一份 | 复查已核实：每个摘要与签名都由同一个函数产出、同一个函数校验，现在没有跨写法比较；但 SDK 那份依赖进程的语言环境（第 16 节 N4） |
 | `parseJson` | 7 份、6 种写法 | `packages/storage/src/sqlite.ts`、`modules/artifacts`、Goals 两处、Feed、宿主两处 | 10-20 时是 11 份；先查哪些静默兜底 |
 
 ### B3 SQLite 只读预检写了四份（P2，已证实）
@@ -169,8 +169,8 @@
 - **死路由**：`POST /api/assistant/memory-prefs`（`apps/local-host/src/assistant/assistant-http.ts:331`）在 `apps/workbench/src` 里没有调用方；CALL-CHAINS §10.1 自己也这样写了。
 - **只建表、从不读写的两张表**：`goal_desktop_panels` 与 `goal_desktop_panel_aliases`（`apps/desktop/src/adapters/sqlite-panels.ts`），等 T-148 的裁定。
 - **零碎单里登记的**：
-  - 没有调用方的 `assertProjectPluginDatabase`（`apps/local-host/src/project-plugin-databases.ts:99`）；
-  - 没有元素匹配的 `.account-global-menu` 三条样式。
+  - ~~没有调用方的 `assertProjectPluginDatabase`~~（复查更正：基线之前已由 #1582 / T-286 删掉）；
+  - ~~没有元素匹配的 `.account-global-menu` 三条样式~~（复查更正：基线之前已由 #1581 / T-283 删掉）。
 - **已经不起作用的配置**：
   - Biome 仓库里的 3 条 `eslint-disable-next-line` 注释（`packages/contracts/src/platform/search-sources.ts:81`、`plugins/native/ppt/src/pptx.ts:24`、一个测试）。Biome 不读它们，但它们说明正则里的控制字符是有意的；留到下次改这几个文件时再处理，其中一条在 contracts（共享核心）（更正）。
   - ~~密钥白名单里一条全仓已经找不到的值~~（更正）：这条值在 Shelf S3 的提交 431c2847 里。那个提交不在 main 上，`migrate/bl383-runtime-context-rename` 等三个远端分支的历史里还有；这些分支合入时 `pnpm secrets:check` 要靠它，所以留着。
@@ -203,7 +203,7 @@ Alchemist 的 `mapIdeaCard` / `mapCard` 在冻结例外里，不动。
 
 ### B9 只走 HTTP、没盘点的写入（P1，已证实）
 
-CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作」的写入，下面各文件的 POST/DELETE 处理分支计数：
+CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作」的写入，下面是各文件里出现写方法的行数（复查：按 `method === "POST"` 一类判断数，是 13 / 6 / 7 / 6 / 3，共 35）：
 
 | 文件 | 写入计数 |
 | --- | --- |
@@ -283,13 +283,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
   - S-xx（安全不变量）与验收编号是有用的指针，应该保留。
   - T-、batch、日期、已关的 BL 是交接痕迹，建议删，并加只许减少的计数。
 - **E2 错误写法**：25 个 Error 子类还在，例如 `packages/storage/src/sqlite-baseline.ts:13` 的 `SqliteSchemaVersionError`；另有 1,708 处裸 Error（D3）。
-- **E3 截断写法不一**：T-077～T-099 已把十几处改成按整字截，零碎单里还记着至少 6 处按 UTF-16 单元截：
-  - `assistant-followups.ts:274`
-  - 工作台 `plugin-frame/intake.ts:26`
-  - `context-bus.ts:191`
-  - `contextual-request.ts:38`
-  - `plugin-frame/links.ts:10`
-  - `context-actions.ts:27`
+- **E3 截断写法不一**：T-077～T-099 已把十几处改成按整字截。零碎单里记的 6 处，复查时在基线上只剩 `apps/local-host/src/assistant/assistant-followups.ts:274`（提醒标题 `.slice(0, 120)`）一处还按 UTF-16 单元截；`context-bus.ts`、`contextual-request.ts`、`plugin-frame/links.ts`、`context-actions.ts` 已改成按整字截，`plugin-frame/intake.ts:26` 是长度检查、不是截断（复查更正）。
 - **E4 ID 生成**：见 C4。
 - **E5 浏览器文本程序**：98 个程序、74 处空 catch、6 处裸 fetch；继续按 W4-04 / W5-04 打包线做。
 
@@ -298,20 +292,20 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 - **F1 `AGENTS.md`**：29,628 字节。「构建与测试」一节约 17,700 字，大多是门禁的口径与放行细节，与 `tooling/gates/README.md`、`scripts/gates/README.md` 重复。建议这一节只留「跑什么、看哪里」，口径下沉，目标 ≤ 15 KB。
 - **F2 防腐 spec 与 `privileges.md`**：
   - spec 有 1.43 MB，片的标题还写着「实施中」「待按队列集成」「本地验证通过」（7 个）。用户 10-30 定的 W6-06（搬出现行规则后整份归档）正由 T-404 做。
-  - `privileges.md` 216 KB，有两张表，同一个 PG 号在两张表里状态不同（PG-045、PG-058、PG-077、PG-078、PG-092）。
+  - `privileges.md` 216 KB。~~同一个 PG 号在两张表里状态不同~~（复查更正：第二张表是 §8「T0 复核（2026-10-19）」，是带日期的复核记录，结论格写「见 §3」，以 §3 为准，不算矛盾）。
 - **F3 体积**：
   - `specs/` 与 `docs/` 约 92 MB：图片 62 MB；Markdown 20.6 MB，994 个文件；`docs/system/SECURITY-INVARIANTS.md` 一份就 417 KB。
   - 最大的几个目录：`docs/screenshots/showcase` 11.6 MB、`specs/archive/molis-work-im` 11.5 MB、`docs/design/project-arrival-flow` 10.9 MB、`specs/archive/plugin-builder` 9.0 MB。
   - `.impeccable/` 有门禁，这些图片没有。
-- **F4「2026-10-18 改」**：73 处，其中 32 处在 `docs/product-operations/`，在途的 PR #1526 正在重写这一组；其余在 `docs/system/RUNTIME-MIGRATION.md`（6）、防腐 spec（5）、`privileges.md`（4）。
-- **F5「暂定」「暂记」「先不挡」**：73 处，在 27 个文件里。
+- **F4「2026-10-18 改」**：77 处（复查更正），其中 32 处在 `docs/product-operations/`，在途的 PR #1526 正在重写这一组；其余在 `docs/system/RUNTIME-MIGRATION.md`（6）、防腐 spec（5）、`privileges.md`（4）。
+- **F5「暂定」「暂记」「先不挡」**：81 处，在 31 个文件里（不含 `archive/`；复查更正）。
 - **F6 防腐 spec §7 过时**：
   - BL-121 的三项还列为「待用户」，用户 10-31 已经定了；
   - 常驻服务 4173、旧成果表备份、远端分支清单这几条，被 10-30 的清空重建决定改变了，没有更新。
 
 ## 8. G：门禁本身
 
-- **G1 热点（已证实）**：10-18 以来 755 个提交里被改最多的文件：
+- **G1 热点（已证实）**：10-18 以来 755 个提交里被改最多的文件（`git log --since=2026-10-18` 的口径，不带时刻时 git 取当前钟点；按北京时间 10-18 零点起算是 841 个，排名不变）：
 
   | 文件 | 次数 |
   | --- | --- |
@@ -346,12 +340,12 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 | --- | --- | --- | --- |
 | 1 | 原始需求 §7 | 见第 2 节：1 项违反（热点）、3 项部分、1 项未完成（真实 Home 重建，等用户）、4 项符合但有缺口 | 违反与部分项进第 12 节分片 |
 | 2 | 防腐 spec 待办 | §1.1 已在 10-30 清掉；§7 的 10 项里至少 4 项过时（F6）；§8 的 8 项写于 10-12，「维护八」已被清空重建取代；7 个片的标题状态过时 | 随 W6-06（T-404）一起改成现状 |
-| 3 | BACKLOG 254 行 | 34 行正文写着已合入、已完成、已删、已修或做完（多为部分完成的说明，要逐行核）；163 行无主；17 行格式坏；2 行写着暂定或待裁 | 统筹逐行核，做完的删行 |
+| 3 | BACKLOG 254 行 | 34 行正文写着已合入、已完成、已删、已修或做完。复查逐行核过：都是「前置 PR 已合入」「做完的样子」或部分完成，没有一行按正文已经做完；但 BL-493 写着「未实现」，代码上已由 #1723 做了（第 16 节 N5）。163 行无主；17 行格式坏；2 行写着暂定或待裁 | 统筹核 BL-493；无主的定主人 |
 | 4 | 协调与交接记录 | 风险登记 65 行，约 54 行没标关闭：40 行不指向任何 BL，14 行只指向已删的 BL，没有一行指向开着的 BL。R-24 实际已解决（`Verify` 依赖 `security-invariants`），仍写「开着」。零碎单约 160 行，也只在协调分支上。主检出的 `.claude/handoff/` 不入库 | 开着的并进 BACKLOG（带主人），协调分支只留进度 |
-| 5 | PR 遗留 | 10-13 以来 61 个 PR 关闭未合并；带「交 Codex 修复队列」的 PR 58 个、「非阻塞」104 个、「后续单」62 个，都没和 BACKLOG 或零碎单对账；开着的 11 个 PR 里有 10-18、10-23 的草稿（#734、#1059） | 抽查对账；关掉的 PR 判断是被取代还是丢了 |
+| 5 | PR 遗留 | 10-13 以来 172 个 PR 关闭未合并（复查更正：原写 61）。复查逐个核过：66 个评论里写明随批落地，84 个被已合并的批 PR 点名，其余按提交说明在 main 上找得到；不在 main 上的只有 #1538、#1553 两个维护脚本 PR（推断：被 10-30 清空重建的决定取代）。带「交 Codex 修复队列」的 PR 58 个、「非阻塞」104 个、「后续单」62 个，都没和 BACKLOG 或零碎单对账；开着的 11 个 PR 里有 10-18、10-23 的草稿（#734、#1059） | 抽查对账；关掉的 PR 判断是被取代还是丢了 |
 | 6 | 用户决定落地 | **已排期**（更正）：MemoryService 登记为内聚单元（10-30 第 3 项）排给 T-061，等 #1101/#1059 合入后登记；health 里那 2 个未登记的就是它。**在做**：PG-070/071 样式搬出共用表，Goals 还剩 321 条、Feed 234 条、Coding 9、Form 6、创作台 5（T-393 等）。**已落地**：BL-121 ②（`feed-start` 已为 0）、T-137 的通用面板表。**存疑**：安装清单 `SCHEMA_VERSION = 4`（`apps/local-host/src/installer/home-contract.ts:9`），10-30 定「各库与带版本的 JSON 合成第 1 版」，`docs/releases/CHECKLIST.md` 的版本表里没有它 | MemoryService 随 T-061；`SCHEMA_VERSION` 请统筹定 |
 | 7 | 验收编号 | 570 个没有证明：proactive-assistant 106、onboarding-coverage 44、font-and-skin-system 38、prologue-memory-strategy 32、coding-harness-optimization 32、work-brief 26… | 按 spec 的状态句分三类：该归档、该标「[人工]」、真没测 |
-| 8 | 写了没人看守的规则 | 抽查 5 条硬约束（删项目唯一服务、并发调度声明、身份不从输入读、DOM 事件登记、错误子类），都有门禁或测试；没有全量逐条做 | 未验证，留作整治前的一步 |
+| 8 | 写了没人看守的规则 | 抽查 5 条硬约束（删项目唯一服务、并发调度声明、身份不从输入读、DOM 事件登记、错误子类），都有门禁或测试。复查把 `AGENTS.md` 里写「CI 里跑」的门禁和用例逐个追到 `ci.yml` 的必过作业，全部属实；`AGENTS.md` 里写死的两个旧数字过时了（第 16 节 N1） | 改 `AGENTS.md` |
 | 9 | 安全不变量 | S-03 行漏了 RAC-1805 的用例（零碎单 T-167）；R-24 已过时 | 改表 |
 | 10 | 残留 | 158 个工作树、1,123 个本地分支、1,116 个远端分支；主检出落后 175 个提交 | 按「只清干净且已在 main 的」规则清理，要各会话或用户确认 |
 
@@ -443,9 +437,9 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
   - 死导出搜索看不到拼接出来的名字。
 - **没覆盖的**：
   - 运行时行为、浏览器、真实模型；
-  - I-8 只抽查了 5 条；
-  - PR 评论里的后续项只计了数，没有逐条对账；
-  - BACKLOG 那 34 行「已做」要逐行核。
+  - I-8 只抽查了 5 条（复查补了「CI 里跑」的逐条追踪）；
+  - PR 评论里的后续项只抽查了 2 个 PR（第 16 节 N6），没有逐条对账；
+  - BACKLOG 那 34 行复查已逐行核。
 - **数字会变**：统筹在途的大批（#1724 等）合入后，宿主行数、入口宽度、页面资源会变；整治开工前按第 1 节的命令重测。
 
 ## 15. 停下时的状态
@@ -477,3 +471,83 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 5. **安装清单版本（④）**：`SCHEMA_VERSION` 4 → 1，写进 CHECKLIST 版本表，和真实 Home 清空重建同一时段合入。
 6. **R4 宿主入口收窄、R6 文档卫生、R7 门禁去热点**：按第 12 节。
 7. **R8 待办单一出处（⑦）**：统筹把风险登记与零碎单里开着的项并进 BACKLOG。
+8. **复查新增（第 16 节）**：
+   - 并进已有的片：N4 随 R2 与真实 Home 重建，N6 并进 R8，N7 并进 R2；
+   - 小片：N1 改 `AGENTS.md`，N2 在 SYS-15 补一句 `--base` 断言；
+   - N3 让安全不变量门禁要求每个测试文件都带测试名，改门禁要先问用户；
+   - N5 由主人核 BL-493。
+
+## 16. 复查（2026-11-01，第二遍）
+
+用户要求再查一遍有没有遗漏，重复逻辑要交叉验证，其余各方面也补校验。这一遍不沿用第一遍的工具，换方法重做，对象仍是 `e4e98ed33`。
+
+### 16.1 方法
+
+- **计数**：导出、注释、skip、同名函数体都改用 TypeScript 语法树数，不用正则。文本搜索一律用 `git -c core.quotepath=off`，第一遍漏掉了中文路径的文件。
+- **死代码**：第一遍判出的 105 个导出（6 个没人用、99 个只在本文件用）逐个在全仓文本里重搜，搜的范围比引用关系更宽，只搜到定义就确实没人用。
+- **重复逻辑**：同名函数先把参数名和空白归一，再按函数体分组，看语义是否真的相同；规范化 JSON 追到每个摘要和签名的产出方与校验方。
+- **#1727**：另开工作树完整构建，先跑基线，再对构建产物和门禁脚本做变异，看用例能不能抓到：
+  - 令牌比较变异 1 处；
+  - 页面资源门禁变异 5 处；
+  - 每次跑完都还原，并比对文件确认已还原。
+- **流程**：用 GitHub API 查 PR 评论；逐行核对 BACKLOG、安全不变量表和协调分支上的登记。
+
+### 16.2 第一遍结论的核对结果
+
+| 项 | 结果 |
+| --- | --- |
+| 翻译（80 本、9,560 条、577 个重复键、136 个冲突、2,518 个死键） | 相符；`en.ts` 的死键是 1,773，原写 1,762 |
+| 验收编号（992 / 294 / 570） | 相符 |
+| health 数字（412 / 202、146、464、19、25、627、8） | 相符 |
+| BACKLOG（254 / 163 / 17） | 相符 |
+| 宿主行数与入口宽度的趋势 | 10-13、10-20 两个点相符；10-27 是 514，原写 516，取的时刻不同 |
+| 注释里的过程编号（573 个文件） | 按语法树数是 578 个，各类数字差 1–3%；E1 的 BL 编号 124 / 92，原写 125 / 92 |
+| 裸 `new Error(`、`randomUUID` | 1,720 / 496、387，口径差 <1% |
+| 体积 | 原文的 MB 是 MiB；另有 `.jpeg` 3.1 MB（29 个）没算进去 |
+| 死导出 105 个 | 全部成立 |
+| B6 克隆 | 逐字相同的几组全部成立（伙伴舞台 2 组、时间格式 4 份、Schedule `define` 2 份）；dataset 与 ppt 两组是改了名字的同一段 |
+| C2 恒定实参 | 成立 |
+| C4 幂等键 | 3 处成立：agent-host 1 处，工作台回退分支 2 处 |
+| H3 编号撞车 | 成立：风险登记里 R-01～R-27 各出现两次；R-03 在防腐要求里指宿主体积，在风险登记里指机器负载 |
+| I-9 安全不变量 | 成立：RAC-1805 的用例在 `tests/web-mutation-key-settle.test.ts`，S-03 行没列；R-24 仍写「开着」 |
+| 原处已改的 | 宿主入口消费者、`isRecord` 写法数、HTML 转义份数、规范化 JSON 份数、B5 两项已删、E3、F2、F4、F5、§2 的交叉引用、PR 遗留数、B9 口径 |
+
+### 16.3 新发现
+
+- **N1 `AGENTS.md` 写死的旧数字（P2，已证实）**：「静态检查」一条写着空 `catch`「没变（5）」、`as unknown as`「从 199 变成 202」，现在门禁量出来是 1 和 146。规则文档里写的是某一刻的快照，会误导读者。建议删掉这两个数字，指向 `--report`。
+- **N2 页面资源门禁的测试缺口（P2，已证实，变异检验）**：
+  - 「新资源的首次放行多 1 字节」这个变异在 CI 实际走的 `--base` 路径上（`scripts/gates/page-assets.mjs` 的 `baseErrors`）存活，`tests/page-assets-budget.test.ts` 全过。SYS-15 只在 `--update` 路径上断言「多 1 字节被拒」。
+  - 另外 4 个变异都被抓到：新资源一律放行，增长上限在两条路径上各放宽 1 字节，`--update` 路径的首次放行。
+  - 这个缺口在基线上就有，不是 #1727 引入的。补法：在 SYS-15 里加一句 `--base` 下 `bytes + 1` 要失败。
+- **N3 安全不变量表只查到文件这一层（P2，已证实）**：
+  - 105 行、1,162 个具名测试，在测试里全都找得到。
+  - 但有 10 行（S-07、S-08、S-12、S-13、S-15、S-18、S-36、S-41、S-47、S-105）的部分出处只写了测试文件、没写测试名。`scripts/gates/security-invariants.mjs` 对这种写法只查文件存在，`AGENTS.md`「每条有断言拒绝本身的测试」在这些行上没人看守。
+  - S-105 用 RAC 编号指代用例，不是「」测试名。
+  - 另有 15 个具名测试只在 macOS 跑（Linux 上的 `security-invariants` 作业跳过），好在没有一行全靠它们。
+- **N4 SDK 的规范化 JSON 依赖语言环境（P2，推断，已复现排序差异）**：
+  - `packages/plugin-sdk/src/json-value.ts` 的 `canonicalJsonValue` 用 `localeCompare` 排键。同一组键在 Node 的默认语言环境和 `zh` 下顺序不同，例如 `e` 与 `é`。
+  - Goals 用它算 `request_hash`，存进提案操作库做幂等比对（`plugins/native/goals/src/governance/proposal-operation-store.ts:57`）。宿主换了语言环境重启后，带非 ASCII 键的重试会被当成不同的请求。
+  - 现在 12 份按键排序的写法里 5 份用 `localeCompare`、7 份按码位。复查已核实：每个摘要与签名都由同一个函数产出和校验，没有跨写法比较，所以现在不出错。
+  - 建议 R2 收口时 SDK 改成按码位排（与 RFC 8785 一致），其余各份改用它。这会改变已存的 `request_hash`，和真实 Home 清空重建放在同一时段做。
+- **N5 BL-493 已做却写着「未实现」（P2，存疑）**：#1723（`e4e98ed33`）加了沙箱包的 Agent 角色与方法正文：`sandbox-agent-declarations.ts`、`sandbox-agent-bodies.ts`、S-105 和 RAC-2636～2643。这正是 BL-493 的内容，但 #1723 没改 BACKLOG。请主人确认后删行，或者改写剩下的部分。
+- **N6 PR 评论里「交 Codex 修复队列」的项没有台账（P1，已证实，抽查）**：
+  - 有这类评论的 PR 共 59 个。协调分支上的 `REVIEW-FIX-STATUS.md` 停在 10-24，之后没有任何地方汇总这些项。
+  - 抽查 2 个 PR：
+    - #1186 的一项（Dataset 请求助手不带 `scope`、不调 `host.readRefusal`，离开页面不取消、被拒时说不出原因）到基线仍是原样，也没有 BL 行或 issue。
+    - #1297 的三项里，一项已修；一项（`AgentStepReportAuthor` 没从 `services/agent-host` 导出，API 快照里仍是未导出的 `interface`）还开着，而它要挂靠的 BL-470 行已经删了；另一项（页面一侧的断言）没法从代码判断。
+  - 「非阻塞」的项会这样丢掉。建议 R8 先把这 59 个 PR 的项过一遍，并进 BACKLOG。
+- **N7 动作描述符的工厂也是每个插件一份（P2，已证实）**：35 个 `define` 一类的工厂，函数体有 34 种，默认值大同小异（按 operation 推 `kind`、`scope`、`audiences`）。和 B2 的 schema 构造器是同一类，可以一起进 SDK。
+- **N8 #1727 本身（复查结论：可以合）**：
+  - `requestHash` 5 份逐字相同，都从 SDK 取 `canonicalJsonValue`。
+  - `currentWorkspaceBranch` 与原来两份逐字相同，调的是同一个 `runWorkspaceGit`。
+  - 删掉的三个函数在基线上全仓没有引用，也没从包入口导出。
+  - `controlTokenMatches` 只有一处行为变化：期望的令牌为空时，原来三份会放行空令牌，现在一律拒绝。`resolveWebControlToken` 只给 32～512 字符的令牌，测试里也没有空令牌，所以生产上等价、更严。
+  - 变异检验：令牌比较变成「只要是字符串就放行」，S-03、S-04 的 6 条用例失败（HTTP 与三个 socket 都覆盖到）。
+  - CI 的 Verify 已绿，全量在跑。
+
+### 16.4 复查的局限
+
+- 语言环境的影响只复现了排序差异，没有在宿主里实际换语言环境重启。
+- N6 只抽查了 2 个 PR。
+- 变异检验只做了 #1727 涉及的两处。
+- 死代码的全文重搜看不到拼接出来的名字，与第一遍相同。

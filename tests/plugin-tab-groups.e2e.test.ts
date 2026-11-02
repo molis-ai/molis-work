@@ -4,6 +4,8 @@ import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-fra
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */
 const GROUP_CONTRAST = `(() => {
@@ -112,6 +114,56 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
   assert.equal(await evaluate(`${remainingCore}.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
   await gesture(await framePoint(leftId, '[data-frame-goal-work]', false), 1);
   await waitFor(`${remainingCore}.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === 'CORE' && ${remainingCore}.querySelector('[data-goal-node-workspace]')?.getClientRects().length > 0`, 30_000);
+});
+
+test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab of a real structured frame", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  const { projectId, store, localHost, databasePath, origin, server, command, sessionId, navigate, evaluate, waitFor, click } = browser;
+  const source = createLocalFeedSourceService(store.db, projectId!).register({ kind: "web_query", query: "frame item binding", name: "Frame binding" }).source;
+  const feedLibrary = createLocalFeedApplication(store.db);
+  const make = (name: string) => feedLibrary.ingestItem({ source, externalId: "frame-binding-" + name, title: "Binding " + name, summary: "Item navigation after a display update", body: "Body " + name, occurredAt: new Date().toISOString(), attention: false }).item;
+  const a = make("A"), b = make("B");
+  const platform = await localHost.withProject({ database_path: databasePath, project_id: projectId! }, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  assert.ok(platform);
+  let revisionRead!: () => void;
+  const firstRevision = new Promise<void>(resolve => { revisionRead = resolve; });
+  const observeRevision = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
+    if (request.method === "GET" && new URL(request.url!, origin).pathname === `/projects/${projectId}/api/plugins/io.molis.work.feed/view-revision`) response.once("finish", () => { if (response.statusCode === 200) revisionRead(); });
+  };
+  server.on("request", observeRevision); t.after(() => server.off("request", observeRevision));
+  await pluginFrameInitScript(t, browser, `
+    window.t403Tagged=[];window.t403HiddenSignals=0;
+    addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t403InitialItem=event.data.config.itemTab;},true);
+    const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
+    Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){const port=this;descriptor.set.call(port,typeof handler!=='function'?handler:event=>{if(event.data?.type==='ui'&&event.data.name==='openItem')window.t403Tagged.push({tab:event.data.itemTabId,id:event.data.args[1]});handler.call(port,event);});}});
+    let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed')root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});return mount(root,host,pack);};frameApi=api;}});
+    globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{if(key==='feed'){window.t403Host=host;window.t403Invalidations=0;window.t403PendingReads=0;const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403PendingReads++;try{return await read(...args);}finally{t403PendingReads--;}};host.root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate)window.t403Invalidations++;});}return factory(host);};return true;}});
+  `);
+  const feed = await pluginFrameBrowser(t, browser, "feed");
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=feed&openItem=${a.item_id}` }, sessionId));
+  await feed.waitFor("window.t403Host?.mount?.surface==='workbench' && window.t403InitialItem");
+  const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");
+  assert.equal(initial.itemId, a.item_id);
+  await firstRevision;
+  platform.invalidateView("io.molis.work.feed");
+  await feed.waitFor("t403Invalidations>0 && t403PendingReads===0");
+  await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]`);
+  const layout = () => evaluate<{ focusedPaneId: string; panes: Array<{ id: string; activeTabId: string; tabs: Array<{ id: string; itemId?: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}'))`);
+  await waitFor(`(()=>{const state=JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.tabs.find(tab=>tab.id===pane.activeTabId)?.itemId===${JSON.stringify(b.item_id)};})()`);
+  const saved = await layout(), pane = saved.panes.find(p => p.id === saved.focusedPaneId)!, bTab = pane.activeTabId;
+  assert.deepEqual(await evaluate("t403Tagged.at(-1)"), { tab: initial.tabId, id: b.item_id }, "a real click after a revision still names its original item tab");
+  await click("[data-plugin-picker-toggle]"); await click('[data-plugin-strip] [data-plugin-id=goals]');
+  await waitFor("document.body.dataset.desktopSurface==='goals'");
+  const invalidations = await feed.evaluate<number>("t403Invalidations");
+  await feed.evaluate("t403Host.invalidateView()");
+  await waitFor("t403HiddenSignals>0");
+  assert.equal(await feed.evaluate("t403Invalidations"), invalidations, "the hidden root queues its refresh instead of sending it to the child");
+  await click(`[data-titlebar-tabs] .tab-item[data-tab-id="${bTab}"] .tab-item-trigger`);
+  await feed.waitFor(`t403Invalidations>${invalidations} && t403PendingReads===0 && document.body.hidden===false`);
+  await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${a.item_id}"]`);
+  await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(pane.id)}).activeTabId===${JSON.stringify(initial.tabId)}`);
+  assert.deepEqual(await evaluate("t403Tagged.at(-1)"), { tab: bTab, id: a.item_id }, "a real click after the queued refresh still names B's item tab");
+  assert.equal((await layout()).panes.find(p => p.id === pane.id)!.tabs.filter(tab => tab.itemId === a.item_id).length, 1, "returning to A reuses its exact original tab");
 });
 
 test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; ⌘-click opens a record in its group", { timeout: 90_000 }, async (t) => {

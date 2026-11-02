@@ -144,7 +144,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (!node.checkVisibility({ visibilityProperty: true })) return false;
     return scope.visible;
   };
-  const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true } }); } port.postMessage({ type: "state", visible: visible(),
+  const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
     theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
   scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
@@ -158,7 +158,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       try {
         const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pack.plugin_id + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": grant.page_id } });
         scope.assertCurrent(); if (controller.signal.aborted) return;
-        if (revision !== undefined && revision !== value.revision) port.postMessage({ type: "select", detail: { invalidate: true } });
+        if (revision !== undefined && revision !== value.revision) port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) });
         revision = value.revision;
       } catch { /* A hidden or withdrawn page cannot publish a display update. */ }
       if (!controller.signal.aborted && scope.alive) timer = setTimeout(() => void read(), 1500);

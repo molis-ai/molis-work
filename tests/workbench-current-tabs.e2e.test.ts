@@ -154,7 +154,8 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     assert.notEqual(await feed.evaluate("document.querySelector('[data-feed-search]').value"), "旧缓存不应应用");
     await feed.click("[data-feed-source-menu] > summary");
     await feed.click(`[data-feed-task="${source.source_id}"]`);
-    await page.wait(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)})),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.tabs.find(tab=>tab.id===pane.activeTabId)?.view===${JSON.stringify(source.source_id)};})()`);
+    await feed.waitFor(`document.querySelector('[data-feed-workbench]').dataset.selectedSource===${JSON.stringify(source.source_id)}`);
+    await page.wait(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)})),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.viewPlugin==='feed' && pane.tabs.find(tab=>tab.kind==='plugin' && tab.plugin==='feed')?.view===${JSON.stringify(source.source_id)};})()`);
     await page.click('[data-titlebar-tabs] [data-tab-split]');
     await page.click('[data-layout-split="right"]');
     const feedPanes = "document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"] iframe[data-plugin-frame=feed]'))";
@@ -171,7 +172,8 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
     page = await chrome.page();
     const restoredFeeds = [];
-    for (const pane of state.panes) restoredFeeds.push(await pluginFrameBrowser(t, frameBrowser(), "feed", `iframe.tab-content-frame[data-pane-owner="${pane.id}"][data-pane-tab="${pane.activeTabId}"]`));
+    // A plugin page has no active item tab: paneFrameKey uses this pane's ":view" owner.
+    for (const pane of state.panes) restoredFeeds.push(await pluginFrameBrowser(t, frameBrowser(), "feed", `iframe.tab-content-frame[data-pane-owner="${pane.id}"][data-pane-tab="${pane.activeTabId || pane.id + ":view"}"]`));
     await load(prefix);
     await page.wait(feedPanes, { timeoutMs: 30_000,
       describe: `JSON.stringify({saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-feed-workbench]').length,

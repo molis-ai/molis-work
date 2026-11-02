@@ -135,6 +135,7 @@ test('RAC-2934 RAC-2935 G7 collects independent actual failures and stops on fai
 test('RAC-2934 last-case real CDP loss blocks the batch and never requests model repair', { timeout: 60_000 }, async () => {
   const full = JSON.parse(detail('连接中断'));
   full.design.acceptance = [{ id: 'last', description: '最后一例读取真实行', steps: ['expect notes TRANSPORT_VISIBLE'] }];
+  full.design.presentation = { version: 1, pages: [{ pageId: 'home', layout: { layout: 'stack', children: full.design.pages[0].parts.map((part: { id: string }) => ({ part: part.id })) } }], parts: {} };
   const answers = [PROPOSALS, JSON.stringify(full)];
   const requests: Array<{ role: string; task: string }> = [];
   let current: AgentBuild | undefined, captures = 0;
@@ -178,6 +179,7 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
     assert.equal(build.phase, 'failed'); assert.equal(build.browserResult!.passed, false);
     assert.match(build.browserResult!.blocked!, /验收浏览器连接不可用/);
     assert.equal(build.browserResult!.cases.length, 1); assert.equal(build.browserResult!.cases[0]!.passed, false);
+    assert.doesNotMatch(build.browserResult!.cases[0]!.detail, /尚未执行/, 'the connection failed during the actual last case, not before it');
     assert.equal(requests.filter(request => JSON.parse(request.task).acceptanceFailures).length, 0, 'transport failure does not enter model repair');
     assert.equal(requests.filter(request => request.role === 'designer').length, 2);
   } finally { await workflow.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }

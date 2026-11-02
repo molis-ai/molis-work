@@ -811,7 +811,7 @@ test('RAC-2934 explicit negative acceptance validates bindings, fields, outcomes
     const input = structuredClone(raw); input.acceptance[0]!.steps[0] = step as typeof input.acceptance[0]['steps'][number];
     assert.throws(() => expand(input), reason);
   }
-  const command = structuredClone(raw); command.pages[0]!.parts[1]!.read = 'notes.add';
+  const command = structuredClone(raw); command.operations[0]!.kind = 'command';
   assert.throws(() => expand(command), /query|查询/);
   const invalidProps = structuredClone(raw); Object.assign(invalidProps.pages[0]!.parts[0]!.props, { requiredText: 1 });
   assert.throws(() => expand(invalidProps), /requiredText 必须是文字/);

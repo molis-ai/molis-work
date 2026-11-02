@@ -46,7 +46,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 四个词只用于第 3 至 7 节各表的「包成熟度」格（含未来目标路径行），与「运行状态」（在用 / Runtime / 构建期 / 非产品）不是一件事。判定由人依据该行行文与迁移切片验收作出；`scripts/workspace-packages.mjs` 是判定结果的唯一写入处，`scripts/package-owners.mjs` 在 `pnpm boundary:check` 里逐行校验：真实包的成熟度格必须等于登记表的值，没有对应 workspace 包的目标路径行必须是 `absent`。
 
-迁移期的 `legacy-mixed`、`contract-only`、`partial`、`implemented`、`retired`、`workspace-root + legacy-release` 已退役；历史见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md) 与 [`specs/repository-anti-corruption/roadmap-2026-10-07.md`](../specs/repository-anti-corruption/roadmap-2026-10-07.md)。
+迁移期的 `legacy-mixed`、`contract-only`、`partial`、`implemented`、`retired`、`workspace-root + legacy-release` 已退役；历史见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md) 与 [`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`](../specs/archive/repository-anti-corruption/roadmap-2026-10-07.md)。
 
 当前 70 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、9 horizontal、24 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-25 核对）：`production` 54、`slice` 14、`experimental` 2。另外 10 个仅含描述符的占位包已删除；下表保留 8 个未来目标路径并标为 `absent`，不参与构建或发布；`apps/workbench/src/judgment-rules` 是包内目标路径行，跟随 `apps/workbench` 的成熟度。
 

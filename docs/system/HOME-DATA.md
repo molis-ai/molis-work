@@ -1,6 +1,6 @@
 # Home 数据：库与文件的 owner 表
 
-一个 Home（默认 `~/.molis-work`，用 `MOLIS_WORK_HOME` 或入口的 `--home` 改写，解析在 `packages/storage/src/adapters/local-security-paths.ts:19`）下，每个库、每类文件归谁、怎样记版本、要不要备份、`uninstall --purge-user-data` 清不清。这是反腐败计划交付第 11 项（路线图 `specs/repository-anti-corruption/roadmap-2026-10-07.md` §4.11，进度见同目录的 `spec.md`）。
+一个 Home（默认 `~/.molis-work`，用 `MOLIS_WORK_HOME` 或入口的 `--home` 改写，解析在 `packages/storage/src/adapters/local-security-paths.ts:19`）下，每个库、每类文件归谁、怎样记版本、要不要备份、`uninstall --purge-user-data` 清不清。这是反腐败计划交付第 11 项（路线图 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` §4.11，进度见 `specs/repository-anti-corruption/spec.md`）。
 
 - 基线是 origin/main `15c20920`（2026-10-07）。每一行都由代码推出，并写出打开它的代码位置；代码改了，对应行跟着改，行号会漂移。
 - 第 10 节的真实 Home 清单只用 `ls`、`stat`、`find`、`du` 看了名字、大小和日期，没有打开任何库或数据文件，也没有读任何密钥文件。所以真实库当前盖的是哪个版本，没有核对。只有一处例外，是为了回答旧启动脚本还有没有人在用：读了启动脚本 `bin/goalboard-mcp` 本身（约 1 KB，不含密钥），用 `grep -o` 只取出 Runtime 配置里含 `molis-work` 或 `goalboard` 的路径，用 `ps` 看了在跑的进程的命令行。

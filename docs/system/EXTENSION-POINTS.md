@@ -4,7 +4,7 @@
 
 用户决定见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-07 与 2026-10-08 各行；其中 2026-10-08 的第五批（宿主设置写入、界面翻译、调用编号上界面、右栏「讨论」页签与 IM、第三方插件信任、Characters 并进宿主、Runtime 插件的 methods 等）在 PR #312，合入前不在 main 上。
 
-任务来源：`docs/prompts/repository-anti-corruption.md` §4.6；路线图切片 W1-15（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；用户决定见 `specs/repository-anti-corruption/spec.md` §1（2026-10-07「插件平台范围」「第一个迁到 Runtime 的样板」「两套能力机制收敛」「记忆、放置与情境启发式的层次」等行）。
+任务来源：`docs/prompts/repository-anti-corruption.md` §4.6；路线图切片 W1-15（`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`）；用户决定见 `specs/repository-anti-corruption/spec.md` §1（2026-10-07「插件平台范围」「第一个迁到 Runtime 的样板」「两套能力机制收敛」「记忆、放置与情境启发式的层次」等行）。
 
 ## 白话说明
 
@@ -80,7 +80,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 - W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts`（PG-036 C9 已删）和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
 - W5-02：目录、监督器列表、设计系统名单、搜索标签面、分组与常驻提示都由各包的声明生成。
 - W5-06：声明式贡献挂载，取代每个插件一套的渲染接线。
-- **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。
+- **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。
 
 门禁名单不再要手加一行：`RUNTIME_ASSEMBLED` 从生成的登记读（2026-10-31 W6-01 第二片改）。
 

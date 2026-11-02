@@ -66,7 +66,7 @@ T-382 路径更新：本文历史记录中的 `artifact-native-plugin-http.ts` �
 
 其他引用：
 
-- W 开头的编号指 [roadmap-2026-10-07.md](roadmap-2026-10-07.md)。
+- W 开头的编号指 [roadmap-2026-10-07.md](../archive/repository-anti-corruption/roadmap-2026-10-07.md)。
 - X-n 指 `docs/system/EXTENSION-POINTS.md`。
 - S-n 指 `docs/system/SECURITY-INVARIANTS.md`。
 - 「裁定 N」指 spec §10.28「统筹裁定」的第 N 条；「§10.29 裁定 N」指 spec §10.29「统筹裁定」的第 N 条。

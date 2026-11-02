@@ -17,9 +17,9 @@
 | 7 巨大单元 | [判定与迁移表](../../../docs/system/HUGE-CLASS-MIGRATION.md)、[有效例外](../../../tooling/gates/giant-exceptions.json) | F1517的50项巨大登记全部匹配；后继仅样本去重未改变核心测量，最终main另绑；登记不等于体量消失 |
 | 8 扩展点与演练 | [EXTENSION-POINTS](../../../docs/system/EXTENSION-POINTS.md) 的现行操作入口与注明切点的历史成本／推演 | 已实现方向与真实探针的最终对应；推演不算实际演练，成本不重算 |
 | 9 并行、合同、API、回放、CI、反馈与上手 | [协作规则](../../../docs/system/PARALLEL-DEVELOPMENT.md)、[合同流程](../../../docs/system/CONTRACT-CHANGES.md)、[API／门禁](../../../tooling/gates/README.md)；[插件回放工具](../../../scripts/replay-plugins.mjs)、[corpus](../../../tests/fixtures/replay-plugins/corpus.json)、[正反测试](../../../tests/replay-plugins.test.ts) | 两真实来源样本已入库，计数器与人工适配清单各有独立真签包回放，见各README；[答卷回放](../../../docs/platform/STUDIO-SKILL-REPLAY.md)不能互代。反馈／热点归 W6-04，上手归 W6-03，最终 CI 归 W6-05 |
-| 10 逐插件实现、契约、接入、体验 | [plugin-conclusions](../plugin-conclusions.md)、[前端动线](../frontend-flow-walk.md) | FR／LC按既有原件接续；Pages跨搜索/MCP停启及Coding中断恢复差量已核收，剩最终组合适用性和下列真实边界 |
+| 10 逐插件实现、契约、接入、体验 | [plugin-conclusions](../../archive/repository-anti-corruption/plugin-conclusions.md)、[前端动线](../../archive/repository-anti-corruption/frontend-flow-walk.md) | FR／LC按既有原件接续；Pages跨搜索/MCP停启及Coding中断恢复差量已核收，剩最终组合适用性和下列真实边界 |
 | 11 数据、状态、事件、权限、生命周期 | [Home owner](../../../docs/system/HOME-DATA.md)、[共写表](../../../tooling/gates/table-owners.json)、[安全不变量](../../../docs/system/SECURITY-INVARIANTS.md)、[W6-02](w6-02-lifecycle-rest.md) | Shelf／Goals原生命周期及Pages、Coding新增差量已核收；T409恢复、T122/T141 Home/origins、S8自动调度沿用；最终组合与真实Home仍归W6-05 |
-| 12 AI 下沉、共享、业务保留与暂缓 | [AI 入口分类](../ai-entry-inventory.md)、[AI 手册](../../../docs/platform/PROLOGUE-AI.md) | 后续改变入口及恢复／取消路径的差集；原暂缓边界不解除 |
+| 12 AI 下沉、共享、业务保留与暂缓 | [AI 入口分类](../../archive/repository-anti-corruption/ai-entry-inventory.md)、[AI 手册](../../../docs/platform/PROLOGUE-AI.md) | 后续改变入口及恢复／取消路径的差集；原暂缓边界不解除 |
 | 13 术语 | [GLOSSARY](../../../docs/system/GLOSSARY.md) | 已知术语／手册指针与T414合同差集已接回原文档；终局随W6-03核收，不重走六路线 |
 | 14 静态检查 | [门禁规则集](../../../tooling/gates/README.md) | 准确最终头的检查／CI 与告警处置；接入不等于零告警，不放宽配置 |
 | 15 依赖与 SDK | [依赖／SDK 方案](../dependencies-and-sdk-plan.md)、[当前包来源](../../../vendor/prologue-sdk/README.md)、[Memory 合同](../../prologue-memory-strategy/spec.md) | 当前组合、恢复与产品采用；provenance、上游合入和本产品实操分别记录 |

@@ -4,7 +4,7 @@ T-382 路径更新：本文历史记录中的 `artifact-native-plugin-http.ts` �
 
 状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main；截至 2026-10-30 的 main：Cognia、Images、Jelly、PPT、Dataset 已进 Plugin Runtime（各自 `src/registration.ts` 的 `runtime`/`project_runtime`：Cognia、Images、Jelly 由 Home 监督器启动，PPT、Dataset 由项目监督器启动；这些登记分别在 #840（2026-10-20）与 batch-39（#1307，2026-10-25）进 main）。第 2.1 节的目录条目以 2026-10-18 为准（名字与库的来源见该节首的说明），其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节；CHR-1 已于 2026-10-22 做完，见该节进度）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。2026-10-31 W6-01 第二片（T-147）：构建期只剩用户批过的两个例外 Alchemist、插件创作台，门禁里的名单改名 `APPROVED_BUILD_TIME_EXCEPTIONS`、带出处；下文各节按当时口径写的数与名单，以第 9 节「现在」一列为准。
 
-任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
+任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
 ## 白话说明
 

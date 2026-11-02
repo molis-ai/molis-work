@@ -1,4 +1,6 @@
-状态：W2-11 收尾清单（2026-10-12，W2-11 d 写成）：测试与脚本里还直接引用 `apps/local-host` 授权内部代码的每一处，带原因与归属。这是用户 2026-10-10 那条「收尾时剩下的每一处列出原因与归属」（[spec.md](spec.md) §1）里 W2-11 管的那一部分；其余内部引用的逐处清单由 W2-10 的工具给（`node scripts/test-imports.mjs --ledger`，PR-D 把它写进来）。逐处数字按四个分支的头计：c1 `test/test-kit-local-host-http`、c2 `test/plugin-grants-real-route`（`4c99700cb`）、c3 `test/agent-function-grants-real-route`（`cc7c00864`）、d `test/goals-mcp-grants-real-route`；它们合入 main 之后用第 4 节的命令复核，不一致就是清单该改。
+> 归档（2026-11-02）：判定为**已被取代**。本文保留 2026-10-12 W2-11 旧分支及已注明补记的逐处原因与归属；现行内部引用与混源规则由 [门禁手册](../../../tooling/gates/README.md)及其 `scripts/test-imports.mjs` 工具承接，后续执行仍归[活动主 spec](../../repository-anti-corruption/spec.md)。原编号与旧计数保留，不作为当前剩余清单，也不因归档重做已绿检查。
+
+状态：W2-11 收尾清单（2026-10-12，W2-11 d 写成）：测试与脚本里还直接引用 `apps/local-host` 授权内部代码的每一处，带原因与归属。这是用户 2026-10-10 那条「收尾时剩下的每一处列出原因与归属」（[spec.md](../../repository-anti-corruption/spec.md) §1）里 W2-11 管的那一部分；其余内部引用的逐处清单由 W2-10 的工具给（`node scripts/test-imports.mjs --ledger`，PR-D 把它写进来）。逐处数字按四个分支的头计：c1 `test/test-kit-local-host-http`、c2 `test/plugin-grants-real-route`（`4c99700cb`）、c3 `test/agent-function-grants-real-route`（`cc7c00864`）、d `test/goals-mcp-grants-real-route`；它们合入 main 之后用第 4 节的命令复核，不一致就是清单该改。
 
 # W2-11 收尾：测试里剩下的授权内部引用
 

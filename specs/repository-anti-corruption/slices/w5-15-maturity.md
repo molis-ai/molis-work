@@ -2,7 +2,7 @@
 
 状态：阶段1 方案**已获统筹通过**（2026-10-25T18:09:26Z，PR #1300；Q1-Q7 裁定见 §7）。阶段2 开工条件：batch-39 进 `origin/main` 后，从 `origin/main` 新建 `deepseek/w5-15-maturity`；在那之前本分支只维护方案文档。事实按 `origin/batch/1025-39`（`0cbc76492`）重核。manifest 版本重置与下一次发布不在本片（见 §5.4）。
 
-依据：`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 89 行 W5-15；用户 2026-10-25 任务书（`deepseek-goal-C-w5-15-maturity.md`）；`docs/SSOT-MATRIX.md` §2；`specs/repository-anti-corruption/spec.md` §4.4/§4.12/§5.1；W5-02 登记线（`specs/repository-anti-corruption/slices/w5-02-registry.md`）。
+依据：`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` 第 89 行 W5-15；用户 2026-10-25 任务书（`deepseek-goal-C-w5-15-maturity.md`）；`docs/SSOT-MATRIX.md` §2；`specs/repository-anti-corruption/spec.md` §4.4/§4.12/§5.1；W5-02 登记线（`specs/repository-anti-corruption/slices/w5-02-registry.md`）。
 
 验收编号：W5-15-01～W5-15-16（见 §6，阶段2 实现时把编号写进测试名或注释）。
 
@@ -62,7 +62,7 @@
 ### 1.4 文档、技能、快照
 
 - 活文档：`docs/SSOT-MATRIX.md`（§2 词表、构成句、70 行成熟度格）、`skills/molis-plugin-dev/host.md:90`（把插件 `molis-work` 块的字段、kind/maturity 由目录定的规则写给人看）、`docs/system/GLOSSARY.md:14`（只指向 SSOT，不需改）、`docs/platform/PLUGIN-DEVELOPMENT.md:5`（只写 `registration` 声明，不需改）。
-- 历史文档（不改）：`docs/reviews/cleanup-audit-2026-10-20.md`、`specs/archive/**`、`specs/molis-work-architecture-reorganization/f2-validation.md`、`specs/repository-anti-corruption/roadmap-2026-10-07.md`、`specs/repository-anti-corruption/slices/sc-4-sessions-offline.md`。
+- 历史文档（不改）：`docs/reviews/cleanup-audit-2026-10-20.md`、`specs/archive/**`、`specs/molis-work-architecture-reorganization/f2-validation.md`、`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`、`specs/repository-anti-corruption/slices/sc-4-sessions-offline.md`。
 - API 快照：见上；`packages/contracts` 无版本号，形状只记在快照里（`docs/system/CONTRACT-CHANGES.md`）。
 
 ### 1.5 与 W5-02、batch-39 的边界

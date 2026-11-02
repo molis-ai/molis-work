@@ -402,7 +402,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 ## 5. 代码改名后续清单
 
-按类别分。规模是 2026-10-08 在 main `bf99c8cb` 上数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。
+按类别分。规模是 2026-10-08 在 main `bf99c8cb` 上数的，只用来估大小，落地前要重数：「源码」指已追踪的 `.ts`、`.mts`、`.mjs` 文件，不含任何 `tests/` 目录、`*.test.*`、`.impeccable/` 和 `vendor/`；「测试」指 `tests/` 目录和 `*.test.*`；名字按单词边界数（`@molis-ai/molis-work-plugin-work` 要避开 `-workflows`）。新名字是建议，落地时可调整；落地归路线表里的 W5-14（`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`）。
 
 ### R-A　只改标识符（不动持久化数据，不动合同 id；编译和现有测试可以校验）
 

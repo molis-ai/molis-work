@@ -1,3 +1,5 @@
+> 归档（2026-11-02）：判定为**已被取代**。本文是 main `b2460cb62` 的旧批次计划，后续进度、决定与未完成项由[活动主 spec](../../repository-anti-corruption/spec.md) §10、§12.3 接续；原假设、失败和 pending 原样保留，不作为当前执行清单。本次仅归档历史计划，不代表防腐或 W6 验收完成。
+
 状态：第 3 波 B 批与 C 批（W2-10、W2-11 c/d）的工作计划，2026-10-11 由只读计划代理按各片方案（会话临时目录 `designs/`）对照 main `b2460cb62` 重新核对后写成；之后 #383–#385 已合入，维护七已核对完（本文 §0 里「Maintenance seven looks pending」一条已过时，见 spec §4.1 维护七）；10-11 弹窗定的四问见 spec §1。按片推进时以 spec §10 为准，本文是计划，不是记录。
 
 # Work plan: wave 3 batch B, plus batch C (W2-10, W2-11 c/d)

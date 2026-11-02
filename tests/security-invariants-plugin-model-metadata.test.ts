@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -9,8 +9,8 @@ test("S-18 RAC-39 model display metadata follows current configuration without c
   const probe = homeProbe("metadata");
   const f = await serveHomeRuntime(t, { completeText: undefined, pluginFixtures: { home: [probe.definition] } });
   const { platform, install } = await grantHomeProbe(f.host, probe);
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
-  try {
+  const withCatalog = f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
+  await withCatalog({ homeDirectory: f.home }, async catalog => {
     const connection = withConnectorConnections(f.home, store => store.createToken({ serviceId: "model-api", displayName: "Metadata fixture", token: "metadata-fixture-value" }));
     withConnectorConnections(f.home, store => store.assertTarget(connection.connection_id, "model-api", "https://example.invalid"));
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "metadata", display_name: "Readable provider",
@@ -37,5 +37,5 @@ test("S-18 RAC-39 model display metadata follows current configuration without c
     await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== "model:invoke"));
     assert.deepEqual(probe.contexts.at(-1)!.services!.model!.availability(), { available: false, code: "actions.plugin_permission", reason: "插件缺少模型授权" });
     assert.equal(reads, 0); assert.equal(requests, 0);
-  } finally { catalog.close(); }
+  });
 });

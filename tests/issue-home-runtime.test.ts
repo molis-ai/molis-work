@@ -113,7 +113,8 @@ test("ISSUE-01 ISSUE-02 Home discovery starts once, crosses projects, persists, 
     assert.ok(catalogs[0].filter(view => view.capability_id.startsWith("issues.")).every(view => view.provider.plugin_install_id === installation.install_id),
       "Home providers name the installation that owns their grants, separately from the public plugin id");
     const saved = await host.homeActionClient().invoke(user, issuesActions.create, input) as Issue;
-    const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Issue 范围核对", actor_id: LOCAL_PERSON_ACTOR_ID }));
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    const project = await withHostCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Issue 范围核对", actor_id: LOCAL_PERSON_ACTOR_ID }));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const fromProject = await host.actionClient(reference).invoke({ ...user, project_id: reference.project_id }, issuesActions.read, { id: saved.id });
     assert.deepEqual(fromProject, saved);
@@ -189,7 +190,8 @@ test("ISSUE-03 ISSUE-06 ISSUE-07 ISSUE-09 real HTTP and authorized MCP process s
     const html = await page.text(), payload = /<script\b[^>]*data-plugin-document[^>]*>([\s\S]*?)<\/script>/u.exec(html);
     assert.ok(payload, "the Issue content is mounted in the isolated Host frame");
     assert.match(JSON.parse(payload[1]!) as string, /data-issues="workbench"/u);
-    assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects())).length, 0);
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    assert.equal((await withHostCatalog({ homeDirectory: home }, catalog => catalog.listProjects())).length, 0);
     assert.equal((await request(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, input, false)).status, 403);
     const image = attachedPng();
     assert.ok(image.data_url.length > 256_000);

@@ -80,7 +80,7 @@ async function open(t: TestContext, probes: readonly Probe[]) {
   const program = join(bin, "term");
   await writeFile(program, "#!/bin/sh\npwd -P > \"$1\"\nexec /bin/cat\n", { mode: 0o700 });
   let count = 0;
-  return { ...f, program, marker: () => join(markers, String(++count)) };
+  return { ...f, withCatalog: f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog), program, marker: () => join(markers, String(++count)) };
 }
 type Served = Awaited<ReturnType<typeof open>>;
 
@@ -95,7 +95,7 @@ async function linkWorkspace(t: TestContext, f: Served, project: Project) {
   await mkdir(join(folder, "sub")); await writeFile(join(folder, "file.txt"), "not a folder");
   await symlink(tmpdir(), join(folder, "outside"));
   await mkdir(join(folder, "trail ")); await symlink(tmpdir(), join(folder, "trail"));
-  const workspace = await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => {
+  const workspace = await f.withCatalog({ homeDirectory: f.home }, async catalog => {
     await catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: folder, project_id: project.project_id, actor_id: "test-user", user_confirmed: true }));
     return catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
   });
@@ -549,7 +549,7 @@ test("RAC-2564 S-103 a command is an absolute path or a bare name on the platfor
     const started = await run(f, probe, "project", "run", own => opened(own, { key: "resumed", program: { runtime: "codex", session }, directory }), { project });
     assert.equal(started.outcome, "ok", started.message);
     assert.equal(await ranIn(resumed), `resume ${session}`, "the first start resumes the session it names");
-    const recorded = await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog =>
+    const recorded = await f.withCatalog({ homeDirectory: f.home }, async catalog =>
       catalog.terminalPanels.get(panelOf(install.install_id, project.project_id, "resumed"))?.host_session_id);
     assert.equal(recorded, session, "the session is the terminal's, so it resumes it when it starts again");
   } finally {
@@ -582,9 +582,9 @@ test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the r
     await until(async () => (await runs()).length > before && (await panelState(f, panelId(key))).attached === false, `${key}: the runtime ran and ended`);
     return (await runs()).at(-1);
   };
-  const reported = (key: string, session: string) => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+  const reported = (key: string, session: string) => f.withCatalog({ homeDirectory: f.home }, catalog =>
     catalog.commit(() => { catalog.terminalPanels.aliasSession({ panel_id: panelId(key), runtime_id: "codex", host_session_id: session }); }));
-  const recorded = (key: string) => withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => catalog.terminalPanels.get(panelId(key))?.host_session_id);
+  const recorded = (key: string) => f.withCatalog({ homeDirectory: f.home }, async catalog => catalog.terminalPanels.get(panelId(key))?.host_session_id);
   for (const [key, session] of [["reported-option", "--dangerously-bypass-approvals-and-sandbox"], ["reported-spaced", "s-1 --yolo"]] as const) {
     assert.equal(await start(key), "[]", `${key}: a new session`);
     await reported(key, session);
@@ -652,7 +652,7 @@ test("RAC-2569 S-103 a terminal's record is its installation's, project's and pe
   });
   assert.equal(homeAnswer.outcome, "ok", homeAnswer.message);
   const homePanel = panelOf(homeInstall.install_id, null, "home");
-  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => {
+  await f.withCatalog({ homeDirectory: f.home }, catalog => {
     assert.equal(catalog.terminalPanels.get(homePanel)?.project_id, null, "a Home call's record has no project");
     assert.equal(catalog.terminalPanels.listIds(project.project_id).includes(homePanel), false, "a project does not count a Home terminal");
   });
@@ -672,7 +672,7 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   assert.equal(before.outcome, "ok", before.message);
   assert.deepEqual((before.value as Array<Record<string, unknown>>).map(({ created_at: _created, ...row }) => row),
     [{ key: "kept", panelId, title: "探针", runtime: "command", program: { command: f.program, args: [marker] }, subject: "kept-subject", running: true }]);
-  const snapshot = () => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+  const snapshot = () => f.withCatalog({ homeDirectory: f.home }, catalog =>
     ({ ids: catalog.terminalPanels.listIds(project.project_id), record: catalog.terminalPanels.get(panelId) }));
   const records = await snapshot(), logged: HostLogEntry[] = [];
   let observed: unknown;
@@ -751,7 +751,7 @@ test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a
       assert.equal(String(observed.code), expected.outcome, "the service itself refuses; the kernel did not merely hide a list result");
       assert.equal(observed.message, expected.message); assert.equal(value, undefined, "neither rows nor an empty list escaped");
       if (invalidation === "cancel") assert.strictEqual(observed, controller.signal.reason, "the original cancellation wins even if the read fails");
-      await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), []));
+      await f.withCatalog({ homeDirectory: f.home }, catalog => assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), []));
     } finally { held.release.resolve(); gate = undefined; }
   }
 });

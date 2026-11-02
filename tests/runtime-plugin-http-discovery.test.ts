@@ -734,7 +734,8 @@ test("RAC-1744 both halves stopped: one project placeholder; the project half ba
 test("RAC-1745 a dual-instance plugin in the build is drawn by the half that offers its view, the same rule as one outside the build", { timeout: 60_000 }, async t => {
   const { home: homeDirectory, host, project, request } = await serveHomeRuntime(t);
   const one = await project("Feed stage owner");
-  await withCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: one.project_id, plugin_id: "feed", actor_id: "fixture" }));
+  const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
+  await withHostCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: one.project_id, plugin_id: "feed", actor_id: "fixture" }));
   const page = async () => { const response = await request(`/projects/${one.project_id}`); assert.equal(response.status, 200); return response.text(); };
   const first = await page();
   const home = await host.homePlugins!.ready(), install = host.homePlugins!.installation(FEED_PLUGIN_ID);

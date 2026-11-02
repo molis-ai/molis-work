@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test, { type TestContext } from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PROJECT_REACH_PERMISSION } from "@molis-ai/molis-work-plugin-runtime";
@@ -89,8 +89,10 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
   await Promise.race([barrier.entered, deleting.then(() => assert.fail("deletion completed before the resource-release barrier"))]);
   assert.equal(s.home.host.projects().find(project => project.project_id === closing.project_id)?.state, "closing");
   assert.throws(() => database.prepare("SELECT 1"), /database.*(?:not open|closed)/iu, "the project's resources were actually released");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
-  try { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id), "the real catalog row still exists"); } finally { catalog.close(); }
+  const withCatalog = s.home.host.configurePersonalPlanning(s.home.home, withMolisWorkProjectCatalog);
+  await withCatalog({ homeDirectory: s.home.home }, catalog => {
+    assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id), "the real catalog row still exists");
+  });
   assert.equal(existsSync(closing.database_path), true);
   const during = await readable();
   assert.equal(during.includes(closing.project_id), false, "closing is excluded before the catalog removes the row");
@@ -103,8 +105,9 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
   barrier.release();
   const result = await deleting as { deletion: { cleanup_state: string } };
   assert.equal(result.deletion.cleanup_state, "complete");
-  const after = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
-  try { assert.equal(after.listProjects().some(project => project.project_id === closing.project_id), false); } finally { after.close(); }
+  await withCatalog({ homeDirectory: s.home.home }, catalog => {
+    assert.equal(catalog.listProjects().some(project => project.project_id === closing.project_id), false);
+  });
   assert.equal(existsSync(closing.database_path), false);
 });
 
@@ -124,8 +127,8 @@ test("RAC-590-CLOSE-02 S-74 Todo all-projects reads exclude closing projects whi
   deleting = home.web.post(`/api/settings/projects/${closing.project_id}/delete`, { delete_confirmed: true, idempotency_key: "reach-closing-todo" });
   await Promise.race([barrier.entered, deleting.then(() => assert.fail("deletion completed before the resource-release barrier"))]);
   assert.equal(home.host.projects().find(project => project.project_id === closing.project_id)?.state, "closing");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home.home });
-  try { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id)); } finally { catalog.close(); }
+  const withCatalog = home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog);
+  await withCatalog({ homeDirectory: home.home }, catalog => { assert.ok(catalog.listProjects().some(project => project.project_id === closing.project_id)); });
   assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
   await hide(home, hidden, "todo");
   assert.deepEqual(await titles(), ["Readable item"]);
@@ -148,8 +151,8 @@ test("RAC-590 S-74 the person's call to an action that declares project_reach ge
   const c = await s.home.createProject("C");
   assert.deepEqual(sorted((await s.call(probe.actions.list, caller)).readable), sorted([...all!, c.project_id]));
   // A project that no longer exists is not in it.
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: s.home.home });
-  try { await catalog.deleteProject({ project_id: b.project_id, actor_id: "test", delete_confirmed: true, idempotency_key: "reach-delete-b" }); } finally { catalog.close(); }
+  const withCatalog = s.home.host.configurePersonalPlanning(s.home.home, withMolisWorkProjectCatalog);
+  await withCatalog({ homeDirectory: s.home.home }, catalog => catalog.deleteProject({ project_id: b.project_id, actor_id: "test", delete_confirmed: true, idempotency_key: "reach-delete-b" }));
   const afterDelete = (await s.call(probe.actions.list, caller)).readable;
   assert.ok(afterDelete?.includes(a.project_id) && afterDelete.includes(c.project_id) && !afterDelete.includes(b.project_id), JSON.stringify(afterDelete));
   // An action that does not declare it gets none, whatever the call.

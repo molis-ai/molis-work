@@ -287,6 +287,7 @@ for (const corruption of ["version", "structure"] as const) test(`MEM-42 later d
 test("RAC-401 S-34 a query before Host startup records nothing and the real supervisor still records consent at startup", async t => {
   const f = await catalogFixture(t);
   readMembership(f);
+  f.catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   try {
     await host.homePlugins!.ready();
@@ -299,9 +300,12 @@ test("RAC-401 S-34 a query before Host startup records nothing and the real supe
       assert.equal(rows[0]!.publisher_signature, shelf.publisher.signature);
       assert.equal(rows[0]!.manifest_digest, pluginManifestDigest(shelf));
     } finally { db.close(); }
-    const before = filesAt(f.home);
-    readMembership(f);
-    assert.deepEqual(filesAt(f.home), before, "queries after startup do not change the supervisor's ledger or files");
+    const withCatalog = host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
+    await withCatalog({ homeDirectory: f.home }, catalog => {
+      const before = filesAt(f.home);
+      readMembership({ ...f, catalog });
+      assert.deepEqual(filesAt(f.home), before, "queries after startup do not change the supervisor's ledger or files");
+    });
   } finally { await host.homePlugins!.close(); await host.close(); }
 });
 
@@ -325,10 +329,10 @@ for (const [name, corrupt, expected] of [
 for (const corruption of ["version", "structure"] as const) {
   test(`RAC-402 RAC-403 S-34 revoked and disabled records survive ${corruption} failure; only the page gets stored membership`, { timeout: 60_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "molis-work-revoked-invalid-"));
-    const availability = projectActionAvailability(withMolisWorkProjectCatalog, home);
+    const availability = projectActionAvailability((options, operation) => withCatalog(options, operation), home);
     const f = await serveHomeRuntime(t, { homeDirectory: home, actionAvailability: availability });
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    try {
+    const withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = f.host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+    await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "保留撤回与隐藏", actor_id: "test" });
       const db = seedStore(home), ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
       const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
@@ -406,7 +410,7 @@ for (const corruption of ["version", "structure"] as const) {
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), stored.plugins);
       assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, stored.hidden);
       assert.equal((await availability(caller, action)).available, false);
-    } finally { catalog.close(); }
+    });
   });
 }
 

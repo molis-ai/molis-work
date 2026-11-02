@@ -302,3 +302,26 @@ Once source is frozen, use the public build slot for one matching build and nece
 2026-11-02 04:33Z 最终合流源码冻结：b4fb5f20f781cd5638848a1e8f0d4e2a33557e86 / tree 3e910293ab87c27d8cd6c50d354d7faa72176cfe。21a953 二审核出的唯一 P1 是 parent 两条 invalidate 投递漏带 owning itemTab；沿直接投递已有合同补字段，不新增协议或读取兜底。最终新增回归用真实 Feed Home 实例（其 view-revision 的实际 owner），核轮询前后准确 revision、实际失效读取，再点击 B；隐藏队列恢复后点击 A，保原 tabId 与无重复。早期 Project 实例、首次轮询、视口夹具失败保留，不能当生产通过。完整 plugin-tab-groups 5/5，current-tabs 另批完整3/3，其余原有效文件保原来源。原二审有限末核已关闭此 P1；不再重跑未变矩阵。
 
 唯一功能源码窗口已交独立T407；本树冻结，根只待已准备的两项giant与资源结算。51项资源实测7394141→7359815B，frame191017→207977B（+16960）已具体询问；三新增URL既有批准沿用。当前无最终预算通过、同头CI/Full或实际采用，真实Home/模型/本人验收边界不变。
+
+
+2026-11-02 05:04Z 最终冻结与测试适配补项：用户已批准 frame 精确207977B（+16960），最终01d0301ff14c2ef0c6d4086b2dd9a3cb5a716ec1/tree29a7615827e5afd988415cd127f449e6ff0db082已推#1725；五文件metadata独立窄核通过，整体build/63包匹配、page-assets完整171/171、51资源门禁与fresh secrets通过。同头CI41391542642与Full41391601476已获批启动，未完成。W6-04原方法在准确F发现三份测试仍import已删除的navigation-inbox（feed-inbox-pages-loop、list-silent-refresh、ui-audit-2026-09-22）；这是本客户端迁移漏项，原开发线3获唯一源码窗适配当前Inbox owner，保留原业务约束，不恢复兼容宿主路径或删除断言，完整跑三文件。已有运行继续自然结束；修复仅本地一次冻结后由根统一推送，不取消CI。
+
+同批CI具体失败：01d的Package boundaries job125103824394前序boundary与51资源预算已过，Plugin style budgets发现Feed规则已离开共享样式表但旧feed预算仍在。原writer同时按现行脚本删除已消费的共享样式预算条目并核gate，不改算法/阈值或新增长；与三测试适配一次冻结，保旧运行自然结果。
+
+
+## 2026-11-02 05:16Z CI 回归统一修复合同
+
+准确01d的Full41391601476因coding-background-tasks首文件失败触发既有fail-fast，15片取消；不能当16片完整覆盖。普通CI两Product合计407文件跑完，7文件失败；action-service与样式预算另有失败，两SI尚在运行。根只安排这批相关修复，不重跑旧有效矩阵。
+
+唯一writer仍原开发3。生产根因已由独立诊断与根直接核代码确认：home-aggregate发现阶段beforeDeadline的finally dispose中止了localWebActionContext授权闭包捕获的signal，导致后续provider读均被拒。修复只在每project的whileOpen回调建立覆盖context、discover、所有provider的collection lifetime并finally dispose；caller只捕获一次授权快照。发现与每provider仍各有2秒子lifetime，外部取消继续传播；context读取使用collection signal，发现请求使用discovery signal，await后复核discovery是否已取消。发现超时退出时立即dispose collection取消未完context；不改SDK dispose、不重捕授权代次、不去掉撤权/停用/当前性检查。沿用RAC-2910与原S-49验收，完整coding-background-tasks、home-aggregate、security-invariants-home-aggregate验证成功、慢provider隔离、超时晚返回不派发、撤权/父取消。
+
+其余现有测试适配：action-service场景两正向加grant经正式runtime.regrant，保原直接持久化撤权负例及精确拒绝；三旧navigation-inbox导入改当前owner路径；goal-decision-attention、feed-assistant-context、plugin-market-catalog的旧SSR/共享脚本观察改真实插件公开产物/用户路径，保业务和权限断言。若发现真实Inbox键盘回归，先核既有约束并最小修复，不能为通过改成查函数名。Feed共享样式预算只按官方工具移除已消费条目。必要完整文件集中执行，准确新头构建/资源绑定后一次推送；现行CI不取消。
+
+
+05:18Z Inbox键盘回归已证并授权同一writer：当前公开renderInboxWorkbench+clientFactory真实select后两可见行tabIndex由[0,0]变成[0,-1]，原ui-audit约束失败。根核owner client.ts select唯一赋值及role=list/listitem，未配置roving键盘。只删除该赋值，保SSR原button可聚焦、选中/aria/detail/guard/results；不增键盘状态或兼容宿主路径。原完整ui-audit加现有Inbox真实浏览器核心路径验证，其余未受影响矩阵不重复。最终InboxJS若下降按官方预算刷新，不申请增长放行。
+
+
+05:27Z Inbox实际浏览器余项：八完整文件中七过；inbox-current在成功反馈等待失败。已静态核清本地refresh与父失效echo/1.5秒revision均会同mount替换DOM，当前只保config.open而不保操作反馈；是否本次唯一根因仍以真实POST、handler及历史结果分辨。同writer可最小保同mount的evaluate反馈节点/已确认成功提示，使背景刷新不抹掉操作结果，不搬业务建议/整块config、不加持久状态或改变owner。保持真实click、inputs/一条history、建议可见、停用撤建议与历史保留全部断言；补该失败完整文件，已绿七文件不重复。
+
+
+2026-11-02 05:50Z：末项RAC-1745从宿主raw HTML改读真实opaque owner文档，并允许生产添加的section属性；仍要求恰好一份Home正文、HomeReads=1、Project disabled、缺read/withdraw均无正文和placeholder正确。完整27/27通过。最终Inbox served资源按官方报告为9297 B（原9288 +9），同一已批准URL精确结算；最后预算完整171/171。原中间probe失败仅属旧精确section匹配，不当作当前权限生产缺陷。其他已绿文件不重复。

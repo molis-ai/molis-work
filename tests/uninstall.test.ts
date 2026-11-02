@@ -1,5 +1,5 @@
 import { readyPublication } from './fixtures/studio-publishing.js';
-import { createLazyFileSecretStore } from '@molis-ai/molis-work-storage';
+import { createLazyFileSecretStore, homeSqlitePath, MEMORY_LEDGER_STORE } from '@molis-ai/molis-work-storage';
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
@@ -42,7 +42,7 @@ async function fixture() {
 }
 
 // INSERR-01 / INSERR-02: installer refusal and recovery assertions keep the current owner codes and persisted state.
-test("safe uninstall preview is read-only and confirmation preserves every user project", async () => {
+test("IMETA-04 safe uninstall preview is read-only and confirmation preserves every user project", async () => {
   const item = await fixture();
   try {
     const installManifest = join(item.home, "config", "installation.json");
@@ -91,6 +91,38 @@ test("safe uninstall preview is read-only and confirmation preserves every user 
   } finally {
     await rm(item.directory, { recursive: true, force: true });
   }
+});
+
+test("IMETA-04 unsupported installation and release metadata conflict without deletion; missing program files still uninstall safely", async () => {
+  const item = await fixture();
+  try {
+    const installPath = join(item.home, "config", "installation.json"), installText = await readFile(installPath, "utf8");
+    const installation = JSON.parse(installText), releaseDirectory = join(item.home, installation.release_path);
+    const releasePath = join(releaseDirectory, "release.json"), releaseText = await readFile(releasePath, "utf8");
+    const release = JSON.parse(releaseText);
+    const files = [installPath, releasePath, item.userProject.database_path, homeSqlitePath(item.home, MEMORY_LEDGER_STORE),
+      ...["molis-work", "molis-work-mcp", "molis-work-web"].map(name => join(item.home, "bin", name))];
+    for (const [target, metadata] of [
+      [installPath, { ...installation, schema_version: 4 }], [releasePath, { ...release, schema_version: 4 }],
+      [releasePath, { schema_version: 1, installer: "molis-work-home-install-v1", version: release.version,
+        source_directory: ROOT, created_at: release.created_at }],
+    ] as const) {
+      await writeFile(target, JSON.stringify(metadata));
+      try {
+        const before = await Promise.all(files.map(file => readFile(file)));
+        const plan = await item.service.prepare(); assert.equal(plan.status, "conflict");
+        await assert.rejects(item.service.confirm({ plan_id: plan.plan_id, decision: "confirmed" }),
+          (error: unknown) => error instanceof ActionError && error.code === "installer.uninstall.conflict");
+        assert.deepEqual(await Promise.all(files.map(file => readFile(file))), before);
+        assert.equal(plan.changes.some(change => change.target === target || (target === releasePath && change.target === releaseDirectory)), false);
+      } finally { await writeFile(installPath, installText); await writeFile(releasePath, releaseText); }
+    }
+    await rm(join(releaseDirectory, "dist", "cli", "main.js"));
+    const plan = await item.service.prepare(); assert.equal(plan.status, "ready");
+    assert.equal((await item.service.confirm({ plan_id: plan.plan_id, decision: "confirmed" })).status, "uninstalled");
+    assert.equal((await stat(item.userProject.database_path)).isFile(), true);
+    await assert.rejects(stat(installPath), { code: "ENOENT" });
+  } finally { await rm(item.directory, { recursive: true, force: true }); }
 });
 
 test("public CLI exposes read-only demo and uninstall previews", async () => {

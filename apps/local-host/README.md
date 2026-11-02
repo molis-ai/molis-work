@@ -119,6 +119,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
+首次 Host 或独立 Catalog 取得 Home 所有权前，先以只读检查拒绝非空且缺少 Memory ledger 的 Home，避免拒绝后新增 owner 目录。未完成恢复优先拒绝；已有 owner 的借用路径不变。早检查不授予初始化许可，取得锁后仍重新判定完整 Memory 状态。回归：`tests/cross-device-continuity.test.ts`、`tests/memory-initialization.test.ts`、`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
+
 创作台 G7 的故障与提交调用观察仅由当前隔离 trial 的 Host 回调持有，不接受客户端权限标志或任意操作注入。单次 `faultRead` 必须命中已绑定 query 并消费，reset/finally 清除；普通试用和安装态没有该入口。独立 case 失败后继续收齐，隔离或环境重置失败则停止并标明未执行，整批结果返回后才进入有限修复。
 
 双实例可选权限的 Home 上限由 home-side / HomePluginHost 只读捕获匹配安装的原激活检查，项目平台仅对可信双实例接入，不同步两库。项目 setter 明确拒绝双实例可选权限修改；settings 私有 overview 从同一可信判定投影安装 ID，不改公开动作 schema。Home 缺失或停止只拒可选能力，必需能力与项目状态仍独立。回归：`tests/security-invariants-dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2910）。

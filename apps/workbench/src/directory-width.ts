@@ -8,7 +8,7 @@ export function directoryWidth(value: unknown, viewportWidth: number, immersive:
 /** Request-local presentation only: reuse the current session preference before the first workspace paint. */
 export function directoryWidthPreferenceScript(projectId: string, collection: "current" | "archive" | "trash", embedded: boolean): string {
   if (!projectId || embedded) return "";
-  const key = JSON.stringify("molis-work-ui:" + projectId).replace(/</g, "\\u003c");
+  const key = JSON.stringify("molis-work-ui:" + projectId).replaceAll("<", "\\u003c");
   return `(()=>{if(window.parent!==window&&new URLSearchParams(location.search).has('workbenchPane'))return;
     if(matchMedia('(max-width:600px)').matches)return;
     try{const key=${key},raw=sessionStorage.getItem(key+${JSON.stringify(":" + collection)})${collection === "current" ? "||sessionStorage.getItem(key)" : ""};

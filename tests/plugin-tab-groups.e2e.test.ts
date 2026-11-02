@@ -270,7 +270,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
     let frameApi;
     Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){
       const mount=api.mount;
-      api.mount=(root,host,pack)=>{if(pack.id==='pages'&&!host.side){window.t405EarlySelects=(window.t405EarlySelects||0)+1;root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(a.id)}}}));}return mount(root,host,pack);};frameApi=api;
+      api.mount=(root,host,pack)=>{if(pack.id==='pages'&&!host.side&&new URL(location.href).searchParams.get('paneItem')===${JSON.stringify(a.id)}){window.t405EarlySelects=(window.t405EarlySelects||0)+1;root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(a.id)}}}));}return mount(root,host,pack);};frameApi=api;
     }});
     globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{
       if(key==='pages'&&!host.side){window.t405Host=host;const editor=window.MolisWorkPagesEditor;

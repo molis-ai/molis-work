@@ -500,10 +500,10 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   counts.source = 0;
   const current = () => { const row = host.homePlugins!.installation(ownerId); if (row?.state !== "running" || row.installation_generation !== installation.installation_generation) throw new ActionError("actions.provider_changed", "owner changed"); };
   const stageRead = { manifest: ownerManifest, scope: "home" as const, install_id: installation.install_id, installation_generation: installation.installation_generation, assertCurrent: current };
-  const registry = host.actionRegistry(one.reference);
-  for (const [provider_id, project_id, capability_id] of [["unknown-shared-permission", undefined, "stage-unknown.host"], ["system.functions", "other-project", "stage-other-project.host"]] as const) {
-    const definition = { ...query(capability_id), action: { ...query(capability_id).action, permissions: ["functions:invoke"] } };
-    const withdraw = registry.registerProvider({ provider: { provider_id, kind: "system", title: "Metadata refusal probe", ...(project_id ? { project_id } : {}) },
+  const other = await project("Other metadata target");
+  for (const [provider_id, reference, scope, capability_id] of [["unknown-shared-permission", one.reference, "home", "stage-unknown.host"], ["system.functions", other.reference, "project", "stage-other-project.host"]] as const) {
+    const definition = { ...query(capability_id), action: { ...query(capability_id).action, scope, permissions: ["functions:invoke"] } };
+    const withdraw = host.actionRegistry(reference).registerProvider({ provider: { provider_id, kind: "system", title: "Metadata refusal probe", ...(scope === "project" ? { project_id: reference.project_id } : {}) },
       definitions: [definition], handlers: [{ ...definition, handle: () => assert.fail("a refused metadata target executed") }] });
     t.after(withdraw);
   }

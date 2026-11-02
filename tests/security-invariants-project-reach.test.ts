@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PROJECT_REACH_PERMISSION } from "@molis-ai/molis-work-plugin-runtime";
+import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/plugin-callers.js";
-import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
+import { openTestHome, serveTestHost, type TestHome, type TestHostServer, type TestProject } from "./fixtures/test-home.js";
 
 /**
  * S-74 (PG-014): the projects a Home-level action may read across come from the Host alone. The Host puts `readable_project_ids` in the
@@ -227,4 +232,67 @@ test("RAC-590 RAC-592 S-74 a project that hides Todo is not in the list: its tod
   await unhide(home, b, "todo");
   assert.deepEqual(await titles("all=1&view=all"), ["A 项目里的事", "B 项目里的事"]);
   assert.equal((await home.web.get<{ item: { revision: number } }>(`${items(a)}/${made.item.id}`)).item.revision, made.item.revision);
+});
+
+test("T405-FULL-08 RAC-590 RAC-592 S-74 closing search waits for knowledge's real Catalog borrow and stops catch-up after its owner context returns", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "reach-knowledge-close-"));
+  const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+  let host: MolisWorkLocalHost | undefined, served: TestHostServer | undefined;
+  let withCatalog!: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]>;
+  let heldProject: string | undefined, armed = false, closingStarted = false, lateCatchUps = 0;
+  t.after(async () => {
+    resume.resolve(); t.mock.timers.reset();
+    await served?.close();
+    await host?.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  const policy = projectActionAvailability((settings, operation) => withCatalog(settings, operation), home);
+  const snapshotForDiscovery = policy.snapshotForDiscovery;
+  policy.snapshotForDiscovery = async caller => {
+    if (armed && caller.project_id === heldProject) {
+      armed = false;
+      await withCatalog({ homeDirectory: home }, async catalog => {
+        assert.equal(catalog.getProject(heldProject!).project_id, heldProject);
+        entered.resolve(); await resume.promise;
+      });
+    }
+    return snapshotForDiscovery(caller);
+  };
+  host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy });
+  withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  served = await serveTestHost(null, { home, host });
+  const project = await served.createProject("Knowledge close");
+  await host.withProject(project.reference, () => undefined);
+  heldProject = project.project_id;
+  const search = host.search!;
+  const query = search.service.query.bind(search.service);
+  search.service.query = (...args) => { if (closingStarted) lateCatchUps++; return query(...args); };
+  // The Host later awaits this same close, so the test never closes its actual stores twice.
+  const closeSearch = search.close.bind(search);
+  let searchClosing: Promise<void> | undefined;
+  search.close = () => searchClosing ??= closeSearch();
+  const root = join(home, "agent-runtime"), lock = join(root, ".molis-runtime-owner.db");
+  const inode = statSync(lock).ino;
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  armed = true;
+  search.changed("io.molis.work.todo", project.project_id);
+  t.mock.timers.tick(2_000);
+  await entered.promise;
+  t.mock.timers.reset();
+  closingStarted = true;
+  let searchReturned = false;
+  const closing = search.close();
+  void closing.then(() => { searchReturned = true; }, () => { searchReturned = true; });
+  // With ownerContext suspended, there is no sync or organizer work: an early close would already have returned.
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(searchReturned, false, "search cannot finish while its started knowledge preparation still borrows the Catalog");
+  assert.throws(() => acquireStorageOwner(root), { code: "storage.owner.busy" });
+  resume.resolve();
+  await closing;
+  assert.equal(lateCatchUps, 0, "a context that returns after close starts must not start another search catch-up");
+  await served.close();
+  await host.close();
+  const nextOwner = acquireStorageOwner(root);
+  try { assert.equal(statSync(lock).ino, inode, "actual shutdown returns the original owner inode for reuse"); }
+  finally { nextOwner.release(); }
 });

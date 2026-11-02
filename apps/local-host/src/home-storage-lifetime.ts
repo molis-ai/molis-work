@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { acquireStorageOwner, assertStorageOwner, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { hostErrors } from "./host-errors.js";
@@ -58,6 +58,7 @@ export function ensureHomeStorageOwner(host: object, homeDirectory: string): Sto
     catch { throw new ActionError("actions.home_mismatch", "Host 的原 Home 不再可用"); }
     if (canonical !== held.home) throw new ActionError("actions.home_mismatch", "Host 不能绑定到另一个 Home");
     assertStorageOwner(agentRuntimeDirectory(held.home), held.owner);
+    assertNoPendingHomeRestore(agentRuntimeDirectory(held.home));
     return held.owner;
   }
   const owner = acquireStorageOwner(agentRuntimeDirectory(requested));

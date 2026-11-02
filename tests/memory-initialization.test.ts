@@ -32,13 +32,14 @@ function scratch(t: TestContext) {
 
 async function open(home: string) {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const agents = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const agents = ensureSystemAgentService(host, home, withCatalog);
   await agents.ready;
   const ledger = openMemoryLedger({ homeDirectory: home });
   const service = new MemoryService({ ledger, backend: prologueMemoryBackend(async () => agents.agentHost.adapter("prologue").memory!) });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null,
     audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
-  return { host, service, ledger, actions, adapter: agents.agentHost.adapter("prologue"), close: async () => { ledger.close(); await host.close(); } };
+  return { host, withCatalog, service, ledger, actions, adapter: agents.agentHost.adapter("prologue"), close: async () => { ledger.close(); await host.close(); } };
 }
 
 async function createProject(home: string) {
@@ -51,7 +52,7 @@ async function createProject(home: string) {
 async function learnedAutomatic(home: string, env: Awaited<ReturnType<typeof open>>) {
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME), store = new AssistantStore(db);
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT_A, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(PROJECT_A));
+  const project = await env.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(PROJECT_A));
   const sources: AgentMemorySourceSnapshot[] = [];
   try {
     for (let index = 0; index < 2; index++) {

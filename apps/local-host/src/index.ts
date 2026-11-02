@@ -35,6 +35,8 @@ export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
+export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type HomeRestoreRecoveryOptions } from "./home-restore.js";
+export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
 export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";

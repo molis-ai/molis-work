@@ -30,7 +30,7 @@ export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsent
 export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.js";
 export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
-export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
+export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, inspectPluginProjectDatabase, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
 export { SANDBOX_HOME_SCHEMA_LIMITS, assertPluginHomeSchema, inspectPluginHomeSchema } from "./project-database.js";
 export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
 export {
@@ -825,3 +825,5 @@ export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMater
 export { createPluginConnectionsClient, createCallConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate,
   type CallConnection, type CallConnectionsPort } from "./connections-service.js";
 export { createPluginSourcePullClient, createPluginConnectorSourceClient, type PluginConnectorPort, type PluginSourcePullPort, type PluginSourcePullRun, type PluginSourcePullGate } from "./source-pull-service.js";
+
+export { inspectPluginProjectDatabaseSet } from "./project-snapshot.js";

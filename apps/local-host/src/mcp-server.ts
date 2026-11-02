@@ -71,7 +71,7 @@ export class LocalMcpServer {
     // production Runtime never inherits a static project DB from environment.
     this.connectionState = new RuntimeProjectConnection(runtimeConnection ?? null);
     this.contextTools = localMcpContextTools({
-      catalogs: { withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, operation) },
+      catalogs: { withCatalog: (homeDirectory, operation) => this.withCatalog({ homeDirectory }, operation) },
       connection: this.connectionState,
       requireHost: (context) => this.requireRuntimeContextHost(context),
       actorFor: (host, context) => runtimeConnectionIdentity(host, context).actor_id,
@@ -91,12 +91,12 @@ export class LocalMcpServer {
       ...(this.runtimeContextHost?.homeDirectory ? { workspacesFor: (projectId: string) => this.withCatalog(
         { homeDirectory: this.runtimeContextHost!.homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)) } : {}),
     });
-    if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) this.localHost.configurePersonalPlanning(this.runtimeContextHost.homeDirectory, this.withCatalog);
+    if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) this.withCatalog = this.localHost.configurePersonalPlanning(this.runtimeContextHost.homeDirectory, this.withCatalog);
     if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) {
       ensureSystemAgentService(this.localHost, this.runtimeContextHost.homeDirectory, this.withCatalog);
     }
     this.linkPanelSession = createRuntimePanelSessionLinker({
-      withCatalog: (homeDirectory, operation) => withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => operation({
+      withCatalog: (homeDirectory, operation) => this.withCatalog({ homeDirectory }, (catalog) => operation({
         aliasTerminalSession: async (input) => { await catalog.commit(() => { catalog.terminalPanels.aliasSession(input); }); },
       })),
       isMissingPanel: (error) => error instanceof ActionError && error.code === "actions.missing",

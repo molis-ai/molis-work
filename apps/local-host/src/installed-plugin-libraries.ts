@@ -53,10 +53,14 @@ interface LedgerRow { plugin_id: string; publisher_signature: string; store_name
 
 /** Actual installed library identities and versions, read by their owner for the Home registry's offline enumeration. */
 export function installedLibrarySnapshots(home: string, reserved: HomeStoreRegistry): readonly LedgerRow[] {
-  const file = join(home, INSTALLED_LIBRARIES_HOME_STORE.path, "plugin-libraries.db");
+  return installedLibrarySnapshotsFile(join(home, INSTALLED_LIBRARIES_HOME_STORE.path, "plugin-libraries.db"), reserved);
+}
+
+/** The same ledger owner reads an archived or retained ledger without fabricating a Home. */
+export function installedLibrarySnapshotsFile(file: string, reserved: HomeStoreRegistry): readonly LedgerRow[] {
   if (!existsSync(file)) return [];
   snapshotFileStat(file);
-  const ledger = openReadOnlyHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path);
+  const ledger = openHomeSqliteFile(file, { readOnly: true });
   try {
     const version = Number(ledger.prepare("PRAGMA user_version").get()?.user_version);
     if (version !== LEDGER_BASELINE.version || JSON.stringify(describeSqliteSchema(ledger)) !== JSON.stringify(describeSqliteBaseline(LEDGER_BASELINE))) {

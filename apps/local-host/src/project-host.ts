@@ -268,18 +268,19 @@ export class MolisWorkLocalHost {
     const canonicalHome = path.resolve(home);
     const storageOwner = ensureHomeStorageOwner(this, canonicalHome);
     if (!this.webCatalog) prepareMemoryHome(canonicalHome, storageOwner);
-    return (this.webCatalog ??= { home: canonicalHome, access: createWebCatalogAccess(canonicalHome, open) }).access;
+    return (this.webCatalog ??= { home: canonicalHome, access: createWebCatalogAccess(canonicalHome, options => open({ ...options, storageOwner })) }).access;
   }
 
   /** Platform startup injects the existing Catalog owner before accepting requests. */
-  configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): void {
+  configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): LocalWebCatalogRunner {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
-    ensureHomeStorageOwner(this, canonicalHome);
+    const storageOwner = ensureHomeStorageOwner(this, canonicalHome);
     this.personalPlanningHome = canonicalHome;
-    this.catalogRunner = withCatalog;
-    bindPluginCatalog(this, canonicalHome, withCatalog);
+    this.catalogRunner = (options, operation) => withCatalog({ ...options, storageOwner }, operation);
+    bindPluginCatalog(this, canonicalHome, this.catalogRunner);
+    return this.catalogRunner;
   }
 
   /** A transport borrows this service; only the Host owns its lifetime. */

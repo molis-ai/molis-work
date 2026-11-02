@@ -1,6 +1,6 @@
 # W5-16：Home 离线快照与恢复
 
-状态：完整 Codex C2 仍未完成；Root 2026-10-25 仅重新授权实现2处理 #1267 非 Memory 的 SDK 快照认证父测试超时。本树准确从固定 SDK 消费者 `0cabdc7a4fa0ac22e3d422aad939921121976826` 分出，SDK 源仍固定 `ba75c9f8`，不重做已双核包或分类/格式片。Memory #1059/#1064/#1101、两端口及 dependency_unavailable 接续继续暂停；这不是恢复整个 C2。本题验证完成、独立审验和 carrier 采用分别结算，不冒 Ready、完整 snapshot/restore 或本人验收完成。
+状态：T409 在准确父 93d87d2a31cb0c78b184a88e179e0eb178c9c899 上继续完整离线恢复，采用现行 Memory baseline 1、源事实与公开 Catalog 全寿命互斥，RAC-2912～2919 验收中；完整构建已通过，尚未完成独立验证、共享 Full/CI 或 main 采用。下文旧阶段状态仅是历史证据，不恢复旧 SDK/格式/Memory 分支或两保护 PR。真实 Home 与用户本人验收未运行。
 
 ## 目标、依据与交付顺序
 

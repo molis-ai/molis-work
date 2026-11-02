@@ -7,6 +7,15 @@ import type {
   MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
+import { isCompleteMemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { lstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
+import { readSnapshotFile, snapshotFileStat } from "../snapshot-files.js";
+import { describeSqliteBaseline, describeSqliteSchema } from "../sqlite-baseline.js";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
 import { isDeepStrictEqual } from "node:util";
 import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
@@ -61,7 +70,54 @@ CREATE TABLE memory_markers (
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 
+const inspectionErrors = defineErrorCodes("storage.memory", { invalid: "invalid", changed: "conflict" });
+export type MemoryLedgerInspection = { readonly state: "absent" } | { readonly state: "complete";
+  readonly personal: MemoryPrefs; readonly project_default: MemoryPrefs };
+
+/** No SQLite connection touches the source: even WAL read marks belong only to a private disposable copy. */
+export function inspectMemoryLedger(options: { homeDirectory: string; actorId: string }): MemoryLedgerInspection {
+  if (!options.actorId) throw inspectionErrors.invalid("记忆资格检查需要可信操作者");
+  const file = homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE);
+  if (!lstatSync(file, { throwIfNoEntry: false })) return { state: "absent" };
+  const paths = [file, file + "-wal", file + "-shm", file + "-journal"];
+  const before = paths.map(path => lstatSync(path, { throwIfNoEntry: false }));
+  const stage = mkdtempSync(join(tmpdir(), "molis-memory-inspection-"));
+  let db: DatabaseSync | undefined;
+  try {
+    for (let at = 0; at < paths.length; at++) {
+      if (!before[at]) continue;
+      const source = paths[at]!;
+      snapshotFileStat(source);
+      // Shared-memory read marks are rebuilt only in the private copy; source SHM is never opened.
+      if (at !== 2) writeFileSync(join(stage, "memory.db" + source.slice(file.length)), readSnapshotFile(source, before[at]!.size), { mode: 0o600 });
+    }
+    const unchanged = () => paths.every((path, at) => {
+      const current = lstatSync(path, { throwIfNoEntry: false }), original = before[at];
+      return original ? current && ["dev", "ino", "mode", "size", "mtimeMs", "ctimeMs", "nlink"].every(key =>
+        Reflect.get(current, key) === Reflect.get(original, key)) : !current;
+    });
+    if (!unchanged()) throw inspectionErrors.changed("只读检查期间记忆账本已变化");
+    db = new DatabaseSync(join(stage, "memory.db"), { readOnly: true });
+    const version = db.prepare("PRAGMA user_version").get()?.user_version;
+    if (version !== MEMORY_LEDGER_BASELINE.version || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))
+      || db.prepare("PRAGMA integrity_check").all().some(row => Object.values(row).some(value => value !== "ok"))
+      || db.prepare("PRAGMA foreign_key_check").all().length) throw inspectionErrors.invalid("记忆账本不是完整的现行结构");
+    const prefs = (key: string) => {
+      const row = db!.prepare("SELECT body FROM memory_prefs WHERE actor_id = ? AND key = ?").get(options.actorId, key);
+      let value: unknown;
+      try { value = row ? JSON.parse(String(row.body)) : undefined; }
+      catch { throw inspectionErrors.invalid("记忆设置不是有效的现行数据"); }
+      if (!isCompleteMemoryPrefs(value)) throw inspectionErrors.invalid("记忆账本缺少完整的现行设置");
+      return value;
+    };
+    const result = { state: "complete" as const, personal: prefs("personal"), project_default: prefs("project-default") };
+    if (!unchanged()) throw inspectionErrors.changed("只读检查期间记忆账本已变化");
+    return result;
+  } finally { try { db?.close(); } finally { rmSync(stage, { recursive: true, force: true }); } }
+}
+
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
+  assertNoPendingHomeRestore(join(options.homeDirectory, "agent-runtime"));
   const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
   try {
     applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE);

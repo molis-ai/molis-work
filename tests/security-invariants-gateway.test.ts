@@ -53,11 +53,11 @@ test("S-07 a process that forwards to the resident Host asks a numeric loopback 
   await new Promise<void>(resolve => listener.listen(0, "127.0.0.1", resolve));
   const address = listener.address();
   assert.ok(address && typeof address === "object");
+  const demo = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog =>
+    (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project);
   // The Home has run a Host before: its token is in the Home, so a forwarding process would find it and send it.
   await mkdir(join(home, "config"), { recursive: true });
   await writeFile(join(home, "config", "web-control-token"), `${TOKEN}\n`, { mode: 0o600 });
-  const demo = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog =>
-    (await catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })).project);
 
   // The listener really answers at 127.0.0.1:<port>; every other spelling of that address is refused before a request is made.
   const refused = [`http://localhost:${address.port}`, `http://127.0.0.1.evil.example:${address.port}`, `https://127.0.0.1:${address.port}`,

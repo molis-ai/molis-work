@@ -1,6 +1,6 @@
 # 全仓对抗式审查报告（2026-11-01）
 
-状态：只读审查。本报告不改产品代码、门禁、测试、规格和真实 Home；整治按第 12 节分片另做。
+状态：审查完成，整治在做。报告本身不改产品代码、门禁、测试、规格和真实 Home；整治按第 12 节分片另开 PR，进度见第 15 节。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」。
 
 - **对象**：origin/main `e4e98ed33`（2026-11-01 15:13Z；该提交的 CI 与 Full 均为绿）。第 1 节的趋势数字取同一分支在 10-13、10-20、10-27 的提交。
 - **依据**：[防腐整理要求](../prompts/repository-anti-corruption.md)（四个目标、§4.1–4.19、§7 完成标准、附录 A），[系统整理要求](../prompts/repository-systematic-review.md)，`AGENTS.md` 与 `docs/system/` 的现行规则，[上一轮清理检查](cleanup-audit-2026-10-20.md)。
@@ -39,9 +39,9 @@
    - 协调分支上的零碎单（MISC）约 160 行；
    - 100 多个 PR 评论里写着「非阻塞」「交 Codex 修复队列」「后续单」。
 5. **例外都有理由，但普遍缺出处、主人和退出条件（P2，已证实）**：
-   - 24 条一次性放行已经用完，还留在门禁脚本里；
+   - 页面资源门禁里 22 条新资源放行已经用完，还留在脚本里；另 2 条增长放行按门禁自己的规则「下一次改门禁时删」，不算遗漏（更正）。两类都已在整治 PR 里清掉；
    - Shelf 插件 → Shelf Module 的层间例外没有任何 BACKLOG 行跟踪；
-   - 用户 10-30 定的「MemoryService 登记为内聚单元」没有落地，health 报告里还剩这 2 个未登记的巨大单元。
+   - 用户 10-30 定的「MemoryService 登记为内聚单元」已排给 T-061，等 #1101/#1059 合入后登记（`docs/system/HUGE-CLASS-MIGRATION.md` 表 C 行）。health 里那 2 个未登记的巨大单元就是它，不算遗漏（更正）。
 6. **没有发现 P0**：硬约束、安全不变量与数据边界抽查都守住了，main 的 CI 与 Full 都是绿的。最重的是第 2–4 条三项 P1。
 7. **更正 goal prompt 里的四个数字**（逐条核对后）：
    - `TODO` 20 处里只有 1 处是真的待办，其余是 Todo 插件的测试名；
@@ -153,11 +153,12 @@
 ### B5 死代码（P2，已证实）
 
 - **没有任何引用的导出函数（6 个）**：
-  - `apps/workbench/src/ui-composition.ts:78` `renderScheduleContribution`
-  - `horizontal/memory/src/facts.ts:46` `pauseReason`
-  - `horizontal/memory/src/shapes.ts:19` `joinedFingerprint`
+  - `apps/workbench/src/ui-composition.ts:78` `renderScheduleContribution`（已删，第 15 节）
+  - `horizontal/memory/src/facts.ts:46` `pauseReason`（已删，连同只给它用的两个常量）
+  - `horizontal/memory/src/shapes.ts:19` `joinedFingerprint`（已删）
   - `packages/contracts/src/modules/workspace-artifacts.ts:216` `parseWorkspaceRef`、`:235` `workspaceScopeKey`
   - `packages/plugin-sdk/src/ui/calendar.ts:96` `calendarTitle`（SDK 公开面，删前确认外部作者没在用）
+  - 后三个在合同与 SDK 的公开面，删它们是改合同，归 R2 的集成分支
 - **只在本文件用、却导出的函数**：99 个，可以去掉 `export`。
 - **只被测试用的导出**：110 个。
 - **死路由**：`POST /api/assistant/memory-prefs`（`apps/local-host/src/assistant/assistant-http.ts:331`）在 `apps/workbench/src` 里没有调用方；CALL-CHAINS §10.1 自己也这样写了。
@@ -166,8 +167,8 @@
   - 没有调用方的 `assertProjectPluginDatabase`（`apps/local-host/src/project-plugin-databases.ts:99`）；
   - 没有元素匹配的 `.account-global-menu` 三条样式。
 - **已经不起作用的配置**：
-  - Biome 仓库里的 3 条 `eslint-disable-next-line` 注释（`packages/contracts/src/platform/search-sources.ts:81`、`plugins/native/ppt/src/pptx.ts:24`、一个测试）；
-  - 密钥白名单里一条全仓已经找不到的值（J 节）。
+  - Biome 仓库里的 3 条 `eslint-disable-next-line` 注释（`packages/contracts/src/platform/search-sources.ts:81`、`plugins/native/ppt/src/pptx.ts:24`、一个测试）。Biome 不读它们，但它们说明正则里的控制字符是有意的；留到下次改这几个文件时再处理，其中一条在 contracts（共享核心）（更正）。
+  - ~~密钥白名单里一条全仓已经找不到的值~~（更正）：这条值在 Shelf S3 的提交 431c2847 里。那个提交不在 main 上，`migrate/bl383-runtime-context-rename` 等三个远端分支的历史里还有；这些分支合入时 `pnpm secrets:check` 要靠它，所以留着。
 
 ### B6 插件骨架的克隆（P2，已证实）
 
@@ -226,7 +227,15 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 | `pluginSurfaceClients(packs, catalog = …)` | 16 | `catalog` |
 | `locateTestChrome(env?, exists?)` | 19 | `env`、`exists` |
 
-这些参数是「为测试留的注入口」，但没有测试用。contracts 与 SDK 里的几项改了要跑 `pnpm api:update`。完整候选在附录。
+这些参数是「为测试留的注入口」，但没有测试用。完整候选在附录。
+
+**核实结论（更正）**：整治时逐个核过，这些都不删，C1 降为「存疑」，不作为整治项。
+
+- **`artifactTypeDeclarations`、`declaredArtifactTypes` 的 `sources`**：同族六个函数共用这种写法（默认取全部生产者），测试给其中三个传了参数；只删这两个，同族就不一致。A3 之后这组名字要整组换掉（`w5-08` 片），不在这里动。
+- **`pluginSurfaceClients` 的 `catalog`，以及 `plugin-workbench.ts` 其余函数的 `packs`**：也是同一种写法，`pluginWorkbenchStyles(undefined, "beneath-shell")` 就是这样跳过前一个参数、传后一个的。
+- **`locateTestChrome`、`locateBrowser` 的 `env`、`platform`、`exists`**：跨平台分支的注入口；缺的是一条测试，参数不该删。
+- **`bindSearchEntriesHandler`、`bindFileEntriesHandler`、`define*Action` 的参数**：合同与 SDK 的公开面，外部插件作者会用。
+- **`homeIntegrationRegistry` 的 `now`**：所在文件在在途的 #1724、#1725 里，等它们合入后再看。
 
 ### C2 总是传同一个值的参数（P2，已证实）
 
@@ -328,7 +337,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 | 3 | BACKLOG 254 行 | 34 行正文写着已合入、已完成、已删、已修或做完（多为部分完成的说明，要逐行核）；163 行无主；17 行格式坏；2 行写着暂定或待裁 | 统筹逐行核，做完的删行 |
 | 4 | 协调与交接记录 | 风险登记 65 行，约 54 行没标关闭：40 行不指向任何 BL，14 行只指向已删的 BL，没有一行指向开着的 BL。R-24 实际已解决（`Verify` 依赖 `security-invariants`），仍写「开着」。零碎单约 160 行，也只在协调分支上。主检出的 `.claude/handoff/` 不入库 | 开着的并进 BACKLOG（带主人），协调分支只留进度 |
 | 5 | PR 遗留 | 10-13 以来 61 个 PR 关闭未合并；带「交 Codex 修复队列」的 PR 58 个、「非阻塞」104 个、「后续单」62 个，都没和 BACKLOG 或零碎单对账；开着的 11 个 PR 里有 10-18、10-23 的草稿（#734、#1059） | 抽查对账；关掉的 PR 判断是被取代还是丢了 |
-| 6 | 用户决定落地 | **没落地**：MemoryService 登记为内聚单元（10-30 第 3 项），health 仍报 2 个未登记。**在做**：PG-070/071 样式搬出共用表，Goals 还剩 321 条、Feed 234 条、Coding 9、Form 6、创作台 5（T-393 等）。**已落地**：BL-121 ②（`feed-start` 已为 0）、T-137 的通用面板表。**存疑**：安装清单 `SCHEMA_VERSION = 4`（`apps/local-host/src/installer/home-contract.ts:9`），10-30 定「各库与带版本的 JSON 合成第 1 版」，`docs/releases/CHECKLIST.md` 的版本表里没有它 | MemoryService 一行进 `giant-exceptions.json`；`SCHEMA_VERSION` 请统筹定 |
+| 6 | 用户决定落地 | **已排期**（更正）：MemoryService 登记为内聚单元（10-30 第 3 项）排给 T-061，等 #1101/#1059 合入后登记；health 里那 2 个未登记的就是它。**在做**：PG-070/071 样式搬出共用表，Goals 还剩 321 条、Feed 234 条、Coding 9、Form 6、创作台 5（T-393 等）。**已落地**：BL-121 ②（`feed-start` 已为 0）、T-137 的通用面板表。**存疑**：安装清单 `SCHEMA_VERSION = 4`（`apps/local-host/src/installer/home-contract.ts:9`），10-30 定「各库与带版本的 JSON 合成第 1 版」，`docs/releases/CHECKLIST.md` 的版本表里没有它 | MemoryService 随 T-061；`SCHEMA_VERSION` 请统筹定 |
 | 7 | 验收编号 | 570 个没有证明：proactive-assistant 106、onboarding-coverage 44、font-and-skin-system 38、prologue-memory-strategy 32、coding-harness-optimization 32、work-brief 26… | 按 spec 的状态句分三类：该归档、该标「[人工]」、真没测 |
 | 8 | 写了没人看守的规则 | 抽查 5 条硬约束（删项目唯一服务、并发调度声明、身份不从输入读、DOM 事件登记、错误子类），都有门禁或测试；没有全量逐条做 | 未验证，留作整治前的一步 |
 | 9 | 安全不变量 | S-03 行漏了 RAC-1805 的用例（零碎单 T-167）；R-24 已过时 | 改表 |
@@ -338,15 +347,15 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 
 | 登记处 | 条数 | 理由 / 出处 / 主人 / 退出条件 | 分类 | 处置 |
 | --- | --- | --- | --- | --- |
-| `tooling/gates/giant-exceptions.json` | 41 | 有 / 3 条有 / 无 / 无 | 长期（用户 10-25 规则） | 加主人与重看条件；补登 MemoryService 两条 |
+| `tooling/gates/giant-exceptions.json` | 41 | 有 / 3 条有 / 无 / 无 | 长期（用户 10-25 规则） | 加主人与重看条件；MemoryService 两条由 T-061 补登（已排期） |
 | `tooling/gates/root-allowlist.json` | 35 | 有 / 无 / 无 / 无；所列都在 | 长期 | 不动 |
 | `tooling/gates/error-owners.json` | 46 个主人 | 有 / 无 / 自身即主人 / — | 长期 | 补那 627 个没人的文件 |
-| `tooling/gates/secret-allowlist.txt` | 15 行 | 有 / 无 / 无 / 无 | 长期 | 删 `shelf-knowledge-test-control-token-1234567`（全仓已无此值） |
+| `tooling/gates/secret-allowlist.txt` | 15 行 | 有 / 无 / 无 / 无 | 长期 | 保留（更正）：`shelf-knowledge-test-control-token-1234567` 在不在 main 的提交 431c2847 里，三个远端分支还带着；删了，这些分支合入时会被拦 |
 | `tooling/gates/doc-citation-exceptions.json` | 3 | 有 / 无 / 无 / 无 | 长期 | 不动 |
 | `tooling/gates/plugin-styles.json` | 5 个插件（Goals 321、Feed 234、Coding 9、Form 6、创作台 5 条规则） | 有（用户 10-25）/ 有 / 线 / 搬完为 0 | 过渡 | 随 PG-070 后继 |
 | `tooling/gates/table-owners.json` | same_name 2、areas 1 | 有 / 无 / 无 / 无 | 长期 | 不动 |
-| `page-assets.mjs` `APPROVED_CEILINGS` | 2 | 有 / 有 / — / 用过即删 | 一次性，**已用完** | 删 |
-| `page-assets.mjs` `APPROVED_NEW_ASSETS` | 22 | 有 / 有 / — / 首次冻结后无效 | 一次性，**已用完** | 删，并改成数据文件（G2） |
+| `page-assets.mjs` `APPROVED_CEILINGS` | 2 | 有 / 有 / — / 下一次改门禁时删 | 一次性，按规则轮换，不算遗漏（更正） | 整治 PR 改了门禁，按规则删了 |
+| `page-assets.mjs` `APPROVED_NEW_ASSETS` | 22 | 有 / 有 / — / 首次冻结后无效 | 一次性，**已用完** | 整治 PR 已删；改成数据文件归 R7（G2） |
 | 装配门禁 `APPROVED_BUILD_TIME_EXCEPTIONS`、`NATIVE_PLUGIN_HTTP_FILES` | 2、1 | 有 / 有（用户 10-21、10-23、10-27）/ 用户 / BL-377 | 用户批准的长期例外 | 不动；改它的范围先问用户 |
 | `APP_IMPORT_ALLOWLIST` | 9 | 有（启动器嵌宿主）/ 无 / 无 / 无 | 长期 | 不动 |
 | `PLUGIN_MODULE_IMPORT_ALLOWLIST` | 1（Shelf → Module） | 「是债，不是先例」/ 无 / 无 / 无；插件从 Module 根取实现：`openShelfStore`、`initializeShelfFiles`、`SHELF_RECIPES`、`isHttpUrl`、`shelfErrors` | **无主的过渡例外** | 开 BL：只留 `/contract` 的类型，实现搬回插件或走动作 |
@@ -358,13 +367,13 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 | `privileges.md` | 待做 11 行（PG-011、017、045、046、060、064、070、078、093、094、111），PG-077 待验收，「不迁、不删」5 行，「不做」1 行 | 有 / 有 / 线 / 部分有 | 过渡 + 用户批准 | 合成一张表，删掉第二张历史表 |
 | `tests/quarantine.json` | 0 | — | — | — |
 | 测试 skip / todo | 64 | 44 处只在 macOS、2 处要 Chrome、6 处要环境变量、3 处看工具在不在；其余是探针测试里的样例 | 平台条件，隐式 | 列一份「只在 macOS 跑」的名单，写明谁在什么时候跑 |
-| 压制注释 | `@ts-expect-error` 20（全是测试里的反向类型断言）、`eslint-disable` 3 | — | 后者已无效 | 删那 3 条 |
+| 压制注释 | `@ts-expect-error` 20（全是测试里的反向类型断言）、`eslint-disable` 3 | — | 后者 Biome 不读，但说明了意图 | 留到下次改这几个文件时（更正） |
 | `TODO` | 1（D2） | 无 | 隐式 | 请用户定 |
 | 「2026-10-18 改」/「暂定」类 | 73 / 73 | 部分有 BL | 过渡 | 各挂一条 BL，或改成现状 |
 
 合计：
 
-- **用完没删**：24 条放行、1 条白名单。
+- **用完没删**：22 条新资源放行（整治 PR 已删）；2 条增长放行按规则轮换，也随整治 PR 删了。
 - **无主**：Shelf 层间例外，以及 4 组没盘点的 HTTP 写入。
 - **散在登记处之外**：协调分支上的风险登记与零碎单。
 
@@ -374,11 +383,11 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 
 | 片 | 档 | 内容 | 碰的路径 | 依赖 |
 | --- | --- | --- | --- | --- |
-| R1 例外清账 | 丙 | 删 24 条已用完的放行、1 条白名单、3 条 `eslint-disable`；MemoryService 登记进 `giant-exceptions.json`（用户 10-30 决定）；Shelf 层间例外开 BL | `scripts/gates/page-assets.mjs`、`tooling/gates/*`、两处源码注释 | 无 |
+| R1 例外清账 | 丙 | 删 22 条已用完的新资源放行和 2 条到期的增长放行；Shelf 层间例外开 BL（BACKLOG 归统筹）。白名单那条与 `eslint-disable` 留着，MemoryService 随 T-061（更正） | `scripts/gates/page-assets.mjs` | 无 |
 | R2 共享工具收口 | 甲（共享核心） | SDK 里 `isRecord`、schema 构造器、`messageOf` 各一份，插件改用 SDK 的 `escapeHtml`；Runtime 改用 SDK 的规范化 JSON；Goals 的 `requestHash` 包内一份；`pnpm api:update` | `packages/plugin-sdk`、`packages/plugin-runtime`、各插件 | 集成分支 |
 | R3 存储预检 | 乙（共享核心） | storage 加 `assertSqliteBaseline`，四处改调；删 7 个构造器里的建表执行 | `packages/storage`、`apps/local-host`、`server`、`packages/plugin-runtime` | 和 R2 同一条集成分支 |
 | R4 宿主入口收窄 | 乙 | 入口只留装配接口，测试改走 test-kit 或测试子路径；加入口宽度门禁 | `apps/local-host/src/index.ts`、几百个测试文件 | 按测试目录分批，避开在途大批 |
-| R5 参数与死代码 | 丙 | C1、C2、B5 里非公开面的部分 | 分散，按包合并 | 无 |
+| R5 参数与死代码 | 丙 | B5 里非公开面的死函数；B2 里非公开面、文件空闲的几组重复（Goals 的 `requestHash`、四份控制令牌比较、两份分支读取）；C1 核实后不删（更正）；C2 与死路由等 #1101 | 分散，按包合并 | 无 |
 | R6 文档卫生 | 丙 | `AGENTS.md` 下沉门禁细则；删已关的 BL、T、日期注释并加计数；图片移出或删历史截图；F6 的过时句 | 文档、注释 | W6-06（T-404）之后 |
 | R7 门禁去热点 | 甲 | 放行改成数据文件；给死翻译键、宿主行数、只走 HTTP 的写入、注释里的过程编号加只许减少的数字 | `scripts/gates/`、`tooling/gates/` | 改门禁要评审 |
 | R8 待办单一出处 | 丙 | 风险登记与零碎单里开着的项并进 BACKLOG（带主人）；BACKLOG 修表头与无主行 | `specs/BACKLOG.md` | 统筹做（枢纽文件） |
@@ -410,3 +419,20 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
   - PR 评论里的后续项只计了数，没有逐条对账；
   - BACKLOG 那 34 行「已做」要逐行核。
 - **数字会变**：统筹在途的大批（#1724 等）合入后，宿主行数、入口宽度、页面资源会变；整治开工前按第 1 节的命令重测。
+
+## 15. 整治进度
+
+| 片 | 状态 | 说明 |
+| --- | --- | --- |
+| R1 例外清账 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727)（与 R5 同一个 PR） | 页面资源门禁的 22 条新资源放行与 2 条到期的增长放行已删；SYS-15 用例改在带 10-22 那条放行的门禁副本上证明放行机制。白名单那条、`eslint-disable`、MemoryService 核实后不在本片（第 11 节已更正）。Shelf 层间例外开 BL 归统筹（BACKLOG 是枢纽文件） |
+| R5 参数与死代码 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727) | 删 3 个死函数（`renderScheduleContribution`、`pauseReason`、`joinedFingerprint`）；Goals 的 `requestHash` 收成包内一份；四份控制令牌比较收进 `web-control-token.ts`；两份读当前分支收进 `workspace-git.ts`。C1 核实后不删（第 4 节已更正）。死路由 `memory-prefs` 与 C2 等 #1101 合入 |
+| R2、R3 | 未开工 | 共享核心，要走集成分支；R3 的写法还取决于第 13 节第 2 项（两个 SQLite 驱动） |
+| R4 | 未开工 | 取决于第 13 节第 1 项（宿主瘦身），并要避开在途大批 |
+| R6、R7、R8 | 未开工 | R6 等 W6-06（T-404）；R7 改门禁要评审；R8 是统筹的枢纽文件，取决于第 13 节第 7 项 |
+
+复核出的误判（已在原处标「（更正）」）：
+
+- `APPROVED_CEILINGS` 按门禁规则轮换，不是遗漏；
+- 密钥白名单那一条仍需要；
+- MemoryService 的登记已排期（T-061）；
+- C1 的参数是注入口或公开合同，不删。

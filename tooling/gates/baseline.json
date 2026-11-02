@@ -32,7 +32,7 @@
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
-    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 182,
+    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 188,
     "file apps/workbench/src/i18n/en.ts": 3208,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
@@ -44,8 +44,8 @@
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 407,
-      "methods": 15
+      "lines": 442,
+      "methods": 16
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,

@@ -783,23 +783,45 @@ test("VUX the current one-time allowance is bounded and spent once; other assets
   }
 });
 
-// The user approved one new asset on 2026-10-22, the isolated plugin frame client, at its measured size. No other asset may be added,
-// it may not come in a byte larger, and once budgeted it only falls.
+// The user approved one new asset on 2026-10-22, the isolated plugin frame client, at its measured size. That admission is spent and
+// left the gate's table (an entry is deleted in the change after the one that admitted it), so the admission is proved on a copy of
+// the gate holding that entry, and the gate's own table on the same terms: no other asset may be added, none comes in a byte larger,
+// and once budgeted it only falls.
+const newAssetsOf = (text: string) => {
+  const block = /const APPROVED_NEW_ASSETS = \{([\s\S]*?)\};/.exec(text)?.[1] ?? "";
+  return Object.fromEntries([...block.matchAll(/"([^"]+)":\s*(\d+)/g)].map(([, asset, bytes]) => [asset, Number(bytes)])) as Record<string, number>;
+};
 test("SYS-15 the approved plugin frame asset may be added once at its measured size; no other new asset, no growth after", () => {
-  const asset = "/assets/molis-work-plugin-frame.js";
-  branch("plugin-frame-base", () => { putBudget(sizes); });
-  git("checkout", "-q", "-B", "plugin-frame-change");
-  (sizes as Record<string, number>)[asset] = 187121;
-  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 1, "a byte over the approved size");
-  (sizes as Record<string, number>)[asset] = 187120;
-  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
-  assert.equal(gate("--base", "plugin-frame-base").code, 0);
-  (sizes as Record<string, number>)["/assets/molis-work-other.js"] = 10;
-  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 1, "no other asset may be added");
-  delete (sizes as Record<string, number>)["/assets/molis-work-other.js"];
-  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
-  commit("budget the approved plugin frame asset"); git("branch", "-f", "plugin-frame-frozen");
-  (sizes as Record<string, number>)[asset] = 187120 + 1; putBudget(sizes);
-  assert.equal(gate("--base", "plugin-frame-frozen").code, 1, "once budgeted it only falls");
-  assert.equal(gate("--update", "--base", "plugin-frame-frozen").code, 1);
+  const real = readFileSync(script, "utf8");
+  // An empty table (no admission waiting) is `{}`: anything else in it is an entry.
+  assert.ok(Object.keys(newAssetsOf(real)).length > 0 || !/APPROVED_NEW_ASSETS = \{\s*[^\s}]/.test(real), "every entry in the gate's table is read");
+  const pluginFrame = { "/assets/molis-work-plugin-frame.js": 187120 };
+  const copy = path.join(work, "page-assets-plugin-frame.mjs");
+  writeFileSync(copy, real.replace(/const APPROVED_NEW_ASSETS = \{[\s\S]*?\};/, `const APPROVED_NEW_ASSETS = ${JSON.stringify(pluginFrame)};`));
+  for (const [label, gateScript, approved] of [["plugin-frame", copy, pluginFrame], ["new-assets", script, newAssetsOf(real)]] as const) {
+    const gateWith = (...args: string[]) => {
+      writeFileSync(path.join(work, "sizes.json"), JSON.stringify(sizes));
+      return spawnSync(process.execPath, [gateScript, "--root", repo, "--sizes", path.join(work, "sizes.json"), ...args], { encoding: "utf8" }).status;
+    };
+    branch(`${label}-base`, () => { putBudget(sizes); });
+    git("checkout", "-q", "-B", `${label}-change`);
+    for (const [asset, bytes] of Object.entries(approved)) {
+      sizes[asset] = bytes + 1;
+      assert.equal(gateWith("--update", "--base", `${label}-base`), 1, `${asset}: a byte over the approved size`);
+      sizes[asset] = bytes;
+    }
+    assert.equal(gateWith("--update", "--base", `${label}-base`), 0);
+    assert.equal(gateWith("--base", `${label}-base`), 0);
+    sizes["/assets/molis-work-other.js"] = 10;
+    assert.equal(gateWith("--update", "--base", `${label}-base`), 1, "no other asset may be added");
+    delete sizes["/assets/molis-work-other.js"];
+    assert.equal(gateWith("--update", "--base", `${label}-base`), 0);
+    commit(`budget the approved assets (${label})`); git("branch", "-f", `${label}-frozen`);
+    for (const [asset, bytes] of Object.entries(approved)) {
+      sizes[asset] = bytes + 1; putBudget(sizes);
+      assert.equal(gateWith("--base", `${label}-frozen`), 1, `${asset}: once budgeted it only falls`);
+      assert.equal(gateWith("--update", "--base", `${label}-frozen`), 1);
+      sizes[asset] = bytes; putBudget(sizes);
+    }
+  }
 });

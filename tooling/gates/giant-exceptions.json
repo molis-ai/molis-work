@@ -27,10 +27,10 @@
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
-      "reason": "动作服务：登记提供方（registerProvider 131 行，登记时的全部声明检查）、绑定、调用、场景和依赖可用性，共享同一份登记表；内核的唯一动作注册与调用入口，只超 300 行 96 行，拆开会让登记表有两个读写者。",
+      "reason": "动作服务统一持有提供方登记、绑定、调用、场景与依赖可用性的登记表；阶段元数据从同一提供方读取并随调用权限约束，保持唯一注册与调用入口，拆开会分散同一登记表的所有权。",
       "size": {
-        "lines": 407,
-        "methods": 15
+        "lines": 442,
+        "methods": 16
       }
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -160,7 +160,7 @@
     "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": {
       "kind": "cohesive-unit",
       "reason": "单个不透明插件 frame 的生命周期与私有端口适配：消息分派共享同一个 scope、page、窗口和清理闭包，统一在显隐与卸载时撤销；业务处理已在独立模块，拆开此入口会分散同一端口的所有权和释放顺序。",
-      "size": 182
+      "size": 188
     },
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
       "kind": "cohesive-unit",

@@ -243,21 +243,15 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // T395 + reviewed T399/PR2, against actual main e4e98ed331: workbench +6,555 B (reviewed +5,975 B and RAC-400 +580 B),
-  // builder +2,272 B and its stylesheet +40 B; no new URL. RAC-400 shares the existing bootstrap and groups the owner-only
-  // initialization, keeping the owner factories strict and reusing reload only when that owner's page appears or leaves.
-  // PR2 removes duplicate UI/preset task storage, old source-to-task replay and separate pane view handlers.
-  // T406 adds 504 B for the single Home permission switch and its unavailable state, reusing the existing settings
-  // renderer and trusted installation projection; total workbench growth from the same main is 7,059 B.
-  // These three allowances are consumed by this combined publication.
-  "/assets/molis-work-workbench.js": [1152663, 1159722],
+  // Final T395/T405/T403/T406 carrier against main e4e98ed331. Reuse the reviewed builder and Git allowances;
+  // arrival +20 B preserves the selected directory's pre-paint geometry. The former workbench allowance is no longer needed.
   "/assets/molis-work-plugins/plugin-builder.js": [118672, 120944],
   "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
-  // T405 Git receipt ownership: +799 B for the prepared review identity, authoritative result and stale-response checks.
-  // Preparation completion reuses the result read to paint the operation list; no new dependency or resource.
   "/assets/molis-work-plugins/git.js": [29496, 30295],
-  // T405 review geometry: +59 B keeps a clipped slot from cancelling an otherwise visible owner's review read.
-  "/assets/molis-work-plugin-frame.js": [191017, 191076],
+  "/assets/molis-work-arrival.css": [678738, 678758],
+  // User-approved exact frame growth: owner-bound reads, trusted account selection, native drag and refresh identity.
+  // Existing lifecycle/authorization/projection helpers are reused; Feed/Inbox business closures leave the eager shell.
+  "/assets/molis-work-plugin-frame.js": [191017, 207977],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
@@ -272,34 +266,11 @@ const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === byte
 // sheets together are the bytes the workbench sheet loses (the workbench sheet falls by 247609, the sheets add 247526), so the total
 // does not grow. Each is frozen once at the measured bytes.
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-plugin-frame.js": 187120,
-  // PG-070 slice 2 (2026-10-25): Shelf no longer keeps its sheet in the settings/workbench sheets, the plugin builder's own
-  // rules leave the shared sheet too; both are linked on demand, so both freeze once at the measured bytes.
-  "/assets/molis-work-plugins/plugin-builder.css": 19893,
-  "/assets/molis-work-plugins/shelf.css": 36541,
-  "/assets/molis-work-plugins/diff.js": 1483,
-  "/assets/molis-work-plugins/files.js": 11227,
-  "/assets/molis-work-plugins/git.js": 29496,
-  "/assets/molis-work-plugins/text-stats.js": 1281,
-  "/assets/molis-work-plugins/alchemist.css": 151,
-  // PG-070 slice 2 renamed the shared diff view's classes to `mw-diff-*`, including the ancestor selectors Coding's rules
-  // use; coding.css and the settings sheet that also embeds Coding's rules each grew by 24 bytes, so the first freeze is what
-  // this branch measures, not the pre-slice-2 number. (The coding.js bundle grew by 45 bytes and workbench.js by 642; both are
-  // existing assets, listed in the delivery comment and admitted by the merge queue, not here.)
-  "/assets/molis-work-plugins/coding.css": 74624,
-  "/assets/molis-work-plugins/cognia.css": 8283,
-  "/assets/molis-work-plugins/dataset.css": 6916,
-  "/assets/molis-work-plugins/files.css": 3199,
-  "/assets/molis-work-plugins/form.css": 8765,
-  "/assets/molis-work-plugins/git.css": 3197,
-  "/assets/molis-work-plugins/images.css": 7851,
-  "/assets/molis-work-plugins/jelly.css": 19603,
-  "/assets/molis-work-plugins/lingguang.css": 4505,
-  "/assets/molis-work-plugins/pages.css": 48265,
-  "/assets/molis-work-plugins/ppt.css": 7028,
-  "/assets/molis-work-plugins/schedule.css": 1269,
-  "/assets/molis-work-plugins/todo.css": 13175,
-  "/assets/molis-work-plugins/workflows.css": 40743,
+  // User-approved T403 split: owner client code and Feed styles load only inside their opaque plugin pages.
+  // Previous new-asset entries are already in the merge-base budget and are consumed.
+  "/assets/molis-work-plugins/feed.js": 35705,
+  "/assets/molis-work-plugins/feed.css": 43247,
+  "/assets/molis-work-plugins/inbox.js": 9288,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

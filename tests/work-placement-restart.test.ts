@@ -26,7 +26,8 @@ test("placement survives a restart: relations, a removed relation, a copy, a mov
   catalog.close();
   const token = "placement-restart-control-token-0123456789";
   const start = async () => {
-    const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home) });
+    const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home) });
+    const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");

@@ -89,8 +89,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await seed(databasePath);
   }
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
-    ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
+  if (completion !== undefined || functions || workspaceFor || pluginFixtures) {
+    localHost = new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
+      ...(projectId ? { actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), directory) } : {}) });
+    const withCatalog = localHost.configurePersonalPlanning(directory, withMolisWorkProjectCatalog);
+  }
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN, ...webOptions });
   const setFrameInitScript = observePluginFrames(server);

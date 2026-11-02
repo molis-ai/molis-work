@@ -155,10 +155,11 @@ export async function openTestHome(t: TestContext, options: { host?: Partial<Hos
     // Do not replace a supplied single-folder authority with the default Catalog list; explicit list options below still win.
     workspacesFor: workspaceFor
       ? async projectId => { const workspace = await workspaceFor(projectId); return workspace === null ? [] : [workspace]; }
-      : projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
-    ...(options.catalogPolicy === false ? {} : { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home) }),
+      : projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    ...(options.catalogPolicy === false ? {} : { actionAvailability: projectActionAvailability((settings, operation) => withCatalog(settings, operation), home) }),
     ...options.host,
   });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   let served: TestHostServer | undefined;
   t.after(async () => {
     const failures: unknown[] = [];

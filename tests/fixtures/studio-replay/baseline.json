@@ -155,8 +155,9 @@
       "reason": "细化方案：有 # 处要一起改：（#）组件 x 的 read 绑定了不存在的操作 x；（#）操作 x 没有任何组件使用；删掉它，或给它一个组件",
       "digest": "91bcbf2b91fffffb"
     },
-    "detail-284e713750c3": {
-      "pass": true,
+    "detail-284e713750c3-array-projection-required": {
+      "pass": false,
+      "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "ef3ef36fd9d6dee7"
     },
     "detail-2941a9ba3603": {
@@ -445,8 +446,9 @@
       "pass": true,
       "digest": "21c81e660a1e7a9f"
     },
-    "detail-88ea75bfc908": {
-      "pass": true,
+    "detail-88ea75bfc908-array-projection-required": {
+      "pass": false,
+      "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "4a847caaa87a3118"
     },
     "detail-8a2e4f8febaf": {
@@ -474,8 +476,9 @@
       "reason": "界面合同无效：组件 x：自动读取只能绑定查询操作",
       "digest": "88340b0ba0dd0dc4"
     },
-    "detail-8e59e6959a92": {
-      "pass": true,
+    "detail-8e59e6959a92-array-projection-required": {
+      "pass": false,
+      "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "ef198225c169126f"
     },
     "detail-94a4660ef511": {
@@ -1786,5 +1789,10 @@
       "reason": "rework 引用了不存在的操作：x",
       "digest": "bec264504f2f2cac"
     }
+  },
+  "retired": {
+    "detail-284e713750c3": "T412 RAC-2928：组件 log_list 读取 water.today 的 logs 包装数组却未声明 read.show 数组投影；旧接受预期收紧为明确设计拒绝，原答卷和上下文原样保留为 detail-284e713750c3-array-projection-required。",
+    "detail-88ea75bfc908": "T412 RAC-2928：组件 logs 读取 water.today 的 logs 包装数组却未声明 read.show 数组投影；旧接受预期收紧为明确设计拒绝，原答卷和上下文原样保留为 detail-88ea75bfc908-array-projection-required。",
+    "detail-8e59e6959a92": "T412 RAC-2928：组件 logs 读取 water.today 的 logs 包装数组却未声明 read.show 数组投影；旧接受预期收紧为明确设计拒绝，原答卷和上下文原样保留为 detail-8e59e6959a92-array-projection-required。"
   }
 }

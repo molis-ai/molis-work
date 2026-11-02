@@ -9,6 +9,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { feedManifest, feedSourceActions, feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { openTestHome } from "./fixtures/test-home.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested split restore; unsupported stored tabs are discarded instead of converted", { timeout: 120_000 }, async t => {
   const browser = await openAuditBrowser(t); if (!browser) return;
@@ -106,6 +107,8 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
   let chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
   try {
     let page = await chrome.page();
+    const frameBrowser = () => ({ command: chrome.command.bind(chrome), on: chrome.on.bind(chrome), evaluate: page.evaluate.bind(page), sessionId: page.sessionId });
+    const feed = await pluginFrameBrowser(t, frameBrowser(), "feed");
     const prefix = served.origin + "/projects/" + project.project_id + "/";
     const load = async (url: string) => {
       await page.command("Page.enable");
@@ -134,7 +137,6 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     assert.ok(reset.panes[0]!.tabs.every(tab => tab.kind === "home"));
     assert.equal(await page.evaluate(`sessionStorage.getItem(${JSON.stringify(ui)})`), null);
     assert.equal(await page.evaluate(`(sessionStorage.getItem(${JSON.stringify(history)})||'').includes('old-pane')`), false);
-    assert.notEqual(await page.evaluate("document.querySelector('[data-feed-search]')?.value"), "旧缓存不应应用");
     assert.equal(await page.evaluate("localStorage.getItem('molis-work-tab-workspace:other-project')"), "preserved");
     assert.equal(await page.evaluate("sessionStorage.getItem('molis-work-ui:other-project:current')"), "preserved");
     assert.deepEqual(await facts(), before);
@@ -148,13 +150,17 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
       await page.click('.plugin-rail-items [data-rail-tools-toggle]');
     }
     await page.click('[data-plugin-strip] [data-plugin-id="feed"]');
-    await page.wait(`Boolean(document.querySelector('[data-feed-task="${source.source_id}"]'))`);
-    await page.evaluate(`document.querySelector('[data-feed-task="${source.source_id}"]').click()`);
+    await feed.waitFor(`document.querySelector('[data-feed-task="${source.source_id}"]') && document.querySelector('[data-feed-search]')`);
+    assert.notEqual(await feed.evaluate("document.querySelector('[data-feed-search]').value"), "旧缓存不应应用");
+    await feed.click("[data-feed-source-menu] > summary");
+    await feed.click(`[data-feed-task="${source.source_id}"]`);
+    await page.wait(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)})),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.tabs.find(tab=>tab.id===pane.activeTabId)?.view===${JSON.stringify(source.source_id)};})()`);
     await page.click('[data-titlebar-tabs] [data-tab-split]');
     await page.click('[data-layout-split="right"]');
-    await page.wait("document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-feed-workbench]'))", { timeoutMs: 30_000 });
+    const feedPanes = "document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"] iframe[data-plugin-frame=feed]'))";
+    await page.wait(feedPanes, { timeoutMs: 30_000 });
     const saved = await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`);
-    const state = JSON.parse(saved) as { panes: Array<{ id: string; tabs: Array<{ plugin: string; kind: string; view?: string }> }> };
+    const state = JSON.parse(saved) as { panes: Array<{ id: string; activeTabId: string; tabs: Array<{ id: string; plugin: string; kind: string; view?: string }> }> };
     assert.equal(state.panes.length, 2);
     assert.ok(state.panes.some(pane => pane.tabs.some(tab => tab.plugin === "goals" && tab.kind === "item" && tab.view === "work")));
     assert.ok(state.panes.every(pane => pane.tabs.some(tab => tab.plugin === "feed" && tab.kind === "plugin" && tab.view === source.source_id)));
@@ -164,12 +170,14 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     await chrome.close();
     chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
     page = await chrome.page();
+    const restoredFeeds = [];
+    for (const pane of state.panes) restoredFeeds.push(await pluginFrameBrowser(t, frameBrowser(), "feed", `iframe.tab-content-frame[data-pane-owner="${pane.id}"][data-pane-tab="${pane.activeTabId}"]`));
     await load(prefix);
-    await page.wait("document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-feed-workbench]'))", { timeoutMs: 30_000,
+    await page.wait(feedPanes, { timeoutMs: 30_000,
       describe: `JSON.stringify({saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-feed-workbench]').length,
         frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,readyState:f.contentDocument?.readyState,feed:f.contentDocument?.querySelectorAll('[data-feed-workbench]').length}))})` });
     assert.deepEqual(JSON.parse(await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)), JSON.parse(saved), "a fresh browser process accepts the new layout without a second reset");
-    await page.wait(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument.querySelector('[data-feed-workbench]')?.dataset.selectedSource===${JSON.stringify(source.source_id)})`);
+    for (const restored of restoredFeeds) await restored.waitFor(`document.querySelector('[data-feed-workbench]')?.dataset.selectedSource===${JSON.stringify(source.source_id)}`);
     assert.deepEqual(await facts(), before, "Goal facts and Pages body/version/id and Feed source records are unchanged after reset and restart");
   } finally { await chrome.close(); }
 });

@@ -81,6 +81,21 @@ export function feedSources(page: FeedPage) {
     finally { try { check(); release(); } catch { /* No old-finally DOM writes. */ } }
   };
   const changed = async () => { host.invalidateView(); await page.refresh(); };
+  const openSource = (source: HTMLElement) => {
+    const id = source.dataset.sourceEntryId!;
+    page.select(id, "open"); host.openView({ surface: "source-workbench", id, intent: "select" });
+  };
+  page.listen("keydown", event => {
+    if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const source = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-source-entry-id]") : null;
+    const rows = all("[data-source-entry-id]").filter(row => row.checkVisibility());
+    const index = source ? rows.indexOf(source) : -1;
+    if (index < 0) return;
+    const next = event.key === "Home" ? rows[0] : event.key === "End" ? rows.at(-1) : rows[(index + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length];
+    if (!next) return;
+    event.preventDefault(); next.focus(); openSource(next);
+  });
   page.listen("change", event => {
     const mode = event.target instanceof HTMLSelectElement && event.target.matches("[data-source-schedule-mode]") ? event.target : null;
     if (!mode) return; const region = mode.closest("[data-feed-task-config],[data-source-detail]"); if (!region) return;
@@ -109,7 +124,7 @@ export function feedSources(page: FeedPage) {
     if (pick) { const region = pick.closest<HTMLElement>("[data-plugin-record-slot]"); if (!region) return true; await run(pick, async () => { const check = page.guard(), id = page.selection; const slot = JSON.parse(region.dataset.pluginRecordSlot!) as { slot_id: string; record_key: string }; const choice = await host.connectionSlot({ ...slot, mode: "choose", anchor: pick, signal: page.signal() }); check(); if (id !== page.selection || !choice) return; await changed(); page.select(id, "restore", "settings"); host.showToast(L(region.hasAttribute("data-feed-source-disconnected") ? "账号已保存。这个来源已断开，请点「恢复来源」再拉取。" : "账号已保存。")); }); return true; }
     const task = target.closest<HTMLElement>("[data-feed-task],[data-feed-task-toggle],[data-open-source-record]");
     if (task) { const id = task.dataset.feedTask || task.dataset.feedTaskToggle || task.dataset.openSourceRecord || "all"; page.select(id, "open"); host.openView({ surface: "workbench", id, intent: "open" }); return true; }
-    const source = target.closest<HTMLElement>("[data-source-entry-id]"); if (source) { const id = source.dataset.sourceEntryId!; page.select(id, "open"); host.openView({ surface: "source-workbench", id, intent: "select" }); return true; }
+    const source = target.closest<HTMLElement>("[data-source-entry-id]"); if (source) { openSource(source); return true; }
     const sourceFilter = target.closest<HTMLElement>("[data-source-filter],[data-source-filter-reset]"); if (sourceFilter) { filter = sourceFilter.dataset.sourceFilter || "all"; filterSources(); return true; }
     const tab = target.closest<HTMLElement>("[data-source-detail-tab]"); if (tab) { const area = tab.closest("[data-source-detail]"); if (area) { all("[data-source-detail-tab]", area).forEach(node => { const active = node === tab; node.classList.toggle("is-active", active); node.setAttribute("aria-selected", String(active)); }); all("[data-source-detail-panel]", area).forEach(node => node.hidden = node.dataset.sourceDetailPanel !== tab.dataset.sourceDetailTab); } return true; }
     const view = target.closest<HTMLElement>("button[data-feed-view]"); if (view) { show(view.dataset.feedView!); return true; }

@@ -232,7 +232,7 @@
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": {
       "kind": "cohesive-unit",
       "reason": "把一份设计答卷展开成插件的文件与验收用例：对零件、表单、读写操作和浏览器验收逐个生成，是一条代码生成流水线（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
-      "size": 225
+      "size": 228
     },
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "kind": "cohesive-unit",

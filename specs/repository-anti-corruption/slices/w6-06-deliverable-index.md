@@ -34,7 +34,7 @@
 
 仍开放的完成边界：
 
-- W4 真实模型生成 corpus 与真签包回放未核收；三 brief 的 designed 或原答卷 smoke 不抵证。
+- W4 计数器在原 `8315c693` 上已完成真实生成、四例完整数值验收、签包，以及独立安装／升级／Host 重启回放（`/tmp/codex-w6-closeout/w4-live-counter-submit-only-run1/independent-replay/RESULT.md`），不再重跑。清单单次生成于 2026-11-02 14:27Z 停止：首个空态界面断言失败，后续修复请求 11 次、用量回执 10 份，原件在 `w4-live-list-generate-run1`，清理完成；未签包或回放通过。W4 两样本整体仍未核收。T411 的真实隔离 smoke 已完成 2/2 设计冻结、3 次内置修正（`/tmp/t411-evidence/REAL-SMOKE-RESULT.md`）；它只证明设计生成，费用／用量 unknown，不替代真实包验收。
 - W6-05 场景4尚未执行。场景1已在 ef7719da 的原材料、提示词和断言下完成真实隔离安装、摘要、Todo 提取与采纳、普通及带日期待办创建、撤销和同一 work 回读，run3 于 2026-11-02 12:56Z 通过；其原两次失败保留，欢迎向导、受保护 Memory、真实 Home 与本人质量验收不由此签过。原件为 `/private/tmp/molis-minimax-01a19287/w605-scene1-run3/result.json`。其余场景沿各自已有结果，不由本稿重新签名。
 - 最终 F 及其 build／typecheck:all／boundary、CI／Full、适用 Mac 边界、场景适用性和能力／UI 差分未核收；旧头或不同切点的局部通过按实际差量沿用，不能改署 F。
 - 干净真实 Home 的搬开重建、安装／重开／使用、原恢复与本人验收仍未完成；沿原用户窗口，旧存量迁移不恢复。

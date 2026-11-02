@@ -3,8 +3,10 @@ import { test } from 'node:test';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import childProcesses from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
+import { assertContract, createSandboxRunner, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { currentCallId, newCallId, withCallId } from '@molis-ai/molis-work-kernel';
 
 const identity: SandboxIdentity = { projectId: 'project-a', installationId: 'installation-a', pluginId: 'test', namespace: 'preview' };
@@ -22,6 +24,30 @@ async function fixture(body: string, options: { effects?: SandboxEffects; grants
 }
 const mac = { skip: process.platform !== 'darwin' };
 const code = (expected: string) => (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error && error.code === expected);
+
+test('T405-FULL-04 unsupported platforms refuse a real sandbox runner before worker dispatch or SDK effects', { skip: process.platform === 'darwin' && 'Unsupported-platform refusal requires a non-macOS host' }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'sandbox-unsupported-')), bundlePath = join(directory, 'plugin.mjs');
+  const effects: SandboxEffects = { storage: ['write'] }, declared = contract(effects);
+  let dispatches = 0, writes = 0, runner: SandboxRunner | undefined;
+  const spawn = childProcesses.spawn;
+  const observedSpawn = t.mock.method(childProcesses, 'spawn', (...args: Parameters<typeof childProcesses.spawn>) => { dispatches++; return spawn(...args); });
+  syncBuiltinESMExports();
+  try {
+    assertContract(declared);
+    await writeFile(bundlePath, `export const operations={run:async(_,sdk)=>{await sdk.storage.set('probe','written');return ''}};`);
+    await assert.rejects(async () => {
+      runner = await createSandboxRunner({ bundlePath, contract: declared, identity, grants: effects, services: {
+        storage: { async transaction(_, mutate) { writes++; return mutate(new Map()); } },
+      } });
+      await runner.call('run', '');
+    }, { code: 'sandbox.unsupported_platform' });
+    assert.equal(dispatches, 0, 'unsupported admission does not launch a sandbox worker');
+    assert.equal(writes, 0, 'unsupported admission performs no SDK business writes');
+  } finally {
+    try { await runner?.stop(); }
+    finally { observedSpawn.mock.restore(); syncBuiltinESMExports(); await rm(directory, { recursive: true, force: true }); }
+  }
+});
 
 // J6-01/J6-03: actual process isolation remains the refusal boundary.
 test('real Seatbelt process has empty environment and cannot read/write host files or execute children', mac, async () => {

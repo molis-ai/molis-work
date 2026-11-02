@@ -83,6 +83,9 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 
 /** What the workflow said to Jev before the two sentences were registered, word for word. */
 
+// T405-FULL-04: real G1–G6 include the Seatbelt typecheck and sandbox workers.
+const nativeBuildChecks = { skip: process.platform !== 'darwin' && 'Real G1–G6 require macOS Seatbelt (/usr/bin/sandbox-exec)' };
+
 async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
   let closeStudio: (() => Promise<void>) | undefined, server: ReturnType<typeof createServer> | undefined;
   t.after(async () => {
@@ -190,7 +193,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   };
 }
 
-test('RAC-2931 RAC-2932 real Host revision preserves shared sources and operation mappings without rewriting correct code', { timeout: 120_000 }, async t => {
+test('RAC-2931 RAC-2932 real Host revision preserves shared sources and operation mappings without rewriting correct code', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
   const f = await revisionHelperStudio(t), old = f.rootFor(f.current);
   const oldList = await fs.readFile(join(old, 'src/operations/0.ts'), 'utf8'), oldAdd = await fs.readFile(join(old, 'src/operations/1.ts'), 'utf8');
   await fs.chmod(join(old, 'src/index.ts'), 0o600); await fs.writeFile(join(old, 'src/index.ts'), 'throw new Error("OLD_INDEX_MUST_NOT_COPY");\n');
@@ -212,7 +215,7 @@ test('RAC-2931 RAC-2932 real Host revision preserves shared sources and operatio
   assert.match(f.coded[2]!.before, /NOT_IMPLEMENTED/);
 });
 
-test('RAC-2933 real Host revision rejects shared source file and directory links without reading outside', { timeout: 120_000 }, async t => {
+test('RAC-2933 real Host revision rejects shared source file and directory links without reading outside', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
   const f = await revisionHelperStudio(t), directory = f.rootFor(f.current), outside = join(f.f.home, 'outside');
   await fs.mkdir(outside); await fs.writeFile(join(outside, 'private.ts'), 'OUTSIDE_BYTES');
   for (const kind of ['file', 'directory'] as const) {
@@ -230,7 +233,7 @@ test('RAC-2933 real Host revision rejects shared source file and directory links
   }
 });
 
-test('RAC-2933 real Host revision rejects a non-regular shared source before reading', { timeout: 120_000 }, async t => {
+test('RAC-2933 real Host revision rejects a non-regular shared source before reading', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
   const f = await revisionHelperStudio(t), directory = f.rootFor(f.current);
   execFileSync('mkfifo', [join(directory, 'src/blocked.ts')]);
   const rejected = await f.revise();
@@ -238,7 +241,7 @@ test('RAC-2933 real Host revision rejects a non-regular shared source before rea
   assert.equal(f.coded.length, 2, 'non-regular reuse fails without asking coder to hide it');
 });
 
-test('RAC-2932 real Host revision with no reusable operations implements new contracts without reading old helpers', { timeout: 120_000 }, async t => {
+test('RAC-2932 real Host revision with no reusable operations implements new contracts without reading old helpers', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
   const f = await revisionHelperStudio(t), old = f.rootFor(f.current), outside = join(f.f.home, 'private.ts');
   await fs.writeFile(outside, 'OUTSIDE_BYTES'); await fs.unlink(join(old, 'src/store.ts'));
   await fs.symlink(outside, join(old, 'src/store.ts'));
@@ -1547,7 +1550,7 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   await installed.wait(`document.querySelector('[data-component-id="notes"]')?.innerText.includes('Saved through the signed Home plugin')`);
 });
 
-test('RAC-2935 RAC-2936 RAC-2937 real Host negative trials use native refusal, one read fault, retry and isolated cleanup', { timeout: 120_000 }, async t => {
+test('RAC-2935 RAC-2936 RAC-2937 real Host negative trials use native refusal, one read fault, retry and isolated cleanup', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
   const f = await revisionHelperStudio(t, { browserExecutable: dedicatedBuilderBrowser(), browserPassed: false, probeTrials: true, configure(answer) {
     const page = answer.design.pages[0];
     page.parts.find((part: { id: string }) => part.id === 'editor').props.requiredText = '正文不能为空';
@@ -1599,7 +1602,7 @@ test('RAC-2934 batch repair receives all actual failures once and isolation fail
   }
 });
 
-test('RAC-2937 a held real trial call cannot write or create a runner after its case resets', { timeout: 120_000 }, async t => {
+test('RAC-2937 a held real trial call cannot write or create a runner after its case resets', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
   const held = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let hold = false, visits = 0, outcome: { error?: unknown } | undefined;
   let pending: Promise<{ error?: unknown }> | undefined;

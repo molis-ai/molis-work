@@ -8,8 +8,8 @@ import test, { type TestContext } from "node:test";
 import Database from "better-sqlite3";
 import { WebSocket } from "ws";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, hostDependencyCheck, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, captureHostLog, hostDependencyCheck, runningProjectPlatform, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -656,6 +656,104 @@ test("RAC-2569 S-103 a terminal's record is its installation's, project's and pe
     assert.equal(catalog.terminalPanels.get(homePanel)?.project_id, null, "a Home call's record has no project");
     assert.equal(catalog.terminalPanels.listIds(project.project_id).includes(homePanel), false, "a project does not count a Home terminal");
   });
+});
+
+test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real SQLite failure and recovers without changing its record or process", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchcatalog");
+  const f = await open(t, [probe]), project = await f.project("终端目录恢复");
+  const { folder, workspace_id } = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe);
+  const marker = f.marker(), panelId = panelOf(install.install_id, project.project_id, "kept");
+  assert.equal((await run(f, probe, "project", "run", own => opened(own,
+    { ...launch(f, "kept", marker, { root: "workspace", workspace_id }), subject: "kept-subject" }), { project })).outcome, "ok");
+  assert.equal(await ranIn(marker), folder);
+  const list = () => run(f, probe, "project", "query", own => own.terminal!.list({ subject: "kept-subject" }), { project });
+  const before = await list();
+  assert.equal(before.outcome, "ok", before.message);
+  assert.deepEqual((before.value as Array<Record<string, unknown>>).map(({ created_at: _created, ...row }) => row),
+    [{ key: "kept", panelId, title: "探针", runtime: "command", program: { command: f.program, args: [marker] }, subject: "kept-subject", running: true }]);
+  const snapshot = () => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+    ({ ids: catalog.terminalPanels.listIds(project.project_id), record: catalog.terminalPanels.get(panelId) }));
+  const records = await snapshot(), logged: HostLogEntry[] = [];
+  let observed: unknown;
+  const failed = await run(f, probe, "project", "query", async own => {
+    // Break the actual list query in the isolated catalog; keep its data and restore with the Host's SQLite binding.
+    const db = new Database(join(f.home, "projects", "catalog.db"));
+    db.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id TO actor_id_hidden"); db.close();
+    const stopCapturing = captureHostLog(logged);
+    try { return await own.terminal!.list({ subject: "kept-subject" }); }
+    catch (error) { observed = error; throw error; }
+    finally {
+      stopCapturing();
+      const back = new Database(join(f.home, "projects", "catalog.db"));
+      try { back.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id_hidden TO actor_id"); } finally { back.close(); }
+    }
+  }, { project });
+  assert.equal(failed.outcome, "actions.unavailable", failed.message);
+  assert.ok(observed instanceof ActionError, "the plugin sees the availability error, not SQLite");
+  assert.equal(observed.message, "项目目录暂时读不到");
+  assert.equal(observed.details, undefined); assert.equal(observed.cause, undefined);
+  assert.doesNotMatch(JSON.stringify(observed) + observed.message, /catalog\.db|actor_id|SQLITE|home-runtime-|\/(?:Users|private|var)\//u);
+  assert.equal(logged.length, 1);
+  const warning = logged[0]!;
+  assert.equal(warning.level, "warn"); assert.equal(warning.area, "terminal"); assert.equal(warning.event, "catalog_unreadable");
+  assert.deepEqual(warning.error, { name: "SqliteError", code: "SQLITE_ERROR" });
+  assert.equal(warning.fields, undefined);
+  assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|actor_id|home-runtime-|\/(?:Users|private|var)\//u);
+  assert.deepEqual(await list(), before, "the same plugin action reads its unchanged row after recovery");
+  assert.deepEqual(await snapshot(), records, "no record was added, removed or rewritten");
+  assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, "the existing process still runs");
+  assert.equal(await ranIn(marker), folder);
+});
+
+test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a read cancelled or revoked during its catalog await", { timeout: 90_000 }, async t => {
+  const probe = launchProbe("launchcatalogguard");
+  const f = await open(t, [probe]), project = await f.project("终端目录读取中撤权");
+  await grantInProject(f, project, probe);
+  let fault: ActionError | undefined;
+  let gate: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred>; error?: Error } | undefined;
+  f.host.configurePersonalPlanning(f.home, async (options, read) => {
+    const error = fault; fault = undefined;
+    if (error) throw error;
+    const held = gate; gate = undefined;
+    if (held) { held.entered.resolve(); await held.release.promise; if (held.error) throw held.error; }
+    return withMolisWorkProjectCatalog(options, read);
+  });
+  const sentinel = new ActionError("actions.conflict", "controlled catalog refusal", { kind: "conflict" });
+  let observed: unknown;
+  const rejected = await run(f, probe, "project", "query", async own => {
+    fault = sentinel;
+    try { return await own.terminal!.list(); } catch (error) { observed = error; throw error; }
+  }, { project });
+  assert.equal(rejected.outcome, "actions.conflict"); assert.strictEqual(observed, sentinel);
+  assert.equal(sentinel.code, "actions.conflict"); assert.equal(sentinel.kind, "conflict");
+  for (const [invalidation, failedRead] of [["cancel", false], ["cancel", true], ["terminal:run", false], ["terminal:run", true]] as const) {
+    const { platform, install } = await grantInProject(f, project, probe);
+    const held = { entered: deferred(), release: deferred(), error: failedRead ? new Error("catalog read failed while invalidated") : undefined };
+    const finished = deferred(), controller = new AbortController();
+    const caller = await f.host.localPersonContext(project.reference, controller.signal);
+    let value: unknown; observed = undefined;
+    const pending = run(f, probe, "project", "query", async own => {
+      gate = held;
+      try { value = await own.terminal!.list(); return value; }
+      catch (error) { observed = error; throw error; }
+      finally { finished.resolve(); }
+    }, { project, caller });
+    try {
+      assert.equal(await Promise.race([held.entered.promise.then(() => "entered"), pending.then(answer => JSON.stringify(answer))]), "entered");
+      const invalidated = invalidation === "cancel" ? (controller.abort(), Promise.resolve()) : platform.runtime.regrant(install.install_id, TERMINAL, false);
+      held.release.resolve();
+      const answer = await pending; await invalidated; await finished.promise;
+      const expected = invalidation === "cancel" ? { outcome: String(DOMException.ABORT_ERR), message: "This operation was aborted" }
+        : { outcome: "actions.forbidden", message: "此插件实例已停止，请重新打开" };
+      assert.deepEqual(answer, expected, invalidation);
+      assert.ok(observed instanceof Error && "code" in observed);
+      assert.equal(String(observed.code), expected.outcome, "the service itself refuses; the kernel did not merely hide a list result");
+      assert.equal(observed.message, expected.message); assert.equal(value, undefined, "neither rows nor an empty list escaped");
+      if (invalidation === "cancel") assert.strictEqual(observed, controller.signal.reason, "the original cancellation wins even if the read fails");
+      await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), []));
+    } finally { held.release.resolve(); gate = undefined; }
+  }
 });
 
 test("RAC-2560 S-103 the terminal channel only attaches: a control-token connection that asks to start a program, leaves out attachOnly, adds a key or sends a size out of bounds is refused and starts nothing", { timeout: 60_000 }, async t => {

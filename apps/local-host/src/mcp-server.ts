@@ -85,9 +85,9 @@ export class LocalMcpServer {
     this.localHost = localHost ?? createMolisWorkLocalHost(this.actionServiceUrl ? {} : {
       homeDirectory: this.runtimeContextHost?.homeDirectory,
       sceneAvailability: this.runtimeContextHost?.homeDirectory
-        ? projectActionAvailability(this.withCatalog, this.runtimeContextHost.homeDirectory) : undefined,
+        ? projectActionAvailability((settings, operation) => this.withCatalog(settings, operation), this.runtimeContextHost.homeDirectory) : undefined,
       actionAvailability: this.runtimeContextHost?.homeDirectory
-        ? projectActionAvailability(this.withCatalog, this.runtimeContextHost.homeDirectory) : undefined,
+        ? projectActionAvailability((settings, operation) => this.withCatalog(settings, operation), this.runtimeContextHost.homeDirectory) : undefined,
       ...(this.runtimeContextHost?.homeDirectory ? { workspacesFor: (projectId: string) => this.withCatalog(
         { homeDirectory: this.runtimeContextHost!.homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)) } : {}),
     });

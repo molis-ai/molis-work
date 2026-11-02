@@ -63,7 +63,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
-    const withCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
+    const baseCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
+    let boundCatalog: LocalWebCatalogRunner | undefined;
+    const withCatalog: LocalWebCatalogRunner = (settings, operation) => (boundCatalog ?? baseCatalog)(settings, operation);
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
     const catalogAvailability = projectActionAvailability(withCatalog, storageHome);
@@ -102,7 +104,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     let releaseTransport: (() => void) | undefined;
     try {
     // The Host, including a borrowed one, cannot relinquish its lease while this transport still owns storage.
-    localHost.configurePersonalPlanning(storageHome, withCatalog);
+    boundCatalog = localHost.configurePersonalPlanning(storageHome, baseCatalog);
     releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
     if (platform.openCatalog) catalogAccess = localHost.ensureWebCatalog(storageHome, platform.openCatalog);
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });

@@ -36,7 +36,8 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
     frameEvents.push({ method, session, frame: params.frame, frameId: params.frameId, reason: params.reason });
     if (frameEvents.length > 12) frameEvents.shift();
   }));
-  t.signal.addEventListener('abort', () => t.diagnostic('T405 Goals beside CORE aborted ' + JSON.stringify({ phases, frameEvents })), { once: true });
+  let settled = false;
+  t.signal.addEventListener('abort', () => { if (!settled) t.diagnostic('T405 Goals beside CORE aborted ' + JSON.stringify({ phases, frameEvents })); }, { once: true });
   try {
   const coreTitle = "让每项工作都有可信的完成依据";
   const coreOutcome = "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成";
@@ -130,7 +131,7 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
     const state = await command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')}))})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,surface:f.contentDocument?.body?.dataset.desktopSurface,roots:[...f.contentDocument?.querySelectorAll('[data-ui-client-state]')||[]].map(r=>({state:r.dataset.uiClientState,plugin:r.dataset.pluginOwner,page:r.dataset.pluginPage,hidden:r.hidden})),children:[...f.contentDocument?.querySelectorAll('iframe[data-plugin-frame]')||[]].map(c=>({surface:c.dataset.pluginFrame,src:c.src,connected:c.isConnected}))}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
     t.diagnostic('T405 Goals beside CORE failed ' + JSON.stringify({ phases, frameEvents, state }));
     throw error;
-  }
+  } finally { settled = true; }
 });
 
 test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab of a real structured frame", { timeout: 90_000 }, async t => {

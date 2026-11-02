@@ -140,6 +140,8 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
     draftFrame.dataset.t403DraftFrame = "true";
   })()`);
   await child.waitFor("document.querySelector('[data-feed-rail-toggle]')");
+  // T405-FULL-03: server HTML exists before the opaque client's factory has installed its handlers.
+  await waitFor("(()=>{const root=document.querySelector('iframe[data-t403-draft-frame]')?.contentDocument?.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"]');return root?.dataset.uiClientState==='ready' && !root.inert;})()");
   await child.evaluate("document.querySelector('[data-feed-source-menu]').open=true;document.querySelector('[data-feed-source-rail] header [data-feed-add-toggle]').click()");
   try { await child.waitFor("document.querySelector('[data-feed-sources-dialog]')?.hidden === false && document.querySelector('[data-feed-workbench]')?.dataset.feedView === 'add'"); }
   catch (error) {
@@ -186,7 +188,6 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   const { evaluate, waitFor, openGoalFrame, command, sessionId, navigate, origin, projectId } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", {source:"window.t403RelatedErrors=[];const record=error=>{t403RelatedErrors.push(String(error).slice(0,200));t403RelatedErrors.splice(0,Math.max(0,t403RelatedErrors.length-8));};addEventListener('error',event=>record(event.message));addEventListener('unhandledrejection',event=>record(event.reason));"}, sessionId);
   const click = async (selector: string) => {
-    t.diagnostic(`Related Goal pane mouse target: ${selector}`);
     await browser.click(selector);
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -221,7 +222,6 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
     try { t.diagnostic('T405 related Goal ' + phase + ' ' + JSON.stringify(await observePaneFailure(relatedState))); }
     catch (observation) { t.diagnostic('T405 related Goal ' + phase + ' diagnostic unavailable: ' + String(observation)); }
   };
-  await relatedDiagnostic('before adoption');
   try { await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal===${JSON.stringify(relatedId)})`, 8_000); }
   catch(error){await relatedDiagnostic('business wait failed');throw error;}
   const adopted = await evaluate<{core:boolean;active:string}>(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),pane=state.panes.find(pane=>pane.id===originalFrame.dataset.paneOwner);return {core:pane.tabs.some(tab=>tab.kind==='item'&&tab.plugin==='goals'&&tab.itemId==='CORE'),active:pane.tabs.find(tab=>tab.id===pane.activeTabId)?.itemId}})()`);

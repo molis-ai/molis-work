@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openAuditBrowser } from "./fixtures/workbench-audit-browser.js";
 import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
@@ -206,5 +207,9 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     assert.deepEqual(JSON.parse(await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)), JSON.parse(saved), "a fresh browser process accepts the new layout without a second reset");
     for (const restored of restoredFeeds) await restored.waitFor(`document.querySelector('[data-feed-workbench]')?.dataset.selectedSource===${JSON.stringify(source.source_id)}`);
     assert.deepEqual(await facts(), before, "Goal facts and Pages body/version/id and Feed source records are unchanged after reset and restart");
-  } finally { await chrome.close(); }
+  } finally {
+    await chrome.close();
+    // T405-FULL-03: this restart profile is caller-owned until both browser processes have closed.
+    await rm(profileDirectory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  }
 });

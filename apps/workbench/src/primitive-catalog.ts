@@ -80,7 +80,6 @@ export function renderMolisWorkBarSpecimen(): string {
 
 function renderBarSection(): string {
   return `<section class="mw-catalog__section" id="bar" data-primitive="bar"><h2>底栏与浮层</h2>
-    <p class="mw-catalog__hint">Workbench 组合的常驻底栏，在它自己的工作台环境里（与工作台同一份标记、样式与层叠）：左侧 Dock 菜单与常驻插件，中间插件切换与 Assistant 输入，右侧 Shelf、灵光、项目讨论与项目。菜单都从底栏向上长出；悬停出现提示，按下回弹，当前项是一小块抬起的工作面加铜色小点。可直接操作。</p>
     <iframe class="mw-catalog-bar-frame" src="/__ui/catalog/bar" title="底栏与浮层样例" loading="lazy"></iframe>
   </section>`;
 }
@@ -196,6 +195,14 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: "系统", current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
+  const skins = renderToggleGroup({
+    label: "皮肤",
+    items: [
+      { value: "soft", label: "默认", current: true, attrs: { "data-skin-option": "soft" } },
+      { value: "tray", label: "托盘", attrs: { "data-skin-option": "tray" } },
+      { value: "pill", label: "圆润", attrs: { "data-skin-option": "pill" } },
+    ],
+  });
   const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins() })
     .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
@@ -212,11 +219,8 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
   <header class="mw-catalog-top">
-    <div>
-      <h1>Molis Work 组件板</h1>
-      <p>Soft Workbench · 真实生产组件与组合 · HTML Slot 契约。开发工具，不进用户导航。</p>
-    </div>
-    <div class="mw-catalog-top__tools">${languages}${themes}</div>
+    <h1>Molis Work 组件板</h1>
+    <div class="mw-catalog-top__tools">${languages}${themes}${skins}</div>
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>

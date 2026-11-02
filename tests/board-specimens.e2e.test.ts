@@ -33,7 +33,7 @@ test("VUX-39 the board switches its own language, and its plugin rows are Shelf'
     frames: ['[data-cond-frame]', '[data-asst-frame]', '[data-rows-frame]'].map((s) => new URL(document.querySelector(s).src).searchParams.get('lang')) }))()`);
   assert.deepEqual(board, { lang: "en", current: "en", sections: ["Conditions and states", "Assistant information and works", "Plugin rows"], frames: ["en", "en", "en"] });
   // Its words are English; only the language switch names 中文 in its own language, as the product's switch does.
-  assert.equal(CJK.test(await evaluate<string>("[...document.querySelectorAll('#plugin-rows h2, #plugin-rows .mw-catalog__hint, #plugin-rows .mw-cond-param > span, #plugin-rows [data-cond-param]:not([data-cond-value=zh])')].map((n) => n.textContent).join(' ')")), false,
+  assert.equal(CJK.test(await evaluate<string>("[...document.querySelectorAll('#plugin-rows h2, #plugin-rows .mw-cond-param > span, #plugin-rows [data-cond-param]:not([data-cond-value=zh])')].map((n) => n.textContent).join(' ')")), false,
     "the plugin rows section has no Chinese in English");
   await waitFor(ready("lang=en"), 20_000);
 

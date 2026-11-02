@@ -51,7 +51,8 @@ export const PRIMITIVE_STYLES = `
   .mw-btn svg { width: 14px; height: 14px; flex: none; }
   .mw-btn--sm { min-height: 28px; }
   .mw-btn--md { min-height: 32px; }
-  .mw-btn--lg { min-height: 36px; padding-inline: 16px; }
+  .mw-btn--lg { min-height: 36px; padding-inline: 16px; font-size: 15px; }
+  .mw-btn--lg svg { width: 16px; height: 16px; }
   .mw-btn--icon, .mw-btn--icon-only {
     width: var(--control-h, 28px);
     min-width: var(--control-h, 28px);
@@ -127,10 +128,11 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-btn--link:active:not(:disabled) { color: var(--accent-strong, var(--accent)); }
   .mw-btn--link:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }
-  .mw-btn:disabled {
-    cursor: not-allowed;
-    opacity: .42;
-  }
+  /* Disabled stays legible: a filled button fades whole and drops its lift; a wash, ghost, outline or link keeps its
+     ground and only its ink goes faint, so it never vanishes into the sheet. */
+  .mw-btn:disabled { cursor: not-allowed; opacity: .42; box-shadow: none; }
+  .mw-btn:disabled:not(.mw-btn--primary, .mw-btn--danger, [data-loading]) { opacity: 1; color: var(--faint); }
+  .mw-btn--danger-outline:disabled { border-color: var(--line); }
   .mw-btn--primary:disabled,
   .mw-btn--primary[data-loading] {
     border-color: var(--action);
@@ -146,6 +148,11 @@ export const PRIMITIVE_STYLES = `
   .mw-btn[data-loading] { pointer-events: none; opacity: 1; }
   .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; animation: mw-loading-out var(--dur-move) var(--ease-quint) var(--dur-move) backwards; }
   .mw-btn[data-loading] > .mw-spinner { position: absolute; visibility: visible; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
+  /* With an icon the button keeps its words while it works: the spinner takes the icon's slot, so the width holds. */
+  .mw-btn > .mw-spinner { display: inline-grid; place-items: center; width: 16px; height: 16px; }
+  .mw-btn[data-loading]:has(> svg) > [data-slot="button-label"] { visibility: visible; animation: none; }
+  .mw-btn[data-loading] > svg { display: none; }
+  .mw-btn[data-loading]:has(> svg) > .mw-spinner { position: static; width: 14px; height: 14px; }
   @keyframes mw-loading-out { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
 
   .mw-input, .mw-textarea, .mw-select {
@@ -278,7 +285,12 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-field__label { display: flex; align-items: baseline; gap: 8px; color: var(--ink); font-weight: var(--weight-control, 500); }
   .mw-field__label small, .mw-field__hint { color: var(--muted); font-weight: 400; font-size: 12px; line-height: 1.6; }
-  .mw-field__error { margin: 0; color: var(--red); font-size: 12px; line-height: 1.6; }
+  /* An error says so in shape as well as colour: an alert glyph leads the message, centred on its first line. */
+  .mw-field__error { display: flex; gap: 6px; margin: 0; color: var(--red); font-size: 12px; line-height: 1.6; }
+  .mw-field__error::before {
+    --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 7.5v5M12 16.5h.01'/%3E%3C/svg%3E") center / 13px no-repeat;
+    content: ""; flex: none; width: 13px; height: 19px; background: currentColor; -webkit-mask: var(--glyph); mask: var(--glyph);
+  }
   .mw-fieldset {
     border: 0; padding: 0; display: grid; gap: 8px;
   }
@@ -305,7 +317,8 @@ export const PRIMITIVE_STYLES = `
 
   .mw-badge {
     display: inline-flex; align-items: center; gap: 4px; min-height: 18px; padding: 0 8px;
-    border: 0; border-radius: 6px; font-size: 11px; font-weight: var(--weight-control, 500);
+    border: 0; border-radius: 6px; font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
     background: color-mix(in srgb, var(--status-tone, var(--ink)) 10%, transparent);
     color: var(--status-tone, var(--ink-soft));
   }
@@ -449,6 +462,16 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-menu__item svg { width: 16px; height: 16px; color: var(--ink-soft); flex: none; }
   .mw-menu__item--danger svg { color: var(--red); }
+  /* One text column: once any item leads with a glyph, an item without one starts where the words do. */
+  .mw-menu:has(.mw-menu__item > svg:first-child) .mw-menu__item:not(:has(> svg:first-child, > .mw-menu__check)) { padding-left: 36px; }
+  .mw-menu__item > [data-slot="menu-item-label"] { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mw-menu__check { display: inline-grid; flex: none; place-items: center; width: 16px; height: 16px; }
+  .mw-menu__check svg { color: var(--ink); }
+  .mw-menu__shortcut { flex: none; margin-left: 16px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mw-menu__item:disabled { background: transparent; color: var(--faint); cursor: default; }
+  .mw-menu__item:disabled :is(svg, .mw-menu__shortcut) { color: var(--faint); }
+  .mw-menu__label { padding: 4px 12px 2px; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 20px; }
+  .mw-menu__group + .mw-menu__group::before { content: ""; display: block; margin: 4px 8px; border-top: 1px solid var(--line); }
   .mw-tooltip {
     padding: 4px 8px; border-radius: 6px; background: var(--action); color: var(--action-ink);
     font-size: 11px; line-height: 1.4;
@@ -523,6 +546,9 @@ export const PRIMITIVE_STYLES = `
     background: var(--paper); color: var(--ink);
     box-shadow: var(--shadow-soft);
   }
+  /* A toggle on its own is a tool, not a slot in a track: ghost at rest, --nav-active when on, like a pressed bar tool. */
+  .mw-toggle:not(.mw-toggle-group .mw-toggle) { min-height: 28px; font-size: 13px; color: var(--ink-soft); }
+  .mw-toggle.is-current:not(.mw-toggle-group .mw-toggle) { background: var(--nav-active); color: var(--ink); box-shadow: none; }
   /* Choice: a few options side by side; the chosen one is graphite with its check. */
   .mw-choice-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
   .mw-choice {
@@ -813,7 +839,10 @@ export const PRIMITIVE_STYLES = `
   .mw-card__title { margin: 0; font-size: 15px; font-weight: var(--weight-control, 500); }
   .mw-card__description { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
   .mw-card__panel { padding: 12px 16px 16px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
-  .mw-card__footer { padding: 0 16px 16px; color: var(--muted); font-size: 12px; }
+  /* The card's padding is its only rhythm: a paragraph's own margins never add to it, and footer actions sit 8px apart. */
+  .mw-card__panel > :first-child { margin-top: 0; }
+  .mw-card__panel > :last-child { margin-bottom: 0; }
+  .mw-card__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 16px; color: var(--muted); font-size: 12px; }
   .mw-card--tile {
     border: 0; background: transparent; overflow: visible; width: auto; display: block;
   }
@@ -1000,13 +1029,13 @@ export const PRIMITIVE_STYLES = `
   }
   body.mw-catalog-page .mw-catalog {
     min-height: 0; overflow: auto; overscroll-behavior: contain;
+    margin: 0 12px 12px; border-radius: var(--r-sheet, 14px); background: var(--paper); box-shadow: var(--sheet-shadow, var(--surface-shadow));
   }
   .mw-catalog-top {
     display: flex; justify-content: space-between; align-items: center; gap: 16px;
     padding: 16px 32px; border-bottom: 0; background: var(--page);
   }
   .mw-catalog-top h1 { margin: 0; font-size: 17px; font-weight: var(--weight-title, 600); }
-  .mw-catalog-top p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 
   .mw-dir { display: flex; flex-direction: column; min-width: 0; }
   .mw-dir__tools {

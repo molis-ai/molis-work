@@ -242,11 +242,21 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// T-176 (MISC:45), RAC-1841–1844: the 灵光 page cuts the title of a reading, a file's name and the title and text of its "convert to todo"
-// button by whole characters instead of UTF-16 units, +57 B on this one asset (a spread and a join at two sites, one trailing-surrogate
-// check). Tried: one shared cut function costs its own definition, about what the two inline sites cost; no new asset.
+// Component skins (DESIGN「皮肤」, the board upgrade of 2026-10-30): the Tray and Pill layer (design-system styles/skins.ts, its toast
+// rule in toast.ts) closes each of the three page sheets, +7301 B on each, and the page script reads, applies and follows the skin
+// preference, +765 B on workbench.js.
+// The default components' details (DESIGN「Buttons」「Fields」「Menus」「Toasts」「Tables and cards」: legible disabled buttons, a
+// loading button that keeps its words, the alert glyph on field errors, menu shortcuts, groups, checkbox and disabled items) add
+// +2596 B on each sheet, +9897 B on each in all, under the 10 KB line.
+// Tried: each rule is written once for both skins over shared `--sk-*` tokens, and Soft Workbench draws nothing; the board's new
+// composed patterns stay out of the served sheets (inlined on the board page until a product page uses them); no new asset; the
+// error glyph's data URI is written once for both mask properties, and two polish rules (glyphs turning ink on hover, shortcut
+// tracking) were dropped to stay under the line.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/lingguang.js": [23116, 23173],
+  "/assets/molis-work-arrival.css": [681487, 691384],
+  "/assets/molis-work-settings.css": [932843, 942740],
+  "/assets/molis-work-workbench.css": [1236101, 1245998],
+  "/assets/molis-work-workbench.js": [1148981, 1149746],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -10,6 +10,7 @@ import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
 import { advancedFieldSection, badgeSection, buttonSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
+import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
   "accordion", "alert", "alert-dialog", "autocomplete", "avatar", "badge", "breadcrumb", "button",
@@ -47,7 +48,7 @@ function paletteSection(): string {
   const status = MW_STATUS_TONES.map((item) => swatch(item.token, item.label, item.role)).join("");
   const content = MW_CONTENT_SURFACES.map((item) => swatch(item.token, item.label, item.role)).join("");
   const marks = MW_CONTENT_MARKS.map((mark) => swatch(`--mark-${mark.id}`, mark.label, mark.role, `--mark-${mark.id}-fill`)).join("");
-  return section("palette", "色板", `<p class="mw-catalog__hint">珍珠灰桌面上一张连续的白色工作面；石墨是主操作与选中，铜色只标焦点、链接和进行中。插件不带身份色，颜色只表达状态与选中。</p><div class="mw-catalog__specimens">
+  return section("palette", "色板", `<div class="mw-catalog__specimens">
     ${specimen("平面", `<div class="mw-swatch-row">${surfaces}</div>`)}
     ${specimen("字", `<div class="mw-swatch-row">${type}</div>`)}
     ${specimen("动作与强调", `<div class="mw-swatch-row">${action}</div>`)}
@@ -59,7 +60,7 @@ function paletteSection(): string {
 }
 
 function typefaceSection(): string {
-  return section("typeface", "字体", `<p class="mw-catalog__hint">系统无衬线与平台自带中文字体（Apple 为 SF 与苹方，Windows 为 Segoe UI 与微软雅黑）；Inter Variable 与 Noto Sans SC 只作离线后备，字重不合成。正文 400，控件与条目 500，标题 600；代码、终端与 diff 用等宽。</p><div class="mw-catalog__specimens">
+  return section("typeface", "字体", `<div class="mw-catalog__specimens">
     ${specimen("字重角色", `<div class="mw-type-sample">
       <p class="mw-type-sample__display">今天的工作</p>
       <p class="mw-type-sample__title">打磨 Molis Work 的第一印象</p>
@@ -67,6 +68,11 @@ function typefaceSection(): string {
       <p class="mw-type-sample__body">把布局、文字和每一次交互收成一个完整的体验。Molis Work keeps goals, sessions and sources on one surface.</p>
       <p class="mw-type-sample__caption">星期一，9 月 28 日 · 3 / 5 完成依据</p>
       <p class="mw-type-sample__mono"><code>pnpm --filter ./packages/design-system run build</code></p>
+    </div>`)}
+    ${specimen("字体栈", `<div class="mw-type-sample">
+      <p class="mw-type-sample__item">SF · 苹方 <span class="mw-type-sample__caption">Apple</span></p>
+      <p class="mw-type-sample__item">Segoe UI · 微软雅黑 <span class="mw-type-sample__caption">Windows</span></p>
+      <p class="mw-type-sample__item">Inter Variable · Noto Sans SC <span class="mw-type-sample__caption">离线后备 · 字重不合成</span></p>
     </div>`)}
   </div>`);
 }
@@ -88,7 +94,7 @@ function craftSection(): string {
     `<tr><td><code>--ease-quint</code></td><td>cubic-bezier(.22, 1, .36, 1)</td><td>到达、移动、展开、离开——除按下回弹外的一切</td></tr><tr><td><code>--ease-spring</code></td><td>cubic-bezier(.2, 1.35, .4, 1)</td><td>只用于按下后的回弹与勾选落定</td></tr>`;
   const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
     .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<span>${escape(name)}</span></span>`).join("");
-  return section("craft", "空间 · 层次 · 动效", `<p class="mw-catalog__hint">珍珠灰桌面承载标题栏与常驻底栏；工作是一张连续的白色工作面，插件目录是工作面里的一列。普通内容靠间距、字重与少量分隔线组织；只有抬升的东西——输入条、当前 Dock 项、菜单、对话框、Toast——才有柔和阴影，浮层不再同时画描边。按下回弹，状态 250ms 过渡，内容到达时上浮淡入；减少动态效果时全部静止。</p>
+  return section("craft", "空间 · 层次 · 动效", `
     <div class="mw-catalog__specimens">
       ${specimen("空间 · 桌面、工作面与常驻底栏", `<div class="mw-craft-space" aria-hidden="true"><i class="mw-craft-space__dir"></i><div class="mw-craft-space__main"><i class="mw-craft-space__tabs"></i><div class="mw-craft-space__sheet"><b></b><b></b><b></b></div></div><div class="mw-craft-space__bar"><i></i><em></em><i></i></div></div>`)}
       ${specimen("层次：工作面、抬升与浮层", `<div class="mw-craft-row">${lifts}</div>`)}
@@ -118,7 +124,7 @@ function iconInventorySection(pluginIcons: readonly CatalogPluginIcon[]): string
   const plugins = pluginIcons.map(({ name, icon: glyph }) => `<li>${icon(glyph)}<span><strong>${name}</strong><code>${glyph}</code></span></li>`).join("");
   const sizes = [[12, "2", "说明文字、计数旁"], [14, "2", "行内、菜单、按钮"], [16, "2", "按钮、行首、标签"], [20, "1.6", "Dock、常驻入口、空态纸张"]]
     .map(([size, stroke, use]) => `<li><span class="mw-icon-size" style="--s:${size}px">${icon("target")}</span><span><strong>${size}px</strong><small>描边 ${stroke} · ${use}</small></span></li>`).join("");
-  return section("icon-inventory", "图标清单", `<p class="mw-catalog__hint">全站一套 Lucide 线性图标，24 栅格，不混填充图标。每个插件一个互不重复的图标，Dock、插件切换、标签、市场、空态与搜索用同一个；状态图标语义固定，颜色只来自状态色调。</p>
+  return section("icon-inventory", "图标清单", `
     <div class="mw-catalog__specimens">
       ${specimen("插件", `<ul class="mw-icon-inventory">${plugins}</ul>`)}
       ${specimen("尺寸与描边", `<ul class="mw-icon-inventory mw-icon-inventory--sizes">${sizes}</ul>`)}
@@ -131,7 +137,7 @@ function iconInventorySection(pluginIcons: readonly CatalogPluginIcon[]): string
 /** Every motion in the product, one specimen each, all on the four durations and two curves. */
 function motionSection(): string {
   const demo = (id: string, label: string) => renderButton({ label, variant: "secondary", size: "sm", attrs: { "data-motion-demo": id } });
-  return section("motion", "动效标本", `<p class="mw-catalog__hint">时长只用 130 / 250 / 420 / 640ms，曲线只用 --ease-quint 与 --ease-spring；只动 transform 与 opacity，例外三处：新写出的文字显现时的 filter，拖动标签时让出的空位宽度，折叠按自然高度开合时的内容高度。页面第一次出现时升起一次，之后切回只用 130ms 淡入；刷新、重绘、切回页面不重放入场；动画中点击与键盘照常响应；减少动态效果时全部关闭，状态照常切换。</p>
+  return section("motion", "动效标本", `
     <div class="mw-catalog__specimens mw-motion-grid">
       ${specimen("按压回弹 · 130ms spring", `<div class="mw-craft-row">${renderButton({ label: "按住再松开", variant: "primary" })}</div>`)}
       ${specimen("悬停 · 130ms", `<div class="mw-motion-rows"><button type="button" class="mw-motion-row">移上来看洗底</button><button type="button" class="mw-motion-row">同一种灰，全站一致</button></div>`)}
@@ -177,7 +183,7 @@ function arrivalSection(): string {
     remove: { label: "移除 单独选的文件" },
     rows: [renderFileRow({ name: "FlyLeaf 品牌说明.pdf", size: "524 KB", remove: { label: "移除 FlyLeaf 品牌说明.pdf" } }), renderFileRow({ name: "首屏文案.md", size: "4 KB", remove: { label: "移除 首屏文案.md" } })],
   });
-  return section("arrival", "到达 / Arrival", `<p class="mw-catalog__hint">打开 Molis Work 时几个画面共用的部件：开场、Welcome 的提问、项目选择页和新建项目引导，外加同一条底栏里随画面变化的内容。外框（桌面、白色工作面、底栏）不动，换画面只换里面的东西。字标和字幕的动效只动 opacity 与 transform，减少动态效果时直接显示结果。</p>
+  return section("arrival", "到达 / Arrival", `
     <div class="mw-catalog__specimens">
       ${mark("wordmark", specimen("字标 · 打字机", `<div class="mw-arrival-demo">${renderWordmark({ attrs: { "data-arrival-wordmark": true } })}${renderButton({ label: "重播", variant: "secondary", size: "sm", attrs: { "data-arrival-demo": "wordmark" } })}</div>`))}
       ${mark("caption", specimen("AI 字幕 · A / I 常驻，词组变换", renderCaption({ label: "暂停标题动画", playLabel: "播放标题动画", title: "点按暂停或播放" })))}
@@ -213,11 +219,15 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${composeSection()}
     ${renderCatalogExamples(section)}
     ${buttonSection()}
+    ${buttonGroupSection()}
     ${fieldSection()}
     ${groupsSection()}
     ${advancedFieldSection()}
+    ${tagInputSection()}
     ${formSection()}
+    ${dropZoneSection()}
     ${badgeSection()}
+    ${statSection()}
     ${feedbackSection()}
     ${separatorSection()}
     ${calendarSection()}
@@ -225,9 +235,12 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${menuSection()}
     ${tabsSection()}
     ${directorySection()}
-    ${layoutSection()}`;
+    ${rowsSection()}
+    ${layoutSection()}
+    ${dataTableSection()}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections)}
+    <style>${CATALOG_PATTERN_STYLES}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

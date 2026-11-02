@@ -10,6 +10,8 @@ export const TOAST_STYLES = `
     background: var(--tip-bg, var(--action)); color: var(--tip-ink, var(--action-ink)); box-shadow: var(--shadow);
     font-size: 13px; line-height: 18px; animation: mw-toast-in var(--dur-move, 250ms) var(--ease-quint) both;
   }
+  /* A non-default skin (DESIGN「皮肤」) gives the toast its own corner, ground and lift through the skin's --sk-* tokens. */
+  :root:is([data-skin="tray"], [data-skin="pill"]) body .mw-toast { border-radius: var(--sk-r-toast); background: var(--sk-toast-bg); color: var(--sk-toast-ink); box-shadow: var(--sk-toast-shadow); }
   .mw-toast[hidden] { display: none; }
   .mw-toast[data-ring-mounted] { padding-left: 36px; }
   .mw-toast > .mw-state-ring { --ring-neutral: currentColor; --ring-success: color-mix(in srgb, var(--green) 60%, currentColor); --ring-danger: color-mix(in srgb, var(--red) 60%, currentColor); position: absolute; left: 12px; top: 13.5px; }
@@ -21,7 +23,8 @@ export const TOAST_STYLES = `
   }
   /* A diagnostic ID is a link inside the sentence, in the toast's ink; its touch height is padding that takes no line room. */
   .mw-toast .mw-btn[data-molis-call-id] { min-height: 0; padding-block: var(--reach, 10px); margin-block: calc(-1 * var(--reach, 10px)); color: inherit; text-decoration: underline; }
-  .mw-toast__action--primary { background: color-mix(in srgb, currentColor 12%, transparent); }
+  /* The first of several actions, or one that stands alone, is washed so it reads as something to press, not a bold word. */
+  .mw-toast__action--primary, .mw-toast__action:where(:not(.mw-toast__action ~ *, :has(~ .mw-toast__action))) { background: color-mix(in srgb, currentColor 12%, transparent); }
   .mw-toast__action:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
   .mw-toast__action:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
   @keyframes mw-toast-in { from { opacity: 0; transform: translateY(12px) scale(.97); } }

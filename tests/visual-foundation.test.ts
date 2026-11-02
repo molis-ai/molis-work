@@ -6,7 +6,9 @@ import {
   COSS_CONTROL_STYLES,
   PRIMITIVE_STYLES,
   INTERACTION_TEXTURE_STYLES,
+  SKIN_STYLES,
   MOLIS_WORK_DENSITY_STORAGE_KEY,
+  MOLIS_WORK_SKIN_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
@@ -154,6 +156,23 @@ test("visual foundation keeps Standard and Compact as local presentation choices
     .join("\n");
   assert.ok(compactSelectorHeaders.length > 0);
   assert.doesNotMatch(compactSelectorHeaders, /\.tui-/);
+});
+
+test("visual foundation keeps skins local and draws nothing for the default skin", () => {
+  assert.equal(MOLIS_WORK_SKIN_STORAGE_KEY, "molis-work:skin");
+  assert.match(THEME_BOOTSTRAP_SCRIPT, /molis-work:skin/);
+  assert.match(THEME_BOOTSTRAP_SCRIPT, /dataset\.skin = skin/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /data-skin-option/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /applySkin/);
+  assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /localStorage\.setItem\(skinKey/);
+  // Every rule names a non-default skin, so Soft Workbench keeps exactly the cascade it had; the layer wins by order, not !important.
+  const skinSelectorHeaders = [...SKIN_STYLES.matchAll(/([^{}]+)\{/g)].map((match) => (match[1] ?? "").trim()).filter(Boolean);
+  assert.ok(skinSelectorHeaders.length > 0);
+  for (const header of skinSelectorHeaders) assert.match(header, /^:root(:is\(\[data-skin="tray"\], \[data-skin="pill"\]\)|\[data-skin="(tray|pill)"\])/, header);
+  assert.doesNotMatch(SKIN_STYLES, /data-skin="soft"|!important/);
+  for (const render of [renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet]) {
+    assert.ok(render().trimEnd().endsWith(SKIN_STYLES.trimEnd()), "the skin layer comes after every other layer");
+  }
 });
 
 test("visual foundation keeps terminal appearance separate and local", () => {

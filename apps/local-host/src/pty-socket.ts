@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type http from "node:http";
 import type { Duplex } from "node:stream";
@@ -6,6 +5,7 @@ import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
 import { pageTerminalOwnership, type PageTerminalAccess } from "./pty-page-access.js";
+import { controlTokenMatches } from "./web-control-token.js";
 
 type ClientMessage =
   | { type: "auth"; token: string }
@@ -15,14 +15,6 @@ type ClientMessage =
   | { type: "write"; panelId: string; data: string }
   | { type: "resize"; panelId: string; cols: number; rows: number }
   | { type: "kill"; panelId: string };
-
-function tokenMatches(expected: string, actual: unknown): boolean {
-  // The message is JSON from the page: anything but a string (a number, an object Buffer.from would accept) is a failed login.
-  if (typeof actual !== "string" || !actual) return false;
-  const expectedBytes = Buffer.from(expected);
-  const actualBytes = Buffer.from(actual);
-  return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
-}
 
 function send(socket: WebSocket, value: unknown): void {
   if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(value));
@@ -129,7 +121,7 @@ export function attachMolisWorkPtySocket(
             pageSockets.set(ws, { access: pageAccess, panels: new Set(), sending: Promise.resolve() });
             authed = true; send(ws, { type: "ready" }); return;
           }
-          if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) {
+          if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) {
             send(ws, { type: "error", message: "本地终端通道校验失败" });
             ws.close();
             return;

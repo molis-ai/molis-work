@@ -5,7 +5,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import type { GitFileMode } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { AgentGitIndexObservation, AgentGitIndexReviewDocument } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { readWorkspaceGit, runWorkspaceGit as git } from "./workspace-git.js";
+import { currentWorkspaceBranch as branch, readWorkspaceGit, runWorkspaceGit as git } from "./workspace-git.js";
 
 export interface GitIndexIntent {
   workspace_id: string;
@@ -32,10 +32,6 @@ async function indexBytes(file: string): Promise<Buffer | null> {
     if (!(await fs.lstat(file)).isFile()) throw new Error("暂存区不是普通文件，不能安全更新");
     return await fs.readFile(file);
   } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
-}
-async function branch(root: string): Promise<string> {
-  try { return (await git(root, ["symbolic-ref", "-q", "HEAD"])).toString().trim(); }
-  catch (error) { if ((error as { code?: number }).code === 1) return "detached"; throw error; }
 }
 async function textEntry(root: string, name: string, fromHead: boolean): Promise<{ text: string | null; mode: GitFileMode | null }> {
   let raw: string;

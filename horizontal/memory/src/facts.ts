@@ -8,8 +8,6 @@ import { memoryErrors } from "./errors.js";
  * evidence, when it applies, expiry, who approved it and a plugin's namespace in `meta`; switched off and paused as
  * the entry's paused state with a reason. Nothing here is a second copy of the text.
  */
-const DISABLED = "disabled";
-const PAUSED = "paused";
 const iso = (ms: number | undefined): string | null => ms !== undefined && Number.isFinite(ms) && Math.abs(ms) <= 8.64e15 ? new Date(ms).toISOString() : null;
 
 /** Unknown evidence retains its stored kind and reference instead of acquiring a new meaning. */
@@ -40,11 +38,6 @@ export function restoredEntryFacts(snapshot: MemoryRevision["snapshot"]) {
     throw memoryErrors.invalid("原变动缺少可恢复的记忆事实，不能替它补造来源");
   return { ...provenance(snapshot.meta), retainedMeta: snapshot.meta, origin: snapshot.origin,
     expires_at: snapshot.meta.expires_at_ms === undefined ? null : new Date(snapshot.meta.expires_at_ms).toISOString() };
-}
-
-/** The reason Prologue keeps for a paused entry: whether the person switched it off, or what it rests on is gone. */
-export function pauseReason(state: Exclude<MemoryState, "active">, reason: string | null): string {
-  return `${state === "disabled" ? DISABLED : PAUSED}:${(reason ?? "").slice(0, 180)}`;
 }
 
 function stateOf(paused: { reason: string } | undefined, disabled: { reason: string } | undefined): { state: MemoryState; state_reason: string | null } {

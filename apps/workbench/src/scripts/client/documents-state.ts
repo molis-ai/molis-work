@@ -1,4 +1,5 @@
 import { pluginPageClients } from "../../plugin-workbench.js";
+import { directoryWidth } from "../../directory-width.js";
 
 const GOALS_PAGE = pluginPageClients("goals");
 /** AP3 Workbench client segment: documents-state. */
@@ -85,9 +86,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       const immersive = document.body.classList.contains("immersive-workbench");
       if (immersive ? matchMedia("(max-width: 600px)").matches : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui")) return;
       if (!treeResizer) return;
-      const minimum = immersive ? 200 : 260;
-      const maximum = immersive ? Math.min(520, innerWidth - 360) : Math.min(520, Math.max(320, innerWidth * 0.48));
-      const width = Math.round(Math.min(maximum, Math.max(minimum, Number(value) || 240)));
+      const { minimum, maximum, width } = (${directoryWidth.toString()})(value, innerWidth, immersive);
       workspace.style.setProperty("--tree-width", width + "px");
       treeResizer.setAttribute("aria-valuemin", String(minimum));
       treeResizer.setAttribute("aria-valuemax", String(maximum));

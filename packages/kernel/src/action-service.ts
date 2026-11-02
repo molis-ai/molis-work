@@ -497,7 +497,7 @@ function bindingBelongsTo(b: ActionSceneBinding, s: ActionSceneDefinition, c: Ac
 function metadataVisible(definition: ActionDefinition, provider: ActionProvider, caller: ActionCallContext): boolean {
   const metadata = caller.stage_scene_metadata;
   return !!metadata && metadata.actions.some(ref => ref.capability_id === definition.capability_id && ref.version === definition.version && ref.provider_id === provider.provider_id)
-    && visibleAction(definition, provider, { ...caller, allowed_actions: metadata.actions, query_only: undefined });
+    && visibleAction(definition, provider, { ...caller, permissions: definition.action.permissions, allowed_actions: metadata.actions, query_only: undefined });
 }
 
 function matchesStageMetadata(caller: ActionCallContext, scene: RegisteredScene, binding: ActionSceneBinding): boolean {

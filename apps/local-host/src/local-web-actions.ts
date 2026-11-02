@@ -4,7 +4,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { pageLocale } from "./web-locale.js";
-import { localOwnerPermissionsOver } from "./local-owner-permissions.js";
+import { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** Host-issued request-local owner fence; never populated from page input. */
@@ -46,21 +46,22 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // The person's own permissions reach only what the Host registers itself, and over each such provider only what the person holds
   // over that provider (PG-007): a permission held over Characters is not held over another Host action that asks for it. A
   // provider the Plugin Runtime registered, built in or not, names its installation, and is reached through its grants alone.
-  const ownerReaches = (view: ActionView) => {
+  const ownerReaches = (view: ActionView, ownerCap: readonly string[]) => {
     if (view.provider.plugin_install_id !== undefined) return false;
     const held = localOwnerPermissionsOver(view.provider.provider_id, view.action.permissions);
-    return view.action.permissions.every(permission => builtinPermissions.includes(permission) && held.includes(permission));
+    return view.action.permissions.every(permission => ownerCap.includes(permission) && held.includes(permission));
   };
   const scopeMatches = (provider: ActionProvider, scope: "home" | "project") =>
     (!provider.project_id || provider.project_id === reference?.project_id) && (scope === "home" || !!reference);
-  const accepted = catalog.filter(view => {
+  const accept = (view: ActionView, ownerCap: readonly string[]) => {
     if (!scopeMatches(view.provider, view.action.scope)) return false;
-    if (ownerReaches(view)) return true;
+    if (ownerReaches(view, ownerCap)) return true;
     const install = installOf(view.provider);
     return view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
       && view.action.permissions.every(permission => install.grants.includes(permission));
-  });
+  };
+  const accepted = catalog.filter(view => accept(view, builtinPermissions));
   // Scene-only plugins have no action from which to infer their local-user permissions.
   // Inspect actual registrations using installed grants, then accept only the matching running owner.
   const candidates = [...new Set([...builtinPermissions, ...[...projectRecords.values(), ...homeRecords.values()].flatMap(row => row.grants)])];
@@ -83,14 +84,21 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     ? authority.find(view => view.capability_id === stageAction.capability_id && view.version === stageAction.version
       && view.provider.plugin_id === owner.manifest.plugin_id && view.provider.plugin_install_id === owner.install_id
       && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)) : undefined;
+  // Only the authenticated stage can inspect the person's wider metadata; execution keeps the original cap and refs.
+  const metadata = stage ? catalog.filter(view => accepted.includes(view) || accept(view, LOCAL_OWNER_PERMISSIONS)) : [];
   const assertAuthority = (action?: ActionReference, required: readonly string[] = []) => {
     signal?.throwIfAborted();
     if (!required.every(permission => permissions.includes(permission))) throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
     if (!action) return;
     const matches = accepted.filter(view => view.capability_id === action.capability_id && view.version === action.version
       && (!action.provider_id || view.provider.provider_id === action.provider_id));
-    const original = matches.length === 1 ? matches[0] : undefined;
-    if (original && ownerReaches(original)) return;
+    let original = matches.length === 1 ? matches[0] : undefined;
+    let ownerCap = builtinPermissions;
+    if (!matches.length && action.provider_id) {
+      original = metadata.find(view => view.capability_id === action.capability_id && view.version === action.version && view.provider.provider_id === action.provider_id);
+      ownerCap = LOCAL_OWNER_PERMISSIONS;
+    }
+    if (original && original.provider.plugin_install_id === undefined && accept(original, ownerCap)) return;
     const installId = original?.provider.plugin_install_id;
     const install = !installId || !original ? undefined : inProject(original.provider) ? projectRepository?.get(installId)
       : host.homePlugins?.installations().find(record => record.install_id === installId);
@@ -106,7 +114,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       entry: Object.freeze({ capability_id: stage.capability_id, version: stage.version, provider_id: stage.provider.provider_id }),
       owner: Object.freeze({ plugin_id: owner.manifest.plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope }),
       scenes: Object.freeze((owner.manifest.action_scenes ?? []).map(scene => Object.freeze({ scene_id: scene.scene_id, version: scene.version }))),
-      actions: Object.freeze(accepted.map(view => Object.freeze({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }))) }) } : {}),
+      actions: Object.freeze(metadata.map(view => Object.freeze({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }))) }) } : {}),
     validate_authority: async action => { assertAuthority(action); },
     assert_authority_current: assertAuthority,
   };

@@ -8,7 +8,8 @@ import type { UiContribution, UiRenderRequest, WorkbenchDocumentRenderRequest } 
 
 import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
-import { renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { directoryPanelIdentity, renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { directoryWidthPreferenceScript } from "./directory-width.js";
 import { homeStarts, islandEntries, pluginDirectoryFor, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-directory.js";
@@ -153,13 +154,16 @@ function renderMolisWorkWeb(
       && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html"
       && surfaces.some(drawn => drawn.contribution_id === contribution.descriptor.contribution_id && drawn.surface === surface.surface_id)));
   const initialDesktopSurface = parts?.open_stage ? page!.owner : requested && requestedMain ? requested : "home";
-  const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface && directoryPanels[entry.id])
+  const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface
+    && directoryPanelIdentity(entry.id, directoryPanels[entry.id] ?? "").ids.includes(initialDesktopSurface))
     ? initialDesktopSurface : "root";
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
+  const collection = parts?.body_attributes?.["data-board-view"];
+  const widthPreference = directoryWidthPreferenceScript(view.project?.project_id ?? "", collection === "archive" || collection === "trash" ? collection : "current", view.pane_plugin !== undefined);
 
   const html = renderWorkbenchDocument({
     preamble_html: `<!--
@@ -173,7 +177,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     lang: htmlLang(),
     title,
     head_before_title_html: controlTokenMeta(controlToken),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${homeToolKeysScript()}</script>
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${homeToolKeysScript()}</script>${widthPreference ? `<script>${widthPreference}</script>` : ""}
   <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
     body_attributes: {
       class: "immersive-workbench",

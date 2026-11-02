@@ -119,6 +119,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
+舞台元数据与执行使用同一 provider/scope/installation 判据、不同的本人权限上限。只有已验证的舞台入口能保留本人完整本地授权下的精确元数据引用；执行 permissions/allowed_actions 仍用原上限。额外目标的当前检查必须完整固定 capability、version 和 provider，不能用元数据引用执行或转授给查询、目录委托及回调。
+
 不留数据的已卸载安装在重装前，由现有同步 `keptDataDiscarded` 先核 KV owner 端口、再清主人文件、最后删该安装 KV（RAC-357-U1）。`createPluginPlatform` / `PluginHostExecutorOptions` 的 `deleteInstallationData` 是可信组合端口，真实项目装配、安装宿主和本地开发入口接现有 `SqlitePluginPrivateStorage` 的公开方法；Home 复用自身 storage。不留数据而缺端口时明确拒绝，不以客户端工厂冒充可清理。路径拒绝不删 KV，后一步失败拒绝新安装并保留原卸载事实；旧保留数据且明确丢弃的路径时序及回滚不变。回归见 `tests/security-invariants-sandbox-owner-files.test.ts`、`tests/plugin-lifecycle-states.test.ts`。
 
 Host构造或Web工厂在创建资源后抛错时，异常带不可枚举的 `close(): Promise<void>`（公开类型 `HomeInitializationFailure`）。它与原best-effort清理共用同次attempt：等待尚在进行的关闭，失败后可再次明确调用，只补未完成项；全部真实关闭成功后才能立即重建同Home，未等待时仍排斥第二owner。普通可扩展Error保持原身份、message/code/cause和instanceof；不能附加或已有同名属性才包装，原原因由cause保留，ActionError继续使用共同错误类和原码/分类。清理失败独立拒绝close，不覆盖初始错误。借用Web的句柄只收尾自身传输，原Host仍归调用方关闭。Host及该句柄每次close最多等待10秒，超时以 `host.close_timeout` 拒绝并写结构化日志，底层清理继续、锁不释放；下一次close只重新等待仍pending的同一份工作，底层结算失败后才重试失败步骤。search、placement与其余资源全部实际关闭成功才释锁；进程退出时系统释放SQLite排他锁。回归见 `tests/security-invariants-home-storage-host.test.ts` 的RAC-105-A-13/14/15；完整约束见 [W5-16 A规格](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。

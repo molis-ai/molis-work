@@ -264,3 +264,41 @@ T403可按原mount合同增加packages/contracts/src/platform/plugin-registratio
 唯一writer开发3：只扩现有frame-assets.ts、types.ts、parent.ts及Feed/Inbox各ui.ts的专用span槽（必要同包样式/翻译限小柄展示），原Frame文件测试同步真实起点。复用现有sources/handle和静态授权HTML有限投影，不建新业务状态/HTTP/动作/权限。handle固定当时producer；producer/payload替换、隐藏/卸载先清旧注册/控件。只加一条当前handle+ref+可见槽box布局消息，Host必须与当前投影匹配，拒未知/过期/重复、非有限/无效尺寸；控件由Host画固定小尺寸、按frame可见交集裁剪，不整行透明遮盖/跨frame/top-layer。child滚动/遮挡/筛选更新槽，用elementFromPoint避免工具栏残留。标题/拖影只取可信投影，不采child字段。
 
 Host真实dragstart同步写原有限MIME，原target native drop→fresh source load→captureAsset仍唯一写入；普通消息/伪drop零块。dragend只清外观，不能提前撤可见source使合法异步读误拒；实际源失效、producer替换或目标Goal/view改变则尾检零晚写。保旧两Frame case/冷picker范围及对象、正文、块数、精确坐标和reload持久化断言；实际新柄可信起拖到另pane可信drop须完整通过，不能拿同源诊断代验。相关源隐藏/重挂/撤下/迟到、目标切换、几何裁剪与非柄owner点击覆盖原完整用例；已有有效浏览器矩阵不重复。安全不变量/公开API若实际变更先给根具体差量，最终资源按已批三URL与实测结算，不加新资源/放宽sandbox。
+
+
+2026-11-01 22:16Z T403 同mount恢复提示收尾：根已实看三张最终实操截图，原投影ref拒绝、真实跨pane拖放、Inbox同mount保request_id/可编辑/显式重试不重复生成已在7f7c的三完整文件11/11核收。窄屏图仍残留旧“正在整理材料”文案，与重开后的可编辑状态不一致。允许唯一writer开发3仅在whenVisible原composeBusy复位分支清理/改为准确草稿可继续提示，复用现有译文或同步必要英文，不加业务状态/自动重试或更改请求身份。原新case增加旧busy提示不残留断言并完整Inbox文件一次；其余已绿路径保原输入，不扩大矩阵。随后普通合准确8ac父，集中资源与共享元数据一次结算。
+
+## 2026-11-01 23:58Z T403 与冻结权限修复的一次合流窗口
+
+唯一writer交回原开发3。由干净a60404292a68fa9ea6f2ee83fdf28c684d53e142依次普通merge T405最终09e329371bc15cc79290ae46acf35b6ff5d31eeb、T406最终4d815bb96c522b30ea3a29ff28ec19ff22ff7b14。前者准确Verify/SI已绿、Full41363904656在途；后者原反例已独立1/1闭合，92条作者修复回归、matching63及最终普通门禁通过。这里合流完整冻结候选，不等父实际main才做本地准备，不覆盖来源分支，不碰真实Home。T403已有T118文档候选随源保留。
+
+只解决实际冲突：保T405按review_id核结果、普通刷新及Host等待几何时保持审批读取；保T403原drag/drop/生命周期与五Functions动作合同；保T406原Home activation可选权限、项目自身grant交集、source调用持续检查与独立job作用域。不得因Feed声明required:false而恢复required白名单，也不将T406源码从最终合流中删去。giant精确登记保双方有效项；冲突的快查baseline最后由官方工具按组合实测刷新，不手拼计数。资源许可保T405已审Git+799B/frame+59B与T406workbench总许可及两builder原许可，不添加T403尚待确认的frame增长；三新增URL具体批准仍按原窗口，预算最终只取组合实测。
+
+先交自然H/tree、实际冲突与对应处理；源冻结后公共build槽一次matching整体build，确认63包与最终源码匹配。普通health/API/actions/imports及51资源report在准确组合上做；page-assets正常失败若只有尚未批准的T403增量就如实留待，不改算法或伪填账。实际Feed的Functions可选开关只补RAC-2910接缝：本人Home关闭后，项目Feed的规则/样本/试跑/发布实际路径受拒、没有新增业务记录；重新开启的新调用恢复，Feed必需采集/阅读仍可用。复用现有完整验收文件/无模型夹具，不新增模型调用或新的权限矩阵。若合成使原接口/测试失效，先定位最小真实差量，不放宽旧断言。
+
+原T403已绿11/11、Inbox最后3/3、pane4/4与T406155/92/独立1分别按真实输入沿用；新增接缝的实际完整文件另计，不为合父重跑全部成员。原T403最后a604双审派单仍待具体权限，不能把本次作者合流当作该独立复核或绕开被拒派单。作者不push/GH/Full/合main、也不重派独立审核；最终资源、准确同头CI/Full/评审和实际采用均归根，等待条件不因候选合流取消。
+
+
+2026-11-02 用户明确回复：允许向原验证线3和二审线1发送a60404292最后差量收尾指令，并允许继续向开发线3派单。根已实际送达两条准确a604/tree56cd审验消息（父8ac、Inbox提示/真实读取结束等待、生成元数据），两线active，只追加原本地报告、不重跑已绿用例，不签当前386。开发3已实际收到只读合流准备：比较386与T405已提交f36的冲突和证据复用，不能提前合流/写源码/构建。当前唯一writer仍T405；其Pages/Inbox尚在续修，f36不是最终父。此前自动审批拒绝保持历史，现这三个具体聊天通信已获人类批准；不把该批准扩成frame>10KB、PR正文审验发布或真实模型授权。
+
+
+2026-11-02 01:28Z：上述两条已批准的a604末端审验现已完成，原VERIFY.md和SECOND.md均追加准确a604/tree56cd差量PASS、无Blocker/P1；根已读结论及范围，不签更晚386/T406或未来组合。开发3的只读MERGE-PREFLIGHT.md已核：386与f36六文件重叠，三文件实际文本冲突，保显式导航选择及抽屉关闭、Feed运行时/installer peers与esbuild devDependency、双实例权限列表模型。无文本冲突的picker还需按真实Feed frame适配原断言。f36不是最终T405，继续等待FULL16/17收齐；本轮不合并/构建/复跑旧矩阵，三项待批范围保持。
+
+
+## 2026-11-02 02:29Z T403 frozen-source integration window
+
+The T405 writer has handed back source ownership. Exact6c4c011d58791fdd0aeecb7a6faf099d00ea0ddf/treeafe7cccf88d6d2c79c23df08bbc2f4c0faf0a10d is clean with matching63 build, API/action/import/secrets checks and source/API independent second review. Its64 scoped files are assigned to an independent verifier in the frozen T405 tree; this is not a runtime pass or adopted parent. To use that wait productively, the original T403 owner may resume as the sole implementation writer in its separate clean386c7325d295620afdd453ed3a3f05679f3bfe70 worktree. Never modify T405's tested tree, dist or refs.
+
+Ordinary merge the complete exact6c candidate into386, preserving T406 and all earlier reviewed member changes. Resolve only actual final conflicts using the already reviewed MERGE-PREFLIGHT (it was prepared against f36, so reread the final overlap). Preserve T403 finite producer/view selection and wrapper isolation, T405 explicit-main mobile close, actual query-intent SSR geometry, Pages item-tab identity and stage metadata/current-target checks; Feed runtime marked/sanitize dependencies coexist with esbuild dev dependency. Do not rebase, force-push, cherry-pick partial members or discard later differences to get a clean merge.
+
+Implement the already reviewed DOCK-08 completion in Feed's own sources browser client: actual direction-key row navigation selects through the same existing selection/openView path as the mouse, retaining focus and preview behavior. Adapt the existing DOCK-08 business readers/inputs to actual Feed main/directory owner frames with the existing fixture, preserving both remove/re-add rounds, counts/filter/keyboard/Add/back/no-reload and the current /^add:false$/ oracle. Do not weaken to focus-only, synthesize the final input, alter shared roving-focus or add Host Feed handling. Source-only helpers may stay local to the owner; no new authority mechanism or public wire is needed.
+
+Once source is frozen, use the public build slot for one matching build and necessary normal gates/resource measurement. Required changed complete checks are the existing picker file and the actual navigation/producer/peer dependency intersections; preserve unchanged386, T406 and T405 evidence with its actual binding rather than rerunning all member matrices. Final selected tests/independent signing must use the resulting exact tree. A later real T405 failure may require one further ordinary parent merge, not history rewriting. The T403 frame over10KB approval remains pending, as do final same-head CI/Full and adoption. This window gives no GitHub publication, Full or real Home/model authority.
+
+
+2026-11-02 03:54Z T403 actual source handoff: user explicitly approved continuing dispatch and followup to original DEV3 chat01a192a9-e511-7f50-b995-2ac8745109f6; the dispatch succeeded. Use finalT40576b3601f3f4bbde1a1fd3c52ac1f16d05cfbaefc/treea073882f852b233091f63eaf94626b84799febfd instead of the superseded6c checkpoint. T405 source is clean/frozen and writer released. OriginalT403386c7325d remains the starting branch; ordinary merge and accepted MERGE-PREFLIGHT Feed direction selection, real owner-frame picker/current-tabs adapters are the only new behavior scope. PreserveT406 and FULL17 checks in actual conflicts. Final matching build and five directly affected completefiles (picker-pins,current-tabs,installer-symlink-dependencies,plugin-sdk-subpaths,declared-stages) replace no old evidence. Root owns final sharedgiant/resource metadata once on combined output; framegrowth above10KB remains unapproved, three newURLs already approved. No push/GH/localFull/realHome/model/Keychain, and no secondsource writer until handback.
+
+
+2026-11-02 04:33Z 最终合流源码冻结：b4fb5f20f781cd5638848a1e8f0d4e2a33557e86 / tree 3e910293ab87c27d8cd6c50d354d7faa72176cfe。21a953 二审核出的唯一 P1 是 parent 两条 invalidate 投递漏带 owning itemTab；沿直接投递已有合同补字段，不新增协议或读取兜底。最终新增回归用真实 Feed Home 实例（其 view-revision 的实际 owner），核轮询前后准确 revision、实际失效读取，再点击 B；隐藏队列恢复后点击 A，保原 tabId 与无重复。早期 Project 实例、首次轮询、视口夹具失败保留，不能当生产通过。完整 plugin-tab-groups 5/5，current-tabs 另批完整3/3，其余原有效文件保原来源。原二审有限末核已关闭此 P1；不再重跑未变矩阵。
+
+唯一功能源码窗口已交独立T407；本树冻结，根只待已准备的两项giant与资源结算。51项资源实测7394141→7359815B，frame191017→207977B（+16960）已具体询问；三新增URL既有批准沿用。当前无最终预算通过、同头CI/Full或实际采用，真实Home/模型/本人验收边界不变。

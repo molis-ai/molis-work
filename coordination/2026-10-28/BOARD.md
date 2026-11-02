@@ -1,5 +1,11 @@
 # 看板
 
+> 2026-11-02 03:38Z：根已核收W6场景7既有E的主链、风险owner与T118三文档；不重复实跑，最终F和原真实窗口仍待。MISC四条已采用后继T183/T283/T286/T258已核main祖先及当前实现，本轮移除完成行；开放BL-901不关。终端目录异常短书交原一审3，未开第二writer。#1727准确36e经用户批准启动Full41383369416，二审发现受保护Memory在途调用仍使用两删除函数，已发6568394219要求保留，禁止运行中push/cancel。#1726新5d087有限复核在途。主线34db整体build/63匹配、API/actions/imports/secrets通过，原脚本展开Required已关；四完整文件2/4，两个新用例继续核明确拒绝层/异步状态，旧11/13与64文件分源保留，尚未采用。
+
+> 2026-11-02 03:09Z：用户明确要求使用其他现有session，已实际启用六线：起草线核MISC/Backlog最多5个真实READY；验证4独立核收场景7原件；二审4核风险owner差量；二审5核T404后的归档剩余；一审3核T118三文档；开发3更新T403合流接缝，等唯一source写窗。主线t405_full_repair已从a006继续实施Host metadata与首绘修复；其他线程只写独立报告/候选，不动共享状态或源码。a006原current-tabs以既有keep模式完整3/3通过；几何观察原0/2失败保留，确认820目录220→240与Feed收列。最终同H CI/Full/采用及原真实窗口未签。
+
+> 2026-11-02 02:45Z：T405 6c 独立64完整文件自然结束，55文件通过，824/834 case，skip/cancel/todo/retry0；pre/post clean及63包匹配。inbox-current、PAS完整通过；9失败文件按已定位夹具/真实入口及剩余geometry、system metadata、restart问题窄修，不重复全矩阵。T403仅已获具体ID的只读重启合流跟进授权并实际发送，实现派单/资源批准仍待答。同头CI/Full、采用及原W6真实窗口未签；本轮无关行，剩余本数不变。
+
 只有统筹改。这里只写不会变的：派给谁、顺序、依赖、锁定的文件。任务现在走到哪一步，由 `next.mjs` 从分支、PR 和评论推出来：
 
 ```bash
@@ -13,17 +19,21 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 模型统一：用户2026-11-01再次明确所有工作线使用 **gpt-6.1-sol / max**。此前Astra回合已结束，保留代码/原件由Sol接续，不按风险自行覆盖模型。
 
-当前并行：T395最终4aeda9ffe已集中推#1724，八完整文件57/57、63包匹配与fresh-fetch secrets通过，独立双审收四行测试差量，新CI待结；main定时Full41349463387自然执行，Verify绿且预算允许后排同H integration。T405五完整已审成员已普通合成4a8dcfb，实际两文档冲突保双方语义，独立验证3/二审5窄核并行；开发1接最终4aeda父后一次matching build与四完整组合文件。T403开发3收目录真实布局及最小Host原生拖柄，隔离不放宽；W4无模型runner00e已双审核收，真实corpus生成路径只读准备。公共build/browser各一槽，未变有效原件按输入保留，不重复整批。
+当前并行（2026-11-02 04:33Z）：主批源码已冻结为 T403 b4fb5f20（含 T405/T406/T118），最后完整 frame 5/5、current-tabs 3/3；二审最后一项 P1 已关闭。boundary/actions/secrets 通过，test-kit 标准同步后 0/63 待构建。待根结算 ActionService 442/16、mountFrame 188 和 51 项资源；frame 精确 +16960 B 的批准及 #1725 新正文发布批准待答，未推送或采用。T407 已交开发线1独立实施，不并入主批拖延 CI。W6-03 在核抵既有六路线原件；W6-04 原方法准备齐，等最终 H。#1727 准确36e Full 继续，Memory 在途调用 P1 保留。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-405 | 已审五成员普通合成后继 | 甲 | Codex开发线1；独立审验另派 | 五成员4a8dcfb冻结、两文档冲突已核；接4aeda最终父后matching与四文件 | 独立验证3/二审5并行；无push/CI窗口，不消费WIP | tasks/T-405.md；T068/T398/T404/W4runner/T067完整保留，carrier不另计未出业务本数 |
+| T-407 | 终端目录读取异常收口 | 乙 | 开发1；一审3；验证4；二审4 | 04:32Z取得唯一功能源码窗口，从main e4e建立独立候选，按已核短书实施两路径 | 开发中；不并入当前主批，不新增整线必需清零条件 | plugin-terminal-service list；security-invariants-plugin-terminal-launch，TERM-CATALOG01～04 |
+| T-406 | 双实例可选权限共同遵守Home开关 | 甲 | Codex开发线1；独立t406_verify；加强t406_second | 最终4d815bb9两独立终签PASS；原探针独立1/1、作者92/92保来源，matching63及普通门禁全过 | 已交原开发3与T403一次普通合流，真实Feed接缝/组合CI/Full/采用待结 | tasks/T-406.md；原三类红例保留，不改Feed为required |
+| W6场景8补步 | 同profile原URL直接reload恢复 | 验证 | Codex w6_scene8_reload；独立核收ci1724_watch | a604匹配构建，同URL正常重启reload恢复详情/所测布局，独立核收通过 | 筛选全部回今天、空hash范围保留；不签最终F/完整场景8 | /tmp/w6-scene8-execution/REPORT.md与RELOAD-SECOND.md；无自有进程残留 |
+| W6路线3～6补步 | 装配、生命周期、同包安装与失败清理 | 验证 | Codex w6_routes_remainder；独立核收ci1724_watch | a604匹配构建，六完整文件及同包连续链分源通过，根与独立限定核收完成 | 首批2/4及Node崩溃UNKNOWN保留；私有笔记非Artifact，不签RAC11整体或最终F | /tmp/w6-03-dynamic/ROUTES-3-6.md与ROUTES-SECOND.md；四隔离根和自有进程已清 |
+| T-405 | 已审五成员普通合成后继 | 甲 | Codex根统筹；原独立审验 | 最终76b的18/18与独立核收已纳入T403 b4fb；最终组合源码P1已闭 | 资源/giant结算、同头CI/SI/Full及采用未结 | tasks/T-405.md；分批有效证据及历史失败保持原来源 |
 | W4-01 runner | 原真实corpus任务的真签包回放适配 | 甲 | Codex w401_runner；独立验证线3/w401_second | 两路径00e027f/treeab9f0c8冻结，最终4/4、matching与两独立审验通过；已纳入T405 | 真实模型两样本/最终W4-01仍WAIT；不新增片数 | scripts/replay-plugins.mjs、tests/replay-plugins.test.ts；机械临时包非模型产物 |
 | T-404 | W6-06现行规则与两处机器输入归owner | 甲 | Codex t404_rules_migration；独立t404_verify/t404_second | 最终853aef869/tree7edf16e普通合ad06，零本片差异；135/135及双审原有效证据保留，63构建匹配 | 父新CI修复及最终CI/采用待根；历史归档仍等原W6前置 | tasks/T-404.md；表保真，判断算法/版本/保护分支不变 |
-| T-068 | BL790远程MCP声明与完整来源保护 | 甲 | Codex开发线1；独立验证一审线1；加强二审一审线2 | 本地最终f1b752b33，正常合ad06且原MCP实现未变，63构建匹配、120/120、48资源同父，双审范围PASS | #1725仍旧942be3bd；父新CI修复后最终发布/CI/Full/采用待结 | plans/T067-T068/PLAN.md；不重跑未变成员矩阵 |
+| T-068 | BL790远程MCP声明与完整来源保护 | 甲 | Codex开发线1；独立验证一审线1；加强二审一审线2 | 本地最终f1b752b33，正常合ad06且原MCP实现未变，63构建匹配、120/120、48资源同父，双审范围PASS | 完整进入#1725最终f9d4，统一CI/Full/采用待结，不重复排Full | plans/T067-T068/PLAN.md；不重跑未变成员矩阵 |
 | T-116 PR2 | 工作台统一view与旧布局一次失效 | 甲 | Codex开发线1；独立验证线1；加强二审线5 | 最终2ca72c337完整75有效通过、真实跨进程恢复及matching build/171预算/必要门禁通过，双审PASS | 已作为T399第六完整成员普通ff同H同tree，不再另开Full | 原失败/批次来源保留，组合CI/Full/采用未签 |
 | T-117 | 工作台展示类型回owner事实合同 | 乙 | Codex开发线2；一审线3/验证线1/二审线4 | aeb45297三阶段PASS，已完整纳入T399第五成员 | 发布/CI/Full/实际采用归T399，不另起重复Full | plans/T117/PLAN.md及16:59Z裁定；不碰#1101分支/Memory行为 |
-| T-403 | Feed/Inbox客户端回插件 | 甲 | Codex开发线3 | 从PR2冻结31934732完整实施原RAC2515～2519 | 编码不等父main；发布等父采用和最终资源结算；三URL用户19:09Z已批 | 原六书及18:05Z窗口；Functions A已批准 |
+| T-403 | Feed/Inbox客户端回插件 | 甲 | Codex开发线3已交回；独立验证线3/二审线1 | b4fb5f20 clean；完整frame5/5、current-tabs3/3；最后两条刷新身份P1关闭，0/63待构建 | 精确frame207977B批准、最终metadata/CI/Full/采用待结 | 原T116-followups；新例按实际Home owner触发，旧夹具失败保留 |
 | T-118 | 工作台类型/舞台链文档收口 | 丙 | Codex起草线；一审线3书审通过 | 三文档候选交原起草线，从准确T403检查点8b04并行 | 最终签结等T117/PR2/T403实际采用；不抢关整行 | /tmp/t118-next/PLAN.md、REVIEW.md；Feed/Inbox factory旧句随同hunk修 |
 | T-067 | W5-11第9片文档收口 | 丙 | 起草线作者；独立验证线1/二审线5 | 七文档候选d80cc594，37+/15-，diff/health及双审通过；父/文档采用未签 | 父实际采用后回填真实来源；自身采用由PR记录，不自嵌提交SHA | 原PLAN六段/RAC2888～2893，full=false，不抢关BL790/PG045/046/W5-11 |
 | T-396 | PG045三类集成统一取钥 | 甲 | Codex辅助开发线t396_sol；独立审验另派 | 候选b30fe249的142/142、build及验证3/二审1通过；已正式交T395作为第五成员统一采用 | 发布采用在T395后；不写resolver，不与T402抢Feed owner实现 | plans/PG045-next/PLAN.md 11:55Z窗口；四Host适配器及GitHub异步provider，完整RAC2861～2864 |
@@ -31,7 +41,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-397 | BL916四资源声明授权与有界Home库 | 甲 | Codex辅助开发线t397_sol；验证线1；加强二审线4 | 最终e4e05dc5已独立审验，T399完成最终装配matching build与S84整文件19/19 | 组合本地门禁与双审核收，CI/Full/实际采用仍待T399 | plans/BL916-current/PLAN.md；background已按18:05Z窗口并行开发，最终采用等T399 |
 | T-398 | BL916 background真签包完整后继 | 甲 | Codex开发线4；独立增量两线 | 最终95c45c685/treeecdbdf0c，42/42与共享元数据两独立终签PASS，工作树clean | fresh main检查、父修复合流及最终CI/Full/采用待根；BL916未关 | BL916-current末窗口；不新造派生owner/job表 |
 | T-402 | Feed/Inbox owner数据与通用objects完整后继 | 甲 | Codex开发线2；独立验证t402_verify；加强二审t402_second | 最终0e3b0130已独立审验通过，完整父边界130/130通过；已入T399第四成员 | 原自身有效文件结果按来源沿用；共享登记/组合/CI/采用待T399 | plans/T116-followups/PLAN.md；T403已并行开发，最终采用等父及资源批准 |
-| T-395 | OAuth/Feed/Goals及完整T399六成员统一承载 | 甲 | 开发线2；独立验证线4/加强二审线1；根发布与采用 | #1724最终4aeda已推，五首错修齐，八完整文件57/57，63绑定与fresh secrets通过 | 旧CI自然终态后一次推送；新Verify绿后同H integration Full | 不取消CI，不消费T403/T398 WIP；历史首败/UNKNOWN保留 |
+| T-395 | OAuth/Feed/Goals及完整T399六成员统一承载 | 甲 | 开发线2；独立验证线4/加强二审线1；根发布与采用 | #1724最终4aeda已推，五首错修齐，八完整文件57/57，63绑定与fresh secrets通过 | 来源CI/Verify/SI/Product已通过；最终由#1725 f9d4统一Full与采用 | 不取消CI，不消费T403/T398 WIP；历史首败/UNKNOWN保留 |
 | T-149 | BL589完整签名发布与SDK Manifest唯一主人 | 甲 | Codex开发线4；独立验证线1；加强二审线4 | 最终a95e0f2a源码完整独立审验通过，可交T399 | workflow45/45、download38/38；三项有限缺口闭合，共享门禁/Full/采用仍待组合 | plans/T149/ENGINEERING.md；原UI失败保留，全部有效结果归原输入 |
 | T-145 | BL710 Home包逐项目本人同意与可信下行 | 甲 | Codex开发线1；验证线3；加强二审线1 | accepted执行书，父T394 H090fcfa4冻结，可先独立实施 | full=true；发布/采用在T394后，PR1c最终c2d96b321已交合流；准确afcc3de4三E2E及可读授权文案完成，两独立审验通过；共享登记/组合/CI待结 | plans/T145/PLAN.md §5及末尾窗口；最终S107（T066先采用S106），原RAC2644～2649完整范围 |
 | T-394 | W5与已审候选五成员合成：PR1b、Home升级、签名正文、T353B、T387 | 甲 | Codex开发线4；独立验证5/加强二审5；队列观察验证线2 | #1723 H6f7808c5已由正常队列采用main e4e98ed331，tree/patch-id一致；来源七PR已关闭 | Verify/SI/Product/Full及队列通过；首败/retry/UNKNOWN保留 | tasks/T-394.md；T395/T353C前置解除，两自有已合工作树及本地分支已清 |
@@ -548,3 +558,5 @@ T122当前组合最小补证计划已接受，验证线3绑定77f4fd17，在隔�
 
 
 2026-11-01 20:18Z：四条独立候选并行：T395收齐无Goals初始化及重加/移除恢复；T403修真实picker/drag与账号弹层，隐藏行synthetic click不再当产品入口；T398真签16/16后独立二审核出queued取消误杀active，原作者窄修；T404迁当前规则及两机器读表，历史归档/风险结项未开始。T398独立验证与二审并行，T404作者只改自己的树。旧失败与各候选/最终采用状态分开，未新增PR或扣减未出主线估算。
+
+2026-11-02 00:39Z update: T405 Full has 18 final failed files and 3 known retry-only files. First repair6065 is frozen for targeted diagnosis; the installed-studio test is 2/3 with its original first case unresolved. Shared source/build stays frozen until the current author batch and diagnostic probes finish. T403/T406 adoption and all pending concrete approvals are unchanged.

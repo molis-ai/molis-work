@@ -26,11 +26,12 @@ test("an external MCP client reads memory only through the person's grant for me
   let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
   t.after(async () => { for (const server of servers) await server.close(); await served?.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
   served = await serveTestHost(null, { home, host });
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+  const withHostCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "Memory MCP", actor_id: LOCAL_PERSON_ACTOR_ID });
     return catalog.getProject(created.project_id);
   });
-  ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+  ensureSystemAgentService(host, home, withHostCatalog);
   const projectId = project.project_id;
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId });
   const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [...MEMORY_PERMISSIONS] };

@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -71,11 +71,10 @@ async function rig(t: test.TestContext, completeText: HostCompleteText = complet
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   const h = await openTestHome(t, { host: { completeText } });
   const project = await h.createProject("BL-491");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: h.home });
-  t.after(() => catalog.close());
+  const withHostCatalog = h.host.configurePersonalPlanning(h.home, withMolisWorkProjectCatalog);
   const model = withConnectorConnections(h.home, store => store.createToken({ serviceId: "model-api", displayName: "模型账号", token: "model-test-credential" }));
   withConnectorConnections(h.home, store => store.assertTarget(model.connection_id, "model-api", "http://127.0.0.1:1"));
-  catalog.models.upsert({ credential_ref: model.credential_ref!, provider_id: "fixture", display_name: "测试供应商", base_url: "http://127.0.0.1:1", api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
+  await withHostCatalog({ homeDirectory: h.home }, catalog => catalog.models.upsert({ credential_ref: model.credential_ref!, provider_id: "fixture", display_name: "测试供应商", base_url: "http://127.0.0.1:1", api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] }));
   const account = (name: string, origin?: string) => {
     const created = withConnectorConnections(h.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: `image-${name}` }));
     if (origin) withConnectorConnections(h.home, store => store.assertTarget(created.connection_id, "image-api", origin));

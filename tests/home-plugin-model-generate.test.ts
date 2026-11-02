@@ -41,7 +41,8 @@ async function modelHome(t: TestContext) {
   // The Host owns the Home's inference service; the model it reaches is the one the Home's settings name.
   const connection = withConnectorConnections(home.home, store => store.createToken({ serviceId: "model-api", displayName: "Fixture", token: "local-fixture" }));
   withConnectorConnections(home.home, store => store.assertTarget(connection.connection_id, "model-api", origin));
-  withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture",
+  const withHostCatalog = home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog);
+  await withHostCatalog({ homeDirectory: home.home }, catalog => catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture",
     base_url: origin + "/v1", api_format: "openai-chat-completions", models: [{ model_id: "fixture", enabled: true }] }));
   const project = await home.createProject("Model");
   const client = home.host.actionClient(project.reference);

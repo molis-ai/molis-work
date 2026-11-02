@@ -101,7 +101,7 @@ export async function planHomeRestoreTarget(home: string, inputs: HomeRestoreInp
   }
   for (const directory of inputs.directories.values()) if (!scanned.directories.has(directory.path)) {
     if (inspectRestoreNode(join(home, directory.path))) throw invalidRestore();
-    directories.push(directory);
+    directories.push({ path: directory.path, mode: directory.mode });
   }
   const parent = inspectRestoreNode(dirname(home));
   if (parent?.kind !== "directory" || parent.dev !== root.dev || originals.some(node => node.identity.dev !== parent.dev)

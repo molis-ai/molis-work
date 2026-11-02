@@ -63,13 +63,16 @@ export const collectHost = async (home) => {
   // (the home dock's asks for home:read), and one that is filtered out here would change without the snapshot noticing.
   const { LOCAL_OWNER_PERMISSIONS } = await import(new URL("../../apps/local-host/dist/local-owner-permissions.js", import.meta.url).href);
   const manifestScenePermissions = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => (entry.manifest.action_scenes ?? []).flatMap((scene) => [...scene.permissions, ...(scene.configuration_permissions ?? [])]));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  let host;
+  // The Host owns the lease and the Catalog used both here and by action availability.
+  const withCatalog = (options, operation) => host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog(options, operation);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => null,
+    actionAvailability: projectActionAvailability(withCatalog, home) });
   try {
-    const project = await catalog.createProject({ display_name: "Action contract snapshot", actor_id: "owner" });
-    for (const pluginId of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: pluginId, actor_id: "owner" });
-    host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => null,
-      actionAvailability: projectActionAvailability(async (_options, operation) => operation(catalog), home) });
+    const project = await withCatalog({ homeDirectory: home }, async catalog => {
+      const project = await catalog.createProject({ display_name: "Action contract snapshot", actor_id: "owner" });
+      for (const pluginId of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: pluginId, actor_id: "owner" });
+      return project;
+    });
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const providerOf = (provider) => ({ provider_id: provider.provider_id, ...(provider.plugin_id ? { plugin_id: provider.plugin_id } : {}) });
     const read = async () => {
@@ -105,8 +108,7 @@ export const collectHost = async (home) => {
     }
     throw new Error("the Host's action directory kept changing between reads; a plugin did not finish starting");
   } finally {
-    await host?.close();
-    catalog.close();
+    await host.close();
   }
 };
 

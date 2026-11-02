@@ -123,18 +123,12 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   const feedLibrary = createLocalFeedApplication(store.db);
   const make = (name: string) => feedLibrary.ingestItem({ source, externalId: "frame-binding-" + name, title: "Binding " + name, summary: "Item navigation after a display update", body: "Body " + name, occurredAt: new Date().toISOString(), attention: false }).item;
   const a = make("A"), b = make("B");
-  let revisionRead!: () => void;
-  const firstRevision = new Promise<void>(resolve => { revisionRead = resolve; });
-  const observeRevision = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
-    if (request.method === "GET" && new URL(request.url!, origin).pathname === `/projects/${projectId}/api/plugins/io.molis.work.feed/view-revision`) response.once("finish", () => { if (response.statusCode === 200) revisionRead(); });
-  };
-  server.on("request", observeRevision); t.after(() => server.off("request", observeRevision));
   await pluginFrameInitScript(t, browser, `
     window.t403Tagged=[];window.t403HiddenSignals=0;
     addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t403InitialItem=event.data.config.itemTab;},true);
     const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
     Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){const port=this;descriptor.set.call(port,typeof handler!=='function'?handler:event=>{if(event.data?.type==='ui'&&event.data.name==='openItem')window.t403Tagged.push({tab:event.data.itemTabId,id:event.data.args[1]});handler.call(port,event);});}});
-    let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed'){window.t403TrustedRefresh=()=>host.invalidateView(root);root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});}return mount(root,host,pack);};frameApi=api;}});
+    let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed'){const request=globalThis.molisWorkRequest;globalThis.molisWorkRequest=Object.assign(async(...args)=>{const value=await request(...args);if(String(args[0]).endsWith('/io.molis.work.feed/view-revision')&&args[1]?.signal&&!args[1].signal.aborted)window.t403PolledRevision=value.revision;return value;},request);window.t403TrustedRefresh=()=>host.invalidateView(root);root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});}return mount(root,host,pack);};frameApi=api;}});
     globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{if(key==='feed'){window.t403Host=host;window.t403Invalidations=0;window.t403PendingReads=0;const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403PendingReads++;try{return await read(...args);}finally{t403PendingReads--;}};host.root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate)window.t403Invalidations++;});}return factory(host);};return true;}});
   `);
   const feed = await pluginFrameBrowser(t, browser, "feed");
@@ -143,11 +137,18 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   await feed.waitFor("window.t403Host?.mount?.surface==='workbench' && window.t403InitialItem");
   const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");
   assert.equal(initial.itemId, a.item_id);
-  await firstRevision;
+  await waitFor("typeof t403PolledRevision==='string'");
   const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId: projectId! }), runtime => runningProjectPlatform(runtime.store, runtime.project_id));
   assert.ok(platform);
+  const rowState = () => feed.evaluate<{ visible: boolean }>(`(()=>{const target=document.querySelector('[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]');return{visible:Boolean(target?.checkVisibility()),workbench:{...document.querySelector('[data-feed-workbench]').dataset},filters:[...document.querySelectorAll('[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter]')].map(field=>({name:[...field.attributes].find(a=>a.name.startsWith('data-feed-')).name,value:field.value})),rows:[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>({id:row.dataset.feedEntryId,type:row.dataset.feedEntryType,source:row.dataset.feedEntrySourceId,status:row.dataset.feedEntryStatus,visible:row.checkVisibility(),hidden:row.closest('[data-feed-item-wrap]')?.hidden})),ancestors:(()=>{const nodes=[];for(let node=target;node;node=node.parentElement)nodes.push({tag:node.tagName,class:node.className,hidden:node.hidden,display:getComputedStyle(node).display});return nodes;})()};})()`);
+  const beforeRevision = await rowState();
+  assert.equal(beforeRevision.visible, true, JSON.stringify(beforeRevision));
+  const revision = await evaluate<string>("t403PolledRevision");
   platform.invalidateView("io.molis.work.feed");
+  await waitFor(`t403PolledRevision!==${JSON.stringify(revision)}`);
   await feed.waitFor("t403Invalidations>0 && t403PendingReads===0");
+  const afterRevision = await rowState();
+  assert.equal(afterRevision.visible, true, JSON.stringify(afterRevision));
   await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]`);
   const layout = () => evaluate<{ focusedPaneId: string; panes: Array<{ id: string; activeTabId: string; tabs: Array<{ id: string; itemId?: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}'))`);
   await waitFor(`(()=>{const state=JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.tabs.find(tab=>tab.id===pane.activeTabId)?.itemId===${JSON.stringify(b.item_id)};})()`);

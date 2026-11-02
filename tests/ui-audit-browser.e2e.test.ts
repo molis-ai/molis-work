@@ -13,7 +13,7 @@ const TOKEN = "goals-risk-test-control-token-0123456789";
 
 test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined,
-    process.env.MOLIS_WORK_TEST_PROFILE_TIMEOUTS === "1");
+    true);
   if (!browser) return;
   const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId, reloadPage } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");

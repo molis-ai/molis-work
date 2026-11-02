@@ -106,8 +106,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   async function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
     try { return await browser.command<T>(method, params, sessionId, timeoutMs); }
     catch (error) {
-      t.diagnostic(JSON.stringify({ method, error }, (_key, value: unknown) => value instanceof Error
-        ? { name: value.name, ...Object.fromEntries(Object.getOwnPropertyNames(value).map(name => [name, Reflect.get(value, name)])) } : value));
+      if (profileTimeouts && error instanceof Error && "diagnostics" in error) {
+        t.diagnostic(JSON.stringify({ method, error: error.message, cause: error.cause, diagnostics: error.diagnostics }));
+      }
       throw error;
     }
   }

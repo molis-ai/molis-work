@@ -895,6 +895,43 @@ test('experience planning reshapes parts before detail and freeze, preserving se
   } finally { await workflow.close(); }
 });
 
+test('RAC-2930 a wrapped list returns to detail for an explicit projection before freezing or calling code', async () => {
+  const rejected = JSON.parse(detail('清单'));
+  rejected.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };
+  rejected.design.operations[0].examples = [{ input: {}, output: { items: [] } }];
+  const corrected = structuredClone(rejected);
+  corrected.design.pages[0].parts[2].read = { op: 'notes.list', show: 'items' };
+  const h = harness([PROPOSALS, JSON.stringify(rejected), JSON.stringify(corrected)]);
+  let prepared = 0;
+  h.ports.prepareBuild = async () => {
+    prepared++;
+    assert.equal(h.requests.filter(request => request.role === 'designer').length, 3);
+    assert.equal(h.requests.filter(request => request.role === 'coder').length, 0, 'invalid design never reaches code');
+    return '/tmp/molis-build-fixture';
+  };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('清单');
+    let build = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
+    assert.equal(build.phase, 'ready', build.error ?? '');
+    const repair = JSON.parse(h.requests[2]!.task);
+    assert.equal(repair.mode, 'detail');
+    assert.match(repair.repair.validationError, /read\.show.*数组字段/);
+    assert.equal(repair.repair.previousAnswer, JSON.stringify(rejected));
+    assert.equal(prepared, 1);
+    assert.equal(build.design!.parts.find(part => part.id === 'notes')!.intent, 'collection');
+    assert.equal(build.design!.parts.find(part => part.id === 'notes')!.read!.outputPath, 'items');
+    assert.deepEqual(build.design!.contract.operations[0]!.output, { type: 'object', properties: {
+      items: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' } }, required: ['id', 'text'], additionalProperties: false } },
+    }, required: ['items'], additionalProperties: false });
+    assert.deepEqual(build.design!.acceptance[0]!.steps.map(step => step.action), ['fill', 'submit', 'expect']);
+    assert.deepEqual(h.requests.filter(request => request.role === 'coder').map(request => request.operationIds), [['notes.add'], ['notes.list']]);
+    assert.equal(h.requests.filter(request => /^(?:acceptance|repair)\//.test(request.promptVersion)).length, 0, 'no backend acceptance-repair run');
+  } finally { await workflow.close(); }
+});
+
 test('an impossible partial query example returns to the designer before any build preparation or code', async () => {
   const bad = JSON.parse(detail('快记')); bad.design.operations[0].examples = [{ input: {}, includes: { text: 'not stored' } }];
   const h = harness([PROPOSALS, JSON.stringify(bad), detail('快记')]); let prepared = 0;

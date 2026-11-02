@@ -313,7 +313,43 @@ test('a case must choose a record before pressing a button that lives on records
     /remove 是 logs 每条记录上的按钮，先写 select logs/);
 });
 
-test('a list-type part over a query that returns one object becomes a summary', () => {
+test('RAC-2928 a wrapped collection requires an explicit array projection without changing its output contract', () => {
+  const output = { type: 'object', properties: { items: { type: 'array', items: { type: 'object', properties: {
+    id: { type: 'string', minLength: 1 }, text: { type: 'string' }, created_at: { type: 'string', format: 'date-time' },
+  }, required: ['id', 'text', 'created_at'], additionalProperties: false } } }, required: ['items'], additionalProperties: false };
+  const design = (read: unknown) => ({ operations: [
+    { id: 'items.list', kind: 'query', input: {}, output, effects: { storage: ['read'] }, examples: [{ input: {}, output: { items: [] } }] },
+  ], pages: [{ id: 'home', parts: [{ id: 'items-result', intent: 'collection', purpose: '清单',
+    props: { idField: 'id', titleField: 'text', emptyText: '清单还是空的' }, read }] }],
+  acceptance: [{ id: 'empty-list', steps: ['page home', 'expect items-result 清单还是空的'] }] });
+  for (const read of ['items.list', { op: 'items.list', show: 'missing' }, { op: 'items.list', show: 'items.text' }]) {
+    assert.throws(() => expandDesign(design(read), base, 'io.molis.work.generated.x', 'r', []),
+      /组件 items-result.*items\.list.*read\.show.*输出合同/);
+  }
+  const dropped: string[] = [];
+  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'items' }), base, 'io.molis.work.generated.x', 'r', dropped));
+  assert.equal(expanded.parts[0]!.intent, 'collection');
+  assert.deepEqual(expanded.parts[0]!.read, { operationId: 'items.list', input: {}, outputPath: 'items' });
+  assert.deepEqual(expanded.contract.operations[0]!.output, output);
+  assert.deepEqual(expanded.contract.operations[0]!.examples, [{ input: {}, output: { items: [] } }]);
+  assert.deepEqual(dropped, [], 'the host does not guess a field or rewrite the collection');
+});
+
+test('RAC-2928 nested collection wrappers reject missing and scalar projections without guessing among arrays', () => {
+  const design = (read: unknown) => ({ operations: [
+    { id: 'items.list', kind: 'query', input: {}, output: { result: { items: [{ text: 'string' }], archived: [{ text: 'string' }] }, count: 'integer' },
+      effects: { storage: ['read'] }, examples: [{ input: {}, output: { result: { items: [], archived: [] }, count: 0 } }] },
+  ], pages: [{ id: 'home', parts: [{ id: 'items-result', intent: 'collection', purpose: '清单', read }] }],
+  acceptance: [{ id: 'empty-list', steps: ['expect items-result 空'] }] });
+  for (const read of ['items.list', { op: 'items.list', show: 'result' }, { op: 'items.list', show: 'count' }]) {
+    assert.throws(() => expandDesign(design(read), base, 'io.molis.work.generated.x', 'r', []), /read\.show.*数组字段/);
+  }
+  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'result.items' }), base, 'io.molis.work.generated.x', 'r', []));
+  assert.equal(expanded.parts[0]!.intent, 'collection');
+  assert.equal(expanded.parts[0]!.read!.outputPath, 'result.items');
+});
+
+test('RAC-2929 a list-type part over a query that returns one scalar summary keeps its output schema', () => {
   const design = { operations: [
       { id: 'water.today', kind: 'query', input: {}, output: { cups: 'integer 今天喝了几杯' }, effects: { storage: ['read'] }, examples: [{ input: {}, output: { cups: 0 } }] },
       { id: 'water.add', kind: 'command', input: {}, output: { cups: 'integer' }, effects: { storage: ['read', 'write'] }, examples: [{ input: {}, output: { cups: 1 } }] },
@@ -327,6 +363,12 @@ test('a list-type part over a query that returns one object becomes a summary', 
   const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped), [], [], contract => assertContract(contract));
   assert.equal(valid.parts[0]!.intent, 'description');
   assert.match(dropped.join(), /改用正文显示/);
+  assert.deepEqual(valid.contract.operations[0]!.output, { type: 'object', properties: {
+    cups: { type: 'integer', description: '今天喝了几杯' },
+  }, required: ['cups'], additionalProperties: false });
+  assert.deepEqual(valid.contract.operations[1]!.output, { type: 'object', properties: {
+    cups: { type: 'integer' },
+  }, required: ['cups'], additionalProperties: false });
 });
 
 test('real designer slips are normalized once, in the open: choices, optional marks, misplaced cases, display words and a closing bracket', () => {

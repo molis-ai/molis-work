@@ -7,7 +7,7 @@ import type { HomeRestoreCatalogInspector, HomeRestoreControl } from "./home-res
 import { inspectRestoreNode, sameRestoreInode } from "./home-restore-files.js";
 import { invalidRestore } from "./home-restore-input.js";
 import type { HomeRestoreJournal } from "./home-restore-journal-input.js";
-import { assertPreservedRestoreNode } from "./home-restore-policy.js";
+import { assertPreservedRestoreNode, assertRestoreTreeMembers } from "./home-restore-policy.js";
 import { inspectRestoreProjectDatabase, inspectRestoreProjectReferences } from "./home-restore-projects.js";
 import { assertHomeRestoreOriginalsAvailable, flushRestoreDirectories } from "./home-restore-rollback.js";
 import { snapshotDatabaseOptions } from "./home-snapshot-inventory.js";
@@ -49,5 +49,10 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
   }
   if (inspectRestoreNode(home)?.mode !== journal.home_mode) throw invalidRestore();
   for (const node of journal.preserved) assertPreservedRestoreNode(home, registry, node);
+  const expected = new Map<string, "file" | "directory">([
+    ...journal.files.map(file => [file.path, "file"] as const), ...journal.directories.map(directory => [directory.path, "directory"] as const),
+    ...journal.preserved.map(node => [node.path, node.identity.kind] as const),
+  ]);
+  assertRestoreTreeMembers(home, registry, expected, new Set(journal.preserved.filter(node => node.opaque).map(node => node.path)), true);
   flushRestoreDirectories(journal); control.assertCurrent();
 }

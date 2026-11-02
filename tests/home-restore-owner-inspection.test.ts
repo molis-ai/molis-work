@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
-import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import Database from "better-sqlite3";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectMolisWorkProjectCatalogSnapshot, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, restoreHomeSnapshot } from "@molis-ai/molis-work-app-local-host";
 import { assertExistingHomeKeyReference, createEvidenceContentStore, createLazyFileSecretStore, inspectEvidenceContentSnapshot, inspectSealedSecretsSnapshot, inspectSnapshotSqlite, inspectMemoryLedger, openMemoryLedger, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { restoreFixture } from "./fixtures/home-restore.js";
-import { homeStorageTree } from "./fixtures/home-storage-files.js";
+import { homeStorageTree, homeBusinessTree } from "./fixtures/home-storage-files.js";
+import { smallSnapshotHome } from "./fixtures/home-snapshot-small.js";
 
 test("RAC-2915: the actual current Catalog, including its context ledger, passes zero-write archive inspection", { timeout: 30_000 }, async t => {
   const f = await restoreFixture(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
@@ -182,5 +183,40 @@ test("RAC-2912: missing Memory is only absent, while wrong version, structure, c
     const original = homeStorageTree(f.home);
     assert.throws(() => inspectMemoryLedger({ homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID }));
     assert.deepEqual(homeStorageTree(f.home), original);
+  });
+});
+
+test("RAC-2912: Memory inspection refuses a real temporary parent inside its source before creating any stage", async t => {
+  for (const alias of [false, true]) await t.test(String(alias), async t => {
+    const f = await restoreFixture(t), previous = process.env.TMPDIR;
+    const parent = alias ? join(f.directory, "temporary-parent-alias") : join(f.home, "memory");
+    if (alias) symlinkSync(f.home, parent, "dir");
+    const before = homeStorageTree(f.home);
+    try {
+      process.env.TMPDIR = parent;
+      assert.throws(() => inspectMemoryLedger({ homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID }), { code: "storage.memory.invalid" });
+      assert.deepEqual(homeStorageTree(f.home), before);
+    } finally { if (previous === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previous; }
+  });
+});
+
+test("RAC-2912 RAC-2913: restore never creates inspection or fresh Memory stages inside the original Home or archive", async t => {
+  for (const [complete, boundary] of [[false, "home"], [false, "archive"], [false, "alias"], [true, "home"], [true, "archive"], [true, "source"]] as const) await t.test(String(complete) + boundary, async t => {
+    const f = complete ? await restoreFixture(t) : await smallSnapshotHome(t);
+    await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+    const alias = join(f.home, "..", "temporary-parent-alias");
+    if (boundary === "alias") symlinkSync(f.home, alias, "dir");
+    const parent = boundary === "home" ? f.home : boundary === "archive" ? f.snapshot : boundary === "source" ? join(f.snapshot, "data") : alias;
+    const previous = process.env.TMPDIR, home = homeBusinessTree(f.home), archive = homeStorageTree(f.snapshot);
+    try {
+      process.env.TMPDIR = parent;
+      await assert.rejects(restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }), error => {
+        assert.ok(error instanceof ActionError);
+        assert.ok(error.code === "host.home_restore.invalid" || error.code === "storage.memory.invalid", error.code);
+        return true;
+      });
+      assert.deepEqual(homeBusinessTree(f.home), home);
+      assert.deepEqual(homeStorageTree(f.snapshot), archive);
+    } finally { if (previous === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = previous; }
   });
 });

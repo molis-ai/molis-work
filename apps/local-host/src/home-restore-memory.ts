@@ -1,6 +1,6 @@
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { backupSnapshotSqlite, inspectMemoryLedger, MEMORY_LEDGER_BASELINE, readSnapshotFile } from "@molis-ai/molis-work-storage";
 import type { HomeRestoreControl, HomeRestoreInputs } from "./home-restore-contract.js";
@@ -28,20 +28,33 @@ function assertFreshSource(inputs: HomeRestoreInputs): void {
     ? store.entries.some(entry => entry.path !== "agent-runtime" || entry.kind !== "directory") : store.state !== "absent")) throw invalidRestore();
 }
 
-export function assertCompleteRestoreMemory(home: string): void {
+function restoreMemoryTemporaryParent(protectedDirectories: readonly string[]): string {
+  const parent = realpathSync(tmpdir());
+  if (!lstatSync(parent).isDirectory()) throw invalidRestore();
+  for (const directory of protectedDirectories) {
+    const distance = relative(realpathSync(directory), parent);
+    if (!distance || distance !== ".." && !distance.startsWith(".." + sep) && !isAbsolute(distance)) throw invalidRestore();
+  }
+  return parent;
+}
+
+export function assertCompleteRestoreMemory(home: string, protectedDirectories: readonly string[] = []): void {
+  restoreMemoryTemporaryParent([home, ...protectedDirectories]);
   if (inspectMemoryLedger({ homeDirectory: home, actorId: LOCAL_PERSON_ACTOR_ID }).state !== "complete") throw invalidRestore();
 }
 
 /** Normal initialization runs only in a genuinely empty external private directory, never in the target Home. */
 export async function prepareRestoreMemory(dataHome: string, inputs: HomeRestoreInputs, control: HomeRestoreControl, preflightTarget: () => Promise<void>): Promise<HomeRestoreInputs> {
+  const protectedDirectories = [inputs.manifest.home_directory, dirname(dataHome), dataHome];
+  restoreMemoryTemporaryParent(protectedDirectories);
   const current = inspectMemoryLedger({ homeDirectory: dataHome, actorId: LOCAL_PERSON_ACTOR_ID });
   if (current.state === "complete") return inputs;
   assertFreshSource(inputs); control.assertCurrent();
   await preflightTarget(); control.assertCurrent();
-  const stage = realpathSync(mkdtempSync(join(tmpdir(), "molis-restore-memory-")));
+  const stage = mkdtempSync(join(restoreMemoryTemporaryParent(protectedDirectories), "molis-restore-memory-"));
   try {
     prepareMemoryHome(stage);
-    assertCompleteRestoreMemory(stage); control.assertCurrent();
+    assertCompleteRestoreMemory(stage, protectedDirectories); control.assertCurrent();
     const backup = join(stage, "memory-backup.db");
     const captured = await backupSnapshotSqlite(join(stage, "memory", "memory.db"), backup, { baseline: MEMORY_LEDGER_BASELINE, signal: control.signal });
     const file = { ...memoryRestoreFile("memory/memory.db", captured.mode, readSnapshotFile(backup, captured.size)), sqlite: captured.sqlite };

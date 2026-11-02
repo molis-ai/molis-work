@@ -3,10 +3,10 @@ import { dirname, join } from "node:path";
 import type { HomeRestoreControl, HomeRestoreInputs, HomeRestoreResult } from "./home-restore-contract.js";
 import { assertRestoreNode, flushRestoreFile, inspectRestoreNode, sameRestoreFile, sameRestoreInode, setRestoreMode, writeRestoreFile, type RestoreNodeIdentity } from "./home-restore-files.js";
 import { homeRestoreErrors, invalidRestore } from "./home-restore-input.js";
-import { prepareHomeRestoreJournal, restoreJournalPath, restoreOriginalSlot } from "./home-restore-journal.js";
+import { prepareHomeRestoreJournal, restoreOriginalSlot } from "./home-restore-journal.js";
 import type { HomeRestoreJournal } from "./home-restore-journal-input.js";
 import { flushRestoreDirectories, rollbackHomeRestore } from "./home-restore-rollback.js";
-import { assertPreservedRestoreNode } from "./home-restore-policy.js";
+import { assertPreservedRestoreNode, assertRestoreTreeMembers } from "./home-restore-policy.js";
 import { syncSnapshotPath } from "./home-snapshot-publication.js";
 import type { HomeRestoreTarget } from "./home-restore-target.js";
 
@@ -24,6 +24,10 @@ export function assertHomeRestoreTargetCurrent(home: string, target: HomeRestore
     if (directory.original ? !actual || !sameRestoreInode(actual, directory.original) || actual.mode !== directory.original.mode : !!actual) throw invalidRestore();
   }
   for (const file of target.files) if (!target.originals.some(node => node.path === file.path) && inspectRestoreNode(join(home, file.path))) throw invalidRestore();
+  const nodes = [...target.originals, ...target.preserved];
+  const expected = new Map<string, "file" | "directory">(nodes.map(node => [node.path, node.identity.kind]));
+  for (const directory of target.directories) if (directory.original) expected.set(directory.path, "directory");
+  assertRestoreTreeMembers(home, target.registry, expected, new Set(nodes.filter(node => node.opaque).map(node => node.path)));
 }
 
 function makeDirectoriesWritable(journal: HomeRestoreJournal): void {
@@ -75,26 +79,22 @@ function createDirectories(journal: HomeRestoreJournal): Map<string, RestoreNode
 }
 
 function assertPublishedTree(journal: HomeRestoreJournal, inputs: HomeRestoreInputs, written: ReadonlyMap<string, RestoreNodeIdentity>, created: ReadonlyMap<string, RestoreNodeIdentity>): void {
-  const preserved = new Map(journal.preserved.map(node => [node.path, node])), directories = new Map(journal.directories.map(directory => [directory.path, directory]));
-  const visit = (path: string) => {
-    const absolute = join(journal.home_directory, path);
-    if (absolute === restoreJournalPath(journal.home_directory)) return;
-    const old = preserved.get(path);
-    if (old) { assertPreservedRestoreNode(journal.home_directory, inputs.registry, old); return; }
-    const actual = inspectRestoreNode(absolute);
-    if (!actual) throw invalidRestore();
-    const directory = directories.get(path);
-    if (directory) {
-      const expected = directory.original ?? created.get(path);
-      if (!expected || !sameRestoreInode(actual, expected) || actual.mode !== directory.mode) throw invalidRestore();
-      for (const name of readdirSync(absolute).sort()) visit(path + "/" + name);
-    } else {
-      const file = inputs.files.get(path), expected = written.get(path);
-      if (!file || !expected || !sameRestoreFile(actual, expected) || actual.mode !== file.mode || actual.size !== file.size) throw invalidRestore();
-    }
-  };
-  for (const name of readdirSync(journal.home_directory).sort()) visit(name);
-  for (const file of inputs.files.values()) if (!preserved.has(file.path) && !written.has(file.path)) throw invalidRestore();
+  const preserved = new Map(journal.preserved.map(node => [node.path, node]));
+  const expected = new Map<string, "file" | "directory">([
+    ...journal.files.map(file => [file.path, "file"] as const), ...journal.directories.map(directory => [directory.path, "directory"] as const),
+    ...journal.preserved.map(node => [node.path, node.identity.kind] as const),
+  ]);
+  assertRestoreTreeMembers(journal.home_directory, inputs.registry, expected, new Set(journal.preserved.filter(node => node.opaque).map(node => node.path)), true);
+  for (const node of journal.preserved) assertPreservedRestoreNode(journal.home_directory, inputs.registry, node);
+  for (const directory of journal.directories) {
+    const actual = inspectRestoreNode(join(journal.home_directory, directory.path)), identity = directory.original ?? created.get(directory.path);
+    if (!actual || !identity || !sameRestoreInode(actual, identity) || actual.mode !== directory.mode) throw invalidRestore();
+  }
+  for (const file of inputs.files.values()) {
+    if (preserved.has(file.path)) continue;
+    const actual = inspectRestoreNode(join(journal.home_directory, file.path)), identity = written.get(file.path);
+    if (!actual || !identity || !sameRestoreFile(actual, identity) || actual.mode !== file.mode || actual.size !== file.size) throw invalidRestore();
+  }
 }
 
 /** One publisher for every owner: raw originals first, final-path private writes, one durable committed phase, then unblock. */

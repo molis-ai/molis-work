@@ -59,7 +59,7 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
       if (journal) verifyCommittedHomeRestore(journal, target.registry, options.inspectCatalog, control);
       assertRestoreDependencies(home, inputs.registry, stores.dependencies);
       await inspectRestoreOwnerContents(home, home, inputs.registry, [...inputs.files.keys(), ...inputs.directories.keys()], control);
-      assertCompleteRestoreMemory(home);
+      assertCompleteRestoreMemory(home, [archive.root]);
     }, preflightCurrent);
   } finally { owner.release(); }
 }
@@ -78,7 +78,7 @@ export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): P
       try {
         verifyCommittedHomeRestore(journal, registry, options.inspectCatalog, control);
         await inspectRestoreOwnerContents(home, home, registry, [...journal.files, ...journal.directories].map(node => node.path), control);
-        assertCompleteRestoreMemory(home);
+        assertCompleteRestoreMemory(home, [journal.originals_directory]);
       } catch (error) {
         if (error === options.signal?.reason) throw error;
         throw homeRestoreErrors.changed(`已提交恢复的内容、owner 资格或原依赖已变化；保留阻断与原件 ${journal.originals_directory}`);

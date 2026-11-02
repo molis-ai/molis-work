@@ -9,9 +9,9 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { isCompleteMemoryPrefs } from "@molis-ai/molis-work-contracts/services/memory";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { lstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
 import { readSnapshotFile, snapshotFileStat } from "../snapshot-files.js";
@@ -74,6 +74,13 @@ const inspectionErrors = defineErrorCodes("storage.memory", { invalid: "invalid"
 export type MemoryLedgerInspection = { readonly state: "absent" } | { readonly state: "complete";
   readonly personal: MemoryPrefs; readonly project_default: MemoryPrefs };
 
+function inspectionTemporaryParent(source: string): string {
+  const parent = realpathSync(tmpdir()), distance = relative(realpathSync(source), parent);
+  if (!lstatSync(parent).isDirectory() || !distance || distance !== ".." && !distance.startsWith(".." + sep) && !isAbsolute(distance))
+    throw inspectionErrors.invalid("记忆只读检查的暂存父目录必须在源目录之外");
+  return parent;
+}
+
 /** No SQLite connection touches the source: even WAL read marks belong only to a private disposable copy. */
 export function inspectMemoryLedger(options: { homeDirectory: string; actorId: string }): MemoryLedgerInspection {
   if (!options.actorId) throw inspectionErrors.invalid("记忆资格检查需要可信操作者");
@@ -81,7 +88,7 @@ export function inspectMemoryLedger(options: { homeDirectory: string; actorId: s
   if (!lstatSync(file, { throwIfNoEntry: false })) return { state: "absent" };
   const paths = [file, file + "-wal", file + "-shm", file + "-journal"];
   const before = paths.map(path => lstatSync(path, { throwIfNoEntry: false }));
-  const stage = mkdtempSync(join(tmpdir(), "molis-memory-inspection-"));
+  const stage = mkdtempSync(join(inspectionTemporaryParent(options.homeDirectory), "molis-memory-inspection-"));
   let db: DatabaseSync | undefined;
   try {
     for (let at = 0; at < paths.length; at++) {

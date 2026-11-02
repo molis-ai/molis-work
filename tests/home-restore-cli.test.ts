@@ -61,7 +61,7 @@ test("RAC-2915: untrusted manifest format, identity, ownership and paths refuse 
 });
 
 test("RAC-2915: archive or target replacement after preflight is refused before any original moves", async t => {
-  for (const kind of ["archive", "target"]) await t.test(kind, async t => {
+  for (const kind of ["archive", "target", "target-member"]) await t.test(kind, async t => {
     const f = await restoreFixture(t);
     await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
     const target = join(f.home, "plugin-files", "original.bin");
@@ -72,7 +72,7 @@ test("RAC-2915: archive or target replacement after preflight is refused before 
       const result = Reflect.apply(original, fs, args);
       if (!reached && String(args[0]).includes(".molis-home-restore-") && String(args[0]).endsWith("/failed")) {
         reached = true;
-        writeFileSync(kind === "target" ? target : join(f.snapshot, "data", "plugin-files", "original.bin"), "changed after complete preflight");
+        writeFileSync(kind === "target-member" ? join(f.home, "plugin-files", "new-after-preflight.bin") : kind === "target" ? target : join(f.snapshot, "data", "plugin-files", "original.bin"), "changed after complete preflight");
         expected = homeBusinessTree(f.home);
       }
       return result;
@@ -105,4 +105,28 @@ test("RAC-2915: a forged WAL-mode installed-library archive refuses without crea
   await assert.rejects(restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }));
   assert.deepEqual(homeBusinessTree(f.home), before); assert.deepEqual(homeBusinessTree(f.snapshot), archive);
   assert.deepEqual(readdirSync(directory), ["plugin-libraries.db"]);
+});
+
+test("RAC-2917: an extra ordinary business file after commit refuses finish and preserves the complete pending scene", async t => {
+  const f = await restoreFixture(t);
+  await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+  writeFileSync(join(f.home, "plugin-files", "original.bin"), "force actual publication");
+  const marker = join(f.root, ".molis-home-restore.json"), originalUnlink = fs.unlinkSync;
+  const fault = t.mock.method(fs, "unlinkSync", path => {
+    if (String(path) === marker) throw Object.assign(new Error("committed clear failure"), { code: "EIO" });
+    return originalUnlink(path);
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }), { code: "host.home_restore.published_unconfirmed" });
+  } finally { fault.mock.restore(); syncBuiltinESMExports(); }
+  const pending = readFileSync(marker), journal = JSON.parse(pending.toString("utf8"));
+  assert.equal(journal.phase, "committed");
+  writeFileSync(join(f.home, "plugin-files", "new-after-commit.bin"), "new ordinary user fact", { mode: 0o640 });
+  const before = homeBusinessTree(f.home), originals = homeBusinessTree(journal.originals_directory);
+  const result = await restoreCli(t, ["restore", "--home", f.home, "--recover", "--json"]);
+  assert.equal(result.code, 1, result.stdout); assert.match(result.stderr, /host\.home_restore\.changed/u);
+  assert.deepEqual(homeBusinessTree(f.home), before);
+  assert.deepEqual(homeBusinessTree(journal.originals_directory), originals);
+  assert.deepEqual(readFileSync(marker), pending);
 });

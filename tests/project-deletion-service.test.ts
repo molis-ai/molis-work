@@ -507,7 +507,8 @@ test("RAC-1333 an unexpected failure of the demo removal answers the Host's gene
   const { home } = await scratchHome(t);
   let withCatalog = withMolisWorkProjectCatalog;
   const demo = ((await withCatalog({ homeDirectory: home }, catalog => catalog.ensureDemoProject({ actor_id: "test-user", user_confirmed: true })))).project;
-  const { origin, token, stop } = await residentHost(t, home);
+  const { localHost, origin, token, stop } = await residentHost(t, home);
+  withCatalog = localHost.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog;
   t.after(stop);
   // The demo's directory was taken away from under the catalog, so moving it aside fails inside the Host.
   await rm(dirname(demo.database_path), { recursive: true, force: true });

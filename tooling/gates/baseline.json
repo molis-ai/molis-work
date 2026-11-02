@@ -1,5 +1,5 @@
 {
-  "giantUnits": 48,
+  "giantUnits": 49,
   "giant": {
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "lines": 257,
@@ -32,6 +32,7 @@
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
+    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 182,
     "file apps/workbench/src/i18n/en.ts": 3208,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
@@ -317,21 +318,18 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 74,
+  "emptyCatchesInScriptsTotal": 67,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
     "apps/local-host/src/browser/surface-driver.ts": 1,
     "apps/workbench/src/scripts/client/agent-review.ts": 1,
-    "apps/workbench/src/scripts/client/events-secondary.ts": 1,
-    "apps/workbench/src/scripts/client/feed-rule-authoring.ts": 3,
     "apps/workbench/src/scripts/client/frame-container.ts": 5,
     "apps/workbench/src/scripts/client/global-search.ts": 1,
     "apps/workbench/src/scripts/client/home-offers.ts": 1,
     "apps/workbench/src/scripts/client/immersive-navigation.ts": 2,
     "apps/workbench/src/scripts/client/initialization.ts": 3,
     "apps/workbench/src/scripts/client/navigation-feed.ts": 1,
-    "apps/workbench/src/scripts/client/navigation-inbox.ts": 3,
     "apps/workbench/src/scripts/client/navigation-presentation.ts": 2,
     "apps/workbench/src/scripts/client/placement.ts": 2,
     "apps/workbench/src/scripts/client/plugin-membership.ts": 2,
@@ -357,7 +355,7 @@
   "oldNames": {
     "packages/storage/src/adapters/file-secret-store.ts": 1
   },
-  "scriptConstantsTotal": 98,
+  "scriptConstantsTotal": 96,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -376,14 +374,12 @@
     "apps/workbench/src/scripts/client/events-accessibility.ts": 1,
     "apps/workbench/src/scripts/client/events-primary.ts": 1,
     "apps/workbench/src/scripts/client/events-secondary.ts": 1,
-    "apps/workbench/src/scripts/client/feed-rule-authoring.ts": 1,
     "apps/workbench/src/scripts/client/frame-container.ts": 1,
     "apps/workbench/src/scripts/client/global-search.ts": 1,
     "apps/workbench/src/scripts/client/home-offers.ts": 1,
     "apps/workbench/src/scripts/client/immersive-navigation.ts": 1,
     "apps/workbench/src/scripts/client/initialization.ts": 1,
     "apps/workbench/src/scripts/client/navigation-feed.ts": 1,
-    "apps/workbench/src/scripts/client/navigation-inbox.ts": 1,
     "apps/workbench/src/scripts/client/navigation-presentation.ts": 2,
     "apps/workbench/src/scripts/client/placement.ts": 1,
     "apps/workbench/src/scripts/client/plugin-membership.ts": 1,
@@ -491,14 +487,14 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 38,
+  "pluginOutsideMentionsTotal": 37,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
     "coding#outside-files": 0,
     "cognia#outside-files": 0,
     "dataset#outside-files": 0,
     "diff#outside-files": 0,
-    "feed#outside-files": 6,
+    "feed#outside-files": 5,
     "files#outside-files": 0,
     "form#outside-files": 0,
     "git#outside-files": 0,

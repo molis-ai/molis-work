@@ -17,7 +17,7 @@ import type { PagesGenerationRecord } from "@molis-ai/molis-work-plugin-pages/co
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
-import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
+import { registration as inboxRegistration } from "@molis-ai/molis-work-plugin-inbox/registration";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /** Generation as the Runtime gives it: Pages' own stores, an original caller that is never refused, and the model's whole result. */
@@ -122,7 +122,7 @@ test("Host uses configured model transport and never fabricates text on failure"
   await assert.rejects(failed!("input"), /模型返回 500/);
   assert.equal(hostCompleteText({ env: {} }), undefined);
   new Function("return " + ASSISTANT_ISLAND_FACTORY_SCRIPT);
-  new Function(CLIENT_NAVIGATION_INBOX_SCRIPT);
+  assert.equal(typeof new Function("return (" + inboxRegistration.workbench!.clientFactory! + ")")(), "function", "the registered Inbox owner factory parses");
 });
 
 test("Multi-material document retains every source and a project-scoped return link", async () => {

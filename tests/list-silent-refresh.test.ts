@@ -12,8 +12,8 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { CLIENT_EVENTS_PRIMARY_SCRIPT } from "../apps/workbench/dist/scripts/client/events-primary.js";
 import { CLIENT_EVENTS_SECONDARY_SCRIPT } from "../apps/workbench/dist/scripts/client/events-secondary.js";
-import { CLIENT_NAVIGATION_FEED_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-feed.js";
-import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
+import { registration as feedRegistration } from "@molis-ai/molis-work-plugin-feed/registration";
+import { registration as inboxRegistration } from "@molis-ai/molis-work-plugin-inbox/registration";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
 // Forms' page is TypeScript bundled and minified into its client pack (W4-04): what its code does is read in the sources.
@@ -23,6 +23,8 @@ const pagesSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plu
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
 const scheduleSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/schedule/src/browser/${file}`, import.meta.url)), "utf8");
 const pptSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
+const feedSource = (file: string) => readFileSync(new URL(`../plugins/native/feed/src/browser/${file}`, import.meta.url), "utf8");
+const inboxSource = () => readFileSync(new URL("../plugins/native/inbox/src/browser/client.ts", import.meta.url), "utf8");
 
 const csrClients = {
   functions: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
@@ -104,34 +106,44 @@ test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保�
   assert.doesNotMatch(saveDraft, /fillEditor/);
 });
 
-test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh helpers", () => {
+test("Feed / Inbox 成功路径由当前 owner 刷新，宿主只投递失效通知", () => {
   const script = renderMolisWorkWorkbenchClientScript();
-  assert.match(script, /const refreshFeedStage = async/);
-  assert.match(script, /const refreshInboxStage = async/);
-  assert.match(CLIENT_NAVIGATION_FEED_SCRIPT, /const refreshFeedStage = async/);
-  assert.match(CLIENT_NAVIGATION_INBOX_SCRIPT, /const refreshInboxStage = async/);
+  const feed = feedSource("factory.ts"), inbox = inboxSource();
+  // T403 moved the two shell refresh helpers and mutation callers into the registered owners.
+  assert.doesNotMatch(script, /refreshFeedStage|refreshInboxStage/);
+  assert.match(script, /const invalidateView =/);
+  assert.match(script, /molis-work:select-item[\s\S]{0,100}invalidate: true/);
+  assert.match(feed, /page\.refresh = async/);
+  assert.match(feed, /await host\.view\.readDocument\(/);
+  assert.match(inbox, /const refresh = async/);
+  assert.match(inbox, /await host\.view\.readDocument\(/);
+  assert.match(feedSource("sources.ts"), /host\.invalidateView\(\); await page\.refresh\(\)/);
+  assert.match(feedSource("rule-authoring.ts"), /host\.invalidateView\(\); await page\.refresh\(\)/);
+  assert.match(inbox, /host\.invalidateView\(\); await refresh\(\)/);
   assert.doesNotMatch(CLIENT_EVENTS_PRIMARY_SCRIPT, /location\.reload\(/);
   assert.doesNotMatch(CLIENT_EVENTS_SECONDARY_SCRIPT, /location\.reload\(/);
-  assert.match(CLIENT_EVENTS_PRIMARY_SCRIPT, /await refreshFeedStage\(\)/);
-  assert.match(CLIENT_EVENTS_SECONDARY_SCRIPT, /await refreshInboxStage\(\)/);
-  assert.match(CLIENT_EVENTS_SECONDARY_SCRIPT, /await refreshFeedStage\(\)/);
   // A failed stage refresh keeps the page and says so; it never falls back to a full reload.
-  for (const script of [CLIENT_NAVIGATION_FEED_SCRIPT, CLIENT_NAVIGATION_INBOX_SCRIPT]) {
-    assert.doesNotMatch(script, /location\.reload\(/);
+  for (const factory of [feedRegistration.workbench!.clientFactory!, inboxRegistration.workbench!.clientFactory!]) {
+    assert.doesNotMatch(factory, /location\.reload\(/);
+    assert.match(factory, /readDocument/);
     // The toast is the shared request helper's error (with its 诊断编号 when the call left a row, W3-10), marked as a failure
     // (it carries the failure glyph, DESIGN.md → Toasts); the request names what could not be refreshed.
-    assert.match(script, /showToast\(error,\s*true\)/);
+    assert.match(factory, /showToast/);
   }
-  // PG-071 / #1308 N3: each navigation script must use its own translator and fallback text.
-  assert.match(CLIENT_NAVIGATION_FEED_SCRIPT, /fallback:\s*FL\("无法更新 Feed 列表"\s*\)/);
-  assert.match(CLIENT_NAVIGATION_INBOX_SCRIPT, /fallback:\s*L\("无法更新 Inbox 列表"\s*\)/);
+  assert.match(feed, /host\.showToast\(molisWorkRequest\.text\(error\), true\)/);
+  assert.match(inbox, /host\.showToast\(molisWorkRequest\.text\(error\), true\)/);
+  // PG-071 / #1308 N3: each owner translates its own refresh failure.
+  assert.match(feed, /host\.translate\("无法更新 Feed 列表"\)/);
+  assert.match(inbox, /L\("无法更新 Inbox 列表"\)/);
 });
 
 test("Inbox fragment and Schedule isolated view refresh retain their presentation boundaries", async () => {
-  // The Inbox list is redrawn from the shell's stage fragment (`/api/stage/inbox`), not from a route of the plugin: the plugin's routes answer JSON for its own actions.
+  // The owner now reads its declared HTML through the Host view port; action routes still answer JSON.
   assert.ok(!(inboxManifest.routes ?? []).some((route) => route.route_id === "inbox.workbench"));
   assert.ok((inboxManifest.routes ?? []).every((route) => route.path.startsWith("/")));
-  assert.match(CLIENT_NAVIGATION_INBOX_SCRIPT, /route\("\/api\/stage\/inbox"\)/);
+  assert.match(inboxSource(), /await host\.view\.readDocument\(\{ signal: reads\.signal \}\)/);
+  assert.doesNotMatch(inboxSource(), /\/api\/stage\/inbox/);
+  assert.equal(inboxRegistration.workbench!.clientMounts, "surfaces");
   assert.ok(!SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.workbench"));
   assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.task.archive"));
 

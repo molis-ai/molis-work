@@ -42,7 +42,7 @@ export function inboxClient(host: InboxHost): void {
   };
   const select = (id: string) => {
     if (id !== selected) change(); selected = id;
-    all("[data-inbox-row]").forEach(row => { const active = row.dataset.inboxEntryId === id; row.classList.toggle("is-selected", active); row.setAttribute("aria-selected", String(active)); row.tabIndex = active ? 0 : -1; });
+    all("[data-inbox-row]").forEach(row => { const active = row.dataset.inboxEntryId === id; row.classList.toggle("is-selected", active); row.setAttribute("aria-selected", String(active)); });
     all("[data-inbox-detail]").forEach(detail => detail.hidden = detail.dataset.inboxDetail !== id); const empty = q("[data-inbox-detail-empty]"); if (empty) empty.hidden = true; expand(true);
     const check = guard(); void results().catch(failure => { try { check(); error(failure, q('[data-inbox-entry-results="' + CSS.escape(id) + '"]')); } catch { /* A newer entry owns the reader. */ } });
   };
@@ -51,7 +51,10 @@ export function inboxClient(host: InboxHost): void {
     const group = q("[data-inbox-row].is-selected")?.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
     const html = await host.view.readDocument({ signal: reads.signal }); check(); if (sequence !== refreshSequence) return;
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(L("无法更新 Inbox 列表"));
-    const dialog = q<HTMLDialogElement>("[data-inbox-compose]"), replacement = q<HTMLDialogElement>("[data-inbox-compose]", next); if (dialog && replacement) replacement.replaceWith(dialog);
+    // Retain the draft form and the latest evaluation message while authoritative rows refresh.
+    for (const selector of ["[data-inbox-compose]", "[data-inbox-evaluate-status]"]) {
+      const current = q(selector), replacement = q(selector, next); if (current && replacement) replacement.replaceWith(current);
+    }
     const config = q<HTMLDetailsElement>(".inbox-next-config"), nextConfig = q<HTMLDetailsElement>(".inbox-next-config", next); if (config && nextConfig) nextConfig.open = config.open;
     root.replaceChildren(...next.childNodes);
     const row = selected && all("[data-inbox-row]").find(row => row.dataset.inboxEntryId === selected && row.closest<HTMLElement>("[data-inbox-stage-group]")?.dataset.inboxStageGroup === group);

@@ -767,17 +767,19 @@ test("RAC-1745 a dual-instance plugin in the build is drawn by the half that off
   let release: (() => void) | undefined;
   try {
     const missing = await page();
-    assert.doesNotMatch(missing, /<section>feed-home-half<\/section>/);
+    assert.doesNotMatch(missing + pluginDocuments(missing).join("\n"), /<section\b[^>]*>feed-home-half<\/section>/);
     assert.match(missing, feed, "a view without its same-owner read cannot borrow the project's data");
     assert.equal(homeReads, 0);
     release = host.actionRegistry().registerProvider(registration);
     const moved = await page();
-    assert.equal(moved.split("<section>feed-home-half</section>").length - 1, 1, "the Home half that offers the view draws it");
+    const ownerDocuments = pluginDocuments(moved).join("\n");
+    assert.equal(ownerDocuments.match(/<section\b[^>]*>feed-home-half<\/section>/g)?.length ?? 0, 1, "the Home half that offers the view draws it inside its registered opaque document");
     assert.equal(homeReads, 1, "its declared data is read once by that same Home half");
     assert.equal(projectPlatform.runtime.get(projectInstallId).state, "disabled", "the original project producer remains withdrawn");
     assert.equal(moved.match(feed), null, "and no half answers with a placeholder");
     release(); release = undefined;
-    assert.doesNotMatch(await page(), /<section>feed-home-half<\/section>/, "withdrawing the Home read cannot revive old data or the catalog");
+    const withdrawn = await page();
+    assert.doesNotMatch(withdrawn + pluginDocuments(withdrawn).join("\n"), /<section\b[^>]*>feed-home-half<\/section>/, "withdrawing the Home read cannot revive old data or the catalog");
     assert.equal(homeReads, 1);
   } finally { release?.(); homeHalf.mock.restore(); }
 });

@@ -41,7 +41,8 @@ async function modelHome(t: TestContext) {
   // The Host owns the Home's inference service; the model it reaches is the one the Home's settings name.
   const connection = withConnectorConnections(home.home, store => store.createToken({ serviceId: "model-api", displayName: "Fixture", token: "local-fixture" }));
   withConnectorConnections(home.home, store => store.assertTarget(connection.connection_id, "model-api", origin));
-  withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture",
+  const withHostCatalog = home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog);
+  await withHostCatalog({ homeDirectory: home.home }, catalog => catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture",
     base_url: origin + "/v1", api_format: "openai-chat-completions", models: [{ model_id: "fixture", enabled: true }] }));
   const project = await home.createProject("Model");
   const client = home.host.actionClient(project.reference);
@@ -112,6 +113,11 @@ test("RAC-2610 the Home's instance has no project half: a Home package that name
     "the Home's directory has the Home's entry and not the project's");
   // The package calls the name it always used; the Home's catalog gives it the Home's instance under that name and under no other.
   await h.install("io.molis.work.example.homebound", "home", ["model.generate.home"]);
+  const settings = `/projects/${h.project.project_id}/api/settings/plugin-project-reach`;
+  const { plugins } = await h.home.web.post<{ plugins: Array<{ plugin_id: string; snapshot: string }> }>(settings + "/list", {});
+  const plugin = plugins.find(plugin => plugin.plugin_id === "io.molis.work.example.homebound");
+  assert.ok(plugin);
+  await h.home.web.post(settings + "/grant", { plugin_id: plugin.plugin_id, snapshot: plugin.snapshot });
   await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.homebound"), /这项功能依赖的能力当前不可用：model\.generate\.home/, "a package of the Home names the id the instance is registered under");
   assert.equal(h.systems.length, before, "nothing was sent to the model");
 });

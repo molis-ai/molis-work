@@ -201,10 +201,10 @@ test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to t
   const { join } = await import("node:path");
   const home = await mkdtemp(join(tmpdir(), "home-aggregate-catalog-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  host.configurePersonalPlanning(home, withCatalog);
-  const create = (displayName: string) => withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: displayName, actor_id: "user" }));
+  const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+  const create = (displayName: string) => withHostCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: displayName, actor_id: "user" }));
   const listedProject = await create("启用 Feed 的项目"), bareProject = await create("没有 Feed 的项目");
-  await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listedProject.project_id, plugin_id: "feed", actor_id: "user" }));
+  await withHostCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listedProject.project_id, plugin_id: "feed", actor_id: "user" }));
   const reference = (project: { project_id: string; database_path: string }) => molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const view = (code: string): ActionView => ({
     capability_id: "homeagg.catalog.read", version: 1, operation: "query",

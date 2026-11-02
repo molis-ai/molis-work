@@ -124,7 +124,8 @@ test("Workbench routes call only the selected owner with exact inputs and retain
 
 test("Goal document HTTP routes retain bad-encoding, collection, offset, missing-content and response-header behavior", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "Document routes", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "Document routes", actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
   await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
   const origin = served.origin;

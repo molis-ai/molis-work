@@ -1,4 +1,3 @@
-import { serveTestHost } from "./fixtures/test-home.js";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -8,7 +7,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -30,7 +28,8 @@ function listen(server: Server): Promise<string> {
 
 test("HTTP event APIs persist intent, blank planning, typed reports, decisions and closure through SQLite restart", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -153,7 +152,8 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
 
 test("HTTP event-close rejects unknown kind without recording an event", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -205,7 +205,8 @@ test("HTTP event-close rejects unknown kind without recording an event", async t
 
 test("PG094-09: the Host serves Goals' declared routes by method and path; a bad encoding in one is the caller's 400, a read refuses a POST with 404", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -262,7 +263,8 @@ test("PG094-09: the Host serves Goals' declared routes by method and path; a bad
 
 test("HTTP writes persist typed reports, scoped concerns and closure through the public event routes", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -372,7 +374,8 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
 
 test("HTTP progress uses the Goal cursor and legal field ids stay content", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -514,7 +517,8 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
 
 test("HTTP draft route is gone; event owners and historical drafts stay unchanged", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -583,7 +587,8 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
 
 test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs readable", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -656,7 +661,8 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
 
 test("HTTP event-agree rejects unknown fields and omitted agreement version with no write", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -707,7 +713,8 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
 
 test("HTTP outcome replacement expires all current supports; stale agreement_change approval has no write", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -843,7 +850,8 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
 
 test("HTTP create receipt has no retired state aliases and covers requirements and relations", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -961,14 +969,15 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
 
 test("onboarding initialize receipt has no retired aliases and persists onboarding source", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-event-http-onboarding-"));
+  const host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
+  const withHostCatalog = host.configurePersonalPlanning(homeDirectory, withCatalog);
   const server = createMolisWorkWebServer({
-    homeDirectory,
+    homeDirectory, localHost: host,
     controlToken: TOKEN,
   });
-  const origin = await listen(server);
-  let catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>> | undefined;
   let store: LocalProjectDatabase | undefined;
   try {
+    const origin = await listen(server);
     const initializedResponse = await fetch(`${origin}/api/onboarding/initialize`, {
       method: "POST",
       headers: {
@@ -995,22 +1004,25 @@ test("onboarding initialize receipt has no retired aliases and persists onboardi
     for (const field of ["definition_state", "decomposition_state", "fulfillment_state"]) {
       assert.equal(Object.hasOwn(initialized.goal, field), false);
     }
-    catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-    const project = catalog.getProject(initialized.project.project_id);
+    const project = await withHostCatalog({ homeDirectory }, catalog => catalog.getProject(initialized.project.project_id));
     store = new LocalProjectDatabase(project.database_path);
     const app = new GoalProjectApplication(store);
     assert.equal(app.goalEvents.readState(project.project_id, initialized.goal_id).intent.source_kind, "onboarding");
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    store?.close();
-    catalog?.close();
-    rmSync(homeDirectory, { recursive: true, force: true });
+    try {
+      if (server.listening) await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    } finally {
+      store?.close();
+      await host.close();
+      rmSync(homeDirectory, { recursive: true, force: true });
+    }
   }
 });
 
 test("HTTP goal-tree decisions replay the original result with a stable business key", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);
@@ -1126,7 +1138,8 @@ test("HTTP goal-tree decisions replay the original result with a stable business
 
 test("HTTP goal-tree reject prefills displayed relation conflict and keeps the submitted reason", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "HTTP 事件", actor_id: "test" }));
   const BOARD = project.project_id;
   const databasePath = project.database_path;
   const store = new LocalProjectDatabase(databasePath);

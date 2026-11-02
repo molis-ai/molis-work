@@ -116,20 +116,21 @@ test("SystemAgentService drains late SDK memory usage on its original ledger aft
     await actualClose.call(this);
   });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const withHostCatalog = local.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   t.after(async () => {
     failClose = false; release(); hold = false;
     await local.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     if (previousBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
     await rm(home, { recursive: true, force: true });
   });
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+  const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
     const project = await catalog.createProject({ display_name: "Usage drain", actor_id: LOCAL_PERSON_ACTOR_ID });
     runWithMolisWorkHome(home, () => createFileSecretStore().put("memory-drain-fixture", "test-only"));
     catalog.models.upsert({ provider_id: "drain", display_name: "Drain fixture", base_url: `http://127.0.0.1:${address.port}/v1`,
       api_format: "openai-chat-completions", models: [{ model_id: "scripted", enabled: true }], credential_ref: "memory-drain-fixture" });
     return project;
   });
-  const system = ensureSystemAgentService(local, home, withMolisWorkProjectCatalog);
+  const system = ensureSystemAgentService(local, home, withHostCatalog);
   await system.ready;
   const memory = memoryHostFor(local)!;
   const lookup = memory.policy.projectExists;
@@ -202,20 +203,21 @@ test("a real pending read failure during SDK shutdown keeps late memory receipts
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const withHostCatalog = local.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   t.after(async () => {
     if (pendingPath && pendingBytes) await writeFile(pendingPath, pendingBytes);
     release(); await local.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     if (previousBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
     await rm(home, { recursive: true, force: true });
   });
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+  const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
     const project = await catalog.createProject({ display_name: "Pending close", actor_id: LOCAL_PERSON_ACTOR_ID });
     runWithMolisWorkHome(home, () => createFileSecretStore().put("pending-close-fixture", "test-only"));
     catalog.models.upsert({ provider_id: "pending-close", display_name: "Pending close fixture", base_url: `http://127.0.0.1:${address.port}/v1/messages`,
       api_format: "anthropic-messages", models: [{ model_id: "scripted", enabled: true }], credential_ref: "pending-close-fixture" });
     return project;
   });
-  const system = ensureSystemAgentService(local, home, withMolisWorkProjectCatalog); await system.ready;
+  const system = ensureSystemAgentService(local, home, withHostCatalog); await system.ready;
   const memory = memoryHostFor(local)!, adapter = system.agentHost.adapter("prologue");
   assert.ok(adapter instanceof PrologueAgentAdapter);
   const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
@@ -271,11 +273,12 @@ test("a real pending read failure during SDK shutdown keeps late memory receipts
 test("the original Host usage sink rejects foreign actors, skips a deleted project and rechecks its identity after Catalog awaits", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "memory-usage-owner-"));
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const withHostCatalog = local.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   t.after(async () => { release(); await local.close(); await rm(home, { recursive: true, force: true }); });
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Deleted usage", actor_id: LOCAL_PERSON_ACTOR_ID }));
-  const system = ensureSystemAgentService(local, home, withMolisWorkProjectCatalog); await system.ready;
+  const project = await withHostCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Deleted usage", actor_id: LOCAL_PERSON_ACTOR_ID }));
+  const system = ensureSystemAgentService(local, home, withHostCatalog); await system.ready;
   const memory = memoryHostFor(local)!;
   const saved = await memory.service.write({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, consumer: "ui", person: true },
     { scope: "project", text: "Late usage must not restore a deleted project's memory" });
@@ -287,13 +290,13 @@ test("the original Host usage sink rejects foreign actors, skips a deleted proje
       references: [{ memory_id: saved.memory.memory_id, version: saved.memory.version, receipt_id: "prior-retrieval" }] }] };
   await assert.rejects(recordMemoryUsage(local, { ...receipt, owner: { ...receipt.owner, actor_id: "another-person" } }), { code: "memory.forbidden" });
   await recordMemoryUsage(local, receipt);
-  const deletion = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.deleteProject({ project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, delete_confirmed: true, idempotency_key: randomUUID() }));
+  const deletion = await withHostCatalog({ homeDirectory: home }, catalog => catalog.deleteProject({ project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, delete_confirmed: true, idempotency_key: randomUUID() }));
   assert.ok(deletion);
   await recordMemoryUsage(local, receipt);
   const deleted = openMemoryLedger({ homeDirectory: home });
   try { assert.equal(deleted.lastUse(saved.memory.memory_id), null); assert.deepEqual(deleted.uses({ memory_id: saved.memory.memory_id }), []); }
   finally { deleted.close(); }
-  const next = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "In-flight usage", actor_id: LOCAL_PERSON_ACTOR_ID }));
+  const next = await withHostCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "In-flight usage", actor_id: LOCAL_PERSON_ACTOR_ID }));
   const lookup = memory.policy.projectExists;
   let entered!: () => void;
   const waiting = new Promise<void>(resolve => { entered = resolve; });

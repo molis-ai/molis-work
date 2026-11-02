@@ -54,7 +54,8 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
       return createLocalFeedApplication(runtime.store.db).ingestItem({ source, externalId: "home-mcp-material", title: "真实事项", summary: "待判断", body: "真实原文传入判断", occurredAt: new Date().toISOString(), attention: false }).item;
     });
     const entry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).ensureInboxEntryForFeedItem(project.project_id, item.item_id, "manual").entry);
-    await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "owner", user_confirmed: true }));
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    await withHostCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "owner", user_confirmed: true }));
     const origin = served.origin, prefix = `${origin}/projects/${project.project_id}`;
     const configured = await fetch(`${prefix}/api/home/dock-judgment`, { method: "POST", headers: {
       "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "bind-home-mcp",

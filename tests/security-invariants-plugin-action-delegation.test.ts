@@ -247,8 +247,10 @@ test("T405-FULL17-D S-43 directory delegation removes stage metadata before targ
     actions: [{ ...ref(OPEN), provider_id: "delegation-targets" }] } };
   s.availabilitySeen.length = 0;
   assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, original), "done");
-  assert.ok(s.availabilitySeen.length > 0);
-  for (const context of [...s.availabilitySeen, ...s.targetsSeen, ...s.probe.seen]) assert.equal(Object.hasOwn(context, "stage_scene_metadata"), false);
+  const downstream = s.availabilitySeen.filter(context => context.delegated_by === s.probe.id);
+  assert.ok(downstream.length > 0, "the delegated target availability was checked");
+  assert.ok(s.targetsSeen.length > 0); assert.ok(s.probe.seen.length > 0);
+  for (const context of [...downstream, ...s.targetsSeen, ...s.probe.seen]) assert.equal(Object.hasOwn(context, "stage_scene_metadata"), false);
 });
 
 test("W5-01-DELEGATE-05 S-43 a target not open to workflow, a permission the original caller lacks, and a pinned provider that is not the owner are refused", async t => {

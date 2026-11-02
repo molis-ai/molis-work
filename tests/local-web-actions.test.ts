@@ -473,9 +473,12 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
     permissions: ["stage-source:read", "actions:delegate"].map(permission => ({ permission, required: true, reason: "Read declared source" })), actions,
     capabilities: { provides: [], consumes: [source.capability_id, write.capability_id, metered.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } });
   const ownerManifest = manifest(ownerId, [entry]);
-  ownerManifest.ui = { contributions: [], views: [{ view_id: "main", slot: "stage", title: "Stage", stage_data: { action: entry.capability_id } }] };
+  ownerManifest.ui = { contributions: [`${ownerId}.main`], views: [{ view_id: "main", slot: "stage", title: "Stage", stage_data: { action: entry.capability_id } }] };
   let hold: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
-  const owner = definePlugin({ manifest: ownerManifest, async start(context) { return { kind: "app", actions: [{ ...entry, handle: async (_caller, input) => {
+  const owner = definePlugin({ manifest: ownerManifest, async start(context) { return { kind: "app", views: [{ descriptor: {
+    contribution_id: `${ownerId}.main`, kind: "primary-page", label: "Stage", slots: [],
+    surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "html" }],
+  }, render: () => "<section data-stage-authority-probe></section>" }], actions: [{ ...entry, handle: async (_caller, input) => {
     counts.entry++; const mode = (input as { mode?: string }).mode;
     if (mode === "write" || mode === "metered") return context.services!.actions!.directory!.invoke(mode === "write" ? write : metered, {});
     return context.services!.actions!.invokeQuery(mode === "undeclared" ? undeclared : source, {});

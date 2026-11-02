@@ -313,9 +313,9 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]');const control=document.createElement('span');control.dataset.t405RowControl='1';control.setAttribute('role','button');control.tabIndex=0;control.textContent='control';control.addEventListener('click',event=>{event.stopPropagation();window.t405ControlClicks=(window.t405ControlClicks||0)+1;});row.append(control);})()`);
   await aRight.click("[data-t405-row-control]");
   assert.equal(await aRight.evaluate("window.t405ControlClicks"), 1); assert.equal(await itemCount(b.id), 0);
-  await aRight.evaluate("window.t405OriginalEditor=window.t405Editor;window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror')");
-  await aLeft.evaluate("window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror')");
-  await evaluate(`window.t405OriginalAFrame=document.querySelector(${JSON.stringify(sourceSelector)})`);
+  await aRight.evaluate("(()=>{window.t405OriginalEditor=window.t405Editor;window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror');})()");
+  await aLeft.evaluate("void(window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror'))");
+  await evaluate(`void(window.t405OriginalAFrame=document.querySelector(${JSON.stringify(sourceSelector)}))`);
   const draft = "Original A editor draft held across B navigation";
   holdSaves = true;
   await aRight.evaluate(`(()=>{const view=window.t405Editor.view;view.dispatch(view.state.tr.replaceWith(0,view.state.doc.content.size,view.state.schema.nodes.paragraph.create(null,view.state.schema.text(${JSON.stringify(draft)}))));})()`);

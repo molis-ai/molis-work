@@ -275,7 +275,7 @@ test("T405-FULL17-A/B Inbox SSR and fragment read their saved judgment metadata 
   const item = await host.withProject(one.reference, runtime => {
     const feed = createLocalFeedApplication(runtime.store.db), source = createLocalFeedSourceService(runtime.store.db, one.project_id)
       .register({ kind: "research_library", repository: "fixture/metadata", research_source: "owner" }).source;
-    const item = feed.ingestItem({ source, externalId: "metadata", title: "元数据读取材料", body: "需要核查的原文", occurredAt: new Date().toISOString(), attention: false }).item;
+    const item = feed.ingestItem({ source, externalId: "metadata", title: "元数据读取材料", summary: "待核查材料摘要", body: "需要核查的原文", occurredAt: new Date().toISOString(), attention: false }).item;
     return feed.ensureInboxEntryForFeedItem(one.project_id, item.item_id, "manual").entry;
   });
   await host.actionClient(one.reference).invoke(caller, inboxActions.readJudgment, {});

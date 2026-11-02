@@ -240,6 +240,9 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   await open('git');
   await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");
+  await b.click('.navigator-directory-toggle');
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "the real directory control closes the Git Dock's drawer");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
   await click('[data-companion=git] [data-git-history]');
   assert.equal(await evaluate("document.activeElement.hasAttribute('data-git-close')"), true);
   assert.equal(await evaluate("document.querySelector('[data-companion=git] [data-git-results]').getAttribute('aria-busy')"), 'false');

@@ -31,19 +31,22 @@ test("AQD-01/AQD-06 real Runtime delegation reads Pages content and nested get/l
 });
 
 test("T405-FULL17-D query delegation removes stage metadata before target availability and execution", async t => {
-  const s = await setup(t), views: ActionCallContext[] = [];
+  const s = await setup(t), views: ActionCallContext[] = [], targetsSeen: ActionCallContext[] = [];
   const target: ActionDefinition = { capability_id: "query.target", version: 1, operation: "query", action: { title: "Nested metadata probe", description: "Keep execution and metadata separate",
     kind: "query", scope: "project", audiences: ["user"], permissions: ["pages:read"], subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "boolean" } } };
   s.host.actionRegistry(s.project.reference).registerProvider({ provider: { provider_id: "query-target", kind: "system", title: "Nested query" }, definitions: [target],
-    handlers: [{ ...target, availability(caller) { views.push(caller); return { available: true }; }, handle(caller) { views.push(caller); return true; } }] });
+    handlers: [{ ...target, availability(caller) { views.push(caller); return { available: true }; }, handle(caller) { targetsSeen.push(caller); return true; } }] });
   s.probe.behavior.handle = context => context.services!.actions!.invokeQuery(target, {});
   const entry = (await s.client.discover(s.caller)).find(view => view.capability_id === s.probe.action.capability_id)!;
   const original: ActionCallContext = { ...s.caller, stage_scene_metadata: { actor_id: s.caller.actor_id, audience: s.caller.audience, project_id: s.caller.project_id,
     entry: { capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider.provider_id },
     owner: { plugin_id: s.probe.id, install_id: s.install.install_id, installation_generation: s.host.homePlugins!.installation(s.probe.id)!.installation_generation, scope: "home" }, scenes: [],
     actions: [{ capability_id: target.capability_id, version: 1, provider_id: "query-target" }] } };
-  views.length = 0; assert.equal(await s.read(original), true); assert.ok(views.length > 0);
-  for (const caller of [...views, ...s.probe.seen]) assert.equal(Object.hasOwn(caller, "stage_scene_metadata"), false);
+  views.length = 0; assert.equal(await s.read(original), true);
+  const downstream = views.filter(caller => caller.query_only === true);
+  assert.ok(downstream.length > 0, "the nested query target availability was checked");
+  assert.ok(targetsSeen.length > 0); assert.ok(s.probe.seen.length > 0);
+  for (const caller of [...downstream, ...targetsSeen, ...s.probe.seen]) assert.equal(Object.hasOwn(caller, "stage_scene_metadata"), false);
 });
 
 for (const missing of ["caller-permission", "direct-ref", "nested-ref", "source-grant", "source-declaration", "consumes"] as const) {

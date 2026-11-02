@@ -62,7 +62,7 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
     const before = await sessions();
     await assert.rejects(invoke("session.open", { title: "先选模型", mode: "plan" }), (error: { code?: string }) => error.code === "coding.executor_unprepared");
     assert.equal(await sessions(), before);
-    await seedConfiguredModels(home);
+    await seedConfiguredModels(home, undefined, undefined, host.configurePersonalPlanning(home, withMolisWorkProjectCatalog));
 
     // W5-01-CODING-73: the state names Coding's ways, the directory new rounds run in, and the project's directories.
     const state = await invoke<{ modes: { id: string }[]; default_mode: string; images: boolean; workspace_id: string | null; workspaces: unknown[]; mcp: unknown[] }>("state", {});

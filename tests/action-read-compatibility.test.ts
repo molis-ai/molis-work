@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_REGISTRY, DEMO_PROJECT_ID, PROJECT_SCOPED_PLUGIN_IDS, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { goalEventHistoryKinds, materializeGoalEventHistory } from "./goal-event-history-fixture.js";
@@ -34,10 +34,9 @@ const unavailableInFixture: Record<string, string> = {
 
 async function probe(t: test.TestContext, databasePath: string, projectId: string) {
   const web = await serveHomeRuntime(t, { workspacesFor: undefined });
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: web.home });
-  let copy: string;
   const projectName = `Read historical project ${projectId}`;
-  try {
+  const copy = await web.host.configurePersonalPlanning(web.home, withMolisWorkProjectCatalog)({ homeDirectory: web.home }, catalog => {
+    let copy: string;
     // Restore the dump under its own id, through the catalog table's owner; neither data nor identity is rewritten.
     const storage = new LocalSqliteStorage(catalog.databasePath);
     try {
@@ -49,7 +48,8 @@ async function probe(t: test.TestContext, databasePath: string, projectId: strin
       for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) projects.commands.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "fixture-restore" });
     } finally { storage.close(); }
     assert.equal(catalog.getProject(projectId).database_path, copy);
-  } finally { catalog.close(); }
+    return copy;
+  });
   const host = web.host, ref = molisWorkHostProjectReference({ databasePath: copy, projectId });
   const broken: string[] = [], read = new Set<string>();
   const base = { actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: [] };

@@ -24,7 +24,7 @@ test("ASC-10 ASC-21: real model and image bindings are reported without keys, an
     store.createToken({ serviceId: "image-api", displayName: "Image B", token: "fixture-image-b-usage-key" }),
   ]);
   withConnectorConnections(home.home, store => store.assertTarget(model!.connection_id, "model-api", "https://model.example/v1"));
-  await withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => catalog.models.upsert({ provider_id: "usage-model", display_name: "My text provider",
+  await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog => catalog.models.upsert({ provider_id: "usage-model", display_name: "My text provider",
     base_url: "https://model.example/v1", api_format: "openai-chat-completions", credential_ref: model!.credential_ref!, models: [{ model_id: "text-1", enabled: true }] }));
   const modelUses = await read(client, model!.connection_id);
   assert.equal(modelUses.usages.length, 1); assert.equal(modelUses.usages[0]?.usage_id, "usage-model");

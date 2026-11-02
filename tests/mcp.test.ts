@@ -205,7 +205,7 @@ it("a management call that names no project_id runs as database:<path>, and a la
     const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
     const management = new MolisWorkServer("management", null, null, host);
     try {
-      const project = await withMolisWorkProjectCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "没有项目号", actor_id: "user" }));
+      const project = await host.configurePersonalPlanning(directory, withMolisWorkProjectCatalog)({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "没有项目号", actor_id: "user" }));
       // W3-07-4-02: inspect the real facts without binding the Host to the catalog's project name first.
       const facts = () => {
         const store = new LocalProjectDatabase(project.database_path, { existingOnly: true });

@@ -204,11 +204,11 @@ test("RAC-2783/RAC-2784 real Host event reads use the project's actual plugin ca
   const calls: Record<string, number> = {};
   const title = "事项目录接线证据";
   try {
-    host.configurePersonalPlanning(home, withCatalog);
-    const create = (displayName: string) => withCatalog({ homeDirectory: home }, catalog =>
+    const ownedCatalog = host.configurePersonalPlanning(home, withCatalog);
+    const create = (displayName: string) => ownedCatalog({ homeDirectory: home }, catalog =>
       catalog.createProject({ display_name: displayName, actor_id: "owner" }));
     const listed = await create("列出 Feed 的项目"), bare = await create("没有列出 Feed 的项目");
-    await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listed.project_id, plugin_id: "feed", actor_id: "owner" }));
+    await ownedCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listed.project_id, plugin_id: "feed", actor_id: "owner" }));
     const ref = (project: { project_id: string; database_path: string }) =>
       molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
     for (const project of [bare, listed]) {

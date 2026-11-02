@@ -17,8 +17,10 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 test("context handlers preserve a denied binding and hold the catalog open through async response failure", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-context-entry-"));
   const homeDirectory = join(directory, "home");
-  await createMolisWorkLocalHost({ homeDirectory }).close();
-  const fixture = await openMolisWorkProjectCatalog({ homeDirectory });
+  const localHost = createMolisWorkLocalHost({ homeDirectory });
+  const access = localHost.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog);
+  const fixture = await access.withCatalog({ homeDirectory }, catalog => catalog);
+  const withCatalog = localHost.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
   try {
     const project = await fixture.createProject({ display_name: "Scoped connection", actor_id: "user" });
     const host: MolisWorkRuntimeContextHost = { homeDirectory,
@@ -40,7 +42,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       requireHost: () => host,
       actorFor: () => "runtime:codex:host-session",
       deleteProject: async () => { throw new Error("this test does not delete"); },
-      catalogs: { withCatalog: (home, operation) => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
+      catalogs: { withCatalog: (home, operation) => withCatalog({ homeDirectory: home }, catalog => {
         scoped = catalog;
         return operation(catalog);
       }) },
@@ -77,7 +79,6 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     assert.equal(currentConnection()?.projectId, project.project_id);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before, "recovering the response does not create a second binding");
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
-    const localHost = createMolisWorkLocalHost({ homeDirectory });
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     // The resume reader the MCP server composes: the Goals directory through the connected client's own actions.
     const actions = bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "runtime:context-entry", audience: "mcp" as const,
@@ -101,27 +102,25 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     });
     const actual = createMcpRuntimeContextHandlers({
       connection, requireHost: () => host, presentResolution,
-      catalogs: { withCatalog: (home, operation) => withMolisWorkProjectCatalog({ homeDirectory: home }, operation) },
+      catalogs: { withCatalog: (home, operation) => withCatalog({ homeDirectory: home }, operation) },
     });
-    try {
-      await assert.rejects(actual.molis_work_v1_context_resolve({}, context), /guidance unavailable/);
-      assert.deepEqual(calls, ["guidance"]);
-      assert.equal(currentConnection()?.projectId, project.project_id, "an ancillary read failure does not erase the resolved project connection");
-      failGuidance = false;
-      calls.length = 0;
-      const presented = JSON.parse(await actual.molis_work_v1_context_resolve({}, context));
-      assert.deepEqual(calls, ["guidance", "resume"]);
-      assert.equal(presented.connection.project_id, project.project_id);
-      assert.equal(presented.connection.project_url, `http://127.0.0.1:4173/projects/${project.project_id}`);
-      assert.equal(presented.connection.goal_url_template, `http://127.0.0.1:4173/projects/${project.project_id}/goals/{goal_id}`);
-      // Sessions are retired (BL-177): the connection summary no longer reads or reports one.
-      assert.equal(Object.hasOwn(presented, "session_registry"), false);
-      assert.deepEqual(presented.resume, { focus: null, next_goals: [] });
-      assert.equal(presented.runtime_prompt_prefix, presented.project_guidance.runtime_prompt_prefix);
-      assert.deepEqual(fixture.listRuntimeContextBindings(), before);
-    } finally { await localHost.close(); }
+    await assert.rejects(actual.molis_work_v1_context_resolve({}, context), /guidance unavailable/);
+    assert.deepEqual(calls, ["guidance"]);
+    assert.equal(currentConnection()?.projectId, project.project_id, "an ancillary read failure does not erase the resolved project connection");
+    failGuidance = false;
+    calls.length = 0;
+    const presented = JSON.parse(await actual.molis_work_v1_context_resolve({}, context));
+    assert.deepEqual(calls, ["guidance", "resume"]);
+    assert.equal(presented.connection.project_id, project.project_id);
+    assert.equal(presented.connection.project_url, `http://127.0.0.1:4173/projects/${project.project_id}`);
+    assert.equal(presented.connection.goal_url_template, `http://127.0.0.1:4173/projects/${project.project_id}/goals/{goal_id}`);
+    // Sessions are retired (BL-177): the connection summary no longer reads or reports one.
+    assert.equal(Object.hasOwn(presented, "session_registry"), false);
+    assert.deepEqual(presented.resume, { focus: null, next_goals: [] });
+    assert.equal(presented.runtime_prompt_prefix, presented.project_guidance.runtime_prompt_prefix);
+    assert.deepEqual(fixture.listRuntimeContextBindings(), before);
   } finally {
-    fixture.close();
+    await localHost.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

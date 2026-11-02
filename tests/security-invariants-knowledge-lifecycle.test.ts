@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
@@ -108,7 +109,7 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address === "object");
-  await seedConfiguredModels(home.home, [{ provider_id: "fixture", model_id: "fixture-model" }], `http://127.0.0.1:${address.port}`);
+  await seedConfiguredModels(home.home, [{ provider_id: "fixture", model_id: "fixture-model" }], `http://127.0.0.1:${address.port}`, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const caller = await home.host.localPersonContext(project.reference);
   await home.host.actionClient(project.reference).invoke(caller, { ...knowledgeActions.locate, provider_id: "system.knowledge" },
     { question: "这份资料讲什么？", subjects: [listed.cards[0]!.subject] });

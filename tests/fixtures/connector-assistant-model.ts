@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { withConnectorConnections , type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { cogniaScriptedResponse } from "./cognia-model-response.js";
 import { endingReviewAnswer } from "./ending-review.js";
@@ -10,7 +10,7 @@ import { isKnowledgeOrganize, organizedCardFor } from "./knowledge-organize.js";
 
 export type ScriptedCall = { name: string; input: unknown };
 /** A real loopback model transport with deterministic replies; no external account or model is used. */
-export async function scriptedModelServer(t: TestContext, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => [], withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = withMolisWorkProjectCatalog) {
+export async function scriptedModelServer(t: TestContext, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => []) {
   const requests: Record<string, unknown>[] = [], allRequests: Record<string, unknown>[] = [];
   const server = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));

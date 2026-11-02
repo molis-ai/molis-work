@@ -51,6 +51,28 @@ function emptyView(): MolisWorkWebView {
   } as MolisWorkWebView;
 }
 
+test("T405-FULL-15: the first paint reserves only the active, enabled and actually rendered declared directory", () => {
+  const id = "initial-directory-probe";
+  const directory = [{ id, plugin_id: "io.example.initial-directory", name: "Initial directory", chosen: true,
+    ui: { views: [{ view_id: "directory", slot: "navigator" as const, title: "Initial directory", order: 1 }] } }];
+  const page = { owner: id, html: `<section data-work-surface="${id}">Runtime stage</section>`, parts: { open_stage: true }, before_global_search: "", after_global_search: "" };
+  const panel = { [id]: "<div data-initial-directory-probe>Runtime directory</div>" };
+  for (const [name, overrides, expected] of [
+    ["declared runtime directory", {}, id],
+    ["no actual panel", { plugin_panels: {} }, "root"],
+    ["no directory declaration", { plugin_directory: [] }, "root"],
+    ["disabled plugin", { shown_plugins: [] }, "root"],
+    ["root page", { page_stage: undefined }, "root"],
+  ] as const) {
+    const html = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [id], plugin_directory: directory, plugin_panels: panel, page_stage: page, ...overrides });
+    const workspace = html.match(/<main class="immersive-workspace[^>]*>/u)![0];
+    assert.equal(workspace.includes("is-plugin-directory-empty"), expected === "root", `${name}: initial column width`);
+    assert.ok(html.includes(`id="goal-tree-pane" data-desktop-directory="${expected}"`), `${name}: initial aside selection`);
+    const section = html.match(new RegExp(`<section[^>]*data-plugin-section="${id}"[^>]*>`, "u"));
+    assert.equal(Boolean(section && !/\shidden(?:\s|>)/u.test(section[0])), expected === id, `${name}: the same directory starts active`);
+  }
+});
+
 /** Stage pages in the owner document (a framed stage's own document travels inert, so it is not counted). */
 const stages = (html: string, surface: string) => (html.match(new RegExp(`\\sdata-work-surface="${surface}"`, "g")) ?? []).length;
 

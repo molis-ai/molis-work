@@ -218,6 +218,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "explicit mobile Files navigation dismisses the outer directory drawer");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
   await click(`${files} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${files} [data-files-text]').hidden`);
   await b.evaluate("localStorage.setItem('molis-work:theme','dark');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");

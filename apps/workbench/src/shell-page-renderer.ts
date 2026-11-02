@@ -9,7 +9,7 @@ import type { UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/
 import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { homeStarts, pluginDirectoryFor, sideEntries } from "./plugin-catalog.js";
+import { homeStarts, pluginDirectoryFor, railEntries, sideEntries } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
@@ -126,7 +126,6 @@ function renderMolisWorkWeb(
   controlToken = "",
   desktopShell = false,
 ): string {
-  const initialDesktopDirectory = "root";
   const enabledPlugins = shownPagePlugins(view), pluginEnabled = (id: string) => enabledPlugins.includes(id), goalsEnabled = pluginEnabled("goals");
   const declared = renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_surfaces ?? [], unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface), page_owner: view.page_owner,
     model: pluginId => stageModel(pluginId, view) });
@@ -138,6 +137,10 @@ function renderMolisWorkWeb(
   const primitives = { L, escapeHtml, icon, htmlLang };
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
   const directory = pluginDirectoryFor(view.plugin_directory);
+  // A running Plugin's own panel wins over the built-in one; initial geometry and the rendered sections use this same set.
+  const directoryPanels = { ...declared.panels, ...(view.plugin_panels ?? {}) };
+  const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface && directoryPanels[entry.id])
+    ? initialDesktopSurface : "root";
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
@@ -181,11 +184,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
-        ${renderDirectoryPluginSections(primitives, enabledPlugins, {
-          ...declared.panels,
-          // A running Plugin's own panel wins over the built-in one.
-          ...(view.plugin_panels ?? {}),
-        }, directory, initialDesktopDirectory, settingsDirectory)}
+        ${renderDirectoryPluginSections(primitives, enabledPlugins, directoryPanels, directory, initialDesktopDirectory, settingsDirectory)}
         </div>
       </aside>
       <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${L("调整目录宽度")}" aria-controls="goal-tree-pane" aria-valuemin="200" aria-valuemax="520" aria-valuenow="240" title="${L("拖动调整目录宽度，双击恢复默认")}"></div>

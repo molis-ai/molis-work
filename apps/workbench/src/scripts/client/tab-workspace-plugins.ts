@@ -78,6 +78,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     ops.openPlugin(state, plugin);
     apply();
     persist();
+    setMobileView("document");
   };
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).
@@ -169,6 +170,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (view !== undefined) ops.writeView(state, ops.focused(state).id, plugin === "goals" && view === "frame" ? undefined : view, tab.id);
     apply();
     persist();
+    setMobileView("document");
   };
   // An item (or a plugin's own view) in the pane beside this one; a narrow window has no room, so it opens in place.
   const openBeside = (plugin, itemId, title) => {

@@ -310,6 +310,11 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 - 两边不一样的地方：签名包的格式没有路由、搜索与文件来源、方法、撤销；装上的插件也没有人能走的升级、停用、启用、卸载入口（BL-623，交 ac-trust）。RAC-792 在内置那一半升级的位置断言新包被拒，入口补上之后改成与 `tests/probe-plugin.test.ts` 逐项对照。
 - **挂起（统筹 10-25）**：创作台产物进语料要在本机跑 Agent（隔离 Home 里用 MiniMax 走创作台，生成 2～3 个沙箱插件，源码与清单入库），先不做。等两件事：① 统筹排出本机跑 Agent 的时段（整机一次一个测试、一个构建，创作台一轮要占很久）；② 回放能起开发定义——A3 的名字归属检查（`declaration-owners.ts`）要从发布存档读每个持有安装的 Manifest，连起来的那个开发定义自己没有存档，`plugin.definition_conflict` 拒，RAC-790、RAC-791 因此红；ac-giants 在 `claude/b41-a3-dev-owners` 修，进 batch-41。两件都到了再补样本，回放的样本经 T2 安装路径进来（与 RAC-792 同一条），不经 `pluginFixtures`。
 
+
+**W4-01 后继（2026-11-02）**：既有 runner 已支持签包，两个真实来源样本入 `tests/fixtures/replay-plugins/corpus.json`，并保留前两项与全部坏样本。计数器由真实 MiniMax 生成；清单是同一真实模型后端，加用户批准的一次人工验收／文案适配，原两份模型答卷、旧失败和后端均保留，不称纯模型全自动成功。原始源码按相对路径存为 source.json 数据，v1/v2及原发布包逐字入库，不改lint或加入忽略；清单原源码6处双重断言明确保留为原始材料，未声称平台源码lint通过。
+
+计数器的公开生成／签包输入8315c693、独立生命周期输入40f86eb9；清单的公开revise／G1–G7／签包与独立生命周期输入均为c2cac66ce，零新增模型。两份独立回放分别自然通过：安装前不可发现、预览零写、确认pin、固定完整业务返回、同安装兼容v2升级、Host关闭重开后完整结果保持。清单仅add一次，后续read保留原id/time/正文/数量；未重跑计数器。精确原件与边界见两样本README及W6交付索引，最终承载CI/Full与采用仍单列。非macOS保留两原样本实际运行，新增签包两项必须unsupported/ok=false/各step=null，整体非零；测试明确断言这一平台事实。
+
 ## 7. PG-095、PG-111 的评估（插件合同放在平台 contracts 里）
 
 登记这条线不依赖它们：`registration.ts` 只引用插件自己的 Manifest 与常量，不读 `contracts/modules/<插件>`。所以不进上面五个 PR。

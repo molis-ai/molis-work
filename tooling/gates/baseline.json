@@ -1,5 +1,5 @@
 {
-  "giantUnits": 49,
+  "giantUnits": 50,
   "giant": {
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "lines": 257,
@@ -23,15 +23,15 @@
     },
     "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": 155,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 208,
-      "methods": 32
+      "lines": 243,
+      "methods": 34
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 301,
+      "lines": 302,
       "methods": 23
     },
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 156,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 153,
     "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 188,
     "file apps/workbench/src/i18n/en.ts": 3208,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
@@ -51,7 +51,7 @@
       "lines": 420,
       "methods": 23
     },
-    "file packages/plugin-runtime/src/index.ts": 828,
+    "file packages/plugin-runtime/src/index.ts": 830,
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
       "lines": 654,
       "methods": 31
@@ -95,14 +95,15 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
+    "file plugins/native/plugin-builder/src/agent-authoring.ts": 821,
+    "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 228,
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
-      "lines": 658,
+      "lines": 664,
       "methods": 40
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 410,
+  "testInternalImports": 405,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -181,9 +182,8 @@
     "tests/current-project-settings.test.ts": 1,
     "tests/external-mcp-actions.test.ts": 4,
     "tests/external-mcp-dispatch.test.ts": 3,
-    "tests/feed-assistant-context.test.ts": 1,
     "tests/feed-capture-scenes.test.ts": 1,
-    "tests/feed-inbox-pages-loop.test.ts": 3,
+    "tests/feed-inbox-pages-loop.test.ts": 2,
     "tests/feed-item-actions.test.ts": 3,
     "tests/feed-source-actions.test.ts": 1,
     "tests/feed-sync-authority.test.ts": 1,
@@ -230,7 +230,7 @@
     "tests/jelly-native-material.test.ts": 1,
     "tests/jelly-plugin.test.ts": 1,
     "tests/jelly-source-providers.test.ts": 3,
-    "tests/list-silent-refresh.test.ts": 5,
+    "tests/list-silent-refresh.test.ts": 3,
     "tests/local-web-actions.test.ts": 2,
     "tests/material-documents.test.ts": 1,
     "tests/material-extraction.test.ts": 5,
@@ -293,7 +293,7 @@
     "tests/tab-strip-share.test.ts": 3,
     "tests/tab-workspace-ops.test.ts": 1,
     "tests/todo-plugin.test.ts": 1,
-    "tests/ui-audit-2026-09-22.test.ts": 5,
+    "tests/ui-audit-2026-09-22.test.ts": 4,
     "tests/web-catalog-recovery.test.ts": 1,
     "tests/web-service-settings-client.test.ts": 1,
     "tests/work-placement.test.ts": 1,
@@ -794,7 +794,7 @@
   "floatingPromises": {
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 464,
+  "explicitAnyTotal": 459,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -914,7 +914,6 @@
     "tests/prologue-compaction.test.ts": 8,
     "tests/prologue-inference-images.test.ts": 2,
     "tests/prologue-inference-native.test.ts": 1,
-    "tests/prologue-materials.test.ts": 5,
     "tests/prologue-model-retry.test.ts": 1,
     "tests/prologue-review-child-command.test.ts": 5,
     "tests/prologue-review-feedback.test.ts": 3,

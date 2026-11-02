@@ -16,7 +16,7 @@
 | 6 分层与能力收敛 | [ARCHITECTURE](../../../docs/system/ARCHITECTURE.md)、[PACKAGE-BOUNDARIES](../../../docs/system/PACKAGE-BOUNDARIES.md)、[去特权表](../privileges.md) | 相关 W5 最终采用与原 PG 裁决；不把 I6 数字当现状 |
 | 7 巨大单元 | [判定与迁移表](../../../docs/system/HUGE-CLASS-MIGRATION.md)、[有效例外](../../../tooling/gates/giant-exceptions.json) | W6-04 当前实测及原分片状态；合理例外不再强拆，登记不替代业务验证 |
 | 8 扩展点与演练 | [EXTENSION-POINTS](../../../docs/system/EXTENSION-POINTS.md) 的现行操作入口与注明切点的历史成本／推演 | 已实现方向与真实探针的最终对应；推演不算实际演练，成本不重算 |
-| 9 并行、合同、API、回放、CI、反馈与上手 | [协作规则](../../../docs/system/PARALLEL-DEVELOPMENT.md)、[合同流程](../../../docs/system/CONTRACT-CHANGES.md)、[API／门禁](../../../tooling/gates/README.md)；[插件回放工具](../../../scripts/replay-plugins.mjs)、[corpus](../../../tests/fixtures/replay-plugins/corpus.json)、[正反测试](../../../tests/replay-plugins.test.ts) | 已有公开 SDK／打包 Text Stats 样本不等于 W4 两份真实生成样本及真签包回放已核收；[答卷回放](../../../docs/platform/STUDIO-SKILL-REPLAY.md)不能互代。反馈／热点归 W6-04，上手归 W6-03，最终 CI 归 W6-05 |
+| 9 并行、合同、API、回放、CI、反馈与上手 | [协作规则](../../../docs/system/PARALLEL-DEVELOPMENT.md)、[合同流程](../../../docs/system/CONTRACT-CHANGES.md)、[API／门禁](../../../tooling/gates/README.md)；[插件回放工具](../../../scripts/replay-plugins.mjs)、[corpus](../../../tests/fixtures/replay-plugins/corpus.json)、[正反测试](../../../tests/replay-plugins.test.ts) | 两真实来源样本已入库，计数器与人工适配清单各有独立真签包回放，见各README；[答卷回放](../../../docs/platform/STUDIO-SKILL-REPLAY.md)不能互代。反馈／热点归 W6-04，上手归 W6-03，最终 CI 归 W6-05 |
 | 10 逐插件实现、契约、接入、体验 | [plugin-conclusions](../plugin-conclusions.md)、[前端动线](../frontend-flow-walk.md) | 现行成员的 FR／LC／组合差集；不把旧成员数与局部截图推广为全集 |
 | 11 数据、状态、事件、权限、生命周期 | [Home owner](../../../docs/system/HOME-DATA.md)、[共写表](../../../tooling/gates/table-owners.json)、[安全不变量](../../../docs/system/SECURITY-INVARIANTS.md)、[W6-02](w6-02-lifecycle-rest.md) | 已记 Shelf 第6次／Goals 第7次不再列“没跑”；最终 LC／AC／UI 组合仍归 W6-05 |
 | 12 AI 下沉、共享、业务保留与暂缓 | [AI 入口分类](../ai-entry-inventory.md)、[AI 手册](../../../docs/platform/PROLOGUE-AI.md) | 后续改变入口及恢复／取消路径的差集；原暂缓边界不解除 |
@@ -32,7 +32,9 @@
 | 22 用户待决与 C 端方案 | 主 spec §1 的后续决定、[C 端就绪方案](../c-end-readiness.md) | 保留真正未决事项与原产品验收；方案已交不等于实现，不重问已决事项 |
 | 23 未验证范围及原因 | 主 spec §8／§12 与下列剩余边界 | 最终由根按 W5／W6 原证据结算；不把已取消迁移、已补跑路线继续记成待执行 |
 
-仍开放的完成边界：
+最新后继（2026-11-02）：W4两样本已入既有corpus。清单在 `c2cac66ce` 完成一次明确人工来源的公开修订、实际G1–G7与签包；随后独立单样本CLI安装／pin／兼容升级／Host关闭重开自然通过，唯一add后的完整id/time/正文/数量保持，零新增模型。计数器此前有效生成与独立回放沿用，没有重跑。两来源与旧失败在样本README分开记录；下列清单旧失败保留历史，不再代表本轮尚未签包。最终承载CI/Full与实际采用仍开放。
+
+仍开放的完成边界及原失败：
 
 - W4 计数器在原 `8315c693` 上已完成真实生成、四例完整数值验收、签包，以及独立安装／升级／Host 重启回放（`/tmp/codex-w6-closeout/w4-live-counter-submit-only-run1/independent-replay/RESULT.md`），不再重跑。清单单次生成于 2026-11-02 14:27Z 停止：首个空态界面断言失败，后续修复请求 11 次、用量回执 10 份，原件在 `w4-live-list-generate-run1`，清理完成；未签包或回放通过。后继 T412 清单修订于 15:31Z 停止：2 次请求均有用量回执，数组投影修正成功，但修订目录缺少原共享 helper，G2 失败、G3–G7 未执行，未签包，清理完成；原件在 `w4-live-list-revise-run1`。W4 两样本整体仍未核收。T411 的真实隔离 smoke 已完成 2/2 设计冻结、3 次内置修正（`/tmp/t411-evidence/REAL-SMOKE-RESULT.md`）；它只证明设计生成，费用／用量 unknown，不替代真实包验收。
 - W6-05 场景4尚未执行。场景1已在 ef7719da 的原材料、提示词和断言下完成真实隔离安装、摘要、Todo 提取与采纳、普通及带日期待办创建、撤销和同一 work 回读，run3 于 2026-11-02 12:56Z 通过；其原两次失败保留，欢迎向导、受保护 Memory、真实 Home 与本人质量验收不由此签过。原件为 `/private/tmp/molis-minimax-01a19287/w605-scene1-run3/result.json`。其余场景沿各自已有结果，不由本稿重新签名。

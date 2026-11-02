@@ -30,9 +30,13 @@ function replay(...args: string[]) {
 
 test("RAC-790 every sample of the replay corpus loads, runs, upgrades by upgrade_compatibility and runs again", { timeout: 300_000 }, () => {
   const { status, report, stderr } = replay();
-  assert.equal(status, 0, JSON.stringify(report, null, 2) + stderr);
-  assert.deepEqual(report.results.map(result => [result.id, result.ok]), [["plugin-sample", true], ["text-stats-packed", true]]);
-  for (const result of report.results) assert.ok(result.steps.upgrade && result.steps.upgrade.from === result.steps.load!.version && result.steps.upgrade.to !== result.steps.upgrade.from, result.id);
+  assert.equal(status, process.platform === "darwin" ? 0 : 1, JSON.stringify(report, null, 2) + stderr);
+  assert.deepEqual(report.results.map(result => result.id), ["plugin-sample", "text-stats-packed", "generated-counter", "generated-list"]);
+  for (const result of report.results) {
+    if (process.platform !== "darwin" && ["generated-counter", "generated-list"].includes(result.id)) { unsupported(result); continue; }
+    assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+    assert.ok(result.steps.upgrade && result.steps.upgrade.from === result.steps.load!.version && result.steps.upgrade.to !== result.steps.upgrade.from, result.id);
+  }
 });
 
 test("RAC-791 a sample that declares badly, offers no such action or answers differently fails the replay", { timeout: 300_000 }, () => {
@@ -102,7 +106,9 @@ function unsupported(result: Result) {
 test("RAC-790 W4-01 signed-package replay uses CLI preview/pin, one write, the same installation's v2 upgrade and a resident Host restart", { timeout: 300_000 }, () => {
   const fixture = signedCorpus();
   try {
-    const original = JSON.parse(readFileSync(path.join(root, "tests/fixtures/replay-plugins/corpus.json"), "utf8")).samples;
+    // The real generated packages have their own corpus case; this case exercises the mechanical runner fixture.
+    const original = JSON.parse(readFileSync(path.join(root, "tests/fixtures/replay-plugins/corpus.json"), "utf8")).samples
+      .filter((sample: { source: { kind: string } }) => sample.source.kind !== "signed-package");
     for (const sample of original) if (sample.source.kind === "directory") sample.source.path = path.resolve(root, "tests/fixtures/replay-plugins", sample.source.path);
     const { status, report, stderr } = replay("--corpus", fixture.corpus([...original, fixture.sample]));
     assert.deepEqual(report.results.slice(0, 2).map(result => [result.id, result.ok]), [["plugin-sample", true], ["text-stats-packed", true]]);

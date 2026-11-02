@@ -69,7 +69,10 @@ test("real Home HTTP and capability library use installed plugin grants without 
     // FULL17-C: the synchronous target check reads the actual current grant, including targets outside a stage's execution refs.
     const accepted = runtime.get(installId), exact = { ...definition, provider_id: installId };
     local.assert_authority_current!(exact, definition.action.permissions);
-    assert.throws(() => local.assert_authority_current!(exact, [...definition.action.permissions, "goals:read"]), { code: "actions.forbidden" }, "another provider's permission cannot satisfy this target's current requirements");
+    assert.ok(local.permissions.includes("goals:read"));
+    assert.doesNotThrow(() => local.assert_authority_current!(exact, [...definition.action.permissions, "goals:read"]), "the person's consumer permission is not an extra permission declaration for this installation");
+    assert.ok(!local.permissions.includes("fixture:not-held"));
+    assert.throws(() => local.assert_authority_current!(exact, ["fixture:not-held"]), { code: "actions.forbidden" });
     repository.save({ ...accepted, grants: [] });
     assert.throws(() => local.assert_authority_current!(exact, definition.action.permissions), { code: "actions.forbidden" });
     repository.save(accepted); local.assert_authority_current!(exact, definition.action.permissions);

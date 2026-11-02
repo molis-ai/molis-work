@@ -190,6 +190,7 @@ export function createLocalGoalsReadHttp(ports: {
           view = await withProjectPluginSurfaces(view, { store, projectId: options.projectId, homeDirectory, configuration: projectConfiguration, pluginServices, stageModel: declaredStageModel });
         }
         if (url.searchParams.has("workbenchPane")) view = { ...view, pane_plugin: url.searchParams.get("panePlugin") || "home" };
+        else if (url.searchParams.has("openPlugin")) view = { ...view, initial_plugin: url.searchParams.get("openPlugin") || undefined };
         return renderMolisWorkWeb(view, controlToken, desktopShell);
     });
     if (renderedGoalsPage) {

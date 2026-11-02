@@ -90,14 +90,13 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     const matches = accepted.filter(view => view.capability_id === action.capability_id && view.version === action.version
       && (!action.provider_id || view.provider.provider_id === action.provider_id));
     const original = matches.length === 1 ? matches[0] : undefined;
-    if (original && ownerReaches(original) && required.every(permission => builtinPermissions.includes(permission)
-      && localOwnerPermissionsOver(original.provider.provider_id, required).includes(permission))) return;
+    if (original && ownerReaches(original)) return;
     const installId = original?.provider.plugin_install_id;
     const install = !installId || !original ? undefined : inProject(original.provider) ? projectRepository?.get(installId)
       : host.homePlugins?.installations().find(record => record.install_id === installId);
     if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
       || install.installation_generation !== installOf(original.provider)?.installation_generation
-      || ![...original.action.permissions, ...required].every(permission => install.grants.includes(permission))) {
+      || !original.action.permissions.every(permission => install.grants.includes(permission))) {
       throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
     }
   };

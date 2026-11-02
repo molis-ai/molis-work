@@ -4,12 +4,12 @@ import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./una
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
-import type { UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiContribution, UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { homeStarts, pluginDirectoryFor, railEntries, sideEntries } from "./plugin-catalog.js";
+import { homeStarts, islandEntries, pluginDirectoryFor, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
@@ -47,6 +47,10 @@ export interface WorkbenchShellPageView {
   page_stage?: RenderedStagePage;
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
+  /** Presentation-only URL intent; it never grants access to a plugin or a surface. */
+  initial_plugin?: string;
+  /** The actual owner contributions already read for this request. */
+  plugin_stage_views?: Readonly<Record<string, UiContribution | null>>;
   enabled_plugins?: readonly string[];
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: readonly string[];
@@ -131,7 +135,6 @@ function renderMolisWorkWeb(
     model: pluginId => stageModel(pluginId, view) });
   const page = view.page_stage ?? declared.page, parts = page?.parts;
   const title = parts?.title ?? "Molis Work";
-  const initialDesktopSurface = parts?.open_stage ? page!.owner : "home";
   const bootstrap = parts?.bootstrap;
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
@@ -139,6 +142,17 @@ function renderMolisWorkWeb(
   const directory = pluginDirectoryFor(view.plugin_directory);
   // A running Plugin's own panel wins over the built-in one; initial geometry and the rendered sections use this same set.
   const directoryPanels = { ...declared.panels, ...(view.plugin_panels ?? {}) };
+  const requested = view.pane_plugin ?? view.initial_plugin;
+  const surfaces = [...(view.plugin_stage_surfaces ?? []), ...declared.surfaces];
+  const offered = [...railEntries(enabledPlugins, directory), ...islandEntries(enabledPlugins, directory)];
+  const contributions = requested ? [view.plugin_stage_views?.[`home:${requested}`], view.plugin_stage_views?.[`project:${requested}`],
+    ...BUILTIN_PLUGIN_CATALOG.filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
+  const requestedMain = requested && offered.some(entry => entry.id === requested) && !Object.hasOwn(sideOpenedPlugins(), requested)
+    && !(view.unavailable_plugin_stages ?? []).some(stage => stage.surface === requested)
+    && contributions.some(contribution => contribution?.descriptor.surfaces?.some(surface => surface.surface_id === "workbench"
+      && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html"
+      && surfaces.some(drawn => drawn.contribution_id === contribution.descriptor.contribution_id && drawn.surface === surface.surface_id)));
+  const initialDesktopSurface = parts?.open_stage ? page!.owner : requested && requestedMain ? requested : "home";
   const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface && directoryPanels[entry.id])
     ? initialDesktopSurface : "root";
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;

@@ -195,6 +195,18 @@ for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC
   for (const surface of expected) assert.equal(html.split(`data-owner-probe="${surface}"`).length - 1, 1, surface);
   assert.equal(new Set(draws.map(draw => (draw.model as StagePageModel).data)).size, 1, "all surfaces use the one stage read result");
   assert.equal(seen[0]!.caller.project_id, one.project_id);
+  // FULL15: exercise the actual URL producer as well as the shell's page-owner presentation fixture.
+  const direct = await request(`${base}/?openPlugin=${encodeURIComponent(id)}`);
+  assert.equal(direct.status, 200);
+  const initial = await direct.text();
+  assert.ok(initial.includes(`data-desktop-surface="${id}"`));
+  assert.ok(initial.includes(`id="goal-tree-pane" data-desktop-directory="${id}"`));
+  assert.doesNotMatch(initial.match(/<main class="immersive-workspace[^>]*>/u)![0], /is-plugin-directory-empty/u);
+  for (const requested of ["not-offered", "settings", "shelf"]) {
+    const response = await request(`${base}/?openPlugin=${requested}`), html = await response.text();
+    assert.equal(response.status, 200);
+    assert.ok(html.includes('id="goal-tree-pane" data-desktop-directory="root"'), `${requested} does not claim a main directory`);
+  }
   draws.length = 0; seen.length = 0;
   for (const surface of ["persisted-detail", "frame-block"]) {
     const response = await request(`${path}/objects/node%252Fone?surface=${surface}&actor_id=imposter&project_id=foreign&extra=never`);

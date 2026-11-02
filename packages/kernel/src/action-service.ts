@@ -279,7 +279,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         || !entryToken || this.registry.registrationToken(entry) !== entryToken
         || !targetToken || this.registry.registrationToken(target) !== targetToken) throw new ActionError("actions.provider_changed", "原舞台、场景或判断能力已停止或重新加载");
       requireSynchronous(context.assert_authority_current?.(authority.entry, entry.action?.permissions));
-      requireSynchronous(context.assert_authority_current?.(reference, target.action?.permissions));
+      requireSynchronous(context.assert_authority_current?.(reference));
       context.signal?.throwIfAborted();
     };
     check();

@@ -46,7 +46,7 @@ test("VUX-31: the project page and every plugin keep their first-painted geometr
 
 test("VUX-31: switching between plugins inside the page moves nothing that stays, at two widths", { timeout: 600_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId, click } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: OBSERVE }, sessionId);
   const order = [...SURFACES.filter((id) => id !== "project"), "home"], moved: string[] = [];
   let switches = 0;
@@ -59,7 +59,8 @@ test("VUX-31: switching between plugins inside the page moves nothing that stays
     // Twice round: the first visit loads each plugin, the second comes back to one already loaded.
     for (const round of [1, 2]) for (const id of order) {
       const from = await evaluate<number>("window.__shifts.length");
-      await evaluate(`molisWorkOpenPlugin(${JSON.stringify(id)})`);
+      // FULL15: actual navigation is input; keep measuring any later load shifts after the same 1500ms window.
+      await click(`[data-plugin-strip] [data-plugin-id="${id}"], [data-side-tab][data-side-plugin^="${id}/"]`);
       await pause(1_500);
       const shifts = (await evaluate<Array<{ value: number; moved: string[] }>>("window.__shifts")).slice(from), score = shifts.reduce((sum, shift) => sum + shift.value, 0);
       switches++;

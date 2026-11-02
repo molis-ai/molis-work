@@ -30,7 +30,7 @@ import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
-import { prepareMemoryHome } from "./memory/memory-initialization.js";
+import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
@@ -266,7 +266,7 @@ export class MolisWorkLocalHost {
   ensureWebCatalog(home: string, open: Parameters<typeof createWebCatalogAccess>[1]) {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
-    const storageOwner = ensureHomeStorageOwner(this, canonicalHome);
+    const storageOwner = ensureHomeStorageOwner(this, canonicalHome, preflightMemoryHome);
     if (!this.webCatalog) prepareMemoryHome(canonicalHome, storageOwner);
     return (this.webCatalog ??= { home: canonicalHome, access: createWebCatalogAccess(canonicalHome, options => open({ ...options, storageOwner })) }).access;
   }
@@ -276,7 +276,7 @@ export class MolisWorkLocalHost {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
-    const storageOwner = ensureHomeStorageOwner(this, canonicalHome);
+    const storageOwner = ensureHomeStorageOwner(this, canonicalHome, preflightMemoryHome);
     this.personalPlanningHome = canonicalHome;
     this.catalogRunner = (options, operation) => withCatalog({ ...options, storageOwner }, operation);
     bindPluginCatalog(this, canonicalHome, this.catalogRunner);
@@ -284,10 +284,11 @@ export class MolisWorkLocalHost {
   }
 
   /** A transport borrows this service; only the Host owns its lifetime. */
-  ensureAgentService(homeDirectory: string, create: (owner: import("@molis-ai/molis-work-storage").StorageOwner) => AgentHostComposition): AgentHostComposition {
+  ensureAgentService(homeDirectory: string, create: (owner: import("@molis-ai/molis-work-storage").StorageOwner) => AgentHostComposition,
+    beforeAcquire?: (home: string) => void): AgentHostComposition {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const home = path.resolve(homeDirectory);
-    const owner = ensureHomeStorageOwner(this, home);
+    const owner = ensureHomeStorageOwner(this, home, beforeAcquire);
     return (this.agents ??= { home, service: create(owner) }).service;
   }
 
@@ -459,7 +460,7 @@ async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () 
 /** This synchronous preflight closes its own ledger before throwing; no Host business resource exists yet. */
 function prepareHostMemoryHome(host: MolisWorkLocalHost, home: string | undefined): void {
   if (!home) return;
-  const owner = ensureHomeStorageOwner(host, home);
+  const owner = ensureHomeStorageOwner(host, home, preflightMemoryHome);
   try { prepareMemoryHome(path.resolve(home), owner); }
   catch (error) { releaseHomeStorageOwner(host); throw error; }
 }

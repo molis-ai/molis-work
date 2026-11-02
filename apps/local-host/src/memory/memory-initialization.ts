@@ -2,11 +2,12 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defaultPrefs, isCompletePrefs, memoryErrors } from "@molis-ai/molis-work-service-memory";
-import { hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { assertNoPendingHomeRestore, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
 
 /** Reject an obviously invalid Home without creating owner files; initialization still requires the locked checks below. */
 export function preflightMemoryHome(home: string): void {
+  assertNoPendingHomeRestore(agentRuntimeDirectory(home));
   if (existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) || !existsSync(home)) return;
   const runtime = agentRuntimeDirectory(home);
   if (readdirSync(home).some(entry => entry !== basename(runtime)) || hasStorageBusinessFiles(runtime)) {

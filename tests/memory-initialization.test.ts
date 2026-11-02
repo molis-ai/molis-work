@@ -9,8 +9,8 @@ import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contract
 import { openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { MemoryService, isCompletePrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration, ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost, MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { homeBusinessTree } from "./fixtures/home-storage-files.js";
+import { createDesktopWebHost, MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { homeBusinessTree, homeStorageTree } from "./fixtures/home-storage-files.js";
 
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -155,14 +155,27 @@ function files(directory: string) {
   return Object.fromEntries(Object.entries(homeBusinessTree(directory)).filter(([, state]) => "bytes" in state));
 }
 
-// T405-FULL-02: first Host ownership must not leave technical directories in a Home it refuses.
-test("a nonempty Home without a ledger is refused before creating its owner directory", t => {
+// T405-FULL-02 T405-FULL-07: product initialization, including late binding, refuses before any owner or root metadata write.
+test("a nonempty Home without a ledger is refused before creating its owner directory", async t => {
   const home = scratch(t);
   writeFileSync(join(home, "retained.txt"), "keep these original bytes");
-  const before = files(home);
+  const before = homeStorageTree(home);
   assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.unavailable" });
   assert.deepEqual(readdirSync(home), ["retained.txt"]);
-  assert.deepEqual(files(home), before);
+  assert.deepEqual(homeStorageTree(home), before);
+  const unbound = new MolisWorkLocalHost({ completeText: null });
+  try {
+    for (const [entry, open] of [
+      ["Web Catalog", () => unbound.ensureWebCatalog(home, openMolisWorkProjectCatalog)],
+      ["personal Catalog", () => unbound.configurePersonalPlanning(home, withMolisWorkProjectCatalog)],
+      ["system Agent", () => ensureSystemAgentService(unbound, home)],
+    ] as const) {
+      assert.throws(open, { code: "memory.unavailable" }, entry);
+      assert.deepEqual(homeStorageTree(home), before, entry + " changed the refused Home");
+    }
+  } finally { await unbound.close(); }
+  assert.throws(() => ensureSystemAgentService(unbound, home), { code: "host.closed" });
+  assert.deepEqual(homeStorageTree(home), before);
 });
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.

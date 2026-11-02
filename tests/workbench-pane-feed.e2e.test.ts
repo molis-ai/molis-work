@@ -1,19 +1,18 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Feed source navigation, independent nested panes, resize and restore", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   const main = await pluginFrameBrowser(t, browser, "feed");
   const firstPane = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-pane-index="0"]');
   const secondPane = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-pane-index="1"]');
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "pane-test" }); catalog.close();
+  await addProjectPlugin(browser.web, projectId!, "feed");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
@@ -102,10 +101,9 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
 test("merging a Feed overview pane preserves its unfinished inline source form", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   const child = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-draft-frame]');
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "pane-test" }); catalog.close();
+  await addProjectPlugin(browser.web, projectId!, "feed");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
@@ -204,8 +202,7 @@ test("a background refresh keeps the titlebar tabs hidden while panes are split,
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "pane-refresh-test" }); catalog.close();
+  await addProjectPlugin(browser.web, projectId!, "feed");
   // Another connection writing this project is what the shell's background refresh is for: a Goal event through Goals' own
   // application appends the journal event the board refresh reads, and the attention poll carries its new cursor to the page.
   const app = new GoalProjectApplication(browser.store);

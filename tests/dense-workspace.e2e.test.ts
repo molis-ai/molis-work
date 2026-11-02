@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { createLocalFeedApplication, createLocalFeedSourceService } from './fixtures/feed-library.js';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
@@ -13,7 +13,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   const b=await openGoalBrowser(t,true);if(!b)return;
   const {command,sessionId,evaluate,click,openGoalFrame,waitFor,navigate,origin,projectId}=b;
   const owners=await Promise.all([0,1,2].map(index=>pluginFrameBrowser(t,b,'feed',`iframe.tab-content-frame[data-dense-owner="${index}"]`)));
-  const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'density-test'});catalog.close();
+  await addProjectPlugin(b.web, projectId!, "feed");
   const app=new GoalProjectApplication(b.store),ids:string[]=[];
   for(let i=0;i<12;i++)ids.push(app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:`工作区验收 ${i}：跨团队长期目标，保留清晰的信息层级和用户注意力`,outcome:'切换与分屏可连续使用',actor_id:'web-user',actor_kind:'user',idempotency_key:'dense-'+i}).goal.goal_id);
   const feed=createLocalFeedApplication(b.store.db),source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'custom_rss',name:'长期观察来源：设计、工程与产品的连续记录',feed_url:'https://example.com/density.xml'}).source;

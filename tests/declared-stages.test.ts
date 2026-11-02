@@ -111,11 +111,17 @@ test("T405-FULL-15: the shell applies the same project's saved directory width b
     const html = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [], page_stage: page });
     const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]!).find(source => source.includes(key));
     assert.ok(script); assert.ok(html.indexOf(script) < html.indexOf('rel="stylesheet"'), "the preference runs before stylesheet/layout");
-    const styles: Array<{ textContent?: string }> = [], reads: string[] = [], window: { parent?: object } = {};
-    window.parent = window;
-    runInNewContext(script, { window, innerWidth: width, matchMedia: () => ({ matches: width <= 600 }),
+    const styles: Array<{ textContent?: string }> = [], reads: string[] = [], localReads: string[] = [];
+    const matchMedia = (query: string) => ({ matches: query === "(max-width:600px)" && width <= 600 });
+    const window: { parent?: object; top?: object; matchMedia: typeof matchMedia } = { matchMedia };
+    window.parent = window; window.top = window;
+    const documentElement: { dataset: Record<string, string> } = { dataset: {} };
+    runInNewContext(script, { window, innerWidth: width, matchMedia,
+      localStorage: { getItem(name: string) { localReads.push(name); return null; } },
       sessionStorage: { getItem(name: string) { reads.push(name); return (storage as Record<string, string>)[name] ?? null; } },
-      document: { createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
+      document: { documentElement, createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
+    assert.deepEqual(localReads, ["molis-work:theme", "molis-work:density", "molis-work:terminal-theme"]);
+    assert.deepEqual(documentElement.dataset, { theme: "system", resolvedTheme: "light", density: "standard", terminalTheme: "auto", resolvedTerminalTheme: "light" });
     assert.deepEqual(styles.map(style => style.textContent), expected === undefined ? [] : [`body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:${expected}px}`]);
     assert.ok(reads.every(name => name === key + ":" + collection || collection === "current" && name === key));
   }

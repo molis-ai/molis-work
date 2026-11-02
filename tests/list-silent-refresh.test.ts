@@ -113,7 +113,10 @@ test("Feed / Inbox 成功路径由当前 owner 刷新，宿主只投递失效通
   assert.doesNotMatch(script, /refreshFeedStage|refreshInboxStage/);
   assert.match(script, /const invalidateView =/);
   assert.match(script, /molis-work:select-item[\s\S]{0,100}invalidate: true/);
-  assert.match(feed, /page\.refresh = async/);
+  const feedRefresh = sliceFn(feed, "page.refresh =", "\n  page.select =");
+  assert.match(feedRefresh, /const refresh = async \(\) => \{[\s\S]*?await host\.view\.readDocument\(/);
+  assert.match(feedRefresh, /if \(sequence !== refreshSequence\) \{ await activeRefresh; check\(\); return; \}/);
+  assert.match(feedRefresh, /activeRefresh = refresh\(\);\s*return activeRefresh;\s*\};\s*$/);
   assert.match(feed, /await host\.view\.readDocument\(/);
   assert.match(inbox, /const refresh = async/);
   assert.match(inbox, /await host\.view\.readDocument\(/);

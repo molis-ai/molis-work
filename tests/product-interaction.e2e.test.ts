@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
@@ -41,7 +41,7 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
 
 test("Feed task creation is a scoped panel with validation and persistent schedule", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { command, sessionId, navigate, origin, projectId } = b;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "feed");
   await pluginFrameInitScript(t, b, `
     const state=window.__creationRefresh={armed:false,started:0,creator:0,nextCreator:false,held:{},completed:[],documents:{},releaseAll(){this.armed=false;Object.values(this.held).forEach(release=>release());}};
@@ -56,8 +56,7 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
       };return factory(host);
     }:factory;return true;}});
   `);
-  const catalog = await openMolisWorkProjectCatalog({homeDirectory});
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "interaction-test" }); catalog.close();
+  await addProjectPlugin(b.web, projectId!, "feed");
   await b.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
@@ -126,10 +125,9 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
 
 test("Feed creation recovers a failed schedule without duplicating the task", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { command, sessionId, navigate, origin, projectId } = b;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "feed");
-  const catalog = await openMolisWorkProjectCatalog({homeDirectory});
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "interaction-test" }); catalog.close();
+  await addProjectPlugin(b.web, projectId!, "feed");
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await b.click('[data-plugin-id="feed"]');
@@ -168,7 +166,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
 
 test("Feed configuration cancels drafts and saves its schedule independently", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { command, sessionId, navigate, origin, projectId } = b;
   const child = await pluginFrameBrowser(t, b, "feed"), { evaluate, waitFor, click } = child;
   await pluginFrameInitScript(t, b, `
     const state=window.__scheduleBusy={hold:false};
@@ -188,8 +186,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   };
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计资料"}).source;
   const feed = createLocalFeedApplication(b.store.db);
-  const catalog = await openMolisWorkProjectCatalog({homeDirectory});
-  catalog.addProjectPlugin({project_id:projectId!,plugin_id:"feed",actor_id:"test"}); catalog.close();
+  await addProjectPlugin(b.web, projectId!, "feed");
   await navigate(() => command("Page.navigate", {url:`${origin}/projects/${projectId}/`},sessionId));
   await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await b.click('[data-plugin-id="feed"]');
@@ -281,13 +278,13 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
 
 test("Feed reader keeps one title, tracks read state, collapses and retries a failed detail", {timeout:60_000}, async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
-  const {command,sessionId,navigate,origin,projectId,homeDirectory}=b;
+  const {command,sessionId,navigate,origin,projectId}=b;
   const child=await pluginFrameBrowser(t,b,'feed'),{evaluate,waitFor,click}=child;
   await pluginFrameInitScript(t,b,`window.__detailFails=true;window.__retryPressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){window.__detailFails=false;window.__retryPressing=event.isTrusted;}},true);addEventListener('click',()=>window.__retryPressing=false);window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{const read=host.view.readDocument;host.view.readDocument=async query=>{if(query?.object?.surface==='persisted-detail'){if(window.__detailFails)throw new Error('failed detail');window.__firstDetailAfterRetry??=window.__retryPressing?'the press':'something else';}return read(query);};return value(host);}:value;return true;}});`);
   const source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'web_query',query:'阅读测试'}).source;
   const feed=createLocalFeedApplication(b.store.db);
   const item=feed.ingestItem({source,externalId:'reader-test',title:'一次清楚的阅读',summary:'列表摘要',body:'## 核心内容\n\n阅读正文与完整来源。\n\n'+Array.from({length:30},(_,i)=>`### 检查项 ${i+1}\n\n保持标题和操作在视野内，让阅读区独立滚动。`).join('\n\n'),priority:'normal',occurredAt:'2026-09-16T00:00:00.000Z',attention:false}).item;
-  const catalog=await openMolisWorkProjectCatalog({homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'test'});catalog.close();
+  await addProjectPlugin(b.web, projectId!, "feed");
   // A fixed desktop size: Chrome's default window is 756 px wide on macOS and 780 px on Linux, either side of the 760 px phone layout.
   await b.setViewport(1440,960);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));

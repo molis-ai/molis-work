@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections , type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { cogniaScriptedResponse } from "./cognia-model-response.js";
 import { endingReviewAnswer } from "./ending-review.js";
@@ -10,7 +10,7 @@ import { isKnowledgeOrganize, organizedCardFor } from "./knowledge-organize.js";
 
 export type ScriptedCall = { name: string; input: unknown };
 /** A real loopback model transport with deterministic replies; no external account or model is used. */
-export async function scriptedModelServer(t: TestContext, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => []) {
+export async function scriptedModelServer(t: TestContext, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => [], withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = withMolisWorkProjectCatalog) {
   const requests: Record<string, unknown>[] = [], allRequests: Record<string, unknown>[] = [];
   const server = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -31,9 +31,9 @@ export async function scriptedModelServer(t: TestContext, script: (body: Record<
   return { requests, allRequests, base };
 }
 
-export async function connectorAssistantModel(t: TestContext, home: string, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => []) {
+export async function connectorAssistantModel(t: TestContext, home: string, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => [], withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = withMolisWorkProjectCatalog) {
   const { requests, allRequests, base } = await scriptedModelServer(t, script, review);
-  await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
+  await runWithMolisWorkHome(home, () => withCatalog({ homeDirectory: home }, catalog => {
     const connection = withConnectorConnections(home, store => {
       const row = store.createToken({ serviceId: "model-api", displayName: "Scripted model", token: "fixture-loopback-model" });
       store.assertTarget(row.connection_id, "model-api", base); return row;

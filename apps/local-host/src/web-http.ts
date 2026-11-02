@@ -1,5 +1,4 @@
 import { currentCallId } from "@molis-ai/molis-work-kernel";
-import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHostname, isLoopbackHttpOrigin, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
@@ -8,6 +7,7 @@ import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
+import { controlTokenMatches } from "./web-control-token.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -138,13 +138,6 @@ function isGuardedMutationPath(pathname: string): boolean {
   return pathname.startsWith("/api/") || /^\/projects\/[^/]+\/api(?:\/|$)/.test(pathname);
 }
 const SELF_GUARDED_MOUNT = /^\/im(?:\/|$)/;
-
-function controlTokenMatches(expected: string, actual: string | undefined): boolean {
-  if (typeof actual !== "string") return false;
-  const expectedBytes = Buffer.from(expected);
-  const actualBytes = Buffer.from(actual);
-  return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
-}
 
 export function authorizeLocalWebRequest(
   request: IncomingMessage,

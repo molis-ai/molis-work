@@ -1,6 +1,5 @@
-import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
-import { createHash } from "node:crypto";
 import type { GoalsQueryApi } from "./contract/goals.js";
+import { requestHash } from "./module/command-support.js";
 import type { GoalTreeProposalItemRecord, ProposalAffectedObject, ProposalObjectVersion } from "./contract/governance-collaboration.js";
 
 /** A proposal's baselines: the facts of the Goals and relations it touches, compared by what matters to the proposal. */
@@ -44,8 +43,4 @@ function semanticObject(current: unknown, object: ProposalAffectedObject): unkno
     type: record.type,
     state: record.state,
   };
-}
-
-function requestHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
 }

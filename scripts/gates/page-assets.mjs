@@ -242,58 +242,12 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-const APPROVED_CEILINGS = {
-  // T-394 (RAC-2855/2856): signed role/method previews and provenance handoff retain complete names,
-  // excerpts and change/source display, reusing T141's shared UI helpers. The combined feature adds
-  // 1,390 B after those existing savings. Measured against adopted e4bf46ca; the coordinator authorized
-  // this exact final carrier allowance, without changing the resource gate or adding a served path.
-  "/assets/molis-work-workbench.js": [1151273, 1152663],
-  // T-353 (RAC-2726–2728): Jelly's row summary uses the SDK cutHead instead of a second inline implementation.
-  // +33 B for the shared import/call; an inline copy keeps the duplication and precomputation still needs this helper.
-  "/assets/molis-work-plugins/jelly.js": [76866, 76899],
-};
+const APPROVED_CEILINGS = {};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
-// first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
-// shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
-// User approved 2026-10-24 (pop-up decision, W5-04 third group): Files, Git, Diff and Text Stats each ship their own bundle now that
-// Coding lends them to its panels through `clientUses` instead of copying their code into coding.js; coding.js falls by 82 KB.
-// Each is frozen once at the measured bytes.
-// User approved 2026-10-25 (pop-up decision, PG-070): a plugin whose page runs in a frame sends the rules of its own namespace as
-// /assets/molis-work-plugins/<id>.css, linked only by the frames that need them, instead of inside molis-work-workbench.css. The
-// sheets together are the bytes the workbench sheet loses (the workbench sheet falls by 247609, the sheets add 247526), so the total
-// does not grow. Each is frozen once at the measured bytes.
-const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-plugin-frame.js": 187120,
-  // PG-070 slice 2 (2026-10-25): Shelf no longer keeps its sheet in the settings/workbench sheets, the plugin builder's own
-  // rules leave the shared sheet too; both are linked on demand, so both freeze once at the measured bytes.
-  "/assets/molis-work-plugins/plugin-builder.css": 19893,
-  "/assets/molis-work-plugins/shelf.css": 36541,
-  "/assets/molis-work-plugins/diff.js": 1483,
-  "/assets/molis-work-plugins/files.js": 11227,
-  "/assets/molis-work-plugins/git.js": 29496,
-  "/assets/molis-work-plugins/text-stats.js": 1281,
-  "/assets/molis-work-plugins/alchemist.css": 151,
-  // PG-070 slice 2 renamed the shared diff view's classes to `mw-diff-*`, including the ancestor selectors Coding's rules
-  // use; coding.css and the settings sheet that also embeds Coding's rules each grew by 24 bytes, so the first freeze is what
-  // this branch measures, not the pre-slice-2 number. (The coding.js bundle grew by 45 bytes and workbench.js by 642; both are
-  // existing assets, listed in the delivery comment and admitted by the merge queue, not here.)
-  "/assets/molis-work-plugins/coding.css": 74624,
-  "/assets/molis-work-plugins/cognia.css": 8283,
-  "/assets/molis-work-plugins/dataset.css": 6916,
-  "/assets/molis-work-plugins/files.css": 3199,
-  "/assets/molis-work-plugins/form.css": 8765,
-  "/assets/molis-work-plugins/git.css": 3197,
-  "/assets/molis-work-plugins/images.css": 7851,
-  "/assets/molis-work-plugins/jelly.css": 19603,
-  "/assets/molis-work-plugins/lingguang.css": 4505,
-  "/assets/molis-work-plugins/pages.css": 48265,
-  "/assets/molis-work-plugins/ppt.css": 7028,
-  "/assets/molis-work-plugins/schedule.css": 1269,
-  "/assets/molis-work-plugins/todo.css": 13175,
-  "/assets/molis-work-plugins/workflows.css": 40743,
-};
+// first freeze; from the next PR on it only falls like every other. An entry is spent once the budget file holds the asset, so
+// it is deleted in the change after the one that admitted it (the decisions stay in git history and the admitting PR).
+const APPROVED_NEW_ASSETS = {};
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];

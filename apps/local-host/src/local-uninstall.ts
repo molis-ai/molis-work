@@ -25,8 +25,8 @@ export function createLocalUninstallService(options: Omit<MolisWorkUninstallServ
         return { projects: [], conflict: `无法安全读取项目 catalog：${error instanceof Error ? error.message : String(error)}` };
       } finally { storage?.close(); }
     },
-    async removeDemos(input) {
-      await withMolisWorkProjectCatalog({ homeDirectory }, async catalog => {
+    async removeDemos(input, storageOwner) {
+      await withMolisWorkProjectCatalog({ homeDirectory, storageOwner }, async catalog => {
         for (const projectId of input.project_ids) await catalog.removeDemoProject({
           project_id: projectId, actor_id: "molis-work-uninstaller", delete_confirmed: true,
           idempotency_key: `${input.plan_id}:${projectId}`,

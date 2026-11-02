@@ -166,7 +166,14 @@ export function pcQuery(c: State & Kit & Rel & Rec & Det & Ctl & Out) {
         if (part.feedback.dataset.pcRead !== undefined) { part.feedback.className = ''; part.feedback.textContent = ''; delete part.feedback.dataset.pcRead; }
       }
     }
-    catch (error) { if (live(part, generation) && ticket === part.query) { const message = error instanceof Error ? error.message : '读取失败，稍后可以重试'; part.output.querySelector('.pc-skeleton')?.remove(); report(part, 'error', message); part.feedback.dataset.pcRead = ''; options.onRead?.(part.node.id, { error: message }); } }
+    catch (error) { if (live(part, generation) && ticket === part.query) {
+      const message = error instanceof Error ? error.message : 'Unknown read error';
+      part.output.replaceChildren();
+      report(part, 'error', '读取失败，请重试：' + message); part.feedback.dataset.pcRead = '';
+      const retry = make('button', '重试', 'mw-btn mw-btn--secondary mw-btn--sm'); retry.type = 'button'; retry.dataset.pcRetry = part.node.id;
+      retry.addEventListener('click', () => { void query(part); }); part.feedback.append(retry);
+      options.onRead?.(part.node.id, { error: message });
+    } }
   }
   /** What a part reports: an error as the catalog's alert, a success as a short badge that fades, work in progress as plain words. */
   function report(part: Part, tone: 'error' | 'success' | 'working' | '', message: string) {
@@ -177,7 +184,12 @@ export function pcQuery(c: State & Kit & Rel & Rec & Det & Ctl & Out) {
     if (tone === 'success') part.feedbackTimer = setTimeout(() => { part.feedback.classList.add('is-leaving'); part.feedbackTimer = setTimeout(() => report(part, '', ''), 250); }, 3150);
     const mirror = part.dialog?.querySelector<HTMLElement>('.pc-dialog-error'); if (mirror) { mirror.hidden = tone !== 'error'; mirror.textContent = tone === 'error' ? message : ''; }
   }
-  function refresh() {
+  function refresh(componentId?: string) {
+    if (componentId !== undefined) {
+      const part = parts.get(componentId);
+      if (!part?.node.read) throw new Error('组件没有可刷新的读取：' + componentId);
+      return Promise.all([query(part)]);
+    }
     for (const part of parts.values()) for (const source of Object.values(part.node.submit?.input ?? {})) if (source.source === 'form' && source.prefill) {
       const version = selectionVersions.get(source.prefill.componentId); if (version === undefined || part.prefilled.get(source.field) === version) continue;
       const value = at(c.selection[source.prefill.componentId], source.prefill.field);

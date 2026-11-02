@@ -49,7 +49,7 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
 }
 
 export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub) {
-  const { options, make, glyph, button, MARKS, TEMPLATE, naming, headingOf, operation, collections, rowLabel, composer, signature, exportRows, vocabulary, control, overlay, query, onSubmit } = c;
+  const { options, make, glyph, button, MARKS, TEMPLATE, naming, headingOf, operation, collections, rowLabel, composer, signature, exportRows, vocabulary, control, overlay, query, report, onSubmit } = c;
   function createPart(node: PluginComponentNode): Part {
     const kind = node.kind, element = make('section', undefined, 'pc-node pc-kind-' + kind); element.dataset.componentId = node.id; element.setAttribute('aria-label', node.props.title || node.purpose);
     const description = make('p', TEMPLATE.test(node.props.description ?? '') ? '' : node.props.description ?? '', 'pc-part-description');
@@ -152,7 +152,14 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         form.append(panel);
         if (composer(node)) form.classList.add('pc-composer');
       }
-      const edited = () => { part.draft++; }; form.addEventListener('input', edited); form.addEventListener('change', edited);
+      const edited = () => { part.draft++; if (part.feedback.dataset.pcInvalid !== undefined && form.checkValidity()) { report(part, '', ''); delete part.feedback.dataset.pcInvalid; } };
+      form.addEventListener('input', edited); form.addEventListener('change', edited);
+      form.addEventListener('invalid', event => {
+        const field = event.target;
+        if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) return;
+        report(part, 'error', field.validity.valueMissing ? part.node.props.requiredText || field.validationMessage : field.validationMessage);
+        part.feedback.dataset.pcInvalid = '';
+      }, true);
       form.addEventListener('submit', onSubmit(part, form, submit, schema));
       part.form = form; if (!part.dialog) element.append(form);
     }

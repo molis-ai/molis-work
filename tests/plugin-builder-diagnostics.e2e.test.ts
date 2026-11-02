@@ -5,11 +5,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
-import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
+import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-plugin-builder';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import { runBuilderBrowserAcceptance } from '../apps/local-host/src/plugin-builder/browser.js';
-import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
+import { builderBrowserExecutable, openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingSamples } from './fixtures/plugin-composition.js';
 
 test('Builder diagnoses accepted reads with current selection, without another call or a stale response', { timeout: 60_000 }, async () => {
@@ -70,4 +70,62 @@ test('Builder diagnoses accepted reads with current selection, without another c
   } finally {
     release?.(); await browser.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('RAC-2934 RAC-2935 G7 collects independent actual failures and stops on failed isolation reset', { timeout: 120_000 }, async () => {
+  const contract = {
+    version: 1, pluginId: 'test.batch', revision: 'one', entities: [], acceptance: [],
+    operations: [
+      { id: 'read', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'string' }, effects: {}, errors: [], examples: [] },
+      { id: 'save', kind: 'command', input: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false }, output: { type: 'boolean' }, effects: {}, errors: [], examples: [] },
+    ], pages: [{ id: 'home', title: '批量', regions: [{ id: 'main', title: '批量', operationIds: ['read', 'save'] }] }],
+  };
+  const nodes = [
+    { id: 'reader', pageId: 'home', regionId: 'main', intent: 'description', purpose: '读取', kind: 'card', props: {}, read: { operationId: 'read', input: {} } },
+    { id: 'editor', pageId: 'home', regionId: 'main', intent: 'input', purpose: '暂不可提交', kind: 'form', props: { requiredText: '不能空' }, submit: { operationId: 'save', input: { text: { source: 'form', field: 'text' } } } },
+  ];
+  const acceptance = [
+    { id: 'first-fails', description: '真实可见内容使否定断言失败', steps: [{ action: 'expectAbsent', componentId: 'reader', text: 'BATCH_VISIBLE' }] },
+    { id: 'later-runs', description: '重置后仍实际读取并断言', steps: [{ action: 'expect', componentId: 'reader', text: 'BATCH_VISIBLE' }] },
+    { id: 'disabled', description: '禁用按钮不能冒充原生拒绝', steps: [{ action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' }] },
+  ];
+  const draft = { design: { contract, acceptance }, nodes, connected: ['read'] };
+  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
+  let reads = 0, submits = 0;
+  const server = createServer(async (request, response) => {
+    if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/builds/probe') { response.end(JSON.stringify({ build: draft })); return; }
+    if (request.url === '/builds/probe/call') {
+      const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      if (body.binding === 'submit') { submits++; response.end(JSON.stringify({ value: true })); }
+      else { reads++; response.end(JSON.stringify({ value: 'BATCH_VISIBLE' })); }
+      return;
+    }
+    response.writeHead(404); response.end('{}');
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/preview';
+  try {
+    for (const rejectReset of [false, true]) {
+      reads = 0; let resets = 0;
+      const result = await runBuilderBrowserAcceptance(draft as Parameters<typeof runBuilderBrowserAcceptance>[0], {
+        url, executable: dedicatedBuilderBrowser(), signal: new AbortController().signal,
+        reset: async () => { resets++; if (rejectReset) throw new Error('RESET_BOUNDARY_REJECTED'); submits = 0; },
+        trial: { submitCalls: () => submits, faultRead: () => { throw new Error('Unexpected fault request'); } },
+      });
+      assert.equal(result.passed, false, 'an actual assertion failure keeps the batch red');
+      assert.match(result.cases[0]!.detail, /验收不应显示/);
+      if (rejectReset) {
+        assert.match(result.blocked!, /RESET_BOUNDARY_REJECTED/); assert.equal(reads, 1); assert.equal(resets, 1);
+        assert.ok(result.cases.slice(1).every(row => !row.passed && /尚未执行.*RESET_BOUNDARY_REJECTED/.test(row.detail)));
+      } else {
+        assert.deepEqual(result.cases.map(row => row.passed), [false, true, false]);
+        assert.equal(reads, 3, 'every independent case reopened the real renderer and read again'); assert.equal(resets, 2);
+        assert.match(result.cases[2]!.detail, /需要可用的提交按钮/);
+      }
+      assert.equal(submits, 0);
+    }
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

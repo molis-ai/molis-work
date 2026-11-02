@@ -42,6 +42,8 @@
 
 G7 与截图复查使用独立验收存储，不读取或清空人的试用内容。宽窄屏结构检查发现溢出与操作遮挡；当前模型声明图片输入能力时，经 Prologue 查看画布截图，最多一轮修订、一次确认。无图片能力如实显示「功能已验证；视觉未复查」。结构故障仍阻止完成。实际截图与真实模型记录须和手写样例分开判断。
 
+负向验收用显式 `submitBlocked`（必填字段 `valueMissing`）、`faultRead`（当前 trial 的绑定 query 单次失败）、`retry` 与 `expectValue`；普通 `submit` 仍只接受成功。表单 `requiredText` 由真实 invalid 事件显示，读取失败由真实组件显示错误和重试，不由执行器写 DOM。每例独立重置，断言失败先收齐其余独立例，再将整批实际失败交原有限修复流程；环境或 reset 失败标明未执行并停止修复。详情见 [生成设计 DSL](../../../skills/molis-plugin-dev/generated-design.md)。
+
 实施与验收：[整页设计与视觉复查](../../../specs/archive/plugin-builder/work-items/visual-composition/spec.md)。
 
 设计、UI 生成和截图复查共同读取 [体验与审美标准](../../../skills/molis-plugin-dev/generated-experience.md)，其中用户动线进入 journey/purpose，空间与信息取舍进入 UI summary。标准参考 Impeccable 的 Operate/Read、动效和评审原则，按 Molis 的组件目录改写，随插件规范一起发行。动效由宿主实现，不开放模型脚本；静态截图不用于断言动画、焦点或未展示状态。复查同时获得实际渲染节点、字段映射与合法候选，建议必须有具体截图证据并保持冻结合同。

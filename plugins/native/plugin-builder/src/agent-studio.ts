@@ -181,6 +181,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const readings=new Map(),plugin=host.components({root,call:pluginCall(host.build),onRead:(id,result)=>readings.set(id,result)});
   lifetime.own(()=>plugin.destroy());
   globalThis.__molisPluginRead=async componentId=>{const result=readings.get(componentId);if(!result)throw new Error(L('当前组件尚未读取'));if('error'in result)throw new Error(result.error);return structuredClone(result.value)};
+  if(host.acceptance){const refresh=async componentId=>{lifetime.assertCurrent();await plugin.refresh(componentId)};globalThis.__molisPluginRefresh=refresh;lifetime.own(()=>{if(globalThis.__molisPluginRefresh===refresh)delete globalThis.__molisPluginRefresh});}
   api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error(L('这个草稿还没有确定方案'));await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected,presentation:build.design.presentation});if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }

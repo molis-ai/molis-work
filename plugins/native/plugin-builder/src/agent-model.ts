@@ -9,6 +9,9 @@ export interface BrowserAcceptance {
     | { action: 'page'; pageId: string }
     | { action: 'fill'; componentId: string; field: string; value: string | boolean }
     | { action: 'submit'; componentId: string }
+    | { action: 'submitBlocked'; componentId: string; field: string; reason: 'valueMissing' }
+    | { action: 'faultRead'; componentId: string }
+    | { action: 'retry'; componentId: string }
     /** A record is chosen by its stable id or, since ids are made at run time, by text it shows. */
     | { action: 'select'; componentId: string; recordId?: string; text?: string }
     | { action: 'expect'; componentId: string; text: string }
@@ -60,7 +63,7 @@ export interface AgentBuildSnapshot {
   checks?: Record<string, BuildCheckResult>;
   /** Absence denotes the project's check context; Home checks are explicit. */
   checksScope?: 'home';
-  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string };
+  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string; blocked?: string };
   visualResult?: { structural: boolean; status: 'reviewed' | 'unavailable' | 'failed'; issues: string[]; at: string; revision: string; elapsedMs: number };
   /** A paused visual revision resumes without starting code generation. */
   pendingVisual?: string;
@@ -78,7 +81,7 @@ export interface AgentBuild extends AgentBuildSnapshot {
   /** The designer's last host-normalized notes (dropped unknown settings), shown so nothing disappears silently. */
   notes?: string[];
   steps: AgentBuildStep[]; checks: Record<string, BuildCheckResult>;
-  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string };
+  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string; blocked?: string };
   runs: Array<{ id: string; role: string; phase: string; configuredModel: string; reportedModels: string[]; promptVersion: string; error?: string }>;
   pendingPart?: { id: string; candidates: string[]; reason: string };
   /** Plugins the design uses that this project has not enabled: the build waits until the person enables them or declines. */

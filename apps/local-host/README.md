@@ -119,6 +119,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
+创作台 G7 的故障与提交调用观察仅由当前隔离 trial 的 Host 回调持有，不接受客户端权限标志或任意操作注入。单次 `faultRead` 必须命中已绑定 query 并消费，reset/finally 清除；普通试用和安装态没有该入口。独立 case 失败后继续收齐，隔离或环境重置失败则停止并标明未执行，整批结果返回后才进入有限修复。
+
 双实例可选权限的 Home 上限由 home-side / HomePluginHost 只读捕获匹配安装的原激活检查，项目平台仅对可信双实例接入，不同步两库。项目 setter 明确拒绝双实例可选权限修改；settings 私有 overview 从同一可信判定投影安装 ID，不改公开动作 schema。Home 缺失或停止只拒可选能力，必需能力与项目状态仍独立。回归：`tests/security-invariants-dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2910）。
 
 舞台元数据与执行使用同一 provider/scope/installation 判据、不同的本人权限上限。只有已验证的舞台入口能保留本人完整本地授权下的精确元数据引用；执行 permissions/allowed_actions 仍用原上限。额外目标的当前检查必须完整固定 capability、version 和 provider，不能用元数据引用执行或转授给查询、目录委托及回调。

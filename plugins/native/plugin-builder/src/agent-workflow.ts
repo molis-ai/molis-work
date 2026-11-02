@@ -398,6 +398,7 @@ export class AgentBuilderWorkflow {
     this.change(id, value => { value.checks.global = final; value.checksScope = value.runtimeScope; value.scopeCheckPending = undefined; }); if (!final.passed) throw new Error('发布前整体门禁失败：' + (final.gates.find(gate => !gate.passed)?.detail ?? ''));
     const result = await this.repairAcceptance(id, token, signal, await this.acceptance(id, token, signal, 0));
     if (!result.passed) {
+      if (result.blocked) throw new Error('界面验收未能继续：' + result.blocked);
       const failed = result.cases.find(item => !item.passed && item.detail !== PENDING_CASE), test = this.store.require(id).design!.acceptance.find(item => item.id === failed?.id);
       throw new Error('界面验收' + (test ? '「' + test.description + '」' : '') + '仍未通过：' + humanize(failureReason(failed?.detail ?? '')) + '。可以重新验收，或说明这条验收该怎么改');
     }
@@ -614,7 +615,7 @@ export class AgentBuilderWorkflow {
     this.step(id, { id: stepId, agent: 'host', action: 'verify', label: round ? '重新在真实界面执行验收' : '在真实界面执行验收', status: 'active' });
     let result: NonNullable<AgentBuild['browserResult']>;
     try { result = await this.ports.browserAcceptance(this.store.require(id), signal); }
-    catch (error) { signal.throwIfAborted(); result = { passed: false, cases: [{ id: '*', passed: false, detail: message(error) }], at: new Date().toISOString() }; }
+    catch (error) { signal.throwIfAborted(); const blocked = message(error); result = { passed: false, cases: this.store.require(id).design!.acceptance.map(test => ({ id: test.id, passed: false, detail: '尚未执行：' + blocked })), blocked, at: new Date().toISOString() }; }
     this.current(id, token);
     this.change(id, value => { value.browserResult = result; });
     this.step(id, { id: stepId, agent: 'host', action: 'verify', label: result.passed ? '界面验收通过' : '界面验收未通过', status: result.passed ? 'done' : 'failed', detail: JSON.stringify(result.cases) });
@@ -625,14 +626,17 @@ export class AgentBuilderWorkflow {
    * round re-runs the full gates and the whole acceptance. Contract and acceptance stay frozen.
    */
   private async repairAcceptance(id: string, token: string, signal: AbortSignal, result: NonNullable<AgentBuild['browserResult']>) {
-    for (let round = 1; !result.passed && round <= 2; round++) {
-      const design = this.store.require(id).design!, failed = result.cases.find(item => !item.passed && item.detail !== PENDING_CASE);
-      const test = design.acceptance.find(item => item.id === failed?.id);
-      if (!failed || !test) break;
+    for (let round = 1; !result.passed && !result.blocked && round <= 2; round++) {
+      const design = this.store.require(id).design!;
+      const failures = result.cases.flatMap(failed => { const test = design.acceptance.find(item => item.id === failed.id); return !failed.passed && failed.detail !== PENDING_CASE && test ? [{ failed, test }] : []; });
+      const first = failures[0]; if (!first) break;
+      const { failed, test } = first;
+      const acceptanceFailures = failures.map(({ failed, test }) => ({ description: test.description, steps: test.steps, detail: failed.detail }));
       // Display problem: the part's data already has the expected text but the part does not show it. That is the
       // designer's configuration, not code; hand it back to the designer and re-place only what changed.
-      const display = displayProblem(test, failed.detail, this.store.require(id).design!.parts);
-      if (display) {
+      const displays = failures.flatMap(({ failed, test }) => { const display = displayProblem(test, failed.detail, design.parts); return display ? [{ test, display }] : []; });
+      if (displays.length) {
+        const requests = displays.map(({ test, display }) => {
         const kind = this.store.require(id).nodes.find(node => node.id === display.componentId)?.kind;
         const request = display.type === 'choice'
           ? '宿主在界面验收「' + test.description + '」中填写组件 ' + display.componentId + ' 时发现：' + display.reason + '。这是验收值或字段显示映射与已有枚举不一致，代码不能改变这些选项。请按字段已声明的原始值或实际显示文字修正 fill（或该字段的显示映射），保持被检查的行为、操作合同和代码不变。'
@@ -643,7 +647,9 @@ export class AgentBuilderWorkflow {
             + '」，但界面上没有显示出来（界面显示的是：' + display.visible.slice(0, 200) + '）。请只调整这个组件的显示设置（titleField、textField、columns 等），让这些内容显示出来（布尔或枚举字段用 columns 里的 values 写成人话，如 {"true": "已打卡", "false": "未打卡"}）；验收只写会显示的值，不要把列名和值连在一起写（组件可能是表格）；不要改操作。'
           : '宿主在界面验收「' + test.description + '」中发现：期望组件 ' + display.componentId + ' 显示「' + display.expected.join('」「') + '」，但它不读取任何操作，内容只能经由设计带过来（界面显示的是：' + display.visible.slice(0, 200)
             + '）。如果内容是另一个组件命令的结果或选中的记录，用 "prefill:组件.字段" 预填这个表单字段；如果是它自己命令的结果，在 submit 里写 "show": "字段" 显示出来；如果验收本身写错了组件，改正验收步骤，但它检查的行为不能变。不要改操作。';
-        await this.revise(id, token, signal, request);
+          return request;
+        });
+        await this.revise(id, token, signal, requests.join('\n\n') + '\n本批界面验收的全部实际失败如下，请集中处理属于设计的原因，保留其余原始诊断，不改变被验收的业务行为：\n' + JSON.stringify(acceptanceFailures));
         await this.assemble(id, token, signal); this.current(id, token);
         if (this.store.require(id).pendingPart) return result;
         await this.implement(id, token, signal);
@@ -653,21 +659,21 @@ export class AgentBuilderWorkflow {
         result = await this.acceptance(id, token, signal, round);
         continue;
       }
-      const components = new Set(test.steps.flatMap(step => 'componentId' in step ? [step.componentId] : []));
+      const components = new Set(failures.flatMap(({ test }) => test.steps.flatMap(step => 'componentId' in step ? [step.componentId] : [])));
       const operationIds = [...new Set(design.parts.filter(part => components.has(part.id)).flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))];
       if (!operationIds.length) break;
       const stepId = 'acceptance-repair:' + token + ':' + round;
-      this.step(id, { id: stepId, agent: 'code', action: 'implement', label: '验收「' + test.description + '」未通过，代码 Agent 修正中', operationId: operationIds[0], status: 'active', detail: failed.detail });
+      this.step(id, { id: stepId, agent: 'code', action: 'implement', label: '本批 ' + failures.length + ' 条界面验收未通过，代码 Agent 集中修正中', operationId: operationIds[0], status: 'active', detail: JSON.stringify(acceptanceFailures) });
       const operations = design.contract.operations.map((item, index) => ({ ...item, implementation: 'src/operations/' + index + '.ts', tests: 'tests/operations/' + index + '.ts' })).filter(item => operationIds.includes(item.id));
       const parts = design.parts.filter(part => components.has(part.id)).map(({ id: partId, intent, purpose, props, read, submit }) => ({ id: partId, intent, purpose, props, read, submit }));
       const shared = await this.ports.sources?.(this.store.require(id)) ?? [];
       await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, this.prompt('acceptance'), operationIds, stepId + ':run',
-        { operations, parts, shared, acceptanceFailure: { description: test.description, steps: test.steps, detail: failed.detail }, round }));
+        { operations, parts, shared, acceptanceFailure: { description: test.description, steps: test.steps, detail: failed.detail }, acceptanceFailures, round }));
       let final = await this.check(id, design.contract.operations.map(item => item.id), signal); this.current(id, token);
       // A fix that breaks a check goes back to the code agent with the check's own words, as any other repair.
       for (let attempt = 1; !final.passed && attempt <= 2; attempt++) {
         await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, this.prompt('repair'), operationIds, stepId + ':repair:' + attempt,
-          { operations, shared, failure: final, attempt, maxRepairs: 2, acceptanceFailure: { description: test.description, steps: test.steps, detail: failed.detail } }));
+          { operations, shared, failure: final, attempt, maxRepairs: 2, acceptanceFailure: { description: test.description, steps: test.steps, detail: failed.detail }, acceptanceFailures }));
         final = await this.check(id, design.contract.operations.map(item => item.id), signal); this.current(id, token);
       }
       this.change(id, value => { value.checks.global = final; value.checksScope = value.runtimeScope; value.scopeCheckPending = undefined; });

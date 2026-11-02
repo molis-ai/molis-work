@@ -110,23 +110,49 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
     return runner;
   };
-  const trials = new Map<string, { original: string; build: AgentBuild }>();
+  type Trial = { original: string; build: AgentBuild; submits: Map<string, number>; fault?: { componentId: string; operationId: string; consumed: boolean } };
+  const trials = new Map<string, Trial>();
   studio.callAcceptance = async (buildId, key, componentId, binding, payload, control) => {
     const trial = trials.get(key);
     if (!trial || trial.original !== buildId) throw new Error('这轮界面验收已结束');
     const node = trial.build.nodes.find(node => node.id === componentId);
     if (!node) throw new Error('界面组件不存在');
     const call = resolvePluginComponentCall(node, binding, payload);
+    control?.signal.throwIfAborted();
+    if (binding === 'submit') trial.submits.set(call.operationId, (trial.submits.get(call.operationId) ?? 0) + 1);
+    if (binding === 'read' && trial.fault && !trial.fault.consumed && trial.fault.componentId === componentId && trial.fault.operationId === call.operationId) {
+      trial.fault.consumed = true; throw new Error('STUDIO_ACCEPTANCE_READ_FAILURE');
+    }
     const capabilities = await studio.catalog(trial.build.runtimeScope);
     return (await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities)).call(call.operationId, call.input, control);
   };
   const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {
     if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
     const key = randomUUID(), trial = { ...build, id: build.id + ':acceptance:' + key };
-    accepting.add(trial.id); trials.set(key, { original: build.id, build: trial });
-    const reset = async () => { await stopRunner(trial.id); clearPreview(trial.id); };
-    try { return await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?' + FRAME_QUERY + '&acceptance=' + key, signal, reset, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) }); }
-    finally { trials.delete(key); await reset(); accepting.delete(trial.id); }
+    const state: Trial = { original: build.id, build: trial, submits: new Map() };
+    accepting.add(trial.id); trials.set(key, state);
+    const current = () => { signal.throwIfAborted(); if (trials.get(key) !== state) throw new Error('这轮界面验收已结束'); return state; };
+    const reset = async () => { delete state.fault; state.submits.clear(); await stopRunner(trial.id); clearPreview(trial.id); };
+    const controls: NonNullable<Parameters<typeof runBuilderBrowserAcceptance>[1]['trial']> = {
+      submitCalls(componentId) {
+        const operation = current().build.nodes.find(node => node.id === componentId)?.submit?.operationId;
+        if (!operation) throw new Error('验收组件没有提交绑定');
+        return state.submits.get(operation) ?? 0;
+      },
+      faultRead(componentId) {
+        const live = current(), binding = live.build.nodes.find(node => node.id === componentId)?.read;
+        if (!binding || live.build.design!.contract.operations.find(operation => operation.id === binding.operationId)?.kind !== 'query') throw new Error('读取故障需要当前组件绑定的 query');
+        if (live.fault) throw new Error('上一次读取故障尚未结束');
+        const fault = { componentId, operationId: binding.operationId, consumed: false }; live.fault = fault;
+        return () => { const live = current(), owns = live.fault === fault; if (owns) delete live.fault; if (!owns || !fault.consumed) throw new Error('单次读取故障未由目标查询消费'); };
+      },
+    };
+    try {
+      const result = await run({ url: studio.origin + (options.routePrefix ?? '') + '/plugin-builder/studio/preview/' + build.id + '?' + FRAME_QUERY + '&acceptance=' + key, signal, reset, trial: controls, ...(options.browserExecutable ? { executable: options.browserExecutable } : {}) });
+      if (state.fault) throw new Error('界面验收留下未消费的读取故障');
+      return result;
+    }
+    finally { trials.delete(key); try { await reset(); } finally { accepting.delete(trial.id); } }
   };
   return { previewFor, standIns, networkFor, runnerFor, stopRunner, clearPreview, inTrial };
 }

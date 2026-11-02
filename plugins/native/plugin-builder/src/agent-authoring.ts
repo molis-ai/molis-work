@@ -364,6 +364,7 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxOperatio
   const props: Json = {};
   for (const [key, value] of Object.entries(object(raw.props) ? raw.props : {})) {
     if (!(PROPS as readonly string[]).includes(key)) { dropped.push(`${where} 的 ${key}`); continue; }
+    if (key === 'requiredText' && typeof value !== 'string') return fail(where, 'requiredText 必须是文字');
     if (key === 'columns') props.columns = (Array.isArray(value) ? value : []).map(column => typeof column === 'string' ? { field: column, label: column } : object(column) ? { field: text(column.field), label: text(column.label) || text(column.field), ...(object(column.values) ? { values: Object.fromEntries(Object.entries(column.values).map(([key, value]) => [key, text(value).slice(0, 60)])) } : {}) } : null).filter(Boolean);
     else if (typeof value === 'string' && value.trim()) props[key] = value.slice(0, 2000);
   }
@@ -467,6 +468,17 @@ export function parseStep(raw: unknown, parts: PluginComponentPlan[], where: str
   }
   if (!object(raw)) return fail(where, '验收步骤写成一行文字，例如 "submit editor"');
   const action = text(raw.action), componentId = text(pick(raw, 'componentId', 'component'));
+  const explicit = { submitBlocked: ['action', 'componentId', 'field', 'reason'], faultRead: ['action', 'componentId'], retry: ['action', 'componentId'], expectValue: ['action', 'componentId', 'field', 'value'] };
+  if (Object.hasOwn(explicit, action)) {
+    if (Object.keys(raw).some(key => !explicit[action as keyof typeof explicit].includes(key))) return fail(where, '浏览器步骤属性无效');
+    if (action === 'submitBlocked') {
+      if (raw.reason !== 'valueMissing') return fail(where, 'submitBlocked 仅支持 valueMissing');
+      return { action, componentId, field: text(raw.field), reason: raw.reason };
+    }
+    if (action === 'faultRead' || action === 'retry') return { action, componentId };
+    if (typeof raw.value !== 'string' && typeof raw.value !== 'boolean') return fail(where, 'expectValue 的值只能是文字或 true/false');
+    return { action: 'expectValue', componentId, field: text(raw.field), value: raw.value };
+  }
   if (action === 'reload') return { action: 'reload' };
   if (action === 'page') return { action: 'page', pageId: slug(pick(raw, 'pageId', 'page'), where) };
   if (action === 'fill') return { action: 'fill', componentId, field: text(raw.field) || formField(componentId) || fail(where, 'fill 需要字段'), value: typeof raw.value === 'boolean' ? raw.value : String(raw.value ?? '') };
@@ -497,6 +509,9 @@ function describeStep(step: BrowserAcceptance['steps'][number]): string {
     case 'page': return '打开页面 ' + step.pageId;
     case 'fill': return `在 ${step.componentId} 填写 ${step.field}`;
     case 'submit': return '提交 ' + step.componentId;
+    case 'submitBlocked': return '提交 ' + step.componentId + ' 被字段 ' + step.field + ' 的 valueMissing 校验拒绝';
+    case 'faultRead': return '仅本轮验收使 ' + step.componentId + ' 的下一次读取失败';
+    case 'retry': return '重试读取 ' + step.componentId;
     case 'select': return '在 ' + step.componentId + ' 选择 ' + (step.text ?? step.recordId);
     case 'expect': return `${step.componentId} 显示「${step.text}」`;
     case 'expectAbsent': return `${step.componentId} 不再显示「${step.text}」`;

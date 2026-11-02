@@ -128,8 +128,8 @@ test('real browser: an error an earlier read left goes away once a read succeeds
     const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
     const page = await browser.page();
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.broken=true; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>{if(broken)throw Error('还没有接通的功能可以试用');return [{id:'a',text:'第一条'}]}}); await app.update(${JSON.stringify({ contract, nodes, connected: ['notes.list'] })});\n})()`);
-    await page.wait(`document.querySelector('[data-pc-feedback=notes]').textContent==='还没有接通的功能可以试用'`);
-    await page.evaluate(`(async()=>{broken=false;await app.refresh();\n})()`);
+    await page.wait(`document.querySelector('[data-pc-feedback=notes]').textContent.includes('读取失败，请重试：还没有接通的功能可以试用')&&document.querySelector('[data-pc-retry=notes]')`);
+    await page.evaluate(`broken=false`); await page.click('[data-pc-retry=notes]');
     await page.wait(`document.querySelector('[data-record-id="a"]')`);
     assert.equal(await page.evaluate(`document.querySelector('[data-pc-feedback=notes]').textContent`), '');
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }

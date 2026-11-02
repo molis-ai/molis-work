@@ -68,16 +68,24 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
   const ids = new Set<string>();
   for (const test of design.acceptance) {
     if (!object(test) || Object.keys(test).some(key => !['id', 'description', 'steps'].includes(key)) || !design.contract.acceptance.some(item => item.id === test.id) || ids.has(test.id)) throw new Error('浏览器验收必须引用唯一的合同用例'); ids.add(test.id);
-    if (typeof test.description !== 'string' || !Array.isArray(test.steps) || !test.steps.length || test.steps.length > 100 || !test.steps.some(step => ['expect', 'expectAbsent', 'expectValue', 'expectOrder'].includes(step.action))) throw new Error('浏览器用例需要具体操作与断言');
+    if (typeof test.description !== 'string' || !Array.isArray(test.steps) || !test.steps.length || test.steps.length > 100 || !test.steps.some(step => ['expect', 'expectAbsent', 'expectValue', 'expectOrder', 'submitBlocked'].includes(step.action))) throw new Error('浏览器用例需要具体操作与断言');
     for (const [position, step] of test.steps.entries()) {
       const where = '验收「' + test.id + '」第 ' + (position + 1) + ' 步：';
-      if (!object(step) || !['page', 'fill', 'submit', 'select', 'expect', 'expectAbsent', 'expectValue', 'expectOrder', 'reload'].includes(step.action)) throw new Error('不支持的浏览器步骤');
-      const permitted = { page: ['action', 'pageId'], fill: ['action', 'componentId', 'field', 'value'], submit: ['action', 'componentId'], select: ['action', 'componentId', 'recordId', 'text'], expect: ['action', 'componentId', 'text'], expectAbsent: ['action', 'componentId', 'text'], expectValue: ['action', 'componentId', 'field', 'value'], expectOrder: ['action', 'componentId', 'texts'], reload: ['action'] }[step.action];
+      if (!object(step) || !['page', 'fill', 'submit', 'submitBlocked', 'faultRead', 'retry', 'select', 'expect', 'expectAbsent', 'expectValue', 'expectOrder', 'reload'].includes(step.action)) throw new Error('不支持的浏览器步骤');
+      const permitted = { page: ['action', 'pageId'], fill: ['action', 'componentId', 'field', 'value'], submit: ['action', 'componentId'], submitBlocked: ['action', 'componentId', 'field', 'reason'], faultRead: ['action', 'componentId'], retry: ['action', 'componentId'], select: ['action', 'componentId', 'recordId', 'text'], expect: ['action', 'componentId', 'text'], expectAbsent: ['action', 'componentId', 'text'], expectValue: ['action', 'componentId', 'field', 'value'], expectOrder: ['action', 'componentId', 'texts'], reload: ['action'] }[step.action];
       if (Object.keys(step).some(key => !permitted.includes(key))) throw new Error('浏览器步骤属性无效');
       if (step.action === 'reload') continue;
       if (step.action === 'page') { if (!design.contract.pages.some(page => page.id === step.pageId)) throw new Error('验收引用不存在的页面'); continue; }
       const part = design.parts.find(item => item.id === step.componentId); if (!part) throw new Error(where + '没有组件 ' + step.componentId + '（组件有 ' + design.parts.map(item => item.id).join('、') + '）');
       if (step.action === 'submit' && !part.submit) throw new Error(where + '组件 ' + part.id + ' 没有提交操作，不能 submit');
+      if (step.action === 'faultRead' || step.action === 'retry') {
+        if (!part.read || design.contract.operations.find(operation => operation.id === part.read!.operationId)?.kind !== 'query') throw new Error(where + step.action + ' 需要组件绑定的 read query');
+      }
+      if (step.action === 'submitBlocked') {
+        const operation = design.contract.operations.find(operation => operation.id === part.submit?.operationId);
+        const field = Object.entries(part.submit?.input ?? {}).find(([name, source]) => source.source === 'form' && source.field === step.field && operation?.input.required?.includes(name) && operation.input.properties?.[name]?.type !== 'boolean');
+        if (!field || step.reason !== 'valueMissing') throw new Error(where + 'submitBlocked 需要提交表单的必填字段及 valueMissing');
+      }
       // Every case starts from empty data: the records whose order it checks are ones it wrote itself (or the stand-in's "示例").
       if (step.action === 'expectOrder') {
         const typed = test.steps.slice(0, position).flatMap(earlier => earlier.action === 'fill' && typeof earlier.value === 'string' ? [earlier.value] : []);

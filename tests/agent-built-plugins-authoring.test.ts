@@ -771,3 +771,48 @@ test('a case that expects an operation to report its declared error is left to t
   const byCode = { ...design, acceptance: [design.acceptance[0], { id: 'undo_empty', description: '命令会返回 nothing_to_undo', steps: ['expect undo 撤销', 'submit undo', 'expect undo nothing_to_undo'] }] };
   assert.deepEqual(expandDesign(byCode, base, 'io.molis.work.generated.x', 'r', []).acceptance.map(test => test.id), ['add']);
 });
+
+test('RAC-2934 explicit negative acceptance validates bindings, fields, outcomes and every parameter', () => {
+  const raw = {
+    operations: [
+      { id: 'notes.list', kind: 'query', input: {}, output: [{ id: 'string', text: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
+      { id: 'notes.add', kind: 'command', input: { text: 'string(1..200)' }, output: { id: 'string' }, effects: { storage: ['write'] }, examples: [{ input: { text: 'one' }, includes: {} }] },
+    ],
+    pages: [{ id: 'home', parts: [
+      { id: 'editor', intent: 'input', purpose: '写', props: { requiredText: '正文不能为空' }, submit: 'notes.add' },
+      { id: 'notes', intent: 'collection', purpose: '看', props: { idField: 'id', titleField: 'text' }, read: 'notes.list' },
+    ] }],
+    acceptance: [{ id: 'negative', steps: [
+      { action: 'fill', componentId: 'editor', field: 'text', value: '' },
+      { action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' },
+      { action: 'faultRead', componentId: 'notes' },
+      { action: 'expect', componentId: 'notes', text: '读取失败' },
+      { action: 'retry', componentId: 'notes' },
+      { action: 'expectValue', componentId: 'editor', field: 'text', value: '' },
+    ] }],
+  };
+  const expand = (value: unknown) => strict(expandDesign(value, base, 'io.molis.work.generated.negative', 'negative', []));
+  const valid = expand(raw);
+  assert.deepEqual(valid.acceptance[0]!.steps, raw.acceptance[0]!.steps);
+  assert.equal(valid.parts[0]!.props.requiredText, '正文不能为空');
+  assert.deepEqual(parseStep('submit editor', valid.parts, 'positive'), { action: 'submit', componentId: 'editor' });
+  assert.deepEqual(parseStep('expect notes one', valid.parts, 'positive'), { action: 'expect', componentId: 'notes', text: 'one' });
+  const rejected = [
+    { step: { action: 'faultRead', componentId: 'notes', error: 'pretend' }, reason: /属性无效/ },
+    { step: { action: 'retry', componentId: 'notes', url: '/anywhere' }, reason: /属性无效/ },
+    { step: { action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'typeMismatch' }, reason: /valueMissing/ },
+    { step: { action: 'submitBlocked', componentId: 'editor', field: 'missing', reason: 'valueMissing' }, reason: /必填字段/ },
+    { step: { action: 'faultRead', componentId: 'editor' }, reason: /read query/ },
+    { step: { action: 'retry', componentId: 'editor' }, reason: /read query/ },
+    { step: { action: 'expectValue', componentId: 'editor', field: 'missing', value: '' }, reason: /没有可填写的字段/ },
+    { step: { action: 'expectValue', componentId: 'editor', field: 'text', value: 1 }, reason: /文字或 true\/false/ },
+  ];
+  for (const { step, reason } of rejected) {
+    const input = structuredClone(raw); input.acceptance[0]!.steps[0] = step as typeof input.acceptance[0]['steps'][number];
+    assert.throws(() => expand(input), reason);
+  }
+  const command = structuredClone(raw); command.pages[0]!.parts[1]!.read = 'notes.add';
+  assert.throws(() => expand(command), /query|查询/);
+  const invalidProps = structuredClone(raw); Object.assign(invalidProps.pages[0]!.parts[0]!.props, { requiredText: 1 });
+  assert.throws(() => expand(invalidProps), /requiredText 必须是文字/);
+});

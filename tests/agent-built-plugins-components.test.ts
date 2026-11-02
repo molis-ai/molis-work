@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
 import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
-import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES } from '@molis-ai/molis-work-design-system';
+import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 /** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
 const loadDriver = () => import('../apps/local-host/src/plugin-builder/browser.js');
@@ -282,4 +282,67 @@ test('real browser fills a sentence the design wrote around a result, and never 
     await page.wait(`document.querySelector('.pc-filled')`);
     assert.equal(await page.evaluate(`document.querySelector('[data-component-id=count]').innerText.replace(/\\s+/g,' ').trim()`), '今天已经喝了 3 杯');
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+// T411 component-service fixture: the real client and public binding resolver, with a local counter service; no generated W4 provenance or model claim.
+const countContract: SandboxPluginContract = { version: 1, pluginId: 'test.query-counter', revision: 'one', entities: [], acceptance: [],
+  operations: [{ id: 'text.count', kind: 'query', input: { type: 'object', properties: { text: { type: 'string', description: '要统计的文本' } }, required: ['text'], additionalProperties: false },
+    output: { type: 'object', properties: { characters: { type: 'integer', minimum: 0 }, utf8_bytes: { type: 'integer', minimum: 0 }, lines: { type: 'integer', minimum: 0 } }, required: ['characters', 'utf8_bytes', 'lines'], additionalProperties: false }, errors: [], effects: {}, examples: [] }],
+  pages: [{ id: 'home', title: '文本统计', regions: [{ id: 'main', title: '统计', operationIds: ['text.count'] }] }] };
+const countNode = { id: 'counter', pageId: 'home', regionId: 'main', kind: 'form' as const, intent: 'input' as const, purpose: '统计当前文本', props: { title: '文本统计', submitLabel: '统计' },
+  submit: { operationId: 'text.count', input: { text: { source: 'form' as const, field: 'text' } } } };
+async function queryCounterPage(t: import('node:test').TestContext) {
+  const directory = await mkdtemp(join(tmpdir(), 'query-counter-'));
+  let browser: Awaited<ReturnType<typeof openStudioChrome>>;
+  t.after(async () => { try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); } });
+  browser = await openStudioChrome(directory);
+  assert.ok(browser, 'dedicated Chrome is required');
+  const page = await browser.page();
+  await page.evaluate(`(async()=>{document.body.innerHTML='<style>'+${JSON.stringify(PLUGIN_COMPONENT_STYLES)}+'</style><main id="root"></main>';globalThis.view=${JSON.stringify({ contract: countContract, nodes: [countNode], connected: ['text.count'] })};globalThis.requests=[];globalThis.app=(${PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT})({root:document.querySelector('#root'),call:(id,binding,payload)=>{requests.push({id,binding,payload});return new Promise((resolve,reject)=>{globalThis.deliver=resolve;globalThis.refuse=reject})}});await app.update(view)})()`);
+  return page;
+}
+async function deliverCount(page: Awaited<ReturnType<typeof queryCounterPage>>, text: string, expected: { characters: number; utf8_bytes: number; lines: number }) {
+  const request = await page.evaluate<{ id: string; binding: 'submit'; payload: unknown }>('requests.at(-1)');
+  assert.equal(request.id, 'counter'); assert.equal(request.binding, 'submit');
+  const call = resolvePluginComponentCall(countNode, request.binding, request.payload);
+  assert.equal(call.operationId, 'text.count'); assert.equal(Object.hasOwn(call.input, 'text'), true, 'RAC-2924: binding must retain its own text key, even for empty input');
+  assert.deepEqual(call.input, { text });
+  const value = call.input.text; assert.ok(typeof value === 'string');
+  const actual = { characters: Array.from(value).length, utf8_bytes: Buffer.byteLength(value, 'utf8'), lines: value.split('\n').length };
+  assert.deepEqual(actual, expected, 'independent fixed object oracle');
+  await page.evaluate(`deliver(${JSON.stringify(actual)})`); await page.wait('!document.querySelector("[type=submit]").disabled');
+}
+
+test('RAC-2924 RAC-2925: a required query string submits its own empty key, shows the complete object and retains input', { timeout: 30_000 }, async t => {
+  const page = await queryCounterPage(t);
+  await page.fill('[name=text]', ''); await page.click('[type=submit]');
+  assert.equal(await page.evaluate('requests.length'), 1, 'empty text is a legitimate submitted query');
+  await deliverCount(page, '', { characters: 0, utf8_bytes: 0, lines: 1 });
+  assert.deepEqual(await page.evaluate('[...document.querySelectorAll(".pc-output .pc-stat")].map(e=>[e.querySelector("dt").textContent,e.querySelector("dd").textContent])'), [['characters', '0'], ['utf8_bytes', '0'], ['lines', '1']]);
+  await page.evaluate('(async()=>{view=structuredClone(view);view.contract.revision="nonempty";view.contract.operations[0].input.properties.text.minLength=1;await app.update(view)})()');
+  await page.fill('[name=text]', ''); await page.click('[type=submit]');
+  assert.equal(await page.evaluate('requests.length'), 1, 'a genuinely nonempty contract still refuses an empty submission');
+});
+
+test('RAC-2925 RAC-2926: the exact text description preserves LF and Unicode through binding and replaces all visible figures', { timeout: 30_000 }, async t => {
+  const page = await queryCounterPage(t);
+  assert.equal(await page.evaluate('document.querySelector("[name=text]").tagName'), 'TEXTAREA');
+  for (const [text, result] of [['一行\nline', { characters: 7, utf8_bytes: 11, lines: 2 }], ['A🙂界', { characters: 3, utf8_bytes: 8, lines: 1 }]] as const) {
+    await page.fill('[name=text]', text); await page.click('[type=submit]');
+    await deliverCount(page, text, result);
+    assert.equal(await page.evaluate('document.querySelector("[name=text]").value'), text);
+    assert.deepEqual(await page.evaluate('[...document.querySelectorAll(".pc-output .pc-stat")].map(e=>[e.querySelector("dt").textContent,Number(e.querySelector("dd").textContent)])'), Object.entries(result));
+    assert.equal(await page.evaluate('document.querySelectorAll(".pc-output .pc-figures").length'), 1, 'current result replaces the previous one');
+    assert.doesNotMatch(await page.evaluate<string>('document.querySelector(".pc-output").textContent'), /\{"/u);
+  }
+  await page.evaluate('(async()=>{view=structuredClone(view);view.nodes[0].submit.outputPath="characters";await app.update(view)})()');
+  await page.fill('[name=text]', 'A🙂界'); await page.click('[type=submit]'); await deliverCount(page, 'A🙂界', { characters: 3, utf8_bytes: 8, lines: 1 });
+  assert.equal(await page.evaluate('document.querySelector(".pc-output").textContent'), '3', 'explicit outputPath retains its meaning');
+});
+
+test('RAC-2926: enums, dates and URLs retain their semantics ahead of text wording; id/title/name stay single-line', { timeout: 30_000 }, async t => {
+  const page = await queryCounterPage(t);
+  await page.evaluate(`(async()=>{view=structuredClone(view);const fields={id:{type:'string'},title:{type:'string'},name:{type:'string'},date:{type:'string',format:'date',description:'日期文本'},instant:{type:'string',format:'date-time',description:'时间文本'},url:{type:'string',format:'uri',description:'网址文本'},choice:{type:'string',enum:['短文本','长文本'],description:'选择文本'}};Object.assign(view.contract.operations[0].input.properties,fields);for(const field of Object.keys(fields))view.nodes[0].submit.input[field]={source:'form',field};await app.update(view)})()`);
+  assert.deepEqual(await page.evaluate('["id","title","name","date","instant","url"].map(name=>{const e=document.querySelector(`[name=${name}]`);return [name,e.tagName,e.type]})'), [['id', 'INPUT', 'text'], ['title', 'INPUT', 'text'], ['name', 'INPUT', 'text'], ['date', 'INPUT', 'date'], ['instant', 'INPUT', 'datetime-local'], ['url', 'INPUT', 'url']]);
+  assert.equal(await page.evaluate('document.querySelector("[name=choice]").tagName==="TEXTAREA"'), false);
 });

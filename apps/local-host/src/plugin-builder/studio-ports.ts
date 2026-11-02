@@ -1,7 +1,7 @@
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { createStudioPublisher } from './studio-release.js';
-import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -20,6 +20,23 @@ import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surf
 
 /** Each operation's last passing source for one build revision, beside (not inside) what the code agent can write. */
 const settledFor = (directory: string) => directory + '.settled';
+
+/** Shared TypeScript keeps its relative imports; host and operation entries have their own authority below. */
+async function copySharedSources(from: string, directory: string, relative = 'src'): Promise<void> {
+  const sourceDirectory = join(from, relative);
+  if ((await lstat(sourceDirectory)).isSymbolicLink()) throw new Error('Symbolic links are not allowed: ' + relative);
+  for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
+    const path = relative + '/' + entry.name;
+    if (path === 'src/index.ts' || /^src\/operations\/\d+\.ts$/.test(path)) continue;
+    if (entry.isSymbolicLink()) throw new Error('Symbolic links are not allowed: ' + path);
+    if (entry.isDirectory()) { await copySharedSources(from, directory, path); continue; }
+    if (!entry.name.endsWith('.ts')) continue;
+    if (!entry.isFile()) throw new Error('Build source must be a regular file: ' + path);
+    const source = await readBuildFile(from, path), target = join(directory, path);
+    await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+    await writeFile(target, source, { flag: 'wx', mode: 0o600 });
+  }
+}
 
 /** What the workflow asks of the Host: the catalog, the agents, the build directory, the checks, the trial, and the release folders. */
 export function builderPorts(inputs: {
@@ -71,9 +88,12 @@ export function builderPorts(inputs: {
       // A revision keeps the implementation and tests of every operation whose contract did not change,
       // so only the parts that actually changed go back to the code agent.
       const before = previous.design, from = previous.directory;
-      if (before && from) for (const [index, operation] of design.contract.operations.entries()) {
+      const reusable = before ? design.contract.operations.flatMap((operation, index) => {
         const old = before.contract.operations.findIndex(item => item.id === operation.id);
-        if (old < 0 || !isDeepStrictEqual(canonical(before.contract.operations[old]), canonical(operation))) continue;
+        return old < 0 || !isDeepStrictEqual(canonical(before.contract.operations[old]), canonical(operation)) ? [] : [{ index, old, operation }];
+      }) : [];
+      if (from && reusable.length) await copySharedSources(from, directory);
+      if (from) for (const { index, old, operation } of reusable) {
         for (const kind of ['src', 'tests']) {
           try {
             const source = await readBuildFile(from, `${kind}/operations/${old}.ts`);

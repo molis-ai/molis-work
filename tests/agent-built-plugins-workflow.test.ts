@@ -6,7 +6,7 @@ import { studioFrameAsset, framedStudioPage, isolatedStudioHarness } from "./fix
 import { pluginPagesFor, sendLocalWebJson, authorizeLocalWebRequest, HomeConsentLedger, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { memoryStorage, proposal, detail, experience, finding, detailUsing, proposalsUsing, detailWithFour, composition, PROPOSALS, CAPABILITY_WORDS, COMPONENT_WORDS, GOALS_CATALOG, until } from './fixtures/builder-workflow-design.js';
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
@@ -15,8 +15,9 @@ import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONE
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
@@ -79,6 +80,161 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 }
 
 /** What the workflow said to Jev before the two sentences were registered, word for word. */
+
+async function revisionHelperStudio(t: TestContext) {
+  let closeStudio: (() => Promise<void>) | undefined, server: ReturnType<typeof createServer> | undefined;
+  t.after(async () => {
+    try { await closeStudio?.(); }
+    finally { if (server?.listening) await new Promise<void>(resolve => { server!.close(() => resolve()); server!.closeAllConnections(); }); }
+  });
+  const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Shared revision sources');
+  const store = await f.host.withProject(project.reference, runtime => runtime.store);
+  closeStudio = async () => { try { await releaseAgentStudio(store, project.project_id); } finally { await releaseInstalledPlugins(store, project.project_id); } };
+  const answer = JSON.parse(detail('共享清单'));
+  answer.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };
+  answer.design.operations[0].examples = [{ input: {}, output: { items: [] } }];
+  answer.design.pages[0].parts[2].read = { op: 'notes.list', show: 'items' };
+  const helper = "import type { SandboxSdk } from '@molis/plugin-sdk';\nimport { row } from './nested/index.js';\nexport async function list(sdk: SandboxSdk) { const value = await sdk.storage.get('rows'); return Array.isArray(value) ? value : []; }\nexport async function add(sdk: SandboxSdk, text: string) { await sdk.storage.set('rows', [...await list(sdk), row(text)]); return { id: 'n1' }; }\n";
+  const nested = "export function row(text: string) { return { id: 'n1', text }; }\n";
+  const coded: Array<{ id: string; before: string }> = [];
+  let firstRoot = '';
+  const actions = f.host.actionRegistry(project.reference);
+  const options: Parameters<typeof handleAgentStudioHttp>[3] = {
+    store, projectId: project.project_id, homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID,
+    routePrefix: '/projects/' + project.project_id, parallel: 1,
+    models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
+    // This existing executable rejects Chrome flags; BuilderBrowser cannot fall back to a personal browser.
+    browserExecutable: process.execPath,
+    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: caller => f.host.inspectActions(caller, project.reference), project_id: project.project_id },
+    choice: { selectionAvailable: () => false, choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }) },
+    agents: async build => ({ close: async () => {}, records: async () => [], async run(request) {
+      const task = JSON.parse(request.task);
+      let output = '';
+      if (request.role === 'designer') {
+        output = task.mode === 'propose' ? PROPOSALS : task.mode === 'experience' ? experience()
+          : task.mode === 'compose' ? composition() : JSON.stringify(answer);
+      } else {
+        assert.ok(build.directory); firstRoot ||= build.directory;
+        const id = request.operationIds![0]!;
+        coded.push({ id, before: await fs.readFile(join(build.directory, task.implementation), 'utf8') });
+        await fs.mkdir(join(build.directory, 'src/nested'), { recursive: true });
+        await fs.writeFile(join(build.directory, 'src/store.ts'), helper);
+        await fs.writeFile(join(build.directory, 'src/nested/index.ts'), nested);
+        const source = id === 'notes.list'
+          ? "import type { SandboxJson, SandboxSdk } from '@molis/plugin-sdk';\nimport { list } from '../store.js';\nexport default async function operation(_input: SandboxJson, sdk: SandboxSdk): Promise<SandboxJson> { return { items: await list(sdk) }; }\n"
+          : "import type { SandboxJson, SandboxSdk } from '@molis/plugin-sdk';\nimport { add } from '../store.js';\nexport default async function operation(input: SandboxJson, sdk: SandboxSdk): Promise<SandboxJson> { return add(sdk, (input as { text: string }).text); }\n";
+        await fs.writeFile(join(build.directory, task.implementation), source);
+        await fs.writeFile(join(build.directory, task.tests), "import type { SandboxTest } from '@molis/plugin-sdk';\nexport const tests: SandboxTest[] = [async (_sdk, call, assert) => { assert.same(await call(" + (id === 'notes.list' ? '{}), { items: [] }' : "{ text: 'fixture' }), { id: 'n1' }") + "); }];\n");
+      }
+      return { id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion, contractRevision: request.contractRevision,
+        instruction: request.instruction, input: request.task, output, configuredModel: 'scripted', reportedModels: ['scripted'],
+        phase: 'completed', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), activity: [], usage: [] };
+    } }),
+  };
+  const mutations = new Map<string, LocalMutationState>();
+  server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
+    const local = new URL(url); local.pathname = local.pathname.slice(options.routePrefix!.length);
+    void handleAgentStudioHttp(request, response, local, options, f.token).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); });
+  });
+  await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port;
+  const send = async <T>(path: string, body?: unknown): Promise<T> => {
+    const response = await fetch(origin + options.routePrefix + '/api/plugin-builder/studio' + path, {
+      method: body === undefined ? 'GET' : 'POST', headers: { origin, 'content-type': 'application/json', 'x-molis-work-control-token': f.token,
+        'x-molis-work-idempotency-key': crypto.randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    assert.ok(response.ok, await response.clone().text()); return await response.json() as T;
+  };
+  const wait = async (id: string) => {
+    for (let attempt = 0; attempt < 1200; attempt++) {
+      const { build } = await send<{ build: AgentBuild }>('/builds/' + id);
+      if (!build.active && ['choosing', 'paused', 'failed', 'ready'].includes(build.phase)) return build;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    throw new Error('revision fixture did not settle');
+  };
+  const created = await send<{ build: AgentBuild }>('/builds', { brief: '共享清单' });
+  let current = await wait(created.build.id);
+  await send('/builds/' + current.id + '/action', { action: 'choose', revision: current.revision, candidateId: 'quick' });
+  current = await wait(current.id);
+  const passed = (build: AgentBuild) => {
+    assert.equal(build.checks.global?.passed, true, JSON.stringify(build.checks.global));
+    assert.deepEqual(build.checks.global!.gates.map(gate => [gate.id, gate.passed]), ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'].map(id => [id, true]));
+    assert.equal(build.browserResult?.passed, false);
+    assert.match(build.browserResult!.cases[0]!.detail, /验收浏览器未能启动/);
+  };
+  passed(current);
+  return { f, answer, coded, helper, nested, send, wait, passed, current,
+    rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
+    async revise() { await send('/builds/' + current.id + '/action', { action: 'revise', revision: current.revision, message: '只调整界面' }); current = await wait(current.id); return current; },
+  };
+}
+
+test('RAC-2931 RAC-2932 real Host revision preserves shared sources and operation mappings without rewriting correct code', { timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), old = f.rootFor(f.current);
+  const oldList = await fs.readFile(join(old, 'src/operations/0.ts'), 'utf8'), oldAdd = await fs.readFile(join(old, 'src/operations/1.ts'), 'utf8');
+  await fs.chmod(join(old, 'src/index.ts'), 0o600); await fs.writeFile(join(old, 'src/index.ts'), 'throw new Error("OLD_INDEX_MUST_NOT_COPY");\n');
+  f.answer.design.operations.reverse(); f.answer.design.pages[0].parts[2].props.emptyText = '新空态';
+  let revised = await f.revise(); f.passed(revised);
+  assert.equal(f.coded.length, 2, 'a pure UI revision never invokes coder');
+  const directory = f.rootFor(revised);
+  assert.equal(await fs.readFile(join(directory, 'src/store.ts'), 'utf8'), f.helper);
+  assert.equal(await fs.readFile(join(directory, 'src/nested/index.ts'), 'utf8'), f.nested);
+  assert.equal(await fs.readFile(join(directory, 'src/operations/0.ts'), 'utf8'), oldAdd);
+  assert.equal(await fs.readFile(join(directory, 'src/operations/1.ts'), 'utf8'), oldList);
+  assert.doesNotMatch(await fs.readFile(join(directory, 'src/index.ts'), 'utf8'), /OLD_INDEX_MUST_NOT_COPY/);
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [] } });
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text: '  原样正文  ' } } }), { value: { id: 'n1' } });
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [{ id: 'n1', text: '  原样正文  ' }] } });
+  f.answer.design.operations[0].input.text = 'string(1..250) 笔记';
+  revised = await f.revise(); f.passed(revised);
+  assert.equal(f.coded.length, 3); assert.equal(f.coded[2]!.id, 'notes.add');
+  assert.match(f.coded[2]!.before, /NOT_IMPLEMENTED/);
+});
+
+test('RAC-2933 real Host revision rejects shared source file and directory links without reading outside', { timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), directory = f.rootFor(f.current), outside = join(f.f.home, 'outside');
+  await fs.mkdir(outside); await fs.writeFile(join(outside, 'private.ts'), 'OUTSIDE_BYTES');
+  for (const kind of ['file', 'directory'] as const) {
+    const link = join(directory, 'src', kind === 'file' ? 'foreign.ts' : 'foreign');
+    await fs.symlink(kind === 'file' ? join(outside, 'private.ts') : outside, link);
+    const before = new Set(await fs.readdir(dirname(directory)));
+    const rejected = await f.revise();
+    assert.match(rejected.error ?? '', /Symbolic links are not allowed/);
+    assert.equal(f.coded.length, 2, 'unsafe reuse does not ask coder to hide the failure');
+    for (const name of await fs.readdir(dirname(directory))) if (!before.has(name) && !name.endsWith('.settled')) {
+      await assert.rejects(fs.lstat(join(dirname(directory), name, 'src', kind === 'file' ? 'foreign.ts' : 'foreign')), { code: 'ENOENT' });
+    }
+    assert.equal(await fs.readFile(join(outside, 'private.ts'), 'utf8'), 'OUTSIDE_BYTES');
+    await fs.unlink(link);
+  }
+});
+
+test('RAC-2933 real Host revision rejects a non-regular shared source before reading', { timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), directory = f.rootFor(f.current);
+  execFileSync('mkfifo', [join(directory, 'src/blocked.ts')]);
+  const rejected = await f.revise();
+  assert.match(rejected.error ?? '', /Build source must be a regular file: src\/blocked\.ts/);
+  assert.equal(f.coded.length, 2, 'non-regular reuse fails without asking coder to hide it');
+});
+
+test('RAC-2932 real Host revision with no reusable operations implements new contracts without reading old helpers', { timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), old = f.rootFor(f.current), outside = join(f.f.home, 'private.ts');
+  await fs.writeFile(outside, 'OUTSIDE_BYTES'); await fs.unlink(join(old, 'src/store.ts'));
+  await fs.symlink(outside, join(old, 'src/store.ts'));
+  f.answer.design.operations[0].input = { 'query?': 'string' };
+  f.answer.design.operations[1].input.text = 'string(1..250) 笔记';
+  const revised = await f.revise(); f.passed(revised);
+  assert.deepEqual(f.coded.slice(2).map(entry => entry.id).sort(), ['notes.add', 'notes.list']);
+  for (const entry of f.coded.slice(2)) assert.match(entry.before, /NOT_IMPLEMENTED/);
+  assert.equal(await fs.readFile(join(f.rootFor(revised), 'src/store.ts'), 'utf8'), f.helper);
+  assert.equal(await fs.readFile(outside, 'utf8'), 'OUTSIDE_BYTES');
+  const text = 'x'.repeat(201);
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text } } }), { value: { id: 'n1' } });
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [{ id: 'n1', text }] } });
+});
 
 test('designer answer wrapped in reasoning and broken JSON goes back once with the reason, then the build reaches ready and publishes', async () => {
   const h = harness(['<think>先想想用户要什么</think>{"candidates":[{"id":"quick",', '<think>修正</think>\n' + PROPOSALS, detail('笔记板')]);

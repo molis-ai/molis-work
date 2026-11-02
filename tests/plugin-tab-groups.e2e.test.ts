@@ -4,7 +4,6 @@ import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-fra
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */
@@ -118,7 +117,7 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
 
 test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab of a real structured frame", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
-  const { projectId, store, localHost, databasePath, origin, command, sessionId, navigate, evaluate, waitFor, click } = browser;
+  const { projectId, store, localHost, origin, command, sessionId, navigate, evaluate, waitFor, click } = browser;
   const source = createLocalFeedSourceService(store.db, projectId!).register({ kind: "web_query", query: "frame item binding", name: "Frame binding" }).source;
   const feedLibrary = createLocalFeedApplication(store.db);
   const make = (name: string) => feedLibrary.ingestItem({ source, externalId: "frame-binding-" + name, title: "Binding " + name, summary: "Item navigation after a display update", body: "Body " + name, occurredAt: new Date().toISOString(), attention: false }).item;
@@ -138,15 +137,22 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");
   assert.equal(initial.itemId, a.item_id);
   await waitFor("t403OwningPolls>=2 && t403PollingPage===document.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').dataset.pluginPage");
-  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId: projectId! }), runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  assert.ok(localHost.homePlugins);
+  const platform = await localHost.homePlugins.ready();
   assert.ok(platform);
   const rowState = () => feed.evaluate<{ visible: boolean }>(`(()=>{const target=document.querySelector('[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]');return{visible:Boolean(target?.checkVisibility()),workbench:{...document.querySelector('[data-feed-workbench]').dataset},filters:[...document.querySelectorAll('[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter]')].map(field=>({name:[...field.attributes].find(a=>a.name.startsWith('data-feed-')).name,value:field.value})),rows:[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>({id:row.dataset.feedEntryId,type:row.dataset.feedEntryType,source:row.dataset.feedEntrySourceId,status:row.dataset.feedEntryStatus,visible:row.checkVisibility(),hidden:row.closest('[data-feed-item-wrap]')?.hidden})),ancestors:(()=>{const nodes=[];for(let node=target;node;node=node.parentElement)nodes.push({tag:node.tagName,class:node.className,hidden:node.hidden,display:getComputedStyle(node).display});return nodes;})()};})()`);
   const beforeRevision = await rowState();
   assert.equal(beforeRevision.visible, true, JSON.stringify(beforeRevision));
-  const revision = await evaluate<string>("t403PolledRevision");
+  await feed.waitFor(`document.querySelector('[data-feed-entry-id="${a.item_id}"]').dataset.feedEntryRead==='read' && t403PendingReads===0`);
+  const revision = platform.viewRevision("io.molis.work.feed");
+  await waitFor(`t403PolledRevision===${JSON.stringify(revision)}`);
+  assert.equal(await evaluate("t403PolledRevision"), revision, "the actual owning page reads the Home instance's Feed revision");
+  const beforeInvalidation = await feed.evaluate<number>("t403Invalidations");
   platform.invalidateView("io.molis.work.feed");
-  await waitFor(`t403PolledRevision!==${JSON.stringify(revision)}`);
-  await feed.waitFor("t403Invalidations>0 && t403PendingReads===0");
+  const nextRevision = platform.viewRevision("io.molis.work.feed");
+  assert.notEqual(nextRevision, revision);
+  await waitFor(`t403PolledRevision===${JSON.stringify(nextRevision)}`);
+  await feed.waitFor(`t403Invalidations>${beforeInvalidation} && t403PendingReads===0`);
   const afterRevision = await rowState();
   assert.equal(afterRevision.visible, true, JSON.stringify(afterRevision));
   await feed.click(`button[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]`);

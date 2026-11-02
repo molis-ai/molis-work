@@ -36,6 +36,8 @@
 
 - W4 计数器在原 `8315c693` 上已完成真实生成、四例完整数值验收、签包，以及独立安装／升级／Host 重启回放（`/tmp/codex-w6-closeout/w4-live-counter-submit-only-run1/independent-replay/RESULT.md`），不再重跑。清单单次生成于 2026-11-02 14:27Z 停止：首个空态界面断言失败，后续修复请求 11 次、用量回执 10 份，原件在 `w4-live-list-generate-run1`，清理完成；未签包或回放通过。后继 T412 清单修订于 15:31Z 停止：2 次请求均有用量回执，数组投影修正成功，但修订目录缺少原共享 helper，G2 失败、G3–G7 未执行，未签包，清理完成；原件在 `w4-live-list-revise-run1`。W4 两样本整体仍未核收。T411 的真实隔离 smoke 已完成 2/2 设计冻结、3 次内置修正（`/tmp/t411-evidence/REAL-SMOKE-RESULT.md`）；它只证明设计生成，费用／用量 unknown，不替代真实包验收。
 - W6-05 场景4尚未执行。场景1已在 ef7719da 的原材料、提示词和断言下完成真实隔离安装、摘要、Todo 提取与采纳、普通及带日期待办创建、撤销和同一 work 回读，run3 于 2026-11-02 12:56Z 通过；其原两次失败保留，欢迎向导、受保护 Memory、真实 Home 与本人质量验收不由此签过。原件为 `/private/tmp/molis-minimax-01a19287/w605-scene1-run3/result.json`。其余场景沿各自已有结果，不由本稿重新签名。
+- 场景2 run3 已完成 Pages／TypeSafe／当前 Memory 的原隔离链，场景3 run7 已完成 RSS→Inbox→Todo、移动及三种原身份搜索；分别沿 `/tmp/codex-w6-closeout/W605-SCENE2-RESULT.md`、`W605-SCENE3-RESULT.md`。场景5的右栏 Goals 空白已由 T380 修复，独立完整文件3/3覆盖可见列表、真实双击、双栏隔离和 reload，并经 T386 采用；原首败与网络 unknown 留存，不再列待修。场景6项目签包子链、7两项目 Todo 主链、8正常 Host 重启及原详情 reload 均有既有独立局部核收，沿 `/tmp/w6-scene6-execution` 至 `/tmp/w6-scene8-execution` 的报告；未覆盖的 Home/origins、强杀、Coding确认卡及模型后续不由局部结果代签。
+- W4 清单在 b2635c20b 的原答案续跑通过 G1–G6 及前三项 G7；负向提交被现行仅支持成功提交的执行器拒绝，后两项未执行，未签包。原两答案完整保留、新模型请求0、清理完成，负向验收合同缺口见 [W6-03 接续](w6-03-skill-replay-smoke.md)。原三 brief 也已有 notes／reading／expenses 设计冻结；这些结果不代替清单签包及真实生命周期，计数器不重跑。
 - 最终 F 及其 build／typecheck:all／boundary、CI／Full、适用 Mac 边界、场景适用性和能力／UI 差分未核收；旧头或不同切点的局部通过按实际差量沿用，不能改署 F。
 - 干净真实 Home 的搬开重建、安装／重开／使用、原恢复与本人验收仍未完成；沿原用户窗口，旧存量迁移不恢复。
 

@@ -1,9 +1,16 @@
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+
+// T405-FULL-03: a diagnostic failure must not hide the original business failure.
+async function observePaneFailure<T>(read: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try { return await Promise.race([read(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('T405 diagnostic read unavailable after 1500ms')), 1500); })]); }
+  finally { clearTimeout(timer); }
+}
 
 test("Feed source navigation, independent nested panes, resize and restore", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
@@ -69,24 +76,34 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await click('[data-layout-split=bottom]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===3 && document.querySelector('[data-direction=column]')");
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-search]').value`), "not found in this source", "splitting a neighbour must preserve existing content state");
-  const sash = await evaluate<{x:number;y:number;hit:boolean}>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),r=node.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/4;window.t403SashTrace=[];const record=event=>{t403SashTrace.push({type:event.type,trusted:event.isTrusted,pointerId:event.pointerId,buttons:event.buttons,captured:node.hasPointerCapture(event.pointerId),target:event.target.outerHTML?.slice(0,120)});t403SashTrace.splice(0,Math.max(0,t403SashTrace.length-12))};const types=['pointerdown','pointermove','pointerup','pointercancel','lostpointercapture'];types.forEach(type=>document.addEventListener(type,record,true));window.t403StopSash=()=>types.forEach(type=>document.removeEventListener(type,record,true));return {x,y,hit:node.contains(document.elementFromPoint(x,y))}})()");
+  const sash = await evaluate<{x:number;y:number;hit:boolean}>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),r=node.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/4;window.t403SashNode=node;window.t403SashTrace=[];const record=event=>{t403SashTrace.push({type:event.type,trusted:event.isTrusted,pointerId:event.pointerId,buttons:event.buttons,x:event.clientX,y:event.clientY,at:event.timeStamp,connected:node.isConnected,captured:node.hasPointerCapture(event.pointerId),target:event.target.outerHTML?.slice(0,120)});t403SashTrace.splice(0,Math.max(0,t403SashTrace.length-12))};const types=['pointerdown','pointermove','pointerup','pointercancel','gotpointercapture','lostpointercapture','mousedown','mousemove','mouseup'];types.forEach(type=>document.addEventListener(type,record,true));window.t403StopSash=()=>types.forEach(type=>document.removeEventListener(type,record,true));return {x,y,hit:node.contains(document.elementFromPoint(x,y))}})()");
   assert.equal(sash.hit,true,'the real sash is the hit target before the press');
-  const sizing = () => evaluate("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),down=t403SashTrace.find(event=>event.type==='pointerdown');return {trace:t403SashTrace,ratio:node.getAttribute('aria-valuenow'),captured:down?node.hasPointerCapture(down.pointerId):false,body:document.body.className,workspace:document.querySelector('[data-tab-workspace]').className,iframeGuard:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>getComputedStyle(frame).pointerEvents)}})()");
+  const sizing = () => evaluate("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),down=t403SashTrace.find(event=>event.type==='pointerdown');return {trace:t403SashTrace,node:{connected:t403SashNode.isConnected,same:node===t403SashNode,rect:node.getBoundingClientRect().toJSON()},viewport:[innerWidth,innerHeight],visibility:document.visibilityState,focus:document.hasFocus(),ratio:node.getAttribute('aria-valuenow'),captured:down?node.hasPointerCapture(down.pointerId):false,body:document.body.className,workspace:document.querySelector('[data-tab-workspace]').className,iframeGuard:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>getComputedStyle(frame).pointerEvents)}})()");
   const resizeStages: unknown[] = [];
-  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x:sash.x, y:sash.y }, sessionId);
+  const dispatch = async (params: Record<string, unknown>) => {
+    const sent = { phase: 'CDP sent', params, at: Date.now() }; resizeStages.push(sent);
+    try { const receipt = await command('Input.dispatchMouseEvent', params, sessionId); resizeStages.push({ phase: 'CDP received', type: params.type, at: Date.now(), receipt }); }
+    catch (error) { resizeStages.push({ phase: 'CDP failed', type: params.type, at: Date.now(), error: String(error) }); throw error; }
+  };
+  let ratio: unknown;
   try {
-    await command("Input.dispatchMouseEvent", { type: "mousePressed", x:sash.x, y:sash.y, button: "left", clickCount: 1 }, sessionId);
+  await dispatch({ type: "mouseMoved", x:sash.x, y:sash.y });
+  try {
+    await dispatch({ type: "mousePressed", x:sash.x, y:sash.y, button: "left", clickCount: 1 });
     resizeStages.push({phase:'down',state:await sizing()});
-    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: sash.x + 90, y: sash.y, button: "left", buttons: 1 }, sessionId);
+    await dispatch({ type: "mouseMoved", x: sash.x + 90, y: sash.y, button: "left", buttons: 1 });
     resizeStages.push({phase:'move',state:await sizing()});
   } finally {
-    await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: sash.x + 90, y: sash.y, button: "left", clickCount: 1 }, sessionId);
+    await dispatch({ type: "mouseReleased", x: sash.x + 90, y: sash.y, button: "left", clickCount: 1 });
     resizeStages.push({phase:'release',state:await sizing()});
     await evaluate('window.t403StopSash()');
-    t.diagnostic('pane resize phases '+JSON.stringify(resizeStages));
   }
-  const ratio = await evaluate("document.querySelector('[data-direction=row] [data-tab-sash]').getAttribute('aria-valuenow')");
+  ratio = await evaluate("document.querySelector('[data-direction=row] [data-tab-sash]').getAttribute('aria-valuenow')");
   assert.notEqual(ratio, "50");
+  } catch (error) {
+    t.diagnostic('T405 pane resize failed '+JSON.stringify(resizeStages));
+    throw error;
+  }
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-search]').value`), "not found in this source");
   await browser.reloadPage();
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===3");
@@ -102,6 +119,12 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  await pluginFrameInitScript(t, browser, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=key==='feed'?host=>{
+    const state=window.t405Feed={host,opens:[],clicks:[]},open=host.openView;
+    host.openView=(view)=>{const row={view};state.opens.push(row);if(state.opens.length>8)state.opens.shift();try{const result=open.call(host,view);row.returned=typeof result;return result;}catch(error){row.error=String(error);throw error;}};
+    document.addEventListener('click',event=>{const node=event.target.closest?.('[data-feed-add-toggle]');if(node){state.clicks.push({trusted:event.isTrusted,connected:node.isConnected,mount:host.mount?.surface,at:performance.now()});if(state.clicks.length>8)state.clicks.shift();}},true);
+    return factory(host);
+  }:factory;return true;}});`);
   const child = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-draft-frame]');
   await addProjectPlugin(browser.web, projectId!, "feed");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -118,7 +141,15 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   })()`);
   await child.waitFor("document.querySelector('[data-feed-rail-toggle]')");
   await child.evaluate("document.querySelector('[data-feed-source-menu]').open=true;document.querySelector('[data-feed-source-rail] header [data-feed-add-toggle]').click()");
-  await child.waitFor("document.querySelector('[data-feed-sources-dialog]')?.hidden === false && document.querySelector('[data-feed-workbench]')?.dataset.feedView === 'add'");
+  try { await child.waitFor("document.querySelector('[data-feed-sources-dialog]')?.hidden === false && document.querySelector('[data-feed-workbench]')?.dataset.feedView === 'add'"); }
+  catch (error) {
+    const observations = await Promise.allSettled([
+      observePaneFailure(() => child.evaluate("(()=>{const state=window.t405Feed,dialog=document.querySelector('[data-feed-sources-dialog]');return {url:location.href,mount:state?.host.mount,scope:state?{alive:state.host.scope.alive,visible:state.host.scope.visible}:null,clicks:state?.clicks,opens:state?.opens,dialog:dialog?{hidden:dialog.hidden,connected:dialog.isConnected}:null,view:document.querySelector('[data-feed-workbench]')?.dataset.feedView}})()", 1500)),
+      command('Runtime.evaluate', { expression: "(()=>({frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,roots:[...f.contentDocument?.querySelectorAll('[data-plugin-owner]')||[]].map(r=>({...r.dataset}))}))}))()", returnByValue: true }, sessionId, 1500),
+    ]);
+    t.diagnostic('T405 Feed choose/setup failed ' + JSON.stringify(observations.map(value => value.status === 'fulfilled' ? value.value : { unavailable: String(value.reason) })));
+    throw error;
+  }
   assert.equal(await child.evaluate("document.querySelector('[data-feed-sources-dialog]').tagName"), "SECTION", "source setup is an inline work surface");
   await child.evaluate("document.querySelector('[data-feed-choose-kind=custom_rss]').click()");
   await child.evaluate(`(() => {
@@ -186,9 +217,13 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
     return link.dataset.selectGoal;
   })()`);
   const relatedState = () => evaluate(`({messages:t403RelatedOpen,saved:JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>({src:frame.src,hidden:frame.hidden,pane:frame.dataset.paneOwner,tab:frame.dataset.paneTab,readyState:frame.contentDocument?.readyState,goal:frame.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal,errors:frame.contentWindow?.t403RelatedErrors}))})`);
-  t.diagnostic('related Goal before adoption '+JSON.stringify(await relatedState()));
+  const relatedDiagnostic = async (phase: string) => {
+    try { t.diagnostic('T405 related Goal ' + phase + ' ' + JSON.stringify(await observePaneFailure(relatedState))); }
+    catch (observation) { t.diagnostic('T405 related Goal ' + phase + ' diagnostic unavailable: ' + String(observation)); }
+  };
+  await relatedDiagnostic('before adoption');
   try { await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal===${JSON.stringify(relatedId)})`, 8_000); }
-  catch(error){t.diagnostic('related Goal failed '+JSON.stringify(await relatedState()));throw error;}
+  catch(error){await relatedDiagnostic('business wait failed');throw error;}
   const adopted = await evaluate<{core:boolean;active:string}>(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),pane=state.panes.find(pane=>pane.id===originalFrame.dataset.paneOwner);return {core:pane.tabs.some(tab=>tab.kind==='item'&&tab.plugin==='goals'&&tab.itemId==='CORE'),active:pane.tabs.find(tab=>tab.id===pane.activeTabId)?.itemId}})()`);
   assert.equal(adopted.core,true);assert.equal(adopted.active,relatedId);
   await evaluate("document.querySelector('[data-tab-id=\"'+originalFrame.dataset.paneTab+'\"] .tab-item-trigger').click()");

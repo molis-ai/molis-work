@@ -5,7 +5,6 @@ import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-fra
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -15,7 +14,7 @@ import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumptio
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goal pane; child messages and late withdrawn sources cannot add blocks", { timeout: 90000 }, async t => {
-  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, true, undefined, null, undefined, undefined, {}, undefined, undefined, true); if (!b) return;
   const { command, sessionId, projectId, origin } = b;
   const capture = async (name: string) => {
     const output=reviewEvidenceUrl("t403-native/"); await mkdir(output,{recursive:true});
@@ -60,7 +59,13 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && !!window.molisPluginFrames");
   await b.click('[data-titlebar-tabs] [data-tab-split]'); await b.click('[data-layout-split=right]');
   await b.waitFor("document.querySelectorAll('iframe.tab-content-frame').length===2");
-  await b.click('[data-plugin-strip] [data-plugin-id=feed]');
+  try { await b.click('[data-plugin-strip] [data-plugin-id=feed]'); }
+  catch (error) {
+    // T405-FULL-03: observation cannot replace the original click error or its 15 s deadline.
+    const snapshot = await b.command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')}))})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,surface:f.contentDocument?.body?.dataset.desktopSurface,roots:[...f.contentDocument?.querySelectorAll('[data-ui-client-state]')||[]].map(r=>({state:r.dataset.uiClientState,plugin:r.dataset.pluginOwner,page:r.dataset.pluginPage,hidden:r.hidden})),children:[...f.contentDocument?.querySelectorAll('iframe[data-plugin-frame]')||[]].map(c=>({surface:c.dataset.pluginFrame,src:c.src,connected:c.isConnected}))}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic('T405 Feed click failed ' + JSON.stringify(snapshot));
+    throw error;
+  }
   await b.waitFor("[...document.querySelectorAll('iframe.tab-content-frame')].some(frame=>frame.contentDocument?.body?.dataset.desktopSurface==='feed')");
   await b.evaluate("for(const frame of document.querySelectorAll('iframe.tab-content-frame')){frame.removeAttribute('data-t403-feed-pane');frame.removeAttribute('data-t403-goal-pane');if(!frame.hidden)frame.toggleAttribute(frame.contentDocument.body.dataset.desktopSurface==='feed'?'data-t403-feed-pane':'data-t403-goal-pane',true)}");
   const sourcePane = await b.evaluate<string>("document.querySelector('iframe[data-t403-feed-pane]').dataset.paneOwner");
@@ -252,12 +257,12 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
 test("Goal Frames use outer tabs, preserve references, and isolate project state", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId, homeDirectory } = browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
+  // T405-FULL-01: the running Host keeps ownership while this fixture enables its project plugins.
+  const owner = new LocalHostHttpClient({ origin, controlToken: browser.controlToken });
   for (const plugin_id of ["feed", "inbox"] as const) {
-    catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "frame-container" });
+    await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id });
   }
-  catalog.close();
   const now = new Date().toISOString();
   const feed = createLocalFeedApplication(store.db);
   const source = feed.sources.upsert({

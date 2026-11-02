@@ -24,7 +24,20 @@ const GROUP_CONTRAST = `(() => {
 test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId } = browser;
+  const { command, sessionId, evaluate, origin, projectId } = browser;
+  const phases: Array<{ action: string; at: number }> = [];
+  const mark = (action: string) => { phases.push({ action, at: Date.now() }); if (phases.length > 12) phases.shift(); };
+  const click: typeof browser.click = (selector, options) => { mark('click ' + selector); return browser.click(selector, options); };
+  const waitFor: typeof browser.waitFor = (expression, timeout) => { mark('wait ' + expression.slice(0, 180)); return browser.waitFor(expression, timeout); };
+  const navigate: typeof browser.navigate = action => { mark('navigate'); return browser.navigate(action); };
+  const reloadPage = () => { mark('reload'); return browser.reloadPage(); };
+  const frameEvents: unknown[] = [];
+  for (const method of ['Page.frameAttached', 'Page.frameDetached', 'Page.frameNavigated']) t.after(browser.on(method, (params, session) => {
+    frameEvents.push({ method, session, frame: params.frame, frameId: params.frameId, reason: params.reason });
+    if (frameEvents.length > 12) frameEvents.shift();
+  }));
+  t.signal.addEventListener('abort', () => t.diagnostic('T405 Goals beside CORE aborted ' + JSON.stringify({ phases, frameEvents })), { once: true });
+  try {
   const coreTitle = "让每项工作都有可信的完成依据";
   const coreOutcome = "用户能看到一项工作何时开始、做出了什么，以及为什么可以算完成";
   const interfacesTitle = "让不同 AI 对话看到同一项目进度";
@@ -113,6 +126,11 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
   assert.equal(await evaluate(`${remainingCore}.querySelector('[data-frame-goal-outcome]')?.textContent`), coreOutcome);
   await gesture(await framePoint(leftId, '[data-frame-goal-work]', false), 1);
   await waitFor(`${remainingCore}.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === 'CORE' && ${remainingCore}.querySelector('[data-goal-node-workspace]')?.getClientRects().length > 0`, 30_000);
+  } catch (error) {
+    const state = await command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')}))})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,surface:f.contentDocument?.body?.dataset.desktopSurface,roots:[...f.contentDocument?.querySelectorAll('[data-ui-client-state]')||[]].map(r=>({state:r.dataset.uiClientState,plugin:r.dataset.pluginOwner,page:r.dataset.pluginPage,hidden:r.hidden})),children:[...f.contentDocument?.querySelectorAll('iframe[data-plugin-frame]')||[]].map(c=>({surface:c.dataset.pluginFrame,src:c.src,connected:c.isConnected}))}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic('T405 Goals beside CORE failed ' + JSON.stringify({ phases, frameEvents, state }));
+    throw error;
+  }
 });
 
 test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab of a real structured frame", { timeout: 90_000 }, async t => {

@@ -192,7 +192,21 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await b.click('[data-plugin-id="feed"]');
   const panel = `[data-feed-task-config="${source.source_id}"]`;
   // Settings open the way a person reaches them now: pick the source in the rail, then its 来源设置 tab.
-  const openSettings = async () => { await click(`[data-feed-source-rail] [data-feed-task="${source.source_id}"]`); await click('[data-feed-view="settings"]'); };
+  const openSettings = async () => {
+    try { await click(`[data-feed-source-rail] [data-feed-task="${source.source_id}"]`); await click('[data-feed-view="settings"]'); }
+    catch (error) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const state = await Promise.race([
+          child.evaluate(`(()=>{const node=document.querySelector('[data-feed-source-rail] [data-feed-task="${source.source_id}"]'),host=window.__scheduleBusy.host;return {mount:host.mount,scope:{alive:host.scope.alive,visible:host.scope.visible},viewport:[innerWidth,innerHeight],view:document.querySelector('[data-feed-workbench]')?.dataset.feedView,menu:document.querySelector('[data-feed-source-menu]')?.open,target:node?{connected:node.isConnected,box:node.getBoundingClientRect().toJSON(),ancestors:[node,...(()=>{const rows=[];for(let n=node.parentElement;n&&rows.length<6;n=n.parentElement)rows.push(n);return rows;})()].map(n=>({tag:n.tagName,class:n.className,hidden:n.hidden,inert:n.inert,display:getComputedStyle(n).display,visibility:getComputedStyle(n).visibility}))}:null}})()`, 1500),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('T405 Feed settings diagnostic unavailable after 1500ms')), 1500); }),
+        ]);
+        t.diagnostic('T405 Feed settings open failed ' + JSON.stringify(state));
+      } catch (observation) { t.diagnostic('T405 Feed settings diagnostic unavailable: ' + String(observation)); }
+      finally { clearTimeout(timer); }
+      throw error;
+    }
+  };
   await openSettings();
   await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value='丢弃的名称'`);
   await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');

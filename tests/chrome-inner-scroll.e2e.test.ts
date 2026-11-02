@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 const scrollProbe = (chromeSelector: string, scrollerSelector: string) => `(() => {
   const chrome = document.querySelector(${JSON.stringify(chromeSelector)});
@@ -32,15 +33,24 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const feed = await pluginFrameBrowser(t, browser, "feed");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
   catalog.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const expectContained = async (chrome: string, scroller: string) => {
-    const result = await evaluate<{
+  const expectContained = async (chrome: string, scroller: string, owner?: Awaited<ReturnType<typeof pluginFrameBrowser>>) => {
+    const chromeBox = () => evaluate<{top:number;height:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(chrome)}).getBoundingClientRect();return {top:Math.round(r.top),height:Math.round(r.height)}})()`);
+    const before = owner ? await chromeBox() : undefined;
+    const read = owner ? owner.evaluate : evaluate;
+    const result = await read<{
       chromeTopBefore: number; chromeTopAfter: number; chromeHeight: number; htmlScroll: number; bodyScroll: number;
       bodyOverflow: string; scrollerOverflow: string; scrollerTop: number;
-    }>(scrollProbe(chrome, scroller));
+    }>(scrollProbe(owner ? "[data-feed-source-header]" : chrome, scroller));
+    if (owner) {
+      const after = await chromeBox();
+      result.chromeTopBefore = before!.top; result.chromeTopAfter = after.top; result.chromeHeight = after.height;
+      assert.deepEqual(await evaluate("[document.documentElement.scrollTop,document.body.scrollTop,getComputedStyle(document.body).overflowY]"), [0,0,"hidden"]);
+    }
     assert.equal(result.htmlScroll, 0, JSON.stringify({ chrome, scroller, ...result }));
     assert.equal(result.bodyScroll, 0, JSON.stringify({ chrome, scroller, ...result }));
     assert.equal(result.chromeTopAfter, result.chromeTopBefore, JSON.stringify({ chrome, scroller, ...result }));
@@ -48,7 +58,7 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
     assert.equal(result.bodyOverflow, "hidden", JSON.stringify({ chrome, scroller, ...result }));
     assert.match(result.scrollerOverflow, /auto|scroll|overlay/, JSON.stringify({ chrome, scroller, ...result }));
     assert.ok(result.scrollerTop > 200, JSON.stringify({ chrome, scroller, ...result }));
-    await evaluate(`(() => {
+    await read(`(() => {
       const pad = document.querySelector("[data-scroll-pad]");
       const scroller = pad?.parentElement;
       pad?.remove();
@@ -116,13 +126,13 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   await expectContained(".workbench-bar", "[data-work-surface=home] [data-home-scroll]");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await feed.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-source-header] [data-feed-add-toggle]')?.getBoundingClientRect().width>0");
   await click('[data-project-menu] > summary');
   const projectMenuHit = await evaluate<{ onTop: boolean; islandZ: string; inViewport: boolean }>(`(() => {
     const menu = document.querySelector("[data-project-menu]");
-    const add = document.querySelector("[data-feed-add-toggle]");
     const island = document.querySelector("[data-project-island]");
-    if (!menu || !add || !island) return { onTop: false, islandZ: "", inViewport: false };
+    if (!menu || !island) return { onTop: false, islandZ: "", inViewport: false };
     const box = menu.querySelector('.navigator-project-menu-popover').getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
     const onTop = Boolean(hit?.closest(".navigator-project-menu-popover"));
@@ -132,10 +142,11 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   // The project menu opens from the bar, which sits above the work; only reachability matters, not a z-index number.
   assert.ok(projectMenuHit.onTop && projectMenuHit.inViewport, 'Open project menu is reachable above the work surface: ' + JSON.stringify(projectMenuHit));
   await click('[data-project-menu] > summary');
-  assert.ok(await evaluate(`(() => { const add = document.querySelector('[data-feed-add-toggle]'); const box = add.getBoundingClientRect(); return add.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)); })()`), 'Closing the project menu restores the Feed add-task hit target');
-  await expectContained(".immersive-titlebar", ".feed-stage-tree");
-  await expectContained("[data-workspace-chrome]", ".feed-stage-tree");
-  await expectContained(".workbench-bar", ".feed-stage-tree");
+  // The guarded point checks the actual Feed control and its Host frame after the menu closes.
+  await feed.point('[data-feed-source-header] [data-feed-add-toggle]');
+  await expectContained(".immersive-titlebar", ".feed-stage-tree", feed);
+  await expectContained("[data-workspace-chrome]", ".feed-stage-tree", feed);
+  await expectContained(".workbench-bar", ".feed-stage-tree", feed);
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-artifact-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");

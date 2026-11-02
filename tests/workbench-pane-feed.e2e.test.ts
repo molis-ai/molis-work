@@ -70,10 +70,22 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await click('[data-layout-split=bottom]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===3 && document.querySelector('[data-direction=column]')");
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-search]').value`), "not found in this source", "splitting a neighbour must preserve existing content state");
-  const sash = await evaluate<{x:number;y:number}>("(()=>{const r=document.querySelector('[data-direction=row] [data-tab-sash]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/4}})()");
-  await command("Input.dispatchMouseEvent", { type: "mousePressed", ...sash, button: "left", clickCount: 1 }, sessionId);
-  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: sash.x + 90, y: sash.y, button: "left", buttons: 1 }, sessionId);
-  await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: sash.x + 90, y: sash.y, button: "left", clickCount: 1 }, sessionId);
+  const sash = await evaluate<{x:number;y:number;hit:boolean}>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),r=node.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/4;window.t403SashTrace=[];const record=event=>{t403SashTrace.push({type:event.type,trusted:event.isTrusted,pointerId:event.pointerId,buttons:event.buttons,captured:node.hasPointerCapture(event.pointerId),target:event.target.outerHTML?.slice(0,120)});t403SashTrace.splice(0,Math.max(0,t403SashTrace.length-12))};const types=['pointerdown','pointermove','pointerup','pointercancel','lostpointercapture'];types.forEach(type=>document.addEventListener(type,record,true));window.t403StopSash=()=>types.forEach(type=>document.removeEventListener(type,record,true));return {x,y,hit:node.contains(document.elementFromPoint(x,y))}})()");
+  assert.equal(sash.hit,true,'the real sash is the hit target before the press');
+  const sizing = () => evaluate("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),down=t403SashTrace.find(event=>event.type==='pointerdown');return {trace:t403SashTrace,ratio:node.getAttribute('aria-valuenow'),captured:down?node.hasPointerCapture(down.pointerId):false,body:document.body.className,workspace:document.querySelector('[data-tab-workspace]').className,iframeGuard:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>getComputedStyle(frame).pointerEvents)}})()");
+  const resizeStages: unknown[] = [];
+  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x:sash.x, y:sash.y }, sessionId);
+  try {
+    await command("Input.dispatchMouseEvent", { type: "mousePressed", x:sash.x, y:sash.y, button: "left", clickCount: 1 }, sessionId);
+    resizeStages.push({phase:'down',state:await sizing()});
+    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: sash.x + 90, y: sash.y, button: "left", buttons: 1 }, sessionId);
+    resizeStages.push({phase:'move',state:await sizing()});
+  } finally {
+    await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: sash.x + 90, y: sash.y, button: "left", clickCount: 1 }, sessionId);
+    resizeStages.push({phase:'release',state:await sizing()});
+    await evaluate('window.t403StopSash()');
+    t.diagnostic('pane resize phases '+JSON.stringify(resizeStages));
+  }
   const ratio = await evaluate("document.querySelector('[data-direction=row] [data-tab-sash]').getAttribute('aria-valuenow')");
   assert.notEqual(ratio, "50");
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-search]').value`), "not found in this source");
@@ -143,6 +155,7 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, openGoalFrame, command, sessionId, navigate, origin, projectId } = browser;
+  await command("Page.addScriptToEvaluateOnNewDocument", {source:"window.t403RelatedErrors=[];const record=error=>{t403RelatedErrors.push(String(error).slice(0,200));t403RelatedErrors.splice(0,Math.max(0,t403RelatedErrors.length-8));};addEventListener('error',event=>record(event.message));addEventListener('unhandledrejection',event=>record(event.reason));"}, sessionId);
   const click = async (selector: string) => {
     t.diagnostic(`Related Goal pane mouse target: ${selector}`);
     await browser.click(selector);
@@ -159,6 +172,7 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   // Each pane is a page of its own: both load the whole workbench (about five seconds on a development Mac, over twice that on the
   // Linux CI runner, whose busy main thread also delays the page's own deadline) before showing the Goal.
   await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && f.contentDocument.querySelector('[data-goal-node-workspace]')?.hidden===false)", 30_000);
+  await evaluate("window.t403RelatedOpen=[];window.t403RelatedListener=event=>{if(event.data?.type!=='workbench-pane-open')return;const owner=[...document.querySelectorAll('iframe.tab-content-frame')].find(frame=>frame.contentWindow===event.source);t403RelatedOpen.push({trusted:event.isTrusted,origin:event.origin,pane:owner?.dataset.paneOwner,tab:owner?.dataset.paneTab,plugin:event.data.plugin,itemId:event.data.itemId});t403RelatedOpen.splice(0,Math.max(0,t403RelatedOpen.length-8))};addEventListener('message',t403RelatedListener)");
   const relatedId = await evaluate<string>(`(() => {
     const paneId = document.querySelector('.tab-pane.is-focused').dataset.tabPane;
     window.originalFrame = document.querySelector('iframe[data-pane-owner="'+paneId+'"]:not([hidden])');
@@ -173,11 +187,17 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
     link.click();
     return link.dataset.selectGoal;
   })()`);
-  await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal===${JSON.stringify(relatedId)})`, 8_000);
+  const relatedState = () => evaluate(`({messages:t403RelatedOpen,saved:JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>({src:frame.src,hidden:frame.hidden,pane:frame.dataset.paneOwner,tab:frame.dataset.paneTab,readyState:frame.contentDocument?.readyState,goal:frame.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal,errors:frame.contentWindow?.t403RelatedErrors}))})`);
+  t.diagnostic('related Goal before adoption '+JSON.stringify(await relatedState()));
+  try { await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal===${JSON.stringify(relatedId)})`, 8_000); }
+  catch(error){t.diagnostic('related Goal failed '+JSON.stringify(await relatedState()));throw error;}
+  const adopted = await evaluate<{core:boolean;active:string}>(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify('molis-work-tab-workspace:'+projectId)})),pane=state.panes.find(pane=>pane.id===originalFrame.dataset.paneOwner);return {core:pane.tabs.some(tab=>tab.kind==='item'&&tab.plugin==='goals'&&tab.itemId==='CORE'),active:pane.tabs.find(tab=>tab.id===pane.activeTabId)?.itemId}})()`);
+  assert.equal(adopted.core,true);assert.equal(adopted.active,relatedId);
   await evaluate("document.querySelector('[data-tab-id=\"'+originalFrame.dataset.paneTab+'\"] .tab-item-trigger').click()");
   await waitFor("!originalFrame.hidden");
   assert.equal(await evaluate("originalFrame.contentDocument===originalDocument"), true);
   assert.equal(await evaluate("originalDocument.querySelector('[data-goal-view]').dataset.goalView"), "CORE");
+  await evaluate("removeEventListener('message',t403RelatedListener)");
 });
 
 test("a background refresh keeps the titlebar tabs hidden while panes are split, and shown once they merge (RAC-1220, RAC-1221)", { timeout: 90_000 }, async (t) => {

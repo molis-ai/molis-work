@@ -89,11 +89,13 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   assert.match(await evaluate<string>("document.querySelector('[data-frame-picker-list]').textContent"),/没有匹配/);
   await evaluate("document.querySelector('[data-frame-picker-search]').value='核对键盘';document.querySelector('[data-frame-picker-search]').dispatchEvent(new Event('input',{bubbles:true}))");
   await click(`[data-frame-picker-asset="feed:${item.item_id}"]`);
+  await waitFor("!document.querySelector('[data-frame-picker]').open && [...document.querySelectorAll('[data-frame-block]')].some(block=>block.textContent.includes('核对键盘焦点'))");
   assert.equal(await evaluate("document.querySelector('[data-frame-picker]').open"),false);
   assert.equal(await evaluate("document.querySelector('[data-frame-block]').textContent.includes('核对键盘焦点')"),true);
   await reloadPage();
   await waitFor("document.querySelector('[data-frame-block]')?.textContent.includes('核对键盘焦点')");
   await click('.frame-goal-actions [data-frame-add-content]');
+  await waitFor(`document.querySelector('[data-frame-picker]').open && document.querySelector('[data-frame-picker-asset="feed:${item.item_id}"]')`);
   assert.equal(await evaluate(`document.querySelector('[data-frame-picker-asset="feed:${item.item_id}"]').disabled`),true);
   await command("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27},sessionId);
   await waitFor("!document.querySelector('[data-frame-picker]').open");

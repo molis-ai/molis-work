@@ -352,7 +352,11 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       const pane = paneById(paneId);
       if (!pane) return true;
       // Already on the plugin's page: its tab goes back to the page's list.
-      if (ops.shownPlugin(pane) === pluginTab.dataset.plugin && !pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive) { resetPluginPage(pane.viewPlugin); return true; }
+      if (ops.shownPlugin(pane) === pluginTab.dataset.plugin && !pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive) {
+        resetPluginPage(pane.viewPlugin);
+        host.prepareSurface?.(findTopLevelSurface(pluginTab.dataset.plugin), "open");
+        return true;
+      }
       state.focusedPaneId = paneId;
       const railButton = document.querySelector('[data-dock] [data-plugin-id="' + CSS.escape(pluginTab.dataset.plugin) + '"]');
       if (railButton && ops.shownPlugin(pane) !== pluginTab.dataset.plugin) railButton.click();

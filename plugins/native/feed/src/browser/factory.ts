@@ -47,43 +47,48 @@ export function feedClient(host: FeedHost): void {
     error: (error, element) => { if (!scope.alive || !scope.visible || error instanceof DOMException && error.name === "AbortError") return; if (element?.isConnected) molisWorkRequest.show(element, error); else host.showToast(molisWorkRequest.text(error), true); },
   };
   const stage = feedStage(page), sources = feedSources(page), rules = feedRules(page);
-  let refreshSequence = 0;
-  page.refresh = async () => {
+  let refreshSequence = 0, activeRefresh = Promise.resolve();
+  page.refresh = () => {
     const check = page.guard(), sequence = ++refreshSequence;
-    const html = await host.view.readDocument({ signal: page.signal() }); check(); if (sequence !== refreshSequence) return;
-    const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]").map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
-    const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
-    const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]");
-    if (!next) throw new Error(host.translate("无法更新 Feed 列表"));
-    // Preserve unsaved settings and the rule composer while authoritative rows/configuration are redrawn.
-    for (const previous of page.all("[data-feed-task-config]")) {
-      const replacement = next.querySelector<HTMLElement>('[data-feed-task-config="' + CSS.escape(previous.dataset.feedTaskConfig!) + '"]');
-      if (!replacement) continue;
-      const composer = previous.querySelector("[data-feed-rule-composer]");
-      const newComposer = replacement.querySelector("[data-feed-rule-composer]");
-      if (composer && newComposer) newComposer.replaceWith(composer);
-      for (const field of previous.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea")) {
-        const key = [...field.attributes].find(attr => attr.name.startsWith("data-"));
-        const dirty = field instanceof HTMLSelectElement ? [...field.options].some(option => option.selected !== option.defaultSelected) : field instanceof HTMLInputElement && field.type === "checkbox" ? field.checked !== field.defaultChecked : field.value !== field.defaultValue;
-        const control = key && replacement.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[" + key.name + '="' + CSS.escape(key.value) + '"]');
-        if (dirty && control) { control.value = field.value; if (control instanceof HTMLInputElement && field instanceof HTMLInputElement) control.checked = field.checked; }
+    const refresh = async () => {
+      const html = await host.view.readDocument({ signal: page.signal() }); check();
+      if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
+      const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]").map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
+      const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
+      const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]");
+      if (!next) throw new Error(host.translate("无法更新 Feed 列表"));
+      // Preserve unsaved settings and the rule composer while authoritative rows/configuration are redrawn.
+      for (const previous of page.all("[data-feed-task-config]")) {
+        const replacement = next.querySelector<HTMLElement>('[data-feed-task-config="' + CSS.escape(previous.dataset.feedTaskConfig!) + '"]');
+        if (!replacement) continue;
+        const composer = previous.querySelector("[data-feed-rule-composer]");
+        const newComposer = replacement.querySelector("[data-feed-rule-composer]");
+        if (composer && newComposer) newComposer.replaceWith(composer);
+        for (const field of previous.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input,select,textarea")) {
+          const key = [...field.attributes].find(attr => attr.name.startsWith("data-"));
+          const dirty = field instanceof HTMLSelectElement ? [...field.options].some(option => option.selected !== option.defaultSelected) : field instanceof HTMLInputElement && field.type === "checkbox" ? field.checked !== field.defaultChecked : field.value !== field.defaultValue;
+          const control = key && replacement.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[" + key.name + '="' + CSS.escape(key.value) + '"]');
+          if (dirty && control) { control.value = field.value; if (control instanceof HTMLInputElement && field instanceof HTMLInputElement) control.checked = field.checked; }
+        }
+        for (const details of replacement.querySelectorAll("details")) details.open = [...previous.querySelectorAll("details[open]")].some(old => old.querySelector("summary")?.textContent === details.querySelector("summary")?.textContent);
       }
-      for (const details of replacement.querySelectorAll("details")) details.open = [...previous.querySelectorAll("details[open]")].some(old => old.querySelector("summary")?.textContent === details.querySelector("summary")?.textContent);
-    }
-    // Keep the disclosure, its Add control, and the inline form while rows/configuration refresh beneath them.
-    const menu = page.q("[data-feed-source-menu]"), nextMenu = page.q("[data-feed-source-menu]", next);
-    if (menu && nextMenu) {
-      const rail = page.q("[data-feed-source-rail]", menu), nextRail = page.q("[data-feed-source-rail]", nextMenu);
-      if (rail && nextRail) { const nav = rail.querySelector("nav"), nextNav = nextRail.querySelector("nav"); if (nav && nextNav) nav.replaceChildren(...nextNav.childNodes); const count = rail.querySelector('[data-feed-task="all"] em'), nextCount = nextRail.querySelector('[data-feed-task="all"] em'); if (count && nextCount) count.textContent = nextCount.textContent; }
-      nextMenu.replaceWith(menu);
-    }
-    const dialog = page.q("[data-feed-sources-dialog]"), nextDialog = page.q("[data-feed-sources-dialog]", next);
-    if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); for (const account of page.all<HTMLFormElement>("[data-feed-add-account]", dialog)) { const replacement = page.q<HTMLFormElement>('[data-feed-add-account="' + CSS.escape(account.dataset.feedAddAccount!) + '"]', nextDialog); if (replacement) replacement.replaceWith(account); } dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }
-    const scroll = stage.scroll(); root.replaceChildren(...next.childNodes);
-    for (const saved of controls) { const control = page.q<HTMLInputElement | HTMLSelectElement>("[" + saved.attr + "]"); if (control) control.value = saved.value; }
-    const filterPanel = page.q("[data-feed-filter-panel]"); if (filterPanel) filterPanel.hidden = !filterOpen;
-    page.q("[data-feed-filter-trigger]")?.setAttribute("aria-expanded", String(filterOpen));
-    page.select(page.selection, "restore", page.panel); stage.restoreScroll(scroll); rules.hydrate();
+      // Keep the disclosure, its Add control, and the inline form while rows/configuration refresh beneath them.
+      const menu = page.q("[data-feed-source-menu]"), nextMenu = page.q("[data-feed-source-menu]", next);
+      if (menu && nextMenu) {
+        const rail = page.q("[data-feed-source-rail]", menu), nextRail = page.q("[data-feed-source-rail]", nextMenu);
+        if (rail && nextRail) { const nav = rail.querySelector("nav"), nextNav = nextRail.querySelector("nav"); if (nav && nextNav) nav.replaceChildren(...nextNav.childNodes); const count = rail.querySelector('[data-feed-task="all"] em'), nextCount = nextRail.querySelector('[data-feed-task="all"] em'); if (count && nextCount) count.textContent = nextCount.textContent; }
+        nextMenu.replaceWith(menu);
+      }
+      const dialog = page.q("[data-feed-sources-dialog]"), nextDialog = page.q("[data-feed-sources-dialog]", next);
+      if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); for (const account of page.all<HTMLFormElement>("[data-feed-add-account]", dialog)) { const replacement = page.q<HTMLFormElement>('[data-feed-add-account="' + CSS.escape(account.dataset.feedAddAccount!) + '"]', nextDialog); if (replacement) replacement.replaceWith(account); } dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }
+      const scroll = stage.scroll(); root.replaceChildren(...next.childNodes);
+      for (const saved of controls) { const control = page.q<HTMLInputElement | HTMLSelectElement>("[" + saved.attr + "]"); if (control) control.value = saved.value; }
+      const filterPanel = page.q("[data-feed-filter-panel]"); if (filterPanel) filterPanel.hidden = !filterOpen;
+      page.q("[data-feed-filter-trigger]")?.setAttribute("aria-expanded", String(filterOpen));
+      page.select(page.selection, "restore", page.panel); stage.restoreScroll(scroll); rules.hydrate();
+    };
+    activeRefresh = refresh();
+    return activeRefresh;
   };
   page.select = (id, intent = "restore", panel) => {
     if (host.mount?.surface === "workbench" && !page.all("[data-feed-task]").some(node => node.dataset.feedTask === id)) id = "all";

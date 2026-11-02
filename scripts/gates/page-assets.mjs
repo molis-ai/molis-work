@@ -252,6 +252,8 @@ const APPROVED_CEILINGS = {
   // User-approved exact frame growth: owner-bound reads, trusted account selection, native drag and refresh identity.
   // Existing lifecycle/authorization/projection helpers are reused; Feed/Inbox business closures leave the eager shell.
   "/assets/molis-work-plugin-frame.js": [191017, 207977],
+  // T403 observed owner menu regression: native Escape closes Shelf More and returns focus (+307 B).
+  "/assets/molis-work-plugins/shelf.js": [64660, 64967],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
@@ -260,7 +262,8 @@ const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === byte
 const APPROVED_NEW_ASSETS = {
   // User-approved T403 split: owner client code and Feed styles load only inside their opaque plugin pages.
   // Previous new-asset entries are already in the merge-base budget and are consumed.
-  "/assets/molis-work-plugins/feed.js": 35705,
+  // T403 first-freeze repair: wait for superseding refresh, preserve partial creation, restore config drafts/busy UI.
+  "/assets/molis-work-plugins/feed.js": 37255,
   "/assets/molis-work-plugins/feed.css": 43247,
   // T403's same approved Inbox URL: retain native Tab stops and same-mount evaluation feedback (+9 B served).
   "/assets/molis-work-plugins/inbox.js": 9297,

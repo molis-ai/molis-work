@@ -22,6 +22,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 test("public Feed sources register offline, replay terminal sync, and roll back failed commits", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-"));
@@ -651,11 +652,17 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
         body: body == null ? undefined : JSON.stringify(body),
       });
     };
-    const page = await (await fetch(`${origin}${prefix}/`)).text();
+    const ownerDocument = (html: string, marker = "data-feed-workbench") => {
+      const documents = pluginDocuments(html).filter(document => document.includes(marker));
+      assert.equal(documents.length, 1, `the page carries one actual ${marker} owner document`);
+      return documents[0]!;
+    };
+    const hostPage = await (await fetch(`${origin}${prefix}/`)).text();
+    const page = ownerDocument(hostPage);
     assert.match(page, /data-feed-sources-dialog/);
     assert.match(page, /id="feed-source-dialog-title">添加来源/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
-    assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
+    assert.match(ownerDocument(hostPage, "data-source-workbench"), /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
     assert.match(page, /打开 Connectors/);
     assert.match(page, /在 Connectors 授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。/);
     // RAC-2667 (T-121): an account source's settings name the plugin, the slot and the record, never an account or an installation; the
@@ -664,8 +671,13 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.doesNotMatch(page, /data-source-config-field="connection_id"/);
     assert.ok([...page.matchAll(/data-plugin-record-slot="([^"]*)"/g)].every(([, slot]) => !slot!.includes("install_id") && !slot!.includes("connection_id")));
     assert.match(page, /<form class="feed-account-source" data-feed-add-account="github">/);
-    const script = await (await fetch(`${origin}/assets/molis-work-workbench.js`)).text();
-    assert.ok(script.includes("/api/settings/connectors/plugin-slots/record?") && script.includes("[data-plugin-record-slot-account]"), "the page script binds through the record-slot path");
+    const client = await fetch(`${origin}/assets/molis-work-plugins/feed.js`);
+    assert.equal(client.status, 200);
+    const script = await client.text();
+    assert.ok(script.includes("connectionSlot") && script.includes("[data-plugin-record-slot-account]"), "the actual Feed owner reads and chooses through the Host's record-slot port");
+    const bridge = await fetch(`${origin}/assets/molis-work-plugin-frame.js`);
+    assert.equal(bridge.status, 200);
+    assert.ok((await bridge.text()).includes("/api/host/plugin-page-slot"), "the trusted bridge binds through the current page's record-slot path");
     assert.ok(!script.includes('data-source-config-field="connection_id"'), "and no longer saves an account with the source");
     assert.doesNotMatch(page, /data-feed-connector-token/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
@@ -703,7 +715,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.equal(scheduled.status, 200);
     assert.equal((await scheduled.json() as { source: { schedule: { mode: string } } }).source.schedule.mode, "interval");
 
-    const realPage = await (await fetch(`${origin}${prefix}/`)).text();
+    const realPage = ownerDocument(await (await fetch(`${origin}${prefix}/`)).text());
     assert.match(realPage, new RegExp(`data-real-source-id="${registeredBody.source.source_id}"`));
     assert.match(realPage, /data-source-config-save/);
     assert.match(realPage, /首次拉取后验证 Feed 并记录条件请求/);

@@ -33,8 +33,14 @@ import { GOALS_PLUGIN_ID, goalAdvancePrompt } from "@molis-ai/molis-work-plugin-
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { goalTerminalsPath } from "./fixtures/goal-terminal.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
+const ownerDocument = (html: string, marker: string) => {
+  const documents = pluginDocuments(html).filter(document => document.includes(marker));
+  assert.equal(documents.length, 1, `one actual owner document carries ${marker}`);
+  return documents[0]!;
+};
 // The Goal terminal's client, split by concern since SC-3 (apps/workbench/src/terminal/client*.ts); read together as one program.
 const TERMINAL_DIRECTORY = new URL("../apps/workbench/src/terminal/", import.meta.url);
 const terminalSource = (...names: string[]) => names.map((name) => readFileSync(new URL(name, TERMINAL_DIRECTORY), "utf8")).join("\n");
@@ -537,6 +543,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const workbenchAssets = `<style>${renderMolisWorkWorkbenchStylesheet()}</style><script>${renderMolisWorkWorkbenchClientScript()}</script>`;
     const browser = `${renderMolisWorkWeb(view)}${workbenchAssets}`;
     const desktop = `${renderMolisWorkWeb(view, undefined, false, false, "", true)}${workbenchAssets}`;
+    const feedDocument = ownerDocument(desktop, "data-feed-workbench");
     const directGoal = renderMolisWorkWeb(view, view.goals[0]!.goal.goal_id);
     const browserMarkup = browser.slice(0, browser.indexOf("<style>"));
     assert.match(browser, /class="tui-pane"/);
@@ -625,10 +632,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browser, /class="personal-sidebar"|class="desktop-project-context"/);
     assert.match(desktop, /data-document-pane/);
     assert.match(desktop, /data-desktop-directory="root"/);
-    assert.match(desktop, /data-inbox-directory/);
-    assert.match(desktop, /data-inbox-workbench/);
-    assert.doesNotMatch(desktop, /data-feed-entry-id="decision:/);
-    assert.doesNotMatch(desktop, /data-feed-detail="decision:/);
+    assert.match(ownerDocument(desktop, "data-inbox-workbench"), /data-inbox-directory/);
+    assert.match(ownerDocument(desktop, "data-inbox-workbench"), /data-inbox-workbench/);
+    assert.doesNotMatch(pluginDocuments(desktop).join("\n"), /data-feed-entry-id="decision:/);
+    assert.doesNotMatch(pluginDocuments(desktop).join("\n"), /data-feed-detail="decision:/);
     assert.match(browser, /data-directory-show/);
     assert.match(browser, /aria-controls="goal-tui-pane"/);
     assert.match(browser, /data-tui-kind="claude-code"/);
@@ -701,15 +708,17 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="shelf"/);
     assert.doesNotMatch(desktopMarkup, /data-shelf-stage-shell/, "Shelf has no stage in the work area; it opens in its side tab");
     assert.match(desktop, /data-plugin-section="feed"/);
-    assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
+    assert.match(ownerDocument(desktop, "data-source-directory"), /data-directory-panel="sources"[^>]*data-source-directory hidden/);
     assert.doesNotMatch(desktop, /data-directory-open="inbox"/);
     assert.match(desktop, /data-plugin-id="goals"[^>]*data-work-surface-open="goals"/);
-    assert.match(desktop, /data-plugin-id="feed"[^>]*data-work-surface-open="feed" data-feed-preset="feed"/);
+    assert.match(desktop, /data-plugin-id="feed"[^>]*data-work-surface-open="feed"/);
+    assert.match(feedDocument, /data-feed-preset="feed"/);
     assert.doesNotMatch(desktop, /data-directory-open="goals"|data-directory-open="feed"|data-directory-open="sources"|data-directory-open="sessions"|data-directory-open="inbox"|data-directory-open="artifacts"|data-directory-open="shelf"|data-feed-views/);
+    assert.doesNotMatch(feedDocument, /data-feed-views/);
     assert.doesNotMatch(desktop, /data-work-surface-open="promotion"|data-work-surface-open="visual"/);
     assert.match(desktop, /data-work-surface="goals" data-work-surface-label="Goals"/);
     assert.match(desktop, /data-work-surface="inbox" data-work-surface-label="Inbox"[^>]*hidden/);
-    assert.match(desktop, /data-work-surface="sources" data-work-surface-label="来源"[^>]*data-source-workbench hidden/);
+    assert.match(ownerDocument(desktop, "data-source-workbench"), /data-work-surface="sources" data-work-surface-label="来源"[^>]*data-source-workbench hidden/);
     assert.doesNotMatch(desktop, /data-directory-panel="promotion"|data-directory-panel="visual"/);
     assert.match(desktop, /class="desktop-project-switcher navigator-project-menu" data-project-menu/);
     assert.match(desktop, /<summary class="navigator-project-selector"[^>]*aria-label="切换项目"/);
@@ -1065,7 +1074,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;
-    const page = await (await webFetch(`${origin}${prefix}`)).text();
+    const page = ownerDocument(await (await webFetch(`${origin}${prefix}`)).text(), "data-feed-workbench");
     assert.match(page, /data-feed-entry-id="feed-item-test"/);
     assert.match(page, /用 Item 启动真实工作/);
     assert.doesNotMatch(page, /测试来源资料/);
@@ -1103,10 +1112,11 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(added.status, 200);
     const addedAgain = await addInbox();
     assert.equal(addedAgain.status, 200);
-    const pageAfterInbox = await (await webFetch(`${origin}${prefix}`)).text();
+    const htmlAfterInbox = await (await webFetch(`${origin}${prefix}`)).text();
+    const pageAfterInbox = ownerDocument(htmlAfterInbox, "data-feed-workbench");
     assert.match(pageAfterInbox, /data-feed-entry-id="feed-item-test"[^>]*data-feed-entry-type="feed"/);
     assert.doesNotMatch(pageAfterInbox, /data-feed-entry-id="inbox:/);
-    assert.match(pageAfterInbox, /data-inbox-detail="/);
+    assert.match(ownerDocument(htmlAfterInbox, "data-inbox-workbench"), /data-inbox-detail="/);
 
     const missingRevision = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
       method: "POST",
@@ -1544,7 +1554,8 @@ test("RAC-1931 the workbench's scripts and styles, Goals' own client parts inclu
   const scripts = [renderMolisWorkWorkbenchClientScript(), renderMolisWorkWorkbenchStylesheet()].join("\n");
   const surfaceGoal = /(?:Surface|surface|SURFACE)\b[^;\n]{0,40}"goal"(?!s)|"goal"(?!s)[^;\n]{0,25}(?:Surface|surface)|surface(?:-open)?=\\?"goal\\?"/g;
   assert.deepEqual([...scripts.matchAll(surfaceGoal)].map(([hit]) => hit), []);
-  assert.doesNotMatch(scripts, /SURFACE_OVERRIDES|pluginForSurface|pluginSurface\b/);
+  assert.doesNotMatch(scripts, /SURFACE_OVERRIDES|pluginForSurface|(?<!\.)\bpluginSurface\s*(?:\(|=)/);
+  assert.match(scripts, /dataset\.pluginSurface/, "registered surface metadata is distinct from a surface-name mapper");
 });
 
 test("RAC-1933 a page opened on a Goal starts on the surface `goals`", async () => {
@@ -1625,7 +1636,7 @@ test("Inbox Message save and promote survives a Web restart without duplicating 
     const address = firstServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const page = await (await webFetch(`${origin}${prefix}`)).text();
+    const page = ownerDocument(await (await webFetch(`${origin}${prefix}`)).text(), "data-feed-workbench");
     assert.match(page, new RegExp(`data-feed-entry-id="${itemId}"[^>]*data-feed-entry-type="feed"`));
     assert.doesNotMatch(page, /data-feed-entry-id="inbox:/);
     const listed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`);

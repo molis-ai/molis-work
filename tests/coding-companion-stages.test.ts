@@ -58,7 +58,14 @@ function overriding<T extends object>(target: T, override: Record<string, unknow
 /** The state with `contribution(pluginId)` answered by `change`, which gets the real answer; everything else is the real one. */
 function withContribution(state: State, change: (pluginId: string, real: unknown) => unknown): State {
   const real = state.platform!.supervisor;
-  const supervisor = overriding(real, { contribution: (pluginId: string) => change(pluginId, real.contribution(pluginId)) });
+  const decorated = new Map<string, { real: unknown; value: unknown }>();
+  const supervisor = overriding(real, { contribution: (pluginId: string) => {
+    const current = real.contribution(pluginId), cached = decorated.get(pluginId);
+    if (cached && cached.real === current) return cached.value;
+    const value = change(pluginId, current);
+    decorated.set(pluginId, { real: current, value });
+    return value;
+  } });
   return overriding(state, { platform: overriding(state.platform!, { supervisor }) });
 }
 

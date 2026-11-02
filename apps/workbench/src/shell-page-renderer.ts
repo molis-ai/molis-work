@@ -178,7 +178,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     lang: htmlLang(),
     title,
     head_before_title_html: controlTokenMeta(controlToken),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${homeToolKeysScript()}</script>${widthPreference ? `<script>${widthPreference}</script>` : ""}
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT};${homeToolKeysScript()};${widthPreference}</script>
   <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
     body_attributes: {
       class: "immersive-workbench",

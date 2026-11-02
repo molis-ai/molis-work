@@ -5,11 +5,12 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { evaluate, waitFor, click, openGoalFrame, command, sessionId, navigate, origin, projectId } = b;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await b.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="goals"]');
@@ -40,13 +41,28 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
 
 test("Feed task creation is a scoped panel with validation and persistent schedule", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "feed");
+  await pluginFrameInitScript(t, b, `
+    const state=window.__creationRefresh={armed:false,started:0,creator:0,nextCreator:false,held:{},completed:[],documents:{},releaseAll(){this.armed=false;Object.values(this.held).forEach(release=>release());}};
+    window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=key==='feed'?host=>{
+      const invalidate=host.invalidateView;host.invalidateView=(...args)=>{const result=invalidate(...args);if(state.armed&&!state.creator&&document.querySelector('[data-feed-add-form]')?.dataset.createdSourceId)state.nextCreator=true;return result;};
+      const read=host.view.readDocument;host.view.readDocument=async query=>{
+        const id=state.armed&&!query?.object?++state.started:0;
+        if(id&&state.nextCreator){state.creator=id;state.nextCreator=false;}
+        const html=await read(query);
+        if(id){state.documents[id]=html;if(state.armed)await new Promise(resolve=>state.held[id]=resolve);state.completed.push(id);}
+        return html;
+      };return factory(host);
+    }:factory;return true;}});
+  `);
   const catalog = await openMolisWorkProjectCatalog({homeDirectory});
   catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "interaction-test" }); catalog.close();
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await b.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
-  await click('[data-plugin-id="feed"]');
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await b.click('[data-plugin-id="feed"]');
+  await waitFor("document.querySelector('[data-feed-workbench]')");
   assert.equal(await evaluate("document.querySelector('[data-feed-advanced-open]')"), null);
   await click('[data-feed-add-toggle]');
   await waitFor("!document.querySelector('[data-feed-sources-dialog]').hidden");
@@ -60,7 +76,18 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
     document.querySelector('[data-feed-source-value=custom_rss]').value='https://example.com/design.xml';
     document.querySelector('[data-feed-create-frequency]').value='360';
   }`);
-  await click('[data-feed-source-register]');
+  await evaluate('window.__creationRefresh.armed=true');
+  try {
+    await click('[data-feed-source-register]');
+    await waitFor('window.__creationRefresh.creator && window.__creationRefresh.held[window.__creationRefresh.creator] && Object.keys(window.__creationRefresh.held).some(id=>Number(id)>window.__creationRefresh.creator)');
+    assert.deepEqual(await evaluate(`(()=>{const state=window.__creationRefresh,id=document.querySelector('[data-feed-add-form]').dataset.createdSourceId,next=Object.keys(state.held).map(Number).find(id=>id>state.creator);return [state.documents[state.creator],state.documents[next]].map(html=>Boolean(id&&html.includes(id)));})()`), [true,true], 'both real document reads contain the newly persisted source');
+    const created = await evaluate("document.querySelector('[data-feed-add-form]').dataset.createdSourceId");
+    await evaluate('Object.entries(window.__creationRefresh.held).forEach(([id,release])=>{if(Number(id)<=window.__creationRefresh.creator)release()})');
+    await waitFor('window.__creationRefresh.completed.includes(window.__creationRefresh.creator)');
+    await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+    assert.equal(await evaluate("document.querySelector('[data-feed-add-form]').dataset.createdSourceId"), created, 'an overtaken refresh cannot finish creation before its replacement commits');
+    assert.equal(await evaluate("document.querySelector('[data-feed-source-register]').disabled"), true);
+  } finally { await evaluate('window.__creationRefresh.releaseAll()'); }
   await waitFor("!!document.querySelector('[data-feed-sources-dialog]').hidden");
   await waitFor("[...document.querySelectorAll('[data-feed-task]')].some(x=>x.textContent.includes('设计观察'))");
   const sourceId = await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(x=>x.textContent.includes('设计观察')).dataset.feedTask");
@@ -99,18 +126,21 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
 
 test("Feed creation recovers a failed schedule without duplicating the task", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "feed");
   const catalog = await openMolisWorkProjectCatalog({homeDirectory});
   catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "interaction-test" }); catalog.close();
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
-  await click('[data-plugin-id="feed"]');
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await b.click('[data-plugin-id="feed"]');
   await click('[data-feed-add-toggle]');
   await click('[data-feed-choose-kind="custom_rss"]');
   await evaluate(`{
     document.querySelector('[data-feed-add-name]').value='失败后重试';
     document.querySelector('[data-feed-source-value=custom_rss]').value='https://example.com/retry.xml';
     document.querySelector('[data-feed-create-frequency]').value='60';
+  }`);
+  await b.evaluate(`{
     const original = window.fetch;
     let fail = true; window.sourceCreationRequests = 0;
     window.fetch = (url, options) => {
@@ -130,7 +160,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   await click('[data-feed-source-register]');
   await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
   await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${sourceId}"][aria-current=page]')`);
-  assert.equal(await evaluate("window.sourceCreationRequests"), 1);
+  assert.equal(await b.evaluate("window.sourceCreationRequests"), 1);
   const saved = createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId);
   assert.equal(saved.schedule.mode, "interval");
   if (saved.schedule.mode === "interval") assert.equal(saved.schedule.interval_minutes, 60);
@@ -138,14 +168,22 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
 
 test("Feed configuration cancels drafts and saves its schedule independently", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
-  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
+  const child = await pluginFrameBrowser(t, b, "feed"), { evaluate, waitFor, click } = child;
+  const attemptDisabled = async (selector: string) => {
+    const point = await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+    const frame = await b.evaluate<{x:number;y:number}>("document.querySelector('[data-work-surface=feed] iframe[data-plugin-frame=feed]').getBoundingClientRect().toJSON()");
+    const input = {x:frame.x+point.x,y:frame.y+point.y,button:'left',clickCount:1};
+    await command('Input.dispatchMouseEvent',{type:'mousePressed',...input},sessionId);
+    await command('Input.dispatchMouseEvent',{type:'mouseReleased',...input},sessionId);
+  };
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计资料"}).source;
   const feed = createLocalFeedApplication(b.store.db);
   const catalog = await openMolisWorkProjectCatalog({homeDirectory});
   catalog.addProjectPlugin({project_id:projectId!,plugin_id:"feed",actor_id:"test"}); catalog.close();
   await navigate(() => command("Page.navigate", {url:`${origin}/projects/${projectId}/`},sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
-  await click('[data-plugin-id="feed"]');
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await b.click('[data-plugin-id="feed"]');
   const panel = `[data-feed-task-config="${source.source_id}"]`;
   // Settings open the way a person reaches them now: pick the source in the rail, then its 来源设置 tab.
   const openSettings = async () => { await click(`[data-feed-source-rail] [data-feed-task="${source.source_id}"]`); await click('[data-feed-view="settings"]'); };
@@ -172,12 +210,12 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await click(`${panel} [data-source-schedule-enabled]`);
   await click(`${panel} [data-source-schedule-reset]`);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-enabled]').checked`),false,"reset must preserve a saved paused schedule");
-  await evaluate(`{const original=window.fetch; window.fetch=(url,options)=>options?.method==='PATCH'?Promise.resolve(new Response(JSON.stringify({error:'无法保存配置'}),{status:503})):original(url,options);window.restoreConfigFetch=()=>window.fetch=original;}`);
+  await b.evaluate(`{const original=window.fetch; window.fetch=(url,options)=>options?.method==='PATCH'?Promise.resolve(new Response(JSON.stringify({error:'无法保存配置'}),{status:503})):original(url,options);window.restoreConfigFetch=()=>window.fetch=original;}`);
   await click('[data-feed-config-submit]');
   await waitFor(`document.querySelector('${panel} [data-source-action-status]').textContent.includes('无法保存配置')`);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
-  await evaluate('window.restoreConfigFetch()');
-  await evaluate(`{ const original = window.fetch; window.configRequests = 0; window.fetch = async (url, options) => {
+  await b.evaluate('window.restoreConfigFetch()');
+  await b.evaluate(`{ const original = window.fetch; window.configRequests = 0; window.fetch = async (url, options) => {
     const response = await original(url, options);
     if (options?.method === 'PATCH') {
       window.configRequests++;
@@ -187,19 +225,19 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
     return response;
   }; }`);
   await click('[data-feed-config-submit]');
-  await waitFor('window.configResponseReady === true');
+  await b.waitFor('window.configResponseReady === true');
   assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
   // ASC-40: disabled cancel and submit controls receive real negative interaction attempts.
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog] footer [data-feed-sources-close]').disabled"), true);
-  await click('[data-feed-sources-dialog] footer [data-feed-sources-close]', { allowDisabled: true });
+  await attemptDisabled('[data-feed-sources-dialog] footer [data-feed-sources-close]');
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   assert.equal(await evaluate("document.querySelector('[data-feed-config-submit]').disabled"), true);
-  await click('[data-feed-config-submit]', { allowDisabled: true });
+  await attemptDisabled('[data-feed-config-submit]');
   assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').getAttribute('aria-busy')"), 'true');
-  assert.equal(await evaluate('window.configRequests'), 1);
-  await evaluate('window.releaseConfigResponse()');
+  assert.equal(await b.evaluate('window.configRequests'), 1);
+  await b.evaluate('window.releaseConfigResponse()');
   // Settings are edited in place in the work surface: a successful save stays on them instead of closing a modal.
   await waitFor("!document.querySelector('[data-feed-sources-dialog]').hasAttribute('aria-busy')");
   assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
@@ -211,27 +249,30 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
 
 test("Feed reader keeps one title, tracks read state, collapses and retries a failed detail", {timeout:60_000}, async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
-  const {evaluate,waitFor,click,command,sessionId,navigate,origin,projectId,homeDirectory}=b;
+  const {command,sessionId,navigate,origin,projectId,homeDirectory}=b;
+  const child=await pluginFrameBrowser(t,b,'feed'),{evaluate,waitFor,click}=child;
+  await pluginFrameInitScript(t,b,`window.__detailFails=true;window.__retryPressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){window.__detailFails=false;window.__retryPressing=event.isTrusted;}},true);addEventListener('click',()=>window.__retryPressing=false);window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{const read=host.view.readDocument;host.view.readDocument=async query=>{if(query?.object?.surface==='persisted-detail'){if(window.__detailFails)throw new Error('failed detail');window.__firstDetailAfterRetry??=window.__retryPressing?'the press':'something else';}return read(query);};return value(host);}:value;return true;}});`);
   const source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'web_query',query:'阅读测试'}).source;
   const feed=createLocalFeedApplication(b.store.db);
   const item=feed.ingestItem({source,externalId:'reader-test',title:'一次清楚的阅读',summary:'列表摘要',body:'## 核心内容\n\n阅读正文与完整来源。\n\n'+Array.from({length:30},(_,i)=>`### 检查项 ${i+1}\n\n保持标题和操作在视野内，让阅读区独立滚动。`).join('\n\n'),priority:'normal',occurredAt:'2026-09-16T00:00:00.000Z',attention:false}).item;
   const catalog=await openMolisWorkProjectCatalog({homeDirectory});catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'test'});catalog.close();
   // A fixed desktop size: Chrome's default window is 756 px wide on macOS and 780 px on Linux, either side of the 760 px phone layout.
-  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:960,deviceScaleFactor:1,mobile:false},sessionId);
+  await b.setViewport(1440,960);
   await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await click('[data-plugin-id=feed]');
+  await b.waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await b.click('[data-plugin-id=feed]');
   const row=`[data-feed-entry-id="${item.item_id}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
-  // The detail (the shell's reader, `/api/stage/feed/objects/<id>` since FI-7) fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
+  // The actual owner's object-document port fails until the trusted retry is pressed. Until then the attention read's board cursor is held back: a new cursor
   // refreshes the board, which opens the selected item again and hides the retry while it does. The page also records
-  // whether the first detail request after the press was made by the press itself (the window's capture listener runs
+  // whether the first object-document read after the press was made by the press itself (the child's capture listener runs
   // before the page's click handler, its bubble listener after), so a later refresh cannot stand in for the retry.
-  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/api/stage/feed/objects/')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
+  await b.evaluate(`{const original=window.fetch;window.__holdFeedAttention=true;window.fetch=(url,options)=>window.__holdFeedAttention&&String(url).includes('/api/attention?')?original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers})):original(url,options);}`);
   const retry='[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]';
   await click(row);await waitFor(`document.querySelector('[data-feed-stage-shell][data-expanded=true] ${retry}')?.checkVisibility()`);
   // One retry, in the placeholder under the reader bar.
   assert.deepEqual(await evaluate<boolean[]>(`[...document.querySelectorAll('[data-feed-stage-workspace] [data-retry-feed-detail]')].filter(b=>b.checkVisibility()).map(b=>b===document.querySelector('${retry}'))`),[true]);
   await click(retry);
+  await b.evaluate('window.__holdFeedAttention=false');
   await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content')`);
   assert.equal(await evaluate<string>("window.__firstDetailAfterRetry"),'the press','the retry itself loads the detail again');
   assert.ok(feed.getFeedItem(DEMO_PROJECT_ID,item.item_id).read_at);
@@ -239,11 +280,12 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('[data-feed-detail="${item.item_id}"] h1')).display`),'none');
   assert.match(await evaluate<string>(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content').textContent`),/阅读正文/);
   const headerTop=await evaluate<number>("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top");
-  const bodyPoint=await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  const bodyPoint=await child.point(`[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail`);
   await command('Input.dispatchMouseEvent',{type:'mouseWheel',...bodyPoint,deltaX:0,deltaY:300},sessionId);
   await waitFor(`document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail').scrollTop>100`);
   assert.equal(await evaluate("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top"),headerTop,'reader scroll never moves the toolbar');
   assert.equal(await evaluate("document.scrollingElement.scrollTop"),0);
+  assert.equal(await b.evaluate("document.scrollingElement.scrollTop"),0);
   await click(`[data-feed-entry-detail="${item.item_id}"]:not([hidden]) [data-feed-collapse]`);
   await waitFor("document.querySelector('[data-feed-stage-shell]')?.dataset.expanded !== 'true'");
   assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'false');

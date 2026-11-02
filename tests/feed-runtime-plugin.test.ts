@@ -806,7 +806,7 @@ test("RAC-1026 a caller revoked at any point of an account pull leaves at most i
   assert.ok(refused >= 1 && completed >= 1, `the sweep reached both sides (refused ${refused}, completed ${completed})`);
 });
 
-test("RAC-1038 Feed's Manifest lists, as required permissions, exactly what its actions, jobs and services use, and gives the Home half only the ledger", () => {
+test("RAC-1038 Feed's Manifest declares what its actions, jobs and services use, keeps only Functions management optional, and gives the Home half only the ledger", () => {
   const used = new Set<string>(["storage:private", "plugins:read", "evidence:collect", "connections:observe"]);
   for (const action of feedManifest.actions!) for (const permission of action.action.permissions) used.add(permission);
   for (const job of feedManifest.background!.jobs!) for (const permission of job.permissions) used.add(permission);
@@ -814,7 +814,8 @@ test("RAC-1038 Feed's Manifest lists, as required permissions, exactly what its 
   const declared = feedManifest.permissions.map(item => item.permission);
   assert.equal(new Set(declared).size, declared.length, "no permission is listed twice");
   assert.deepEqual([...used].filter(permission => !declared.includes(permission)), [], "a permission an action, job or scene asks for is declared");
-  assert.ok(feedManifest.permissions.every(item => item.required === true), "a dual-instance plugin's permissions are all required");
+  assert.deepEqual(feedManifest.permissions.filter(item => !item.required).map(item => item.permission), ["functions:manage"]);
+  assert.ok(feedManifest.permissions.filter(item => item.permission !== "functions:manage").every(item => item.required === true), "all collection, reading and ledger permissions remain required");
   assert.equal(feedManifest.runtime?.scope, "home");
   assert.deepEqual(Object.keys(feedManifest.databases ?? {}).sort(), ["home", "project"]);
   const ledger = new Set(Object.values(feedContentLedgerActions).map(action => action.capability_id));
@@ -828,7 +829,7 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   const slots = feedManifest.connections!.slots;
   assert.deepEqual(slots.map(slot => slot.slot_id).sort(), Object.keys(CONNECTOR_REQUEST_SERVICES).sort());
   assert.ok(slots.every(slot => slot.binding === "per_record" && slot.slot_id === slot.service_id), "an account is bound to a source, never to the installation");
-  // Feed is a dual-instance plugin, so every permission is required (specs/dual-instance-plugins, U1): the account ones too.
+  // U1/T406 keeps Functions management optional; both account permissions remain required.
   for (const permission of ["connections:use", "sources:pull_connector"]) assert.equal(feedManifest.permissions.find(declared => declared.permission === permission)?.required, true, `${permission} is required`);
   const declared = (definition: ActionDefinition) => feedManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.permissions;
   for (const permission of ["connections:use", "sources:pull_connector", "attention:write"]) assert.ok(declared(feedSourceActions.sync).includes(permission), `a sync declares ${permission}`);

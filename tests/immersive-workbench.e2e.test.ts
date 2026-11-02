@@ -6,6 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -87,6 +88,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  const inbox = await pluginFrameBrowser(t, browser, "inbox"), feed = await pluginFrameBrowser(t, browser, "feed");
   const app = openProjectVersionStores(store);
   installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
   for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
@@ -162,16 +164,18 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]'))"));
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=inbox]'))"));
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-inbox-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.match(await evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
+  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await inbox.waitFor("document.querySelector('[data-inbox-stage-shell]')");
+  assert.match(await inbox.evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
-  assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await feed.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-list]')");
+  assert.equal(await feed.evaluate("document.querySelector('[data-feed-views]')"), null);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
+  assert.ok(await feed.evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-task=all]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-list]')"), null);
 });
 
 test("Project entry lands at home, while refresh preserves work and Goal links remain direct", { timeout: 60_000 }, async (t) => {

@@ -3,6 +3,7 @@ import test from "node:test";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("Goal navigation preserves history, keyboard focus, failed selection recovery and repeated selections without executing work", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
@@ -134,21 +135,24 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, projectId, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, openGoalWork } = browser;
+  const feed = await pluginFrameBrowser(t, browser, "feed");
   const prefix = `/projects/${projectId}`;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/V1?desktop=1#goal-records-V1" }, sessionId));
   await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
   await waitFor("document.body.dataset.desktopSurface === 'goals' && Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=\"feed\"]'))");
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
-  await click('[data-feed-add-toggle]');
-  await waitFor("!document.querySelector('[data-feed-sources-dialog]')?.hidden");
-  await click('[data-feed-choose-kind="rss"]');
-  await waitFor("document.querySelector('[data-feed-source-register]')?.dataset.feedSourceRegister === 'rss' && Boolean(document.querySelector('[data-feed-rss-definition]')?.value)");
-  const sourceDefinition = await evaluate<string>("document.querySelector('[data-feed-rss-definition]').value");
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await feed.waitFor("document.querySelector('[data-feed-stage-directory]')");
+  await feed.click('[data-feed-source-header] [data-feed-add-toggle]');
+  await feed.waitFor("!document.querySelector('[data-feed-sources-dialog]')?.hidden");
+  await feed.click('[data-feed-choose-kind="rss"]');
+  await feed.waitFor("document.querySelector('[data-feed-source-register]')?.dataset.feedSourceRegister === 'rss' && Boolean(document.querySelector('[data-feed-rss-definition]')?.value)");
+  const sourceDefinition = await feed.evaluate<string>("document.querySelector('[data-feed-rss-definition]').value");
   // Adding a source completes in place: the panel closes and the new source is selected, without a page load.
-  await click('[data-feed-source-register]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-sources-dialog]').hidden");
+  await feed.click('[data-feed-source-register]');
+  await feed.waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "feed");
   assert.equal(await evaluate("location.pathname"), prefix + "/goals/V1");
   const response = await fetch(origin + prefix + "/api/plugins/io.molis.work.feed/snapshot");
   assert.equal(response.status, 200);
@@ -156,7 +160,8 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   assert.ok(snapshot.sources.some((source: { definition_id: string }) => source.definition_id === sourceDefinition));
   await reloadPage();
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
-  assert.equal(await evaluate("document.querySelector('[data-feed-directory]').dataset.feedPreset"), "feed");
+  await feed.waitFor("document.querySelector('[data-feed-directory]')");
+  assert.equal(await feed.evaluate("document.querySelector('[data-feed-directory]').dataset.feedPreset"), "feed");
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE?desktop=1" }, sessionId));
   await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
   await waitFor("document.body.dataset.desktopSurface === 'goals' && Boolean(document.querySelector('[data-goal-view=RELEASE]'))");

@@ -168,15 +168,19 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     assert.doesNotMatch(saved, /"(?:goalView|feedTask)"/);
     const newUi = await page.evaluate<string>(`sessionStorage.getItem(${JSON.stringify(ui + ":current")}) || '{}'`);
     assert.doesNotMatch(newUi, /"feedTask"|"task"\s*:/);
+    const uiKeys = [ui, ui + ":current", ui + ":archive", ui + ":trash"];
+    const closing = await page.evaluate<{saved:string;marker:string|null;ui:Record<string,string|null>}>(`({saved:localStorage.getItem(${JSON.stringify(key)}),marker:localStorage.getItem('molis-work-tab-workspace:other-project'),ui:Object.fromEntries(${JSON.stringify(uiKeys)}.map(key=>[key,sessionStorage.getItem(key)]))})`);
+    assert.equal(closing.saved, saved, "the original layout remains exact immediately before closing the first process");
     await chrome.close();
     chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
     page = await chrome.page();
+    await page.command("Page.addScriptToEvaluateOnNewDocument", { source: `if(window.top===window&&location.origin===${JSON.stringify(served.origin)})window.__restartPreboot={origin:location.origin,href:location.href,saved:localStorage.getItem(${JSON.stringify(key)}),marker:localStorage.getItem('molis-work-tab-workspace:other-project'),ui:Object.fromEntries(${JSON.stringify(uiKeys)}.map(key=>[key,sessionStorage.getItem(key)]))};` });
     const restoredFeeds = [];
     // A plugin page has no active item tab: paneFrameKey uses this pane's ":view" owner.
     for (const pane of state.panes) restoredFeeds.push(await pluginFrameBrowser(t, frameBrowser(), "feed", `iframe.tab-content-frame[data-pane-owner="${pane.id}"][data-pane-tab="${pane.activeTabId || pane.id + ":view"}"]`));
     await load(prefix);
     await page.wait(feedPanes, { timeoutMs: 30_000,
-      describe: `JSON.stringify({saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-feed-workbench]').length,
+      describe: `JSON.stringify({preboot:window.__restartPreboot,closing:${JSON.stringify(closing)},expected:${JSON.stringify(saved)},goalsOffered:Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')),saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-feed-workbench]').length,
         frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,readyState:f.contentDocument?.readyState,feed:f.contentDocument?.querySelectorAll('[data-feed-workbench]').length}))})` });
     assert.deepEqual(JSON.parse(await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)), JSON.parse(saved), "a fresh browser process accepts the new layout without a second reset");
     for (const restored of restoredFeeds) await restored.waitFor(`document.querySelector('[data-feed-workbench]')?.dataset.selectedSource===${JSON.stringify(source.source_id)}`);

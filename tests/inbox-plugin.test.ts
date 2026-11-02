@@ -10,8 +10,14 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 const TOKEN = "inbox-plugin-test-token-0123456789012345";
+const ownerDocument = (html: string, marker: string) => {
+  const documents = pluginDocuments(html).filter(document => document.includes(marker));
+  assert.equal(documents.length, 1, `one actual owner document carries ${marker}`);
+  return documents[0]!;
+};
 
 test("W3-02-G1-05 Inbox refuses a Goal decision handover without changing the attention fact", async () => {
   const entry = { entry_id: "decision-1", owner_plugin_id: null, subject_type: "goal_decision" as const, subject_id: "goal-1", reason: "goal_decision" as const,
@@ -96,7 +102,10 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const entryId = listedBody.entries[0]!.entry_id;
   const revision = listedBody.entries[0]!.revision;
 
-  const page = await (await webFetch(`${origin}${prefix}/`)).text();
+  const pageHtml = await (await webFetch(`${origin}${prefix}/`)).text();
+  const page = ownerDocument(pageHtml, "data-inbox-workbench");
+  const feedPage = ownerDocument(pageHtml, "data-feed-workbench");
+  assert.doesNotMatch(pageHtml, /<(?:button|article)\b[^>]*\bdata-(?:inbox-row|feed-entry-id)/, "business rows stay out of the Host document");
   const inboxDirectory = page.match(/data-inbox-directory[\s\S]*?<\/section>/)?.[0] ?? "";
   assert.match(inboxDirectory, /data-inbox-row/);
   assert.match(inboxDirectory, new RegExp(`data-inbox-entry-id="${entryId}"`));
@@ -105,12 +114,12 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.doesNotMatch(inboxDirectory, /正文里包含需要核对的事实/);
   assert.doesNotMatch(inboxDirectory, /data-feed-directory|data-feed-list|data-feed-entry-id/);
   assert.match(page, /data-inbox-open-feed="inbox-plugin-item"/);
-  assert.match(page, /data-feed-entry-id="inbox-plugin-item"/);
+  assert.match(feedPage, /data-feed-entry-id="inbox-plugin-item"/);
   assert.doesNotMatch(inboxDirectory, /data-inbox-judgment/);
   assert.doesNotMatch(inboxDirectory, /system_pick_inbox_next/);
   assert.doesNotMatch(inboxDirectory, /inbox-scene-bind/);
   assert.doesNotMatch(inboxDirectory, /system_admit_inbox/);
-  assert.doesNotMatch(page, /data-feed-entry-type="inbox_message"|data-feed-entry-id="inbox:/);
+  assert.doesNotMatch(pluginDocuments(pageHtml).join("\n"), /data-feed-entry-type="inbox_message"|data-feed-entry-id="inbox:/);
 
   const missingRevision = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${entryId}/status`, {
     method: "POST",
@@ -145,12 +154,13 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const completedAgainBody = await completedAgain.json() as { entry: { revision: number } };
   assert.equal(completedAgainBody.entry.revision, completedBody.entry.revision);
 
-  const after = await (await webFetch(`${origin}${prefix}/`)).text();
+  const afterHtml = await (await webFetch(`${origin}${prefix}/`)).text();
+  const after = ownerDocument(afterHtml, "data-inbox-workbench");
   const afterInbox = after.match(/data-inbox-directory[\s\S]*?<\/section>/)?.[0] ?? "";
   assert.match(afterInbox, /data-inbox-status="done"/);
   assert.match(afterInbox, /data-inbox-stage-group="history"/);
   assert.match(afterInbox, /现在没有需要你介入的事项/);
-  assert.match(after, /data-feed-entry-id="inbox-plugin-item"/);
+  assert.match(ownerDocument(afterHtml, "data-feed-workbench"), /data-feed-entry-id="inbox-plugin-item"/);
 
   insertFeedItem(project, "inbox-plugin-item-2");
   const addedSecond = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/inbox-plugin-item-2/inbox`, {
@@ -170,11 +180,12 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   });
   assert.equal(dismissed.status, 200);
   assert.equal((await dismissed.json() as { entry: { status: string } }).entry.status, "dismissed");
-  const afterDismiss = await (await webFetch(`${origin}${prefix}/`)).text();
+  const afterDismissHtml = await (await webFetch(`${origin}${prefix}/`)).text();
+  const afterDismiss = ownerDocument(afterDismissHtml, "data-inbox-workbench");
   const afterDismissInbox = afterDismiss.match(/data-inbox-directory[\s\S]*?<\/section>/)?.[0] ?? "";
   assert.match(afterDismissInbox, /data-inbox-status="dismissed"/);
   assert.match(afterDismissInbox, /data-inbox-stage-group="history"/);
-  assert.match(afterDismiss, /data-feed-entry-id="inbox-plugin-item-2"/);
+  assert.match(ownerDocument(afterDismissHtml, "data-feed-workbench"), /data-feed-entry-id="inbox-plugin-item-2"/);
 
   const missing = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/missing-entry/status`, {
     method: "POST",
@@ -222,7 +233,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const rebound = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`);
   assert.equal((await rebound.json() as { function_key: string }).function_key, "system_pick_inbox_next");
 
-  const afterBind = await (await webFetch(`${origin}${prefix}/`)).text();
+  const afterBind = ownerDocument(await (await webFetch(`${origin}${prefix}/`)).text(), "data-inbox-workbench");
   assert.doesNotMatch(afterBind, /data-inbox-judgment/);
   assert.doesNotMatch(afterBind, /value="system_pick_inbox_next" selected/);
 

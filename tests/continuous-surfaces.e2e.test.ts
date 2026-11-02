@@ -6,6 +6,7 @@ import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { GoalProjectApplication } from './fixtures/goal-application.js';
+import { pluginFrameBrowser } from './fixtures/plugin-frame-browser.js';
 
 test('Reduced motion updates Goal detail geometry together with its expanded state', async t => {
   const b = await openGoalBrowser(t); if (!b) return;
@@ -36,6 +37,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
   test(`Continuous workspace and edge editors at ${width}×${height}`, {timeout:60000}, async t=>{
     const b=await openGoalBrowser(t,true); if(!b)return;
     const {command,sessionId,navigate,origin,projectId,evaluate,click,waitFor}=b;
+    const feed=await pluginFrameBrowser(t,b,'feed');
     const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
     for(const plugin_id of ['feed']) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'surface-test'});
     catalog.close();
@@ -116,24 +118,26 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     await waitFor("document.querySelector('[data-goal-frame-surface]')?.hidden===false");
     assert.ok(await evaluate<number>("document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().height")>0);
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
-    await openPlugin('feed');await capture('feed');
-    await click('[data-feed-add-toggle]');
+    await openPlugin('feed');await feed.waitFor("document.querySelector('[data-feed-workbench]')");await capture('feed');
+    await feed.click('[data-feed-source-header] [data-feed-add-toggle]');
     // Adding a source opens in the Feed work surface beside its source rail (specs/archive/feed-source-workbench), not as a centred modal.
-    await waitFor("!document.querySelector('[data-feed-sources-dialog]').hidden");
-    const setup=await evaluate<any>("(()=>{const p=document.querySelector('[data-feed-sources-dialog]').getBoundingClientRect(),rail=document.querySelector('[data-feed-source-rail]'),r=rail&&rail.getClientRects().length?rail.getBoundingClientRect():null;return {left:p.left,right:p.right,top:p.top,bottom:p.bottom,w:p.width,railRight:r?r.right:null}})()");
-    assert.ok(setup.top>=0&&setup.bottom<=height&&setup.right<=width+1&&setup.w>0,'setup stays inside the viewport: '+JSON.stringify(setup));
+    await feed.waitFor("!document.querySelector('[data-feed-sources-dialog]').hidden");
+    const setup=await feed.evaluate<any>("(()=>{const p=document.querySelector('[data-feed-sources-dialog]').getBoundingClientRect(),rail=document.querySelector('[data-feed-source-rail]'),r=rail&&rail.getClientRects().length?rail.getBoundingClientRect():null;return {left:p.left,right:p.right,top:p.top,bottom:p.bottom,w:p.width,railRight:r?r.right:null,viewportWidth:innerWidth,viewportHeight:innerHeight}})()");
+    const feedFrame=await evaluate<{left:number;top:number}>("document.querySelector('[data-work-surface=feed] iframe[data-plugin-frame=feed]').getBoundingClientRect().toJSON()");
+    assert.ok(setup.top>=0&&setup.bottom<=setup.viewportHeight&&setup.right<=setup.viewportWidth+1&&setup.w>0&&feedFrame.top+setup.bottom<=height&&feedFrame.left+setup.right<=width+1,'setup stays inside the viewport: '+JSON.stringify({setup,feedFrame}));
     if(setup.railRight!==null)assert.ok(setup.left>=setup.railRight-1,'setup sits beside the source rail, not under it: '+JSON.stringify(setup));
-    await click('[data-feed-choose-kind=custom_rss]');await capture('feed-editor');
+    await feed.click('[data-feed-choose-kind=custom_rss]');await capture('feed-editor');
     const focusEvidence=[];
     for(const theme of ['light','dark']){
       await evaluate(`localStorage.setItem('molis-work:theme','${theme}');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${theme}'}))`);
-      await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
+      await feed.waitFor(`document.documentElement.dataset.resolvedTheme==='${theme}'`);
+      await feed.evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
       for(const kind of ['input','select']){
         if(kind==='select'){
           await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
           await command('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
         }
-        const focus=await evaluate<any>(`(()=>{const e=document.activeElement,s=getComputedStyle(e),bg=getComputedStyle(e.closest('[data-feed-sources-dialog]')).backgroundColor,c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,1,1);const a=[...x.getImageData(0,0,1,1).data];x.fillStyle=s.outlineStyle!=='none'?s.outlineColor:s.borderTopColor;x.fillRect(0,0,1,1);const b=[...x.getImageData(0,0,1,1).data];const lum=v=>v.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((t,n,i)=>t+n*[.2126,.7152,.0722][i],0),l=lum(a),m=lum(b);return {tag:e.tagName,visible:e.matches(':focus-visible'),outline:s.outline,outlineStyle:s.outlineStyle,shadow:s.boxShadow,contrast:(Math.max(l,m)+.05)/(Math.min(l,m)+.05)}})()`);
+        const focus=await feed.evaluate<any>(`(()=>{const e=document.activeElement,s=getComputedStyle(e),bg=getComputedStyle(e.closest('[data-feed-sources-dialog]')).backgroundColor,c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,1,1);const a=[...x.getImageData(0,0,1,1).data];x.fillStyle=s.outlineStyle!=='none'?s.outlineColor:s.borderTopColor;x.fillRect(0,0,1,1);const b=[...x.getImageData(0,0,1,1).data];const lum=v=>v.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((t,n,i)=>t+n*[.2126,.7152,.0722][i],0),l=lum(a),m=lum(b);return {tag:e.tagName,visible:e.matches(':focus-visible'),outline:s.outline,outlineStyle:s.outlineStyle,shadow:s.boxShadow,contrast:(Math.max(l,m)+.05)/(Math.min(l,m)+.05)}})()`);
         assert.equal(focus.tag,kind==='select'?'BUTTON':'INPUT');assert.equal(focus.visible,true);
         // Soft Workbench focus (DESIGN.md → Focus): a plain field or control takes a 2px copper stroke; a field-styled
         // control (`mw-input`, the `mw-select` trigger) takes a copper edge with a soft halo instead. Either way exactly one
@@ -142,15 +146,16 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
         if(stroke){assert.match(focus.outline,/solid 2px/,JSON.stringify(focus));assert.equal(focus.shadow,'none',JSON.stringify(focus));}
         else assert.match(focus.shadow,/ 3px$/,JSON.stringify(focus));
         assert.ok(focus.contrast>=3,JSON.stringify(focus));
-        if(kind==='select') assert.equal(await evaluate("document.activeElement.matches('[data-mw-select-trigger]')"),true);
+        if(kind==='select') assert.equal(await feed.evaluate("document.activeElement.matches('[data-mw-select-trigger]')"),true);
         focusEvidence.push({theme,kind,...focus});
       }
-      await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
+      await feed.evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
       if(theme==='dark')await capture('feed-editor-dark');
     }
     await writeFile(`${process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/continuous-v11`}/feed-focus-${width}.json`,JSON.stringify(focusEvidence,null,2));
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
-    await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
+    await feed.click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
+    await feed.waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
     await navigate(()=>command('Page.navigate',{url:prefix+'/settings/general'},sessionId));await capture('settings');
     assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);
     assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID,id).goal_event_cursor,before,'cancelled note is not written');

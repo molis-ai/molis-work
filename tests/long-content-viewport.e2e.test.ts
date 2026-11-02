@@ -8,10 +8,12 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps actions and reading usable at ${width}×${height}`,{timeout:90_000},async t=>{
   const b=await openGoalBrowser(t,true); if(!b)return;
   const {command,sessionId,evaluate,click,waitFor,navigate,origin,projectId}=b;
+  const inbox=await pluginFrameBrowser(t,b,"inbox");
   const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
   for(const plugin_id of ["feed"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
   catalog.close();
@@ -36,24 +38,30 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
     const theme=async(value:string)=>{await evaluate(`localStorage.setItem('molis-work:theme',${JSON.stringify(value)});window.dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:${JSON.stringify(value)}}))`);await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))).then(()=>Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{}))))");};
     await theme("dark");await capture(name+"-dark");await theme("light");
   };
-  const probe=async(selector:string)=>evaluate<{top:number;bottom:number;ch:number;sh:number;overflow:string}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,ch:e.clientHeight,sh:e.scrollHeight,overflow:getComputedStyle(e).overflowY}})()`);
-  const visible=async(selector:string)=>{const r=await probe(selector);assert.ok(r.top>=32 && r.bottom<=height+0.5,`${selector} stays in viewport: ${JSON.stringify(r)}`);return r;};
-  const wheel=async(selector:string,dy:number)=>{const point=await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+Math.min(r.width/2,100),y:Math.max(50,Math.min(r.bottom-10,r.top+20))}})()`);await command("Input.dispatchMouseEvent",{type:"mouseWheel",...point,deltaX:0,deltaY:dy},sessionId);};
+  const probe=async(selector:string,owner?:typeof inbox)=>{
+    const read=owner?owner.evaluate:evaluate;
+    const rect=await read<{top:number;bottom:number;ch:number;sh:number;overflow:string}>(`(()=>{const e=document.querySelector(${JSON.stringify(selector)}),r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,ch:e.clientHeight,sh:e.scrollHeight,overflow:getComputedStyle(e).overflowY}})()`);
+    const offset=owner?await evaluate<number>("document.querySelector('[data-work-surface=inbox] iframe[data-plugin-frame=inbox]').getBoundingClientRect().top"):0;
+    return {...rect,top:rect.top+offset,bottom:rect.bottom+offset};
+  };
+  const visible=async(selector:string,owner?:typeof inbox)=>{const r=await probe(selector,owner);assert.ok(r.top>=32 && r.bottom<=height+0.5,`${selector} stays in viewport: ${JSON.stringify(r)}`);return r;};
+  const wheel=async(selector:string,dy:number,owner?:typeof inbox)=>{const read=owner?owner.evaluate:evaluate,point=await read<{x:number;y:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+Math.min(r.width/2,100),y:Math.max(50,Math.min(r.bottom-10,r.top+20))}})()`);const offset=owner?await evaluate<{x:number;y:number}>("document.querySelector('[data-work-surface=inbox] iframe[data-plugin-frame=inbox]').getBoundingClientRect().toJSON()"): {x:0,y:0};await command("Input.dispatchMouseEvent",{type:"mouseWheel",x:point.x+offset.x,y:point.y+offset.y,deltaX:0,deltaY:dy},sessionId);};
   await openPlugin("inbox");
-  await waitFor("[...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('请确认工作台'))");
-  await evaluate("[...document.querySelectorAll('[data-inbox-row]')].find(row=>row.textContent.includes('请确认工作台'))?.click()");
-  await waitFor("document.querySelector('[data-inbox-detail]:not([hidden])')");
+  await inbox.waitFor("[...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('请确认工作台'))");
+  const rowId=await inbox.evaluate<string>("[...document.querySelectorAll('[data-inbox-row]')].find(row=>row.textContent.includes('请确认工作台')).dataset.inboxEntryId");
+  await inbox.click(`[data-inbox-row][data-inbox-entry-id="${rowId}"]`);
+  await inbox.waitFor("document.querySelector('[data-inbox-detail]:not([hidden])')");
   await capture("inbox");await darkCapture("inbox");
-  const inboxFooter=await visible('[data-inbox-detail]:not([hidden]) .inbox-reference-footer');
-  const inboxBody=await probe('[data-inbox-detail]:not([hidden]) .inbox-reference-body');
+  const inboxFooter=await visible('[data-inbox-detail]:not([hidden]) .inbox-reference-footer',inbox);
+  const inboxBody=await probe('[data-inbox-detail]:not([hidden]) .inbox-reference-body',inbox);
   assert.ok(inboxFooter.bottom<=inboxBody.top+0.5,"Inbox actions stay above the scrolling context");
-  await wheel('[data-inbox-detail]:not([hidden]) .inbox-reference-body',600);
-  assert.deepEqual(await visible('[data-inbox-detail]:not([hidden]) .inbox-reference-footer'),inboxFooter);
-  assert.equal((await probe('[data-inbox-detail]:not([hidden]) .inbox-reference-body')).overflow,"auto");
-  const entryId=await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
+  await wheel('[data-inbox-detail]:not([hidden]) .inbox-reference-body',600,inbox);
+  assert.deepEqual(await visible('[data-inbox-detail]:not([hidden]) .inbox-reference-footer',inbox),inboxFooter);
+  assert.equal((await probe('[data-inbox-detail]:not([hidden]) .inbox-reference-body',inbox)).overflow,"auto");
+  const entryId=await inbox.evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
   // Completing is handled in place (status request, then the Inbox stage refreshes); the page does not navigate.
-  await click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]');
-  await waitFor("document.querySelector(" + JSON.stringify('[data-inbox-stage-group="history"] [data-inbox-entry-id="' + entryId + '"]') + ")");
+  await inbox.click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]');
+  await inbox.waitFor("document.querySelector(" + JSON.stringify('[data-inbox-stage-group="history"] [data-inbox-entry-id="' + entryId + '"]') + ")");
   const history=await (await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.inbox/entries?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
   assert.equal(history.entries.find(e=>e.entry_id===entryId)?.status,"done");
   assert.equal(createLocalFeedApplication(b.store.db).getItem(DEMO_PROJECT_ID,item.item_id).body,"需要保留原消息。","completing the attention reference retains its Feed item");

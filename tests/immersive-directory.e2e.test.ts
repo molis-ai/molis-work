@@ -13,6 +13,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, store, projectId, homeDirectory } = browser;
   const todo = await pluginFrameBrowser(t, browser, "todo");
+  const feedView = await pluginFrameBrowser(t, browser, "feed");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
   const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
@@ -21,6 +22,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const before = boardSnapshot(store, projectId!);
   const page = origin + "/projects/" + projectId + "/?desktop=1";
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__uiErrors=[];addEventListener('error',e=>window.__uiErrors.push(e.message));" }, sessionId);
+  browser.setFrameInitScript("window.__uiErrors=[];addEventListener('error',e=>window.__uiErrors.push(e.message));");
   const viewport = (width: number, height = 1000) => command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
   const key = async (value: string, code: number) => {
     await command("Input.dispatchKeyEvent", { type: "keyDown", key: value, windowsVirtualKeyCode: code }, sessionId);
@@ -189,16 +191,17 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal==='long-child'");
   await click('[data-goal-collapse]');
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await feedView.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-list]')");
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-list]')"), null);
+  assert.equal(await feedView.evaluate("document.querySelector('[data-feed-views]')"), null);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=feed]')?.hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=feed]')"), null);
   // Soft Workbench: adding a source sits in the Feed column heading; the empty list says what to do next.
-  assert.ok(await evaluate("document.querySelector('[data-feed-source-header] [data-feed-add-toggle]')?.getBoundingClientRect().width > 0"));
-  assert.ok(await evaluate("document.querySelector('[data-feed-empty]:not([hidden])')"), "Feed shows a page empty state");
+  assert.ok(await feedView.evaluate("document.querySelector('[data-feed-source-header] [data-feed-add-toggle]')?.getBoundingClientRect().width > 0"));
+  assert.ok(await feedView.evaluate("document.querySelector('[data-feed-empty]:not([hidden])')"), "Feed shows a page empty state");
   await capture("directory-feed-empty");
 
   const feed = createLocalFeedApplication(store.db);
@@ -207,8 +210,8 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const item = feed.ingestItem({ source, externalId: "first", title: "从首次使用观察中找到下一步值得改进的地方", summary: "完整保留消息来源和正文，再决定如何推进。", body: "这条消息用于验证在真实目录中打开和阅读内容。", occurredAt: now, attention: false });
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
-  await waitFor("document.querySelectorAll('[data-feed-entry-task=\"directory-rss\"]').length===2");
-  const feedRow = await evaluate<{ height: number; size: string; weight: string; titleWidth: number; columns: string; status: boolean; chevron: boolean }>("(()=>{const row=document.querySelector('[data-feed-entry-id]'),title=row.querySelector('strong');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,titleWidth:Math.round(title.getBoundingClientRect().width),columns:getComputedStyle(row).gridTemplateColumns,status:Boolean(row.querySelector('.feed-entry-status')),chevron:Boolean(row.querySelector('.feed-entry-chevron'))};})()");
+  await feedView.waitFor("document.querySelectorAll('[data-feed-entry-task=\"directory-rss\"]').length===2");
+  const feedRow = await feedView.evaluate<{ height: number; size: string; weight: string; titleWidth: number; columns: string; status: boolean; chevron: boolean }>("(()=>{const row=document.querySelector('[data-feed-entry-id]'),title=row.querySelector('strong');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,titleWidth:Math.round(title.getBoundingClientRect().width),columns:getComputedStyle(row).gridTemplateColumns,status:Boolean(row.querySelector('.feed-entry-status')),chevron:Boolean(row.querySelector('.feed-entry-chevron'))};})()");
   // Soft Workbench prototype: a Feed row is a reading card (source line, title, one-line summary), not a single line.
   assert.ok(feedRow.height >= 72 && feedRow.height <= 130, "Feed rows are compact reading cards: " + feedRow.height);
   assert.equal(feedRow.size, "13px"); // on the fixed type scale (spec → 第三轮 · 字号)
@@ -218,19 +221,20 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.equal(feedRow.status, true, "Closed Feed rows use the Goal status mark");
   assert.equal(feedRow.chevron, false, "Closed Feed rows do not spend a column on a chevron");
   await capture("directory-feed-list");
-  await evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
-  await evaluate("(()=>{const status=document.querySelector('[data-feed-status-filter]');if(!status)return;status.value='archived';status.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-feed-filter-option=\"status\"][data-feed-filter-value=\"archived\"]')?.click();})()");
-  await waitFor("document.querySelector('[data-feed-empty]')?.hidden===false");
-  assert.ok(await evaluate("document.querySelector('[data-feed-clear-filters]').getClientRects().length>0"));
-  await evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
-  await click('[data-feed-clear-filters]');
-  await click('[data-feed-filter-trigger]');
-  assert.ok(await evaluate("(()=>{let p=document.querySelector('[data-feed-filter-panel]').getBoundingClientRect(),r=document.querySelector('[data-work-surface=feed]').getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.bottom<=innerHeight;})()"));
+  await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.evaluate("(()=>{const status=document.querySelector('[data-feed-status-filter]');if(!status)return;status.value='archived';status.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-feed-filter-option=\"status\"][data-feed-filter-value=\"archived\"]')?.click();})()");
+  await feedView.waitFor("document.querySelector('[data-feed-empty]')?.hidden===false");
+  assert.ok(await feedView.evaluate("document.querySelector('[data-feed-clear-filters]').getClientRects().length>0"));
+  await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.click('[data-feed-clear-filters]');
+  await feedView.click('[data-feed-filter-trigger]');
+  assert.ok(await feedView.evaluate("(()=>{let p=document.querySelector('[data-feed-filter-panel]').getBoundingClientRect(),r=document.querySelector('[data-work-surface=feed]').getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.bottom<=innerHeight;})()"));
   await capture("directory-feed-filter");
-  await click('[data-feed-filter-trigger]');
-  await click('[data-feed-entry-id][data-feed-item-id="' + item.item.item_id + '"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-shell]')?.dataset.expanded === 'true' && Boolean(document.querySelector('[data-feed-entry-detail=\"" + item.item.item_id + "\"]:not([hidden])')) && (document.querySelector('[data-work-surface=feed]')?.textContent || '').includes('从首次使用观察中找到下一步值得改进的地方')");
-  const feedBack = await evaluate<{ ok: boolean; dump: string }>(`(() => {
+  await feedView.click('[data-feed-filter-trigger]');
+  await feedView.click('[data-feed-entry-id][data-feed-item-id="' + item.item.item_id + '"]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await feedView.waitFor("document.querySelector('[data-feed-stage-shell]')?.dataset.expanded === 'true' && Boolean(document.querySelector('[data-feed-entry-detail=\"" + item.item.item_id + "\"]:not([hidden])')) && (document.querySelector('[data-work-surface=feed]')?.textContent || '').includes('从首次使用观察中找到下一步值得改进的地方')");
+  const feedBack = await feedView.evaluate<{ ok: boolean; dump: string }>(`(() => {
     const back = document.querySelector('[data-work-surface=feed] [data-feed-entry-detail]:not([hidden]) .plugin-stage-back');
     const workspace = back?.closest('.plugin-stage-workspace');
     if (!workspace || !back) return { ok: false, dump: 'missing' };
@@ -238,6 +242,7 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
     return { ok: inset >= 10 && inset <= 18, dump: JSON.stringify({ inset: Math.round(inset * 10) / 10 }) };
   })()`);
   assert.ok(feedBack.ok, "Feed close sits in the reading bar's inset " + feedBack.dump);
+  assert.deepEqual(await feedView.evaluate("window.__uiErrors"), []);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme='dark'");
   await click('[data-plugin-strip] [data-plugin-id="todo"]');

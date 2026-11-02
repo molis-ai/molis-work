@@ -66,7 +66,7 @@ const sources = new Map(tracked.map((file) => [file, readFileSync(`${root}${file
 const styleSource = (file: string) => /(^|\/)styles?(\/|\.ts$)|(^|\/)[^/]*-styles?\.ts$|(^|\/)styles?-[^/]*\.ts$/.test(file);
 const DRAWN = /class|querySelector|closest\(|matches\(|classList|\.add\(|\.toggle\(|\.remove\(|getElementsBy/;
 const packageOf = (file: string) => /^plugins\/native\/([^/]+)\//.exec(file)?.[1] ?? null;
-const ids = new Set(packs.filter(framed).map((pack) => pack.project_plugin_id));
+const ids = new Set(packs.filter((pack) => pack.clientFactory).map((pack) => pack.project_plugin_id));
 
 /** The classes of a plugin's namespace that code outside the plugin's own package draws: by the host and the shared libraries, and by other plugins. */
 function drawnOutside(pack: BuiltinPluginWorkbenchPack) {
@@ -92,19 +92,55 @@ function drawnOutside(pack: BuiltinPluginWorkbenchPack) {
   return { byHost: [...byHost].sort(), byPlugin };
 }
 
-test("RAC-758 the classes something outside a plugin's own frame draws are listed, so their rules stay in the shared sheet", () => {
-  for (const pack of packs.filter(framed)) {
-    const { byHost, byPlugin } = drawnOutside(pack);
-    assert.deepEqual([...(pack.stylesheetShared ?? [])].sort(), byHost,
-      `${pack.project_plugin_id}: stylesheetShared is exactly the namespace classes the host, the shared libraries and the plugins the shell draws use`);
-    for (const [user, names] of byPlugin) {
-      const userPack = packs.find((one) => one.project_plugin_id === user)!;
-      const missing = [...names].filter((name) => !byHost.includes(name));
-      if (missing.length > 0) {
-        assert.ok(userPack.stylesheetUses?.includes(pack.project_plugin_id), `${user} draws ${pack.project_plugin_id}'s ${missing.join(", ")}, so its frame has to link that sheet`);
-      }
+const ordinarySelectors = (css: string) => [...normal(css).matchAll(/([^{}]+)\{/g)]
+  .map(match => match[1]!.trim()).filter(selector => !selector.startsWith("@"));
+
+function privateSheetRoot(pack: BuiltinPluginWorkbenchPack, css: string, outside: readonly string[]): string | undefined {
+  const namespaces = [pack.project_plugin_id, ...(pack.stylesheetPrefixes ?? []).map(prefix => prefix.replace(/-$/, ""))];
+  const relevant = splitPluginStylesheet(css, pack.project_plugin_id, outside, pack.stylesheetPrefixes).shared;
+  const candidates = selectorNames(ordinarySelectors(css)[0] ?? "").map(name => name.replace(/^data-/, ""))
+    .filter(name => namespaces.some(namespace => name === namespace || name.startsWith(namespace + "-")));
+  return candidates.find(root => !outside.some(name => name === root || name.startsWith(root + "-") || name === "data-" + root || name.startsWith("data-" + root + "-"))
+    && normal(splitPluginStylesheet(relevant, root).shared).trim() === "");
+}
+
+function assertOutsideStyles(pack: BuiltinPluginWorkbenchPack, outside: ReturnType<typeof drawnOutside>, shared: string, registry = packs): void {
+  const { byHost, byPlugin } = outside;
+  const names = [...byHost, ...[...byPlugin.values()].flatMap(used => [...used])];
+  const privateCss = pluginOnDemandStylesheet(pack.project_plugin_id, registry);
+  const root = privateCss ? privateSheetRoot(pack, privateCss, names) : undefined;
+  const declared = pack.stylesheetShared ?? [];
+  assert.deepEqual([...declared].sort(), root ? byHost.filter(name => declared.includes(name)) : byHost,
+    `${pack.project_plugin_id}: stylesheetShared is exactly the namespace classes the host, the shared libraries and the plugins the shell draws use`);
+  if (root) {
+    const sharedNames = new Set(ordinarySelectors(shared).flatMap(selectorNames));
+    for (const name of names) assert.ok(sharedNames.has(name), `${pack.project_plugin_id}: ${name} outside the private ${root} root has an actual shared rule`);
+    return;
+  }
+  for (const [user, used] of byPlugin) {
+    const userPack = registry.find(one => one.project_plugin_id === user)!;
+    const missing = [...used].filter(name => !byHost.includes(name));
+    if (missing.length > 0) {
+      assert.ok(userPack.stylesheetUses?.includes(pack.project_plugin_id), `${user} draws ${pack.project_plugin_id}'s ${missing.join(", ")}, so its frame has to link that sheet`);
     }
   }
+}
+
+test("RAC-758 the classes something outside a plugin's own frame draws are listed, so their rules stay in the shared sheet", () => {
+  const shared = renderMolisWorkWorkbenchStylesheet();
+  for (const pack of packs.filter(framed)) assertOutsideStyles(pack, drawnOutside(pack), shared);
+});
+
+test("RAC-758 private rules for shared leaf names require their own root; removing that root requires the cross-frame sheet", () => {
+  const css = ".probe-root{display:block}.probe-root .probe-card{color:red}.probe-form{padding:4px}";
+  const pack = { ...packs.find(framed)!, project_plugin_id: "probe", stylesheet: css, stylesheetShared: [], stylesheetPrefixes: [] };
+  const consumer = { ...pack, project_plugin_id: "consumer", stylesheetUses: [] };
+  const outside = { byHost: [], byPlugin: new Map([["consumer", new Set(["probe-card"])]]) };
+  const shared = ".probe-card{color:blue}";
+  assert.doesNotThrow(() => assertOutsideStyles(pack, outside, shared, [pack, consumer]));
+  assert.throws(() => assertOutsideStyles(pack, outside, "", [pack, consumer]), /probe-card outside the private probe-root root has an actual shared rule/);
+  const unscoped = { ...pack, stylesheet: css.replace(".probe-root .probe-card", ".probe-card") };
+  assert.throws(() => assertOutsideStyles(unscoped, outside, shared, [unscoped, consumer]), /consumer draws probe's probe-card, so its frame has to link that sheet/);
 });
 
 const link = (name: string) => `<link rel="stylesheet" href="/assets/molis-work-plugins/${name}.css">`;
@@ -125,7 +161,7 @@ test("RAC-759 a frame's page starts with its plugin's sheet and the sheets of th
   assert.deepEqual([...clients.find((client) => client.id === "plugin-builder")!.styles], ["plugin-builder"], "so does the studio");
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "coding", "Coding")), `${link("coding")}${link("git")}${link("files")}<p>x</p>`);
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "diff", "Diff")), "<p>x</p>", "a plugin with no sheet of its own adds nothing");
-  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "feed", "Feed")), "<p>x</p>", "the shell draws Feed itself, so it has no sheet to link");
+  assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "feed", "Feed")), `${link("feed")}<p>x</p>`, "the Feed owner loads its own sheet");
   assert.equal(documentOf(renderPluginFrameSurface("<p>x</p>", "a-copy", "t", false, false, "coding")), `${link("coding")}${link("git")}${link("files")}<p>x</p>`,
     "a standalone view of a plugin's bundle takes the bundle's sheets");
   assert.ok(!renderPluginFrameSurface("<p>x</p>", "coding", "Coding").includes("<link"), "the links travel inside the inert page data, never in the shell's own markup");
@@ -156,7 +192,11 @@ test("RAC-760 the host serves a plugin's own sheet at its address, and nothing a
   const studio = await serve(assets, "/assets/molis-work-plugins/plugin-builder.css");
   assert.equal(studio.status, 200);
   assert.match(studio.body, /\.as-shell/, "the studio's own rules are served as its own sheet");
-  for (const none of ["diff", "feed", "not-a-plugin"]) assert.equal((await serve(assets, `/assets/molis-work-plugins/${none}.css`)).status, 404, `${none} has no sheet of its own`);
+  const feed = await serve(assets, "/assets/molis-work-plugins/feed.css");
+  assert.equal(feed.status, 200);
+  assert.match(feed.type, /^text\/css/);
+  assert.match(feed.body, /\.feed-workbench\b/, "the Feed owner's rules are served as its own sheet");
+  for (const none of ["diff", "not-a-plugin"]) assert.equal((await serve(assets, `/assets/molis-work-plugins/${none}.css`)).status, 404, `${none} has no sheet of its own`);
   assert.equal((await serve(assets, "/assets/molis-work-plugins/coding.js")).status, 200, "the client bundle keeps its address");
 });
 

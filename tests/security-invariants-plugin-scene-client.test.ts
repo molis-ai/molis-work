@@ -430,7 +430,7 @@ test("T405-FULL17-B/D metadata refs do not execute commands, metered or undeclar
   env.registry.registerProvider({ provider: { provider_id: "metadata-targets", kind: "system", title: "Metadata targets" }, definitions: [query, paid],
     handlers: [query, paid].map(definition => ({ ...definition, handle: (caller: ActionCallContext) => { seen.push(caller); return true; } })) });
   const refs = [query, paid].map(definition => ({ capability_id: definition.capability_id, version: 1, provider_id: "metadata-targets" }));
-  const context: ActionCallContext = { ...who.context, read_only_effects: false,
+  const context: ActionCallContext = { ...who.context, read_only_effects: undefined,
     stage_scene_metadata: { ...who.context.stage_scene_metadata!, actions: [...who.context.stage_scene_metadata!.actions, ...refs] } };
   for (const definition of [judgment, query, paid]) await assert.rejects(env.client.invoke(context, definition, definition === judgment ? { text: "hello" } : {}), { code: "actions.forbidden" });
   assert.deepEqual(seen, []); assert.deepEqual(env.evaluated, []);

@@ -290,7 +290,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (!current || current.revision !== binding.revision || current.enabled !== binding.enabled
       || current.function.capability_id !== binding.function.capability_id || current.function.version !== binding.function.version
       || current.function.provider_id !== binding.function.provider_id) throw new ActionError("actions.provider_changed", "原场景绑定已变化，请重新读取");
-    const directory = inDirectoryPass(context, () => registeredActionMetadata(this.registry, context, (definition, provider) => metadataVisible(definition, provider, context))
+    const directory = inDirectoryPass(() => registeredActionMetadata(this.registry, context, (definition, provider) => metadataVisible(definition, provider, context))
       .map(metadata => ({ ...metadata, availability: this.registry.metadataAvailability(context, { ...metadata, action_provider: metadata.provider }) })));
     const fn = directory.find(value => value.capability_id === reference.capability_id && value.version === reference.version && value.provider.provider_id === reference.provider_id);
     const reason = actionSceneCompatibilityReason(scene.definition, fn, reference, directory, scene.provider), state = scene.availability(context);
@@ -497,7 +497,7 @@ function bindingBelongsTo(b: ActionSceneBinding, s: ActionSceneDefinition, c: Ac
 function metadataVisible(definition: ActionDefinition, provider: ActionProvider, caller: ActionCallContext): boolean {
   const metadata = caller.stage_scene_metadata;
   return !!metadata && metadata.actions.some(ref => ref.capability_id === definition.capability_id && ref.version === definition.version && ref.provider_id === provider.provider_id)
-    && visibleAction(definition, provider, { ...caller, allowed_actions: metadata.actions, query_only: false });
+    && visibleAction(definition, provider, { ...caller, allowed_actions: metadata.actions, query_only: undefined });
 }
 
 function matchesStageMetadata(caller: ActionCallContext, scene: RegisteredScene, binding: ActionSceneBinding): boolean {

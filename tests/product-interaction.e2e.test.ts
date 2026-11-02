@@ -170,6 +170,15 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = b;
   const child = await pluginFrameBrowser(t, b, "feed"), { evaluate, waitFor, click } = child;
+  await pluginFrameInitScript(t, b, `
+    const state=window.__scheduleBusy={hold:false};
+    window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=key==='feed'?host=>{
+      state.host=host;const read=host.view.readDocument;host.view.readDocument=async query=>{
+        const hold=state.hold&&!query?.object;if(hold)state.hold=false;
+        const html=await read(query);if(hold)await new Promise(resolve=>state.releaseRead=resolve);return html;
+      };return factory(host);
+    }:factory;return true;}});
+  `);
   const attemptDisabled = async (selector: string) => {
     const point = await evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
     const frame = await b.evaluate<{x:number;y:number}>("document.querySelector('[data-work-surface=feed] iframe[data-plugin-frame=feed]').getBoundingClientRect().toJSON()");
@@ -199,14 +208,37 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-mode]').value`),"manual");
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-mode] + [data-mw-select-trigger] [data-mw-select-label]').textContent`),"手动拉取");
   await evaluate(`{document.querySelector('${panel} [data-source-config-field=name]').value='保留中的名称';const field=document.querySelector('${panel} [data-source-schedule-mode]');field.value='interval';field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('${panel} [data-source-schedule-interval]').value='360';}`);
-  await click(`${panel} [data-source-schedule-save]`);
+  assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-enabled]').checked`), true, "choosing interval enables the new schedule");
+  await b.evaluate(`{const original=window.fetch;let hold=true;window.scheduleRequests=0;window.fetch=async(url,options)=>{const response=await original(url,options);if(options?.method==='PUT'&&String(url).endsWith('/schedule')){window.scheduleRequests++;if(hold){hold=false;window.scheduleResponseReady=true;await new Promise(resolve=>window.releaseScheduleResponse=resolve);}}return response;};window.restoreScheduleFetch=()=>window.fetch=original;}`);
+  try {
+    await click(`${panel} [data-source-schedule-save]`);
+    await b.waitFor('window.scheduleResponseReady===true');
+    await evaluate(`(()=>{const state=window.__scheduleBusy;state.oldButton=document.querySelector('${panel} [data-source-schedule-save]');state.hold=true;state.host.invalidateView();})()`);
+    await waitFor('window.__scheduleBusy.releaseRead');
+    await evaluate('window.__scheduleBusy.releaseRead()');
+    await waitFor(`!window.__scheduleBusy.oldButton.isConnected && document.querySelector('${panel} [data-source-schedule-save]')!==window.__scheduleBusy.oldButton`);
+    assert.deepEqual(await evaluate(`({busy:document.querySelector('[data-feed-sources-dialog]').getAttribute('aria-busy'),save:document.querySelector('${panel} [data-source-schedule-save]').disabled,reset:document.querySelector('${panel} [data-source-schedule-reset]').disabled,inert:document.querySelector('${panel}').inert})`), {busy:'true',save:true,reset:true,inert:true}, "the replacement controls stay busy while the original save response is held");
+    await attemptDisabled(`${panel} [data-source-schedule-save]`);
+    await attemptDisabled(`${panel} [data-source-schedule-reset]`);
+    assert.equal(await b.evaluate('window.scheduleRequests'), 1, "a replacement save control cannot submit again while busy");
+    assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
+  } finally {
+    await evaluate('window.__scheduleBusy.releaseRead?.()');
+    await b.evaluate('window.releaseScheduleResponse?.();window.restoreScheduleFetch()');
+  }
   await waitFor(`!document.querySelector('${panel} [data-source-schedule-save]').disabled`);
-  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).schedule.mode,"interval");
+  await waitFor(`!document.querySelector('[data-feed-sources-dialog]').hasAttribute('aria-busy') && !document.querySelector('${panel}').inert`);
+  const firstPlan = feed.sources.get(DEMO_PROJECT_ID,source.source_id).schedule;
+  assert.equal(firstPlan.mode,"interval"); if(firstPlan.mode==='interval') assert.equal(firstPlan.enabled,true);
   assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,source.name);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
   await click(`${panel} [data-source-schedule-enabled]`);
   await click(`${panel} [data-source-schedule-save]`);
   await waitFor(`!document.querySelector('${panel} [data-source-schedule-save]').disabled`);
+  await waitFor(`!document.querySelector('[data-feed-sources-dialog]').hasAttribute('aria-busy') && !document.querySelector('${panel}').inert`);
+  const pausedPlan = feed.sources.get(DEMO_PROJECT_ID,source.source_id).schedule;
+  assert.equal(pausedPlan.mode,"interval"); if(pausedPlan.mode==='interval') assert.equal(pausedPlan.enabled,false);
+  assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-enabled]').defaultChecked`),false,"the current owner defaults contain the saved pause");
   await click(`${panel} [data-source-schedule-enabled]`);
   await click(`${panel} [data-source-schedule-reset]`);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-schedule-enabled]').checked`),false,"reset must preserve a saved paused schedule");

@@ -4,6 +4,8 @@ import type { FeedPage } from "./factory.js";
 interface SourceAnswer { source: { source_id: string } }
 interface SyncAnswer { created?: number; deduped?: number; run?: { error_code?: string; receipt?: { rss_http?: { not_modified?: boolean } } } }
 
+const SOURCE_OPERATION_BUTTONS = "[data-feed-sources-close],[data-feed-config-submit],[data-feed-source-register],[data-source-schedule-save],[data-source-schedule-reset]";
+
 /** Reset a draft to the latest owner-rendered defaults, including the native select's visible adapter. */
 function resetSourceControls(area: ParentNode, selector = "input,select,textarea"): void {
   for (const control of area.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(selector)) {
@@ -13,15 +15,22 @@ function resetSourceControls(area: ParentNode, selector = "input,select,textarea
   }
 }
 
+/** A refresh replaces controls while this dialog retains the operation's busy flag. */
+function reflectSourceBusy(page: FeedPage, dialog: HTMLElement): void {
+  const busy = dialog.hasAttribute("aria-busy");
+  page.all<HTMLButtonElement>(SOURCE_OPERATION_BUTTONS, dialog).forEach(control => control.disabled = busy);
+  page.all("[data-feed-task-config],[data-feed-add-form],[data-feed-add-account]", dialog).forEach(area => area.inert = busy);
+}
+
 /** The source form owns one in-flight operation; its lifetime also clears busy UI on a view change. */
 function beginSourceOperation(page: FeedPage, button: HTMLButtonElement) {
   const dialog = button.closest<HTMLElement>("[data-feed-sources-dialog]");
   if (button.disabled || dialog?.hasAttribute("aria-busy")) return null;
   const area = button.closest<HTMLElement>("[data-source-detail],[data-feed-task-config],[data-feed-add-form],[data-feed-add-account]") || (dialog && page.q(button.matches("[data-feed-source-register]") ? "[data-feed-add-form]" : "[data-feed-task-config]:not([hidden])", dialog)), inert = area?.inert || false;
   button.disabled = true; if (area) area.inert = true; dialog?.setAttribute("aria-busy", "true");
-  const controls = dialog ? page.all<HTMLButtonElement>("[data-feed-sources-close],[data-feed-config-submit],[data-feed-source-register]", dialog) : [];
-  const disabled = new Map(controls.map(control => [control, control === button ? false : control.disabled])); controls.forEach(control => control.disabled = true);
-  const release = page.pending(() => { if (button.isConnected) button.disabled = false; if (area?.isConnected) area.inert = inert; if (dialog?.isConnected) { dialog.removeAttribute("aria-busy"); page.all<HTMLButtonElement>("[data-feed-sources-close],[data-feed-config-submit],[data-feed-source-register]", dialog).forEach(control => control.disabled = disabled.get(control) ?? false); } });
+  const controls = dialog ? page.all<HTMLButtonElement>(SOURCE_OPERATION_BUTTONS, dialog) : [];
+  const disabled = new Map(controls.map(control => [control, control === button ? false : control.disabled])); if (dialog) reflectSourceBusy(page, dialog);
+  const release = page.pending(() => { if (button.isConnected) button.disabled = false; if (dialog?.isConnected) { dialog.removeAttribute("aria-busy"); reflectSourceBusy(page, dialog); page.all<HTMLButtonElement>(SOURCE_OPERATION_BUTTONS, dialog).forEach(control => control.disabled = disabled.get(control) ?? false); } if (area?.isConnected) area.inert = inert; });
   return { area: area || dialog, release };
 }
 
@@ -69,7 +78,7 @@ export function feedSources(page: FeedPage) {
     if (draft) draft.hidden = !setup || kind === "github" || kind === "gmail";
     const create = q<HTMLButtonElement>("[data-feed-source-register]", dialog); if (create) { create.hidden = Boolean(draft?.hidden); create.dataset.feedSourceRegister = kind; }
     const save = q<HTMLButtonElement>("[data-feed-config-submit]", dialog); if (save) { save.hidden = !config || view === "rules"; save.dataset.sourceId = page.selection; }
-    all<HTMLButtonElement>("[data-feed-sources-close],[data-feed-config-submit],[data-feed-source-register]", dialog).forEach(button => button.disabled = dialog.hasAttribute("aria-busy"));
+    reflectSourceBusy(page, dialog);
     all("[data-feed-footer-kind]", dialog).forEach(node => node.hidden = !setup || node.dataset.feedFooterKind !== kind);
     all("button[data-feed-view]").forEach(button => { if (button.dataset.feedView === view) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); });
     if (view === "settings") { const region = q('[data-feed-task-config]:not([hidden]) [data-plugin-record-slot]'); if (region) void loadChoice(region).catch(error => page.error(error, q("[data-feed-connection-status]", region))); }
@@ -124,6 +133,7 @@ export function feedSources(page: FeedPage) {
     const mode = event.target instanceof HTMLSelectElement && event.target.matches("[data-source-schedule-mode]") ? event.target : null;
     if (!mode) return; const region = mode.closest("[data-feed-task-config],[data-source-detail]"); if (!region) return;
     all<HTMLInputElement>("[data-source-schedule-interval],[data-source-schedule-enabled]", region).forEach(input => { input.disabled = mode.value !== "interval"; const label = input.closest("label"); if (label) label.hidden = input.disabled; });
+    const enabled = q<HTMLInputElement>("[data-source-schedule-enabled]", region); if (mode.value === "interval" && enabled) enabled.checked = true;
   });
   page.listen("submit", event => {
     const form = event.target instanceof HTMLFormElement ? event.target : null; if (!form?.matches("[data-feed-add-account],[data-feed-add-form]")) return;

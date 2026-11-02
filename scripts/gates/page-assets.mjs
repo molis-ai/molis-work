@@ -263,7 +263,8 @@ const APPROVED_NEW_ASSETS = {
   // User-approved T403 split: owner client code and Feed styles load only inside their opaque plugin pages.
   // Previous new-asset entries are already in the merge-base budget and are consumed.
   // T403 first-freeze repair: wait for superseding refresh, preserve partial creation, restore config drafts/busy UI.
-  "/assets/molis-work-plugins/feed.js": 37255,
+  // Same Feed first freeze: interval selection and current controls retain the operation busy state through refresh.
+  "/assets/molis-work-plugins/feed.js": 37380,
   "/assets/molis-work-plugins/feed.css": 43247,
   // T403's same approved Inbox URL: retain native Tab stops and same-mount evaluation feedback (+9 B served).
   "/assets/molis-work-plugins/inbox.js": 9297,

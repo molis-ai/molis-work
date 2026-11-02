@@ -713,14 +713,25 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
       { mode: "interval", enabled: true, interval_minutes: 30 },
     );
     assert.equal(scheduled.status, 200);
-    assert.equal((await scheduled.json() as { source: { schedule: { mode: string } } }).source.schedule.mode, "interval");
+    const scheduledSource = (await scheduled.json() as { source: { enabled: boolean; status: string; schedule: { mode: string } } }).source;
+    assert.equal(scheduledSource.schedule.mode, "interval");
+    assert.equal(scheduledSource.enabled, false, "saving a schedule does not resume the paused source");
+    assert.equal(scheduledSource.status, "paused");
 
-    const realPage = ownerDocument(await (await fetch(`${origin}${prefix}/`)).text());
+    const updatedHostPage = await (await fetch(`${origin}${prefix}/`)).text();
+    const feedPage = ownerDocument(updatedHostPage);
+    assert.match(feedPage, new RegExp(`data-feed-task="${registeredBody.source.source_id}"`));
+    assert.match(feedPage, new RegExp(`data-feed-task-config="${registeredBody.source.source_id}"`));
+    assert.match(feedPage, new RegExp(`data-feed-source-toggle="${registeredBody.source.source_id}" data-feed-source-enabled="false"`));
+    const realPage = ownerDocument(updatedHostPage, "data-source-workbench");
     assert.match(realPage, new RegExp(`data-real-source-id="${registeredBody.source.source_id}"`));
     assert.match(realPage, /data-source-config-save/);
     assert.match(realPage, /首次拉取后验证 Feed 并记录条件请求/);
     assert.match(realPage, /data-source-schedule-save/);
     assert.match(realPage, /data-source-runtime-action="pause"/);
+    assert.match(realPage, new RegExp(`data-source-config-save data-source-id="${registeredBody.source.source_id}"`));
+    assert.match(realPage, new RegExp(`data-source-schedule-save data-source-id="${registeredBody.source.source_id}"`));
+    assert.match(realPage, new RegExp(`data-source-runtime-action="resume" data-source-id="${registeredBody.source.source_id}"`));
 
     const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-test-token-12345" }));
     const feed = await (await fetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/snapshot`)).json() as {

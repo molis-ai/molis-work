@@ -1,6 +1,6 @@
 # 全仓对抗式审查报告（2026-11-01）
 
-状态：审查完成，整治在做。报告本身不改产品代码、门禁、测试、规格和真实 Home；整治按第 12 节分片另开 PR，进度见第 15 节。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」。
+状态：审查完成。用户 2026-11-01 定**只出报告、不由本轮执行整治**；第 12 节分片与第 13 节裁定留给统筹排期。报告不改产品代码、门禁、测试、规格和真实 Home。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」；停下之前已经做了的，见第 15 节。
 
 - **对象**：origin/main `e4e98ed33`（2026-11-01 15:13Z；该提交的 CI 与 Full 均为绿）。第 1 节的趋势数字取同一分支在 10-13、10-20、10-27 的提交。
 - **依据**：[防腐整理要求](../prompts/repository-anti-corruption.md)（四个目标、§4.1–4.19、§7 完成标准、附录 A），[系统整理要求](../prompts/repository-systematic-review.md)，`AGENTS.md` 与 `docs/system/` 的现行规则，[上一轮清理检查](cleanup-audit-2026-10-20.md)。
@@ -140,6 +140,11 @@
 
 四份的检查不一样：`project-database.ts` 只比版本，其余三份还比结构。`packages/storage/src/sqlite-baseline.ts` 有 `applySqliteBaseline`、`describeSqliteSchema`、`describeSqliteBaseline`，但没有「只读断言」这一个函数。建议在 storage 加 `assertSqliteBaseline(readonlyDb, baseline)`，四处改调它。
 
+**整治时核实（更正）**：四份不同大多是有意的，不能收成一个断言。
+- 项目库必须用持有它的驱动（better-sqlite3）去读：同一进程里另一份 SQLite 关掉这个文件，会丢掉宿主的文件锁（安全用例里钉着）。所以 storage 自己那份用 `node:sqlite` 的预检不能直接给项目库用。
+- 服务端的库要求结构完全一致，项目库允许插件自己的表；两处的拒绝码也不同，项目库的恢复路径另有拒绝码。
+- 真正重复的是「读版本、看是不是空库、不符就拒」这一段：storage 里两份，加上 `project-database.ts`、`server/src/database.ts` 各一份。已收成 `checkSqliteBaselineVersion`（共享核心集成分支）。另两处在在途 PR 里，等它们合入。
+
 ### B4 构造器重复执行建表语句（P2，已证实；风险是推断）
 
 7 个构造器在每次构造时 `db.exec(<X>_SCHEMA_SQL)`：
@@ -250,6 +255,13 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 - `better-sqlite3`：用在 `packages/storage/src/sqlite.ts`、`snapshot-sqlite.ts`、`modules/private-work-context` 三个文件和 Alchemist 里。
 
 `sqlite-baseline.ts` 的接口特意写成两种都接。要么收成一个，要么在 `docs/system/HOME-DATA.md` 写明为什么必须两个。
+
+**整治时核实（更正，范围远大于上面写的）**：
+- `packages/storage/src/sqlite.ts` 就是每个项目库的连接（`LocalSqliteStorage`），原始连接经 `store.db` 交给宿主、插件平台、Feed 的适配器（`fromBetterSqlite`）和 private-work-context。
+- 64 个测试文件直接 `import Database from "better-sqlite3"`。
+- 桌面运行时打包、npm 分发用例、安全用例（「同一进程里另一份 SQLite 会丢掉宿主的文件锁」）都和它绑在一起。
+- Node 24 上 `node:sqlite` 的接口够用（`backup`、`isTransaction`；pragma 用 `exec`），但它仍会打出 ExperimentalWarning。
+- 换驱动等于换掉项目库这条主数据路径，要碰一百多个文件，而且和在途的大批（#1724 等）重叠。所以用户的 ② 是在错的范围上定的，已重新问用户（第 13 节）。
 
 ### C4 ID 与幂等键的生成方式不一（P2，已证实）
 
@@ -394,6 +406,22 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 
 ## 13. 要用户或统筹裁定的
 
+**用户 2026-11-01 已定**（弹窗）：
+
+| # | 决定 | 落到哪 |
+| --- | --- | --- |
+| 1 | 新的平台服务不进宿主，放进 `horizontal/*`，宿主只做装配；存量随各线迁出；加一条宿主行数只许减少的门禁；R-03 继续开着 | R4、R7 |
+| 2 | SQLite 收成 `node:sqlite`，**分两步**（初次按错的范围定，核实后重问，用户改定）：先把驱动收进 storage——storage 给出自己的连接接口，生产代码与测试不再直接 import better-sqlite3（测试改用 test-kit 的打开函数），加门禁只许 storage 用它；等 #1724 等在途大批与真实 Home 重建之后，再在 storage 里一处换成 `node:sqlite`。两步各走集成分支跑全量；Alchemist 不动 | R3（共享核心集成分支） |
+| 3 | 「未登录 / 登录」按钮保留到登录做出来；把 TODO 换成一条带主人的 BACKLOG 行 | 统筹（BACKLOG 是枢纽文件） |
+| 4 | 安装清单 `SCHEMA_VERSION` 算进 10-30 的决定，改成第 1 版，写进 `docs/releases/CHECKLIST.md` 的版本表；和真实 Home 清空重建同一时段落地 | 单独一个 PR，随重建合入 |
+| 5 | 删掉合同描述符的 `maturity` 字段；包成熟度只认 SSOT 的四个词与 `scripts/workspace-packages.mjs` | R2（共享核心集成分支，`pnpm api:update`） |
+| 6 | 只走 HTTP 的四组写入：先逐条登记进 CALL-CHAINS §10.1（带主人和理由），再逐组改成动作；新写入一律走动作 | R6、后续各组 |
+| 7 | 风险登记与零碎单里开着的项并进 `specs/BACKLOG.md` 并带主人，协调分支只留进度 | 统筹（Codex） |
+| 8 | 工作树与本地分支：只清工作区干净、已合入的；有改动、没合入、别的会话在用的跳过；远端分支不动 | 本会话做，清单见第 15 节 |
+
+以下是当时提的问题，留作出处：
+
+
 1. **宿主瘦身**：新的平台服务（连接器、安装、终端、助理）都长在 `apps/local-host`，可以接受，还是迁进 `horizontal/*`？这决定 R-03 能否关。
 2. **两个 SQLite 驱动**：收成一个，还是写明保留的理由？
 3. **设置里永远禁用的「未登录 / 登录」按钮**：删掉，还是保留到登录功能做出来？这会改用户看得见的界面。
@@ -420,19 +448,32 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
   - BACKLOG 那 34 行「已做」要逐行核。
 - **数字会变**：统筹在途的大批（#1724 等）合入后，宿主行数、入口宽度、页面资源会变；整治开工前按第 1 节的命令重测。
 
-## 15. 整治进度
+## 15. 停下时的状态
 
-| 片 | 状态 | 说明 |
-| --- | --- | --- |
-| R1 例外清账 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727)（与 R5 同一个 PR） | 页面资源门禁的 22 条新资源放行与 2 条到期的增长放行已删；SYS-15 用例改在带 10-22 那条放行的门禁副本上证明放行机制。白名单那条、`eslint-disable`、MemoryService 核实后不在本片（第 11 节已更正）。Shelf 层间例外开 BL 归统筹（BACKLOG 是枢纽文件） |
-| R5 参数与死代码 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727) | 删 3 个死函数（`renderScheduleContribution`、`pauseReason`、`joinedFingerprint`）；Goals 的 `requestHash` 收成包内一份；四份控制令牌比较收进 `web-control-token.ts`；两份读当前分支收进 `workspace-git.ts`。C1 核实后不删（第 4 节已更正）。死路由 `memory-prefs` 与 C2 等 #1101 合入 |
-| R2、R3 | 未开工 | 共享核心，要走集成分支；R3 的写法还取决于第 13 节第 2 项（两个 SQLite 驱动） |
-| R4 | 未开工 | 取决于第 13 节第 1 项（宿主瘦身），并要避开在途大批 |
-| R6、R7、R8 | 未开工 | R6 等 W6-06（T-404）；R7 改门禁要评审；R8 是统筹的枢纽文件，取决于第 13 节第 7 项 |
+用户 2026-11-01 定只出报告，整治不在本轮执行。停下之前已经做了的：
+
+| 项 | 状态 |
+| --- | --- |
+| R1/R5 第一片 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727) 已开（删 24 条已用完、到期的页面资源放行，删 3 个死函数，Goals `requestHash`、四份控制令牌比较、两份读分支各收成一份；定向 21 个文件与 health、page-assets、boundary、secrets 都过）。留不留由统筹定 |
+| 工作树与分支（⑧） | 已清：干净且已合入的工作树 21 个、本地分支 294 个；`~/.codex/worktrees` 没动 |
+| 统筹交接 | #1332 评论 [6568020430](https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6568020430)；里面「我接着做的」三项现在不做了 |
+| 共享核心集成分支 | 本地分支 `claude/anticorr-shared-core` 有未提交的草稿（删 `maturity`、`checkSqliteBaselineVersion`、SDK 内部 `isRecord` 收成一份、API 快照），已构建通过，没跑用例、没推送 |
 
 复核出的误判（已在原处标「（更正）」）：
 
 - `APPROVED_CEILINGS` 按门禁规则轮换，不是遗漏；
 - 密钥白名单那一条仍需要；
 - MemoryService 的登记已排期（T-061）；
-- C1 的参数是注入口或公开合同，不删。
+- C1 的参数是注入口或公开合同，不删；
+- B3 的四份预检大多有意不同，只有「读版本、空库、拒绝」一段重复；
+- C3 的 better-sqlite3 是项目库的驱动，范围是一百多个文件，不是 3 个。
+
+### 留给统筹排期的整治（按依赖排序）
+
+1. **R1 余项**：Shelf 层间例外开 BL；登录按钮的 TODO 换成 BL 行（③）。
+2. **R2 + R3（共享核心，一条集成分支）**：删 `maturity`（⑤）；`checkSqliteBaselineVersion`，另两处等 #1724、#1725 合入；SDK 内部小工具收口；`pnpm api:update`，跑全量。
+3. **SQLite 第一步（②）**：驱动收进 storage，加门禁只许 storage import better-sqlite3。第二步等在途大批与真实 Home 重建之后。
+4. **宿主边界（①⑥）**：「新平台服务不进宿主」写进 ARCHITECTURE；宿主行数门禁先只报告，在途大批合入后再改成挡合并（直接挡会让 #1724 等全部变红）；四组只走 HTTP 的写入先逐条登记 CALL-CHAINS §10.1，再逐组改动作。
+5. **安装清单版本（④）**：`SCHEMA_VERSION` 4 → 1，写进 CHECKLIST 版本表，和真实 Home 清空重建同一时段合入。
+6. **R4 宿主入口收窄、R6 文档卫生、R7 门禁去热点**：按第 12 节。
+7. **R8 待办单一出处（⑦）**：统筹把风险登记与零碎单里开着的项并进 BACKLOG。

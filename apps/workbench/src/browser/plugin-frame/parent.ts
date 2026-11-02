@@ -70,6 +70,18 @@ function openPlugin(host: FrameHost, surface: unknown, prefix: string): void {
   else location.assign(prefix + "/?openSurface=" + encodeURIComponent(surface));
 }
 
+/** The current item belongs to this surface's own pane, including a pane with its own local strip. */
+function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] {
+  const pane = root.closest<HTMLElement>("[data-tab-pane]");
+  if (!root.isConnected || !pane) return null;
+  const chrome = root.ownerDocument.querySelector<HTMLElement>("[data-titlebar-tabs]");
+  const strip = chrome?.checkVisibility({ visibilityProperty: true }) && chrome.dataset.chromePane === pane.dataset.tabPane
+    ? chrome : pane.querySelector<HTMLElement>("[data-tab-strip]");
+  const tab = strip?.querySelector<HTMLElement>('[data-tab-id][aria-current="page"]');
+  return tab?.dataset.tabKind === "item" && tab.dataset.plugin === pack.id && tab.dataset.tabId && tab.dataset.itemId
+    ? { tabId: tab.dataset.tabId, itemId: tab.dataset.itemId } : null;
+}
+
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
@@ -164,6 +176,12 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       else if (message.type === "ui" && Array.isArray(message.args)) {
         if (message.name === "showToast" && typeof message.args[0] === "string") host.showToast?.(message.args[0], message.args[1] === true);
         else if (message.name === "openPlugin") openPlugin(host, message.args[0], route(""));
+        else if (message.name === "openItem" && message.itemTabId !== undefined) {
+          if (!root.isConnected || !visible() || typeof message.itemTabId !== "string" || ownItemTab(root, pack)?.tabId !== message.itemTabId) return;
+          const [, id, title] = message.args;
+          if (typeof id !== "string" || !id || id.length > 1000 || typeof title !== "string") return;
+          host.openItem?.(pack.id, id, title.slice(0, 1000));
+        }
         else if (["openItem", "openBeside", "hideDirectory", "status"].includes(message.name)) host[message.name as "openItem"]?.(...message.args);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
@@ -180,7 +198,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       }
     } catch (error) { host.showToast?.(error instanceof Error ? error.message : String(error), true); }
   };
-  scope.listen(root, "molis-work:select-item", event => { port.postMessage({ type: "select", detail: (event as CustomEvent).detail }); });
+  scope.listen(root, "molis-work:select-item", event => { port.postMessage({ type: "select", detail: (event as CustomEvent).detail, itemTab: ownItemTab(root, pack) }); });
   scope.observe(new MutationObserver(() => {
     if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
@@ -189,7 +207,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
+    const config: FrameConfig = { subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,

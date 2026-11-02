@@ -265,7 +265,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await evaluate("window.firstPane=document.querySelector('[data-tab-pane]').dataset.tabPane;document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   await pane.waitFor(`document.querySelector('button[data-page-id="${b.id}"]')`);
-  await pane.evaluate(`document.querySelector('button[data-page-id="${b.id}"]').click()`);
+  await pane.click(`button[data-page-id="${b.id}"]`);
   await comments.waitFor(`document.querySelector('[data-comment-title]')?.textContent === '另一个文档'`);
   await evaluate("window.secondPane=document.querySelector('[data-tab-pane].is-focused').dataset.tabPane;document.querySelector('[data-tab-pane=\"'+window.firstPane+'\"]').click()");
   await comments.waitFor(`document.querySelector('[data-comment-title]')?.textContent === '讨论中的发布计划'`);

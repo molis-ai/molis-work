@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -224,4 +224,169 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
   assert.equal(await evaluate(current), before, "the pane stays where it was");
   assert.equal(await child.evaluate("document.querySelector('[data-pages-title]')?.value"), "Page A", "A stays open in the editor");
   assert.equal(await child.evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
+});
+
+
+test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pages editor and refuses stale tagged frame intents", { timeout: 120_000 }, async t => {
+  const heldSaves: Array<() => void> = [];
+  t.after(() => { heldSaves.splice(0).forEach(release => release()); });
+  const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
+  const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory, server } = browser;
+  const store = openPagesStore(homeDirectory);
+  const makePage = (name: string) => store.create({ project_id: projectId!, title: `Item ${name}`, body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: `Saved body ${name}` }] }] } });
+  const a = makePage("A"), b = makePage("B"), c = makePage("C"), d = makePage("D"); store.close();
+  let holdSaves = false, heldStatus = 0, saveArrived!: () => void;
+  const saveHeld = new Promise<void>(resolve => { saveArrived = resolve; });
+  const handlers = server.listeners("request"); server.removeAllListeners("request");
+  server.on("request", (request, response) => {
+    if (holdSaves && request.method === "POST" && new URL(request.url!, origin).pathname === `/projects/${projectId}/api/plugins/io.molis.work.pages/pages/${a.id}`) {
+      const end = response.end;
+      response.end = (...args: Parameters<typeof end>) => {
+        heldStatus = response.statusCode;
+        heldSaves.push(() => { Reflect.apply(end, response, args); }); saveArrived();
+        return response;
+      };
+    }
+    for (const handler of handlers) handler.call(server, request, response);
+  });
+  await pluginFrameInitScript(t, browser, `
+    window.t405HeldItemIntents=[];window.t405TaggedCount=0;window.t405IntentBarriers=0;
+    addEventListener('message',event=>{
+      if(event.data?.type==='t405-record-intent-barrier')window.t405IntentBarriers++;
+      if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t405InitialItem=event.data.config.itemTab;
+    },true);
+    const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
+    Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){
+      const port=this;
+      descriptor.set.call(port,typeof handler!=='function'?handler:event=>{
+        if(event.data?.type==='ui'&&event.data.name==='openItem'&&event.data.itemTabId){
+          window.t405TaggedCount++;
+          if(window.t405HoldItemIntent){window.t405HeldItemIntents.push({message:event.data,deliver:()=>handler.call(port,event)});return;}
+        }
+        handler.call(port,event);
+      });
+    }});
+    window.t405ReleaseItemIntent=()=>{const held=window.t405HeldItemIntents.shift();if(!held)throw Error('No held record intent');held.deliver();parent.postMessage({type:'t405-record-intent-barrier'},location.origin);};
+    let frameApi;
+    Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){
+      const mount=api.mount;
+      api.mount=(root,host,pack)=>{if(pack.id==='pages'&&!host.side&&new URL(location.href).searchParams.get('paneItem')===${JSON.stringify(a.id)}){window.t405EarlySelects=(window.t405EarlySelects||0)+1;root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(a.id)}}}));}return mount(root,host,pack);};frameApi=api;
+    }});
+    globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{
+      if(key==='pages'&&!host.side){window.t405Host=host;const editor=window.MolisWorkPagesEditor;
+        window.MolisWorkPagesEditor={...editor,mount(...args){return window.t405Editor=editor.mount(...args);}};}
+      return factory(host);
+    };return true;}});
+  `);
+  const aRight = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-a"]');
+  const aLeft = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="left-a"]');
+  const bRight = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-b"]');
+  const defaultPage = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-default"]');
+  await browser.setViewport(2200, 1000);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
+  await waitFor("document.querySelector('[data-tab-edge=right]')");
+  await evaluate("document.querySelector('[data-tab-edge=right]').click()");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelectorAll('iframe[data-pane-owner]:not([hidden])').length===2");
+  const paneIds = await evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left).map(p=>p.dataset.tabPane)");
+  const [left, right] = paneIds;
+  const layout = () => evaluate<{ panes: Array<{ id: string; activeTabId: string; tabs: Array<{ id: string; kind: string; itemId?: string; title?: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}'))`);
+  const initial = await layout(), leftTab = initial.panes.find(p => p.id === left)!.activeTabId, rightTab = initial.panes.find(p => p.id === right)!.activeTabId;
+  const ownerSelector = (paneId: string, tabId: string) => `iframe[data-pane-owner="${paneId}"][data-pane-tab="${tabId}"]`;
+  const sourceSelector = ownerSelector(right!, rightTab);
+  const ownerWindow = `document.querySelector(${JSON.stringify(sourceSelector)}).contentWindow`;
+  await evaluate(`document.querySelector(${JSON.stringify(sourceSelector)}).dataset.full16Owner='right-a';document.querySelector(${JSON.stringify(ownerSelector(left!, leftTab))}).dataset.full16Owner='left-a'`);
+  await aRight.waitFor("document.querySelector('[data-pages-title]')?.value==='Item A'");
+  await aLeft.waitFor("document.querySelector('[data-pages-title]')?.value==='Item A'");
+  const rightBinding = await aRight.evaluate<{ tabId: string; itemId: string }>("window.t405InitialItem");
+  const leftBinding = await aLeft.evaluate<{ tabId: string; itemId: string }>("window.t405InitialItem");
+  assert.equal(rightBinding.itemId, a.id); assert.equal(leftBinding.itemId, a.id); assert.notEqual(rightBinding.tabId, leftBinding.tabId, "initial bindings belong to their own pane, never the globally focused one");
+  assert.ok(await evaluate(`${ownerWindow}.t405EarlySelects>0`), "a select deliberately preceded the mount's listener; initial config still reads the owner");
+  const itemCount = async (id: string) => (await layout()).panes.find(p => p.id === right)!.tabs.filter(tab => tab.kind === "item" && tab.itemId === id).length;
+  // Programmatic selection keeps its existing in-place behavior; it emits no new item intent.
+  await aRight.evaluate(`document.querySelector('button[data-page-id="${b.id}"]').click()`);
+  await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item B'");
+  assert.equal(await itemCount(b.id), 0); assert.equal(await evaluate(`${ownerWindow}.t405TaggedCount`), 0);
+  await aRight.evaluate(`document.querySelector('button[data-page-id="${a.id}"]').click()`);
+  await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
+  assert.equal(await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]'),box=row?.getBoundingClientRect();return Boolean(row?.checkVisibility()&&box.width>0&&box.height>0);})()`), true, "the actual right-A pane keeps a visible Pages row before independent control input");
+  // An independent control inside a broad declared row keeps its own action, rather than opening the row's item.
+  await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]');const control=document.createElement('span');control.dataset.t405RowControl='1';control.setAttribute('role','button');control.tabIndex=0;control.textContent='control';control.addEventListener('click',event=>{event.stopPropagation();window.t405ControlClicks=(window.t405ControlClicks||0)+1;});row.append(control);})()`);
+  await aRight.click("[data-t405-row-control]");
+  assert.equal(await aRight.evaluate("window.t405ControlClicks"), 1); assert.equal(await itemCount(b.id), 0);
+  await aRight.evaluate("(()=>{window.t405OriginalEditor=window.t405Editor;window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror');})()");
+  await aLeft.evaluate("void(window.t405OriginalEditorNode=document.querySelector('[data-pages-editor] .ProseMirror'))");
+  await evaluate(`void(window.t405OriginalAFrame=document.querySelector(${JSON.stringify(sourceSelector)}))`);
+  const draft = "Original A editor draft held across B navigation";
+  holdSaves = true;
+  await aRight.evaluate(`(()=>{const view=window.t405Editor.view;view.dispatch(view.state.tr.replaceWith(0,view.state.doc.content.size,view.state.schema.nodes.paragraph.create(null,view.state.schema.text(${JSON.stringify(draft)}))));})()`);
+  await saveHeld; assert.equal(heldStatus, 200, "the real A save handler completed while its reply remains held");
+  await aRight.click(`button[data-page-id="${b.id}"]`);
+  await waitFor(`(()=>{const s=JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')),p=s.panes.find(p=>p.id===${JSON.stringify(right)});return p.tabs.find(t=>t.id===p.activeTabId)?.itemId===${JSON.stringify(b.id)};})()`);
+  let saved = await layout(), rightPane = saved.panes.find(p => p.id === right)!, bTab = rightPane.activeTabId;
+  assert.equal(rightPane.tabs.find(tab => tab.id === rightTab)?.itemId, a.id); assert.equal(rightPane.tabs.find(tab => tab.id === bTab)?.title, "Item B");
+  assert.equal(saved.panes.find(p => p.id === left)!.activeTabId, leftTab);
+  await evaluate(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).dataset.full16Owner='right-b'`);
+  await bRight.waitFor("document.querySelector('[data-pages-title]')?.value==='Item B'");
+  assert.match(await bRight.evaluate<string>("window.t405Editor.view.state.doc.textContent"), /Saved body B/);
+  assert.deepEqual(await aRight.evaluate(`({id:JSON.parse(document.querySelector('[data-work-surface]').dataset.assistantContext).object.id,title:document.querySelector('[data-pages-title]').value,text:window.t405Editor.view.state.doc.textContent,sameEditor:window.t405Editor===window.t405OriginalEditor,sameNode:document.querySelector('[data-pages-editor] .ProseMirror')===window.t405OriginalEditorNode})`),
+    { id: a.id, title: "Item A", text: draft, sameEditor: true, sameNode: true });
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(sourceSelector)})===window.t405OriginalAFrame && window.t405OriginalAFrame.hidden`), true);
+  assert.equal(await aLeft.evaluate("document.querySelector('[data-pages-title]').value==='Item A' && document.querySelector('[data-pages-editor] .ProseMirror')===window.t405OriginalEditorNode"), true);
+  assert.equal(await evaluate(`new URL(document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).src).searchParams.get('paneItem')`), b.id, "read the actual B frame, not retained hidden A");
+  const selectTab = async (id: string) => { await click(`[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-tab-id="${id}"] .tab-item-trigger`); };
+  await selectTab(rightTab);
+  await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
+  assert.equal(await aRight.evaluate(`window.t405Editor===window.t405OriginalEditor && window.t405Editor.view.state.doc.textContent===${JSON.stringify(draft)}`), true);
+  holdSaves = false; heldSaves.splice(0).forEach(release => release());
+  await aRight.waitFor("document.querySelector('[data-pages-editor-status]').textContent==='已保存'");
+  await aRight.click(`button[data-page-id="${b.id}"]`);
+  await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)})?.activeTabId===${JSON.stringify(bTab)}`);
+  await bRight.waitFor("document.querySelector('[data-pages-title]').value==='Item B'");
+  assert.equal(await itemCount(b.id), 1); assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, bTab, "B deduplicates to its original tab");
+  await bRight.click(`button[data-page-id="${b.id}"]`);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).contentWindow.t405TaggedCount`), 0, "same-item clicks do not emit a new item intent");
+  await evaluate(`document.querySelector('[data-tab-pane="${left}"]').click()`);
+  await evaluate(`document.querySelector('[data-tab-pane="${right}"]').click()`);
+  await bRight.waitFor("document.querySelector('[data-pages-title]').value==='Item B'");
+  const holdIntent = async (id: string) => {
+    await selectTab(rightTab); await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
+    await evaluate(`${ownerWindow}.t405HoldItemIntent=true`);
+    await aRight.click(`button[data-page-id="${id}"]`);
+    await waitFor(`${ownerWindow}.t405HeldItemIntents.length===1`);
+  };
+  const releaseIntent = async (before = "", after = "") => {
+    const barriers = await evaluate<number>("window.t405IntentBarriers");
+    await evaluate(`(()=>{const view=${ownerWindow};${before}view.t405ReleaseItemIntent();${after}view.t405HoldItemIntent=false;})()`);
+    await waitFor(`window.t405IntentBarriers===${barriers + 1}`);
+  };
+  await holdIntent(c.id); await selectTab(bTab); await releaseIntent();
+  assert.equal(await itemCount(c.id), 0, "an actual held intent from a now-hidden A frame opens nothing");
+  for (const kind of ["default", "different item"] as const) {
+    await holdIntent(c.id);
+    const change = `const tab=view.document.querySelector('[data-work-surface=pages]').closest('[data-tab-pane]').querySelector('[data-tab-strip] [data-tab-id="'+CSS.escape(view.t405HeldItemIntents[0].message.itemTabId)+'"][aria-current="page"]'),saved={...tab.dataset};`;
+    const mutate = kind === "default" ? "tab.dataset.tabKind='plugin';delete tab.dataset.itemId;" : `tab.dataset.tabId='later-item-tab';tab.dataset.itemId=${JSON.stringify(b.id)};`;
+    await releaseIntent(change + mutate, "Object.assign(tab.dataset,saved);");
+    assert.equal(await itemCount(c.id), 0, `${kind} owner state rejects the earlier tagged intent`);
+  }
+  await holdIntent(d.id);
+  await releaseIntent("view.document.querySelector('[data-work-surface=pages]').remove();");
+  assert.equal(await itemCount(d.id), 0, "a removed source root cannot replay its earlier item intent");
+  await selectTab(bTab);
+  await bRight.evaluate(`window.t405Host.openItem('pages',${JSON.stringify(c.id)},'Item C')`);
+  await waitFor(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}')).panes.find(p=>p.id===${JSON.stringify(right)}).tabs.some(t=>t.itemId===${JSON.stringify(c.id)})`);
+  assert.equal(await itemCount(c.id), 1, "the existing untagged legal openItem still works");
+  await click(`[data-tab-pane="${right}"] [data-tab-strip] .tab-item[data-plugin=pages][data-tab-kind=plugin] .tab-item-trigger`);
+  await evaluate(`document.querySelector('iframe[data-pane-owner="${right}"]:not([hidden])').dataset.full16Owner='right-default'`);
+  await defaultPage.waitFor("window.t405InitialItem===null && document.querySelector('[data-pages-rows]')");
+  const defaultTab = (await layout()).panes.find(p => p.id === right)!.activeTabId;
+  await defaultPage.click(`button[data-page-id="${c.id}"]`);
+  await defaultPage.waitFor("document.querySelector('[data-pages-title]').value==='Item C'");
+  assert.equal((await layout()).panes.find(p => p.id === right)!.activeTabId, defaultTab, "a default plugin page still selects in place");
+  await selectTab(bTab); await browser.reloadPage();
+  await waitFor(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))})`);
+  await evaluate(`document.querySelector(${JSON.stringify(ownerSelector(right!, bTab))}).dataset.full16Owner='right-b'`);
+  await bRight.waitFor("document.querySelector('[data-pages-title]')?.value==='Item B'");
+  saved = await layout(); rightPane = saved.panes.find(p => p.id === right)!;
+  assert.equal(rightPane.activeTabId, bTab); assert.equal(rightPane.tabs.find(tab => tab.id === rightTab)?.itemId, a.id);
+  assert.equal(saved.panes.find(p => p.id === left)!.activeTabId, leftTab);
 });

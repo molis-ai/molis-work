@@ -3,12 +3,10 @@ import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginPlatform } from './plugin-platform.js';
 import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
-import { pluginPagesFor } from './plugin-page-authority.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { followInstalledActions } from './installed-action-registration.js';
 
 interface ExposurePorts {
-  homeDirectory: string; actorId: string;
   actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
   exposed: Map<string, InstalledPluginActions>; recoveryErrors: Map<string, string>;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
@@ -39,14 +37,6 @@ export function installedPluginExposure(c: ExposurePorts) {
       },
         () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation });
       c.exposed.set(pluginId, exposure); c.changed();
-      const withdrawPage = pluginPagesFor(c.homeDirectory).connect({
-        manifest: c.platform.supervisor.manifest(pluginId)!, install_id: record.install_id, project_id: c.actions.project_id, actor_id: c.actorId,
-        requestAllowed: (method, path) => method === 'POST' && path === '/api/plugin-builder/installed/' + pluginId + '/call',
-        assertCurrent(permission) {
-          if (!current() || (permission && !c.recordFor(pluginId)?.grants.includes(permission))) throw new ActionError('actions.forbidden', '插件页面的安装权限已变化');
-        },
-      });
-      const dispose = exposure.dispose; exposure.dispose = () => { withdrawPage(); dispose(); };
       await c.catalog();
       exposure.assertReady();
       if (!current()) throw new ActionError('actions.provider_replaced', '原插件曝光已失效，不能采用旧目录结果');

@@ -12,6 +12,8 @@ export interface MolisWorkWebView {
   inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxStageData["judgment"];
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
+  /** Presentation-only main plugin requested by this page's URL; resolved against current offered surfaces by the shell. */
+  initial_plugin?: string;
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];

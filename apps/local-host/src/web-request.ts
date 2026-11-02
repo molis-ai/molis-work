@@ -170,7 +170,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
     const prepared = await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
-      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }), stage_request);
+      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.
     const inbox = view.stage_data?.inbox as InboxStageData | undefined;
@@ -201,7 +201,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handlePluginStageFragmentHttp(request, response, url, { shown: () => shownPlugins(options.projectId),
       invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer,
       context: { route_prefix: options.routePrefix ?? "", project: options.project ?? null, demo: Boolean(options.demo) },
-      bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }),
+      bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }),
       owner: async key => {
         const state = await ensureProjectPlugins(pluginPorts), home = await homeStageHalves(localHost.homePlugins);
         const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key) ?? home?.entries.find(item => item.project_plugin_id === key);

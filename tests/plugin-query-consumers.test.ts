@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedQueryActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
-import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { cachedMolisWorkWebView, declaredStageData } from "@molis-ai/molis-work-app-local-host";
@@ -195,6 +195,18 @@ for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC
   for (const surface of expected) assert.equal(html.split(`data-owner-probe="${surface}"`).length - 1, 1, surface);
   assert.equal(new Set(draws.map(draw => (draw.model as StagePageModel).data)).size, 1, "all surfaces use the one stage read result");
   assert.equal(seen[0]!.caller.project_id, one.project_id);
+  // FULL15: exercise the actual URL producer as well as the shell's page-owner presentation fixture.
+  const direct = await request(`${base}/?openPlugin=${encodeURIComponent(id)}`);
+  assert.equal(direct.status, 200);
+  const initial = await direct.text();
+  assert.ok(initial.includes(`data-desktop-surface="${id}"`));
+  assert.ok(initial.includes(`id="goal-tree-pane" data-desktop-directory="${id}"`));
+  assert.doesNotMatch(initial.match(/<main class="immersive-workspace[^>]*>/u)![0], /is-plugin-directory-empty/u);
+  for (const requested of ["not-offered", "settings", "shelf"]) {
+    const response = await request(`${base}/?openPlugin=${requested}`), html = await response.text();
+    assert.equal(response.status, 200);
+    assert.ok(html.includes('id="goal-tree-pane" data-desktop-directory="root"'), `${requested} does not claim a main directory`);
+  }
   draws.length = 0; seen.length = 0;
   for (const surface of ["persisted-detail", "frame-block"]) {
     const response = await request(`${path}/objects/node%252Fone?surface=${surface}&actor_id=imposter&project_id=foreign&extra=never`);
@@ -239,4 +251,48 @@ test("RAC-2507 RAC-2509 a single-database fixture also reads the actual owners a
       assert.equal(response.status, 200); assert.match(await response.text(), /Fixture owner body/);
     }
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(resolve)); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("T405-FULL17-A/B Inbox SSR and fragment read their saved judgment metadata without executing its handler", { timeout: 60_000 }, async t => {
+  const rule: ActionDefinition = { capability_id: "metadata-fixture.inbox.judge", version: 1, operation: "command", action: {
+    title: "已保存的外部判断", description: "A separately installed judgment", kind: "judgment", scope: "project", audiences: ["user", "workflow"], permissions: ["metadata-fixture:judge"],
+    subject_kinds: ["inbox_entry"], input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
+  let executions = 0;
+  const views: ActionCallContext[] = [], plugin: PluginDefinition = { manifest: {
+    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.inbox-metadata", version: "1.0.0", name: "判断元数据",
+    kind: "app", publisher: { publisher_id: "example", signature: "inbox-metadata" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "metadata-fixture:judge", required: true, reason: "执行独立判断" }],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [rule],
+  }, start() { return { kind: "app", actions: [{ ...rule, availability(caller) { views.push(caller); return { available: true }; },
+    handle(caller) { views.push(caller); executions++; return { status: "ok", suggested_behavior_ids: ["inbox.verify"] }; } }] }; } };
+  const { host, home, project, request } = await serveHomeRuntime(t, { pluginFixtures: { project: [plugin] } });
+  const one = await project("Inbox metadata"), base = `/projects/${one.project_id}`;
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
+    for (const id of ["feed", "inbox"]) if (!catalog.listProjectPlugins(one.project_id).includes(id)) catalog.addProjectPlugin({ project_id: one.project_id, plugin_id: id, actor_id: "owner" });
+  });
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: one.project_id,
+    permissions: [...INBOX_ACTION_PERMISSIONS, "metadata-fixture:judge", "evidence:read"] };
+  const item = await host.withProject(one.reference, runtime => {
+    const feed = createLocalFeedApplication(runtime.store.db), source = createLocalFeedSourceService(runtime.store.db, one.project_id)
+      .register({ kind: "research_library", repository: "fixture/metadata", research_source: "owner" }).source;
+    const item = feed.ingestItem({ source, externalId: "metadata", title: "元数据读取材料", summary: "待核查材料摘要", body: "需要核查的原文", occurredAt: new Date().toISOString(), attention: false }).item;
+    return feed.ensureInboxEntryForFeedItem(one.project_id, item.item_id, "manual").entry;
+  });
+  await host.actionClient(one.reference).invoke(caller, inboxActions.readJudgment, {});
+  await host.sceneClient(one.reference).bind(caller, { binding_id: inboxSceneBindingId(one.project_id), scene_id: inboxNextScene.scene_id, scene_version: 1,
+    project_id: one.project_id, enabled: true, function: { capability_id: rule.capability_id, version: 1 }, title: "Inbox 下一步", href: base });
+  for (const path of [base, `${base}/api/stage/inbox`]) {
+    const response = await request(path); assert.equal(response.status, 200, await response.clone().text());
+    assert.match(await response.text(), /已保存的外部判断/); assert.equal(executions, 0, "rendering reads declarations and never evaluates the judgment");
+  }
+  const board = await request(`${base}/api/board`); assert.equal(board.status, 200);
+  const stage = ((await board.json()) as { stage_data: { inbox: InboxStageData } }).stage_data.inbox;
+  assert.equal(stage.judgment?.name, rule.action.title); assert.equal(stage.judgment?.available, true);
+  assert.equal(executions, 0);
+  const evaluated = await host.actionClient(one.reference).invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [item.entry_id] }) as { judgments: unknown[] };
+  assert.equal(evaluated.judgments.length, 1); assert.equal(executions, 1);
+  const current = await request(`${base}/api/board`), snapshot = (await current.json()).stage_data.inbox;
+  assert.equal(snapshot.judgments.length, 1, "stage recommendations retain the real saved binding, subject and revision filters");
+  assert.equal(executions, 1, "reading the saved recommendation does not run the handler again");
+  for (const view of views) assert.equal(Object.hasOwn(view, "stage_scene_metadata"), false, "the judgment's availability and handler never receive the Host envelope");
 });

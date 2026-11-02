@@ -198,6 +198,8 @@ export interface RuntimeStageOwner {
   readonly install_id: string;
   /** Public instance binding, not a page credential. Reusing a logical name never revives old rendered references. */
   readonly producer: string;
+
+  readonly installation_generation: string;
   readonly view: UiContribution;
   assertCurrent(): void;
   capturePermission(permission: string): () => void;
@@ -225,7 +227,7 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
       || JSON.stringify(view.descriptor) !== descriptor) throw new ActionError("actions.provider_changed", "原舞台实例、声明或授权已变化，请重新读取");
   };
   assertCurrent();
-  return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id,
+  return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id, installation_generation: record.installation_generation,
     producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent,
     capturePermission: permission => platform.runtime.capturePermission(record.install_id, permission) };
 }

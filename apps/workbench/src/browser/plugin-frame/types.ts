@@ -40,6 +40,7 @@ export interface FrameConfig {
   mount: UiClientMount | null;
   searchRow?: FramePack["searchRow"];
   recordRow?: FramePack["recordRow"];
+  itemTab: { tabId: string; itemId: string } | null;
   surface: string;
   pluginId: string;
   nativeFiles: boolean;
@@ -86,7 +87,7 @@ export type FrameUp =
   | { type: "terminal"; id: number; command: UiTerminalCommand }
   | { type: "download"; filename: string; mime: string; bytes: ArrayBuffer } | { type: "print"; html: string }
   | { type: "page-message"; message: UiPageMessage }
-  | { type: "ui"; name: "openItem" | "openBeside" | "openPlugin" | "hideDirectory" | "showToast" | "status"; args: unknown[] }
+  | { type: "ui"; name: "openItem" | "openBeside" | "openPlugin" | "hideDirectory" | "showToast" | "status"; args: unknown[]; itemTabId?: string }
   | { type: "link"; url: string; download: boolean } | { type: "context"; value: string | null; expanded: string | null }
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
 export type FrameDown =
@@ -107,7 +108,7 @@ export type FrameDown =
   | { type: "model-ready" }
   | { type: "terminal-event"; event: UiTerminalEvent } | { type: "terminal-sent"; id: number; error?: string }
   | { type: "page-message"; message: UiPageMessage }
-  | { type: "select"; detail: unknown } | { type: "collapse" } | { type: "dispose" };
+  | { type: "select"; detail: unknown; itemTab: FrameConfig["itemTab"] } | { type: "collapse" } | { type: "dispose" };
 
 declare global {
   interface Window { molisPluginFrames: typeof globalThis.molisPluginFrames }

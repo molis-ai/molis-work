@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 import { BUILTIN_PLUGIN_CATALOG, renderStagePage, stageContributionId } from "@molis-ai/molis-work-app-workbench";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -68,6 +69,59 @@ function emptyView(): MolisWorkWebView {
     feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
   } as MolisWorkWebView;
 }
+
+test("T405-FULL-15: the first paint reserves only the active, enabled and actually rendered declared directory", () => {
+  const id = "initial-directory-probe";
+  const directory = [{ id, plugin_id: "io.example.initial-directory", name: "Initial directory", chosen: true,
+    ui: { views: [{ view_id: "directory", slot: "navigator" as const, title: "Initial directory", order: 1 }] } }];
+  const page = { owner: id, html: `<section data-work-surface="${id}">Runtime stage</section>`, parts: { open_stage: true }, before_global_search: "", after_global_search: "" };
+  const panel = { [id]: "<div data-initial-directory-probe>Runtime directory</div>" };
+  for (const [name, overrides, expected] of [
+    ["declared runtime directory", {}, id],
+    ["no actual panel", { plugin_panels: {} }, "root"],
+    ["alias-only panel", { plugin_panels: { [id]: '<div data-directory-panel="another-directory">Alias contents</div>' } }, "root"],
+    ["explicit owner panel", { plugin_panels: { [id]: `<div data-directory-panel="${id}">Owner directory</div>` } }, id],
+    ["no directory declaration", { plugin_directory: [] }, "root"],
+    ["disabled plugin", { shown_plugins: [] }, "root"],
+    ["root page", { page_stage: undefined }, "root"],
+  ] as const) {
+    const html = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [id], plugin_directory: directory, plugin_panels: panel, page_stage: page, ...overrides });
+    const workspace = html.match(/<main class="immersive-workspace[^>]*>/u)![0];
+    assert.equal(workspace.includes("is-plugin-directory-empty"), expected === "root", `${name}: initial column width`);
+    assert.ok(html.includes(`id="goal-tree-pane" data-desktop-directory="${expected}"`), `${name}: initial aside selection`);
+    const section = html.match(new RegExp(`<section[^>]*data-plugin-section="${id}"[^>]*>`, "u"));
+    assert.equal(Boolean(section && !/\shidden(?:\s|>)/u.test(section[0])), expected === id, `${name}: the same directory starts active`);
+  }
+});
+
+test("T405-FULL-15: the shell applies the same project's saved directory width before CSS, with collection isolation and embedded exclusion", () => {
+  const key = "molis-work-ui:" + PROJECT;
+  for (const [collection, width, storage, expected] of [
+    ["current", 820, { [key + ":current"]: '{"treeWidth":240}' }, 240],
+    ["current", 1440, { [key]: '{"treeWidth":311}' }, 311],
+    ["current", 820, { [key + ":current"]: '{"treeWidth":900}', [key]: '{"treeWidth":311}' }, 460],
+    ["archive", 820, { [key + ":archive"]: '{"treeWidth":190}', [key + ":current"]: '{"treeWidth":311}' }, 200],
+    ["trash", 1440, { [key + ":trash"]: '{"treeWidth":367}' }, 367],
+    ["archive", 820, { [key]: '{"treeWidth":311}' }, undefined],
+    ["current", 390, { [key + ":current"]: '{"treeWidth":240}' }, undefined],
+    ["current", 820, { [key + ":current"]: 'unreadable' }, undefined],
+    ["current", 820, {}, undefined],
+  ] as const) {
+    const page = { owner: "home", html: "", parts: { body_attributes: { "data-board-view": collection } }, before_global_search: "", after_global_search: "" };
+    const html = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [], page_stage: page });
+    const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]!).find(source => source.includes(key));
+    assert.ok(script); assert.ok(html.indexOf(script) < html.indexOf('rel="stylesheet"'), "the preference runs before stylesheet/layout");
+    const styles: Array<{ textContent?: string }> = [], reads: string[] = [], window: { parent?: object } = {};
+    window.parent = window;
+    runInNewContext(script, { window, innerWidth: width, matchMedia: () => ({ matches: width <= 600 }),
+      sessionStorage: { getItem(name: string) { reads.push(name); return (storage as Record<string, string>)[name] ?? null; } },
+      document: { createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
+    assert.deepEqual(styles.map(style => style.textContent), expected === undefined ? [] : [`body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:${expected}px}`]);
+    assert.ok(reads.every(name => name === key + ":" + collection || collection === "current" && name === key));
+  }
+  const embedded = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [], pane_plugin: "home" });
+  assert.ok(![...embedded.matchAll(/<script>([\s\S]*?)<\/script>/g)].some(match => match[1]!.includes(key)), "embedded panes do not read the outer project's directory preference");
+});
 
 /** Stage pages in the owner document (a framed stage's own document travels inert, so it is not counted). */
 const stages = (html: string, surface: string) => (html.match(new RegExp(`\\sdata-work-surface="${surface}"`, "g")) ?? []).length;

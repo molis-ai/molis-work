@@ -279,7 +279,7 @@ export const STUDIO_EN: Record<string, string> = {
   "这个插件当前没有运行，请在创作台里启用": "This plugin is not running now. Enable it in the studio.",
   "找不到这个插件的已安装版本": "The installed version of this plugin was not found",
   // What the studio's routes answer when a request cannot go through (apps/local-host/src/plugin-builder/agent-surface.ts,
-  // plugins/native/plugin-builder/src/agent-workflow.ts and agent-store.ts). The page shows a message as a whole, or its
+  // studio-release.ts, plugins/native/plugin-builder/src/agent-workflow.ts, agent-publication.ts and agent-store.ts). The page shows a message as a whole, or its
   // opening sentence ending in "：" followed by the detail as the host wrote it. What the workflow raises while a build runs
   // (a model answer that fails validation, a gate or an acceptance that fails) is build-record text and stays as written (BL-125).
   "界面组件不存在": "That interface component does not exist",
@@ -306,7 +306,7 @@ export const STUDIO_EN: Record<string, string> = {
   "这个项目不能在这里启用插件": "Plugins cannot be enabled for this project here",
   "组件选择已失效": "The component selection is no longer valid",
   "没有可撤销的合同修订": "There is no contract revision to undo",
-  "全部功能和浏览器验收通过后才能发布": "You can publish only after all features and browser checks pass",
+  "目标范围的功能检查和浏览器验收全部通过后才能发布": "You can publish only after the feature checks and browser acceptance pass for the target scope",
   "发布版本不存在": "That published version does not exist",
   "未知构建操作": "Unknown build operation",
   "找不到这个创作草稿": "That draft was not found",

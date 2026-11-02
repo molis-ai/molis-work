@@ -4,6 +4,8 @@
 
 包名：`@molis-ai/molis-work-plugin-runtime`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+Host 的 `stage_scene_metadata` 只供原动作 scope 的 owner 场景服务读取；`callback-context.ts` 从处理器、可用性与场景回调视图中整个删除它。插件看不到 accepted 引用，也不能借 metadata 改变自身的发现、调用或转授权限。`tests/security-invariants-plugin-scene-client.test.ts` 的 FULL17 与 `tests/plugin-action-query.test.ts`、`tests/security-invariants-plugin-action-delegation.test.ts` 覆盖这些边界。
+
 
 Home 激活通过 `actions.home` 选择稳定插件 provider，并在启动上下文提供 `provider_id`；项目行为不变。Supervisor 条目的 `enabled: false` 登记工厂但不启动，显式 `enable` 才恢复；Host 正常关闭先 `stop(..., { preserve_enabled: true })`，再撤销监督器引用。真实 Home 生命周期验证：`tests/issue-home-runtime.test.ts`。
 

@@ -87,6 +87,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     persist();
     host.prepareSurface?.(findTopLevelSurface(plugin), "open");
     if (typeof view === "string") selectPluginView(pane, plugin, { id: view, panel, intent: "open" });
+    setMobileView("document");
   };
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).
@@ -179,6 +180,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     apply();
     persist();
     host.prepareSurface?.(findTopLevelSurface(plugin), "open");
+    setMobileView("document");
   };
   // An item (or a plugin's own view) in the pane beside this one; a narrow window has no room, so it opens in place.
   const openBeside = (plugin, itemId, title) => {

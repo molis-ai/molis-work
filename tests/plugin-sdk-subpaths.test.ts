@@ -62,7 +62,7 @@ test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, 
     assert.equal(manifest.peerDependenciesMeta?.[name]?.optional, true, `${name} is an optional peer`);
   }
   // The README tells such a plugin what to add, with the peer ranges; every package of the repository that imports /rich-text adds
-  // the same ranges (the workbench and Coding, PG-062).
+  // the same ranges (Feed and Coding, PG-062).
   const readme = readFileSync(join(sdkDirectory, "README.md"), "utf8");
   // The workspace's package roots, as pnpm-workspace.yaml lists them.
   const packages = [...["apps", "packages", "modules", "horizontal", "plugins/native", "plugins/official-integrations"].flatMap(group =>
@@ -70,7 +70,7 @@ test("W5-01-CODING-61: only /rich-text loads the Markdown parser and sanitizer, 
   const consumers = packages.filter(directory => directory !== "packages/plugin-sdk" && existsSync(join(root, directory, "src"))
     && readdirSync(join(root, directory, "src"), { recursive: true, encoding: "utf8" }).some(name => name.endsWith(".ts")
       && readFileSync(join(root, directory, "src", name), "utf8").includes("@molis-ai/molis-work-plugin-sdk/rich-text")));
-  assert.ok(consumers.includes("apps/workbench") && consumers.includes("plugins/native/coding"), consumers.join(", "));
+  assert.ok(consumers.includes("plugins/native/feed") && consumers.includes("plugins/native/coding"), consumers.join(", "));
   for (const name of ["marked", "sanitize-html"]) {
     const range = manifest.peerDependencies![name]!;
     assert.ok(readme.includes(`\`${name}@${range}\``), `the README names ${name}@${range}`);

@@ -11,6 +11,8 @@ Home 插件的 `PluginDatabaseDeclaration` / `PluginDatabase` 从 `platform/plug
 
 `platform/plugin` 的 `PluginActionClient` 在 BoundActionClient 上提供 `invokeQuery`。`ActionCallContext.query_only` 是 Host 设置的收窄标记，绑定的新 caller 与父 control 取逻辑或，任何一方为 true 都保留；不能从业务输入建立授权。Kernel 按当前登记的 operation 和 permissions 检查实际派发，发现之后替换定义也不能绕过。
 
+`ActionCallContext.stage_scene_metadata` 只由已认证 Host 的实际舞台读取入口给出，绑定该入口、安装世代、项目与声明的场景版本。它保存本人已接受的精确动作引用，只供该 owner 的实际绑定读取元数据，不授予执行或转授权限；Runtime 从插件的处理器、可用性与场景回调视图中删除它。仅匹配的舞台 `ActionSceneUsage` 可带 `function_title`，普通 usages 的字段不变。读取返回的是当次快照，等待中的撤权、替换和绑定变化会拒绝；返回后的变化由后续读取与真实执行重新校验。
+
 同一 `platform/plugin` 子路径的 `PluginOwnerFilesReader/Writer/Client/Declaration` 表达可信 Home 主人的私有文件树。`services.ownerFiles` 可缺省；独立读取需当前动作读权限，`write(run)` 只接同步回调并在退出后撤销 writer。目录和顶层条目是插件自己 Manifest 的 `owner_files`（PG-102），初始化钩子和实例来自可信启动条目，不从业务参数取得。
 
 ## 一次典型调用

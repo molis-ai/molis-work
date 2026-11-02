@@ -4,12 +4,13 @@ import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./una
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
-import type { UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiContribution, UiRenderRequest, WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
-import { renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { homeStarts, pluginDirectoryFor, sideEntries } from "./plugin-catalog.js";
+import { directoryPanelIdentity, renderDirectoryPluginSections, renderImmersiveHeader, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { directoryWidthPreferenceScript } from "./directory-width.js";
+import { homeStarts, islandEntries, pluginDirectoryFor, railEntries, sideEntries, sideOpenedPlugins } from "./plugin-catalog.js";
 import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
@@ -48,6 +49,10 @@ export interface WorkbenchShellPageView {
   page_stage?: RenderedStagePage;
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
+  /** Presentation-only URL intent; it never grants access to a plugin or a surface. */
+  initial_plugin?: string;
+  /** The actual owner contributions already read for this request. */
+  plugin_stage_views?: Readonly<Record<string, UiContribution | null>>;
   enabled_plugins?: readonly string[];
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: readonly string[];
@@ -127,23 +132,39 @@ function renderMolisWorkWeb(
   controlToken = "",
   desktopShell = false,
 ): string {
-  const initialDesktopDirectory = "root";
   const enabledPlugins = shownPagePlugins(view), pluginEnabled = (id: string) => enabledPlugins.includes(id), goalsEnabled = pluginEnabled("goals");
   const declared = renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_surfaces ?? [], unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface), page_owner: view.page_owner,
     model: pluginId => stageModel(pluginId, view) });
   const page = view.page_stage ?? declared.page, parts = page?.parts;
   const title = parts?.title ?? "Molis Work";
-  const initialDesktopSurface = parts?.open_stage ? page!.owner : "home";
   const bootstrap = parts?.bootstrap;
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
   const directory = pluginDirectoryFor(view.plugin_directory);
+  // A running Plugin's own panel wins over the built-in one; initial geometry and the rendered sections use this same set.
+  const directoryPanels = { ...declared.panels, ...(view.plugin_panels ?? {}) };
+  const requested = view.pane_plugin ?? view.initial_plugin;
+  const surfaces = [...(view.plugin_stage_surfaces ?? []), ...declared.surfaces];
+  const offered = [...railEntries(enabledPlugins, directory), ...islandEntries(enabledPlugins, directory)];
+  const contributions = requested ? [view.plugin_stage_views?.[`home:${requested}`], view.plugin_stage_views?.[`project:${requested}`],
+    ...BUILTIN_PLUGIN_CATALOG.filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
+  const requestedMain = requested && offered.some(entry => entry.id === requested) && !Object.hasOwn(sideOpenedPlugins(), requested)
+    && !(view.unavailable_plugin_stages ?? []).some(stage => stage.surface === requested)
+    && contributions.some(contribution => contribution?.descriptor.surfaces?.some(surface => surface.surface_id === "workbench"
+      && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html"
+      && surfaces.some(drawn => drawn.contribution_id === contribution.descriptor.contribution_id && drawn.surface === surface.surface_id)));
+  const initialDesktopSurface = parts?.open_stage ? page!.owner : requested && requestedMain ? requested : "home";
+  const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface
+    && directoryPanelIdentity(entry.id, directoryPanels[entry.id] ?? "").ids.includes(initialDesktopSurface))
+    ? initialDesktopSurface : "root";
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
+  const collection = parts?.body_attributes?.["data-board-view"];
+  const widthPreference = directoryWidthPreferenceScript(view.project?.project_id ?? "", collection === "archive" || collection === "trash" ? collection : "current", view.pane_plugin !== undefined);
 
   const html = renderWorkbenchDocument({
     preamble_html: `<!--
@@ -157,7 +178,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     lang: htmlLang(),
     title,
     head_before_title_html: controlTokenMeta(controlToken),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${homeToolKeysScript()}</script>
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${homeToolKeysScript()}</script>${widthPreference ? `<script>${widthPreference}</script>` : ""}
   <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
     body_attributes: {
       class: "immersive-workbench",
@@ -182,11 +203,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
-        ${renderDirectoryPluginSections(primitives, enabledPlugins, {
-          ...declared.panels,
-          // A running Plugin's own panel wins over the built-in one.
-          ...(view.plugin_panels ?? {}),
-        }, directory, initialDesktopDirectory, settingsDirectory)}
+        ${renderDirectoryPluginSections(primitives, enabledPlugins, directoryPanels, directory, initialDesktopDirectory, settingsDirectory)}
         </div>
       </aside>
       <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${L("调整目录宽度")}" aria-controls="goal-tree-pane" aria-valuemin="200" aria-valuemax="520" aria-valuenow="240" title="${L("拖动调整目录宽度，双击恢复默认")}"></div>

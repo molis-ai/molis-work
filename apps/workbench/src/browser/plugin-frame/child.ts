@@ -70,6 +70,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   Object.assign(globalThis, { molisWorkOpenExternalUrl: async (url: string) => send({ type: "link", url: new URL(url, config.origin).href, download: false }) });
   const terminal = globalThis.molisPageTerminal = childTerminal(port, scope, config.origin);
   const select = pageSelection(root, scope, config.searchRow);
+  let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
     mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope),
@@ -110,7 +111,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
     }
     else if (message.type === "focus") scope.frame(() => { if (scope.visible) dispatchEvent(new Event("focus")); });
-    else if (message.type === "select") select(message.detail);
+    else if (message.type === "select") { itemTab = message.itemTab; select(message.detail); }
     else if (message.type === "collapse") collapsePage(root);
     else if (message.type === "model-ready") document.dispatchEvent(new CustomEvent("molis-work:model-ready"));
     else if (message.type === "dispose") scope.dispose();
@@ -131,5 +132,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config); context(); send({ type: "ready" });
+  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config, () => itemTab); context(); send({ type: "ready" });
 }

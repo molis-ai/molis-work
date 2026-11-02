@@ -264,7 +264,7 @@ test("DOCK-08 Feed comes in place: its pages fill, its source directory joins th
   const feed = () => evaluate<Feed>(`({
     section: Boolean(document.querySelector('.directory-content-scroll > [data-plugin-section="feed"]')),
     rows: document.querySelectorAll('[data-source-list] [data-source-entry-id]').length,
-    details: document.querySelectorAll('[data-source-workbench] [data-source-detail]').length,
+    details: document.querySelectorAll('[data-feed-task-configs] [data-source-detail]').length,
     header: document.querySelectorAll('[data-feed-source-header] [data-feed-task-toggle]:not([data-feed-task-toggle="all"])').length,
     choices: document.querySelectorAll('[data-feed-sources-dialog] [data-feed-choose-kind]').length,
     panels: [...document.querySelectorAll('[data-directory-panel]')].map(panel => panel.dataset.directoryPanel),

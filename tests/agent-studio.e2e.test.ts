@@ -192,6 +192,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     assert.deepEqual(await installedPage.evaluate(`(async()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}const denied=[];for(const path of ['/api/plugin-builder/studio/state','/api/plugins/io.molis.work.schedule/tasks']){try{const r=await fetch('${options.routePrefix}'+path);denied.push(r.status)}catch{denied.push(403)}}return {parentDenied,token:document.querySelector('meta[name=molis-work-control-token]')?.content??null,denied};})()`), {parentDenied:true,token:null,denied:[403,403]});
     assert.equal(await installedPage.evaluate(`Boolean(document.querySelector('.as-installed-bar, a[href*="/plugin-builder/studio"]'))`), false, 'the frame shows only the plugin: no own header or link back');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
+    const oldCallStatus = await installedPage.evaluate<number>(`(async()=>{const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugin-builder/installed/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});await r.text();return r.status})()`);
+    assert.equal(oldCallStatus, 403, 'SYS-15: the installed page cannot POST its component-read body to the retired private alias');
     await installedPage.click('[data-pc-open="editor"]');
     await installedPage.fill('[data-component-id="editor"] [data-field]', '正式使用的第一条');
     await installedPage.click('[data-component-id="editor"] [type=submit]');
@@ -203,7 +205,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     // While the model takes its time, the plugin's list still answers at once: model calls run in their own process.
     modelDelay = 3000;
     await installedPage.click(`[data-record-id="${first}"] [data-pc-action=expand]`);
-    const quick = await installedPage.evaluate<number>(`(async()=>{const t=performance.now();const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugin-builder/installed/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});if(!r.ok)throw Error(await r.text());return performance.now()-t})()`);
+    const quick = await installedPage.evaluate<number>(`(async()=>{const t=performance.now();const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugins/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});if(!r.ok)throw Error(await r.text());return performance.now()-t})()`);
     assert.ok(quick < 1500, 'a read during a model call took ' + Math.round(quick) + 'ms');
     modelDelay = 0;
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('（预览替身模型）正式使用的第一条')`);
@@ -399,6 +401,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
     await page.evaluate(`(()=>{const real=window.fetch;window.__fail=null;window.fetch=(input,init)=>window.__fail&&init?.method==='POST'&&/\\/action$/.test(String(input))?Promise.resolve(new Response(JSON.stringify({error:window.__fail}),{status:400,headers:{'content-type':'application/json'}})):real(input,init);})()`);
     for (const [error, shown] of [
       ['草稿已改变，请刷新', 'The draft has changed. Refresh and try again.'],
+      ['目标范围的功能检查和浏览器验收全部通过后才能发布', 'You can publish only after the feature checks and browser acceptance pass for the target scope'],
       ['发布前请先修好调用模型的写法：src/plugin.ts:12 model.generate names no prompt', 'Fix how the plugin calls the model before publishing: src/plugin.ts:12 model.generate names no prompt'],
       ['一句宿主还没有英文的话：细节', '一句宿主还没有英文的话：细节'],
     ] as const) {

@@ -12,7 +12,8 @@ const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
 const TOKEN = "goals-risk-test-control-token-0123456789";
 
 test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined,
+    true);
   if (!browser) return;
   const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId, reloadPage } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");

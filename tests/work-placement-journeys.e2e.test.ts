@@ -233,7 +233,7 @@ test("placement journey: one document used by two projects and a Goal — edit, 
     if (tries > 50) assert.fail("the deleted document still reads as there");
     await evaluate("new Promise(resolve => setTimeout(resolve, 200))");
   }
-  await go(`/projects/${projectId}/?openPlugin=goals&openItem=CORE&openGoalView=work`);
+  await go(`/projects/${projectId}/?openPlugin=goals&openItem=CORE&openView=work`);
   await press('[data-goal-view="CORE"] [data-goal-materials-entry]');
   await waitFor(`Boolean(${j.visible(`[data-placement-material][data-placement-id="${doc.id}"]`)}) && ${j.visible(`[data-placement-material][data-placement-id="${doc.id}"]`)}.innerText.includes('原对象已删除')`, 15_000);
   await screenshot("deleted-in-goal");

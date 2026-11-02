@@ -32,7 +32,7 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   await evaluate(`${pane(paneId)}.querySelector('[data-frame-goal-work]').click()`);
   // 打开工作区 turns that pane, and only that pane, to the Goal's work view, and the workspace remembers it for the pane's tab.
   await waitFor(`${pane(paneId)}.querySelector('[data-goal-frame-surface]').hidden && !${pane(paneId)}.querySelector('[data-goal-node-workspace]').hidden`);
-  await waitFor(`(() => { const saved = JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}'))?.panes.find(p=>p.id==='${paneId}'); return saved?.tabs.find(tab=>tab.id===saved.activeTabId)?.goalView==='work'; })()`);
+  await waitFor(`(() => { const saved = JSON.parse(localStorage.getItem('molis-work-tab-workspace:${projectId}'))?.panes.find(p=>p.id==='${paneId}'); return saved?.tabs.find(tab=>tab.id===saved.activeTabId)?.view==='work'; })()`);
   assert.equal(await evaluate(`!${pane(otherPaneId)}.querySelector('[data-goal-frame-surface]').hidden && ${pane(otherPaneId)}.querySelector('[data-goal-frame-surface]').dataset.frameGoal==='CORE'`), true);
   // The Goal's document then loads into that pane; it is a full document read, slower than the switch itself.
   await waitFor(`${pane(paneId)}.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && !${pane(paneId)}.querySelector('[data-document-pane]').hasAttribute('aria-busy')`, 8_000);

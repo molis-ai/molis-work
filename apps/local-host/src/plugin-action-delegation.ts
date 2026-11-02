@@ -40,6 +40,7 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     // A plugin's own call (audience `plugin`) keeps its audience and its installation and Host caller: the Host checks them as it checks them
     // for that plugin's direct call, so the nested call can reach what that plugin could reach and nothing the delegating plugin can.
     const { plugin_install_id, host_plugin, beforeEffect, retainAuthority, retainBackgroundAuthority, ...inherited } = original;
+    Reflect.deleteProperty(inherited, "stage_scene_metadata");
     const plugin = original.audience === "plugin";
     const source = () => { grant(); assertCapturedPluginActionCurrent(scope, context); };
     const check = async () => { source(); await original.beforeEffect(); source(); };

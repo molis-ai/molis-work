@@ -165,7 +165,9 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
     page = await chrome.page();
     await load(prefix);
-    await page.wait("document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-feed-workbench]'))", { timeoutMs: 30_000 });
+    await page.wait("document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-feed-workbench]'))", { timeoutMs: 30_000,
+      describe: `JSON.stringify({saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-feed-workbench]').length,
+        frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,readyState:f.contentDocument?.readyState,feed:f.contentDocument?.querySelectorAll('[data-feed-workbench]').length}))})` });
     assert.deepEqual(JSON.parse(await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)), JSON.parse(saved), "a fresh browser process accepts the new layout without a second reset");
     await page.wait(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument.querySelector('[data-feed-workbench]')?.dataset.selectedSource===${JSON.stringify(source.source_id)})`);
     assert.deepEqual(await facts(), before, "Goal facts and Pages body/version/id and Feed source records are unchanged after reset and restart");

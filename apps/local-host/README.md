@@ -60,6 +60,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 ## 接入与边界
 
+已认证舞台入口在 `local-web-actions.ts` 保留本人已接受的精确引用为内部 `stage_scene_metadata`，并绑定实际 entry、owner 安装世代及场景版本；原执行名单仍按 owner actions/consumes 收窄。`plugin-scene-service.ts` 仅让同一真实动作与安装读取自己的保存绑定，查询和目录委托不转授该字段。等待后的同步授权检查直接重读目标所属数据库的安装与 grant；不把一次 usages 快照延长到最终多舞台 SSR 响应。FULL17 的 SSR/fragment 与撤权验证见 `tests/plugin-query-consumers.test.ts`、`tests/security-invariants-plugin-scene-client.test.ts` 与 `tests/local-web-actions.test.ts`。
+
 本包负责连接、事务装配、文件与 HTTP/进程 IO，不复制 Module 的业务规则。withScope 保持响应组合期间的资源存活，内部 invoke 仍进入正常队列。Host Client 仍是进程内实现（只调动作）；公共 ActionClient 另有复用现有常驻 Web Host 的本机转发通道。对外 MCP 由本包装配：目录合成、闸门、native 适配表见 [CLI 与开发 · 对外 MCP](../../docs/cli-and-development.md#对外-mcp)。
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
@@ -118,6 +120,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 ## 开发要求
 
 双实例可选权限的 Home 上限由 home-side / HomePluginHost 只读捕获匹配安装的原激活检查，项目平台仅对可信双实例接入，不同步两库。项目 setter 明确拒绝双实例可选权限修改；settings 私有 overview 从同一可信判定投影安装 ID，不改公开动作 schema。Home 缺失或停止只拒可选能力，必需能力与项目状态仍独立。回归：`tests/security-invariants-dual-instance-optional-permissions.test.ts`（RAC-2906 至 RAC-2910）。
+
+舞台元数据与执行使用同一 provider/scope/installation 判据、不同的本人权限上限。只有已验证的舞台入口能保留本人完整本地授权下的精确元数据引用；执行 permissions/allowed_actions 仍用原上限。额外目标的当前检查必须完整固定 capability、version 和 provider，不能用元数据引用执行或转授给查询、目录委托及回调。
 
 不留数据的已卸载安装在重装前，由现有同步 `keptDataDiscarded` 先核 KV owner 端口、再清主人文件、最后删该安装 KV（RAC-357-U1）。`createPluginPlatform` / `PluginHostExecutorOptions` 的 `deleteInstallationData` 是可信组合端口，真实项目装配、安装宿主和本地开发入口接现有 `SqlitePluginPrivateStorage` 的公开方法；Home 复用自身 storage。不留数据而缺端口时明确拒绝，不以客户端工厂冒充可清理。路径拒绝不删 KV，后一步失败拒绝新安装并保留原卸载事实；旧保留数据且明确丢弃的路径时序及回滚不变。回归见 `tests/security-invariants-sandbox-owner-files.test.ts`、`tests/plugin-lifecycle-states.test.ts`。
 

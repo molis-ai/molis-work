@@ -173,7 +173,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     void integrationRegistry().then(registry => registry.detach(pluginId)).catch(() => undefined);
   };
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; detach(pluginId); };
-  const exposeActions = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: isClosed, withdraw, homeDirectory: home, actorId: options.actorId,
+  const exposeActions = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: isClosed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
   const expose = async (release: InstalledRelease, onFailure?: 'caller') => {
     if (release.packaged?.manifest.kind !== 'integration') return exposeActions(release, onFailure);

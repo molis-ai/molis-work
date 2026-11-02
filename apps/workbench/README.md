@@ -115,6 +115,8 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 插件设置中，双实例的项目可选权限只读定位到个人空间，Home disabled/crashed 仍按安装、插件、发布者签名与信任配对；可信内部安装 ID 标识避免 Home 缺失时回落项目开关。required/requested/granted 仍表示各安装自己的声明与记录。回归：`tests/plugin-permission-switch.e2e.test.ts`（RAC-2910）。
 
+目录 SSR 与目录 section 共用实际 `data-directory-panel` 身份；owner 提供的另一目录别名不代表 owner 自己有目录。已存目录宽度从同项目/collection 的 session UI 键在首绘前应用到本页 workspace，和 resizer 共用 `directory-width.ts` 的边界；嵌入 pane 跳过，缺少偏好仍由响应式 CSS 决定。回归见 `tests/declared-stages.test.ts` 与原完整 `tests/load-geometry.e2e.test.ts`。
+
 - 浏览器交互回归先等待生产界面的可操作状态，再取点：按 [VUX-22 自然高度折叠合同](../../specs/visual-ui-experience/spec.md#disclosure-segmented)，展开到容纳目标按钮后，才由现有点击助手滚动并验证命中（`tests/goals-planning.e2e.test.ts`、`tests/feed-capture.e2e.test.ts`）。保留原等待上限、严格点击与业务结果断言；超时或遮挡仍失败，不增加固定睡眠、不关闭动效、不改产品布局。Feed 的预览零入箱、规则保存与真实消费、停用提供方后保留绑定仍由原用例验收。
 - 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器、Goal 终端（`src/terminal/`），以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。

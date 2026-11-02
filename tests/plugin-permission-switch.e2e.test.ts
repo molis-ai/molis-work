@@ -50,6 +50,7 @@ async function openPluginPage(t: TestContext) {
       if (request.method === "GET" && url.startsWith(`${prefix}/settings/plugins`)) { response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(html); return; }
       if (url === `${prefix}/api/plugin-trust/overview`) { json(200, { plugins: [projectPlugin], publishers: [] }); return; }
       if (url === "/api/settings/plugin-permissions/list") { json(200, { plugins: [homePlugin] }); return; }
+      if (url === `${prefix}/api/settings/plugin-project-reach/list`) { json(200, { project_name: "权限开关页面", plugins: [], capabilities: [] }); return; }
       if (url === `${prefix}/api/plugin-trust/permissions/set` || url === "/api/settings/plugin-permissions/set") {
         const body = JSON.parse(text) as { install_id: string; permission: string; granted: boolean };
         seen.push({ url, body });

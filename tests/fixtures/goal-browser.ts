@@ -20,7 +20,7 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
   webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
-  pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
+  pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[], profileTimeouts = false) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
@@ -100,11 +100,16 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   });
   // The limits stop a hang; they are not speed checks. They are sized for the Linux CI runner, which runs these pages about
   // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
-  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, profileTimeouts, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
   harness = browser;
   /** A page load may take far longer than any other command. */
-  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
-    return browser.command<T>(method, params, sessionId, timeoutMs);
+  async function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
+    try { return await browser.command<T>(method, params, sessionId, timeoutMs); }
+    catch (error) {
+      t.diagnostic(JSON.stringify({ method, error }, (_key, value: unknown) => value instanceof Error
+        ? { name: value.name, ...Object.fromEntries(Object.getOwnPropertyNames(value).map(name => [name, Reflect.get(value, name)])) } : value));
+      throw error;
+    }
   }
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();

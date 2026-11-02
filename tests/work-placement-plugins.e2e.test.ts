@@ -102,7 +102,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   assert.ok(spaces.some(space => space.project_id === other.project_id), "the second project is a place to put things");
 
   // 1. AC2 — launched from a Goal: the new deck goes into the Goal's project, is bound to the Goal and opens from there.
-  await go(`/projects/${projectId}/?openPlugin=goals&openItem=CORE&openGoalView=work`);
+  await go(`/projects/${projectId}/?openPlugin=goals&openItem=CORE&openView=work`);
   await press('[data-goal-view="CORE"] [data-goal-materials-entry]');
   await press('[data-placement-goal-materials][data-goal-id="CORE"] [data-placement-create="ppt"]');
   await card("已新建演示稿《");

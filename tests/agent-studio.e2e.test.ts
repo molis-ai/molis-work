@@ -399,6 +399,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
     await page.evaluate(`(()=>{const real=window.fetch;window.__fail=null;window.fetch=(input,init)=>window.__fail&&init?.method==='POST'&&/\\/action$/.test(String(input))?Promise.resolve(new Response(JSON.stringify({error:window.__fail}),{status:400,headers:{'content-type':'application/json'}})):real(input,init);})()`);
     for (const [error, shown] of [
       ['草稿已改变，请刷新', 'The draft has changed. Refresh and try again.'],
+      ['目标范围的功能检查和浏览器验收全部通过后才能发布', 'You can publish only after the feature checks and browser acceptance pass for the target scope'],
       ['发布前请先修好调用模型的写法：src/plugin.ts:12 model.generate names no prompt', 'Fix how the plugin calls the model before publishing: src/plugin.ts:12 model.generate names no prompt'],
       ['一句宿主还没有英文的话：细节', '一句宿主还没有英文的话：细节'],
     ] as const) {

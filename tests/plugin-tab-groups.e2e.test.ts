@@ -282,7 +282,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   const aLeft = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="left-a"]');
   const bRight = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-b"]');
   const defaultPage = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-full16-owner="right-default"]');
-  await browser.setViewport(1440, 1000);
+  await browser.setViewport(2200, 1000);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a.id}` }, sessionId));
   await waitFor("document.querySelector('[data-tab-edge=right]')");
   await evaluate("document.querySelector('[data-tab-edge=right]').click()");
@@ -308,6 +308,7 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
   assert.equal(await itemCount(b.id), 0); assert.equal(await evaluate(`${ownerWindow}.t405TaggedCount`), 0);
   await aRight.evaluate(`document.querySelector('button[data-page-id="${a.id}"]').click()`);
   await aRight.waitFor("document.querySelector('[data-pages-title]').value==='Item A'");
+  assert.equal(await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]'),box=row?.getBoundingClientRect();return Boolean(row?.checkVisibility()&&box.width>0&&box.height>0);})()`), true, "the actual right-A pane keeps a visible Pages row before independent control input");
   // An independent control inside a broad declared row keeps its own action, rather than opening the row's item.
   await aRight.evaluate(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]');const control=document.createElement('span');control.dataset.t405RowControl='1';control.setAttribute('role','button');control.tabIndex=0;control.textContent='control';control.addEventListener('click',event=>{event.stopPropagation();window.t405ControlClicks=(window.t405ControlClicks||0)+1;});row.append(control);})()`);
   await aRight.click("[data-t405-row-control]");

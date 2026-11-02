@@ -218,7 +218,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
-  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "explicit mobile Files navigation dismisses the outer directory drawer");
+  await b.click('.navigator-directory-toggle');
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "the real directory control closes the Dock's drawer");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
+  await b.click('[data-directory-show]');
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), true);
+  await b.evaluate("molisWorkOpenPlugin('files')");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "explicit main navigation dismisses the actual open drawer");
   assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
   await click(`${files} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${files} [data-files-text]').hidden`);

@@ -181,7 +181,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const comments = await pluginFrameBrowser(t, browser, "pages", '[data-side-body="plugin:pages/comments"] iframe');
-  const pane = await pluginFrameBrowser(t, browser, "pages", "iframe.tab-content-frame");
+  const pane = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-pas-owner="right-a"]');
   // Install before navigation so holding a frame also holds callbacks already queued by the host.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
     if(window===top){
@@ -264,6 +264,10 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   // PAS-01: a second real work pane owns B; changing focused panes changes the bound sidebar.
   await evaluate("window.firstPane=document.querySelector('[data-tab-pane]').dataset.tabPane;document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
+  await waitFor(`(()=>{const pane=document.querySelector('[data-tab-pane].is-focused');const frame=[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].find(frame=>frame.dataset.paneOwner===pane?.dataset.tabPane);if(!frame||new URL(frame.src).searchParams.get('paneItem')!==${JSON.stringify(a.id)})return false;frame.dataset.pasOwner='right-a';return true;})()`);
+  await pane.waitFor(`document.querySelector('[data-pages-title]')?.value === '讨论中的发布计划'`);
+  await pane.click('[data-pages-back]');
+  await pane.waitFor(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]'),box=row?.getBoundingClientRect();return row?.checkVisibility()&&box.width>0&&box.height>0;})()`);
   await pane.waitFor(`document.querySelector('button[data-page-id="${b.id}"]')`);
   await pane.click(`button[data-page-id="${b.id}"]`);
   await comments.waitFor(`document.querySelector('[data-comment-title]')?.textContent === '另一个文档'`);

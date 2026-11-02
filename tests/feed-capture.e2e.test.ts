@@ -1,6 +1,6 @@
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
-import type { TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleRecord, TypeSafeProvider } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -10,7 +10,7 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";
+import { feedCaptureScene, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -59,6 +59,71 @@ test("RAC-2518 a late authoring create cannot revive an old source, and an expli
   await child.click(section(a.source_id) + ' [data-feed-out-rule-create]');
   await child.waitFor(`document.querySelector('${section(a.source_id)} [data-feed-out-rule-row]')?.textContent.includes('Delayed create rule')`);
   assert.equal(feed.outRules.list(projectId).filter(rule => rule.match.source_id === a.source_id).length, 1, "one explicit save creates one binding");
+});
+
+test("RAC-2910 the actual Feed page obeys its Home Functions switch while required collection and reading remain usable", { timeout: 90000 }, async t => {
+  let trials = 0;
+  const provider: TypeSafeProvider = { async evaluate(_key, record) { trials++; return { primitive: record.primitive, choice: null, noul: .8, score: null, legend: null, probabilities: {}, confidence: null, model: "fixture-judgment" }; } };
+  const b = await openGoalBrowser(t, true, undefined, null, { env: { TYPESAFE_API_KEY: "test-only-not-a-real-key" }, provider }); if (!b) return;
+  const { localHost, store, projectId, homeDirectory, command, sessionId } = b; assert.ok(localHost); assert.ok(projectId);
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory }); catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "fixture" }); catalog.close();
+  const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
+  const feed = createLocalFeedApplication(store.db), source = createLocalFeedSourceService(store.db, projectId).register({ kind: "web_query", query: "optional-function-switch", name: "Functions switch source" }).source;
+  feed.ingestItem({ source, externalId: "switch-sample", title: "开关试跑样本", summary: "需要关注的原材料", body: "只有这段样本会交给无模型判断夹具。", occurredAt: new Date().toISOString(), attention: false });
+  await pluginFrameInitScript(t, b, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{window.t403Host=host;window.t403Reads={total:0,pending:0};const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403Reads.total++;t403Reads.pending++;try{return await read(...args)}finally{t403Reads.pending--}};return value(host)}:value;return true}});`);
+  const child = await pluginFrameBrowser(t, b, "feed"), owner = new LocalHostHttpClient({ origin: b.origin, controlToken: b.controlToken });
+  await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/?openPlugin=feed` }, sessionId));
+  await child.waitFor("window.t403Host && t403Reads.total>0 && t403Reads.pending===0");
+  const home = localHost.homePlugins!; await home.ready(); const installation = home.installation("io.molis.work.feed"); assert.ok(installation);
+  const switchHome = (granted: boolean) => owner.post("/api/settings/plugin-permissions/set", { install_id: installation.install_id, permission: "functions:manage", granted });
+  const functions = () => owner.get<{ functions: JudgmentRuleRecord[] }>("/api/functions");
+  const section = `[data-feed-out-rules="${source.source_id}"]`, status = section + " [data-feed-rule-status]", composer = section + " [data-feed-rule-composer]";
+  const selectRules = async () => {
+    await child.evaluate(`t403Host.openView({surface:'workbench',id:${JSON.stringify(source.source_id)},panel:'rules',intent:'open'})`);
+    await child.waitFor(`document.querySelector('[data-feed-workbench]').dataset.selectedSource===${JSON.stringify(source.source_id)} && !document.querySelector('[data-feed-sources-dialog]').hidden && !document.querySelector('[data-feed-task-config="${source.source_id}"]').hidden && t403Reads.pending===0`);
+  };
+  await switchHome(true); await selectRules(); await child.click(section + ' [data-feed-rule-mode="natural"]');
+  await child.evaluate(`(() => { const section=document.querySelector(${JSON.stringify(section)}); for(const [attr,value] of [['data-feed-out-rule-name','Optional Functions rule'],['data-feed-rule-instructions','捕捉需要关注的消息']]){const field=section.querySelector('['+attr+']');field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));} })()`);
+  await child.click(section + " [data-feed-rule-preview-run]");
+  await child.waitFor(`document.querySelector('${section} [data-feed-rule-preview]')?.textContent.includes('匹配') && !document.querySelector('${composer}').inert`);
+  const before = await functions(), draft = before.functions.find(row => row.name === "Optional Functions rule"); assert.ok(draft); assert.equal(trials, 1);
+  const bindings = feed.outRules.list(projectId), key = `/projects/${projectId}/:feed-rule:${source.source_id}`, saved = await child.evaluate<string>(`sessionStorage.getItem(${JSON.stringify(key)})`);
+  await switchHome(false);
+  for (const [name, input] of [["list", {}], ["create", { name: "Must not be created", function_key: "blocked_switch_draft", primitive: "noul" }],
+    ["update", { id: draft.id, updated_at: draft.updated_at, patch: { name: "Must not be changed" } }],
+    ["preview", { id: draft.id, updated_at: draft.updated_at, input: "Must not be evaluated" }], ["publish", { id: draft.id, updated_at: draft.updated_at }]] as const) {
+    const refusal = await child.evaluate<{ ok: boolean; code?: string }>(`t403Host.invokeAction({capability_id:${JSON.stringify("functions.authoring." + name)},version:1,provider_id:'system.functions'},${JSON.stringify(input)}).then(()=>({ok:true}),error=>({ok:false,code:error.code}))`);
+    assert.equal(refusal.ok, false, name); assert.ok(["actions.forbidden", "plugin.grant_denied"].includes(refusal.code || ""), name + ": " + JSON.stringify(refusal));
+  }
+  for (const button of ["data-feed-rule-preview-run", "data-feed-out-rule-create"]) {
+    await child.evaluate(`document.querySelector('${status}').textContent=''`);
+    await child.click(section + " [" + button + "]");
+    await child.waitFor(`!document.querySelector('${composer}').inert && Boolean(document.querySelector('${status}').textContent)`);
+  }
+  assert.equal(trials, 1, "a refused sample trial never reaches the provider fixture");
+  assert.deepEqual(await functions(), before, "refused authoring keeps records, samples and the previous trial exactly unchanged");
+  assert.deepEqual(feed.outRules.list(projectId), bindings, "refused publication creates no Feed binding");
+  assert.equal(await child.evaluate(`sessionStorage.getItem(${JSON.stringify(key)})`), saved, "the person's existing draft survives the refusals");
+
+  // The actual Host derives the person's authority; this registered ingestion uses no network or model.
+  const collected = await localHost.actionClient(reference).invoke(await localHost.localPersonContext(reference), feedContentActions.receive,
+    { request_id: "switch-off-content", title: "可选管理关闭后收到的消息", body: "关闭 Functions 管理不阻止这段原文进入 Feed。" });
+  assert.equal(feed.getFeedItem(projectId, collected.item_id).title, "可选管理关闭后收到的消息");
+  await child.evaluate("t403Host.invalidateView();t403Host.openView({surface:'workbench',id:'all',intent:'open'})");
+  await child.waitFor(`document.querySelector('button[data-frame-asset=feed][data-frame-asset-id="${collected.item_id}"]') && t403Reads.pending===0`);
+  await child.click(`button[data-frame-asset=feed][data-frame-asset-id="${collected.item_id}"]`);
+  await child.waitFor(`document.querySelector('[data-feed-detail="${collected.item_id}"][data-feed-detail-read=read]')?.textContent.includes('关闭 Functions 管理不阻止这段原文进入 Feed。') && t403Reads.pending===0`);
+  assert.equal(trials, 1, "required collection/reading does not invoke the optional authoring provider");
+
+  await switchHome(true); await selectRules();
+  await child.click(section + " [data-feed-rule-preview-run]");
+  await child.waitFor(`document.querySelector('${status}')?.textContent.includes('预览完成') && !document.querySelector('${composer}').inert`);
+  assert.equal(trials, 2, "a new sample trial works after Home enables the permission again");
+  await child.click(section + " [data-feed-out-rule-create]");
+  await child.waitFor(`document.querySelector('${section} [data-feed-out-rule-row]')?.textContent.includes('Optional Functions rule') && t403Reads.pending===0`);
+  const after = await functions(); assert.equal(after.functions.find(row => row.id === draft.id)?.status, "published");
+  assert.equal(after.functions.some(row => row.function_key === "blocked_switch_draft"), false);
+  assert.equal(feed.outRules.list(projectId).filter(rule => rule.match.source_id === source.source_id).length, 1);
 });
 
 test("Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens", { timeout: 90000 }, async t => {

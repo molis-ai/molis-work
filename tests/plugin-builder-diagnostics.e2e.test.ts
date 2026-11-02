@@ -166,7 +166,8 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
     browserAcceptance: async (build, signal) => {
       current = build;
       return runBuilderBrowserAcceptance(build, { url, signal, executable: dedicatedBuilderBrowser(), capture: async browser => {
-        captures++; await browser.command('Browser.close'); await browser.evaluate('true');
+        // T405-FULL-04: observe actual transport closure, rather than racing a detached page session.
+        captures++; await browser.command('Browser.close'); await browser.close(); await browser.evaluate('true');
       } });
     },
     publish: async () => { throw new Error('Unexpected publish'); }, installations: async () => [], lifecycle: async () => {},

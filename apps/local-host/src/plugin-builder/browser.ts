@@ -58,7 +58,13 @@ export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { 
       }
     }
     for (const test of build.design.acceptance) if (!cases.some(row => row.id === test.id)) cases.push({ id: test.id, passed: false, detail: '尚未执行：' + blocked });
-    if (!blocked && options.capture) for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map()); await options.capture(browser, page.id); }
+    if (!blocked && options.capture) {
+      try { for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map()); await options.capture(browser, page.id); } }
+      catch (error) {
+        options.signal.throwIfAborted();
+        blocked = browser.unavailable ? '验收浏览器连接不可用：' + browser.unavailable.message : '验收截图未能完成：' + (error instanceof Error ? error.message : String(error));
+      }
+    }
     return { passed: !blocked && cases.length > 0 && cases.every(row => row.passed), cases, at: new Date().toISOString(), ...(blocked ? { blocked } : {}) };
   } finally { await browser.close(); }
 }
@@ -81,6 +87,7 @@ export async function inspectBuilderPresentation(build: AgentBuild, options: Par
     await browser.evaluate('document.documentElement.dataset.resolvedTheme="light"');
   } });
   if (!result.passed) issues.push(...result.cases.filter(test => !test.passed).map(test => test.detail));
+  if (result.blocked) issues.push(result.blocked);
   return { structural: issues.length === 0, issues, images };
 }
 const literal = (value: unknown) => JSON.stringify(value);

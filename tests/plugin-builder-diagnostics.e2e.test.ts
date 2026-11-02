@@ -136,15 +136,16 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
   const full = JSON.parse(detail('连接中断'));
   full.design.acceptance = [{ id: 'last', description: '最后一例读取真实行', steps: ['expect notes TRANSPORT_VISIBLE'] }];
   full.design.presentation = { version: 1, pages: [{ pageId: 'home', layout: { layout: 'stack', children: full.design.pages[0].parts.map((part: { id: string }) => ({ part: part.id })) } }], parts: {} };
+  full.design.pages[0].parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = 'TRANSPORT_VISIBLE';
   const answers = [PROPOSALS, JSON.stringify(full)];
   const requests: Array<{ role: string; task: string }> = [];
-  let current: AgentBuild | undefined, captures = 0;
+  let current: AgentBuild | undefined, captures = 0, empty = false;
   const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
   const server = createServer((request, response) => {
     if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
     response.setHeader('content-type', 'application/json');
     if (request.url === '/builds/probe') response.end(JSON.stringify({ build: current }));
-    else if (request.url === '/builds/probe/call') { request.resume(); response.end(JSON.stringify({ value: [{ id: 'one', text: 'TRANSPORT_VISIBLE' }] })); }
+    else if (request.url === '/builds/probe/call') { request.resume(); response.end(JSON.stringify({ value: empty ? [] : [{ id: 'one', text: 'TRANSPORT_VISIBLE' }] })); }
     else { response.writeHead(404); response.end('{}'); }
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -170,17 +171,20 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
     },
     publish: async () => { throw new Error('Unexpected publish'); }, installations: async () => [], lifecycle: async () => {},
   };
-  const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
-  try {
+  try { for (const finalCapture of [false, true]) {
+    empty = finalCapture; captures = 0; requests.length = 0; answers.splice(0, answers.length, PROPOSALS, JSON.stringify(full));
+    const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
+    try {
     const created = workflow.create('连接中断'); let build = await until(workflow, created.id, value => value.phase === 'choosing');
     await workflow.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 45_000);
     assert.equal(captures, 1, 'the last case reached the real renderer and closed its actual CDP browser');
     assert.equal(build.phase, 'failed'); assert.equal(build.browserResult!.passed, false);
     assert.match(build.browserResult!.blocked!, /验收浏览器连接不可用/);
-    assert.equal(build.browserResult!.cases.length, 1); assert.equal(build.browserResult!.cases[0]!.passed, false);
+    assert.equal(build.browserResult!.cases.length, 1); assert.equal(build.browserResult!.cases[0]!.passed, finalCapture, 'a completed case stays passed if only the final screenshot loses transport');
     assert.doesNotMatch(build.browserResult!.cases[0]!.detail, /尚未执行/, 'the connection failed during the actual last case, not before it');
     assert.equal(requests.filter(request => JSON.parse(request.task).acceptanceFailures).length, 0, 'transport failure does not enter model repair');
     assert.equal(requests.filter(request => request.role === 'designer').length, 2);
-  } finally { await workflow.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+    } finally { await workflow.close(); }
+  } } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

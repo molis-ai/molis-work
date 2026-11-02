@@ -450,13 +450,13 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 
 ## 15. 停下时的状态
 
-用户 2026-11-01 定只出报告，整治不在本轮执行。停下之前已经做了的：
+用户 2026-11-01 定只出报告，整治不在本轮执行；同日确认这条目标就此收口，#1727 留给统筹审，本地共享核心草稿留着、不推送。停下之前已经做了的：
 
 | 项 | 状态 |
 | --- | --- |
 | R1/R5 第一片 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727) 已开（删 24 条已用完、到期的页面资源放行，删 3 个死函数，Goals `requestHash`、四份控制令牌比较、两份读分支各收成一份；定向 21 个文件与 health、page-assets、boundary、secrets 都过）。留不留由统筹定 |
 | 工作树与分支（⑧） | 已清：干净且已合入的工作树 21 个、本地分支 294 个；`~/.codex/worktrees` 没动 |
-| 统筹交接 | #1332 评论 [6568020430](https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6568020430)；里面「我接着做的」三项现在不做了 |
+| 统筹交接 | #1332 评论 [6568020430](https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6568020430)；更正评论 [6568532474](https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6568532474)：原评论里「我接着做的」三项不做了，交统筹 |
 | 共享核心集成分支 | 本地分支 `claude/anticorr-shared-core` 有未提交的草稿（删 `maturity`、`checkSqliteBaselineVersion`、SDK 内部 `isRecord` 收成一份、API 快照），已构建通过，没跑用例、没推送 |
 
 复核出的误判（已在原处标「（更正）」）：

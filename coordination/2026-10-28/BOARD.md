@@ -19,11 +19,12 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 模型统一：用户2026-11-01再次明确所有工作线使用 **gpt-6.1-sol / max**。此前Astra回合已结束，保留代码/原件由Sol接续，不按风险自行覆盖模型。
 
-当前并行（2026-11-02 08:24Z）：T408作者冻结c1f9f0d3b/treee522，整体build/63匹配、15作者定向通过，源码窗口交回；加强二审无必修P1，独立六完整文件已启动，候选未采用。主批d39独立12文件10通过、222/224，零skip/retry，两个失败已分别定位mode迁移漏行/刷新忙碌节点与Feed owner选错；原DEV3接唯一修复写窗，保原断言。W6 notes及续轮reading/expenses三原样本均有designed结果，旧reading取消及未知费用保留；用户已明确测试不设费用上限，W4两真实样本等待公共browser时段，不重复设计smoke。完整restore现行Memory接缝已核可按原授权实现，用户已授权T409起草线续派，任务书收尾与独立书审并行；真实Home未开始。
+当前并行（2026-11-02 08:50Z）：主批Feed最后两失败已在3b0独立16/16通过，原二审只补最终结果；此前d39的10绿文件保留，不重演矩阵。T408 c1f9六完整文件覆盖90条通过：原restricted批87/90保留，唯一本地回环依赖文件以正常许可18/18，独立二审无必修P1。根准备普通合流并同步HOME-DATA三处，随后一次CI/Full，尚未实际采用。T409完整restore accepted书已纳源存在性与独立Catalog同lease两必要接缝，开发1等根准确父与写窗。W6三原模型brief有设计结果；W4真实corpus即将排公共browser，W605场景1驱动只准备，Jev仍缺独立TypeSafe测试连接。真实Home未开始。
 
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-408 | 安装元数据起点1与当前形状拒绝 | 甲 | 开发1作者；w4_runtime_preflight独立验证；remaining_full_diagnosis加强二审；根采用 | c1f9f0d3b冻结，12文件328+/89-；15作者定向与整体构建通过，独立六文件/二审待结 | 现行Home合同；Memory产品留后不再阻塞；真实Home仍不开始 | tasks/T-408.md；installer七文件与六原测试，IMETA-01～05；不增新业务本数 |
+| T-409 | W5-16完整离线恢复 | 甲 | Codex统筹；开发1待准确父；独立审验分派 | accepted，RAC2912～2919；源存在事实与Catalog同锁必要接缝已核 | 根合流主批/T408稳定父后唯一writer；原真实Home恢复另等授权 | tasks/T-409.md；storage/restore/CLI/snapshot inventory/Catalog必要hunk，不改Memory语义/DDL/vendor |
+| T-408 | 安装元数据起点1与当前形状拒绝 | 甲 | 开发1作者；w4_runtime_preflight独立验证；remaining_full_diagnosis加强二审；根采用 | c1f9f0d3b冻结；作者15定向、独立六完整文件90条覆盖与二审通过，等根合流/CI/采用 | 现行Home合同；Memory产品留后不再阻塞；真实Home仍不开始 | tasks/T-408.md；installer七文件与六原测试，IMETA-01～05；不增新业务本数 |
 | T-407 | 终端目录读取异常收口 | 乙 | 开发1；一审3；验证4；二审4；根采用 | #1728已实际合入main9324b9c415；准确a22独立15/15、一二审、CI与手查SI及queue41393660983均通过 | patch-id与整树核同；自有clean工作树和本地分支已清；full=false | 合入6570122025已按用户批准发布并回读；不关闭其它终端/防腐范围 |
 | T-406 | 双实例可选权限共同遵守Home开关 | 甲 | Codex开发线1；独立t406_verify；加强t406_second | 最终4d815bb9两独立终签PASS；原探针独立1/1、作者92/92保来源，matching63及普通门禁全过 | 已交原开发3与T403一次普通合流，真实Feed接缝/组合CI/Full/采用待结 | tasks/T-406.md；原三类红例保留，不改Feed为required |
 | W6场景8补步 | 同profile原URL直接reload恢复 | 验证 | Codex w6_scene8_reload；独立核收ci1724_watch | a604匹配构建，同URL正常重启reload恢复详情/所测布局，独立核收通过 | 筛选全部回今天、空hash范围保留；不签最终F/完整场景8 | /tmp/w6-scene8-execution/REPORT.md与RELOAD-SECOND.md；无自有进程残留 |

@@ -1,3 +1,4 @@
+import { projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { CATALOG_SCHEMA_VERSION, LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -287,11 +288,34 @@ it("serves empty resource and resource-template lists for clients that enumerate
   });
 });
 
+async function runtimeCatalogFixture(homeDirectory: string) {
+  let withCatalog = withMolisWorkProjectCatalog;
+  const availability = projectActionAvailability((options, run) => withCatalog(options, run), homeDirectory);
+  const localHost = new MolisWorkLocalHost({ homeDirectory, actionAvailability: availability, sceneAvailability: availability,
+    workspacesFor: projectId => withCatalog({ homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)) });
+  const access = localHost.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog);
+  withCatalog = localHost.configurePersonalPlanning(homeDirectory, access.withCatalog);
+  const catalog = await withCatalog({ homeDirectory }, current => current);
+  const runtimes: MolisWorkServer[] = [];
+  return { catalog,
+    runtime(host: ConstructorParameters<typeof MolisWorkServer>[2]) {
+      const runtime = new MolisWorkServer("runtime", null, host, localHost); runtimes.push(runtime); return runtime;
+    },
+    async close() {
+      const failures: unknown[] = [];
+      for (const runtime of runtimes) { try { await runtime.close(); } catch (error) { failures.push(error); } }
+      try { await localHost.close(); } catch (error) { failures.push(error); }
+      if (failures.length) throw new AggregateError(failures, "Runtime fixture cleanup failed");
+    },
+  };
+}
+
 describe("mcp project deletion", () => {
 it("lets the current Runtime list, unbind, and separately confirm project deletion", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-project-lifecycle-"));
     const home = path.join(directory, "home", ".molis-work");
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const fixture = await runtimeCatalogFixture(home);
+    const { catalog } = fixture;
     const call = async (server: MolisWorkServer, name: string, args: Record<string, unknown>) =>
       server.handleMessage({
         jsonrpc: "2.0",
@@ -310,7 +334,7 @@ it("lets the current Runtime list, unbind, and separately confirm project deleti
           host_declares_stable: true,
         },
       };
-      const runtime = new MolisWorkServer("runtime", null, host);
+      const runtime = fixture.runtime(host);
       const readConnection = () => runtime.runtimeConnection;
 
       const listed = await call(runtime, "molis_work_v1_context_list_projects", {});
@@ -402,7 +426,7 @@ it("lets the current Runtime list, unbind, and separately confirm project deleti
       assert.match(afterDelete.result.content[0]?.text ?? "", new RegExp(preserved.project_id));
       assert.doesNotMatch(afterDelete.result.content[0]?.text ?? "", new RegExp(removable.project_id));
     } finally {
-      catalog.close();
+      await fixture.close();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
@@ -414,13 +438,14 @@ it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps conf
     const home = path.join(directory, "home", ".molis-work");
     const workspace = path.join(directory, "ordinary-workspace");
     fs.mkdirSync(workspace, { recursive: true });
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const fixture = await runtimeCatalogFixture(home);
+    const { catalog } = fixture;
     const host = runtimeContextHostFromEnvironment({
       MOLIS_WORK_RUNTIME_ID: "codex",
       MOLIS_WORK_HOME: home,
       PWD: workspace,
     }, workspace)!;
-    const runtime = new MolisWorkServer("runtime", null, host);
+    const runtime = fixture.runtime(host);
     const call = async (
       server: MolisWorkServer,
       name: string,
@@ -446,7 +471,7 @@ it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps conf
 
       // A restart ends the previous process first: one Home has one Runtime owner per process.
       await runtime.close();
-      const restarted = new MolisWorkServer("runtime", null, host);
+      const restarted = fixture.runtime(host);
       const historyCandidate = await call(restarted, "molis_work_v1_context_resolve", {});
       const candidatePayload = JSON.parse(historyCandidate.result.content[0]?.text ?? "{}") as {
         status: string;
@@ -465,7 +490,7 @@ it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps conf
       assert.equal(explicitDefault.result.isError, true);
       assert.match(explicitDefault.result.content[0]?.text ?? "", /不再保存默认项目/);
       await restarted.close();
-      const afterDefaultRestart = new MolisWorkServer("runtime", null, host);
+      const afterDefaultRestart = fixture.runtime(host);
       const restored = await call(afterDefaultRestart, "molis_work_v1_context_resolve", {});
       const restoredPayload = JSON.parse(restored.result.content[0]?.text ?? "{}") as {
         status: string;
@@ -497,7 +522,7 @@ it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps conf
       assert.match(restoredOverride.result.content[0]?.text ?? "", new RegExp(second.project_id));
       await afterDefaultRestart.close();
     } finally {
-      catalog.close();
+      await fixture.close();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });

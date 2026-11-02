@@ -305,7 +305,7 @@ test("ONB-FIX-01 connected provider and model text stays literal in the real jou
   if (!journey) return;
   const provider = '<img data-ob-injected="provider" src=x onerror="globalThis.__obXss = 1"> & "供应商"';
   const model = '<svg data-ob-injected="model" onload="globalThis.__obXss = 2"></svg> <model>&\'';
-  await seedConfiguredModels(journey.homeDirectory, [{ provider_id: "literal-provider", display_name: provider, model_id: model }], undefined, journey.localHost.configurePersonalPlanning(journey.homeDirectory, withMolisWorkProjectCatalog));
+  await seedConfiguredModels(journey.homeDirectory, [{ provider_id: "literal-provider", display_name: provider, model_id: model }], undefined, journey.localHost!.configurePersonalPlanning(journey.homeDirectory, withMolisWorkProjectCatalog));
   const id = journey.seed(item => {
     item.sources = [{ kind: "files", selected: true, files: [{ path: "笔记.md", size: 120, modified_ms: 1 }], metadata: { files: [{ path: "笔记.md", size: 120, modified_ms: 1, identity: "upload" }], skipped: 0, truncated: false } }];
     item.previewed = true;

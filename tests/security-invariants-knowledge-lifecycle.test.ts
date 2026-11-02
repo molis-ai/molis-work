@@ -13,7 +13,7 @@ import { isKnowledgeOrganize, organizedCardFor } from "./fixtures/knowledge-orga
 import { untilSetup } from "./fixtures/connector-assistant-model.js";
 
 /** Hold the actual SDK's first HTTP request after receiving the full material. */
-async function heldModel(t: TestContext, home: string) {
+async function heldModel(t: TestContext, home: string, withCatalog: NonNullable<Parameters<typeof seedConfiguredModels>[3]>) {
   const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
   const sent: string[] = [];
   const model = createServer(async (request, response) => {
@@ -32,7 +32,7 @@ async function heldModel(t: TestContext, home: string) {
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { release.resolve(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address === "object");
-  await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture-model" }], `http://127.0.0.1:${address.port}`);
+  await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture-model" }], `http://127.0.0.1:${address.port}`, withCatalog);
   return { started: started.promise, release: () => release.resolve(), disconnected: disconnected.promise, sent };
 }
 
@@ -45,7 +45,7 @@ for (const change of ["exclude", "delete"] as const) {
       const result = await home.web.get<KnowledgeCardsResponse>(prefix + "/api/knowledge/overview");
       return !result.listing && result.cards.length === 2 ? result : undefined;
     }, "both sources are indexed before the model is configured");
-    const model = await heldModel(t, home.home);
+    const model = await heldModel(t, home.home, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
     const cards = openKnowledgeCards({ homeDirectory: home.home });
     try {
       const caller = await home.host.localPersonContext(project.reference);

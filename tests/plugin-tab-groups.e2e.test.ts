@@ -145,6 +145,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
         try{
           let value,failure,failed=false;
           try{value=await read(...args);}catch(error){failure=error;failed=true;}
+          entry.outcome=failed?'error':'ok';
           if(initial){handoff.initialSettled=failed?'error':'ok';entry.phase='held';await new Promise(resolve=>{handoff.releaseInitial=()=>{handoff.initialReleased=true;resolve();};});}
           if(refresh&&!handoff.refreshReleased){entry.phase='held';await new Promise(resolve=>handoff.refreshWaiters.push(resolve));}
           if(failed)throw failure;
@@ -161,15 +162,18 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   await feed.waitFor("window.t403Host?.mount?.surface==='workbench' && window.t403InitialItem");
   const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");
   assert.equal(initial.itemId, a.item_id);
-  await feed.waitFor("t403ReadHandoff.initialSettled && t403ReadHandoff.refreshWaiters.length>0");
+  await feed.waitFor("Boolean(t403ReadHandoff.initialSettled)");
   assert.equal(await feed.evaluate("t403ReadHandoff.initial.itemId"), a.item_id, "the held result is the actual initial A detail read");
+  // Use the existing owning page's real invalidation path while the initial A result is held.
+  await evaluate("t403TrustedRefresh()");
+  await feed.waitFor("t403ReadTrace.some(entry=>!entry.object && entry.id>t403ReadHandoff.initial.request && entry.phase==='held' && entry.outcome==='ok')");
   await feed.evaluate("t403ReadHandoff.releaseRefresh()");
   try { await feed.waitFor("Boolean(t403ReadHandoff.takeover)"); }
   catch (error) {
     t.diagnostic("FULL16 handoff setup " + JSON.stringify(await feed.evaluate("({initial:t403ReadHandoff.initial,initialSettled:t403ReadHandoff.initialSettled,refresh:t403ReadHandoff.refresh,refreshReleased:t403ReadHandoff.refreshReleased,initialReleased:t403ReadHandoff.initialReleased,takeover:t403ReadHandoff.takeover,pending:t403PendingReads,trace:t403ReadTrace})").catch(observation=>({observation:String(observation)}))));
     throw error;
   }
-  const takeoverRead = await feed.evaluate<{ initial: { itemId: string }; takeover: { itemId: string }; initialSettled: string; refreshReleased: boolean; initialReleased?: boolean }>("({initial:t403ReadHandoff.initial,takeover:t403ReadHandoff.takeover,initialSettled:t403ReadHandoff.initialSettled,refreshReleased:t403ReadHandoff.refreshReleased,initialReleased:t403ReadHandoff.initialReleased})");
+  const takeoverRead = await feed.evaluate<{ initial: { itemId: string }; takeover: { itemId: string }; initialSettled: string; refreshReleased: boolean; initialReleased?: boolean; trace: unknown[] }>("({initial:t403ReadHandoff.initial,takeover:t403ReadHandoff.takeover,initialSettled:t403ReadHandoff.initialSettled,refreshReleased:t403ReadHandoff.refreshReleased,initialReleased:t403ReadHandoff.initialReleased,trace:t403ReadTrace})");
   assert.equal(takeoverRead.takeover.itemId, a.item_id, "the real list refresh takes over the same selected A before its first result is delivered");
   assert.equal(takeoverRead.refreshReleased, true); assert.notEqual(takeoverRead.initialReleased, true);
   t.diagnostic("FULL16 real read handoff " + JSON.stringify(takeoverRead));

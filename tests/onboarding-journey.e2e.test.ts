@@ -668,6 +668,7 @@ test("the update page says what is new, offers one way on, and goes on to the ch
   await assertLayoutClean(evaluate, "update page");
   // Dismissing records that this version was seen; the page stays the way into the chooser.
   await navigate(() => click("[data-onboarding-dismiss=update]"));
+  await waitFor("document.querySelector('.chooser')");
   assert.equal(await evaluate("location.pathname"), "/");
   const status = await (await fetch(origin + "/api/onboarding/status")).json() as { update_required?: boolean };
   assert.notEqual(status.update_required, true);

@@ -40,6 +40,11 @@ async function head(root: string): Promise<string | null> {
   try { return (await git(root, ["rev-parse", "--verify", "HEAD"])).toString().trim(); }
   catch (error) { if ((error as { code?: number }).code === 128) return null; throw error; }
 }
+/** The ref HEAD points at, or "detached": a write that read it compares again before committing, so a switched branch refuses. */
+export async function currentWorkspaceBranch(root: string): Promise<string> {
+  try { return (await git(root, ["symbolic-ref", "-q", "HEAD"])).toString().trim(); }
+  catch (error) { if ((error as { code?: number }).code === 1) return "detached"; throw error; }
+}
 async function tracksFileMode(root: string): Promise<boolean> {
   try { return (await git(root, ["config", "--bool", "--get", "core.filemode"])).toString().trim() !== "false"; }
   catch (error) { if ((error as { code?: number }).code === 1) return true; throw error; }

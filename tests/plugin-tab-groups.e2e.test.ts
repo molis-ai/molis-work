@@ -128,7 +128,32 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
     const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
     Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){const port=this;descriptor.set.call(port,typeof handler!=='function'?handler:event=>{if(event.data?.type==='ui'&&event.data.name==='openItem')window.t403Tagged.push({tab:event.data.itemTabId,id:event.data.args[1]});handler.call(port,event);});}});
     let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed'){const request=globalThis.molisWorkRequest;let pollingSignal,polls=0;globalThis.molisWorkRequest=Object.assign(async(...args)=>{const own=root.dataset.pluginSurface==='workbench'&&String(args[0]).endsWith('/io.molis.work.feed/view-revision')&&args[1]?.signal&&args[1].headers?.['x-molis-plugin-page']===root.dataset.pluginPage;if(own){if(pollingSignal!==args[1].signal){pollingSignal=args[1].signal;polls=0;}window.t403OwningPolls=++polls;window.t403PollingPage=root.dataset.pluginPage;}const value=await request(...args);if(own&&!args[1].signal.aborted)window.t403PolledRevision=value.revision;return value;},request);window.t403TrustedRefresh=()=>host.invalidateView(root);root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});}return mount(root,host,pack);};frameApi=api;}});
-    globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{if(key==='feed'){window.t403Host=host;window.t403Invalidations=0;window.t403PendingReads=0;window.t403ReadTrace=[];let sequence=0;const read=host.view.readDocument;host.view.readDocument=async(...args)=>{const entry={id:++sequence,object:args[0]?.object,phase:'start'};t403ReadTrace.push(entry);t403ReadTrace.splice(0,Math.max(0,t403ReadTrace.length-8));t403PendingReads++;try{const result=await read(...args);entry.phase='ok';return result;}catch(error){entry.phase='error';entry.error={name:error?.name,code:error?.code,message:String(error?.message||error).slice(0,160)};throw error;}finally{t403PendingReads--;}};host.root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate)window.t403Invalidations++;});}return factory(host);};return true;}});
+    globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{if(key==='feed'){
+      window.t403Host=host;window.t403Invalidations=0;window.t403PendingReads=0;window.t403ReadTrace=[];
+      // Hold actual read results: the initial selected detail stays pending until a real refresh has taken it over.
+      const handoff=window.t403ReadHandoff={initial:null,refresh:null,takeover:null,releaseAll(){this.releaseInitial?.();this.releaseRefresh?.();}};
+      host.scope.own(()=>handoff.releaseAll());
+      let sequence=0;const read=host.view.readDocument;
+      host.view.readDocument=async(...args)=>{
+        const object=args[0]?.object,entry={id:++sequence,object,phase:'start'};
+        const initial=object?.surface==='persisted-detail'&&!handoff.initial;
+        const refresh=!object&&!handoff.refresh;
+        if(initial)handoff.initial={request:entry.id,itemId:object.id};
+        if(refresh)handoff.refresh={request:entry.id};
+        if(object?.surface==='persisted-detail'&&!initial&&handoff.refreshReleased&&!handoff.initialReleased&&!handoff.takeover)handoff.takeover={request:entry.id,itemId:object.id};
+        t403ReadTrace.push(entry);t403ReadTrace.splice(0,Math.max(0,t403ReadTrace.length-8));t403PendingReads++;
+        try{
+          let value,failure,failed=false;
+          try{value=await read(...args);}catch(error){failure=error;failed=true;}
+          if(initial){handoff.initialSettled=failed?'error':'ok';entry.phase='held';await new Promise(resolve=>{handoff.releaseInitial=()=>{handoff.initialReleased=true;resolve();};});}
+          if(refresh){entry.phase='held';await new Promise(resolve=>{handoff.releaseRefresh=()=>{handoff.refreshReleased=true;resolve();};});}
+          if(failed)throw failure;
+          entry.phase='ok';return value;
+        }catch(error){entry.phase='error';entry.error={name:error?.name,code:error?.code,message:String(error?.message||error).slice(0,160)};throw error;}
+        finally{t403PendingReads--;}
+      };
+      host.root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate)window.t403Invalidations++;});
+    }return factory(host);};return true;}});
   `);
   const feed = await pluginFrameBrowser(t, browser, "feed");
   await browser.setViewport(1440, 1000);
@@ -136,6 +161,15 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   await feed.waitFor("window.t403Host?.mount?.surface==='workbench' && window.t403InitialItem");
   const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");
   assert.equal(initial.itemId, a.item_id);
+  await feed.waitFor("t403ReadHandoff.initialSettled && typeof t403ReadHandoff.releaseRefresh==='function'");
+  assert.equal(await feed.evaluate("t403ReadHandoff.initial.itemId"), a.item_id, "the held result is the actual initial A detail read");
+  await feed.evaluate("t403ReadHandoff.releaseRefresh()");
+  await feed.waitFor("Boolean(t403ReadHandoff.takeover)");
+  const takeoverRead = await feed.evaluate<{ initial: { itemId: string }; takeover: { itemId: string }; initialSettled: string; refreshReleased: boolean; initialReleased?: boolean }>("({initial:t403ReadHandoff.initial,takeover:t403ReadHandoff.takeover,initialSettled:t403ReadHandoff.initialSettled,refreshReleased:t403ReadHandoff.refreshReleased,initialReleased:t403ReadHandoff.initialReleased})");
+  assert.equal(takeoverRead.takeover.itemId, a.item_id, "the real list refresh takes over the same selected A before its first result is delivered");
+  assert.equal(takeoverRead.refreshReleased, true); assert.notEqual(takeoverRead.initialReleased, true);
+  t.diagnostic("FULL16 real read handoff " + JSON.stringify(takeoverRead));
+  await feed.evaluate("t403ReadHandoff.releaseInitial()");
   await waitFor("t403OwningPolls>=2 && t403PollingPage===document.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').dataset.pluginPage");
   assert.ok(localHost.homePlugins);
   const platform = await localHost.homePlugins.ready();
@@ -145,7 +179,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   assert.equal(beforeRevision.visible, true, JSON.stringify(beforeRevision));
   try { await feed.waitFor(`document.querySelector('[data-feed-entry-id="${a.item_id}"]').dataset.feedEntryRead==='read' && t403PendingReads===0`); }
   catch (error) {
-    t.diagnostic('revision owner read state '+JSON.stringify(await feed.evaluate(`({pending:t403PendingReads,trace:t403ReadTrace,row:document.querySelector('[data-feed-entry-id="${a.item_id}"]')?.dataset,expanded:document.querySelector('[data-feed-stage-shell]')?.dataset.expanded,retry:document.querySelector('[data-retry-feed-detail]')?.checkVisibility(),placeholder:document.querySelector('[data-feed-detail-empty]')?.textContent})`).catch(observation=>({observation:String(observation)}))));
+    t.diagnostic('revision owner read state '+JSON.stringify(await feed.evaluate(`({pending:t403PendingReads,trace:t403ReadTrace,row:{...document.querySelector('[data-feed-entry-id="${a.item_id}"]')?.dataset},expanded:document.querySelector('[data-feed-stage-shell]')?.dataset.expanded,retry:document.querySelector('[data-retry-feed-detail]')?.checkVisibility(),placeholder:document.querySelector('[data-feed-detail-empty]')?.textContent})`).catch(observation=>({observation:String(observation)}))));
     throw error;
   }
   const revision = platform.viewRevision("io.molis.work.feed");

@@ -96,7 +96,15 @@ export function pluginTerminalFor(options: { home: string; manifest: PluginManif
       const subject = terminalListSubject(input);
       check();
       const { host } = terminalHost(home);
-      const rows = await catalogFor(home)({ homeDirectory: home }, projects => projects.terminalPanels.list(owner, subject));
+      let rows: PluginTerminalPanelRecord[];
+      try {
+        rows = await catalogFor(home)({ homeDirectory: home }, projects => projects.terminalPanels.list(owner, subject));
+      } catch (error) {
+        check();
+        if (error instanceof ActionError) throw error;
+        hostLog.warn("terminal", "catalog_unreadable", error);
+        throw new ActionError("actions.unavailable", "项目目录暂时读不到");
+      }
       check();
       return Object.freeze(rows.map(row => Object.freeze<PluginTerminalPanel>({
         key: row.key, panelId: row.panel_id, title: row.title, runtime: row.runtime, subject: row.subject, running: host.alive(row.panel_id),

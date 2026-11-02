@@ -23,7 +23,7 @@
     },
     "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": 155,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 243,
+      "lines": 247,
       "methods": 34
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
@@ -692,7 +692,7 @@
   "emptyCatches": {
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 144,
+  "unknownCastsTotal": 142,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -772,7 +772,6 @@
     "tests/feed-source-actions.test.ts": 2,
     "tests/fixtures/coding-surface.ts": 1,
     "tests/generated-plugin-prompts.test.ts": 1,
-    "tests/inbox-automatic-scenes.test.ts": 2,
     "tests/inbox-prepared-pages.test.ts": 1,
     "tests/pages-draft-race.test.ts": 2,
     "tests/pages-plugin.test.ts": 1,

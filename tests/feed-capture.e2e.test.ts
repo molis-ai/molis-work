@@ -50,6 +50,10 @@ test("RAC-2518 a late authoring create cannot revive an old source, and an expli
   assert.equal(await child.evaluate(`document.querySelector('${section(other.source_id)} [data-feed-out-rule-name]').value`), "Source B draft");
   assert.equal(feed.outRules.list(projectId).some(rule => rule.match.source_id === a.source_id), false);
   await child.evaluate("window.t403HoldCreate=false"); await select(a.source_id);
+  const readsBeforeRestore = await child.evaluate<number>("t403Reads.total");
+  await child.evaluate("t403Host.invalidateView()");
+  await child.waitFor(`t403Reads.total>${readsBeforeRestore} && t403Reads.pending===0`);
+  assert.equal(await child.evaluate(`document.querySelector('${section(a.source_id)}').dataset.ruleMode`), "natural", "RAC-2518 a preserved composer restores its new parent section's mode after an actual refresh");
   await child.click(section(a.source_id) + ' [data-feed-rule-preview-run]');
   try { await child.waitFor(`document.querySelector('${section(a.source_id)} [data-feed-rule-preview]')?.textContent.includes('匹配')`); }
   catch (error) { t.diagnostic(JSON.stringify(await child.evaluate(`({calls:t403Calls,status:document.querySelector('${section(a.source_id)} [data-feed-rule-status]')?.textContent,draft:sessionStorage.getItem(${JSON.stringify(draftKey)})})`))); throw error; }
@@ -87,18 +91,20 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
   await child.click(section + " [data-feed-rule-preview-run]");
   await child.waitFor(`document.querySelector('${section} [data-feed-rule-preview]')?.textContent.includes('匹配') && !document.querySelector('${composer}').inert`);
   const before = await functions(), draft = before.functions.find(row => row.name === "Optional Functions rule"); assert.ok(draft); assert.equal(trials, 1);
+  assert.ok((await child.evaluate<{ functions: JudgmentRuleRecord[] }>("t403Host.invokeAction({capability_id:'functions.authoring.list',version:1,provider_id:'system.functions'}, {})")).functions.some(row => row.id === draft.id));
   const bindings = feed.outRules.list(projectId), key = `/projects/${projectId}/:feed-rule:${source.source_id}`, saved = await child.evaluate<string>(`sessionStorage.getItem(${JSON.stringify(key)})`);
   await switchHome(false);
   for (const [name, input] of [["list", {}], ["create", { name: "Must not be created", function_key: "blocked_switch_draft", primitive: "noul" }],
     ["update", { id: draft.id, updated_at: draft.updated_at, patch: { name: "Must not be changed" } }],
     ["preview", { id: draft.id, updated_at: draft.updated_at, input: "Must not be evaluated" }], ["publish", { id: draft.id, updated_at: draft.updated_at }]] as const) {
     const refusal = await child.evaluate<{ ok: boolean; code?: string }>(`t403Host.invokeAction({capability_id:${JSON.stringify("functions.authoring." + name)},version:1,provider_id:'system.functions'},${JSON.stringify(input)}).then(()=>({ok:true}),error=>({ok:false,code:error.code}))`);
-    assert.equal(refusal.ok, false, name); assert.ok(["actions.forbidden", "plugin.grant_denied"].includes(refusal.code || ""), name + ": " + JSON.stringify(refusal));
+    assert.equal(refusal.ok, false, name); assert.equal(refusal.code, "actions.dependency_missing", name + " is hidden from this page's current action directory while Home denies it");
   }
   for (const button of ["data-feed-rule-preview-run", "data-feed-out-rule-create"]) {
     await child.evaluate(`document.querySelector('${status}').textContent=''`);
     await child.click(section + " [" + button + "]");
     await child.waitFor(`!document.querySelector('${composer}').inert && Boolean(document.querySelector('${status}').textContent)`);
+    assert.equal(await child.evaluate(`document.querySelector('${status}').dataset.error`), "true", button + " shows the real refusal");
   }
   assert.equal(trials, 1, "a refused sample trial never reaches the provider fixture");
   assert.deepEqual(await functions(), before, "refused authoring keeps records, samples and the previous trial exactly unchanged");

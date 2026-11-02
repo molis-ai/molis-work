@@ -33,7 +33,8 @@ export function feedRules(page: FeedPage) {
   };
   const hydrate = () => all("[data-feed-out-rules]").forEach(section => {
     const composer = q("[data-feed-rule-composer]", section); if (!composer || section.closest("[hidden]")) return;
-    if (!composer.dataset.hydrated) { const saved = state(section); for (const [attr, text] of Object.entries(saved.fields || {})) { const field = q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[" + attr + "]", section); if (field) field.value = text; } mode(section, saved.mode || "keyword"); composer.dataset.hydrated = "true"; void catalog(section); }
+    const saved = state(section); mode(section, saved.mode || "keyword");
+    if (!composer.dataset.hydrated) { for (const [attr, text] of Object.entries(saved.fields || {})) { const field = q<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[" + attr + "]", section); if (field) field.value = text; } composer.dataset.hydrated = "true"; void catalog(section); }
   });
   const read = (section: HTMLElement): RuleInput => {
     const current = section.dataset.ruleMode || "keyword", instructions = value(section, "data-feed-rule-instructions"), contains = current === "keyword" ? value(section, "data-feed-out-rule-contains") : "", selected = current === "existing" ? value(section, "data-feed-out-rule-function-key") : "";

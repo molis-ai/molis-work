@@ -19,11 +19,8 @@
     },
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
-      "reason": "项目目录的门面：32 个方法里多数是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
-      "size": {
-        "lines": 208,
-        "methods": 32
-      }
+      "reason": "项目目录的门面及连接寿命：现行结构检查、同 Home owner 持有与释放都围绕目录连接，其余方法多为转发；按资源拆出更多门面只会增加转发层，不改善这一职责边界。",
+      "size": { "lines": 243, "methods": 34 }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
@@ -265,12 +262,12 @@
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
       "kind": "cohesive-unit",
       "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
-      "size": { "lines": 301, "methods": 23 }
+      "size": { "lines": 302, "methods": 23 }
     },
     "file packages/plugin-runtime/src/index.ts": {
       "kind": "cohesive-unit",
       "reason": "PluginRuntime 安装状态机及其包入口：主体、输入型别与导入导出围绕同一份安装和激活状态，权限捕获必须跟随同一撤销 cell；为文件行数搬走出口或拆散状态机只会增加接口与状态耦合。",
-      "size": 828
+      "size": 830
     },
     "class horizontal/memory/src/service.ts#MemoryService": {
       "kind": "cohesive-unit",

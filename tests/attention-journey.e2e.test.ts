@@ -1,6 +1,6 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -51,8 +51,7 @@ test("Kanban routes wheel by pointer and axis without switching axes at column b
 test("Frame picker adds a persistent reference in place; current tab, directory and form focus agree", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { command, sessionId, navigate, origin, click, evaluate, waitFor, projectId, reloadPage } = b;
-  const catalog = await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-  catalog.addProjectPlugin({project_id:projectId!,plugin_id:"feed",actor_id:"attention-test"}); catalog.close();
+  await addProjectPlugin(b.web, projectId!, "feed");
   const app = new GoalProjectApplication(b.store);
   const goal = app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:"整理设计反馈",outcome:"明确下一轮体验改动",actor_id:"attention-test",actor_kind:"user",idempotency_key:"attention-intent"}).goal;
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计反馈"}).source;

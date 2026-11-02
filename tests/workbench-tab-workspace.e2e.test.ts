@@ -1,6 +1,6 @@
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -9,11 +9,10 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, openGoalFrame, origin, projectId, homeDirectory } = browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   for (const plugin_id of ["feed", "inbox"] as const) {
-    catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "tab-workspace" });
+    await addProjectPlugin(browser.web, projectId!, plugin_id);
   }
-  catalog.close();
+
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
@@ -140,10 +139,9 @@ test("RAC-2687 the real cross-project placement card opens the associated Goal's
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "pages", actor_id: "pr2-placement" });
-  const target = await catalog.createProject({ display_name: "PR2 destination", actor_id: "pr2-placement" });
-  catalog.close();
+  await addProjectPlugin(browser.web, projectId!, "pages");
+  const target = await createProject(browser.web, "PR2 destination");
+
   await seedDemoGoals(target.database_path, target.project_id);
   const pages = openPagesStore(homeDirectory);
   const page = pages.create({ project_id: projectId!, title: "跨项目输入", body: { type: "doc", content: [] } });

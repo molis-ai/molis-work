@@ -1,6 +1,6 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -9,9 +9,8 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     const b = await openGoalBrowser(t, true); if (!b) return;
     const { command, sessionId, navigate, origin, projectId, evaluate, click, waitFor } = b;
     const feed = await pluginFrameBrowser(t, b, "feed");
-    const catalog = await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-    for (const plugin_id of ["feed"]) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"viewport-test"});
-    catalog.close();
+    for (const plugin_id of ["feed"]) await addProjectPlugin(b.web, projectId!, plugin_id);
+
     await command("Emulation.setDeviceMetricsOverride", {width,height,deviceScaleFactor:1,mobile:false}, sessionId);
     await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
     if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)")) await click('[data-directory-show]');

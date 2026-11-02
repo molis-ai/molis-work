@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { formFillPageHtml } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -125,10 +125,8 @@ test("placement journey: no project yet — start in the personal space, finish 
   await click('.placement-panel [data-placement-action="move"]');
   await card("没有别的位置");
   // Later a project exists; the same document goes there and opens there, with where it came from.
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const club = await catalog.createProject({ display_name: "读书会", actor_id: "placement-test" });
-  catalog.addProjectPlugin({ project_id: club.project_id, plugin_id: "pages", actor_id: "placement-test" });
-  catalog.close();
+  const club = await createProject(j.web, "读书会");
+  await addProjectPlugin(j.web, club.project_id, "pages");
   // After a reload Pages is back on its list, the document first; one click continues it.
   await reloadPage();
   await press(`[data-page-id="${doc.id}"]`);
@@ -154,10 +152,8 @@ test("placement journey: one document used by two projects and a Goal — edit, 
   const j = await journey(t, "seeded", "shared");
   if (!j) return;
   const { go, press, card, current, describe, openPlugin, projectHome, panel, title, evaluate, waitFor, click, projectId, homeDirectory, screenshot, text } = j;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const other = await catalog.createProject({ display_name: "市场活动", actor_id: "placement-test" });
-  const doomed = await catalog.createProject({ display_name: "临时项目", actor_id: "placement-test" });
-  catalog.close();
+  const other = await createProject(j.web, "市场活动");
+  const doomed = await createProject(j.web, "临时项目");
   await go(`/projects/${projectId}/`);
   const projectTitle = await evaluate<string>(`fetch('/api/placement/spaces').then(r => r.json()).then(v => v.spaces.find(s => s.project_id === ${text(projectId)}).title)`);
   await openPlugin("pages", "personal");
@@ -207,9 +203,7 @@ test("placement journey: one document used by two projects and a Goal — edit, 
   await panel("move");
   await click('.placement-panel [data-placement-action="move"]');
   await waitFor(`document.querySelector('dialog.placement-dialog input[name="to"][value="${doomed.project_id}"]')`, 12_000);
-  const deleting = await openMolisWorkProjectCatalog({ homeDirectory });
-  await deleting.deleteProject({ project_id: doomed.project_id, actor_id: "placement-test", delete_confirmed: true, idempotency_key: "delete-doomed" });
-  deleting.close();
+  await j.web.post(`/api/settings/projects/${doomed.project_id}/delete`, { delete_confirmed: true, idempotency_key: "delete-doomed" });
   await click(`dialog.placement-dialog input[name="to"][value="${doomed.project_id}"]`);
   await click("dialog.placement-dialog [data-placement-confirm]");
   await waitFor("document.querySelector('dialog.placement-dialog')?.open && document.querySelector('.placement-dialog-error').textContent.length > 0", 12_000);

@@ -211,6 +211,7 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
   const project = await catalog.createProject({ display_name: "Shared Host", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
   let openCount = 0;
+  catalog.close();
   const host = createMolisWorkLocalHost({
     instanceId: "shared-entry-host", homeDirectory: directory,
     onRuntimeOpen: () => { openCount += 1; },
@@ -271,7 +272,6 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     await mcp.close();
     await served.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

@@ -155,6 +155,7 @@ test("RAC-31 real Runtime HTTP shares Host actions, rejects project tampering an
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "Lingguang", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const token = "lingguang-test-01234567890123456789";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
@@ -193,7 +194,7 @@ test("RAC-31 real Runtime HTTP shares Host actions, rejects project tampering an
     assert.equal((await bound.invoke(actions.get, { id: blank.id })).spark.status, "inbox");
   } finally {
     if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
-    catalog.close(); await host.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
 
@@ -238,6 +239,7 @@ test("a streamed reply shows the model's text as it comes; closing the request s
   const project = catalog.getProject(created.project_id);
   const halfway = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
   let calls = 0, stopped = false;
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async (_prompt, options) => {
     calls++;
     await options?.beforeDispatch?.();
@@ -300,7 +302,7 @@ test("a streamed reply shows the model's text as it comes; closing the request s
   } finally {
     finish.resolve();
     if (server.listening) await new Promise<void>(resolve => { server.closeAllConnections?.(); server.close(() => resolve()); });
-    catalog.close(); await host.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
 

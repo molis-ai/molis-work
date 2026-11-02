@@ -1,3 +1,4 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -15,8 +16,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const b=await openGoalBrowser(t,true);if(!b)return;
     const {command,sessionId,navigate,origin,projectId,evaluate,click,waitFor,showGoalStageList}=b;
     const feedView=await pluginFrameBrowser(t,b,'feed'),inbox=await pluginFrameBrowser(t,b,'inbox');
-    const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-    catalog.addProjectPlugin({project_id:projectId!,plugin_id:'feed',actor_id:'journey-test'});catalog.close();
+    await addProjectPlugin(b.web, projectId!, 'feed');
     const prefix=`${origin}/projects/${projectId}`;
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);

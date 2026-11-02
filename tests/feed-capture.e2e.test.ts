@@ -11,7 +11,7 @@ import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { feedCaptureScene, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -20,7 +20,7 @@ test("RAC-2518 a late authoring create cannot revive an old source, and an expli
   const provider: TypeSafeProvider = { async evaluate(_key, record) { return { primitive: record.primitive, choice: null, noul: .8, score: null, legend: null, probabilities: {}, confidence: null, model: "fixture-judgment" }; } };
   const b = await openGoalBrowser(t, true, undefined, null, { env: { TYPESAFE_API_KEY: "test-only-not-a-real-key" }, provider }); if (!b) return;
   const { store, localHost, projectId, homeDirectory, command, sessionId } = b; assert.ok(localHost); assert.ok(projectId);
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory }); catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "fixture" }); catalog.close();
+  await addProjectPlugin(b.web, projectId, "feed");
   const sourceService = createLocalFeedSourceService(store.db, projectId), feed = createLocalFeedApplication(store.db);
   const a = sourceService.register({ kind: "web_query", query: "late-authoring-A", name: "Late authoring A" }).source;
   const other = sourceService.register({ kind: "web_query", query: "late-authoring-B", name: "Late authoring B" }).source;
@@ -70,7 +70,7 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
   const provider: TypeSafeProvider = { async evaluate(_key, record) { trials++; return { primitive: record.primitive, choice: null, noul: .8, score: null, legend: null, probabilities: {}, confidence: null, model: "fixture-judgment" }; } };
   const b = await openGoalBrowser(t, true, undefined, null, { env: { TYPESAFE_API_KEY: "test-only-not-a-real-key" }, provider }); if (!b) return;
   const { localHost, store, projectId, homeDirectory, command, sessionId } = b; assert.ok(localHost); assert.ok(projectId);
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory }); catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "fixture" }); catalog.close();
+  await addProjectPlugin(b.web, projectId, "feed");
   const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
   const feed = createLocalFeedApplication(store.db), source = createLocalFeedSourceService(store.db, projectId).register({ kind: "web_query", query: "optional-function-switch", name: "Functions switch source" }).source;
   feed.ingestItem({ source, externalId: "switch-sample", title: "开关试跑样本", summary: "需要关注的原材料", body: "只有这段样本会交给无模型判断夹具。", occurredAt: new Date().toISOString(), attention: false });
@@ -137,8 +137,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
   const { localHost, store, projectId, homeDirectory, command, sessionId, navigate, origin } = b;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "feed");
   assert.ok(localHost); assert.ok(projectId);
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "fixture" }); catalog.close();
+  await addProjectPlugin(b.web, projectId, "feed");
   const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId });
   await localHost.withProject(reference, () => undefined);
   const feed = createLocalFeedApplication(store.db);

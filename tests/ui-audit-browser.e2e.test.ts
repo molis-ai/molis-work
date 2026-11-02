@@ -1,8 +1,8 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -18,9 +18,8 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId, reloadPage } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const inboxView = await pluginFrameBrowser(t, browser, "inbox");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "ui-audit" });
-  catalog.close();
+  await addProjectPlugin(browser.web, projectId!, "feed");
+
   const source = createLocalFeedSourceService(browser.store.db, DEMO_PROJECT_ID).register({ kind: "web_query", query: "界面修复" }).source;
   const item = createLocalFeedApplication(browser.store.db).ingestItem({
     source,

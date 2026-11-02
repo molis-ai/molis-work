@@ -21,15 +21,16 @@ async function withHost<T>(run: (env: { home: string; catalog: Catalog; host: Ho
   const directory = await mkdtemp(join(tmpdir(), "molis-project-deletion-studios-"));
   const home = join(directory, "home");
   const { ai } = controlledAlchemistAi();
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const host = createMolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" }, completeText: null });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   try {
-    const direction = (projectId: string, databasePath: string) => bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath, projectId })),
-      () => ({ actor_id: "local-person", project_id: projectId, audience: "user" as const, permissions: ALCHEMIST_ACTION_PERMISSIONS }));
-    return await run({ home, catalog, host, direction });
+    return await withCatalog({ homeDirectory: home }, async catalog => {
+      const direction = (projectId: string, databasePath: string) => bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath, projectId })),
+        () => ({ actor_id: "local-person", project_id: projectId, audience: "user" as const, permissions: ALCHEMIST_ACTION_PERMISSIONS }));
+      return await run({ home, catalog, host, direction });
+    });
   } finally {
     await host.close();
-    catalog.close();
     await rm(directory, { recursive: true, force: true });
   }
 }

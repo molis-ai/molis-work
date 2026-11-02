@@ -21,6 +21,7 @@ async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, .
   const project = await catalog.createProject({ display_name: "没有 Goals", actor_id: "test" });
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), false, "the project has no Goals");
   // The server builds its own Host, with the catalog policy for which plugins a project's actions may reach, as the app's does.
+  catalog.close();
   const controlToken = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
   await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
@@ -28,7 +29,7 @@ async function withoutGoals(t: Parameters<typeof test>[1] extends (t: infer T, .
   t.after(async () => {
     server.closeAllConnections();
     await new Promise<void>(done => server.close(() => done()));
-    catalog.close(); await rm(home, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true });
   });
   return { home, project, controlToken, origin: `http://127.0.0.1:${address.port}`, prefix: `http://127.0.0.1:${address.port}/projects/${project.project_id}` };
 }

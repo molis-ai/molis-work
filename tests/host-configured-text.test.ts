@@ -32,8 +32,8 @@ async function fixture(run: (f: {
   const old = { ...process.env };
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MINIMAX_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT"]) delete process.env[key];
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const homeOwner = new MolisWorkLocalHost({ homeDirectory: home });
+  const withCatalog = homeOwner.configurePersonalPlanning(home, homeOwner.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
   const server = createServer(async (request, response) => {
@@ -65,8 +65,8 @@ async function fixture(run: (f: {
     }
   });
   const modelOrigin = await listen(server);
-  try { await run({ home, host: homeOwner, catalog, modelOrigin, requests, answer: next => { handler = next; } }); }
-  finally { await homeOwner.close(); await close(server); catalog.close(); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
+  try { await withCatalog({ homeDirectory: home }, catalog => run({ home, host: homeOwner, catalog, modelOrigin, requests, answer: next => { handler = next; } })); }
+  finally { await homeOwner.close(); await close(server); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
 }
 function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId = "configured", format: "openai-chat-completions" | "anthropic-messages" = "openai-chat-completions") {
   const connection = withConnectorConnections(f.home, store => {
@@ -245,20 +245,22 @@ test("protocol, cache preference, cancellation and scoped Home are preserved on 
 test("two configured Homes keep account credentials separate even under another ambient Home", async () => fixture(async f => {
   configure(f);
   const homeB = join(f.home, "other-home");
-  const catalogB = await openMolisWorkProjectCatalog({ homeDirectory: homeB });
   // Each Home's inference is owned by that Home's Host.
   const hostB = new MolisWorkLocalHost({ homeDirectory: homeB });
+  const withCatalogB = hostB.configurePersonalPlanning(homeB, hostB.ensureWebCatalog(homeB, openMolisWorkProjectCatalog).withCatalog);
   try {
-    const connectionB = configure({ ...f, home: homeB, catalog: catalogB });
-    withConnectorConnections(homeB, store => store.replaceToken(connectionB.connection_id, "other-home-fixture-key"));
-    const a = hostCompleteText({ homeDirectory: f.home })!, b = hostCompleteText({ homeDirectory: homeB })!;
-    await runWithMolisWorkHome(homeB, () => a("Home A"));
-    await runWithMolisWorkHome(f.home, () => b("Home B"));
-    assert.deepEqual(f.requests.map(request => request.headers.authorization), ["Bearer configured-fixture-key", "Bearer other-home-fixture-key"]);
-    resetSecretStoreCache();
-    await hostCompleteText({ homeDirectory: f.home })!("After cache restart");
-    assert.equal(f.requests[2]!.headers.authorization, "Bearer configured-fixture-key");
-  } finally { await hostB.close(); catalogB.close(); }
+    await withCatalogB({ homeDirectory: homeB }, async catalogB => {
+      const connectionB = configure({ ...f, home: homeB, catalog: catalogB });
+      withConnectorConnections(homeB, store => store.replaceToken(connectionB.connection_id, "other-home-fixture-key"));
+      const a = hostCompleteText({ homeDirectory: f.home })!, b = hostCompleteText({ homeDirectory: homeB })!;
+      await runWithMolisWorkHome(homeB, () => a("Home A"));
+      await runWithMolisWorkHome(f.home, () => b("Home B"));
+      assert.deepEqual(f.requests.map(request => request.headers.authorization), ["Bearer configured-fixture-key", "Bearer other-home-fixture-key"]);
+      resetSecretStoreCache();
+      await hostCompleteText({ homeDirectory: f.home })!("After cache restart");
+      assert.equal(f.requests[2]!.headers.authorization, "Bearer configured-fixture-key");
+    });
+  } finally { await hostB.close(); }
 }));
 
 // Only the model catalog configures text models, or an explicit environment key in development (repository-anti-corruption

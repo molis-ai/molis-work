@@ -1,8 +1,8 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -14,9 +14,8 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   const b=await openGoalBrowser(t,true); if(!b)return;
   const {command,sessionId,evaluate,click,waitFor,navigate,origin,projectId}=b;
   const inbox=await pluginFrameBrowser(t,b,"inbox");
-  const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-  for(const plugin_id of ["feed"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
-  catalog.close();
+  for(const plugin_id of ["feed"])await addProjectPlugin(b.web, projectId!, plugin_id);
+
   const app=openProjectVersionStores(b.store);
   installProducers(b.store.db,{plugin_id:"io.example.writer",artifact_types:["io.example.report"]});
   app.artifacts.commands.registerVersion({...pinnedArtifact("工作台阅读体验检查与修复记录"),project_id:DEMO_PROJECT_ID,actor_id:"content-test",artifact_id:"reading-report",version:1,artifact_type_id:"io.example.report",schema_version:1,producer:{plugin_id:"io.example.writer",plugin_version:"1.0.0",binding_signature:"fixture"},content:{kind:"inline",payload:{title:"工作台阅读体验检查与修复记录",findings:Array.from({length:60},(_,i)=>({title:`第 ${i+1} 项检查`,detail:"保留阅读位置与动作入口，让长内容在所属组件内滚动。"}))}},metadata:{review:"组件内阅读"}});

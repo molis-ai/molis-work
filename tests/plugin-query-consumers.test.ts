@@ -10,7 +10,7 @@ import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { cachedMolisWorkWebView, declaredStageData } from "@molis-ai/molis-work-app-local-host";
 import { informationActions } from "../apps/local-host/dist/information-actions.js";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
@@ -267,7 +267,7 @@ test("T405-FULL17-A/B Inbox SSR and fragment read their saved judgment metadata 
     handle(caller) { views.push(caller); executions++; return { status: "ok", suggested_behavior_ids: ["inbox.verify"] }; } }] }; } };
   const { host, home, project, request } = await serveHomeRuntime(t, { pluginFixtures: { project: [plugin] } });
   const one = await project("Inbox metadata"), base = `/projects/${one.project_id}`;
-  await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
+  await host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home }, catalog => {
     for (const id of ["feed", "inbox"]) if (!catalog.listProjectPlugins(one.project_id).includes(id)) catalog.addProjectPlugin({ project_id: one.project_id, plugin_id: id, actor_id: "owner" });
   });
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: one.project_id,

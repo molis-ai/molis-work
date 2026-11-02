@@ -250,3 +250,7 @@
 2026-11-01 20:40Z根接续观察：RAC400网络原件定位空Goal项目GET /api/board/momentum返回400（goal_id为空），不是membership DELETE拒绝；实际启用/移除/重加已完整通过。归Codex统筹，待现有根调用定位后按实际用户影响判断，当前不扩T395初始化修复、不称全部HTTP无错。证据/tmp/t395-rac400-evidence/round3/tests.log。
 
 2026-11-01 23:26Z：审查框内部同slot的review-shown没有逐请求编号，旧ack可能提前结束后发show的waiter，归Codex统筹/P2后续。此次T405真实失败由回执归属及几何hidden两处修复，旧ack只使新增测试误把上一刷新当当前审查完成；测试已改按真实pending DOM观察，不在本修扩内部消息协议，也不作新的当前主线本数。
+
+2026-11-02 T405有限二审P2后续（负责人：Codex统筹）：tests/goals-event-acknowledge.test.ts 的mcpRig.close在served.close拒绝时会跳过host.close与目录清理。当前正常和准备失败路径已覆盖并通过，尚无实际泄漏复现；后续清理改动应继续其余关闭并保留原异常。仅记测试韧性后续，不新增本轮主线数量或阻挡当前已核修复。来源SPLIT-CI-SECOND.md，准确H772b1834。
+
+2026-11-02 T405新增P2后续（负责人：Codex统筹）：tests/goal-event-http.test.ts onboarding finally中store.close抛错会跳过新借用Host及目录清理；既有14/14通过，无实际泄漏复现。后续清理改动应逐项尝试并保留异常，不增本轮主线。来源CI-OWNER-NEW-SECOND.md，H237ba014。

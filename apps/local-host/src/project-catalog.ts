@@ -1,5 +1,5 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
-import { prepareMemoryHome } from "./memory/memory-initialization.js";
+import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
 import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -237,6 +237,10 @@ export class MolisWorkProjectCatalog {
 
   static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
     const home = resolveConfiguredHome(options.homeDirectory), root = agentRuntimeDirectory(home);
+    if (options.storageOwner === undefined) {
+      assertNoPendingHomeRestore(root);
+      preflightMemoryHome(home);
+    }
     const owned = options.storageOwner === undefined ? acquireStorageOwner(root) : undefined;
     const owner = options.storageOwner ?? owned!;
     let retained: ReturnType<typeof retainStorageOwner> | undefined;

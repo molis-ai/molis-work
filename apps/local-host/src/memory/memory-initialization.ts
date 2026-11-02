@@ -2,8 +2,17 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename } from "node:path";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defaultPrefs, isCompletePrefs, memoryErrors } from "@molis-ai/molis-work-service-memory";
-import { hasOnlyStorageOwnerFiles, homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "../agent-runtime-paths.js";
+
+/** Reject an obviously invalid Home without creating owner files; initialization still requires the locked checks below. */
+export function preflightMemoryHome(home: string): void {
+  if (existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)) || !existsSync(home)) return;
+  const runtime = agentRuntimeDirectory(home);
+  if (readdirSync(home).some(entry => entry !== basename(runtime)) || hasStorageBusinessFiles(runtime)) {
+    throw memoryErrors.unavailable("这个非空 Home 缺少记忆库，不会将它当作新 Home 初始化");
+  }
+}
 
 /** Initialize only a fresh Home's complete product prefs; an existing ledger must already contain current prefs. */
 export function prepareMemoryHome(home: string, owner?: StorageOwner): boolean {

@@ -155,6 +155,16 @@ function files(directory: string) {
   return Object.fromEntries(Object.entries(homeBusinessTree(directory)).filter(([, state]) => "bytes" in state));
 }
 
+// T405-FULL-02: first Host ownership must not leave technical directories in a Home it refuses.
+test("a nonempty Home without a ledger is refused before creating its owner directory", t => {
+  const home = scratch(t);
+  writeFileSync(join(home, "retained.txt"), "keep these original bytes");
+  const before = files(home);
+  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.unavailable" });
+  assert.deepEqual(readdirSync(home), ["retained.txt"]);
+  assert.deepEqual(files(home), before);
+});
+
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
 for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partial-prefs", "six-field-prefs"] as const) {
   test(`an existing Home with ${shape} is refused without interpreting it as a new user`, async t => {

@@ -84,7 +84,7 @@
 | 静态检查、API 快照、资源预算进 CI | 符合 | `.github/workflows/ci.yml` 的 health、page-assets、api、native-checks 各作业；`Verify` 依赖它们 |
 | 术语表、两套能力机制收敛 | 符合 | `docs/system/GLOSSARY.md`；typed 宿主能力为 0 |
 | 主链路与代码一致、每个能力一条路径 | **部分** | [CALL-CHAINS §10](../system/CALL-CHAINS.md) 自己写着四组「还没有逐条盘点的只走 HTTP 的写入」，5 个文件里约 38 处写路由（第 3 节 B9、第 11 节） |
-| 巨大单元门禁生效、清单缩小 | 符合，有一处遗漏 | 123 → 43；`horizontal/memory/src/service.ts` 与 `MemoryService` 没有登记，与用户 10-30 的决定不符（I-6） |
+| 巨大单元门禁生效、清单缩小 | 符合，MemoryService 已排期 | 123 → 43；`horizontal/memory/src/service.ts` 与 `MemoryService` 的内聚单元登记归 T-061，等 #1101/#1059 既定前置，不计作遗漏（I-6；更正） |
 | 测试引用内部明显下降 | 符合，但被绕开 | 942 → 412；同期宿主入口 304 → 558，测试改从宽入口拿内部（G3） |
 | 兼容逻辑删除、保留项写明 | 符合 | 兼容标记 8 处全是误报（J 节）；读取只认现行版本（`schema_version !== 1` 一类严格判断） |
 | 每个库一份建库代码，版本不符拒绝 | 符合，有重复 | `packages/storage/src/sqlite-baseline.ts`；但有 4 份手写的只读预检、7 个构造器重复执行建表语句（B3、B4；复查更正：原写成 B7、B8） |
@@ -273,7 +273,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 ## 5. D：多余逻辑、可以简化的逻辑
 
 - **D1**：构造器重复建表（B4）、只读预检重复（B3）。
-- **D2 永远禁用的「未登录 / 登录」按钮（P2，要用户定）**：`apps/workbench/src/settings-directory.ts:30`，每个人都看得到，旁边是 `TODO: Enable this entry when sign-in is implemented`。它和第一轨删掉的「通知功能即将开放」是同一类占位。这是全仓唯一真正的 TODO；改它会改用户看得见的界面。
+- **D2 永远禁用的「未登录 / 登录」按钮（P2，基线时待裁，作者后续记录见 §13 第 3 项）**：`apps/workbench/src/settings-directory.ts:30`，每个人都看得到，旁边是 `TODO: Enable this entry when sign-in is implemented`。它和第一轨删掉的「通知功能即将开放」是同一类占位。这是全仓唯一真正的 TODO；改它会改用户看得见的界面。
 - **D3 错误模型只管码，不管裸 Error（P2，推断）**：生产代码里有 1,708 处 `new Error(`，在 494 个文件里。门禁只数 Error 子类（25）与码字面量，这些裸 Error 在任何口径之外。建议分开两类：内部不变量可以留，会到达调用方的改成 `defineErrorCodes`。
 
 ## 6. E：换手痕迹
@@ -319,7 +319,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
   | `apps/local-host/src/index.ts` | 69 |
 
   前六个里五个是门禁数据或登记文件。
-- **G2 放行写在脚本里（已证实）**：`page-assets.mjs` 的 `APPROVED_NEW_ASSETS`（22 条）与 `APPROVED_CEILINGS`（2 条）全部已经用完，预算文件里已经是放行后的数字，却还留着。每次放行都要改门禁脚本本身，脚本因此成了第三热的文件。建议放行另放一个按资源分片的数据文件，用完由门禁报出来。
+- **G2 放行写在脚本里（已证实）**：`page-assets.mjs` 的 22 条 `APPROVED_NEW_ASSETS` 已首次冻结、用完未删；另 2 条 `APPROVED_CEILINGS` 按规则在下一次修改门禁时移除，当前保留不算遗漏，本次整治修改门禁时一并轮换（更正）。每次放行都要改门禁脚本本身，脚本因此成了第三热的文件。建议放行另放一个按资源分片的数据文件，用完由门禁报出来。
 - **G3 门禁被绕开（推断：同时发生已证实，因果是推断）**：「测试引用包内部」只数深路径 import。同一时期这个数从 483 降到 412，宿主入口则从 376 涨到 558，而且新增的导出主要被测试用。把内部放进入口，门禁就看不到了。B1 的入口宽度门禁可以堵上。
 - **G4 错误模型看不到裸 Error**：见 D3。
 - **G5 只报告、不挡的数字都在涨**：死翻译键 2,472 → 2,518；验收编号 570 个没证明；宿主行数没有门禁。
@@ -343,7 +343,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 | 3 | BACKLOG 254 行 | 34 行正文写着已合入、已完成、已删、已修或做完。复查逐行核过：都是「前置 PR 已合入」「做完的样子」或部分完成，没有一行按正文已经做完；但 BL-493 写着「未实现」，代码上已由 #1723 做了（第 16 节 N5）。163 行无主；17 行格式坏；2 行写着暂定或待裁 | 统筹核 BL-493；无主的定主人 |
 | 4 | 协调与交接记录 | 风险登记 65 行，约 54 行没标关闭：40 行不指向任何 BL，14 行只指向已删的 BL，没有一行指向开着的 BL。R-24 实际已解决（`Verify` 依赖 `security-invariants`），仍写「开着」。零碎单约 160 行，也只在协调分支上。主检出的 `.claude/handoff/` 不入库 | 开着的并进 BACKLOG（带主人），协调分支只留进度 |
 | 5 | PR 遗留 | 10-13 以来 172 个 PR 关闭未合并（复查更正：原写 61）。复查逐个核过：66 个评论里写明随批落地，84 个被已合并的批 PR 点名，其余按提交说明在 main 上找得到；不在 main 上的只有 #1538、#1553 两个维护脚本 PR（推断：被 10-30 清空重建的决定取代）。带「交 Codex 修复队列」的 PR 58 个、「非阻塞」104 个、「后续单」62 个，都没和 BACKLOG 或零碎单对账；开着的 11 个 PR 里有 10-18、10-23 的草稿（#734、#1059） | 抽查对账；关掉的 PR 判断是被取代还是丢了 |
-| 6 | 用户决定落地 | **已排期**（更正）：MemoryService 登记为内聚单元（10-30 第 3 项）排给 T-061，等 #1101/#1059 合入后登记；health 里那 2 个未登记的就是它。**在做**：PG-070/071 样式搬出共用表，Goals 还剩 321 条、Feed 234 条、Coding 9、Form 6、创作台 5（T-393 等）。**已落地**：BL-121 ②（`feed-start` 已为 0）、T-137 的通用面板表。**存疑**：安装清单 `SCHEMA_VERSION = 4`（`apps/local-host/src/installer/home-contract.ts:9`），10-30 定「各库与带版本的 JSON 合成第 1 版」，`docs/releases/CHECKLIST.md` 的版本表里没有它 | MemoryService 随 T-061；`SCHEMA_VERSION` 请统筹定 |
+| 6 | 用户决定落地 | **已排期**（更正）：MemoryService 登记为内聚单元（10-30 第 3 项）排给 T-061，等 #1101/#1059 合入后登记；health 里那 2 个未登记的就是它。**在做**：PG-070/071 样式搬出共用表，Goals 还剩 321 条、Feed 234 条、Coding 9、Form 6、创作台 5（T-393 等）。**已落地**：BL-121 ②（`feed-start` 已为 0）、T-137 的通用面板表。**存疑**：安装清单 `SCHEMA_VERSION = 4`（`apps/local-host/src/installer/home-contract.ts:9`），10-30 定「各库与带版本的 JSON 合成第 1 版」，`docs/releases/CHECKLIST.md` 的版本表里没有它 | MemoryService 随 T-061；`SCHEMA_VERSION` 基线时待裁，作者后续记录与重建时段限制见 §13 第 4 项 |
 | 7 | 验收编号 | 570 个没有证明：proactive-assistant 106、onboarding-coverage 44、font-and-skin-system 38、prologue-memory-strategy 32、coding-harness-optimization 32、work-brief 26… | 按 spec 的状态句分三类：该归档、该标「[人工]」、真没测 |
 | 8 | 写了没人看守的规则 | 抽查 5 条硬约束（删项目唯一服务、并发调度声明、身份不从输入读、DOM 事件登记、错误子类），都有门禁或测试。复查把 `AGENTS.md` 里写「CI 里跑」的门禁和用例逐个追到 `ci.yml` 的必过作业，全部属实；`AGENTS.md` 里写死的两个旧数字过时了（第 16 节 N1） | 改 `AGENTS.md` |
 | 9 | 安全不变量 | S-03 行漏了 RAC-1805 的用例（零碎单 T-167）；R-24 已过时 | 改表 |
@@ -374,7 +374,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 | `tests/quarantine.json` | 0 | — | — | — |
 | 测试 skip / todo | 64 | 44 处只在 macOS、2 处要 Chrome、6 处要环境变量、3 处看工具在不在；其余是探针测试里的样例 | 平台条件，隐式 | 列一份「只在 macOS 跑」的名单，写明谁在什么时候跑 |
 | 压制注释 | `@ts-expect-error` 20（全是测试里的反向类型断言）、`eslint-disable` 3 | — | 后者 Biome 不读，但说明了意图 | 留到下次改这几个文件时（更正） |
-| `TODO` | 1（D2） | 无 | 隐式 | 请用户定 |
+| `TODO` | 1（D2） | 作者后续决定记录见 §13 第 3 项 | 基线时隐式 | 核原决定后由统筹登记带主人的 BACKLOG |
 | 「2026-10-18 改」/「暂定」类 | 73 / 73 | 部分有 BL | 过渡 | 各挂一条 BL，或改成现状 |
 
 合计：
@@ -400,7 +400,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 
 ## 13. 要用户或统筹裁定的
 
-**用户 2026-11-01 已定**（弹窗）：
+**作者转述的用户 2026-11-01 决定**（作者记为弹窗）：以下保存作者的决定记录；本报告未附可定位的原始弹窗记录，统筹须核原记录后另行排期。此表不独立授权产品实现、真实 Home、保护分支或凭据操作；第 4 项的真实 Home 重建时段限制保持。
 
 | # | 决定 | 落到哪 |
 | --- | --- | --- |
@@ -448,7 +448,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 
 | 项 | 状态 |
 | --- | --- |
-| R1/R5 第一片 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727) 已开（删 24 条已用完、到期的页面资源放行，删 3 个死函数，Goals `requestHash`、四份控制令牌比较、两份读分支各收成一份；定向 21 个文件与 health、page-assets、boundary、secrets 都过）。留不留由统筹定 |
+| R1/R5 第一片 | PR [#1727](https://github.com/molis-ai/molis-work/pull/1727) 已开（删 24 条已用完、到期的页面资源放行，删 Schedule 无调用函数，保留在途消费者使用的两个 Memory helper（后继 e181f302 已恢复），Goals `requestHash`、四份控制令牌比较、两份读分支各收成一份；定向 21 个文件与 health、page-assets、boundary、secrets 都过）。留不留由统筹定 |
 | 工作树与分支（⑧） | 已清：干净且已合入的工作树 21 个、本地分支 294 个；`~/.codex/worktrees` 没动 |
 | 统筹交接 | #1332 评论 [6568020430](https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6568020430)；更正评论 [6568532474](https://github.com/molis-ai/molis-work/issues/1332#issuecomment-6568532474)：原评论里「我接着做的」三项不做了，交统筹 |
 | 共享核心集成分支 | 本地分支 `claude/anticorr-shared-core` 有未提交的草稿（删 `maturity`、`checkSqliteBaselineVersion`、SDK 内部 `isRecord` 收成一份、API 快照），已构建通过，没跑用例、没推送 |
@@ -537,13 +537,13 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
     - #1297 的三项里，一项已修；一项（`AgentStepReportAuthor` 没从 `services/agent-host` 导出，API 快照里仍是未导出的 `interface`）还开着，而它要挂靠的 BL-470 行已经删了；另一项（页面一侧的断言）没法从代码判断。
   - 「非阻塞」的项会这样丢掉。建议 R8 先把这 59 个 PR 的项过一遍，并进 BACKLOG。
 - **N7 动作描述符的工厂也是每个插件一份（P2，已证实）**：35 个 `define` 一类的工厂，函数体有 34 种，默认值大同小异（按 operation 推 `kind`、`scope`、`audiences`）。和 B2 的 schema 构造器是同一类，可以一起进 SDK。
-- **N8 #1727 本身（复查结论：可以合）**：
+- **N8 #1727 本身（作者对旧头的复查意见，后继已修正）**：
   - `requestHash` 5 份逐字相同，都从 SDK 取 `canonicalJsonValue`。
   - `currentWorkspaceBranch` 与原来两份逐字相同，调的是同一个 `runWorkspaceGit`。
-  - 删掉的三个函数在基线上全仓没有引用，也没从包入口导出。
+  - 删掉的三个函数在基线上全仓没有引用，也没从包入口导出；但这不能证明在途无消费者。统筹核实受保护 #1059 仍调用两个 Memory helper，#1727 已在 e181f302 中将两文件恢复为 base，不修改保护分支。
   - `controlTokenMatches` 只有一处行为变化：期望的令牌为空时，原来三份会放行空令牌，现在一律拒绝。`resolveWebControlToken` 只给 32～512 字符的令牌，测试里也没有空令牌，所以生产上等价、更严。
   - 变异检验：令牌比较变成「只要是字符串就放行」，S-03、S-04 的 6 条用例失败（HTTP 与三个 socket 都覆盖到）。
-  - CI 的 Verify 已绿，全量在跑。
+  - 旧头 36e432357 的 Verify 与 Full 后续通过，仅属于旧头；e181f302 的新头 CI/Full 与最终 §8 采用由统筹另核。
 
 ### 16.4 复查的局限
 

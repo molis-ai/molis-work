@@ -15,7 +15,7 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspace?: boolean; model?: boolean } = {}) {
   const f = await openTestHome(t), project = await f.createProject("Scheduled Agent");
-  if (options.workspace !== false) await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({
+  if (options.workspace !== false) await f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog)({ homeDirectory: f.home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({
     project_id: project.project_id, canonical_path: f.home, actor_id: "web-user", user_confirmed: true,
   })));
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>(), prompts: string[] = [];
@@ -30,7 +30,7 @@ async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspa
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { release.resolve(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address === "object");
-  if (options.model !== false) await seedConfiguredModels(f.home, [{ provider_id: "fixture", model_id: "fixture" }], `http://127.0.0.1:${address.port}`);
+  if (options.model !== false) await seedConfiguredModels(f.home, [{ provider_id: "fixture", model_id: "fixture" }], `http://127.0.0.1:${address.port}`, f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog));
   const caller = { actor_id: "web-user", project_id: project.project_id, audience: "user" as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
   const client = f.host.actionClient(project.reference);
   const created = await client.invoke(caller, scheduleActions.createTask, { title: "早上汇总", instructions: "汇总本周进展", time: "08:30", notify_important: true });

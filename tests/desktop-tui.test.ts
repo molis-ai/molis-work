@@ -1,7 +1,7 @@
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { tabWorkspaceSource } from "./tab-workspace-files.js";
 
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,7 +11,7 @@ import test from "node:test";
 import { WebSocket, type RawData } from "ws";
 
 
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoGoals, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, projectActionAvailability, workspaceRefFor, seedDemoGoals, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
@@ -97,6 +97,19 @@ test("native Desktop identity self-heals before layout and survives full-page na
     /location\.assign\((?:result\.(?:project_path|goal_path)|route\()/,
   );
 });
+
+function catalogWebHost(homeDirectory: string) {
+  let withCatalog = withMolisWorkProjectCatalog;
+  const availability = projectActionAvailability((options, run) => withCatalog(options, run), homeDirectory);
+  const host = new MolisWorkLocalHost({ homeDirectory,
+    actionAvailability: availability, sceneAvailability: availability,
+    projectRoutePrefix: projectId => `/projects/${encodeURIComponent(projectId)}`,
+    workspacesFor: projectId => withCatalog({ homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    workspaceFor: projectId => withCatalog({ homeDirectory }, catalog => workspaceRefFor(catalog, projectId)),
+  });
+  withCatalog = host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
+  return { host, withCatalog };
+}
 
 function createMolisWorkWebServer(
   options: Parameters<typeof createBaseMolisWorkWebServer>[0] = {},
@@ -826,7 +839,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
 test("panel APIs and the TUI pane work without a desktop shell marker", async () => {
   const fixture = await catalogFixture();
   addProjectGoal(fixture.project, "TUI-GOAL", "桌面关联 Goal");
-  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
+  const { host, withCatalog } = catalogWebHost(fixture.homeDirectory);
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory, localHost: host });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -913,14 +927,8 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.deepEqual(listedBody.panels.map(panel => [panel.panel_id, panel.program]), [[payload.panel_id, { command: "cat", args: [] }]]);
 
     // The terminal's own work context resolves to the project, and stays bound once the terminal is closed.
-    const resolved = async () => {
-      const catalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
-      try {
-        return catalog.resolveRuntimeContext({ runtime_id: "command", stable_work_context_id: payload.panel_id, host_declares_stable: true }).status;
-      } finally {
-        catalog.close();
-      }
-    };
+    const resolved = () => withCatalog({ homeDirectory: fixture.homeDirectory }, catalog =>
+      catalog.resolveRuntimeContext({ runtime_id: "command", stable_work_context_id: payload.panel_id, host_declares_stable: true }).status);
     assert.equal(await resolved(), "bound");
     assert.equal((await webFetch(`${terminalsUrl}/${encodeURIComponent(payload.key)}`, { method: "DELETE" })).status, 200);
     assert.equal(await resolved(), "bound");
@@ -928,6 +936,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+    await host.close();
   }
 });
 
@@ -935,7 +944,8 @@ test("compound parent terminals become read-only and direct execution APIs requi
   const fixture = await catalogFixture();
   addProjectAcceptedGoal(fixture.project, "TUI-PARENT", "交付完整终端体验", "closed_compound");
   addProjectAcceptedGoal(fixture.project, "TUI-CHILD", "实现具体终端交互", "closed_leaf");
-  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
+  const { host, withCatalog } = catalogWebHost(fixture.homeDirectory);
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory, localHost: host });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -950,14 +960,11 @@ test("compound parent terminals become read-only and direct execution APIs requi
     assert.equal(childTerminal.status, 200, await childTerminal.clone().text());
     const childPanelId = (await childTerminal.json() as { panel_id: string }).panel_id;
     const historicalPanelId = "plugin-historical-parent-terminal";
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
-    try {
+    await withCatalog({ homeDirectory: fixture.homeDirectory }, async catalog => {
       const { install_id, actor_id } = catalog.terminalPanels.get(childPanelId)!;
       await catalog.commit(() => catalog.terminalPanels.insert({ panel_id: historicalPanelId, install_id, project_id: projectId, actor_id, key: "before",
         subject: "TUI-PARENT", runtime: "command", launch_command: "cat", launch_args: [], title: "cat" }, fixture.homeDirectory));
-    } finally {
-      catalog.close();
-    }
+    });
     addProjectChildRelation(fixture.project, "TUI-CHILD", "TUI-PARENT");
 
     const parentPage = await (await webFetch(`${origin}${prefix}/goals/TUI-PARENT`)).text();
@@ -1034,6 +1041,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+    await host.close();
   }
 });
 

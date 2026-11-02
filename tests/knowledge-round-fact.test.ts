@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -25,7 +26,7 @@ test("PMAT-33 PMAT-35 PMAT-37 PMAT-39 本轮情况 counts the project's document
   // PG-077: the platform Artifact provider is available without a project Plugin member.
   const home = await openTestHome(t), project = await home.createProject("资料");
   const prefix = `/projects/${project.project_id}`;
-  const model = await connectorAssistantModel(t, home.home, () => "好。");
+  const model = await connectorAssistantModel(t, home.home, () => "好。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const ask = async (work_id?: string) => {
     const before = work_id ? (await home.web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${work_id}`)).rounds.length : 0;
     const sent = await home.web.post<AssistantSendResult>(prefix + "/api/assistant/send", { ...(work_id ? { work_id } : {}), text: "库房着火第一步做什么？", request_id: crypto.randomUUID() });

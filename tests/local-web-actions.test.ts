@@ -78,7 +78,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     repository.save(accepted); local.assert_authority_current!(exact, definition.action.permissions);
     await assert.rejects(host.actionClient(reference).invoke(local, imposter, { subject_id: "note" }), { code: "actions.forbidden" });
     await assert.rejects(host.actionClient(reference).invoke({ actor_id: "external-client", project_id: project.project_id, audience: "mcp", permissions: [] }, definition, { subject_id: "note" }), { code: "actions.forbidden" });
-    const foreign = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "其他项目", actor_id: "owner" }));
+    const foreign = await host.configurePersonalPlanning(home, withCatalog)({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "其他项目", actor_id: "owner" }));
     await assert.rejects(read(molisWorkHostProjectReference({ databasePath: foreign.database_path, projectId: foreign.project_id })));
     assert.equal(reads, 1, "another project never reaches this installation's reader");
     await runtime.stop(installId);

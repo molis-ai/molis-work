@@ -67,17 +67,17 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   // Host's other error classes; an ActionError adds the code line the caller can branch on.
   const home = mkdtempSync(join(tmpdir(), "action-error-edges-mcp-"));
   const token = "action-error-edges-control-token";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "待办 MCP", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   let external: LocalMcpServer | undefined;
   t.after(async () => {
     await external?.close();
     await new Promise<void>(resolve => web.close(() => resolve()));
     await host.close();
-    catalog.close();
     rmSync(home, { recursive: true, force: true });
   });
   await new Promise<void>(resolve => web.listen(0, "127.0.0.1", resolve));

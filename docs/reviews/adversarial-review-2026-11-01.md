@@ -1,6 +1,6 @@
 # 全仓对抗式审查报告（2026-11-01）
 
-状态：审查完成。用户 2026-11-01 定**只出报告、不由本轮执行整治**；第 12 节分片与第 13 节裁定留给统筹排期。报告不改产品代码、门禁、测试、规格和真实 Home。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」；停下之前已经做了的，见第 15 节。同日又用另一套方法把全部数字、重复逻辑与 #1727 逐项复查了一遍（语法树计数、全文检索、变异检验），改动处标「（复查更正）」，新发现与逐项结果见第 16 节。11-02 把前两遍里按评论、正文状态或文档判的几项（关闭的 PR、BACKLOG、`privileges.md`、扩展点清单、例外台账）逐项改成对照基线代码，改动处标「（对照代码更正）」或「第三遍」，结果见第 16.5 节。
+状态：审查完成。用户 2026-11-01 定**只出报告、不由本轮执行整治**；第 12 节分片与第 13 节裁定留给统筹排期。报告不改产品代码、门禁、测试、规格和真实 Home。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」；停下之前已经做了的，见第 15 节。同日又用另一套方法把全部数字、重复逻辑与 #1727 逐项复查了一遍（语法树计数、全文检索、变异检验），改动处标「（复查更正）」，新发现与逐项结果见第 16 节。11-02 把前两遍里按评论、正文状态或文档判的几项（关闭的 PR、BACKLOG、`privileges.md`、扩展点清单、例外台账）逐项改成对照基线代码，改动处标「（对照代码更正）」或「第三遍」，结果见第 16.5 节。同日又按用户要求补了第四遍，看哪些逻辑能下沉成平台能力、哪些实现多余、哪些检查谨慎过了头、调用链里有几层只是转发，用的是类型检查、转发链分析和在途分支核对；结果在第 17 节，对象是 `2ec20d4fc`。
 
 - **对象**：origin/main `e4e98ed33`（2026-11-01 15:13Z；该提交的 CI 与 Full 均为绿）。第 1 节的趋势数字取同一分支在 10-13、10-20、10-27 的提交。
 - **依据**：[防腐整理要求](../prompts/repository-anti-corruption.md)（四个目标、§4.1–4.19、§7 完成标准、附录 A），[系统整理要求](../prompts/repository-systematic-review.md)，`AGENTS.md` 与 `docs/system/` 的现行规则，[上一轮清理检查](cleanup-audit-2026-10-20.md)。
@@ -480,6 +480,16 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
    - N9 给 #631 的重做开 BACKLOG 行，并进 R8；
    - N10、N11 并进 R6：按代码改 `EXTENSION-POINTS.md` 的三处与 `privileges.md` 的状态和出处；
    - BACKLOG 的 BL-375、BL-137 交主人改写。
+10. **第四遍新增（第 17 节）**：
+   - 先要统筹定的两件：
+     - N12 的文档记录协议，归 SDK，还是归成果库与放置服务；
+     - N14 的版本字段，是否改成动作声明（改合同）。
+   - 并进 R2（共享核心集成分支）：
+     - N13、N15、N16 要的 SDK 工具；
+     - N17 删描述符，把 ⑤ 扩大；
+     - N22 从 schema 推出处理器的输入类型。
+   - 各包自己的小片，由主人按包排：N18 删死导出，N19、N20 删转发层，N23 到 N25。
+   - 先问用户的：N16 的源码计数门禁。
 
 ## 16. 复查（2026-11-01，第二遍）
 
@@ -629,3 +639,246 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 - 「后来又改过」那 8 个，没有逐处判断每个差别是修正还是丢了；只抽看了 4 个文件。
 - 重复认领那 3 个，只核了留下的那个已合进 main，没有逐行比较两份实现。
 - 「交 Codex 修复队列」的项仍只抽查了 2 个 PR（N6），这一遍没有扩大。
+
+## 17. 第四遍：能下沉的平台能力、无谓的实现、过分谨慎与调用链（2026-11-02）
+
+对象是 origin/main `2ec20d4fc`（含 #1731）。前三遍已报的不再重复：`isRecord`、schema 构造器、HTML 转义、`messageOf`、`requestHash`、规范化 JSON、`parseJson`（B2），6 个死导出与只在本文件用的导出（B5），插件骨架的克隆（B6），描述符的 `maturity`（B7）。这一遍看四件事：哪些逻辑该下沉成平台能力，哪些实现多余，哪些检查谨慎过了头，调用链里有多少层只是转发。
+
+### 17.1 方法
+
+- **语法树**（TypeScript 编译器 API；3,248 个产品源文件、35,990 个函数，不含测试、脚本、示例与 vendored 包）：
+  - 函数克隆：逐字相同的，和只换了局部名字的（属性名保留，字符串与数字只认种类）；
+  - 只转发的函数：函数体只有一次调用，实参正好是自己的形参；
+  - 同名转发链：一个方法转给下一层的同名方法。
+- **类型检查**（每个包用自己的 tsconfig 建程序，跨包类型读 `pnpm build` 产出的声明）：找类型已经决定了结果的检查，包括非空值上的 `?.` 与 `??`、结果恒定的 `typeof`、数组上的 `Array.isArray`、同类型的 `String()` / `Number()` / `Boolean()`、对象上的 `||` 默认值。
+  - 有三类不算多余，已排除：
+    - 下标读取：仓库没开 `noUncheckedIndexedAccess`，类型说有，实际可能没有；
+    - `{}` 类型：它也包括字符串和数字；
+    - 运行环境的功能探测：被查的名字声明在 lib 里。
+  - 每条记下值从哪来：形参、`as` 强转、库行或 JSON、内部。
+- **没人用的导出**：
+  - 按标识符在全仓找别的文件里的出现，测试、脚本、示例和浏览器脚本模板里的字符串都算；只做再导出的行不算。
+  - 剩下的，再到 346 个远端分支和 13 个开着的 PR 头里看它们改过的文件，有一处用到就不算。这是第二遍 N8 漏查在途分支之后补上的做法。
+- **人工核实**：写「已证实」的都读过代码。类型检查的命中抽了 20 条读代码，估准确率。
+
+### 17.2 可以下沉成平台能力的
+
+**N12 文档类记录的同一套协议，四个插件各写了一份（P1，已证实）**
+
+- Dataset、Form、Pages、PPT 的 store 各有下面这些，只换了表名和提示语：
+  - **跨项目移动** `relocate`：读当前记录，有没存完的固定就拒，按版本 `UPDATE … SET project_id`，清掉成果引用（`plugins/native/dataset/src/store.ts:121`、`plugins/native/pages/src/store.ts:240`，Form、PPT 同样）。Lingguang 也有一份，一共五份。
+  - **复制** `duplicate`：同一个请求返回同一份副本。加上 Coding，一共六份。
+  - **固定到成果库的两段提交**：先存 `publication_pending_json`，发布成功后由 `completePublication` 比对意图，再写回成果号，一共四份。
+  - **`normalizeProjectId`**：五份，意思相同（去空白、不许空、不超过 80）。
+  - **其余**：升成 Goal 的 `promoteDataset` 与 `promoteForm` 只差名字（34 行），`createDatasetPlugin` 与 `createFormPlugin` 的 `start`（18 行）、`publishArtifact`（11 行）、搜索提供方也是；读正文的 `body` 有五份。
+- 平台已经负责这几件事的另一半：
+  - 跨分区移动由放置服务做，调用被拒时平台把对象移回原处（S-35）；
+  - 发布由成果库做。
+  - 每个插件再写一遍「存待定意图 → 发布 → 完成」，等于把平台协议的状态机抄进了插件自己的库。
+- 建议：在 SDK 给一份文档记录工具（移动、复制、两段固定的 SQL 与校验，表名和提示语由插件给）；或者让成果库客户端按 `(artifact_id, version)` 幂等，插件不再自己存待定意图。归哪里要统筹定。可删约 300 行（推断）。
+
+**N13 插件页面的工具包：18 份 `browser/dom.ts`、16 份 `browser/request.ts`（P2，已证实）**
+
+- 18 个插件各有一份 `src/browser/dom.ts`，共 494 行；16 个有 `src/browser/request.ts`，共 412 行。
+- 反复出现的函数：
+  - `required(root, selector)`：14 份；
+  - `messageOf`：12 份；
+  - `statusOf`：4 份；
+  - `isAbort`：2 份；
+  - `textCell`：4 份；
+  - 日期标签（`whenOf`、`formatTime`、`dateLabel`、`isoDay`）：6 份；
+  - 动效（`EASE_*`、`arrive`、`settle`）：3 份。
+- 18 份 `dom.ts` 没有一份 import SDK 的 `/ui`。SDK 已有的也再写一遍：
+  - `escapeHtml` 已在 B2 报过；
+  - Pages 的 `cutUnits`、`firstCharacters` 就是 SDK `whole-units` 的 `cutHead`、`cutCharacters`（`plugins/native/pages/src/browser/dom.ts:11`、`:22`）；
+  - Jelly 和 Coding 的浏览器代码已经在用 SDK 的 `whole-units`，可见浏览器端 import 得到。
+- 16 份 `request.ts` 包的都是同一个 `molisWorkRequest`，差别只在插件路由、兜底文案和错误码改写。
+- Dataset 与 PPT 的页面几乎是同一份：`events.ts`、`status.ts`、`request.ts`、`dom.ts` 把插件名换掉后，只差 6–15 行。
+- 建议：
+  - SDK `/browser` 补上 `required`、`messageOf`、`statusOf`、`isAbort`、按界面语言出日期标签，再加一个 `pluginRequest(host, { fallback, codes })`；
+  - 插件删掉自己的副本，可删约 600 行（推断）；
+  - CALL-CHAINS 链 1 第 1 步写的「各插件客户端自带包装（W5-04 迁）」也就有了去处。
+
+**N14 内核按一个提供方的能力名开了分支（P1，已证实）**
+
+- `packages/kernel/src/version-precondition.ts:6` 认四个「读取时的版本」字段，各有不少文件在用：
+  - `expected_version`：94 个文件；
+  - `expected_revision`：64 个；
+  - `expected_revisions`：4 个；
+  - `expected_updated_at`：7 个。
+- 第 15 行另加一条：能力名以 `functions.authoring.` 开头、又有 `updated_at` 字段的，也算版本字段。只有判断规则的编辑动作是这样（`modules/judgment-rules/src/authoring-actions.ts:36`）。
+- 这是内核为一个提供方写的名单，与硬约束「能力注册一次……不另写名单或宿主分支」相反。
+- 建议二选一：
+  - 动作声明写出自己的版本字段（例如 `version_field`），内核只读声明。这要改合同，跑 `pnpm api:update` 与 `pnpm actions:update`。
+  - 判断规则改用内核已认的 `expected_updated_at`。
+
+**N15 时间与日期各写各的（P2，已证实）**
+
+- **按时区取年月日时分**：三份，都是 `Intl.DateTimeFormat("en-US", { hourCycle: "h23", … }).formatToParts`。在 `apps/local-host/src/assistant/assistant-followups.ts:338`、`apps/local-host/src/assistant/assistant-usage-ledger.ts:38`、SDK `packages/plugin-sdk/src/card-values.ts:8`。
+- **判断时区是否有效**：两份，都是试一次 `new Intl.DateTimeFormat("en", { timeZone })`。在 `plugins/native/coding/src/routes-cards.ts:13`、`plugins/native/jelly/src/calendar-validation.ts:36`。
+- **显示用的语言**：至少 7 种取法：
+  - 不传（跟操作系统）；
+  - `[]`；
+  - 写死 `"zh-CN"`；
+  - 写死 `"en-US"`；
+  - `document.documentElement.lang || "zh-CN"`；
+  - `locale || "zh-CN"`；
+  - 工作台 `apps/workbench/src/i18n.ts:67` 的 `dateTimeLocale()`。
+- 用户看得到、又写死 `zh-CN` 的，有这几处：
+  - 评审页 `apps/local-host/src/agent-review-http.ts:96`；
+  - `apps/local-host/src/computer/computer-record-source.ts:37`；
+  - `packages/im-ui/src/views.ts:16`、`:19`，这里连「今天」也写死了。
+  - 英文界面下，这几处仍显示中文日期。
+- 建议：SDK 给 `zonedParts`、`isTimeZone` 和按界面语言的日期格式化。界面语言的缺口按用户 10-21 的口径，记进字体皮肤语言书 §6.1。
+
+**N16 截断加省略号没有共用函数，至少 14 处还会截出半个字（P2，已证实）**
+
+- SDK `whole-units` 有 `cutHead`，没有「截断再加 …」，于是各处自己写 `clip`：12 种写法，分在 7 个包里。
+- 防腐线已经一处处改成按整字截（T-183 到 T-353，几十个 PR）。带省略号的这一类，还有至少 14 处按 UTF-16 单元截；文字里有表情或生僻字时，会留下半个字：
+  - `apps/local-host/src/assistant/assistant-present.ts:165`、`apps/local-host/src/project-arrival-http.ts:83`
+  - `horizontal/agent-host/src/adapters/prologue-action-gateway.ts:402`、`horizontal/agent-host/src/adapters/prologue-stream.ts:170`、`:179`、`:185`
+  - `modules/shelf/src/clipboard.ts:32`
+  - `packages/plugin-sdk/src/action-cards.ts:125`（SDK 自己）
+  - `plugins/native/alchemist/src/studio/shared/contracts/direction.ts:14`
+  - `plugins/native/feed/src/projection.ts:86`
+  - `plugins/native/goals/src/page/guidance-document.ts:47`
+  - `plugins/native/coding/src/browser/taskboard-format.ts:6`、`plugins/native/coding/src/continuation.ts:39`、`plugins/native/coding/src/history-digest.ts:34`
+- 建议：
+  - `whole-units` 加一个 `cutWithEllipsis`，这 14 处改调它；
+  - 把「`.slice(0, …)` 后面接 `…`」加进源码计数门禁，只许减少。改门禁先问用户。
+
+### 17.3 多余、无谓的实现
+
+**N17 33 个合同描述符整个没人用（P2，已证实）**
+
+- B7 只说了 `maturity` 字段没人读。这一遍按名字查：35 个 `ContractDescriptor` 常量里，33 个在 main 和全部远端分支上都没有任何文件提到（228 行）。
+- 其中 31 个所在的文件还有别的导出，删掉常量就行。
+- 另外 2 个（`platform/kernel`、`platform/testing`）所在的文件只有这个描述符，而且有包把这两个子路径声明成自己的合同入口，所以要先改声明，或者留下。
+- 建议：⑤ 从「删 `maturity` 字段」扩成「删没人用的描述符」，仍在 R2 那一片做。
+
+**N18 另有 28 个导出没人用（P2，已证实）**
+
+- 在 main 和全部远端分支上都没人用的导出值，一共 64 个（319 行），类型另有 42 个。扣掉 N17 的 33 个描述符，再扣掉 B5 已报的 `parseWorkspaceRef`、`workspaceScopeKey`、`calendarTitle`，新的有 28 个（约 70 行）：
+  - Alchemist 的 14 个 zod 模式（`plugins/native/alchemist/src/studio/shared/contracts/*.ts`）；
+  - `createWebQueryIntegrationPlugin`、`createYoutubeIntegrationPlugin`：集成改由 Home 登记以后，没有地方再调它们。`createRssIntegrationPlugin` 也一样，但 #1724、#1725 在用，所以不算；
+  - Feed 的 `sourceKindOpensAttention`、`feedItemTypeForSource`；
+  - 创作台的 `parseBuilderJson`、`BUILDER_PROJECT_PLUGIN_ID`；
+  - contracts 的三个 `FUNCTIONS_*` 常量、`WORKSPACE_REF_SCHEMA_VERSION`、`WORKSPACE_SELECTED_EVENT`、`ASSISTANT_CONTEXT_ATTRIBUTE`、`PLACEMENT_SUBJECT_SCHEMA`；
+  - 宿主的 `materialImageExtensions`。
+- 另有 25 个在 main 上没人用、但某个开着的 PR 或远端分支在用，这次不算死代码，例如 `dispatchControl`、`oauthDeviceRequest`，以及各插件的 `*_HOME_STORE`。
+
+**N19 只转发、什么也不做的层（P2，已证实）**
+
+- 795 个函数的函数体，只是把实参原样交给另一个函数。其中 329 个是 `this.<部件>.<方法>(…)` 这样的一行转发，加上方法签名约 930 行。
+- 最多的几个文件：
+
+| 文件 | 转发的方法 | 转给 |
+| --- | --- | --- |
+| `modules/projects/src/index.ts` | 28 | `records`、`workspaces`、`deletionSteps` |
+| `apps/local-host/src/project-catalog.ts` | 24 | 上一行的 `projects.query`、`projects.commands` 等 |
+| `horizontal/memory/src/service.ts` | 18 | `preferences`、`learning`、`scopeCommands`、`promotions` |
+| `modules/shelf/src/store.ts` | 17 | `admissions`、`copies`、`jobs`、`clipboard` |
+| `modules/judgment-rules/src/service.ts` | 15 | `store` |
+| `plugins/native/goals/src/goal-event-application.ts` | 15 | `ports.events`、`ports.events.state` |
+| `plugins/native/goals/src/module/event-facts.ts` | 14 | 各个部件 |
+
+- 能看出来的几处（Shelf、Memory、Goals），都是拆大类时留下的：类按职责拆成几个部件，原来的类留着整套方法，逐个转发。调用方不用改，但每次调用都多了一层。
+- 另有一处只为转一个函数而存在的文件：`packages/kernel/src/whole-units.ts`，只再导出 SDK 的 `cutHead`。
+- 还有三份转译函数什么也不做：`said = (L, text) => L(text)`，在 Files、Shelf、Workflows 的 `browser/dom.ts` 里，约 30 处调用。
+- 建议：调用方直接拿部件（例如 `store.admissions.admitUrl(…)`），删掉转发方法。这和用户 10-25「巨大单元不硬拆」的意思一致：拆是为了分清职责，不是为了把门禁的数字压下去，再把整套方法拼回来。
+
+**N20 调用链里纯转发的跳数（P1，已证实）**
+
+- **Goals「记一个顾虑」**：五步里只有最后一步做事。
+  1. 动作处理器：`plugins/native/goals/src/event-command-actions.ts:59`
+  2. `GoalEventApplication.applyConcern`：`plugins/native/goals/src/goal-event-application.ts:288`，转发
+  3. `GoalEventState.applyConcern`：`plugins/native/goals/src/module/event-state.ts:217`，转发
+  4. `GoalEventStateEffects.applyConcern`：`plugins/native/goals/src/module/event-state-effects.ts:71`，转发
+  5. `GoalEventConcerns.applyConcern`：`plugins/native/goals/src/module/event-state-concerns.ts:31`，真正做事
+- 原来是四层转发：e75051931（T-112）删掉了 `GoalEventFacts` 那一层。提交说明说「门面不再转发十五个方法」，只对那一个类成立，剩下的三层还在。
+- Goals 里，有 22 个方法以同一个名字逐层转发 2 到 3 层，其中 `applyConcern`、`setAgreement`、`listPolicyHistory`、`listWorkEventGoalLinks`、`eventCursor` 都是 3 层。整个包里只转发的函数有 120 个。
+- **项目**：`catalog.getProject` 经过两层转发才到做事的那一层。
+  1. `MolisWorkProjectCatalog.getProject`：`apps/local-host/src/project-catalog.ts:285`，转发
+  2. `projects.query.getProject`：`modules/projects/src/index.ts:97`，转发
+  3. `ProjectService.get`：`modules/projects/src/project-service.ts:45`，查找并报「找不到」
+  4. 库
+  - 同样两层转发的方法有 11 个，例如 `listProjectPlugins`、`addProjectPlugin`、`addWorkspaceProject`。宿主里有 13 处调 `catalog.getProject`。
+- **宿主**：`MolisWorkLocalHost.closeProject` → `LocalHost.closeProject` → `line.closeProject`，前两层只转发。
+- 建议：每条链只留下有自己判断的那几层。Goals 的动作处理器直接拿 `events.state`，宿主直接拿 `projects.query`。
+
+### 17.4 过分谨慎
+
+**N21 1,458 处检查的结果类型已经决定了（P2；数字已证实，准确率是抽样估计）**
+
+- SDK 和 contracts 的公开函数另算（93 处）：作者可能用不带类型的 JS 调它们，那里的检查有理由。其余按种类：
+
+| 检查 | 处数 | 值来自形参 | 值来自 `as` 强转 |
+| --- | --- | --- | --- |
+| 结果恒真的 `typeof` | 420 | 222 | 72 |
+| 非空值上的 `?.` | 402 | 144 | 53 |
+| 同类型的 `String()` / `Number()` / `Boolean()` | 253 | 79 | 34 |
+| 非空值上的 `??` | 188 | 62 | 9 |
+| 数组上的 `Array.isArray` | 118 | 53 | 27 |
+| 对象上的 `||` 默认值 | 76 | 49 | 1 |
+| 结果恒假的 `typeof` | 1 | 1 | 0 |
+
+- 抽了 20 条读代码：
+  - 8 条确实多余：值来自插件自己的有类型数据，或者是已经按 schema 校验过的输入；
+  - 7 条检查是需要的，但值的声明类型是错的：值来自 iframe 的 postMessage、模型输出、外部进程输出或库里存的 JSON，却被声明成确定的类型；
+  - 2 条是误报：浏览器 API 的功能探测，和 `??` 右边是下标读取；
+  - 3 条判断不了。
+- 所以这 1,458 处大致是两件事：约四成是可以删的重复检查；三成多是该保留的检查，但应该把值的类型改成 `unknown`、再解析一次。
+
+**N22 内核已经按 schema 校验过，处理器又校验一遍（P2，已证实）**
+
+- 内核在调用任何处理器之前，先按动作的 `input_schema` 校验输入，不转类型、不补默认值（`packages/kernel/src/action-service.ts:101`）。处理器和 store 仍逐字段再查一遍：
+  - **Jelly 的 `selection`**：
+    - schema 里，`selection` 必填，是 `{ block_ids, text }`：`block_ids` 是不重复的非空字符串数组，`text` 是字符串（`plugins/native/jelly/src/action-schema.ts:42`，`ids` 定义在第 11 行）。
+    - `plugins/native/jelly/src/ai.ts:26` 又查 `Array.isArray(ids)`、`new Set(ids).size !== ids.length`、`typeof text !== "string"`。
+    - 只有「至少一项」和「文字不全是空白」是 schema 里没写的，这两条应该写进 schema（`minItems`、`pattern`）。
+  - **N12 的五份 `normalizeProjectId`**：查的是宿主给的或放置服务给的项目号，两者都已经核过。
+  - **输入没有类型的处理器**（`input: Record<string, unknown>`）：只能再解析一遍。`text`、`required`、`optionalText`、`field` 这类读值函数，分别有 21、15、5、6 个包各写了一份。
+- 建议：
+  - SDK 从 schema 推出处理器的输入类型：schema 声明一次，处理器拿到的就是有类型的值；
+  - schema 没写的约束补进 schema；
+  - 然后删掉处理器里的重复检查。
+
+**N23 先 `as` 再逐字段查，类型检查帮不上忙（P2，已证实）**
+
+- 外来的值先用 `as T` 写成目标类型，再逐个字段 `typeof`。强转之后，类型检查认为这些检查都多余；漏查一个字段，它也不会报错。上表「来自 `as` 强转」一列一共 196 处。
+- 例子：
+  - `apps/local-host/src/assistant/assistant-service.ts:47`–`51`；
+  - `apps/local-host/src/assistant/assistant-send-materials.ts:47`–`88`：先 `as AssistantMaterial`，再查 `typeof item.title`，然后对已经是字符串的字段调十几次 `String()`。
+- 建议：边界上的值声明成 `unknown`，过一次解析函数拿到类型，之后不再查。解析函数用 N22 的 schema 校验器，或者一个小解析器都行。
+
+**N24 页面再校验一遍宿主自己造的文档（P2，已证实）**
+
+- `apps/workbench/src/agent-review-surface.ts:138`–`166` 的 `readable()`（约 25 行）把 `AgentReviewDocument` 的每个字段再查一遍。
+- 这份文档是 agent-host 用有类型的代码造的（`horizontal/agent-host/src/adapters/prologue-approvals.ts:42`）。
+- 按「读取时不兜底历史取值」的规则，库里不会有旧形状的文档，所以这段防的是一种已经不允许存在的情况。
+
+**N25 每读写一次就校验整个工作区（P2，已证实）**
+
+- Jelly 把一个 Home 的全部笔记和日历存成一行 JSON，每次读写都对整个工作区做全量检查：
+  - 每次读这一行（`plugins/native/jelly/src/store.ts:17`）和每次写（`:79`），都把全部笔记、全部区块、全部日历重新校验一遍；
+  - 每个日历命令还先 `structuredClone` 整个工作区（`plugins/native/jelly/src/calendar.ts:175`）。
+- 导入和从历史恢复时整份校验是对的；平常读写，只需要校验改到的部分。照现在的写法，笔记越多，每一次操作越慢。
+
+### 17.5 估算与局限
+
+- **可删的量**（推断）：
+  - N12 约 300 行；
+  - N13 约 600 行；
+  - N17 约 214 行；
+  - N18 约 70 行；
+  - N19 与 N20 的转发方法约 930 行；
+  - N24 约 25 行。
+  - 合计两千行上下。要新加的 SDK 工具约一两百行。
+- **局限**：
+  - 转发只认「一次调用、实参就是形参」，加了一点逻辑的转发没数在内。同名链按名字匹配，只报了逐个读过的那几条。
+  - 类型检查只对能建程序的 tsconfig 做（浏览器脚本的模板字符串不在内）。值的来源按语法判断，`as` 写在别的函数里的看不出来。准确率只抽了 20 条。
+  - 「没人用」按标识符找，同名的另一个东西被用到时，它也算被用到：这只会漏报，不会把在用的说成没用。
+  - 没有跑任何用例。可删行数是读代码估的，不是删了再量的。
+  - 另外两类数了、但没有单列成发现：
+    - 425 个不 await 的 async 函数：多数是为了满足异步接口，算不上问题；
+    - 166 个直接返回固定值的 `catch`：抽 10 个，7 个是解析不了就当没有，合理；3 个把动作调用的失败变成空值。其中 `assistant-round-materials.ts` 写明 `null` 就是「读不了」，调用方分得清；`horizontal/placement/src/index.ts:528` 返回的 `[]` 和「没有绑定」分不清，交主人看。

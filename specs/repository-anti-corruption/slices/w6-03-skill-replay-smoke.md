@@ -1,8 +1,24 @@
 # w6-03：创作台的回放与隔离 Home 冒烟（RAC-11 走查的一次执行）
 
-状态：已跑（2026-10-30 UTC，设备 B）；离线回放通过基线，隔离 Home 的真实模型冒烟两次里第一次有 1 条简报失败——失败只记录，不修。W6-03 剩下的场景走查与手册末一遍仍未做，RAC-11 保持「未验证」。
+状态：已有原切点的回放／真实模型 smoke、六类静态路线及六类限定动态补证，后续证据见下节；首次 `reading` 失败仍未定因，最终样板、手册适用性与 RAC-11 整体仍「未验证」。§1–6 保留 2026-10-30 设备 B 的原运行记录。
 
 验收编号：RAC-11（W6-03 ①）。
+
+## 后续证据接续（2026-11-02）
+
+本文档接续基准为 `8315c6936745c992d75b4ef21f800baeffa81f8e` / tree `cc6654467265d7764fc26d0a469451773fa3a902`；不是最终共同树 F。沿用下列已核收结果，不把原运行改署到本基准，也不重复已绿步骤。
+
+| 证据与原切点 | 已核收范围 | 适用边界 |
+| --- | --- | --- |
+| 协调仓库 `coordination/2026-10-28/plans/W6-03/STATIC-WALK.md`；H `b0567bf545a74b858e4fdeddd5e66432b1065b21` / tree `4d67dc1c07b06e7538463efc2afe570a1b350796` | 新 Module、横向服务、Host 装配、前端、测试、并行工作六类入口→生产消费→约束／断言已静态核对；人工协调约束与自动门禁已区分 | 只签静态路线，不是同头动态全绿；T376 的两处旧文档矛盾已关闭 |
+| `/tmp/w6-03-dynamic/REPORT.md`、`SECOND.md`；E `2ca72c3372c7987b64b8978c7f0908770516977d` / tree `8fccb9303d5131a497002ffefa4e54467c38d291` | Projects 公开 Query/Command 改名、同名身份、拒绝回滚及磁盘重开；Knowledge 真实 owner 原文／版本、完整单元截取、回执与无来源 reader 权限拒绝，均有动态结果及独立窄核收 | 合成输入、无模型；不签并发改名、实际撤权交错或完整 Host 恢复 |
+| 同目录 `ROUTES-3-6.md`、`ROUTES-SECOND.md`；E `a60404292a68fa9ea6f2ee83fdf28c684d53e142` / tree `56cd025133ff51e88e856a55557b18b749b096e0` | Host/Text Stats 1/1、workspace-read 4/4；真实 Chrome 客户端生命周期 12/12；同一公开 SDK 分发包 pack→sign→verify→安装→私有笔记回读／同 Home 重开 1/1；公共槽 6/6、pool 13/13 | 各完整文件通过段分属数次执行；客户端用 HTTP 内容夹具，笔记不是成果库 Artifact；不签视觉、真实业务工作台或强杀恢复 |
+
+原件暂存在上列本机证据目录；这里只接入已有结论。Projects 首轮通过；Knowledge 首轮因临时断言混同索引 revision 与 owner revision 失败，按 owner 合同修正后仅补该项通过。路线3～6首轮整批为 2/4 文件通过：Chrome 启动受沙箱限制，workspace 的 Node 内部断言崩溃根因仍未知；后续同源码仅补未绿两文件，分别 12/12、4/4。保留首败，不合写一次总绿。
+
+现行操作入口是[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)、[插件 Skill](../../../skills/molis-plugin-dev/SKILL.md)、[Prologue Skill](../../../skills/molis-prologue-ai/SKILL.md)、[扩展点 §3.1](../../../docs/system/EXTENSION-POINTS.md#31-内置插件)及[并行规则 §5.1](../../../docs/system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)。本基准已说明 registration／生成登记及本次 CI Full 覆盖规则，旧静态报告中的操作文字差异不再重复派修；历史成本数字不改成当前实测。
+
+仍未核收：手册／样板对最终 F 的适用性差集、首次 `reading` 的归因、W4 真实生成 corpus 与真签包回放，以及 W6-05 的最终场景／回归。原 smoke 不能替代插件版本回放；上述无模型路线也不能关闭 RAC-11。交付汇总见[1–23 索引](w6-06-deliverable-index.md)。
 
 ## 1. 环境与方法
 
@@ -101,7 +117,7 @@ Generation smoke: 3/3 briefs reached a frozen design with MiniMax-M3; 3 full des
 ## 5. 结论与仍然缺什么
 
 - RAC-11 的本单目标（W6-03 的隔离 Home smoke）**已执行并留有真实模型结果**：离线回放基线通过；真实模型两次冒烟 `5/6` 次设计冻结；「一次接受」按 **detail 阶段**口径 `5/6`，按 propose→experience→detail **全过程零修复**口径 **`4/6`**（第二次 `notes` 的 experience 修复 1 轮）；1 条简报（`reading`，第一次）失败，失败归因**拿不准**：疑似模型波动、或模型照抄提示词示例（`agent-prompts.ts:58-59` 的 `notes`/`selection:notes.id`）都说得通，未逐项对照答卷与校验、不能排除产品检查/环境，待独立排查。
-- **RAC-11 仍保持「未验证」**：有失败（按任务书 §2.5，有失败不写已验证/部分）；且 W6-03 的「场景走查」其余部分与手册末一遍仍未做、最终样板和手册没齐。
+- **RAC-11 仍保持「未验证」**：有失败（按任务书 §2.5，有失败不写已验证/部分）；本次 smoke 当时未覆盖六类路线。后续静态及限定动态补证见开头接续，最终样板／手册对 F 的适用性与整体结论仍未核收。
 - 未做、也不在本单做：不改 Skill 章节、`agent-prompts.ts`、校验代码、语料或回放脚本；不为变绿改基线或放宽 `--min-pass`。
 
 ## 6. 复现

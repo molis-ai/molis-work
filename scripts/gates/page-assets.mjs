@@ -245,7 +245,9 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   // Final T395/T405/T403/T406 carrier against main e4e98ed331. Reuse the reviewed builder and Git allowances;
   // arrival +20 B preserves the selected directory's pre-paint geometry. The former workbench allowance is no longer needed.
-  "/assets/molis-work-plugins/plugin-builder.js": [118672, 120944],
+  // T411 adds 621 B for query presence, full results and retained drafts, reusing the existing renderer/guards.
+  // The original 2272 B admission is still unconsumed on main: total growth is 2893 B, final measured ceiling 121565.
+  "/assets/molis-work-plugins/plugin-builder.js": [118672, 121565],
   "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
   "/assets/molis-work-plugins/git.js": [29496, 30295],
   "/assets/molis-work-arrival.css": [678738, 678758],
@@ -264,7 +266,8 @@ const APPROVED_NEW_ASSETS = {
   // Previous new-asset entries are already in the merge-base budget and are consumed.
   // T403 first-freeze repair: wait for superseding refresh, preserve partial creation, restore config drafts/busy UI.
   // Same Feed first freeze: interval selection and current controls retain the operation busy state through refresh.
-  "/assets/molis-work-plugins/feed.js": 37380,
+  // Preserve the selected reader read intent when refresh takes over its detail request (+3 B).
+  "/assets/molis-work-plugins/feed.js": 37383,
   "/assets/molis-work-plugins/feed.css": 43247,
   // T403's same approved Inbox URL: retain native Tab stops and same-mount evaluation feedback (+9 B served).
   "/assets/molis-work-plugins/inbox.js": 9297,

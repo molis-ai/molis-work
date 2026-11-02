@@ -51,7 +51,11 @@ export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { 
           if (page && detailVisible && !detailsCaptured.has(page)) { await options.capture(browser, page + ' · 详情'); detailsCaptured.add(page); }
         }
       } cases.push({ id: test.id, passed: true, detail: test.description }); }
-      catch (error) { options.signal.throwIfAborted(); cases.push({ id: test.id, passed: false, detail: await diagnose(browser, test.steps[position], position, error, build.nodes.some(node => node.id === (test.steps[position] as { componentId?: string } | undefined)?.componentId && !!node.read)) }); }
+      catch (error) {
+        options.signal.throwIfAborted();
+        cases.push({ id: test.id, passed: false, detail: await diagnose(browser, test.steps[position], position, error, build.nodes.some(node => node.id === (test.steps[position] as { componentId?: string } | undefined)?.componentId && !!node.read)) });
+        if (browser.unavailable) { blocked = '验收浏览器连接不可用：' + browser.unavailable.message; break; }
+      }
     }
     for (const test of build.design.acceptance) if (!cases.some(row => row.id === test.id)) cases.push({ id: test.id, passed: false, detail: '尚未执行：' + blocked });
     if (!blocked && options.capture) for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map()); await options.capture(browser, page.id); }
@@ -216,6 +220,8 @@ class BuilderBrowser {
   private sequence = 0;
   private session = '';
   private closed = false;
+  private transportFailure?: Error;
+  get unavailable() { return this.transportFailure; }
   private readonly contexts = new Map<string, { id: number; session: string }>();
   private readonly pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
   private constructor(private readonly child: ChildProcess, private readonly socket: WebSocket, private readonly directory: string, private readonly signal: AbortSignal) {
@@ -231,7 +237,10 @@ class BuilderBrowser {
       this.pending.delete(result.id); clearTimeout(pending.timer);
       if (result.error) pending.reject(new Error(result.error.message || '浏览器命令失败')); else pending.resolve(result.result);
     });
-    socket.on('close', () => this.rejectPending(new Error('验收浏览器已关闭')));
+    const unavailable = (error: Error) => { this.transportFailure ??= error; this.rejectPending(error); };
+    socket.on('close', () => unavailable(new Error('验收浏览器连接已关闭')));
+    socket.on('error', unavailable);
+    child.once('exit', () => unavailable(new Error('验收浏览器进程已退出')));
     signal.addEventListener('abort', this.abort, { once: true });
   }
   private abort = () => { void this.close(); };
@@ -262,7 +271,9 @@ class BuilderBrowser {
     } catch (error) { socket?.close(); child.kill('SIGKILL'); await rm(directory, { recursive: true, force: true }); throw error; }
   }
   command<T = unknown>(method: string, params: Record<string, unknown> = {}, session = this.session): Promise<T> {
-    this.signal.throwIfAborted(); if (this.closed) throw new Error('浏览器已关闭'); const id = ++this.sequence;
+    this.signal.throwIfAborted(); if (this.closed) throw new Error('浏览器已关闭');
+    if (this.transportFailure) throw this.transportFailure;
+    const id = ++this.sequence;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('浏览器步骤超时：' + method)); }, 30_000);
       this.pending.set(id, { resolve: value => resolve(value as T), reject, timer }); this.socket.send(JSON.stringify({ id, method, params, ...(session ? { sessionId: session } : {}) }));
@@ -289,7 +300,7 @@ class BuilderBrowser {
   async wait(expression: string) {
     const deadline = Date.now() + 20_000; let failure: unknown;
     while (Date.now() < deadline) {
-      try { if (await this.evaluate(expression)) return; } catch (error) { failure = error; }
+      try { if (await this.evaluate(expression)) return; } catch (error) { if (this.transportFailure) throw this.transportFailure; failure = error; }
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     throw new Error('验收等待超时', { cause: failure });

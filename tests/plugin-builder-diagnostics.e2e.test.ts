@@ -6,11 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
 import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-plugin-builder';
+import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import { runBuilderBrowserAcceptance } from '../apps/local-host/src/plugin-builder/browser.js';
 import { builderBrowserExecutable, openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingSamples } from './fixtures/plugin-composition.js';
+import { detail, memoryStorage, PROPOSALS, until } from './fixtures/builder-workflow-design.js';
 
 test('Builder diagnoses accepted reads with current selection, without another call or a stale response', { timeout: 60_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'molis-builder-diagnostics-')), browser = await openStudioChrome(directory);
@@ -128,4 +130,55 @@ test('RAC-2934 RAC-2935 G7 collects independent actual failures and stops on fai
       assert.equal(submits, 0);
     }
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test('RAC-2934 last-case real CDP loss blocks the batch and never requests model repair', { timeout: 60_000 }, async () => {
+  const full = JSON.parse(detail('连接中断'));
+  full.design.acceptance = [{ id: 'last', description: '最后一例读取真实行', steps: ['expect notes TRANSPORT_VISIBLE'] }];
+  const answers = [PROPOSALS, JSON.stringify(full)];
+  const requests: Array<{ role: string; task: string }> = [];
+  let current: AgentBuild | undefined, captures = 0;
+  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
+  const server = createServer((request, response) => {
+    if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/builds/probe') response.end(JSON.stringify({ build: current }));
+    else if (request.url === '/builds/probe/call') { request.resume(); response.end(JSON.stringify({ value: [{ id: 'one', text: 'TRANSPORT_VISIBLE' }] })); }
+    else { response.writeHead(404); response.end('{}'); }
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/preview';
+  const ports: AgentBuilderPorts = {
+    projectId: 'project', catalog: async () => [], models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
+    agent: async () => ({ async run(request) {
+      requests.push(request);
+      const output = request.role === 'designer' ? answers.shift()! : 'implemented';
+      return { id: 'scripted-' + requests.length, role: request.role, promptVersion: request.promptVersion, contractRevision: request.contractRevision,
+        instruction: request.instruction, input: request.task, output, configuredModel: 'scripted', reportedModels: [], phase: 'completed',
+        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), activity: [], usage: [] };
+    }, close: async () => {}, records: async () => [] }),
+    validateContract: assertContract, prepareBuild: async () => '/tmp/transport-fixture',
+    check: async () => ({ passed: true, gates: [], bundlePath: '/tmp/transport-fixture/plugin.mjs' }),
+    call: async () => [], resetPreview: async () => {}, selectionAvailable: () => false,
+    choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }),
+    browserAcceptance: async (build, signal) => {
+      current = build;
+      return runBuilderBrowserAcceptance(build, { url, signal, executable: dedicatedBuilderBrowser(), capture: async browser => {
+        captures++; await browser.command('Browser.close'); await browser.evaluate('true');
+      } });
+    },
+    publish: async () => { throw new Error('Unexpected publish'); }, installations: async () => [], lifecycle: async () => {},
+  };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
+  try {
+    const created = workflow.create('连接中断'); let build = await until(workflow, created.id, value => value.phase === 'choosing');
+    await workflow.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 45_000);
+    assert.equal(captures, 1, 'the last case reached the real renderer and closed its actual CDP browser');
+    assert.equal(build.phase, 'failed'); assert.equal(build.browserResult!.passed, false);
+    assert.match(build.browserResult!.blocked!, /验收浏览器连接不可用/);
+    assert.equal(build.browserResult!.cases.length, 1); assert.equal(build.browserResult!.cases[0]!.passed, false);
+    assert.equal(requests.filter(request => JSON.parse(request.task).acceptanceFailures).length, 0, 'transport failure does not enter model repair');
+    assert.equal(requests.filter(request => request.role === 'designer').length, 2);
+  } finally { await workflow.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

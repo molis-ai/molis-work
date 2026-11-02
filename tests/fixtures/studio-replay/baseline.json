@@ -73,7 +73,7 @@
     },
     "detail-13c716630b1f": {
       "pass": false,
-      "reason": "界面合同无效：组件 x：缺少必需输入的绑定：x（x 要求 x；按钮只带选中记录的字段，要用户给值就用表单，或把它改成可选）",
+      "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "05dc0c4ac4134d3b"
     },
     "detail-167ea370510f": {
@@ -382,7 +382,7 @@
     },
     "detail-72c5a8addaa0": {
       "pass": false,
-      "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "ceebfb19a97dec81"
     },
     "detail-73497ba42877": {
@@ -559,7 +559,7 @@
     },
     "detail-b0bf9fca19b6": {
       "pass": false,
-      "reason": "组件 x 的 x 取自 x，但 x 列出的记录里没有 x：把 x 加进 x 的 output，或者改成由用户填写",
+      "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "0ddcbc27bddf8347"
     },
     "detail-b2724efcce57": {
@@ -816,7 +816,7 @@
     },
     "detail-f8b57d8b4968": {
       "pass": false,
-      "reason": "功能合同不成立：$.x: x x x",
+      "reason": "细化方案：组件 x 读的 x 返回含数组的对象，集合部件须用 x 明确选中数组字段；不要修改操作的输出合同",
       "digest": "a496dcf74e736306"
     },
     "detail-fa6661810722": {

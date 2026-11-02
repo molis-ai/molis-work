@@ -15,7 +15,7 @@ import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONE
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import childProcesses, { execFileSync, type ChildProcess } from 'node:child_process';
 import { pluginOnDemandStylesheet } from '@molis-ai/molis-work-app-workbench';
 import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { tmpdir } from 'node:os';
@@ -83,7 +83,7 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 
 /** What the workflow said to Jev before the two sentences were registered, word for word. */
 
-async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean } = {}) {
+async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
   let closeStudio: (() => Promise<void>) | undefined, server: ReturnType<typeof createServer> | undefined;
   t.after(async () => {
     try { await closeStudio?.(); }
@@ -149,8 +149,9 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
       if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /这轮界面验收已结束/).catch(error => { trialProbeErrors.push(error); }));
     }
     const local = new URL(url); local.pathname = local.pathname.slice(options.routePrefix!.length);
-    void pluginPagesFor(f.home).bind(request, url).then(release => {
+    void pluginPagesFor(f.home).bind(request, url).then(async release => {
       if (release) response.once('close', release);
+      if (key && url.searchParams.get('frame') === 'workbench') await setup.trialPage?.(key, url.pathname.split('/').at(-1)!, send);
       return handleAgentStudioHttp(request, response, local, options, f.token);
     }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
   });
@@ -1596,4 +1597,40 @@ test('RAC-2934 batch repair receives all actual failures once and isolation fail
       else { assert.equal(build.phase, 'ready'); assert.deepEqual(JSON.parse(repairs[0]!.task).acceptanceFailures.map((failure: { detail: string }) => failure.detail), ['FIRST_ACTUAL_FAILURE', 'SECOND_ACTUAL_FAILURE']); }
     } finally { await workflow.close(); }
   }
+});
+
+test('RAC-2937 a held real trial call cannot write or create a runner after its case resets', { timeout: 120_000 }, async t => {
+  const held = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let hold = false, visits = 0, outcome: { error?: unknown } | undefined;
+  let pending: Promise<{ error?: unknown }> | undefined;
+  const children: ChildProcess[] = [], stat = fs.stat, spawn = childProcesses.spawn;
+  const statMock = t.mock.method(fs, 'stat', async (...args: Parameters<typeof fs.stat>) => {
+    const result = await stat(...args);
+    if (hold && String(args[0]).endsWith('/plugin.mjs')) { hold = false; held.resolve(); await release.promise; }
+    return result;
+  });
+  const spawnMock = t.mock.method(childProcesses, 'spawn', (...args: Parameters<typeof childProcesses.spawn>) => {
+    const child = spawn(...args);
+    if (Array.isArray(args[1]) && args[1].some(arg => String(arg).endsWith('/worker.mjs'))) children.push(child);
+    return child;
+  });
+  syncBuiltinESMExports();
+  t.after(async () => { release.resolve(); await pending; statMock.mock.restore(); spawnMock.mock.restore(); syncBuiltinESMExports(); });
+  const f = await revisionHelperStudio(t, { browserExecutable: dedicatedBuilderBrowser(), configure(answer) {
+    answer.design.pages[0].parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = '清单还是空的';
+    answer.design.acceptance = ['first', 'after-reset'].map(id => ({ id, description: '独立清单保持为空', steps: ['expect notes 清单还是空的'] }));
+  }, async trialPage(key, buildId, send) {
+    if (++visits === 1) {
+      hold = true;
+      pending = send('/builds/' + buildId + '/call', { acceptance: key, componentId: 'editor', binding: 'submit', payload: { form: { text: 'LATE_FROM_OLD_CASE' } } }).then(() => ({}), error => ({ error }));
+      await Promise.race([held.promise, pending.then(() => { throw new Error('Trial call did not reach the held bundle stat'); })]);
+    } else if (visits === 2) {
+      release.resolve(); outcome = await pending;
+    }
+  } });
+  assert.equal(f.current.phase, 'ready', f.current.error ?? '');
+  assert.deepEqual(f.current.browserResult!.cases.map(row => row.passed), [true, true]);
+  assert.match(String(outcome?.error), /界面验收用例已结束/);
+  assert.ok(children.length > 0, 'the regression used actual sandbox processes');
+  assert.ok(children.every(child => child.exitCode !== null || child.signalCode !== null), 'the completed trial stopped every sandbox it created');
 });

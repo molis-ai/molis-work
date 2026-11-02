@@ -94,23 +94,25 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     await Promise.all(current.map(entry => entry?.runner.then(runner => runner.stop(), () => undefined)));
   };
   /** The newest bundle that passed the gates for the connected operations. */
-  const runnerFor = async (build: AgentBuild, lane: Lane, capabilities: CatalogCapability[]): Promise<SandboxRunner> => {
+  const runnerFor = async (build: AgentBuild, lane: Lane, capabilities: CatalogCapability[], assertCurrent?: () => void): Promise<SandboxRunner> => {
     const bundle = build.checks.global?.bundlePath ?? [...build.connected].reverse().map(id => build.checks[id]?.bundlePath).find(Boolean);
     if (!bundle || !build.design) throw new Error('还没有接通的功能可以试用');
     const used = new Set(buildEffects(build).capabilities);
     const policies = capabilities.filter(item => used.has(item.id)).map(item => [item.id, item.version, item.provider_id, item.execution]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
     const info = await stat(bundle), key = `${build.runtimeScope ?? 'project'}:${bundle}:${info.mtimeMs}:${info.size}:${JSON.stringify(policies)}`;
+    assertCurrent?.();
     const slot = build.id + '|' + lane, current = studio.runners.get(slot);
     if (current?.key === key) return current.runner;
     // A newer bundle replaces both lanes, so the trial never mixes versions.
     if (current) await stopRunner(build.id);
+    assertCurrent?.();
     const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: buildEffects(build), services: previewFor(build), limits: capabilityLimits(buildEffects(build), capabilities),
       identity: { projectId: build.runtimeScope === 'home' ? null : options.projectId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
     studio.runners.set(slot, { key, runner });
     runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
     return runner;
   };
-  type Trial = { original: string; build: AgentBuild; submits: Map<string, number>; fault?: { componentId: string; operationId: string; consumed: boolean } };
+  type Trial = { original: string; build: AgentBuild; signal: AbortSignal; case: AbortController; submits: Map<string, number>; fault?: { componentId: string; operationId: string; consumed: boolean } };
   const trials = new Map<string, Trial>();
   studio.callAcceptance = async (buildId, key, componentId, binding, payload, control) => {
     const trial = trials.get(key);
@@ -118,21 +120,35 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
     const node = trial.build.nodes.find(node => node.id === componentId);
     if (!node) throw new Error('界面组件不存在');
     const call = resolvePluginComponentCall(node, binding, payload);
-    control?.signal.throwIfAborted();
+    const currentCase = trial.case, signal = AbortSignal.any([trial.signal, currentCase.signal, ...(control?.signal ? [control.signal] : [])]);
+    const assertCurrent = () => {
+      signal.throwIfAborted();
+      if (trials.get(key) !== trial || trial.case !== currentCase) throw new Error('这轮界面验收已结束');
+      control?.assert_authority_current?.();
+    };
+    const beforeEffect = async () => { assertCurrent(); await control?.beforeEffect(); assertCurrent(); };
+    assertCurrent();
     if (binding === 'submit') trial.submits.set(call.operationId, (trial.submits.get(call.operationId) ?? 0) + 1);
     if (binding === 'read' && trial.fault && !trial.fault.consumed && trial.fault.componentId === componentId && trial.fault.operationId === call.operationId) {
       trial.fault.consumed = true; throw new Error('STUDIO_ACCEPTANCE_READ_FAILURE');
     }
     const capabilities = await studio.catalog(trial.build.runtimeScope);
-    return (await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities)).call(call.operationId, call.input, control);
+    assertCurrent();
+    const runner = await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities, assertCurrent);
+    assertCurrent();
+    return runner.call(call.operationId, call.input, { ...control, signal, beforeEffect, assert_authority_current: assertCurrent });
   };
   const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {
     if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
     const key = randomUUID(), trial = { ...build, id: build.id + ':acceptance:' + key };
-    const state: Trial = { original: build.id, build: trial, submits: new Map() };
+    const state: Trial = { original: build.id, build: trial, signal, case: new AbortController(), submits: new Map() };
     accepting.add(trial.id); trials.set(key, state);
-    const current = () => { signal.throwIfAborted(); if (trials.get(key) !== state) throw new Error('这轮界面验收已结束'); return state; };
-    const reset = async () => { delete state.fault; state.submits.clear(); await stopRunner(trial.id); clearPreview(trial.id); };
+    const current = () => { signal.throwIfAborted(); state.case.signal.throwIfAborted(); if (trials.get(key) !== state) throw new Error('这轮界面验收已结束'); return state; };
+    const reset = async () => {
+      state.case.abort(new Error('界面验收用例已结束'));
+      delete state.fault; state.submits.clear(); await stopRunner(trial.id); clearPreview(trial.id);
+      if (trials.get(key) === state) state.case = new AbortController();
+    };
     const controls: NonNullable<Parameters<typeof runBuilderBrowserAcceptance>[1]['trial']> = {
       submitCalls(componentId) {
         const operation = current().build.nodes.find(node => node.id === componentId)?.submit?.operationId;

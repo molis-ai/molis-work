@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -22,8 +21,7 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   const b = await openGoalBrowser(t, "user");
   if (!b) return null;
   const { command, sessionId, evaluate, waitFor, origin, projectId } = b;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
-  try { catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "schedule", actor_id: "browser-test" }); } finally { catalog.close(); }
+  await b.web.delete(`/api/settings/projects/${projectId!}/plugins`, { plugin_id: "schedule" });
   await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-plugin-picker-toggle]')) && Boolean(document.querySelector('[data-plugin-tile]'))");

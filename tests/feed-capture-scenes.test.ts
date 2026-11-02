@@ -26,10 +26,11 @@ async function fixture() {
     const choice = input.includes("leave") ? "feed.open" : "inbox.admit";
     return { primitive: "choice", choice, noul: null, score: null, legend: null, probabilities: { [choice]: 1 }, confidence: null, model: record.model };
   } } };
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions });
   const history = () => withFunctionsService(home, service => service.listJudgments(), functions);
-  return { home, catalog, project, reference, caller, inputs, functions, host, history,
-    close: async () => { await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); } };
+  return { home, project, reference, caller, inputs, functions, host, history,
+    close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("Feed capture runs through the common scene, keeps judgment history and survives a reopen", async () => {

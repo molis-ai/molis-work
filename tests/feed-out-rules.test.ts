@@ -384,6 +384,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const created = await catalog.createProject({ display_name: "Out 规则项目", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
+  catalog.close();
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -392,7 +393,6 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   let sequence = 0;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    catalog.close();
     await rm(homeDirectory, { recursive: true, force: true });
   });
 

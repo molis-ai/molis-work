@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -22,7 +22,7 @@ test("RAC-1120 a project plugin that crashed and is then switched off is recorde
   assert.equal(platform.runtime.get(installId).state, "crashed");
   assert.ok(platform.supervisor.enabledPluginIds().includes(SCHEDULE_PLUGIN_ID), "the supervisor still counts a crashed plugin enabled");
 
-  const plugins = (change: "addProjectPlugin" | "removeProjectPlugin") => withMolisWorkProjectCatalog({ homeDirectory: home },
+  const plugins = (change: "addProjectPlugin" | "removeProjectPlugin") => host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home },
     catalog => { catalog[change]({ project_id: one.project_id, plugin_id: "schedule", actor_id: "test" }); });
   await plugins("removeProjectPlugin");
   for (const path of ["/", "/api/board", "/"]) assert.equal(await page(path), 200, path);
@@ -49,7 +49,7 @@ test("RAC-1120 a quarantined project plugin switched off and back on stays quara
   await assert.rejects(platform.runtime.recover(installId), { code: "plugin.quarantined" });
   assert.equal(platform.runtime.get(installId).state, "quarantined");
 
-  const plugins = (change: "addProjectPlugin" | "removeProjectPlugin") => withMolisWorkProjectCatalog({ homeDirectory: home },
+  const plugins = (change: "addProjectPlugin" | "removeProjectPlugin") => host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home },
     catalog => { catalog[change]({ project_id: one.project_id, plugin_id: "schedule", actor_id: "test" }); });
   await plugins("removeProjectPlugin");
   for (const path of ["/", "/api/board"]) assert.equal(await page(path), 200, path);

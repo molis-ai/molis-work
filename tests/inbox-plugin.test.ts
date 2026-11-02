@@ -44,8 +44,10 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const created = await catalog.createProject({ display_name: "Inbox 项目", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const functionEnv: NodeJS.Dict<string> = {};
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory, functions: { env: functionEnv },
-    actionAvailability: projectActionAvailability(async (_options, operation) => operation(catalog), homeDirectory) });
+    actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), homeDirectory) });
+  const withCatalog = host.configurePersonalPlanning(homeDirectory, host.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog).withCatalog);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const actions = host.actionClient(reference);
   const caller: ActionCallContext = { actor_id: "test-owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
@@ -58,7 +60,6 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await host.close();
-    catalog.close();
     await rm(homeDirectory, { recursive: true, force: true });
   });
 
@@ -267,7 +268,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const visible = await (await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`)).json();
   assert.deepEqual(visible, internal, "MCP writes must be visible through the actual HTTP entry");
 
-  catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
+  await withCatalog({ homeDirectory }, catalog => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" }));
   // Inbox is a plugin of the project's Runtime: removed, its actions are no longer registered at all.
   assert.equal((await actions.discover(caller)).find(action => action.capability_id === inboxActions.list.capability_id), undefined);
   await assert.rejects(actions.invoke(caller, inboxActions.list, {}), { code: "actions.missing" });
@@ -275,13 +276,13 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal((await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`)).status, 403);
   assert.equal((await webFetch(`${origin}${prefix}/api/stage/inbox`)).status, 403);
   // Feed needs Inbox (its companion), so removing Inbox took Feed out of the project too.
-  assert.ok(!catalog.projectPluginMembership(project.project_id).plugins.includes("feed"));
-  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
+  assert.ok(!(await withCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(project.project_id))).plugins.includes("feed"));
+  await withCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" }));
   await host.closeProject(reference);
   // Feed owns its item's entry, and the Inbox lists an owned entry only while its owner runs in the project (PG-094 S12): with
   // Inbox back but Feed still out, the entry is kept but not listed; putting Feed back lists it again.
   assert.deepEqual(await actions.invoke(caller, inboxActions.list, {}), { ...internal, entries: [] });
-  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
+  await withCatalog({ homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" }));
   assert.deepEqual(await actions.invoke(caller, inboxActions.list, {}), internal, "reopening registers actions and retains the real business state");
 
   function webFetch(input: string, init: RequestInit = {}): Promise<Response> {

@@ -1,6 +1,6 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -41,9 +41,8 @@ test("Feed creates two independent tasks in one page and shared controls keep re
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { click, evaluate, waitFor, navigate, command, sessionId, projectId, origin } = b;
   const feedView = await pluginFrameBrowser(t, b, "feed");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: 'feed', actor_id: 'ui-test' });
-  catalog.close();
+  await addProjectPlugin(b.web, projectId!, 'feed');
+
   await command('Emulation.setDeviceMetricsOverride', { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id=feed]');

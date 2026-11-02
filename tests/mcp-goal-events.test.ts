@@ -34,11 +34,12 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "事件闭环", actor_id: "user" });
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
   let mcp: MolisWorkServer | undefined;
   try {
-    const project = await catalog.createProject({ display_name: "事件闭环", actor_id: "user" });
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project);
     const runtimeHost = {
@@ -232,7 +233,6 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
     await mcp?.close();
     await served?.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -241,11 +241,12 @@ test("missing stable Session identity rejects event writes with no Goal or event
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-event-identity-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
   let mcp: MolisWorkServer | undefined;
   try {
-    const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project);
     const reference = molisWorkHostProjectReference({
@@ -292,7 +293,6 @@ test("missing stable Session identity rejects event writes with no Goal or event
     await mcp?.close();
     await served?.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -301,12 +301,13 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-create-source-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "创建来源", actor_id: "user" });
+  catalog.close();
   let host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
   let mcp: MolisWorkServer | undefined;
   let store: LocalProjectDatabase | undefined;
   try {
-    const project = await catalog.createProject({ display_name: "创建来源", actor_id: "user" });
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project);
     const runtimeHost = {
@@ -399,7 +400,6 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     await served?.close();
     await host.close();
     store?.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -408,11 +408,12 @@ test("no-config note and combined report progress persist; implicit focus, illeg
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-note-resume-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory });
   let served: TestHostServer | undefined;
   let mcp: MolisWorkServer | undefined;
   try {
-    const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
     served = await serveTestHost(null, { home: homeDirectory, host });
     await grantGoalsMcp(served, project);
     mcp = new MolisWorkServer("runtime", {
@@ -509,7 +510,6 @@ test("no-config note and combined report progress persist; implicit focus, illeg
     await mcp?.close();
     await served?.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

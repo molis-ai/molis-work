@@ -23,6 +23,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "原入口行为", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory: directory, clock: () => new Date("2026-09-05T01:00:00Z") });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = managementGoals(host.actionClient(reference), projectId);
@@ -90,7 +91,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     try { assert.deepEqual(await managementGoals(restarted.actionClient(reference), projectId).invoke(goalsActions.snapshot, {}), afterMcp); }
     finally { await restarted.close(); }
   } finally {
-    await management.close(); await runtime.close(); await served.close(); await host.close(); catalog.close();
+    await management.close(); await runtime.close(); await served.close(); await host.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

@@ -29,12 +29,6 @@ fi
     else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = previousPath;
     await rm(bin, { recursive: true, force: true });
   });
-  const browser = await openGoalBrowser(t, true);
-  if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const child = await pluginFrameBrowser(t, browser, "shelf");
-  const { evaluate, waitFor, click } = child;
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: "if(window===top)window.__TAURI__={core:{invoke:async()=>null}}" }, sessionId);
   // The shelf's own actions are enabled only while the Home has a usable model. Nothing here runs one from the page
   // (arranging and saving an action never start a recipe; the combine below uses the injected port), so a configured
   // model with no server behind it is enough.
@@ -47,11 +41,20 @@ fi
     else process.env.MOLIS_WORK_SECRET_BACKEND = priorSecretBackend;
     resetSecretStoreCache();
   });
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "shelf-parity", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", "http://127.0.0.1:9"); return created; });
-    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
-      models: [{ model_id: "fixture-model", enabled: true }] });
-  }));
+  const prepareHome = async (homeDirectory: string) => {
+    await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+      const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "shelf-parity", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", "http://127.0.0.1:9"); return created; });
+      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
+        models: [{ model_id: "fixture-model", enabled: true }] });
+    }));
+  };
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, { prepareHome });
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "shelf");
+  const { evaluate, waitFor, click } = child;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: "if(window===top)window.__TAURI__={core:{invoke:async()=>null}}" }, sessionId);
+
   const shelf = openTestShelfStore(homeDirectory, { pathEnvironment: bin }, {},
     shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));
   assert.equal((await shelf.runtime()).executable, join(bin, "claude"));

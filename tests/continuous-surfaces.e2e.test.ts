@@ -1,3 +1,4 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -38,9 +39,8 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     const b=await openGoalBrowser(t,true); if(!b)return;
     const {command,sessionId,navigate,origin,projectId,evaluate,click,waitFor}=b;
     const feed=await pluginFrameBrowser(t,b,'feed');
-    const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-    for(const plugin_id of ['feed']) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'surface-test'});
-    catalog.close();
+    for(const plugin_id of ['feed']) await addProjectPlugin(b.web, projectId!, plugin_id);
+
     const app=new GoalProjectApplication(b.store);
     const id=app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:'让项目的下一步清晰可见',outcome:'目标、记录与执行共享一个连续工作区',actor_id:'web-user',actor_kind:'user',idempotency_key:'surface-goal'}).goal.goal_id;
     const before=app.goalEvents.readState(DEMO_PROJECT_ID,id).goal_event_cursor;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import test from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -14,7 +14,7 @@ import { armResponse, openAuditBrowser, releaseResponse, waitHeld, type AuditBro
 async function backgroundCommand(browser: AuditBrowser, t: import("node:test").TestContext) {
   assert.ok(browser.localHost);
   const host = browser.localHost, projectId = browser.projectId!;
-  await withMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: projectId, plugin_id: "coding", actor_id: "audit" }));
+  await host.ensureWebCatalog(browser.homeDirectory, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: browser.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: projectId, plugin_id: "coding", actor_id: "audit" }));
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   const store = await host.withProject(reference, runtime => codingSessions(runtime.store));
   const at = new Date().toISOString(), sessionId = "audit-command-session", runtimeId = "audit-command-runtime";

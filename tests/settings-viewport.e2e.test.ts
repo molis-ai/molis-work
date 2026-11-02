@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { createProject } from '@molis-ai/molis-work-test-kit/local-host-http';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
@@ -165,7 +165,7 @@ test('RAC-2850 global Characters entry carries only its own CSS through real HTT
   const directory = `${REVIEW_EVIDENCE}/pg070-current`; await mkdir(directory, { recursive: true });
   const shot = async (name: string) => { const image = await b.command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, b.sessionId); await writeFile(`${directory}/${name}.png`, Buffer.from(image.data, 'base64')); };
   await shot('characters-global-empty');
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory }, catalog => catalog.createProject({ display_name: 'PG070 linked project', actor_id: 'web-user' }));
+  const project = await createProject(b.web, "PG070 linked project");
   await load(); await b.setViewport(390, 500);
   assert.equal(await entry("document.querySelector('.characters-project-link').pathname"), '/projects/' + project.project_id + '/');
   assert.equal(await entry("getComputedStyle(document.querySelector('.characters-project-link')).display"), 'flex');

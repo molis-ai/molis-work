@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -78,7 +78,7 @@ test("RAC-2851 RAC-2852 Characters keeps its own styles on first open, cached re
   const source = join(configuration, "AGENTS.md"); await writeFile(source, "Read the fixture before editing.\n");
   const { draft } = personal.service.import({ runtime_id: "codex", config_root: configuration, captured_at: new Date().toISOString(), rules: [{ path: source, scope: "global", content: "Read the fixture before editing." }], skills: [] }, { rule_paths: [source], skill_ids: [] });
   const saved = personal.service.update(draft.character_id, draft.revision, { title: "PG070 personal role", instructions: "Original fixture instructions", host_tools: null });
-  const second = await withMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory }, catalog => catalog.createProject({ display_name: "PG070 second project", actor_id: "web-user" }));
+  const second = await createProject(b.web, "PG070 second project");
   const row = `[data-character-list] [data-character-id="${draft.character_id}"]`;
   const directory = join(REVIEW_EVIDENCE, "pg070-current"); await mkdir(directory, { recursive: true });
   const shot = async (name: string) => { const image = await b.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, b.sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(image.data, "base64")); };

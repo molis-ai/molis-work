@@ -429,6 +429,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   for (const plugin_id of ["feed", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const token = "home-dock-test-token-0123456789012345";
+  catalog.close();
   const localHost = new MolisWorkLocalHost({ homeDirectory, functions: { env: { TYPESAFE_API_KEY: "fixture-only" } } });
   const server = createMolisWorkWebServer({ homeDirectory, localHost, controlToken: token });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -440,7 +441,6 @@ test("home dock HTTP binds a published function at the scene without executing w
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await localHost.close();
-    catalog.close();
     await rm(homeDirectory, { recursive: true, force: true });
   });
 

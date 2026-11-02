@@ -624,10 +624,12 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
   process.env.NODE_ENV = "test";
   resetSecretStoreCache();
   // Feed runs in the Plugin Runtime of a project that has it (FI-7): the page and its routes are the project's, under its prefix.
+  let databasePath: string;
   const projectId = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "来源", actor_id: "test" });
     if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
-    const seeded = new LocalProjectDatabase(catalog.getProject(created.project_id).database_path);
+    databasePath = catalog.getProject(created.project_id).database_path;
+    const seeded = new LocalProjectDatabase(databasePath);
     try { gmailSource(seeded.db, created.project_id); } finally { seeded.close(); }
     return created.project_id;
   });
@@ -767,7 +769,6 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     const record = { plugin_id: "io.molis.work.feed", slot_id: "github", service_id: "github", record_key: (await added.json() as { source: { source_id: string } }).source.source_id };
     const choose = (connection_id: string | null) => fetch(`${origin}/api/settings/connectors/plugin-slots/record?project=${encodeURIComponent(projectId)}`, {
       method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": `feed-record-slot-${++mutation}` }, body: JSON.stringify({ ...record, connection_id }) });
-    const databasePath = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId).database_path);
     const sourceNow = () => { const board = new LocalProjectDatabase(databasePath); try { return createLocalFeedApplication(board.db).sources.get(projectId, record.record_key); } finally { board.close(); } };
     const [first, second] = withConnectorConnections(home, store => [store.createToken({ serviceId: "github", displayName: "GitHub one", token: "github-test-token-24680" }),
       store.createToken({ serviceId: "github", displayName: "GitHub two", token: "github-test-token-67890" })]);

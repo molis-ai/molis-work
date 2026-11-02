@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -132,17 +131,16 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   // This project: the page changes in place (the switcher's entry wakes, nothing is loaded again).
   await evaluate("window.__stayedOnPage = true");
   assert.equal(await evaluate("document.querySelector('[data-market-add=artifacts]')"), null, "the platform is not a market Plugin");
-  await withMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory }, catalog => {
-    for (const project_id of [projectId!, otherId]) {
-      const before = catalog.listProjectPlugins(project_id);
-      assert.equal(before.includes("artifacts"), false);
-      for (const operation of ["addProjectPlugin", "removeProjectPlugin"] as const) {
-        assert.throws(() => catalog[operation]({ project_id, plugin_id: "artifacts", actor_id: "browser-owner" }),
-          (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
-      }
-      assert.deepEqual(catalog.listProjectPlugins(project_id), before, "rejected platform membership operations do not change members");
+  const membership = async (project_id: string) => (await browser.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project_id)!.plugins;
+  for (const project_id of [projectId!, otherId]) {
+    const before = await membership(project_id);
+    assert.equal(before.includes("artifacts"), false);
+    for (const operation of ["post", "delete"] as const) {
+      await assert.rejects(browser.web[operation](`/api/settings/projects/${project_id}/plugins`, { plugin_id: "artifacts" }),
+        (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     }
-  });
+    assert.deepEqual(await membership(project_id), before, "rejected platform membership operations do not change members");
+  }
   await click('[data-market-add="files"]');
   await waitFor("document.querySelector('[data-market-add=files]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=files]').classList.contains('is-available')");
   assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");

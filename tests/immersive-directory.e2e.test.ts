@@ -1,9 +1,9 @@
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
@@ -14,10 +14,9 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, store, projectId, homeDirectory } = browser;
   const todo = await pluginFrameBrowser(t, browser, "todo");
   const feedView = await pluginFrameBrowser(t, browser, "feed");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "directory-test" });
-  const other = await catalog.createProject({ display_name: "另一项目", actor_id: "directory-test" });
-  catalog.close();
+  for (const plugin_id of ["feed"] as const) await addProjectPlugin(browser.web, projectId!, plugin_id);
+  const other = await createProject(browser.web, "另一项目");
+
   new GoalProjectApplication(store).goalEvents.createIntent({ project_id: projectId!, goal_id: "long-child", parent_goal_id: "CORE", actor_id: "directory-test", actor_kind: "user", title: "迁移 Execution Claim / Run 生命周期并保留现有 Runtime 与 Goal 的完整关联", outcome: "验证多层目录中的长标题不会挤压状态标记。", idempotency_key: "long-child" });
   const before = boardSnapshot(store, projectId!);
   const page = origin + "/projects/" + projectId + "/?desktop=1";
@@ -318,7 +317,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await click("[data-assistant-attach]");
   await waitFor("!document.querySelector('[data-assistant-more]').hidden && /添加文件/.test(document.querySelector('[data-assistant-more]').textContent)");
   assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-more]').textContent;return /引用项目里的内容/.test(t) && /用一个能力或方法/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
-  assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search"); 
+  assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search");
   await evaluate("document.querySelector('[data-assistant-more] button').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("document.querySelector('[data-assistant-more]').hidden");
   // However many chips stand beside it, the input keeps room to type: a long work and what needs a look (what the Send carries

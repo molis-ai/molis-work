@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, HomeConsentLedger, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
@@ -24,7 +24,9 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
         occurredAt: "2026-09-08T00:00:00.000Z", attention: false }).item.item_id;
     } finally { store.close(); }
   } finally { catalog.close(); }
-  const server = createMolisWorkWebServer({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
   try {
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
@@ -38,7 +40,7 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
     assert.match(withGoals, /data-feed-action="promote"/);
     for (const action of ["inbox", "save", "archive"]) assert.match(withGoals, new RegExp(`data-feed-action="${action}"`));
     // Goals is 常开 (ac-trust T3): no project removes it while the standing agreement holds, so the reader keeps offering the promotion.
-    const remove = () => withMolisWorkProjectCatalog({ homeDirectory: home }, c => c.commit(() =>
+    const remove = () => withCatalog({ homeDirectory: home }, c => c.commit(() =>
       c.removeProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })));
     await assert.rejects(remove(), { code: "catalog.plugin_always_on" });
     assert.match(await detail(), /data-feed-action="promote"/);
@@ -54,6 +56,7 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
     for (const action of ["inbox", "save", "archive"]) assert.match(without, new RegExp(`data-feed-action="${action}"`));
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
     rmSync(home, { recursive: true, force: true });
   }
 });

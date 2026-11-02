@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { asideReply } from "./fixtures/ending-review.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
@@ -63,15 +63,18 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
-  const b = await openGoalBrowser(t, "seeded"); if (!b) return null;
+  const prepareHome = async (homeDirectory: string) => {
+    await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+      const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
+      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
+        models: [{ model_id: "fixture-plain", enabled: true }] });
+    }));
+  };
+  const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome }); if (!b) return null;
   const { command, sessionId, homeDirectory } = b;
   const child = await pluginFrameBrowser(t,b,"coding");
   const { click, evaluate, waitFor } = child;
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
-    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
-      models: [{ model_id: "fixture-plain", enabled: true }] });
-  }));
+
   const fill = (selector: string, value: string) => (selector.includes("data-project-workspaces") ? b.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const coding = "[data-coding-workbench]";
@@ -368,14 +371,9 @@ const OUR_GOAL = "甲项目的发布清单", THEIR_GOAL = "乙项目的发布清
 test("AC-05: a reference question in one project finds and keeps only that project's objects; switching projects carries no pick or answer across", { timeout: 300_000 }, async t => {
   const opened = await openCoding(t, [OURS, THEIRS]); if (!opened) return;
   const { click, evaluate, waitFor, command, sessionId, coding, heard, enter, ask, show, projectId, homeDirectory, waitObserved } = opened;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const other = await (async () => {
-    try {
-      const project = await catalog.createProject({ display_name: "另一项目", actor_id: "browser-test" });
-      for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "browser-test" });
-      return project.project_id;
-    } finally { catalog.close(); }
-  })();
+  const otherProject = await createProject(opened.web, "另一项目");
+  for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) await addProjectPlugin(opened.web, otherProject.project_id, plugin_id);
+  const other = otherProject.project_id;
   /** A Goal created through the project's own Goals route, from the page, in the project the page is in. */
   const goal = (goalId: string, title: string) => opened.ownerEvaluate(`fetch(document.body.dataset.routePrefix + '/api/plugins/io.molis.work.goals/goals', { method: 'POST',
     headers: { ...molisWorkControlHeaders(), 'content-type': 'application/json', 'x-molis-work-idempotency-key': crypto.randomUUID() },

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsTerminalActions } from "@molis-ai/molis-work-plugin-goals";
@@ -201,7 +201,7 @@ test("RAC-2565 a terminal whose runtime reported its session starts again with t
   assert.equal(opened.status, 200, JSON.stringify(opened.body));
   const panelId = String(opened.body.panel_id);
   await logged(before + 1);
-  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog =>
+  await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog =>
     catalog.commit(() => catalog.terminalPanels.aliasSession({ panel_id: panelId, runtime_id: "codex", host_session_id: "sess-42" })));
   const page = await goalsPage(t, f, project.project_id);
   const end = async () => {

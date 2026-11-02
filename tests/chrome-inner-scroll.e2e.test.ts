@@ -1,6 +1,6 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
@@ -34,9 +34,8 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const feed = await pluginFrameBrowser(t, browser, "feed");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
-  catalog.close();
+  for (const plugin_id of ["feed"] as const) await addProjectPlugin(browser.web, projectId!, plugin_id);
+
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const expectContained = async (chrome: string, scroller: string, owner?: Awaited<ReturnType<typeof pluginFrameBrowser>>) => {
     const chromeBox = () => evaluate<{top:number;height:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(chrome)}).getBoundingClientRect();return {top:Math.round(r.top),height:Math.round(r.height)}})()`);

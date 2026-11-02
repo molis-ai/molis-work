@@ -221,7 +221,11 @@ class BuilderBrowser {
   private session = '';
   private closed = false;
   private transportFailure?: Error;
-  get unavailable() { return this.transportFailure; }
+  get unavailable() {
+    return this.transportFailure
+      ?? (this.socket.readyState !== WebSocket.OPEN ? new Error('验收浏览器连接已关闭')
+        : this.child.exitCode !== null || this.child.signalCode !== null ? new Error('验收浏览器进程已退出') : undefined);
+  }
   private readonly contexts = new Map<string, { id: number; session: string }>();
   private readonly pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
   private constructor(private readonly child: ChildProcess, private readonly socket: WebSocket, private readonly directory: string, private readonly signal: AbortSignal) {
@@ -272,7 +276,7 @@ class BuilderBrowser {
   }
   command<T = unknown>(method: string, params: Record<string, unknown> = {}, session = this.session): Promise<T> {
     this.signal.throwIfAborted(); if (this.closed) throw new Error('浏览器已关闭');
-    if (this.transportFailure) throw this.transportFailure;
+    const unavailable = this.unavailable; if (unavailable) throw unavailable;
     const id = ++this.sequence;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('浏览器步骤超时：' + method)); }, 30_000);
@@ -300,7 +304,7 @@ class BuilderBrowser {
   async wait(expression: string) {
     const deadline = Date.now() + 20_000; let failure: unknown;
     while (Date.now() < deadline) {
-      try { if (await this.evaluate(expression)) return; } catch (error) { if (this.transportFailure) throw this.transportFailure; failure = error; }
+      try { if (await this.evaluate(expression)) return; } catch (error) { const unavailable = this.unavailable; if (unavailable) throw unavailable; failure = error; }
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     throw new Error('验收等待超时', { cause: failure });

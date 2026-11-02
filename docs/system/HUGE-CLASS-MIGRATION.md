@@ -4,6 +4,8 @@
 
 ## 1. 规则
 
+2026-11-02 W6-04 候选实测补记：`1517f2628` 有7个超过800行文件、12个超过300行类、11个超过25方法类、26个超过150行函数；类按两项阈值去重后为17个。50项巨大登记全部匹配，无未登记或尺寸失配；`agent-authoring.ts` 为821行，`AgentBuilderWorkflow` 为664行／40方法，均沿已审内聚职责登记。此补记不把上方历史迁移表改写为现状，也不表示最终main已采用；同口径首尾解释与后继样本去重的适用边界见[主spec §12.5](../../specs/repository-anti-corruption/spec.md#125-可比度量与有效运行证据)。
+
 阈值在 `tooling/gates/limits.json`，只许收紧：文件超过 800 行；类超过 300 行或超过 25 个方法；函数超过 150 行。统计 `apps/`、`horizontal/`、`modules/`、`packages/`、`plugins/`、`server/`、`tooling/` 下的 `.ts`、`.mts`，不含测试、`dist`、`fixtures`；类的行数与方法数分开记。
 
 门禁 `pnpm health:check`（CI 用 `scripts/ci-health-base.mjs` 选定的基准：PR 上是 CI 检出的合并提交的第一个父提交，push 到 main 时是推送前的末端，其余情况退回 origin/main；本机用 `--base origin/main`。规则见 `AGENTS.md` 的构建与测试一节）：

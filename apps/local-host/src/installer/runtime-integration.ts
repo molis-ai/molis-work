@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { validateMolisWorkMcpLauncher } from "@molis-ai/molis-work-app-mcp";
-import { INTEGRATION_OWNER, isOwnedInstallerOwner, isOwnedIntegrationOwner, integrationResult } from "./runtime-integration-contract.js";
+import { INTEGRATION_OWNER, isOwnedIntegrationOwner, integrationResult } from "./runtime-integration-contract.js";
+import { readInstalledRelease } from "./home-files.js";
 import type { RuntimeIntegrationServiceOptions, PreparedPlan, RuntimeIntegrationDetection, SupportedRuntimeId, RuntimeIntegrationAction, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResult, RuntimeAdapter, RuntimeSnapshot, ConfigInspection, InstalledArtifacts, IntegrationReceipt, RuntimeConnectionState } from "./runtime-integration-contract.js";
 import { ADAPTERS, adapterFor } from "./runtime-config-adapters.js";
 import { applyRuntimeIntegration, serializeRuntimeConfirmation } from "./runtime-integration-apply.js";
@@ -111,6 +112,9 @@ export class RuntimeIntegrationService {
     }
 
     const current = await this.snapshot(prepared.adapter);
+    if (plan.action === "connect" && !current.artifacts) {
+      return integrationResult("unavailable", plan.runtime_id, plan.plan_id, null, null, "Molis Work 本体安装不完整，请先修复安装。");
+    }
     const replay = await this.replayedResult(prepared, current);
     if (replay) return replay;
     if (current.configHash !== prepared.beforeConfigHash || current.skill.signature !== prepared.beforeSkill.signature) {
@@ -172,13 +176,10 @@ export class RuntimeIntegrationService {
   }
 
   private async installedArtifacts(): Promise<InstalledArtifacts | null> {
-    const manifestPath = path.join(this.homeDirectory, "config", "installation.json");
-    const text = await readTextOrNull(manifestPath);
-    if (text == null) return null;
     try {
-      const manifest = JSON.parse(text) as { installer?: unknown; release_path?: unknown };
-      if (!isOwnedInstallerOwner(manifest.installer) || typeof manifest.release_path !== "string") return null;
-      const releasePath = path.resolve(this.homeDirectory, manifest.release_path);
+      const installed = await readInstalledRelease(this.homeDirectory);
+      if (!installed) return null;
+      const releasePath = path.resolve(this.homeDirectory, installed.installation.release_path);
       if (!isInside(this.homeDirectory, releasePath)) return null;
       const nextLauncher = path.join(this.homeDirectory, "bin", "molis-work-mcp");
       const skillSourcePath = path.join(releasePath, "skills", "goal-advance");

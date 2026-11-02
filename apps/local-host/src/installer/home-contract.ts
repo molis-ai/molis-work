@@ -6,7 +6,7 @@ export function isOwnedInstaller(installer: unknown): boolean {
   return installer === INSTALLER_ID;
 }
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 1;
 
 /** Skills that must exist in the install source and every owned release. */
 export const REQUIRED_RELEASE_SKILL_FILES = [
@@ -77,11 +77,9 @@ export interface ReleaseManifest {
   schema_version: number;
   installer: string;
   version: string;
-  dependencies?: "embedded";
+  dependencies: "embedded";
   node_runtime?: "embedded";
-  content_digest?: string;
-  /** Present only in the obsolete schema-1 linked layout. */
-  source_directory?: string;
+  content_digest: string;
   created_at: string;
 }
 
@@ -90,8 +88,37 @@ export interface InstallManifest {
   installer: string;
   version: string;
   release_path: string;
-  content_digest?: string;
+  content_digest: string;
   updated_at: string;
+}
+
+/** Kept self-contained so generated Node launchers execute the same owner checks. */
+export function isCurrentInstallManifest(value: unknown): value is InstallManifest {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  const keys = ["schema_version", "installer", "version", "release_path", "content_digest", "updated_at"];
+  return Object.keys(item).every(key => keys.includes(key))
+    && item.schema_version === SCHEMA_VERSION && item.installer === INSTALLER_ID
+    && typeof item.version === "string" && /^[0-9A-Za-z][0-9A-Za-z._+-]*$/.test(item.version)
+    && typeof item.release_path === "string" && item.release_path.replaceAll("\\", "/") === `releases/molis-work-${item.version}`
+    && typeof item.content_digest === "string" && /^[0-9a-f]{64}$/.test(item.content_digest)
+    && typeof item.updated_at === "string" && Number.isFinite(Date.parse(item.updated_at));
+}
+
+export function isCurrentReleaseManifest(value: unknown): value is ReleaseManifest {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  const keys = ["schema_version", "installer", "version", "dependencies", "node_runtime", "content_digest", "created_at"];
+  return Object.keys(item).every(key => keys.includes(key))
+    && item.schema_version === SCHEMA_VERSION && item.installer === INSTALLER_ID
+    && typeof item.version === "string" && /^[0-9A-Za-z][0-9A-Za-z._+-]*$/.test(item.version)
+    && item.dependencies === "embedded" && (!("node_runtime" in item) || item.node_runtime === "embedded")
+    && typeof item.content_digest === "string" && /^[0-9a-f]{64}$/.test(item.content_digest)
+    && typeof item.created_at === "string" && Number.isFinite(Date.parse(item.created_at));
+}
+
+export function installationMatchesRelease(installation: InstallManifest, release: ReleaseManifest): boolean {
+  return installation.version === release.version && installation.content_digest === release.content_digest;
 }
 
 export interface PromotedRelease {

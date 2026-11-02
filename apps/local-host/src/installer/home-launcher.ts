@@ -1,5 +1,6 @@
 import path from "node:path";
-import { NODE_LAUNCHER_HEADER, BUNDLED_NODE_LAUNCHER_HEADER } from "./home-contract.js";
+import { NODE_LAUNCHER_HEADER, BUNDLED_NODE_LAUNCHER_HEADER, INSTALLER_ID, SCHEMA_VERSION,
+  isCurrentInstallManifest, isCurrentReleaseManifest, installationMatchesRelease } from "./home-contract.js";
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
@@ -42,7 +43,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const homeDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const INSTALLER_ID = ${JSON.stringify(INSTALLER_ID)};
+const SCHEMA_VERSION = ${SCHEMA_VERSION};
+const isCurrentInstallManifest = ${isCurrentInstallManifest.toString()};
+const isCurrentReleaseManifest = ${isCurrentReleaseManifest.toString()};
+const installationMatchesRelease = ${installationMatchesRelease.toString()};
 const installation = JSON.parse(readFileSync(path.join(homeDirectory, "config", "installation.json"), "utf8"));
+if (!isCurrentInstallManifest(installation)) throw new Error("Molis Work 安装元数据不受支持");
+const release = JSON.parse(readFileSync(path.resolve(homeDirectory, installation.release_path, "release.json"), "utf8"));
+if (!isCurrentReleaseManifest(release) || !installationMatchesRelease(installation, release)) throw new Error("Molis Work 安装元数据不受支持");
 const entry = path.resolve(homeDirectory, installation.release_path, "${target}");
 ${entry === "web" ? 'const mcpStartup = process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1";\n' : ""}\
 const child = spawn(process.execPath, [entry, ...process.argv.slice(2)], {

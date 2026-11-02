@@ -1,7 +1,7 @@
-import { ActionError, requireSynchronous, withControlChecks, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, withControlChecks, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider, pluginActionView } from "./plugin-action-provider.js";
 import { checkedReference } from "./plugin-action-query.js";
 
@@ -26,21 +26,22 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
   options: { client: ActionClient; project_id?: string; assertActive(): void }): PluginActionDirectory {
   const grant = () => { options.assertActive(); context.requireGrant(ACTIONS_DELEGATE_PERMISSION); };
   /** The running action of this installation whose caller the call is made for; the grant first, so a revoked grant is said as one. */
-  const originOf = (): ActionExecutionContext => {
+  const originOf = () => {
     grant();
     const scope = currentPluginAction();
     if (!scope || !inPluginInstance(scope, context) || !scope.caller.retainAuthority) throw new ActionError("actions.forbidden", "动作目录只能由本插件正在执行的动作使用");
     if (options.project_id !== undefined && scope.caller.project_id !== options.project_id) throw new ActionError("actions.scope_mismatch", "调用所在的项目与插件实例不一致");
-    return scope.caller;
+    return scope;
   };
-  const delegate = (original: ActionExecutionContext, control?: PluginExecutionControl) => {
+  const delegate = (scope: NonNullable<ReturnType<typeof currentPluginAction>>, control?: PluginExecutionControl) => {
+    const original = scope.caller;
     // The original's identity and authority stay; what only the original dispatch owns (its own effect fence and retained authority) does not
     // travel to the nested caller. A person's, agent's, MCP client's or workflow's call is reached as workflow and carries no plugin identity.
     // A plugin's own call (audience `plugin`) keeps its audience and its installation and Host caller: the Host checks them as it checks them
     // for that plugin's direct call, so the nested call can reach what that plugin could reach and nothing the delegating plugin can.
     const { plugin_install_id, host_plugin, beforeEffect, retainAuthority, retainBackgroundAuthority, ...inherited } = original;
     const plugin = original.audience === "plugin";
-    const source = () => { grant(); requireSynchronous(original.assert_authority_current?.()); };
+    const source = () => { grant(); assertCapturedPluginActionCurrent(scope, context); };
     const check = async () => { source(); await original.beforeEffect(); source(); };
     const signal = control?.signal && inherited.signal ? AbortSignal.any([inherited.signal, control.signal]) : control?.signal ?? inherited.signal;
     // The grant and the original's own fence go first, then the plugin's control, then the original's checks of the target: joined
@@ -64,7 +65,7 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       return views;
     },
     invoke: async <Output>(reference: ActionReference, input: unknown, control?: PluginExecutionControl) => {
-      const ref = checkedReference(reference), original = originOf(), { caller, check, source, audience } = delegate(original, control);
+      const ref = checkedReference(reference), scope = originOf(), original = scope.caller, { caller, check, source, audience } = delegate(scope, control);
       await check();
       const pinned = { ...ref, provider_id: await pluginActionProvider(options.client, caller, ref) };
       await check();
@@ -81,7 +82,7 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     // withdrawn grant, an action switched off for an assistant), and the input schema check dispatch makes; nothing runs, nothing is logged
     // and no guard is kept, so a plugin can refuse a bad input before it records an attempt.
     check: async (reference: ActionReference, input: unknown) => {
-      const ref = checkedReference(reference), original = originOf(), { caller, source } = delegate(original);
+      const ref = checkedReference(reference), scope = originOf(), original = scope.caller, { caller, source } = delegate(scope);
       source();
       const view = await pluginActionView(options.client, caller, ref), pinned = { ...ref, provider_id: view.provider.provider_id };
       source();

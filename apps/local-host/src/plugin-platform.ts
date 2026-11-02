@@ -12,6 +12,7 @@ import type {
   PluginPrivateStorage,
   PluginUpgradeContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import { registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
@@ -123,6 +124,7 @@ export interface PluginPlatformOptions {
 
 export interface PluginPlatform {
   readonly runtime: PluginRuntime;
+  dualInstance(pluginId: string): boolean;
   readonly supervisor: PluginSupervisor;
   readonly events: PluginEventBus;
   /** What the Host itself tells one running installation (X-6, S-54): not stored, never replayed. */
@@ -195,6 +197,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
     { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+      permissionBound: (record, definition) => identity.dualInstance(definition) ? permission => {
+        if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+        return options.home.capturePermission(record, permission);
+      } : undefined,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration, options.actions) } });
   const supervisor = new PluginSupervisor(runtime, {
@@ -265,10 +271,16 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       await events.close();
       await hostEvents.close();
     },
+    dualInstance: identity.dualInstanceId,
     router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
       const manifest = supervisor.manifest(state.plugin_id);
       return manifest ? [manifest] : [];
-    })),
+    }), { capturePermission: (pluginId, permission) => {
+      if (!identity.dualInstanceId(pluginId) || !supervisor.manifest(pluginId)?.permissions.some(item => item.permission === permission && item.required === false)) return () => {};
+      const state = supervisor.state(pluginId);
+      if (!state?.install_id) throw pluginErrors.grant_denied("插件权限当前不可用");
+      return runtime.capturePermission(state.install_id, permission);
+    } }),
     consents,
     upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),

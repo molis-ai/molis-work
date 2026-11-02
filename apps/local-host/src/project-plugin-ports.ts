@@ -107,6 +107,7 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
     const record = platform?.runtime.list().find(row => row.install_id === installId);
     if (platform && record && platform.supervisor.state(record.plugin_id)?.install_id === installId) {
       assertPermissionSwitchTarget(record, expected);
+      if (platform.dualInstance(record.plugin_id)) throw pluginErrors.grant_denied("请在个人空间里管理这个插件的可选权限");
       await platform.runtime.regrant(installId, permission, granted);
       return;
     }

@@ -247,8 +247,10 @@ const APPROVED_CEILINGS = {
   // builder +2,272 B and its stylesheet +40 B; no new URL. RAC-400 shares the existing bootstrap and groups the owner-only
   // initialization, keeping the owner factories strict and reusing reload only when that owner's page appears or leaves.
   // PR2 removes duplicate UI/preset task storage, old source-to-task replay and separate pane view handlers.
+  // T406 adds 504 B for the single Home permission switch and its unavailable state, reusing the existing settings
+  // renderer and trusted installation projection; total workbench growth from the same main is 7,059 B.
   // These three allowances are consumed by this combined publication.
-  "/assets/molis-work-workbench.js": [1152663, 1159218],
+  "/assets/molis-work-workbench.js": [1152663, 1159722],
   "/assets/molis-work-plugins/plugin-builder.js": [118672, 120944],
   "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
   // T405 Git receipt ownership: +799 B for the prepared review identity, authoritative result and stale-response checks.

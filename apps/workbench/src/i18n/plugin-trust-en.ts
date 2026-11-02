@@ -87,6 +87,8 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "个人空间里的插件": "Plugins in your personal space",
   "这些插件在你的个人空间里运行，所有项目共用同一份；这里改它的权限，对每个项目都生效。": "These plugins run in your personal space, one copy shared by every project; changing a permission here applies in every project.",
   "个人空间里没有插件": "No plugins in your personal space",
+  "请在个人空间里管理这个插件的可选权限": "Manage this plugin's optional permissions in your personal space",
+  "个人空间插件权限当前不可用": "This plugin's permissions are currently unavailable in your personal space",
   "没能启动：{error}": "Could not start: {error}",
   "发布者的信任已撤销：它不再运行，只能卸载": "Trust in its publisher was revoked: it no longer runs and can only be uninstalled",
 };

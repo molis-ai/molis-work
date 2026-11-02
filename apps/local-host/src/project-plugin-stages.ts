@@ -200,6 +200,7 @@ export interface RuntimeStageOwner {
   readonly producer: string;
   readonly view: UiContribution;
   assertCurrent(): void;
+  capturePermission(permission: string): () => void;
 }
 
 /** Capture the running Manifest, contribution, installation generation and permissions together. */
@@ -225,7 +226,8 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   };
   assertCurrent();
   return { scope, entry: { project_plugin_id: entry.project_plugin_id, manifest }, install_id: record.install_id,
-    producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent };
+    producer: JSON.stringify([scope, identity.install_id, identity.installation_generation, identity.version, identity.manifest_digest, grants]), view, assertCurrent,
+    capturePermission: permission => platform.runtime.capturePermission(record.install_id, permission) };
 }
 
 /** The chosen half, without reading either half's data or rendering it. */

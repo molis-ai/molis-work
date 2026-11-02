@@ -10,11 +10,11 @@ import { hostErrors } from "./host-errors.js";
  * comes only from the Host building the caller, never from a plugin id or a serialized caller, so a copied, forged or
  * withdrawn object (a stopped, disabled, uninstalled or revoked installation, a closed project, a Host restart) is not one.
  */
-const issued = new WeakMap<HostPluginCaller, { readonly held: ReadonlySet<string>; readonly routes: Map<string, HostPluginCaller> }>();
+const issued = new WeakMap<HostPluginCaller, { readonly held: ReadonlySet<string>; readonly current?: (permission: string) => boolean; readonly routes: Map<string, HostPluginCaller> }>();
 
 /** Registers a caller the Host built, with the permissions it holds; the returned release withdraws it and its routed copies. */
-export function issuePluginCaller(caller: HostPluginCaller, held: Iterable<string>): () => void {
-  const entry = { held: new Set(held), routes: new Map<string, HostPluginCaller>() };
+export function issuePluginCaller(caller: HostPluginCaller, held: Iterable<string>, current?: (permission: string) => boolean): () => void {
+  const entry = { held: new Set(held), current, routes: new Map<string, HostPluginCaller>() };
   issued.set(caller, entry);
   return () => { for (const route of entry.routes.values()) issued.delete(route); issued.delete(caller); };
 }
@@ -34,7 +34,7 @@ export function routedPluginCaller(caller: HostPluginCaller, projectId: string |
   const known = entry.routes.get(projectId);
   if (known) return known;
   const route: HostPluginCaller = Object.freeze({ ...caller, project_id: projectId });
-  entry.routes.set(projectId, route); issued.set(route, { held: entry.held, routes: new Map() });
+  entry.routes.set(projectId, route); issued.set(route, { held: entry.held, current: entry.current, routes: new Map() });
   return route;
 }
 
@@ -97,5 +97,5 @@ function issuedTo(caller: ActionCallContext): ReadonlySet<string> {
   // A plugin's issued caller speaks only for a plugin-audience call: carried by a person's, an Agent's or a workflow's call,
   // it would let that call answer as the plugin, or the plugin's identity ride on an audience it was never checked for.
   if (caller.audience !== "plugin") throw hostErrors.plugin_caller_mismatch("宿主发出的插件身份只能用于插件调用");
-  return entry.held;
+  return entry.current ? new Set([...entry.held].filter(entry.current)) : entry.held;
 }

@@ -99,9 +99,10 @@ return row(item.job_id, item.reason, item.permissions.length ? L("用到 {permis
 }));
 // The four that reach out of the project or spend money are confirmed before they are switched on; the rest take one click.
 const WIDE = (permission) => permission === "actions:delegate" || permission === "model:invoke" || /^(network|secret):/.test(permission);
-const grants = (plugin, repaint, send) => group(L("它要的权限"), L("没有要任何权限"), plugin.permissions.map((item) => {
+const grants = (plugin, repaint, send, managed) => group(L("它要的权限"), L("没有要任何权限"), plugin.permissions.map((item) => {
 const line = row(item.permission + " · " + (!item.requested ? L("本次未请求") : item.required ? L("必需") : L("可选")), item.reason, item.meaning);
 if (item.required || !item.requested) return line;
+if (managed) { line.append(el("span", "settings-muted", L(managed))); return line; }
 const control = el("span", "mw-switch"), toggle = el("input"), track = el("span", "mw-switch__track");
 toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = item.granted; toggle.setAttribute("aria-label", item.permission);
 track.setAttribute("aria-hidden", "true"); control.append(toggle, track); line.append(control);
@@ -182,7 +183,7 @@ step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true
 step(L("卸载并删除数据"), "mw-btn--ghost", "uninstall", { keep_data: false }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据一并删除，不能恢复。", { plugin: name }));
 return box;
 };
-const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act) => {
+const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act, managed) => {
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
 copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", L(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + L(STATE[plugin.state] || plugin.state)));
 summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.content.cloneNode(true));
@@ -191,7 +192,7 @@ body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_si
 if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
 else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
-if (plugin.manifest_available) { body.append(grants(plugin, repaint, send)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
+if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
 const agreements = plugin.consents.filter((consent) => consent.kind !== "project_reach");
 if (agreements.length || !reach) body.append(consents(plugin, agreements));
@@ -222,7 +223,11 @@ const reachData = await reachApi("list");
 if (revision !== loading) return;
 current = data.plugins; personal = homeData; projectName = reachData.project_name;
 reachViews = new Map(reachData.plugins.map((item) => [item.plugin_id, item])); reachCapabilities = new Map(reachData.capabilities.map((item) => [item.capability_id, item]));
-draw($("list"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => installed(plugin, undefined, revoked)));
+const managed = new Set(data.home_managed_install_ids || []);
+draw($("list"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => {
+const paired = personal.some((home) => home.install_id === plugin.install_id && home.plugin_id === plugin.plugin_id && home.publisher_signature === plugin.publisher_signature && home.trust === plugin.trust);
+return installed(plugin, undefined, revoked, undefined, managed.has(plugin.install_id) ? paired ? "请在个人空间里管理这个插件的可选权限" : "个人空间插件权限当前不可用" : undefined);
+}));
 const homeSend = (payload) => homeApi("set", payload);
 draw($("home"), L("个人空间里没有插件"), personal.map((plugin) => installed(plugin, homeSend, revoked, homeApi)));
 draw($("publishers"), L("你还没有固定过发布者"), data.publishers.map(publisher));

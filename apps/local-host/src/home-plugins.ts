@@ -198,6 +198,19 @@ export class HomePluginHost {
   installation(providerId: string): PluginInstanceRecord | null {
     return this.installations().find(record => (record.plugin_id === providerId || record.install_id === providerId) && record.state !== "uninstalled") ?? null;
   }
+  /** Only the matching trusted project half may use this Home activation as its optional permission upper bound. */
+  capturePermission(project: PluginInstanceRecord, permission: string): () => void {
+    const home = this.installation(project.install_id);
+    if (!home || !this.dualInstance(project.plugin_id) || home.plugin_id !== project.plugin_id || home.install_id !== project.install_id
+      || home.publisher_id !== project.publisher_id || home.publisher_signature !== project.publisher_signature || home.state !== "running" || !this.platform) {
+      throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+    }
+    const check = this.platform.runtime.capturePermission(home.install_id, permission);
+    return () => {
+      if (this.installation(home.install_id)?.state !== "running") throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+      check();
+    };
+  }
   /** Why the plugin may not be switched off or uninstalled (it is 常开 and the person's agreement stands); asked before anything is touched. */
   leaveRefusal(providerId: string, action: "停用" | "卸载"): ActionError | undefined {
     return leaveRefusal(this.db ? new SqlitePluginConsentLedger(this.db) : undefined, this.installation(providerId), action);

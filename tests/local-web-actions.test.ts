@@ -481,7 +481,8 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   assert.equal(sourceCallers[0]!.read_only_effects, undefined, "ordinary binder keeps its original single-action context");
   counts.source = 0;
   const current = () => { const row = host.homePlugins!.installation(ownerId); if (row?.state !== "running" || row.installation_generation !== installation.installation_generation) throw new ActionError("actions.provider_changed", "owner changed"); };
-  const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: { manifest: ownerManifest, scope: "home", install_id: installation.install_id, assertCurrent: current } });
+  const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: { manifest: ownerManifest, scope: "home", install_id: installation.install_id, assertCurrent: current,
+    capturePermission: permission => platform.runtime.capturePermission(installation.install_id, permission) } });
   const bound = bind(), visible = await bound.discover();
   assert.deepEqual(visible.map(view => view.capability_id), [entry.capability_id]);
   assert.deepEqual(await bound.invoke(entry, {}), { value: "declared source" }); assert.equal(counts.source, 1);

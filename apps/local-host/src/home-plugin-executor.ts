@@ -8,6 +8,7 @@ import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPri
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
+import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { openPluginDatabase } from "./plugin-database.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
@@ -133,7 +134,9 @@ export class HomePluginExecutor implements PluginExecutor {
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
-      withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants));
+      withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants), permission => {
+        try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
+      });
       const authorized = { ...context, requireGrant: authorize };
       // A sandboxed package has no `model_configuration` or `image_generation` block: its settings and image connections are derived from its contract's effects (BL-491).
       const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);

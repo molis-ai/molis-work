@@ -108,5 +108,5 @@ export function feedStage(page: FeedPage) {
     if (next) { event.preventDefault(); next.focus(); void select(next.dataset.feedEntryId!, true).catch(error => page.error(error)); }
   });
   host.scope.own(() => detailRequest?.abort());
-  return { select, collapse, filter, click, scroll: () => q(".feed-stage-tree")?.scrollTop ?? 0, restoreScroll: (top: number) => { const list = q(".feed-stage-tree"); if (list) list.scrollTop = top; if (selected) void select(selected).catch(error => page.error(error)); } };
+  return { select, collapse, filter, click, scroll: () => q(".feed-stage-tree")?.scrollTop ?? 0, restoreScroll: (top: number) => { const list = q(".feed-stage-tree"); if (list) list.scrollTop = top; if (selected) void select(selected, true).catch(error => page.error(error)); } };
 }

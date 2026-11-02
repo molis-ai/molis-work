@@ -131,22 +131,22 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
     globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{if(key==='feed'){
       window.t403Host=host;window.t403Invalidations=0;window.t403PendingReads=0;window.t403ReadTrace=[];
       // Hold actual read results: the initial selected detail stays pending until a real refresh has taken it over.
-      const handoff=window.t403ReadHandoff={initial:null,refresh:null,takeover:null,releaseAll(){this.releaseInitial?.();this.releaseRefresh?.();}};
+      const handoff=window.t403ReadHandoff={initial:null,refresh:null,takeover:null,refreshWaiters:[],releaseRefresh(){this.refreshReleased=true;for(const release of this.refreshWaiters.splice(0))release();},releaseAll(){this.releaseInitial?.();this.releaseRefresh();}};
       host.scope.own(()=>handoff.releaseAll());
       let sequence=0;const read=host.view.readDocument;
       host.view.readDocument=async(...args)=>{
         const object=args[0]?.object,entry={id:++sequence,object,phase:'start'};
         const initial=object?.surface==='persisted-detail'&&!handoff.initial;
-        const refresh=!object&&!handoff.refresh;
+        const refresh=!object&&!handoff.refreshReleased;
         if(initial)handoff.initial={request:entry.id,itemId:object.id};
-        if(refresh)handoff.refresh={request:entry.id};
+        if(refresh&&!handoff.refresh)handoff.refresh={request:entry.id};
         if(object?.surface==='persisted-detail'&&!initial&&handoff.refreshReleased&&!handoff.initialReleased&&!handoff.takeover)handoff.takeover={request:entry.id,itemId:object.id};
         t403ReadTrace.push(entry);t403ReadTrace.splice(0,Math.max(0,t403ReadTrace.length-8));t403PendingReads++;
         try{
           let value,failure,failed=false;
           try{value=await read(...args);}catch(error){failure=error;failed=true;}
           if(initial){handoff.initialSettled=failed?'error':'ok';entry.phase='held';await new Promise(resolve=>{handoff.releaseInitial=()=>{handoff.initialReleased=true;resolve();};});}
-          if(refresh){entry.phase='held';await new Promise(resolve=>{handoff.releaseRefresh=()=>{handoff.refreshReleased=true;resolve();};});}
+          if(refresh&&!handoff.refreshReleased){entry.phase='held';await new Promise(resolve=>handoff.refreshWaiters.push(resolve));}
           if(failed)throw failure;
           entry.phase='ok';return value;
         }catch(error){entry.phase='error';entry.error={name:error?.name,code:error?.code,message:String(error?.message||error).slice(0,160)};throw error;}
@@ -161,10 +161,14 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   await feed.waitFor("window.t403Host?.mount?.surface==='workbench' && window.t403InitialItem");
   const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");
   assert.equal(initial.itemId, a.item_id);
-  await feed.waitFor("t403ReadHandoff.initialSettled && typeof t403ReadHandoff.releaseRefresh==='function'");
+  await feed.waitFor("t403ReadHandoff.initialSettled && t403ReadHandoff.refreshWaiters.length>0");
   assert.equal(await feed.evaluate("t403ReadHandoff.initial.itemId"), a.item_id, "the held result is the actual initial A detail read");
   await feed.evaluate("t403ReadHandoff.releaseRefresh()");
-  await feed.waitFor("Boolean(t403ReadHandoff.takeover)");
+  try { await feed.waitFor("Boolean(t403ReadHandoff.takeover)"); }
+  catch (error) {
+    t.diagnostic("FULL16 handoff setup " + JSON.stringify(await feed.evaluate("({initial:t403ReadHandoff.initial,initialSettled:t403ReadHandoff.initialSettled,refresh:t403ReadHandoff.refresh,refreshReleased:t403ReadHandoff.refreshReleased,initialReleased:t403ReadHandoff.initialReleased,takeover:t403ReadHandoff.takeover,pending:t403PendingReads,trace:t403ReadTrace})").catch(observation=>({observation:String(observation)}))));
+    throw error;
+  }
   const takeoverRead = await feed.evaluate<{ initial: { itemId: string }; takeover: { itemId: string }; initialSettled: string; refreshReleased: boolean; initialReleased?: boolean }>("({initial:t403ReadHandoff.initial,takeover:t403ReadHandoff.takeover,initialSettled:t403ReadHandoff.initialSettled,refreshReleased:t403ReadHandoff.refreshReleased,initialReleased:t403ReadHandoff.initialReleased})");
   assert.equal(takeoverRead.takeover.itemId, a.item_id, "the real list refresh takes over the same selected A before its first result is delivered");
   assert.equal(takeoverRead.refreshReleased, true); assert.notEqual(takeoverRead.initialReleased, true);

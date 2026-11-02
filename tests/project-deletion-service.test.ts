@@ -441,6 +441,11 @@ test("the CLI's demo remove --json prints the Host's receipt as the in-process d
   const receipt = JSON.parse(removed.stdout) as { replayed: boolean; message?: string; deletion: { project_id: string; actor_id: string; cleanup_state: string } };
   assert.deepEqual([receipt.replayed, receipt.deletion.project_id, receipt.deletion.actor_id, receipt.deletion.cleanup_state], [false, demo.project_id, LOCAL_PERSON_ACTOR_ID, "complete"]);
   assert.equal(receipt.message, undefined, "the page's message is not part of the receipt");
+
+  // T405-FULL-06: an answering resident's no-demo 404 must not grant an offline Catalog fallback.
+  const missing = await demoRemoveCli(home, origin);
+  assert.equal(missing.status, 1, missing.stdout);
+  assert.match(missing.stderr, /示例项目已经不存在/, "the CLI prints the resident Host's 404 instead of opening an offline Catalog");
 });
 
 test("the CLI's demo remove deletes in its own process when no Host answers: no token, or the token of a Host that has stopped", { timeout: 120_000 }, async t => {

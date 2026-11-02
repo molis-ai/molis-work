@@ -572,6 +572,9 @@ function referenceProblems(pages: unknown, operations: SandboxOperationContract[
   if (unused.length) problems.push(`操作 ${unused.join('、')} 没有任何组件使用；删掉它，或给它一个组件（按钮和列表并列写在页面的 parts 里）`);
   return problems;
 }
+function hasArrayField(schema: SandboxSchema): boolean {
+  return Object.values(schema.properties ?? {}).some(field => field.type === 'array' || hasArrayField(field));
+}
 export function expandDesign(raw: unknown, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, pluginId: string, revision: string, dropped: string[], capabilities: readonly CatalogEntry[] = STUDIO_CAPABILITIES): AgentDesign {
   if (!object(raw)) return fail('细化方案', '写成对象 {"operations":…, "pages":…, "acceptance":…}');
   const design = object(raw.design) ? raw.design as Json : raw;
@@ -582,10 +585,13 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   const pagesRaw = withParts(design.pages ?? (object(design.contract) ? (design.contract as Json).pages : undefined), design.parts), problems = referenceProblems(pagesRaw, operations);
   if (problems.length > 1) fail('细化方案', '有 ' + problems.length + ' 处要一起改：' + problems.map((problem, index) => '（' + (index + 1) + '）' + problem).join('；'));
   const { pages, parts } = normalizePages(pagesRaw, operations, dropped, false);
-  // A list-type part over a query that returns one object (a total, today's count) is a summary, whatever intent was written.
+  // Scalar summaries can use a description; a wrapped collection needs an explicit array projection.
   for (const part of parts) {
     if (!part.read || !['collection', 'schedule', 'evidence', 'reading', 'conversation'].includes(part.intent)) continue;
     const output = operations.find(item => item.id === part.read!.operationId)?.output, shown = output ? pluginSchemaAt(output, part.read.outputPath) : undefined;
+    if (output?.type === 'object' && hasArrayField(output) && shown?.type !== 'array') {
+      fail('细化方案', `组件 ${part.id} 读的 ${part.read.operationId} 返回含数组的对象，集合部件须用 read.show 明确选中数组字段；不要修改操作的输出合同`);
+    }
     if (shown && shown.type !== 'array') { dropped.push(`组件 ${part.id} 读的 ${part.read.operationId} 返回的是一组数字，改用正文显示`); part.intent = 'description'; }
   }
   // A part that only filters a query a list on the same page already shows is that list's own filter bar.

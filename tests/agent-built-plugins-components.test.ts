@@ -338,11 +338,15 @@ test('RAC-2925 RAC-2926: the exact text description preserves LF and Unicode thr
   await page.evaluate('(async()=>{view=structuredClone(view);view.nodes[0].submit.outputPath="characters";await app.update(view)})()');
   await page.fill('[name=text]', 'A🙂界'); await page.click('[type=submit]'); await deliverCount(page, 'A🙂界', { characters: 3, utf8_bytes: 8, lines: 1 });
   assert.equal(await page.evaluate('document.querySelector(".pc-output").textContent'), '3', 'explicit outputPath retains its meaning');
+  await page.evaluate('(async()=>{view=structuredClone(view);view.contract.revision="command";view.contract.operations[0].kind="command";await app.update(view)})()');
+  assert.equal(await page.evaluate('document.querySelector("[name=text]").required'), true, 'RAC-2927: a new command binding restores its own nonempty control rule');
+  await page.fill('[name=text]', 'A🙂界'); await page.click('[type=submit]'); await deliverCount(page, 'A🙂界', { characters: 3, utf8_bytes: 8, lines: 1 });
+  assert.equal(await page.evaluate('document.querySelector("[name=text]").value'), '', 'commands retain success reset with an explicit result');
 });
 
 test('RAC-2926: enums, dates and URLs retain their semantics ahead of text wording; id/title/name stay single-line', { timeout: 30_000 }, async t => {
   const page = await queryCounterPage(t);
-  await page.evaluate(`(async()=>{view=structuredClone(view);const fields={id:{type:'string'},title:{type:'string'},name:{type:'string'},date:{type:'string',format:'date',description:'日期文本'},instant:{type:'string',format:'date-time',description:'时间文本'},url:{type:'string',format:'uri',description:'网址文本'},choice:{type:'string',enum:['短文本','长文本'],description:'选择文本'}};Object.assign(view.contract.operations[0].input.properties,fields);for(const field of Object.keys(fields))view.nodes[0].submit.input[field]={source:'form',field};await app.update(view)})()`);
+  await page.evaluate(`(async()=>{view=structuredClone(view);const fields={id:{type:'string',description:'编号文本'},title:{type:'string',description:'标题文本'},name:{type:'string',description:'名称文本'},date:{type:'string',format:'date',description:'日期文本'},instant:{type:'string',format:'date-time',description:'时间文本'},url:{type:'string',format:'uri',description:'网址文本'},choice:{type:'string',enum:['短文本','长文本'],description:'选择文本'}};Object.assign(view.contract.operations[0].input.properties,fields);for(const field of Object.keys(fields))view.nodes[0].submit.input[field]={source:'form',field};await app.update(view)})()`);
   assert.deepEqual(await page.evaluate('["id","title","name","date","instant","url"].map(name=>{const e=document.querySelector(`[name=${name}]`);return [name,e.tagName,e.type]})'), [['id', 'INPUT', 'text'], ['title', 'INPUT', 'text'], ['name', 'INPUT', 'text'], ['date', 'INPUT', 'date'], ['instant', 'INPUT', 'datetime-local'], ['url', 'INPUT', 'url']]);
   assert.equal(await page.evaluate('document.querySelector("[name=choice]").tagName==="TEXTAREA"'), false);
 });

@@ -10,9 +10,10 @@ import { issueModel } from "./fixtures/issue-model.js";
 // once the retried call answers, the countdown is gone and the answer is there. The provider is a local model that refuses the
 // first Assistant call with 429 and Retry-After: 5.
 test("VUX-20/VUX-43: a rate-limited round counts down to the runtime's retry time, then answers", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: "限流之后答上了。", rateLimited: { times: 1, retryAfterSeconds: 5 } }); },
+  }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
-  await issueModel(t, browser.homeDirectory, { replyText: "限流之后答上了。", rateLimited: { times: 1, retryAfterSeconds: 5 } });
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);

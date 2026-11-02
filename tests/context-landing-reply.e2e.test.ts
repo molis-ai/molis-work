@@ -21,7 +21,9 @@ const select = (node: string, words: string) => `(() => {
 })()`;
 
 test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the cursor of the Pages document on the left", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: "用户说：离线也要能记下想法。" }); },
+  });
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const child=await pluginFrameBrowser(t,browser,"pages");
@@ -34,7 +36,6 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work whose reply has the words to put on the left.
-  await issueModel(t, homeDirectory, { replyText: "用户说：离线也要能记下想法。" });
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "把访谈里最要紧的一句话找出来" }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);

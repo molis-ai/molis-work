@@ -177,7 +177,9 @@ async function checkDiscussionOpening(browser: NonNullable<Awaited<ReturnType<ty
 }
 
 test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active document, preserves drafts and notes; one Assistant composer moves to a main tab and back", { timeout: 120000 }, async t => {
-  const browser = await openGoalBrowser(t, true);if (!browser) return;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: '这是输入与展示回归的固定回答。' }); },
+  });if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const comments = await pluginFrameBrowser(t, browser, "pages", '[data-side-body="plugin:pages/comments"] iframe');
@@ -303,7 +305,6 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setTouchEmulationEnabled", { enabled: false }, sessionId);
   await click('[data-side-toggle]');
-  await issueModel(t, homeDirectory, { replyText: '这是输入与展示回归的固定回答。' });
   await click('[data-assistant-input]');
   await command("Input.insertText", { text: "新工作：保留这份助理草稿" }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);

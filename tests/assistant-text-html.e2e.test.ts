@@ -6,15 +6,18 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 
 test("PAS-15: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const pageTitle = "代码验证文档";
+  // VUX-33: an indented first line and a blank last line are part of the code, shown and copied as written.
+  const code = "  // 首行缩进\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
+  let model!: Awaited<ReturnType<typeof assistantTextModel>>;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, `「${pageTitle}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n\`\`\`ts\n${code}\n\`\`\``); },
+  }); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const pages = openPagesStore(homeDirectory);
-  const page = pages.create({ project_id: projectId!, title: "代码验证文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开的是实际文档。" }] }] } });
+  const page = pages.create({ project_id: projectId!, title: pageTitle, body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "打开的是实际文档。" }] }] } });
   pages.close();
-  // VUX-33: an indented first line and a blank last line are part of the code, shown and copied as written.
-  const code = "  // 首行缩进\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
-  const model = await assistantTextModel(t, homeDirectory, `「${page.title}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n\`\`\`ts\n${code}\n\`\`\``);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '代码验证文档'");

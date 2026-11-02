@@ -11,8 +11,10 @@ import { newPublisher, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/
 import { waitWork } from "./fixtures/assistant-send-journey.js";
 
 test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve boundary names and source through model handoff", { skip: process.platform !== "darwin", timeout: 150_000 }, async t => {
-  const browser = await openGoalBrowser(t, "user", undefined, null); assert.ok(browser);
-  const model = await issueModel(t, browser.homeDirectory, { replyText: "已完成资料检查。" });
+  let model!: Awaited<ReturnType<typeof issueModel>>;
+  const browser = await openGoalBrowser(t, "user", undefined, null, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory, { replyText: "已完成资料检查。" }); },
+  }); assert.ok(browser);
   const publisher = newPublisher(), names = ["中".repeat(80), "😀".repeat(40), "文".repeat(78) + "😀", "<img src=x onerror=globalThis.__agentInjected=1>"], prefix = "😀".repeat(200);
   const roles = names.map((name, index) => ({ name, purpose: "目".repeat(300), body: `agent/role-${index}.md` }));
   const methods = [{ name: names[0]!, purpose: "同名方法", body: "agent/method.md" }, { name: "旧方法", purpose: "将被移除", body: "agent/removed.md" }];

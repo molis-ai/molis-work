@@ -6,8 +6,8 @@
 
 独立单样本生命周期在同一 c2cac66ce 输入自然通过：安装预览零写、确认pin，初始 items=[]，仅 add 一次“周五整理资料”并完整返回 added=true；兼容v2升级与Host关闭重开后，仅read，原id、created_at、正文、数量及同install/plugin/publisher均保持。原件在本机 w4-list-manual-continuation-run1 及其 independent-replay/。
 
-原始TypeScript保留6处双重断言（as unknown as），未通过平台源码lint；归档与签包功能验证不代表该生成源码符合平台实现的风格约束。它作为不可改写的历史输入保留，未关闭或放宽lint规则。
+原始TypeScript保留6处双重断言（as unknown as），原bundle还保留1处空catch，未通过平台源码lint；归档与签包功能验证不代表该生成源码符合平台实现的风格约束。它作为不可改写的历史输入保留，未关闭或放宽lint规则。
 
-原始 TypeScript 与生成测试按相对路径原文保存在 [source.json](source.json)，是模型输出数据，不作为仓库实现导入或还原执行。回放只执行已签包的真实 bundle；原产品签名在 [release/signed-package.json](release/signed-package.json)。[v1.json](v1.json)／[v2.json](v2.json) 沿原批准方案用临时测试发布者重新签名，只改版本及升级兼容声明，源代码、界面和提示词不变，不保存私钥。包自带签名校验，不另建证据或状态清单。
+原始 TypeScript 与生成测试按相对路径原文保存在 [source.json](source.json)，是模型输出数据，不作为仓库实现导入或还原执行。回放只执行已签包的真实 bundle；bundle 仅保存在原签包和 v1/v2 的 files 内，不另留可执行的展开副本；原产品签名在 [release/signed-package.json](release/signed-package.json)。[v1.json](v1.json)／[v2.json](v2.json) 沿原批准方案用临时测试发布者重新签名，只改版本及升级兼容声明，源代码、界面和提示词不变，不保存私钥。包自带签名校验，不另建证据或状态清单。
 
 固定输入与预期见上级 [corpus.json](../corpus.json)，原简报见 [brief.md](brief.md)。运行不需要模型、账号或外部网络。macOS 经真实沙箱／CLI 安装预览、确认 pin、同安装升级和 Host 关闭重开；其他平台明确报告 unsupported，不能称沙箱回放通过。原失败不被后续成功覆盖，最终承载 CI／Full 与实际采用另行结算。

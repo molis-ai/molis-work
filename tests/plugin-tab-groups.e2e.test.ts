@@ -4,7 +4,7 @@ import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-fra
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */
@@ -123,7 +123,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   const feedLibrary = createLocalFeedApplication(store.db);
   const make = (name: string) => feedLibrary.ingestItem({ source, externalId: "frame-binding-" + name, title: "Binding " + name, summary: "Item navigation after a display update", body: "Body " + name, occurredAt: new Date().toISOString(), attention: false }).item;
   const a = make("A"), b = make("B");
-  const platform = await localHost.withProject({ database_path: databasePath, project_id: projectId! }, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  const platform = await localHost.withProject(molisWorkHostProjectReference({ databasePath, projectId: projectId! }), runtime => runningProjectPlatform(runtime.store, runtime.project_id));
   assert.ok(platform);
   let revisionRead!: () => void;
   const firstRevision = new Promise<void>(resolve => { revisionRead = resolve; });
@@ -136,7 +136,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
     addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t403InitialItem=event.data.config.itemTab;},true);
     const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
     Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){const port=this;descriptor.set.call(port,typeof handler!=='function'?handler:event=>{if(event.data?.type==='ui'&&event.data.name==='openItem')window.t403Tagged.push({tab:event.data.itemTabId,id:event.data.args[1]});handler.call(port,event);});}});
-    let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed')root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});return mount(root,host,pack);};frameApi=api;}});
+    let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed'){window.t403TrustedRefresh=()=>host.invalidateView(root);root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});}return mount(root,host,pack);};frameApi=api;}});
     globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{if(key==='feed'){window.t403Host=host;window.t403Invalidations=0;window.t403PendingReads=0;const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403PendingReads++;try{return await read(...args);}finally{t403PendingReads--;}};host.root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate)window.t403Invalidations++;});}return factory(host);};return true;}});
   `);
   const feed = await pluginFrameBrowser(t, browser, "feed");
@@ -155,7 +155,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   await click("[data-plugin-picker-toggle]"); await click('[data-plugin-strip] [data-plugin-id=goals]');
   await waitFor("document.body.dataset.desktopSurface==='goals'");
   const invalidations = await feed.evaluate<number>("t403Invalidations");
-  await feed.evaluate("t403Host.invalidateView()");
+  await evaluate("t403TrustedRefresh()");
   await waitFor("t403HiddenSignals>0");
   assert.equal(await feed.evaluate("t403Invalidations"), invalidations, "the hidden root queues its refresh instead of sending it to the child");
   await click(`[data-titlebar-tabs] .tab-item[data-tab-id="${bTab}"] .tab-item-trigger`);

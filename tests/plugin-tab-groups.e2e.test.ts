@@ -138,6 +138,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
     globalThis.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=host=>{if(key==='feed'){window.t403Host=host;window.t403Invalidations=0;window.t403PendingReads=0;const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403PendingReads++;try{return await read(...args);}finally{t403PendingReads--;}};host.root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate)window.t403Invalidations++;});}return factory(host);};return true;}});
   `);
   const feed = await pluginFrameBrowser(t, browser, "feed");
+  await browser.setViewport(1440, 1000);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=feed&openItem=${a.item_id}` }, sessionId));
   await feed.waitFor("window.t403Host?.mount?.surface==='workbench' && window.t403InitialItem");
   const initial = await feed.evaluate<{ tabId: string; itemId: string }>("window.t403InitialItem");

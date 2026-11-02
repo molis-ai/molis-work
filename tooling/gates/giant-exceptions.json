@@ -142,12 +142,12 @@
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",
       "reason": "网页服务的装配根：返回创建服务的函数，内含 HTTP 服务、本机宿主、周期调度、侧栏浏览器登记、PTY 挂接与关停，是进程的装配；装配根的职责就是把这些放在一处。",
-      "size": 154
+      "size": 156
     },
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": {
       "kind": "cohesive-unit",
       "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。",
-      "size": 151
+      "size": 153
     },
     "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": {
       "kind": "cohesive-unit",

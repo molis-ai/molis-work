@@ -1,5 +1,5 @@
 import { observePluginFrames } from "./plugin-frame-browser.js";
-import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -92,7 +92,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   if (completion !== undefined || functions || workspaceFor || pluginFixtures) {
     localHost = new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
       ...(projectId ? { actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), directory) } : {}) });
-    const withCatalog = localHost.configurePersonalPlanning(directory, withMolisWorkProjectCatalog);
+    const withCatalog = localHost.configurePersonalPlanning(directory,
+      localHost.ensureWebCatalog(directory, openMolisWorkProjectCatalog).withCatalog);
   }
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN, ...webOptions });

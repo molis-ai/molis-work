@@ -190,12 +190,34 @@ test('Search opens an owner record in the visible split pane without creating a 
   const targetPane = await evaluate<string>("document.querySelector('.tab-pane.is-focused').dataset.tabPane");
   const ownerFrame = `iframe.tab-content-frame[data-pane-owner="${targetPane}"]:not([hidden])`;
   const pane = await pluginFrameBrowser(t, b, "dataset", ownerFrame);
+  const responses: Array<{ requestId: string; url: string }> = [];
+  const contexts: unknown[] = [];
+  t.after(b.on('Network.responseReceived', (params, sourceSession) => {
+    const response = params.response as { url?: string } | undefined;
+    if (sourceSession === sessionId && response?.url?.includes('/api/search/')) { responses.push({ requestId: String(params.requestId), url: response.url }); if (responses.length > 4) responses.shift(); }
+  }));
+  for (const method of ['Runtime.executionContextCreated', 'Runtime.executionContextDestroyed', 'Page.frameDetached']) t.after(b.on(method, (params, sourceSession) => {
+    const context = params.context as { id?: number; auxData?: unknown } | undefined;
+    contexts.push({ method, session: sourceSession, context: context ? { id: context.id, auxData: context.auxData } : undefined, executionContextId: params.executionContextId, frameId: params.frameId });
+    if (contexts.length > 12) contexts.shift();
+  }));
+  await command('Network.enable', {}, sessionId);
   await click('[data-global-search-open]');
   await evaluate("(() => { const el = document.querySelector('[data-global-search]'); el.value = '分屏查找这份数据'; el.dispatchEvent(new Event('input', {bubbles:true})); })()");
   // Content results come from the system search, so they arrive after the request, not with the keystroke.
   await waitFor(`Boolean(document.querySelector('[data-global-search-id="${id}"]'))`);
   await click(`[data-global-search-id="${id}"]`);
   await waitFor(`document.querySelector(${JSON.stringify(ownerFrame)})`, 20_000);
-  await pane.waitFor("document.querySelector('[data-dataset-title]')?.value === '分屏查找这份数据' && !document.querySelector('[data-dataset-stage-workspace]').hidden", 20_000);
+  try { await pane.waitFor("document.querySelector('[data-dataset-title]')?.value === '分屏查找这份数据' && !document.querySelector('[data-dataset-stage-workspace]').hidden", 20_000); }
+  catch (error) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const reads = await Promise.allSettled([
+      command('Runtime.evaluate', { expression: `(()=>{const f=document.querySelector(${JSON.stringify(ownerFrame)}),hit=document.querySelector('[data-global-search-id="${id}"]');return {id:${JSON.stringify(id)},targetPane:${JSON.stringify(targetPane)},hit:hit?{...hit.dataset}:null,pane:document.querySelector('.tab-pane.is-focused')?.dataset.tabPane,saved:localStorage.getItem('molis-work-tab-workspace:'+document.body.dataset.projectId),frame:f?{src:f.src,hidden:f.hidden,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,children:[...f.contentDocument?.querySelectorAll('iframe[data-plugin-frame]')||[]].map(c=>({src:c.src,plugin:c.dataset.pluginFrame,connected:c.isConnected}))}:null}})()`, returnByValue: true }, sessionId, 1500),
+      Promise.race([pane.evaluate("({url:location.href,title:document.querySelector('[data-dataset-title]')?.value,workspaceHidden:document.querySelector('[data-dataset-stage-workspace]')?.hidden,ids:[...document.querySelectorAll('[data-dataset-id]')].map(n=>n.dataset.datasetId)})", 1500), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('T405 Dataset child diagnostic unavailable after 1500ms')), 1500); })]).finally(() => clearTimeout(timer)),
+      ...responses.map(async response => ({ url: response.url, body: (await command<{ body: string }>('Network.getResponseBody', { requestId: response.requestId }, sessionId, 1500)).body.slice(0, 6000) })),
+    ]);
+    t.diagnostic('T405 Dataset search/open failed ' + JSON.stringify({ contexts, reads: reads.map(value => value.status === 'fulfilled' ? value.value : { unavailable: String(value.reason) }) }));
+    throw error;
+  }
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-plugin=dataset][data-item-id]').length"), 0);
 });

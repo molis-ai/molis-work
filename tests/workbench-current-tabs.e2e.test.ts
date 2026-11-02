@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openAuditBrowser } from "./fixtures/workbench-audit-browser.js";
 import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
@@ -28,7 +29,12 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
   const key = "molis-work-tab-workspace:" + browser.projectId;
   await browser.evaluate(`(() => { const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)}));
     document.querySelector('[data-tab-pane="'+state.focusedPaneId+'"] [data-tab-edge=bottom]').click(); })()`);
-  await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3");
+  try { await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3"); }
+  catch (error) {
+    const state = await browser.command('Runtime.evaluate', { expression: `(()=>({stage:'nested split after bottom edge click',saved:localStorage.getItem(${JSON.stringify(key)}),panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),box:p.getBoundingClientRect().toJSON()})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState}))}))()`, returnByValue: true }, browser.sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic('T405 current tabs nested split failed ' + JSON.stringify(state));
+    throw error;
+  }
   const saved = await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`);
   const before = JSON.parse(saved) as { panes: Array<{ tabs: Array<{ kind: string; itemId?: string }>; groups: Array<{ collapsed: boolean }> }> };
   assert.equal(before.panes.length, 3);
@@ -107,6 +113,16 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
   let chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
   try {
     let page = await chrome.page();
+    const storageChanges: unknown[] = [];
+    const observeStorage = async (phase: string) => {
+      for (const method of ['DOMStorage.domStorageItemUpdated', 'DOMStorage.domStorageItemAdded']) t.after(chrome.on(method, (params, session) => {
+        if (session !== page.sessionId || params.key !== 'molis-work-tab-workspace:' + project.project_id) return;
+        storageChanges.push({ phase, method, storageId: params.storageId, oldValue: params.oldValue, newValue: params.newValue });
+        if (storageChanges.length > 12) storageChanges.shift();
+      }));
+      await page.command('DOMStorage.enable');
+    };
+    await observeStorage('first process');
     const frameBrowser = () => ({ command: chrome.command.bind(chrome), on: chrome.on.bind(chrome), evaluate: page.evaluate.bind(page), sessionId: page.sessionId });
     const feed = await pluginFrameBrowser(t, frameBrowser(), "feed");
     const prefix = served.origin + "/projects/" + project.project_id + "/";
@@ -174,16 +190,26 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     await chrome.close();
     chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
     page = await chrome.page();
+    await observeStorage('restart');
     await page.command("Page.addScriptToEvaluateOnNewDocument", { source: `if(window.top===window&&location.origin===${JSON.stringify(served.origin)})window.__restartPreboot={origin:location.origin,href:location.href,saved:localStorage.getItem(${JSON.stringify(key)}),marker:localStorage.getItem('molis-work-tab-workspace:other-project'),ui:Object.fromEntries(${JSON.stringify(uiKeys)}.map(key=>[key,sessionStorage.getItem(key)]))};` });
     const restoredFeeds = [];
     // A plugin page has no active item tab: paneFrameKey uses this pane's ":view" owner.
     for (const pane of state.panes) restoredFeeds.push(await pluginFrameBrowser(t, frameBrowser(), "feed", `iframe.tab-content-frame[data-pane-owner="${pane.id}"][data-pane-tab="${pane.activeTabId || pane.id + ":view"}"]`));
     await load(prefix);
-    await page.wait(feedPanes, { timeoutMs: 30_000,
+    try { await page.wait(feedPanes, { timeoutMs: 30_000,
       describe: `JSON.stringify({preboot:window.__restartPreboot,closing:${JSON.stringify(closing)},expected:${JSON.stringify(saved)},goalsOffered:Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')),saved:localStorage.getItem(${JSON.stringify(key)}),panes:document.querySelectorAll('[data-tab-pane]').length,feed:document.querySelectorAll('[data-feed-workbench]').length,
-        frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,readyState:f.contentDocument?.readyState,feed:f.contentDocument?.querySelectorAll('[data-feed-workbench]').length}))})` });
+        frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,readyState:f.contentDocument?.readyState,feed:f.contentDocument?.querySelectorAll('[data-feed-workbench]').length}))})` }); }
+    catch (error) {
+      const stored = await page.command('DOMStorage.getDOMStorageItems', { storageId: { securityOrigin: served.origin, isLocalStorage: true } }, 1500).catch(observation => ({ unavailable: String(observation) }));
+      t.diagnostic('T405 restart Feed panes failed ' + JSON.stringify({ storageChanges, stored }));
+      throw error;
+    }
     assert.deepEqual(JSON.parse(await page.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)), JSON.parse(saved), "a fresh browser process accepts the new layout without a second reset");
     for (const restored of restoredFeeds) await restored.waitFor(`document.querySelector('[data-feed-workbench]')?.dataset.selectedSource===${JSON.stringify(source.source_id)}`);
     assert.deepEqual(await facts(), before, "Goal facts and Pages body/version/id and Feed source records are unchanged after reset and restart");
-  } finally { await chrome.close(); }
+  } finally {
+    await chrome.close();
+    // T405-FULL-03: this restart profile is caller-owned until both browser processes have closed.
+    await rm(profileDirectory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  }
 });

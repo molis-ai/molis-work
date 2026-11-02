@@ -19,7 +19,7 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
-  webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
+  webOptions: Pick<WebServerOptions, "chooseDirectory"> & { prepareHome?: (homeDirectory: string) => void | Promise<void> } = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[], profileTimeouts = false) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
@@ -88,6 +88,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
     await seed(databasePath);
   }
+  // T405-FULL-01: initial setup owns the Home only before the serving Host is created.
+  const { prepareHome, ...serverOptions } = webOptions;
+  await prepareHome?.(directory);
   store = new LocalProjectDatabase(databasePath);
   if (completion !== undefined || functions || workspaceFor || pluginFixtures) {
     localHost = new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
@@ -96,7 +99,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       localHost.ensureWebCatalog(directory, openMolisWorkProjectCatalog).withCatalog);
   }
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
-    controlToken: CONTROL_TOKEN, ...webOptions });
+    controlToken: CONTROL_TOKEN, ...serverOptions });
   const setFrameInitScript = observePluginFrames(server);
   server.on("connection", connection => {
     connections.add(connection);

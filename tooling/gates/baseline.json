@@ -27,7 +27,7 @@
       "methods": 34
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 302,
+      "lines": 303,
       "methods": 23
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 156,

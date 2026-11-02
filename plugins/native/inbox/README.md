@@ -33,6 +33,8 @@
 
 “判断下一步”依赖当前项目的真实场景绑定。`prepare` 从事项引用读取内容，`consume` 核对事项和内容未变化后保存建议；建议不会自动完成或忽略事项。兼容性来自注册能力的输入输出合同，其他插件的判断也可以绑定。关闭判断保留引用。`inbox.judgment.read` 返回共同目录中的判断与实际绑定摘要，网页不再根据静态系统函数列表猜测名称或可运行状态。`inbox.judgment.recommendations` 校验当前绑定、提供方、版本、权限和事项原文，只返回当前仍有效的结果；停用、撤权或原文变化会撤回当前建议，原历史保留。新增记录在原历史的 `scene_provenance` 保存这些依据，旧记录缺少依据时仅用于历史查阅。
 
+已认证舞台读取沿同一次 `inbox.stage.read` 取得 owner 自己保存绑定的元数据，摘要使用该 usage 的 `function_title`；普通配置候选仍来自原动作目录。读取不执行目标判断，也不让舞台执行未声明 query、command 或付费能力。快照在读取返回前核对当前授权与绑定，之后的变化由下次读取和实际判断重新校验。验证见 `tests/plugin-query-consumers.test.ts` 的 FULL17 与原完整 `tests/inbox-current.e2e.test.ts`。
+
 Feed 创建 Attention 时，通过注入的 `createInboxJudgmentTrigger`（宿主侧是 `plugins/native/inbox/src/judgment-trigger.ts`，它调 Inbox 自己的动作 `inbox.judgment.evaluate`）使用同一份绑定；调用者与触发上下文要有 `judgments:write`、`feed:read`。正式 Web 组合根已向 Feed HTTP、来源和连接器同步、定时调度、工作流交接传入该端口。未绑定、停用或失效时不启动自动判断；供应商失败与上下文超限保存为 needs_review，已入箱材料不因此被删除或误报入箱失败。
 
 工作流交接透传原调用者，后续判断不会切换成后台身份。没有模型权限时仍可完成授权的入箱，但不启动判断。每次交接只排出自己创建的 Inbox 事件，不处理其他来源的待判断队列。显式判断及嵌套交接保留发起动作的精确授权，等待期间撤权后不保存结果；已经保存的材料/事项不伪装成回滚。

@@ -11,6 +11,7 @@ import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed"
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
@@ -65,6 +66,13 @@ test("real Home HTTP and capability library use installed plugin grants without 
     assert.ok(directory.includes("新插件事项")); assert.ok(directory.includes(definition.capability_id)); assert.ok(!directory.includes(imposter.capability_id));
     const local = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
     assert.equal(local.locale, undefined, "a context no page asked for names no language: the handler keeps its own default (VUX-40)");
+    // FULL17-C: the synchronous target check reads the actual current grant, including targets outside a stage's execution refs.
+    const accepted = runtime.get(installId), exact = { ...definition, provider_id: installId };
+    local.assert_authority_current!(exact, definition.action.permissions);
+    assert.throws(() => local.assert_authority_current!(exact, [...definition.action.permissions, "goals:read"]), { code: "actions.forbidden" }, "another provider's permission cannot satisfy this target's current requirements");
+    repository.save({ ...accepted, grants: [] });
+    assert.throws(() => local.assert_authority_current!(exact, definition.action.permissions), { code: "actions.forbidden" });
+    repository.save(accepted); local.assert_authority_current!(exact, definition.action.permissions);
     await assert.rejects(host.actionClient(reference).invoke(local, imposter, { subject_id: "note" }), { code: "actions.forbidden" });
     await assert.rejects(host.actionClient(reference).invoke({ actor_id: "external-client", project_id: project.project_id, audience: "mcp", permissions: [] }, definition, { subject_id: "note" }), { code: "actions.forbidden" });
     const foreign = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "其他项目", actor_id: "owner" }));
@@ -457,11 +465,12 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   const entry = query("stage-authority.read"), source = query("stage-source.read"), undeclared = query("stage-source.other"), write = query("stage-source.write", "command"), metered = query("stage-source.paid", "query", "metered");
   const counts = { entry: 0, source: 0, other: 0, write: 0, metered: 0 };
   const sourceCallers: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext[] = [];
-  const manifest = (plugin_id: string, actions: ActionDefinition[]) => ({ schema_version: 2 as const, host_api_version: 2 as const, plugin_id, name: plugin_id, version: "1.0.0", kind: "app" as const,
+  const manifest = (plugin_id: string, actions: ActionDefinition[]): PluginManifest => ({ schema_version: 2 as const, host_api_version: 2 as const, plugin_id, name: plugin_id, version: "1.0.0", kind: "app" as const,
     publisher: { publisher_id: "example", signature: "stage-authority" }, entrypoints: [{ deployment: "local" as const, entrypoint: "./index.js" }],
     permissions: ["stage-source:read", "actions:delegate"].map(permission => ({ permission, required: true, reason: "Read declared source" })), actions,
     capabilities: { provides: [], consumes: [source.capability_id, write.capability_id, metered.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } });
   const ownerManifest = manifest(ownerId, [entry]);
+  ownerManifest.ui = { contributions: [], views: [{ view_id: "main", slot: "stage", title: "Stage", stage_data: { action: entry.capability_id } }] };
   let hold: { entered: ReturnType<typeof deferred>; release: ReturnType<typeof deferred> } | undefined;
   const owner = definePlugin({ manifest: ownerManifest, async start(context) { return { kind: "app", actions: [{ ...entry, handle: async (_caller, input) => {
     counts.entry++; const mode = (input as { mode?: string }).mode;
@@ -481,10 +490,11 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   assert.equal(sourceCallers[0]!.read_only_effects, undefined, "ordinary binder keeps its original single-action context");
   counts.source = 0;
   const current = () => { const row = host.homePlugins!.installation(ownerId); if (row?.state !== "running" || row.installation_generation !== installation.installation_generation) throw new ActionError("actions.provider_changed", "owner changed"); };
-  const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: { manifest: ownerManifest, scope: "home", install_id: installation.install_id, assertCurrent: current } });
+  const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: { manifest: ownerManifest, scope: "home", install_id: installation.install_id, installation_generation: installation.installation_generation, assertCurrent: current } });
   const bound = bind(), visible = await bound.discover();
   assert.deepEqual(visible.map(view => view.capability_id), [entry.capability_id]);
   assert.deepEqual(await bound.invoke(entry, {}), { value: "declared source" }); assert.equal(counts.source, 1);
+  assert.equal(Object.hasOwn(sourceCallers.at(-1)!, "stage_scene_metadata"), false, "FULL17-D query delegation drops the Host stage envelope");
   const before = { ...counts };
   await assert.rejects(bound.invoke(source, {}), { code: "actions.forbidden" });
   await assert.rejects(bound.invoke({ ...entry, provider_id: "wrong-provider" }, {}), { code: "actions.forbidden" });

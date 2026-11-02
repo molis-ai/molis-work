@@ -60,6 +60,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 ## 接入与边界
 
+已认证舞台入口在 `local-web-actions.ts` 保留本人已接受的精确引用为内部 `stage_scene_metadata`，并绑定实际 entry、owner 安装世代及场景版本；原执行名单仍按 owner actions/consumes 收窄。`plugin-scene-service.ts` 仅让同一真实动作与安装读取自己的保存绑定，查询和目录委托不转授该字段。等待后的同步授权检查直接重读目标所属数据库的安装与 grant；不把一次 usages 快照延长到最终多舞台 SSR 响应。FULL17 的 SSR/fragment 与撤权验证见 `tests/plugin-query-consumers.test.ts`、`tests/security-invariants-plugin-scene-client.test.ts` 与 `tests/local-web-actions.test.ts`。
+
 本包负责连接、事务装配、文件与 HTTP/进程 IO，不复制 Module 的业务规则。withScope 保持响应组合期间的资源存活，内部 invoke 仍进入正常队列。Host Client 仍是进程内实现（只调动作）；公共 ActionClient 另有复用现有常驻 Web Host 的本机转发通道。对外 MCP 由本包装配：目录合成、闸门、native 适配表见 [CLI 与开发 · 对外 MCP](../../docs/cli-and-development.md#对外-mcp)。
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。

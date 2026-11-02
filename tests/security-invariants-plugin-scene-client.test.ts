@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneUsage, type StageSceneMetadataAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -33,7 +33,8 @@ function probe(short: string, options: ProbeOptions = {}) {
   const scene: ActionSceneDefinition = { scene_id: options.sceneId ?? `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
     subject_kinds: ["feedback"], input_schema: textInput, result_schema: decisionOutput, permissions: [], configuration_permissions: [] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, consumed: [] as unknown[],
-    bindings: new Map<string, ActionSceneBinding>() };
+    bindings: new Map<string, ActionSceneBinding>(), readViews: [] as ActionCallContext[], beforeBindings: undefined as (() => Promise<void>) | undefined,
+    duringAvailability: undefined as (() => void) | undefined };
   const define = (name: string, operation: "command" | "query", scheduling?: "concurrent"): ActionDefinition<StepInput, boolean> => ({ capability_id: `${id}.${name}`, version: 1, operation,
     action: { scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], title: name, description: name, kind: operation === "query" ? "query" : "operation",
       ...(scheduling ? { scheduling } : {}),
@@ -61,13 +62,16 @@ function probe(short: string, options: ProbeOptions = {}) {
     }
   };
   const handler = (definition: ActionDefinition<StepInput, boolean>) => ({ ...definition, handle: async (_caller: ActionCallContext, raw: unknown) => {
+    state.readViews.push(_caller);
     try { state.value = await attempt(raw as StepInput); state.error = undefined; } catch (error) { state.value = undefined; state.error = error; }
     return true;
-  } });
+  }, availability: (caller: ActionCallContext) => { state.readViews.push(caller); state.duringAvailability?.(); return { available: true as const }; } });
   const definition: PluginDefinition = { manifest, async start(context) {
     state.services = context.services;
     return { kind: "app", views: [], actions: [handler(wait), handler(serial), handler(look)],
-      ...(hasScene ? { action_scenes: [{ scene_id: scene.scene_id, version: 1, bindings: () => [...state.bindings.values()],
+      ...(hasScene ? { action_scenes: [{ scene_id: scene.scene_id, version: 1, bindings: async (caller: ActionCallContext) => {
+        state.readViews.push(caller); await state.beforeBindings?.(); return [...state.bindings.values()]; },
+        availability: (caller: ActionCallContext) => { state.readViews.push(caller); state.duringAvailability?.(); return { available: true as const }; },
         targets: () => [...state.bindings.values()].map(({ binding_id, title }) => ({ binding_id, title, revision: null })),
         bind: (_caller: ActionCallContext, value: ActionSceneBinding) => { state.bindings.set(value.binding_id, value); },
         consume: (_caller: ActionCallContext, input: unknown) => { state.consumed.push(input); return { ok: true }; } }] } : {}) };
@@ -94,9 +98,10 @@ async function platform(t: TestContext, wrap?: (scenes: ActionSceneClient) => Ac
   const all = [main, other, ungranted, sceneless];
   const started = await running.start(all.map(item => ({ definition: item.definition, trust: { level: "host" as const } })));
   assert.deepEqual(started.running.toSorted(), all.map(item => item.id).toSorted(), JSON.stringify(started));
-  actions.registry.registerProvider({ provider: { provider_id: "system-judgments", title: "判断", kind: "system" }, definitions: [judgment],
-    handlers: [{ ...judgment, handle: (_caller, input) => ({ follow_up: (input as { text: string }).text.includes("hello") }) }] });
-  return { running, registry: actions.registry, client: actions.client, main, other, ungranted, sceneless };
+  const evaluated: unknown[] = [], registration = { provider: { provider_id: "system-judgments", title: "判断", kind: "system" as const }, definitions: [judgment],
+    handlers: [{ ...judgment, handle: (_caller: ActionCallContext, input: unknown) => { evaluated.push(input); return { follow_up: (input as { text: string }).text.includes("hello") }; } }] };
+  const removeJudgment = actions.registry.registerProvider(registration);
+  return { running, registry: actions.registry, client: actions.client, main, other, ungranted, sceneless, evaluated, registration, removeJudgment };
 }
 
 /** The original caller; `revoke` makes its last authority check fail from then on. */
@@ -309,4 +314,146 @@ test("RAC-833 S-89 a caller revoked while the kernel reads a list receives no re
     assert.equal(result.value, undefined, "the caller is checked again before the list can be returned");
   }
   assert.deepEqual([...env.main.state.bindings.values()], before);
+});
+
+/** The trusted Host's accepted refs and exact owner, separate from this entry's execution refs. */
+async function stageCaller(env: Env) {
+  const who = caller(), catalog = await env.client.discover(who.context);
+  const entry = catalog.find(view => view.capability_id === env.main.look.capability_id)!;
+  const install = env.running.runtime.list().find(row => row.plugin_id === env.main.id)!;
+  const reference = { capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider.provider_id };
+  const metadata: StageSceneMetadataAuthority = { actor_id: who.context.actor_id, audience: who.context.audience, project_id: DEMO_PROJECT_ID, entry: reference,
+    owner: { plugin_id: env.main.id, install_id: install.install_id, installation_generation: install.installation_generation, scope: "project" },
+    scenes: [{ scene_id: env.main.scene.scene_id, version: 1 }],
+    actions: catalog.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })) };
+  const context: ActionCallContext = { ...who.context, read_only_effects: true, allowed_actions: [reference], stage_scene_metadata: metadata };
+  env.main.state.bindings.set("metadata-binding", { ...bindingOf(env.main.scene.scene_id, "metadata-binding"), revision: "original",
+    function: { capability_id: judgment.capability_id, version: 1, provider_id: "system-judgments" } });
+  return { ...who, context };
+}
+
+test("T405-FULL17-B/D S-89 exact owner metadata reveals its saved judgment without widening execution or any callback", async t => {
+  const env = await platform(t), who = await stageCaller(env);
+  const ordinary = await inAction(env, env.main, { step: "usages" }, "look", { ...who, context: { ...who.context, stage_scene_metadata: undefined } });
+  const before = ordinary.value as ActionSceneUsage[];
+  assert.equal(before[0]!.availability.available, false); assert.equal(Object.hasOwn(before[0]!, "function_title"), false);
+  const attempts: Promise<unknown>[] = [];
+  env.main.state.duringAvailability = () => attempts.push(env.main.state.services!.actions!.invokeQuery({ capability_id: "metadata.undeclared", version: 1 }, {})
+    .then(() => assert.fail("an undeclared callback query ran"), error => assert.equal(error.code, "actions.forbidden")));
+  const result = await inAction(env, env.main, { step: "usages" }, "look", who);
+  assert.equal(result.error, undefined, result.error?.message);
+  const usage = (result.value as ActionSceneUsage[])[0]!;
+  assert.equal(usage.function_title, judgment.action.title); assert.equal(usage.availability.available, true);
+  assert.deepEqual(usage.function, { capability_id: judgment.capability_id, version: 1, provider_id: "system-judgments" });
+  env.main.state.duringAvailability = undefined; await Promise.all(attempts); assert.ok(attempts.length > 0);
+  for (const view of env.main.state.readViews) {
+    assert.equal(Object.hasOwn(view, "stage_scene_metadata"), false, "handler, action availability and scene callbacks never see accepted refs");
+  }
+  await assert.rejects(env.client.invoke(who.context, judgment, { text: "hello" }), { code: "actions.forbidden" });
+  assert.deepEqual(env.evaluated, []);
+  assert.deepEqual((await inAction(env, env.main, { step: "usages" }, "look", { ...who, context: { ...who.context, stage_scene_metadata: undefined } })).value, before,
+    "ordinary usages retain their exact output shape and authority");
+});
+
+test("T405-FULL17-B S-89 metadata requires the exact entry, actor, owner, generation, scope, scene and pinned target", async t => {
+  const env = await platform(t), who = await stageCaller(env), original = who.context.stage_scene_metadata!;
+  const variants: StageSceneMetadataAuthority[] = [
+    { ...original, entry: { ...original.entry, capability_id: env.main.serial.capability_id } },
+    { ...original, actor_id: "someone-else" }, { ...original, audience: "mcp" }, { ...original, project_id: "another-project" },
+    { ...original, owner: { ...original.owner, plugin_id: env.other.id } }, { ...original, owner: { ...original.owner, install_id: "another-install" } },
+    { ...original, owner: { ...original.owner, installation_generation: "another-generation" } }, { ...original, owner: { ...original.owner, scope: "home" } },
+    { ...original, scenes: [{ scene_id: env.main.scene.scene_id, version: 2 }] },
+    { ...original, actions: original.actions.map(ref => ref.capability_id === judgment.capability_id ? { ...ref, provider_id: "another-provider" } : ref) },
+  ];
+  for (const metadata of variants) {
+    const result = await inAction(env, env.main, { step: "usages" }, "look", { ...who, context: { ...who.context, stage_scene_metadata: metadata } });
+    assert.equal(result.error, undefined, result.error?.message);
+    const rows = result.value as ActionSceneUsage[];
+    assert.equal(rows[0]!.availability.available, false, JSON.stringify(metadata));
+    assert.equal(Object.hasOwn(rows[0]!, "function_title"), false);
+  }
+  const binding = env.main.state.bindings.get("metadata-binding")!;
+  env.main.state.bindings.set(binding.binding_id, { ...binding, function: { capability_id: judgment.capability_id, version: 1 } });
+  const unpinned = await inAction(env, env.main, { step: "usages" }, "look", who);
+  assert.equal(Object.hasOwn((unpinned.value as ActionSceneUsage[])[0]!, "function_title"), false);
+  assert.deepEqual(env.evaluated, []);
+});
+
+for (const mutation of ["target-grant", "target-replace", "source-stop", "binding-revision", "binding-function", "binding-enabled", "cancel"] as const) {
+  test(`T405-FULL17-C S-89 ${mutation} during the real bindings reread refuses the old metadata snapshot`, async t => {
+    const env = await platform(t), who = await stageCaller(env), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const abort = new AbortController(), callerCheck = who.context.assert_authority_current!; let targetGranted = true, reads = 0;
+    who.context = { ...who.context, signal: abort.signal, assert_authority_current: (ref, permissions) => {
+      callerCheck(ref, permissions);
+      if (ref?.capability_id === judgment.capability_id && !targetGranted) throw new ActionError("actions.forbidden", "target grant revoked");
+    } };
+    env.main.state.beforeBindings = async () => { if (++reads === 2) { entered.resolve(); await release.promise; } };
+    const pending = inAction(env, env.main, { step: "usages" }, "look", who).catch((error: { code?: string; message?: string }) => ({ value: undefined, error }));
+    await Promise.race([entered.promise, pending.then(() => assert.fail("missed actual bindings reread"))]);
+    try {
+      const binding = env.main.state.bindings.get("metadata-binding")!;
+      if (mutation === "target-grant") targetGranted = false;
+      if (mutation === "target-replace") { env.removeJudgment(); env.registry.registerProvider(env.registration); }
+      if (mutation === "source-stop") await env.running.runtime.stop(who.context.stage_scene_metadata!.owner.install_id);
+      if (mutation === "binding-revision") env.main.state.bindings.set(binding.binding_id, { ...binding, revision: "changed" });
+      if (mutation === "binding-function") env.main.state.bindings.set(binding.binding_id, { ...binding, function: { ...binding.function, provider_id: "replacement" } });
+      if (mutation === "binding-enabled") env.main.state.bindings.set(binding.binding_id, { ...binding, enabled: false });
+      if (mutation === "cancel") abort.abort();
+    } finally { release.resolve(); }
+    const result = await pending;
+    assert.ok(result.error, `${mutation} returned metadata`); assert.equal(result.value, undefined); assert.deepEqual(env.evaluated, []);
+    if (mutation === "binding-enabled") {
+      const next = await inAction(env, env.main, { step: "usages" }, "look", who);
+      assert.equal((next.value as ActionSceneUsage[])[0]!.availability.available, false, "a subsequent read sees the disabled binding");
+    }
+  });
+}
+
+test("T405-FULL17-C S-89 a target grant revoked during validate_authority is checked after that await", async t => {
+  const env = await platform(t), who = await stageCaller(env), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let granted = true;
+  who.context = { ...who.context, validate_authority: async ref => {
+    if (ref.capability_id === judgment.capability_id) { entered.resolve(); await release.promise; }
+  }, assert_authority_current: ref => { if (ref?.capability_id === judgment.capability_id && !granted) throw new ActionError("actions.forbidden", "current target grant revoked"); } };
+  const pending = inAction(env, env.main, { step: "usages" }, "look", who);
+  await Promise.race([entered.promise, pending.then(() => assert.fail("missed target authority await"))]);
+  granted = false; release.resolve();
+  const result = await pending;
+  assert.ok(refused(result.error, "actions.forbidden", /current target grant revoked/)); assert.equal(result.value, undefined); assert.deepEqual(env.evaluated, []);
+});
+
+test("T405-FULL17-B/D metadata refs do not execute commands, metered or undeclared queries and a different dispatch drops the envelope", async t => {
+  const env = await platform(t), who = await stageCaller(env), seen: ActionCallContext[] = [];
+  const query: ActionDefinition = { capability_id: "metadata.secret.read", version: 1, operation: "query", action: { title: "Secret query", description: "Metadata is not execution authority",
+    kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "boolean" } } };
+  const paid: ActionDefinition = { ...query, capability_id: "metadata.paid.read", action: { ...query.action, execution: { cost: "metered" } } };
+  env.registry.registerProvider({ provider: { provider_id: "metadata-targets", kind: "system", title: "Metadata targets" }, definitions: [query, paid],
+    handlers: [query, paid].map(definition => ({ ...definition, handle: (caller: ActionCallContext) => { seen.push(caller); return true; } })) });
+  const refs = [query, paid].map(definition => ({ capability_id: definition.capability_id, version: 1, provider_id: "metadata-targets" }));
+  const context: ActionCallContext = { ...who.context, read_only_effects: false,
+    stage_scene_metadata: { ...who.context.stage_scene_metadata!, actions: [...who.context.stage_scene_metadata!.actions, ...refs] } };
+  for (const definition of [judgment, query, paid]) await assert.rejects(env.client.invoke(context, definition, definition === judgment ? { text: "hello" } : {}), { code: "actions.forbidden" });
+  assert.deepEqual(seen, []); assert.deepEqual(env.evaluated, []);
+  assert.equal(await env.client.invoke({ ...context, allowed_actions: [...context.allowed_actions!, refs[0]!] }, query, {}), true);
+  assert.equal(Object.hasOwn(seen[0]!, "stage_scene_metadata"), false, "a legitimately authorized different entry still cannot inherit stage metadata");
+});
+
+test("T405-FULL17-B metadata dependencies use accepted refs while their callbacks keep the original execution refs", async t => {
+  const env = await platform(t), dependency: ActionDefinition = { capability_id: "metadata.required.read", version: 1, operation: "query", action: {
+    title: "Required query", description: "Metadata dependency", kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], input_schema: { type: "object" } } };
+  const views: ActionCallContext[] = [];
+  env.registry.registerProvider({ provider: { provider_id: "metadata-dependency", title: "Dependency", kind: "system" }, definitions: [dependency],
+    handlers: [{ ...dependency, handle: () => assert.fail("metadata must never execute a dependency"), availability: caller => { views.push(caller); return { available: true }; } }] });
+  env.removeJudgment();
+  const definition = { ...judgment, action: { ...judgment.action, required_actions: [{ capability_id: dependency.capability_id, version: 1, provider_id: "metadata-dependency" }] } };
+  env.registry.registerProvider({ ...env.registration, definitions: [definition], handlers: [{ ...definition, handle: () => assert.fail("metadata must never execute a judgment") }] });
+  const who = await stageCaller(env); views.length = 0;
+  const first = await inAction(env, env.main, { step: "usages" }, "look", who);
+  assert.equal((first.value as ActionSceneUsage[])[0]!.availability.available, true);
+  assert.ok(views.length > 0);
+  for (const view of views) assert.deepEqual(view.allowed_actions, who.context.allowed_actions, "the metadata eligibility purpose is not propagated in a wider callback caller");
+  const metadata = who.context.stage_scene_metadata!;
+  const restricted = await inAction(env, env.main, { step: "usages" }, "look", { ...who, context: { ...who.context,
+    stage_scene_metadata: { ...metadata, actions: metadata.actions.filter(ref => ref.capability_id !== dependency.capability_id) } } });
+  assert.equal((restricted.value as ActionSceneUsage[])[0]!.availability.available, false, "a required action's declaration cannot grant its own metadata access");
 });

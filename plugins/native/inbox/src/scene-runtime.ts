@@ -134,7 +134,7 @@ export function createInboxSceneRuntime(options: InboxSceneRuntimeOptions): {
       return { function_key: current?.enabled ? publishedFunctionKey(current.function) : null,
         functions: publishedRules(capabilities).map(rule => ({ function_key: rule.function_key, name: rule.name })),
         capabilities, binding: current,
-        summary: { name: selected?.action.title ?? (current ? "已绑定判断能力" : null), enabled: Boolean(current?.enabled),
+        summary: { name: usage?.function_title ?? selected?.action.title ?? (current ? "已绑定判断能力" : null), enabled: Boolean(current?.enabled),
           available: Boolean(usage?.enabled && usage.availability.available),
           reason: !current ? "尚未绑定规则" : !current.enabled ? "已暂停" : usage && !usage.availability.available ? usage.availability.reason : !usage ? "当前无权使用此场景" : null },
       };

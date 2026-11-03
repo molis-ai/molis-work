@@ -268,7 +268,8 @@ const APPROVED_NEW_ASSETS = {
   // T403 first-freeze repair: wait for superseding refresh, preserve partial creation, restore config drafts/busy UI.
   // Same Feed first freeze: interval selection and current controls retain the operation busy state through refresh.
   // Preserve the selected reader read intent when refresh takes over its detail request (+3 B).
-  "/assets/molis-work-plugins/feed.js": 37383,
+  // Preserve the same focused menu control through refresh without stealing outer focus (+165 B, reviewed).
+  "/assets/molis-work-plugins/feed.js": 37548,
   "/assets/molis-work-plugins/feed.css": 43247,
   // T403's same approved Inbox URL: retain native Tab stops and same-mount evaluation feedback (+9 B served).
   "/assets/molis-work-plugins/inbox.js": 9297,

@@ -139,7 +139,8 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
               if (gone && lanes.get(lane) === pending) lanes.delete(lane);
               if (policyChanged || error instanceof SandboxError && error.outcome === 'unknown') { outcomeUnknown = true; throw failure; }
               // A dead process restarts on the next call; the failed call itself is not replayed, so nothing is written twice.
-              if (gone) { outcomeUnknown = true; throw new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
+              // When the Host's recheck refused, that refusal is why the runner retired the process (S-87): it stays the answer.
+              if (gone) { outcomeUnknown = true; throw failure !== error ? failure : new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
               throw failure;
             }
           } catch (error) { return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } }; }

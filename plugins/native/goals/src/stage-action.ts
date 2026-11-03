@@ -2,7 +2,7 @@ import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platfo
 import { goalAction } from "./action-contract.js";
 import { goalsCollectionAction } from "./collection-action.js";
 import { goalDocumentAction } from "./document-action.js";
-import type { GoalsDocumentCollectionView } from "./document-collection.js";
+import type { GoalsDocumentCollectionView, GoalsMembership } from "./document-collection.js";
 import type { GoalEventDocumentView } from "./event-document-model.js";
 import { identifier, object, nullable } from "./contract/goal-actions.js";
 import { resolveGoalsPageCollection, type GoalDocumentCollection } from "./document-routes.js";
@@ -22,21 +22,26 @@ const stageRead = goalAction<GoalsStageInput, GoalsStageData>("goals.stage.read"
 /** The stage read is for the person opening the page; identity is the existing action context, never request input. */
 export const goalsStageAction = { ...stageRead, action: { ...stageRead.action, audiences: ["user" as const] } };
 
-/** Both reads run in the same Goals database window, with the existing collection and document owners. */
+/**
+ * Both reads run in the same Goals database window, with the existing collection and document owners. The selection needs only which
+ * list each Goal is in, so the selected document is read before the whole collection is projected from the same membership: a document
+ * that asks for the person's planning methods asks before that work (the call then runs again with them), not after it.
+ */
 export function createGoalsStageActionHandler(ports: {
-  collection(): GoalsDocumentCollectionView;
+  membership(): GoalsMembership;
+  collection(membership: GoalsMembership): GoalsDocumentCollectionView;
   document(goalId: string): GoalEventDocumentView;
 }): ActionHandlerBinding {
   return { ...goalsStageAction, handle: (_caller, input) => {
     const { goal_id, collection: requestedCollection } = input as GoalsStageInput;
-    const collection = ports.collection();
-    const resolved = resolveGoalsPageCollection({ collection: requestedCollection ?? "current", ...(goal_id ? { goal_id } : {}) }, collection);
+    const membership = ports.membership();
+    const resolved = resolveGoalsPageCollection({ collection: requestedCollection ?? "current", ...(goal_id ? { goal_id } : {}) }, membership);
     const selection = "error" in resolved ? requestedCollection ?? "current" : resolved.route.collection;
-    const visible = selection === "archive" ? collection.archived_goals : selection === "trash" ? collection.trashed_goals : collection.goals;
+    const visible = selection === "archive" ? membership.archived_goals : selection === "trash" ? membership.trashed_goals : membership.goals;
     // An absent selection is still a collection read; the page owner retains its existing missing-Goal response.
-    const goalId = goal_id ?? (selection === "current" ? collection.active_goal_id : visible[0]?.goal.goal_id);
+    const goalId = goal_id ?? (selection === "current" ? membership.active_goal_id : visible[0]?.goal.goal_id);
     const selected = goalId && visible.some(item => item.goal.goal_id === goalId)
       ? { goal_id: goalId, document: ports.document(goalId) } : null;
-    return { collection, selection, selected };
+    return { collection: ports.collection(membership), selection, selected };
   } };
 }

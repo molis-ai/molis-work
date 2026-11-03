@@ -3,9 +3,37 @@ import type { GoalPresentationState } from "./tree-order.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 import { createGoalDocumentIndex } from "./document-index.js";
 import { projectGoalDocument } from "./document-projection.js";
+import type { BoardSnapshot } from "./goal-entry-contract.js";
 
-export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, projectId: string) {
+/**
+ * Which list each of the project's Goals is in, read from the snapshot and the trash before any Goal is projected: the collection
+ * projects from it, and a stage read selects from it first.
+ */
+export function readGoalsMembership(ports: GoalsDocumentReadPorts, projectId: string) {
   const snapshot = ports.snapshot(projectId);
+  // Trash is intentionally absent from both the ordinary Tree and the
+  // completed-only archive. The dedicated trash view selects it through the
+  // shared coordinator read service instead of leaking it into normal work.
+  const trashedGoalIds = new Set(
+    ports.goals.listTrashedGoals(projectId).map((goal) => goal.goal_id),
+  );
+  return { snapshot, trashedGoalIds, ...placeGoals(snapshot.goals.map((goal) => ({ goal })), snapshot, trashedGoalIds) };
+}
+
+export type GoalsMembership = ReturnType<typeof readGoalsMembership>;
+
+function placeGoals<T extends { goal: BoardSnapshot["goals"][number] }>(allGoals: readonly T[], snapshot: BoardSnapshot, trashedGoalIds: ReadonlySet<string>) {
+  const goals = allGoals.filter((item) => !item.goal.archived_at && !item.goal.trashed_at);
+  const archivedGoals = allGoals.filter((item) => Boolean(item.goal.archived_at) && !item.goal.trashed_at);
+  const trashedGoals = allGoals.filter((item) => trashedGoalIds.has(item.goal.goal_id));
+  const activeGoalId = goals.some((item) => item.goal.goal_id === snapshot.board.active_goal_id)
+    ? snapshot.board.active_goal_id
+    : null;
+  return { active_goal_id: activeGoalId, goals, archived_goals: archivedGoals, trashed_goals: trashedGoals };
+}
+
+export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, projectId: string, membership = readGoalsMembership(ports, projectId)) {
+  const { snapshot } = membership;
   const inputBindings = ports.inputs.list(projectId)
     .map(({ project_id: _projectId, ...binding }): GoalsInputBinding => binding);
   const policyBindings = ports.goals.listPolicyHistory(projectId);
@@ -14,23 +42,12 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, proj
   const allGoals = snapshot.goals.map(goal => projectGoalDocument(goal, {
     projectId, snapshot, ports, index,
   }));
-  // Trash is intentionally absent from both the ordinary Tree and the
-  // completed-only archive. The dedicated trash view selects it through the
-  // shared coordinator read service instead of leaking it into normal work.
-  const trashedGoalIds = new Set(
-    ports.goals.listTrashedGoals(projectId).map((goal) => goal.goal_id),
-  );
-  const goals = allGoals.filter((item) => !item.goal.archived_at && !item.goal.trashed_at);
-  const archivedGoals = allGoals.filter((item) => Boolean(item.goal.archived_at) && !item.goal.trashed_at);
-  const trashedGoals = allGoals.filter((item) => trashedGoalIds.has(item.goal.goal_id));
+  const { active_goal_id, goals, archived_goals, trashed_goals } = placeGoals(allGoals, snapshot, membership.trashedGoalIds);
   const counts = Object.fromEntries(GOALS_PRESENTATION_STATES.map((status) => [status, 0])) as Record<GoalPresentationState, number>;
   for (const goal of goals) counts[goal.status]++;
-  const activeGoalId = goals.some((item) => item.goal.goal_id === snapshot.board.active_goal_id)
-    ? snapshot.board.active_goal_id
-    : null;
   return {
-    snapshot, active_goal_id: activeGoalId,
-    goals, archived_goals: archivedGoals, trashed_goals: trashedGoals,
+    snapshot, active_goal_id,
+    goals, archived_goals, trashed_goals,
     counts, input_bindings: inputBindings, policy_bindings: policyBindings, events,
   };
 }

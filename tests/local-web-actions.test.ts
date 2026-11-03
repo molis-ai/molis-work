@@ -465,7 +465,11 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   const query = (capability_id: string, operation: "query" | "command" = "query", effect?: "metered"): ActionDefinition => ({ capability_id, version: 1, operation,
     action: { title: capability_id, description: "Stage authority probe", scope: "home", kind: operation === "query" ? "query" : "operation", audiences: ["user", "workflow"],
       permissions: ["stage-source:read"], subject_kinds: [], input_schema: { type: "object" }, output_schema: {}, ...(effect ? { execution: { cost: effect } } : {}) } });
-  const entry = query("stage-authority.read"), source = query("stage-source.read"), undeclared = query("stage-source.other"), write = query("stage-source.write", "command"), metered = query("stage-source.paid", "query", "metered");
+  const source = query("stage-source.read"), undeclared = query("stage-source.other"), write = query("stage-source.write", "command"), metered = query("stage-source.paid", "query", "metered");
+  const stageQuery = query("stage-authority.read");
+  // T405-FULL-12: discovery must retain the query dependency's authority before the real entry invokes it.
+  const entry = { ...stageQuery, action: { ...stageQuery.action,
+    required_actions: [{ capability_id: source.capability_id, version: source.version }] } };
   const hostTarget = { capability_id: "functions.invoke", version: 1, provider_id: "system.functions" };
   const counts = { entry: 0, source: 0, other: 0, write: 0, metered: 0 };
   const sourceCallers: import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext[] = [];
@@ -523,6 +527,7 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   const bind = () => bindLocalWebAction(host, one.reference, entry, { stage_read: stageRead });
   const bound = bind(), visible = await bound.discover();
   assert.deepEqual(visible.map(view => view.capability_id), [entry.capability_id]);
+  assert.equal(visible[0]!.availability.available, true, "T405-FULL-12: the declared query dependency remains available during entry discovery");
   assert.deepEqual(await bound.invoke(entry, {}), { value: "declared source" }); assert.equal(counts.source, 1);
   assert.equal(Object.hasOwn(sourceCallers.at(-1)!, "stage_scene_metadata"), false, "FULL17-D query delegation drops the Host stage envelope");
   const before = { ...counts };

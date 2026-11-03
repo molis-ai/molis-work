@@ -179,8 +179,8 @@ export function bindLocalWebAction(host: MolisWorkLocalHost, reference: LocalHos
     if (!owner) return { ...caller, permissions: caller.permissions.filter(permission => declared.includes(permission)), allowed_actions: (caller.allowed_actions ?? []).filter(same) };
     owner.assertCurrent();
     return { ...caller, read_only_effects: true,
-      validate_authority: async target => { owner.assertCurrent(); await caller.validate_authority?.(target); owner.assertCurrent(); },
-      assert_authority_current: (target, permissions) => { owner.assertCurrent(); caller.assert_authority_current?.(target, permissions); owner.assertCurrent(); } };
+      validate_authority: async target => { await caller.validate_authority?.(target); owner.assertCurrent(); },
+      assert_authority_current: (target, permissions) => { caller.assert_authority_current?.(target, permissions); owner.assertCurrent(); } };
   }, definition);
 }
 

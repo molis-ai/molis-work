@@ -131,6 +131,10 @@ Once a shared control, state variant, or micro-interaction meets the product’s
 
 ## Development verification
 
+Choose commands for the affected scope; this is not a checklist to run in full. Incremental and clean builds and machine scheduling are covered in [Parallel development, section 5](system/PARALLEL-DEVELOPMENT.md#5-构建与浏览器用例排时段). Sections 6–8 cover targeted versus full regression, where to run it, and baseline comparisons; section 5.1 states the limits for the current work session.
+
+### Command reference
+
 ```bash
 # All workspace packages
 pnpm workspace:check
@@ -161,13 +165,23 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 `workspace:check` validates only the F2 package inventory. `boundary:check` scans real imports, dependency direction, Contract entrypoints, and cycles. `workspace:verify` is the complete package gate shared by local development and CI.
 
-After changing a stylesheet, a client script, a plugin client pack or a font, run `node scripts/gates/page-assets.mjs --base origin/main` after `pnpm workspace:build` (that is `pnpm page-assets:check` with `--base`; CI runs the same command after `workspace:verify`). The byte size of every file the host sends under `/assets/` is recorded in `tooling/gates/page-assets.json` and by default may only fall. When an asset shrinks, run `node scripts/gates/page-assets.mjs --update --base origin/main` to lower its number; `--report` prints bytes, gzip bytes and budget per file. The budget is a size control, not a hard ceiling (the user's decision of 2026-10-18): growth a feature really needs and that cannot be won back in the same asset is admitted once. The PR states the reason, the bytes and what was tried, and after review a one-time entry goes into `APPROVED_CEILINGS` in `scripts/gates/page-assets.mjs`, keyed to the merge-base's exact number. More than 10 KB on one asset at once, or a new asset, is asked of the user first. The rules and what the gate does not cover are in [`specs/repository-anti-corruption/spec.md`](../specs/repository-anti-corruption/spec.md) §5a.
+### Page asset sizes
+
+After changing a stylesheet, a client script, a plugin client pack or a font, run `node scripts/gates/page-assets.mjs --base origin/main` after `pnpm workspace:build` (`pnpm page-assets:check` with `--base`; CI runs it after `workspace:verify`). The measured byte size of files the host serves under `/assets/` is recorded in `tooling/gates/page-assets.json`; `--report` prints bytes, gzip bytes and budget per file.
+
+This is size control, not a hard ceiling (the user’s decision of 2026-10-18): sizes may only fall by default, so reduce them where possible. Growth a feature needs and that cannot be saved elsewhere in the same asset requires the reason, bytes and attempted reductions in the PR. After review, add a one-time entry to `APPROVED_CEILINGS` in `scripts/gates/page-assets.mjs`, keyed to the exact merge-base size and capped at the measured size. Remove used entries when adding the next approval; the merged size remains frozen. Ask the user first for growth over 10 KB in one asset at once, or for a new asset.
+
+Apart from that approval, CI and `--base <ref>` compare budgets with the merge-base: raising numbers, adding entries or dropping a still-served asset cannot pass, and `--update` refuses growth too. Budgets must equal measurements. When an asset shrinks, run `node scripts/gates/page-assets.mjs --update --base origin/main` in the same PR. If main changes an asset before merge, rebuild the merge result with `pnpm workspace:build` and check again. Route discovery and uncovered cases are documented at the top of [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) and in the [anti-corruption spec](../specs/repository-anti-corruption/spec.md) §5a.
+
+### Secret scanning before push
 
 Scan for secrets before pushing: run `git fetch origin main`, then `pnpm secrets:check`. It reads every commit of your branch since its merge base with `origin/main` (`scripts/check-secrets.mjs`) and looks for OpenAI/Anthropic keys (`sk-…`, `sk-ant-…`), GitHub tokens (`ghp_…`, `github_pat_…`), Slack tokens, AWS access keys (`AKIA…`), Google API keys (`AIza…`), private key blocks, JWTs, and quoted literals of 12 or more mixed letters and digits assigned to a name that ends in `api_key`, `secret`, `password` or `token` (references, `${…}`, placeholders and URLs do not count). Names also include `secretKey`, `private_key`, `aws_secret_access_key` and `clientKey`, that is a key preceded by secret, private, access, client, auth, signing or encryption (a bare `key` does not count), and a type annotation may sit between the name and the `=` (`const apiKey: string = "…"`). Files whose names git quotes in diff headers (a quote, backslash or control character) are scanned too, and control characters in a file name are escaped in the log. The diff is read with external diff drivers, textconv and `diff.noprefix` switched off, so a local git configuration cannot change what the scan sees. A hit prints the file, line, rule and the first four characters of the value, never the whole value. The CI Secret scan job runs the same command with full history (a pull request against its base branch, a push to main against the tip before the push) and `Verify` waits for it. The rules themselves are tested by `tests/secret-scan.test.ts`, which the Package boundaries job runs.
 
 - A real credential: deleting it in a later commit is not enough because it is already in the history. Remove it from every commit with a rebase or squash, then rotate the key. Secrets live in the Home's secret store or the environment, and code carries only a reference.
 - Test data that is already on main: add the exact value (or a `/regex/` anchored with `^…$`) with a reason to `tooling/gates/secret-allowlist.txt`, one entry per line as `<value>  # reason`. A line without a reason makes the scan exit with an error. Do not loosen the rules to get a pass.
 - `node scripts/check-secrets.mjs --all` audits the whole tree and `--base <ref>` changes the base. It does not read unquoted YAML values, binary files, or passwords with no recognizable shape.
+
+### Release artifact verification
 
 The Desktop payload contains root dist, production workspace dependencies, Runtime Skill, Node and vendor provenance/license assets, not a second business implementation. For npm, use `pnpm package:npm`: it builds the workspace and invokes Local Host tooling to stage `release/npm/*.tgz`. Pass an absolute output directory as its argument when needed. Direct npm/pnpm pack at the source root prints this command instead of producing an uninstallable workspace:* archive.
 

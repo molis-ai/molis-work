@@ -171,6 +171,10 @@ molis-work-mcp
 
 ## 开发验证
 
+按改动影响面选择命令，下面不是逐项全跑的清单。构建的增量与强制重建、机器排队见[并行开发第 5 节](system/PARALLEL-DEVELOPMENT.md#5-构建与浏览器用例排时段)；定向与全量的选择、运行位置和基线比对见该文档第 6–8 节，本次执行范围以第 5.1 节覆盖说明为准。
+
+### 命令速查
+
 ```bash
 # 全部 workspace 包
 pnpm workspace:check
@@ -201,13 +205,23 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 `workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。
 
-改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）：宿主在 `/assets/` 下发的每个文件的字节数记在 `tooling/gates/page-assets.json`，默认只许变小。变小了就跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 把数字降下来；`--report` 打印逐文件的字节、gzip 与预算。这是体积控制，不是硬上限（用户 2026-10-18 定）：功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法，评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条只认 merge-base 准确数字的一次性放行；一个资源一次涨超过 10 KB 或新增资源，先问用户。规则、没覆盖的几项见 [`specs/repository-anti-corruption/spec.md`](../specs/repository-anti-corruption/spec.md) §5a。
+### 页面资源体积
+
+改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）。宿主在 `/assets/` 下发的文件按实测字节数记在 `tooling/gates/page-assets.json`；`--report` 打印逐文件的字节、gzip 与预算。
+
+这是体积控制，不是硬上限（用户 2026-10-18 定）：默认只许变小，能省先省。功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法；评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条一次性放行，只认 merge-base 的准确数字，上限等于实测，下次添加放行时删掉用完的条目，合入后继续冻结。一个资源一次涨超过 10 KB 或新增资源，先问用户。
+
+除这条放行外，CI 与 `--base <ref>` 对照 merge-base 的预算：调大数字、新增条目或删掉仍在下发的条目都不能过关，`--update` 也不会写入变大的数字。预算必须等于实测；变小就在同一个 PR 里跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 降下来。合并前 main 若又改了资源，在合并结果上重新 `pnpm workspace:build` 后再检查。路由识别与未覆盖范围见 [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) 头部和[防腐 spec](../specs/repository-anti-corruption/spec.md) §5a。
+
+### 推送前扫描密钥
 
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。
 
 - 真凭据：不要只在后一个提交里删掉，它已经在历史里；用 rebase 或 squash 从所有提交里去掉，再轮换这把密钥。密钥进 Home 的密钥库或环境变量，代码里只放引用。
 - 已在 main 上的测试数据：把确切值（或一条用 `^…$` 锚定的 `/正则/`）连同理由写进 `tooling/gates/secret-allowlist.txt`，每行一条：`<值>  # 理由`。没有理由的行会让扫描报错退出。不要为让扫描通过去放宽规则。
 - `node scripts/check-secrets.mjs --all` 审计整棵树；`--base <ref>` 换基线。它不读 YAML 里不带引号的值，不看二进制文件，也不认识没有固定形状的口令。
+
+### 发布产物验证
 
 当前 Desktop payload 包含根 dist、正式 workspace 运行依赖、Runtime Skill、Node 和 vendor 来源/许可资产，不包含第二套业务实现。npm 使用 `pnpm package:npm`：先完整构建，再由 Local Host tooling 在临时目录生成 `release/npm/*.tgz`。需要其他输出目录时用 `pnpm package:npm /absolute/output`。不要直接在源码根执行 npm/pnpm pack；它会提示正确命令，避免生成含 workspace:* 的不可安装包。
 

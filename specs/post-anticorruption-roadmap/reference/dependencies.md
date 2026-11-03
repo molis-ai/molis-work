@@ -1,6 +1,6 @@
 # 排期原则与依赖
 
-[执行目录](../spec.md) · [Reference 分类](../spec.md#reference)
+[执行目录](../spec.md) · [参考分类](../spec.md#reference)
 
 <a id="section-2"></a>
 

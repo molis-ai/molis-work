@@ -1,8 +1,8 @@
-# 防腐后路线图 · 执行目录
+# 防腐后路线书 · 执行目录
 
 状态：规划（2026-11-03 整理；需求与排期维护：Codex，实施沿原负责人及待分配状态）。防腐收尾后执行，当前只维护文档。
 
-**从 01 往下做。** 同一批次下，每个独立交付各占一行；点内容看该项产出和前置，点批次号看共同约束、来源、并行和 UI 要求。批次号保持不变，批内不互相追加等待条件。每项开始前按[开发手册](reference/development-workflow.md#kickoff-brief)先讲清要做什么。
+**从 01 往下做。** 同一批次下，每个独立交付各占一行；点内容看该项产出和前置，点批次号看共同约束、来源、并行和 UI 要求。批次号保持不变；同批无关的子项不互相等待，有先后的写在该项前置里。每项开始前按[需求开发流程](reference/development-workflow.md#kickoff-brief)先讲清要做什么。
 
 验收编号：不适用（排期文档；验收以各原需求书为准）。
 
@@ -233,12 +233,12 @@
 
 <a id="reference"></a>
 
-## Reference
+## 参考
 
 | 要查什么 | 文件 |
 | --- | --- |
 | 执行边界、同批顺序、字体切换与升级窗口 | [执行规则](reference/execution-rules.md) |
-| 每项怎样开工、设计、实施、验证和收尾 | [开发手册](reference/development-workflow.md) |
+| 每项怎样开工、设计、实施、验证和收尾 | [需求开发流程](reference/development-workflow.md) |
 | 批次完整交付、来源、前置、并行与 UI | [01～02](reference/batches-01-02.md) · [03～27](reference/batches-03-27.md) · [28～56](reference/batches-28-56.md) · [57～75](reference/batches-57-75.md) · [76～89](reference/batches-76-89.md) · [服务端批](reference/server-batch.md) |
 | 原需求、类型、待决与批次映射 | [需求来源](reference/requirements.md) |
 | 近期需求 PR 的实际内容与批次去处 | [PR 来源对照](reference/requirement-prs.md) |

@@ -1,6 +1,6 @@
 # 57～75 批 · 持续工作与创作
 
-[执行目录](../spec.md) · [Reference 分类](../spec.md#reference)
+[执行目录](../spec.md) · [参考分类](../spec.md#reference)
 
 开工时一起查看[执行规则](execution-rules.md)和[每片开工说明](development-workflow.md#kickoff-brief)。
 

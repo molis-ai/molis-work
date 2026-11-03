@@ -1,6 +1,6 @@
 # 服务端批详情
 
-[执行目录](../spec.md) · [Reference 分类](../spec.md#reference)
+[执行目录](../spec.md) · [参考分类](../spec.md#reference)
 
 <a id="server-batch"></a>
 

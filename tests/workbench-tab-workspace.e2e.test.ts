@@ -17,7 +17,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
     response.once("finish", () => { read.finished = Date.now(); });
   };
   browser.server?.on("request", observePane);
-  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 workspace pane reads " + JSON.stringify(paneReads)); });
+  t.after(() => { browser.server?.off("request", observePane); });
   for (const plugin_id of ["feed", "inbox"] as const) {
     await addProjectPlugin(browser.web, projectId!, plugin_id);
   }

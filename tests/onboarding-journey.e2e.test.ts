@@ -169,20 +169,8 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   await waitFor("document.querySelectorAll('.ob-right .mw-file-group').length === 2");
   assert.equal(await evaluate("document.activeElement?.id"), "cx-browser-text", "typing is not interrupted by the list redrawing");
   await assertLayoutClean(evaluate, "sources, two groups");
-  // T405-17B5-UI-02: record the actual removal click and list changes without changing the pending save.
-  await evaluate(`(()=>{const trace=window.__t405Materials={events:[]};let prior;
-    const note=phase=>{trace.events.push({phase,at:Date.now(),groups:[...document.querySelectorAll('.ob-right .mw-file-group')].map(g=>g.dataset.group),text:document.querySelector('#cx-browser-text')?.value,active:document.activeElement?.id});if(trace.events.length>12)trace.events.shift();};
-    const clicked=event=>{if(event.target.closest('[data-remove=browser]'))note('remove click trusted='+event.isTrusted);};
-    const changed=()=>{const groups=[...document.querySelectorAll('.ob-right .mw-file-group')].map(g=>g.dataset.group).join();if(groups!==prior){prior=groups;note('groups changed');}};
-    const observer=new MutationObserver(changed);observer.observe(document.querySelector('.ob-right'),{childList:true,subtree:true});document.addEventListener('click',clicked,true);changed();
-    window.__t405StopMaterials=()=>{observer.disconnect();document.removeEventListener('click',clicked,true);note('observation ended');};})()`);
-  try {
   await click(".ob-right .mw-file-group[data-group=browser] .mw-file-group__x");
   await waitFor("document.querySelectorAll('.ob-right .mw-file-group').length === 1");
-  } finally {
-    const state = await journey.command("Runtime.evaluate", { expression: "(()=>{window.__t405StopMaterials?.();return{trace:window.__t405Materials,groups:[...document.querySelectorAll('.ob-right .mw-file-group')].map(g=>({kind:g.dataset.group,text:g.innerText.slice(0,160)})),text:document.querySelector('#cx-browser-text')?.value,active:document.activeElement?.outerHTML.slice(0,180),error:document.querySelector('.ob-error')?.textContent};})()", returnByValue: true }, journey.sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
-    t.diagnostic("T405 onboarding materials removal " + JSON.stringify(state));
-  }
 
   // Confirm the scope: the next step is the model, and the file list is the step behind it.
   await click("[data-action=prepare]");

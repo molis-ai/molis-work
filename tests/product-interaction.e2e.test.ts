@@ -17,7 +17,7 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
     response.once("finish", () => { read.finished = Date.now(); });
   };
   b.server?.on("request", observePane);
-  t.after(() => { b.server?.off("request", observePane); t.diagnostic("T405 product pane reads " + JSON.stringify(paneReads)); });
+  t.after(() => { b.server?.off("request", observePane); });
   await b.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");

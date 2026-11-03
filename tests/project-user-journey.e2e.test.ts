@@ -58,12 +58,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const app=new GoalProjectApplication(b.store);
     assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
     await capture('goal-recorded');
-    await plugin('feed');
-    // T405-17B5-UI-02: keep the Add input's actual precondition if its guarded point/rAF never returns.
-    const addState=await feedView.evaluate(`(()=>{const target=document.querySelector('[data-feed-source-rail] [data-feed-add-toggle]'),menu=target?.closest('details');return{ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),target:target?{connected:target.isConnected,rect:target.getBoundingClientRect().toJSON(),hidden:target.hidden,inert:target.inert,visible:target.checkVisibility({visibilityProperty:true})}:null,menu:menu?{open:menu.open,connected:menu.isConnected,rect:menu.getBoundingClientRect().toJSON()}:null,viewport:[innerWidth,innerHeight]}})()`,1500).catch(error=>({unavailable:String(error)}));
-    const nativeWindow=await (async()=>{const {windowId}=await command<{windowId:number}>('Browser.getWindowForTarget',{},sessionId,1500);return command('Browser.getWindowBounds',{windowId},sessionId,1500);})().catch(error=>({unavailable:String(error)}));
-    t.diagnostic('T405 journey before Feed Add '+JSON.stringify({width,addState,nativeWindow}));
-    await feedView.click('[data-feed-source-rail] [data-feed-add-toggle]');
+    await plugin('feed');await feedView.click('[data-feed-source-rail] [data-feed-add-toggle]');
     await feedView.click('[data-feed-choose-kind=custom_rss]');
     await fill('[data-feed-add-name]','团队设计资料',feedView);
     await fill('[data-feed-source-value=custom_rss]','https://example.com/journey.xml',feedView);

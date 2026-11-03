@@ -22,7 +22,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     response.once("finish", () => { read.finished = Date.now(); });
   };
   browser.server?.on("request", observePane);
-  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 current tabs pane reads " + JSON.stringify(paneReads)); });
+  t.after(() => { browser.server?.off("request", observePane); });
   await browser.click('[data-plugin-strip] [data-plugin-id="goals"]');
   await browser.waitFor("document.querySelector('.tree-node[data-select-goal=CORE]')?.getClientRects().length > 0", 15_000);
   await browser.openGoalFrame('.tree-node[data-select-goal="CORE"]');

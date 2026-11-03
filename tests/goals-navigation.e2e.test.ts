@@ -12,7 +12,7 @@ test("Goal navigation preserves history, keyboard focus, failed selection recove
   // T405-17B5-UI-02: the original 60s case deadline remains the limit; abort diagnostics never issue CDP work.
   const phases: Array<{ phase: string; at: number }> = [];
   const mark = (phase: string) => { phases.push({ phase, at: Date.now() }); if (phases.length > 24) phases.shift(); };
-  t.after(() => t.diagnostic("T405 Goal navigation phases " + JSON.stringify({ aborted: t.signal.aborted, phases })));
+  t.after(() => { if (t.signal.aborted) t.diagnostic("T405 Goal navigation phases " + JSON.stringify({ aborted: true, phases })); });
   mark("configure browser");
   // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
   const prefix = `/projects/${projectId}`;

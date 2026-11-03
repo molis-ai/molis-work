@@ -21,7 +21,7 @@ test("settings serve complete category pages; the project gear opens them in the
     response.once("finish", () => { read.finished = Date.now(); });
   };
   browser.server?.on("request", observePane);
-  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 settings pane reads " + JSON.stringify(paneReads)); });
+  t.after(() => { browser.server?.off("request", observePane); });
   const prefix = `/projects/${projectId}`;
   for (const [path, content] of [["", "data-project-rename"], ["/general", "data-project-rename"], ["/guidance", "data-guidance-form"], ["/rules", "data-policy-form"], ["/planning", "data-planning-search"]]) {
     const response = await fetch(origin + prefix + "/settings" + path);

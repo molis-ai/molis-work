@@ -32,7 +32,7 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
     response.once("finish", () => { read.finished = Date.now(); });
   };
   browser.server?.on("request", observePane);
-  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 Goals pane reads " + JSON.stringify(paneReads)); });
+  t.after(() => { browser.server?.off("request", observePane); });
   const phases: Array<{ action: string; at: number }> = [];
   const mark = (action: string) => { phases.push({ action, at: Date.now() }); if (phases.length > 12) phases.shift(); };
   const click: typeof browser.click = (selector, options) => { mark('click ' + selector); return browser.click(selector, options); };
@@ -313,24 +313,12 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
 
   // PRR-07 PTG-05: the parent owns the split pane's visible strip; the embedded page's strip is hidden and does not own CORE.
   // Keep the pane identity through closing the group, then use its visible undo chip to restore the group and current page.
-  // T405-17B5-UI-02: only observe the six-second chip; never extend its lifetime or manufacture focus.
-  await evaluate(`(()=>{const pane=${goalsPane},trace=window.__t405Undo={events:[]};let prior;
-    const note=phase=>{trace.events.push({phase,at:Date.now(),connected:pane.isConnected,chip:!!pane.querySelector('[data-tab-undo]')});if(trace.events.length>12)trace.events.shift();};
-    const changed=()=>{const current=!!pane.querySelector('[data-tab-undo]');if(current!==prior){prior=current;note('chip changed');}};
-    const pressed=event=>{if(event.target.closest('[data-tab-kind=plugin][data-plugin=goals] [data-tab-close]'))note('close click trusted='+event.isTrusted);};
-    const observer=new MutationObserver(changed);observer.observe(pane,{childList:true,subtree:true});pane.addEventListener('click',pressed,true);changed();
-    window.__t405StopUndo=()=>{observer.disconnect();pane.removeEventListener('click',pressed,true);note('observation ended');};})()`);
-  try {
   await click(`${goalsPaneSelector} [data-tab-kind=plugin][data-plugin=goals] [data-tab-close]`);
   await waitFor(`!${goalsPane}.querySelector('[data-plugin-group=goals] [data-tab-kind=plugin][data-plugin=goals]')`);
   await waitFor(`${goalsPane}.querySelector('[data-tab-undo]')`, 10_000);
   await click(`${goalsPaneSelector} [data-tab-undo]`);
   await waitFor(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
   assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "undo restores the Goals page as current");
-  } finally {
-    const state = await command("Runtime.evaluate", { expression: `(()=>{window.__t405StopUndo?.();return{trace:window.__t405Undo,pane:${goalsPane}?.outerHTML.slice(0,1200),saved:localStorage.getItem(${JSON.stringify("molis-work-tab-workspace:" + projectId)})};})()`, returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
-    t.diagnostic("T405 group undo " + JSON.stringify(state));
-  }
 });
 
 test("D24 a list that picks several keeps ⌘-click for picking; a middle click there still opens the page behind", { timeout: 90_000 }, async (t) => {

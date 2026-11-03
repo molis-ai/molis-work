@@ -41,7 +41,7 @@ function layered(): string {
     + `<span class="mw-rl__chip" data-chip="claim">${ai}留到后面某一步</span><span class="mw-rl__more" aria-hidden="true">${icon("chevron-down")}</span></summary>`
     + `<div class="mw-rl__body">${record}${claim}`
     + `<p class="mw-rl__help">${icon("info")}读到不等于照做，也不撤销之前的操作。</p>`
-    + `<div class="mw-rl__foot"><span class="mw-rl__ids">编号 steer-3 · call-9 · AI 说明过 2 次</span>${renderButton({ label: "更正…", variant: "ghost", size: "sm" })}</div></div></details>`;
+    + `<div class="mw-rl__foot"><span class="mw-rl__ids">编号 steer-3 · call-9 · AI 说明过 2 次</span>${renderButton({ label: "更正…", variant: "secondary", size: "sm" })}</div></div></details>`;
 }
 
 /** A supplement that asked the person something: the question is theirs to act on, so it is its own zone, folded or not. */

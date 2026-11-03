@@ -1,6 +1,6 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
-import { feedStage } from "./stage.js";
+import { feedStage, FILTER_FIELDS } from "./stage.js";
 import { feedSources } from "./sources.js";
 import { feedRules } from "./rule-authoring.js";
 
@@ -17,7 +17,8 @@ export interface FeedPage {
   api<T = Record<string, unknown>>(path: string, method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", body?: unknown): Promise<T>;
   selection: string;
   panel: string;
-  refresh(): Promise<void>;
+  /** `notice`: a change announced from outside this page, not one of its own operations. */
+  refresh(notice?: boolean): Promise<void>;
   select(id: string, intent?: string, panel?: string): void;
   error(error: unknown, element?: HTMLElement | null): void;
 }
@@ -47,16 +48,20 @@ export function feedClient(host: FeedHost): void {
     error: (error, element) => { if (!scope.alive || !scope.visible || error instanceof DOMException && error.name === "AbortError") return; if (element?.isConnected) molisWorkRequest.show(element, error); else host.showToast(molisWorkRequest.text(error), true); },
   };
   const stage = feedStage(page), sources = feedSources(page), rules = feedRules(page);
-  let refreshSequence = 0, activeRefresh = Promise.resolve(), drawn = "";
-  page.refresh = () => {
+  let refreshSequence = 0, activeRefresh = Promise.resolve(), drawn = "", redraw = false;
+  page.refresh = notice => {
+    // This page's own operations always redraw: what they change can live outside the page document (the open item's detail,
+    // a source's account), and only a redraw reads those again. A notice coalesced with one of them redraws too.
+    if (!notice) redraw = true;
     const check = page.guard(), sequence = ++refreshSequence;
     const refresh = async () => {
       const html = await host.view.readDocument({ signal: page.signal() }); check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
-      // A read that is what is already drawn (another notice of a change this page has drawn) leaves the page alone:
+      // A notice that reads back what is already drawn (the poll after this page's own save) leaves the page alone:
       // redrawing it would only swap out the controls in use and the result a person was just shown.
-      if (html === drawn) return;
-      const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]").map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
+      if (html === drawn && !redraw) return;
+      redraw = false;
+      const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search]," + FILTER_FIELDS).map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
       const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
       const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]");
       if (!next) throw new Error(host.translate("无法更新 Feed 列表"));
@@ -108,7 +113,7 @@ export function feedClient(host: FeedHost): void {
   page.listen("molis-work:select-item" as keyof HTMLElementEventMap, event => {
     const detail = (event as CustomEvent<{ itemId?: string | null; view?: string; panel?: string; intent?: string; invalidate?: boolean }>).detail;
     if (!detail) return;
-    if (detail.invalidate) { if (scope.visible) void page.refresh().catch(error => page.error(error)); return; }
+    if (detail.invalidate) { if (scope.visible) void page.refresh(true).catch(error => page.error(error)); return; }
     page.select(detail.view ?? "all", detail.intent, detail.panel);
     if (typeof detail.itemId === "string") void stage.select(detail.itemId, true).catch(error => page.error(error));
     else if (detail.itemId === null) stage.collapse();

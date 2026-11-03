@@ -1,6 +1,6 @@
 # 看板
 
-> 2026-11-03 05:45Z：T405 e93c930已在#1725，准确CI41582108340自然success（15成功/2条件skip，Verify/两SI/两Product/native/shell经根手查）。同SHA唯一integration/w6-closeout-e93c930的Full41584800151已启动，收齐16片后才结算；源码冻结、main未采用。节点/Feed/UI及资源已核收；场景4修复后真实浏览器拒绝、停止接管、当前/下一轮撤权和Coding无目录拒绝均通过，后续目录POST403已证明为临时driver漏Host端口，零模型403→200预检已闭合，不改生产。只续做剩余Coding的脚本与一次独立审已准备，按原一次失败不重试限制待新的明确决定。真实Home旧vault为v2/Keychain、条目metadata已确认存在，密文恢复和完整副本仍未证；原key/数据不动，实际main和备份前置齐后才切。原失败、历史归档部分完成、本人认可与整线未完成边界保留。
+> 2026-11-03 06:50Z：T405 e93c930的CI41582108340通过；同头Full41584800151已收齐并失败（16片10成功、5失败、1达到GitHub45分钟上限，汇总失败），最终6个浏览器文件集中诊断，保留原超时和断言，不重跑已绿矩阵。main尚未采用。场景4真实浏览器三组已过；获单次批准的Coding续做因普通问卷而失败，清理后原work/run均stopped、旧问卷不可回答，正式diff/写入/第二文件停止/交回未完成；新轮次只准备，另需明确单次模型批准。真实Home原数据与密钥保留，完整副本和恢复尚未执行，待最终main与前置通过。历史归档部分完成，privileges、本人认可和整线完成均未签。
 
 > 2026-11-02 14:54Z：遵用户最新要求，已绿且未受改动影响的验证直接沿用，不因换H/合流重复；仅失败路径与新增行为做必要验证。T405 SI41文件分源300/300、卸载3生产文件及8文件60/60已本地合流；DEV3 f891修复34/35文件有效212/213，唯一Onboarding更新页退出后owner.borrowed正限界诊断，其余绿保留。W4 counter生成/签包/独立生命周期已过；list本次生成空态投影失败且修复终态unknown，已停止清理，不追加付费轮。T411真实smoke2/2沿用。远端#1725仍40f，旧CI/Full失败保留，修复攒齐一次推。场景4、真实Home窗口/本人验收、privileges12正式关行与最终归档仍未完成；本数6～12不重复扣减。
 
@@ -38,7 +38,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-406 | 双实例可选权限共同遵守Home开关 | 甲 | Codex开发线1；独立t406_verify；加强t406_second | 最终4d815bb9两独立终签PASS；原探针独立1/1、作者92/92保来源，matching63及普通门禁全过 | 已交原开发3与T403一次普通合流，真实Feed接缝/组合CI/Full/采用待结 | tasks/T-406.md；原三类红例保留，不改Feed为required |
 | W6场景8补步 | 同profile原URL直接reload恢复 | 验证 | Codex w6_scene8_reload；独立核收ci1724_watch | a604匹配构建，同URL正常重启reload恢复详情/所测布局，独立核收通过 | 筛选全部回今天、空hash范围保留；不签最终F/完整场景8 | /tmp/w6-scene8-execution/REPORT.md与RELOAD-SECOND.md；无自有进程残留 |
 | W6路线3～6补步 | 装配、生命周期、同包安装与失败清理 | 验证 | Codex w6_routes_remainder；独立核收ci1724_watch | a604匹配构建，六完整文件及同包连续链分源通过，根与独立限定核收完成 | 首批2/4及Node崩溃UNKNOWN保留；私有笔记非Artifact，不签RAC11整体或最终F | /tmp/w6-03-dynamic/ROUTES-3-6.md与ROUTES-SECOND.md；四隔离根和自有进程已清 |
-| T-405 | 已审承载与最终Full修复 | 甲 | Codex根统筹；原独立审验 | 17b5已推；UI独立五文件27/27与旅程2/2核收，节点修复在途；原90/90、125绿及36/36沿用 | CI41561979960通过；Full41565001069失败保留，待后继最终组合CI/Full及main采用 | tasks/T-405.md；来源、旧失败及实际模型失败分层保留 |
+| T-405 | 已审承载与最终Full修复 | 甲 | Codex根统筹；scene4_node_target_writer诊断；原独立审验 | e93c930已推且CI通过；原有效独立证据沿用 | Full41584800151失败：6浏览器文件集中修；待后继CI/Full与main采用 | tasks/T-405.md；原失败、超时取消与实际模型失败分层保留 |
 | W4-01 runner | 原真实corpus任务的真签包回放适配 | 甲 | Codex w401_runner；独立验证线3/w401_second | 两路径00e027f/treeab9f0c8冻结，最终4/4、matching与两独立审验通过；已纳入T405 | 真实模型两样本/最终W4-01仍WAIT；不新增片数 | scripts/replay-plugins.mjs、tests/replay-plugins.test.ts；机械临时包非模型产物 |
 | T-404 | W6-06现行规则与两处机器输入归owner | 甲 | Codex t404_rules_migration；独立t404_verify/t404_second | 最终853aef869/tree7edf16e普通合ad06，零本片差异；135/135及双审原有效证据保留，63构建匹配 | 父新CI修复及最终CI/采用待根；历史归档仍等原W6前置 | tasks/T-404.md；表保真，判断算法/版本/保护分支不变 |
 | T-068 | BL790远程MCP声明与完整来源保护 | 甲 | Codex开发线1；独立验证一审线1；加强二审一审线2 | 本地最终f1b752b33，正常合ad06且原MCP实现未变，63构建匹配、120/120、48资源同父，双审范围PASS | 完整进入#1725最终f9d4，统一CI/Full/采用待结，不重复排Full | plans/T067-T068/PLAN.md；不重跑未变成员矩阵 |

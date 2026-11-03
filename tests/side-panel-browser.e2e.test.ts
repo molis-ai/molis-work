@@ -208,6 +208,102 @@ test("R5B-01/03: real page and browser process crashes retain their distinct rec
   }
 });
 
+test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through movement and refuse stale targets without mouse input", { timeout: 120_000 }, async t => {
+  const chrome = locateTestChrome(); assert.ok(chrome, "a dedicated test browser is required");
+  const home = await mkdtemp(join(tmpdir(), "browser-node-target-"));
+  const targetHtml = '<button id="target" data-target="original" style="position:absolute;left:100px;top:100px;width:120px;height:40px">移动目标</button>';
+  const site = await serve(`<!doctype html><title>Node target</title><body style="margin:0">
+    <button id="trap" style="position:absolute;left:0;top:0;width:30px;height:30px">坐标诱饵</button>${targetHtml}
+    <script>window.nodeClicks=[];document.addEventListener('click',event=>{const el=event.target.closest('button');if(el)window.nodeClicks.push({id:el.id,target:el.dataset.target||'',trusted:event.isTrusted})});</script>`);
+  const browsers = new BrowserHost({ homeDirectory: home, locate: () => ({ path: chrome, name: basename(chrome) }) });
+  const page = browsers.page("node-project"), driver = createBrowserSurfaceDriver(page);
+  const detach = page.attach({ state: () => {} }, { width: 800, height: 600, dpr: 1 });
+  let mouseInputs = 0;
+  const groups = new Set<string>();
+  const clicks = () => page.evaluate("JSON.stringify(window.nodeClicks)");
+  const observeNode = async () => {
+    const outline = new TextDecoder().decode(await driver.observe("accessibility-tree", { session_id: "node-session" }));
+    const node = /^node=(\S+) button「移动目标」/mu.exec(outline)?.[1];
+    assert.ok(node, outline);
+    assert.match(node, /^node_[a-f0-9]{32}$/u, "the token is opaque, not the current element's index");
+    return node;
+  };
+  const pointer = (node: string) => driver.perform({ what: "pointer", node, x: 0, y: 0, button: "left", clicks: 1 }, { session_id: "node-session" });
+  const refused = async (node: string, reason: string) => {
+    const beforeInputs = mouseInputs, beforeClicks = await clicks();
+    await assert.rejects(driver.describeNode!(node), /目标已不可用/u, `${reason}: approval cannot name a replacement`);
+    await assert.rejects(pointer(node), /目标已不可用/u, `${reason}: injection itself refuses`);
+    assert.equal(mouseInputs, beforeInputs, `${reason}: no mouse input was dispatched`);
+    assert.equal(await clicks(), beforeClicks, `${reason}: no target or fallback-point effect`);
+  };
+  try {
+    const running = await browsers.browser(), send = running.cdp.send.bind(running.cdp);
+    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
+      if (method === "Input.dispatchMouseEvent") mouseInputs += 1;
+      if (method === "Runtime.evaluate" && typeof params.objectGroup === "string") groups.add(params.objectGroup);
+      return send(method, params, sessionId, timeoutMs).then(result => {
+        if (method === "Runtime.releaseObjectGroup") groups.delete(String(params.objectGroup));
+        return result;
+      });
+    });
+    await page.navigate(`${site.origin}/`);
+    await until(() => page.snapshot(), state => state.title === "Node target" && !state.loading, "the node page");
+    const node = await observeNode();
+    assert.equal(await driver.describeNode!(node), "移动目标");
+    await refused("1", "an index is not a browser node token");
+    await page.evaluate("document.getElementById('target').style.left='420px';document.getElementById('target').style.top='240px';const first=document.createElement('button');first.textContent='更早的元素';first.style.cssText='position:absolute;left:100px;top:100px';document.body.prepend(first)");
+    assert.equal(await driver.describeNode!(node), "移动目标", "moving the original object does not change what was approved");
+    await pointer(node);
+    assert.equal(await clicks(), JSON.stringify([{ id: "target", target: "original", trusted: true }]), "the real CDP click reaches the moved original with isTrusted, never (0,0) or the new earlier element");
+    assert.equal(await page.evaluate("document.activeElement.id"), "target");
+    assert.deepEqual(page.snapshot().control.activity?.point, { x: 480, y: 260 }, "the owner's current position is used");
+
+    const replaced = await observeNode();
+    await page.evaluate("const el=document.getElementById('target'),copy=el.cloneNode(true);copy.dataset.target='replacement';el.replaceWith(copy)");
+    await refused(replaced, "same-name same-position replacement");
+    const removed = await observeNode();
+    await page.evaluate("document.getElementById('target').remove()");
+    await refused(removed, "removed original");
+    await page.evaluate(`document.body.insertAdjacentHTML('beforeend',${JSON.stringify(targetHtml)})`);
+
+    const covered = await observeNode();
+    await page.evaluate("const cover=document.createElement('div');cover.id='cover';cover.style.cssText='position:fixed;inset:0;z-index:999;background:white';document.body.append(cover)");
+    await refused(covered, "obscured original");
+    await page.evaluate("document.getElementById('cover').remove()");
+    const disabled = await observeNode();
+    await page.evaluate("document.getElementById('target').disabled=true");
+    await refused(disabled, "disabled original");
+    await page.evaluate("document.getElementById('target').disabled=false");
+
+    const invalidated = await observeNode();
+    await driver.observe("window-metadata");
+    await refused(invalidated, "a later non-tree observation");
+    const previous = await observeNode(), current = await observeNode();
+    assert.notEqual(previous, current, "a new observation never reuses an earlier token");
+    await refused(previous, "a later tree observation");
+
+    const timeOrigin = await page.evaluate("performance.timeOrigin");
+    await page.reload();
+    await until(() => page.evaluate("performance.timeOrigin"), value => value !== timeOrigin, "a new document at the same address");
+    await until(() => page.evaluate("document.readyState === 'complete' && Array.isArray(window.nodeClicks)"), value => value === true, "the new document's click listener");
+    await until(() => page.snapshot(), state => state.title === "Node target" && !state.loading, "the new document ready");
+    await refused(current, "a changed document at the same URL");
+    const released = await observeNode();
+    await driver.release!();
+    assert.equal(groups.size, 0, "round release releases the retained CDP object group");
+    await refused(released, "round release");
+    const closed = await observeNode();
+    await driver.close();
+    assert.equal(groups.size, 0, "driver close releases the retained CDP object group");
+    await refused(closed, "driver close");
+  } finally {
+    await driver.close(); detach(); await browsers.close();
+    await new Promise<void>(resolve => site.server.close(() => resolve()));
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+// T405-S4-04: retain the original coordinate, redaction, takeover and site-policy paths and their assertions below.
 test("the side panel browser shows and drives a real page, and the Assistant's driver acts on the same page within its bounds", { skip: !locateBrowser() && "no Chrome-family browser on this machine", timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "side-panel-browser-"));
   const site = await serve();

@@ -124,7 +124,7 @@ export interface PrologueSurfaces {
   close(): Promise<void>;
 }
 
-type DescribeDriver = { describePoint?(x: number, y: number): Promise<string>; focusedField?(): Promise<{ label: string; sensitive: boolean }> } | undefined;
+type DescribeDriver = Pick<HostSurfaceDriver, "describePoint" | "describeNode" | "focusedField"> | undefined;
 
 async function typedText(driver: DescribeDriver, typed: string | undefined, where: (label: string) => string): Promise<string> {
   const field = driver?.focusedField ? await driver.focusedField().catch(() => ({ label: "", sensitive: false })) : { label: "", sensitive: false };
@@ -146,7 +146,18 @@ async function pointerDetail(driver: DescribeDriver, summary: string, where: str
 /** Chinese detail for a browser approval card. */
 async function describeBrowserAction(driver: DescribeDriver, action: string, summary: string, typed?: string): Promise<string> {
   switch (action) {
-    case "pointer": return pointerDetail(driver, summary, "页面上的位置");
+    case "pointer": {
+      // This is the SDK's labelOf, already bound to this pending effect. The token only requests the owner's label;
+      // execution resolves the original typed action.node again, never a point inferred from these display words.
+      const node = /^click node (\S+) \(([1-3])×(left|right|middle)\); the point is read from the tree at injection$/u.exec(summary);
+      if (node) {
+        const verb = node[3] === "right" ? "右键点击" : Number(node[2]) > 1 ? "双击" : "点击";
+        const label = await driver?.describeNode?.(node[1]!).catch(() => "");
+        return label ? `${verb}「${label}」` : `${verb}的页面目标已不可用，请拒绝后重新观察页面。`;
+      }
+      if (summary.startsWith("click node ")) return "页面目标已不可用，请拒绝后重新观察页面。";
+      return pointerDetail(driver, summary, "页面上的位置");
+    }
     case "key": return `按下 ${summary.replace(/^press /u, "")}`;
     case "text": return typedText(driver, typed, label => `在${label}里输入`);
     case "navigate": return `打开 ${summary.replace(/^navigate to /u, "")}`;

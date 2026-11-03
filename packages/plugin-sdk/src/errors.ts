@@ -1,6 +1,6 @@
 import { ACTION_ERROR_CODE, ACTION_ERROR_KIND_NAMES, ActionError, isActionErrorKind, platformErrorKind, type ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 
-// One error model (specs/repository-anti-corruption W3-02): the transport derives the status from the failure's kind, and every
+// One error model (specs/archive/repository-anti-corruption W3-02): the transport derives the status from the failure's kind, and every
 // entry writes the same body, { error, code, details? }. Failures are read by shape, never by `instanceof`: a Runtime bundle or the
 // Studio iframe can hold its own copy of the ActionError class.
 

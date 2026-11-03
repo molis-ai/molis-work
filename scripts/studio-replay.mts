@@ -10,7 +10,7 @@
  *
  * The committed corpus is tests/fixtures/studio-replay/corpus.json (a hand-written seed: entries that each exercise one host rule), recorded.json (380 real
  * designer answers, 224 of them first answers) and builder-designer/minimax-notes-v1.json (3 real first proposals); the default run replays all three.
- * recorded.json was exported on 2026-10-08 as the user decided (specs/repository-anti-corruption/spec.md §1): three projects of the Home, copied read-only,
+ * recorded.json was exported on 2026-10-08 as the user decided (specs/archive/repository-anti-corruption/spec.md §1): three projects of the Home, copied read-only,
  * harvested with `harvest`, reviewed twice for personal data, locations redacted. Those answers are what measures the studio's headline number, the share
  * of full designs accepted first time. Nothing here reads the real Home on its own: `--corpus` and `harvest` read the run-record directory they are given.
  *

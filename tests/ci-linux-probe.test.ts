@@ -10,7 +10,7 @@ import { failureDetail, parseCounts, statusOf, testEnvironment } from "../script
 import { selectTests } from "../scripts/ci-linux-probe/select.mjs";
 import { blockingJobs, blockingTestRuns, evaluateExpression, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
-// specs/repository-anti-corruption §4.7 (W1-11, decision #14): the Linux probe that CI runs as a non-blocking job. Each rule is
+// specs/archive/repository-anti-corruption §4.7 (W1-11, decision #14): the Linux probe that CI runs as a non-blocking job. Each rule is
 // mutation-verified here on a scratch repository of small fake test files: a file is excluded as a browser file by its name,
 // its text or a fixture it imports; marked darwin or live by what it says; and every result (pass, partial pass, all skipped,
 // fail, did-not-load, flaky, timeout, not run) is recorded as such. A run that CI cancels (a newer push, the job's time limit)

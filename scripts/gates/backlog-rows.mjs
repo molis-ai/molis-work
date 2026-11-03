@@ -1,4 +1,4 @@
-// Gate: specs/BACKLOG.md lists only what is not done (specs/repository-anti-corruption §4.12; the file's own rule: "做完一条就
+// Gate: specs/BACKLOG.md lists only what is not done (specs/archive/repository-anti-corruption §4.12; the file's own rule: "做完一条就
 // 删掉它，在提交说明里写编号。不改编号，不复用编号。").
 //
 // A row (a table line that starts with a BL-nnn id) is a done row when a cell is struck through (~~text~~) or says the work

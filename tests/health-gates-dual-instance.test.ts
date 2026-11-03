@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
 import { PROJECT_START_LIST, dualInstanceProblems } from "../scripts/gates/dual-instance.mjs";
 
-// DUAL-11 and DUAL-12 (specs/dual-instance-plugins), the gate half: a Home catalog entry marked `runtime.dual_instance` has its
+// DUAL-11 and DUAL-12 (specs/archive/dual-instance-plugins), the gate half: a Home catalog entry marked `runtime.dual_instance` has its
 // project half on the project start list and the other way round, both halves ship with the Host, and its Manifest has no optional
 // permission (scripts/gates/dual-instance.mjs). The Host refuses the first two when it starts; the third only this gate checks.
 // Each case is a small in-memory tree; the repository's own tree has no problem.

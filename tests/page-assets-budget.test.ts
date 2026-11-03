@@ -7,7 +7,7 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
-// specs/repository-anti-corruption §4.8/§4.13 (W1-07, decision #17): the page assets the host sends are frozen at their
+// specs/archive/repository-anti-corruption §4.8/§4.13 (W1-07, decision #17): the page assets the host sends are frozen at their
 // current size and may only fall. Each rule is mutation-verified here on a small scratch repository: one violation added
 // on a branch makes `--base main` fail, and the laundering move (raising the committed budget to the built size, or
 // `--update`) neither makes it pass nor is accepted when it is given the merge-base. Sizes come from a JSON file here

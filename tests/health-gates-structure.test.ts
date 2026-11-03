@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 
-// specs/repository-anti-corruption W1-05 (scripts/gates/*.mjs): the structure gates are numbers compared with the merge-base,
+// specs/archive/repository-anti-corruption W1-05 (scripts/gates/*.mjs): the structure gates are numbers compared with the merge-base,
 // so a pull request cannot widen them by rewriting tooling/gates/baseline.json. As in tests/health-gates-merge-base.test.ts,
 // each rule is mutation-verified on a small scratch repository: one violation added on a branch makes `--base main` fail,
 // `--update` on that branch neither makes it pass nor is accepted when it is given the merge-base, and what the rule must

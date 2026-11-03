@@ -12,7 +12,7 @@ import { integrationKeyOf } from "./integration-key.js";
 import type { FeedSourceRecord } from "./projection.js";
 import { ListenerHost, readListenerCheckpoint, type FeedRawEventAdapter, type FeedSql } from "./store/index.js";
 
-// How a Runtime Feed syncs an account source (FI-4 step 4c-4, S-97 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12).
+// How a Runtime Feed syncs an account source (FI-4 step 4c-4, S-97 provisional, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12).
 // The account is the one the person bound to the Manifest's `per_record` slot of the source's service, the record being the source: the
 // platform reads that binding and pulls through the Home's integration, and Feed never holds a connection, a credential or a token reference.
 // The listener is the Host's own (`ListenerHost`); what changes is the connector under it and that every write after a wait is a commit.

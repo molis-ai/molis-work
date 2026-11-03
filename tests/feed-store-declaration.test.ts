@@ -12,7 +12,7 @@ import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 
 /**
- * FI-5 (specs/repository-anti-corruption/slices/feed-inbox-store-into-feed.md): the Feed, Sources, Signals and Listener Host tables are
+ * FI-5 (specs/archive/repository-anti-corruption/slices/feed-inbox-store-into-feed.md): the Feed, Sources, Signals and Listener Host tables are
  * Feed's declaration's, and the code that reads them is Feed's own store, which reaches them only through `FeedSql`.
  */
 const ROOT = new URL("..", import.meta.url).pathname;

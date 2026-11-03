@@ -4,7 +4,7 @@
 
 ## 已接受范围与方案
 
-本片执行统筹 [7aa12923 的 C4 PG-095 工单](https://github.com/molis-ai/molis-work/blob/7aa12923ef7720d59119529bd3973d31f2459430/coordination/2026-10-14/CODEX-TASKS.md)，沿用 [ac-registry 09555b064 的 W5-02 设计 §7](https://github.com/molis-ai/molis-work/blob/09555b064/specs/repository-anti-corruption/slices/w5-02-registry.md)。验收号 RAC-620～624，待办 BL-617；同名 C4 的 OAuth 工单独立保留。
+本片执行统筹 [7aa12923 的 C4 PG-095 工单](https://github.com/molis-ai/molis-work/blob/7aa12923ef7720d59119529bd3973d31f2459430/coordination/2026-10-14/CODEX-TASKS.md)，沿用 [ac-registry 09555b064 的 W5-02 设计 §7](https://github.com/molis-ai/molis-work/blob/09555b064/specs/archive/repository-anti-corruption/slices/w5-02-registry.md)。验收号 RAC-620～624，待办 BL-617；同名 C4 的 OAuth 工单独立保留。
 
 基线是 main `df5527f278fa8e631919794d15c52cfd3f364155`。现有两份合同只声明本插件的常量和记录类型，没有平台职责。将 `packages/contracts/src/modules/images.ts` 与 `jelly.ts` 原样移到对应插件的 `src/contract.ts`，各包公开 `./contract`；插件原有根入口继续导出自己的这组名字。包内使用相对导入，包外和测试经插件公开入口，删除平台旧导出与对应 API 快照，不保留转发层。
 

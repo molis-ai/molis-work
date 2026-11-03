@@ -14,7 +14,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 import { publishLibrary, RESEARCH_REVISION as REVISION } from "./fixtures/research-library.js";
 import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
-// FI-4 step 4c (S-97 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §10): a plugin's `services.sourcePull` pulls public
+// FI-4 step 4c (S-97 provisional, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §10): a plugin's `services.sourcePull` pulls public
 // feeds through the platform's own transports, tells the plugin each evidence body's reference before the body is written, reads bodies back
 // and forgets search records. RAC-1016 (hold before write), RAC-1017 (what it refuses), RAC-1018 (evidence), RAC-1019 (forget, and the research
 // library read of step 4c-2).

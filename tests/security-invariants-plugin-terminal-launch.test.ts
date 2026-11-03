@@ -19,7 +19,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
-// S-103 (specs/repository-anti-corruption/slices/platform-terminal-launch.md, 用户 2026-10-30 裁定): the platform's `services.terminal.open`
+// S-103 (specs/archive/repository-anti-corruption/slices/platform-terminal-launch.md, 用户 2026-10-30 裁定): the platform's `services.terminal.open`
 // starts a local interactive terminal for a plugin the Host runs itself, Home instance or project instance alike. Only the Manifest's
 // terminal:run and the person's grant give the service; only the installation's own user command that declares terminal:run may call it;
 // the installation, project and person come from the call; the folder is inside the project's linked workspace (with workspace:read) or

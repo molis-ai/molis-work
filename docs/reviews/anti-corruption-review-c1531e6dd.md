@@ -166,7 +166,7 @@ F-39。扩展演练未达目标，见 RAC-03。方向表第 37–51 行，演练
 
 F-40。`docs/system/RUNTIME-MIGRATION.md` 第 3 行（2026-10-08，对照 `31c357df`）仍写「还没有合入的迁移样板」和「Form 与 Todo 迁移尚未开始」。第 39 行仍把 `RUNTIME_ASSEMBLED` 写成 7 个且不含 form。第 40 行仍把 form 列在 `BUILD_TIME_ASSEMBLED` 的 18 个里面。当前树里 Form 已在 Runtime 名单上，两份宿主文件已不在。这是文档滞后。RAC-01 的代码裁决仍是 pass。
 
-F-41。`specs/repository-anti-corruption/spec.md` §12.4 是 2026-10-12 的裁决表，有两行和 `c1531e6dd` 的树不一致。第 1992 行 RAC-01 仍写「未通过；8/18 装配仍并存，Form 样板未合」。第 2004 行 RAC-13 仍写「登记门禁 W4-11 未交付」。当前树里 Form 由 `createFormPlugin` 启动，`homeStores()` 已存在。这两行不改变本报告对 RAC-01（pass）和 RAC-13（partial）的代码裁决。
+F-41。`specs/archive/repository-anti-corruption/spec.md` §12.4 是 2026-10-12 的裁决表，有两行和 `c1531e6dd` 的树不一致。第 1992 行 RAC-01 仍写「未通过；8/18 装配仍并存，Form 样板未合」。第 2004 行 RAC-13 仍写「登记门禁 W4-11 未交付」。当前树里 Form 由 `createFormPlugin` 启动，`homeStores()` 已存在。这两行不改变本报告对 RAC-01（pass）和 RAC-13（partial）的代码裁决。
 
 F-42。健康门禁另计「浏览器程序仍写在 `*_SCRIPT` 常量里」：130 处、100 个文件，基线 130。最多的是 goals `dialogs-client.ts` 与 `tree-client.ts` 各 8。Issues 的 `ISSUE_REVIEW_CLIENT_SCRIPT` 是其中一处，单列在 F-37。
 

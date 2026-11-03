@@ -23,7 +23,7 @@
 | 事实 | 后果 |
 | --- | --- |
 | `apps/local-host/src/local-owner-permissions.ts` 的 `NATIVE_OWNER_PERMISSIONS` 取 `kind === "native" && !runtime` 的目录条目的动作权限；「Runtime 装配的插件不是宿主自己的，动作只凭运行中安装的授权到达本机这个人」 | 给 Goals 的目录条目加 `runtime`（Home 半）的那一刻，`goals:*` 从本机所有者权限里消失，仍由宿主装配的项目半立刻失去权限。Home 半必须与项目半一起进 Runtime |
-| 双实例（`specs/dual-instance-plugins` U1/U2）要求 Manifest 全部权限 `required: true`、宿主装配的目录条目才可声明、Home 半与项目半共用 `install_id` | 两半同时出现才是一个完整的双实例；只有 Home 半没有检查要证明的东西 |
+| 双实例（`specs/archive/dual-instance-plugins` U1/U2）要求 Manifest 全部权限 `required: true`、宿主装配的目录条目才可声明、Home 半与项目半共用 `install_id` | 两半同时出现才是一个完整的双实例；只有 Home 半没有检查要证明的东西 |
 | 个人规划表 `personal_planning_method_packs` 在目录库（`catalog-schema.ts`），项目半同步读它（`GoalsPlanningEngine.readPersonalMethods()`） | 搬进 Home 库后项目半只能经动作异步取（§5），读取方式随项目半一起改 |
 
 ## 2. 目标形状

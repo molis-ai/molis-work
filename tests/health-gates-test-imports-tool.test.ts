@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 
-// specs/repository-anti-corruption W2-10 (PR-0): the test-imports tool (scripts/test-imports.mjs, scripts/test-imports/) and the
+// specs/archive/repository-anti-corruption W2-10 (PR-0): the test-imports tool (scripts/test-imports.mjs, scripts/test-imports/) and the
 // absolute-zero health gate built on its graph (scripts/gates/test-import-splits.mjs). A test process that loads a package from its
 // source (../P/src) and from its build (the package name, ../P/dist) holds two copies of it. The tool finds those processes and
 // rewrites the imports so a package is reached from one place; any remaining split is refused, even at the merge-base. As in tests/health-gates-source-counts.test.ts, the tool and the gate run as the commands they are, on small scratch

@@ -18,7 +18,7 @@ import { fixture, mac, operate, operationsOf, person, ref, runtimeStore } from "
 import { IMAGE_DOMAIN, IMAGE_PNG, signedImageProvider } from "./fixtures/home-signed-model-provider.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
-// BL-491 (PG-017; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60, S-66, S-91): a signed package installed in the Home asks for its model and
+// BL-491 (PG-017; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60, S-66, S-91): a signed package installed in the Home asks for its model and
 // its image connections in `contract.json` and nothing else; the Host derives the Manifest rows, the names and the clean-up. This file runs real packages in real
 // sandbox processes behind a real Home: it asserts what the package can do (call the model, choose among the enabled models, bind an image connection the person already
 // pinned) and what it cannot (name an address, a connection or an account, pin a connection itself, bind outside its approved domains, do any of it from a project).

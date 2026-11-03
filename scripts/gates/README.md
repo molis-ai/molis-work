@@ -1,6 +1,6 @@
 # 文档引用与仓库形状门禁
 
-`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，`docs/` 下不放原始采集和开发机路径，页面里的 DOM 事件都在合同里登记。现行实现口径归本文；历史设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
+`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，`docs/` 下不放原始采集和开发机路径，页面里的 DOM 事件都在合同里登记。现行实现口径归本文；历史设计来源：[specs/archive/repository-anti-corruption](../../specs/archive/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
 入口引入五处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）、`table-owners.mjs`（库与表的 owner，见下一节）、`kernel-contextual.mjs`（内核的两半，见再下一节）和 `dual-instance.mjs`（双实例插件，见「双实例插件」一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 

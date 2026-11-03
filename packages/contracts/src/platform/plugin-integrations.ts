@@ -7,7 +7,7 @@ import type {
 } from "../services/connector-host.js";
 
 /**
- * What a plugin says about the accounts it works with and what it does with them (PG-046, specs/repository-anti-corruption/slices/
+ * What a plugin says about the accounts it works with and what it does with them (PG-046, specs/archive/repository-anti-corruption/slices/
  * feed-inbox-integration-registry.md). The platform builds one registry per Home from the declarations of the plugins installed in it;
  * nothing else names a service or an integration. Declaring a service gives no right to any connection: connections are granted per
  * installation (S-57), and a binding carries only the references of the connection a source already holds.

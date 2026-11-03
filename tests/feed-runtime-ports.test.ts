@@ -8,7 +8,7 @@ import { assembleFeedApplication, createFeedRuntimePorts, FEED_PLUGIN_ID, FEED_P
 import { FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 
 /**
- * FI-6 step 2 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §3.1, §3.2): Feed's ports over the platform's
+ * FI-6 step 2 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §3.1, §3.2): Feed's ports over the platform's
  * services. The services are stood in for by fakes whose every write goes through the transaction handle they are given, into tables beside
  * Feed's own, so one rollback covers all of them: what these cases pin is that Feed hands every write to the transaction it is bound to.
  * The platform's own checks (grants, owner, the original caller) are `tests/security-invariants-plugin-project-services.test.ts`.

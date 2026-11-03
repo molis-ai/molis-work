@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// specs/repository-anti-corruption W2-03 (§4.10): a plugin author builds with the helpers the contracts define (`define…Action`,
+// specs/archive/repository-anti-corruption W2-03 (§4.10): a plugin author builds with the helpers the contracts define (`define…Action`,
 // `bind…Handler`, `with…`), and gets them from the plugin SDK. The reminders, fragment offers, 成果库 helpers and `withActionEffect` were
 // once defined and used by built-in plugins while the SDK did not export them, so generated and third-party plugins could not reach
 // them and the API snapshot only showed what the SDK did export. This test names every such helper the contracts define and fails

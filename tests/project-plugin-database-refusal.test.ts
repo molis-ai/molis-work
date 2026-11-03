@@ -16,7 +16,7 @@ import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
 import { codingView } from "./fixtures/coding-view.js";
 
 /**
- * PLIB-04 (the Host half, L1b; specs/plugin-project-database/spec.md §2.3): when the Host opens a project's library, a plugin
+ * PLIB-04 (the Host half, L1b; specs/archive/plugin-project-database/spec.md §2.3): when the Host opens a project's library, a plugin
  * whose tables there no longer match its ledger row (another publisher, another version, a changed shape) is refused, and only
  * that plugin stops: its actions are not in the project's directory, its page says why, and the project, Goals and the other
  * plugins open as usual. Nothing in the library is repaired, recreated or recorded anew; the refusal stays until the plugin or

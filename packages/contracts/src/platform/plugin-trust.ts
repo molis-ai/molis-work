@@ -1,4 +1,4 @@
-// Install trust and consent (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md). Trust says who gave the evidence for
+// Install trust and consent (ac-trust T1, specs/archive/repository-anti-corruption/slices/ac-trust-install.md). Trust says who gave the evidence for
 // an install, never how important the plugin is; consent is one recorded row per declaration that changes a plugin's effect elsewhere.
 
 /** Who vouches for an installation: the Host's own build, a signature a person pinned, or nobody. */

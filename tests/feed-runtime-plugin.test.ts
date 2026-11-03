@@ -27,7 +27,7 @@ import { libraryGit, publishLibrary } from "./fixtures/research-library.js";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
-// FI-4 step 4e-1 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11): Feed as a Plugin Runtime plugin, not
+// FI-4 step 4e-1 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11): Feed as a Plugin Runtime plugin, not
 // registered anywhere yet. Started beside the platform's own services (project database, Attention, Context Ledger), it answers the
 // reads and the synchronous writes of the item, rule, inbox and content actions. RAC-506, RAC-508 and RAC-509 are pinned here for the
 // part this step reaches; the rest of each (sources, connectors, judgments) arrives with 4e-2.
@@ -546,7 +546,7 @@ test("RAC-518 a research library is read through the platform: one item per publ
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", sourceId), 1);
 });
 
-// FI-C-04 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a research package's material is its library's
+// FI-C-04 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a research package's material is its library's
 // (`research:<id>`), not a body of the Home's evidence store, so no read of the item asks the evidence store for it. Each read action gives the
 // package's text after a real Runtime sync, the next rule preview sees it too, and a caller revoked is still refused.
 test("FI-C-04 an item synced from a research library is read by every read action, with its library's text and its reference left as synced", async t => {
@@ -1129,7 +1129,7 @@ test("RAC-1121 RAC-1028 D4-d: a capture rule whose judgment fails after a delive
   assert.ok(!JSON.stringify([recorded, log]).includes("笔记正文"), "neither the ledger nor the log keeps the failure's message");
 });
 
-// FI-C-03 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): the promotion, the Goal's linked material and the capture
+// FI-C-03 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): the promotion, the Goal's linked material and the capture
 // recommendations read an item's retained text, so each declares evidence:read. A synced item whose bodies the platform keeps is promoted, gives its
 // Goal its text and keeps its recommendation; a caller who holds everything else but not evidence:read is refused at the entry, before any write.
 const PROMOTE = [...WRITE, "goals:read", "goals:write", "attention:write", "context-ledger:write"];
@@ -1396,7 +1396,7 @@ test("FI-C-07 a start the Home's ledger first refuses still names the library's 
   for (const ref of held) assert.ok(bodies.has(ref), "no body went: the library still holds them");
 });
 
-// FI-C-05 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a pull checks its source again as the first statement of
+// FI-C-05 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a pull checks its source again as the first statement of
 // every commit body, so a person who pauses, edits or deletes the source while a commit waits for the caller gets nothing of the old pull
 // written. The sweep makes the change at each of the caller's checks in turn, which are the points where the call waits; a check inside a
 // transaction is passed over, since a change made there would be part of the pull's own write. A change made before the pull read its source

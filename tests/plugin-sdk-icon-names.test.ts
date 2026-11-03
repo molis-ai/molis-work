@@ -7,7 +7,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 
-// BL-713 (PG-011; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §5): a view's `icon` is a name from the platform's
+// BL-713 (PG-011; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §5): a view's `icon` is a name from the platform's
 // icon set. The set lives in the SDK as a list a Manifest is checked against, and the host's sprite must draw every name in it.
 
 const withViewIcon = (icon: unknown): PluginManifest => {

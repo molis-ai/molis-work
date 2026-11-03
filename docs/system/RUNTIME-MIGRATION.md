@@ -14,7 +14,7 @@ Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再�
 
 ## 1. 用户已定的决定
 
-来自 `specs/repository-anti-corruption/spec.md` §1。2026-10-08 的第五批（后三行：Runtime 与安装插件声明的 methods、Characters 的代码身份、第三方插件的安装与信任）在 PR #312，合入前不在 main 上。
+来自 `specs/archive/repository-anti-corruption/spec.md` §1。2026-10-08 的第五批（后三行：Runtime 与安装插件声明的 methods、Characters 的代码身份、第三方插件的安装与信任）在 PR #312，合入前不在 main 上。
 
 | 日期 | 决定 | 内容 |
 | --- | --- | --- |
@@ -156,7 +156,7 @@ Form 同时是浏览器代码打包与类型检查的样板：客户端改成带
 ### 4.4 其他前置切片
 
 - **W4-01 探针插件夹具**：用一个声明式的探针插件走完安装、发现、调用（含 `/api/plugins/<id>/`）、升级、停用、卸载，证明平台本身通了，再迁真实插件。
-- **W4-02 `methods` 随 Runtime 生效**（2026-10-08 决定）：**已做完（#562，2026-10-15）**。W4-02 之前只有目录条目里的 `methods` 在宿主启动时登记（`apps/local-host/src/agent-definitions/builtin-agents.ts` 的 `builtinRegistrations`），`packages/plugin-runtime`、`installed-plugin-host.ts` 和 `plugin-builder/` 里没有登记 `methods` 的代码。迁来的插件保留目录条目（第 6 节第 5 项），它们的 `methods` 仍由 `builtinRegistrations` 登记；W4-02 让登记跟着安装的生命周期走（启动时登记，停用、卸载、升级时收回），已由 #562 实现（见第 5 节顺序图下的一行；实现与测试见 `specs/repository-anti-corruption/spec.md` 的 W4-02 条、`tests/plugin-methods-runtime.test.ts`），迁移 PR 要加一个用例：停用迁来的插件后，它的方法不再出现在 Agent 定义里。该设计要避免对「既有目录条目又有 Runtime 安装」的内置插件登记两次。
+- **W4-02 `methods` 随 Runtime 生效**（2026-10-08 决定）：**已做完（#562，2026-10-15）**。W4-02 之前只有目录条目里的 `methods` 在宿主启动时登记（`apps/local-host/src/agent-definitions/builtin-agents.ts` 的 `builtinRegistrations`），`packages/plugin-runtime`、`installed-plugin-host.ts` 和 `plugin-builder/` 里没有登记 `methods` 的代码。迁来的插件保留目录条目（第 6 节第 5 项），它们的 `methods` 仍由 `builtinRegistrations` 登记；W4-02 让登记跟着安装的生命周期走（启动时登记，停用、卸载、升级时收回），已由 #562 实现（见第 5 节顺序图下的一行；实现与测试见 `specs/archive/repository-anti-corruption/spec.md` 的 W4-02 条、`tests/plugin-methods-runtime.test.ts`），迁移 PR 要加一个用例：停用迁来的插件后，它的方法不再出现在 Agent 定义里。该设计要避免对「既有目录条目又有 Runtime 安装」的内置插件登记两次。
 - **W4-11 Home 库统一登记表**：**已做完（#542，2026-10-15）**。插件的库由插件声明、宿主库集中列出；卸载、维护、基线读它。「项目已删」步骤（4.2 末项）原计划也登记在这里，实际没有：沿用目录条目的 `project_data`，后改为 Manifest 的 `databases.home.project_rows`（第 10 节第 5 项）。
 
 ## 5. 顺序
@@ -209,7 +209,7 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 
 CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13 个源文件、约 965 行（界面、14 条路由、动作、成果预览、导入）；Manifest `kind: "app"`，目录条目标 `personal: true`，有两个视图，设置里的 `settings`（`order: 35`，排在「助理」之后）和舞台页 `page`；数据和服务在 Module `modules/characters`；监督器条目在 `project-plugins.ts`；宿主里有 `characters-host.ts`（84 行，另含 Coding 用的 `codingCharacterPorts`）、`character-import-discovery.ts`、`character-import-plugins.ts`、`character-native-execution.ts`；`coding-surface.ts` 的 `charactersWorkbenchPanel` 拼它的舞台页；门禁的 `RUNTIME_ASSEMBLED` 有 `characters`。
 
-进度（CHR-0，`specs/repository-anti-corruption/spec.md` 的 W5-01 Characters 一节）：第 1 点的处理器部分已做：动作处理器、发布核对、本机导入与预览已在 `modules/characters`（`createCharactersActionHandlers`），Host 的 `characters-host.ts` 用端口建出它们交给插件，`plugins/native/characters/src/plugin.ts` 只做动作绑定与旧路径路由。其余各点没动，装配仍是 Runtime 插件。
+进度（CHR-0，`specs/archive/repository-anti-corruption/spec.md` 的 W5-01 Characters 一节）：第 1 点的处理器部分已做：动作处理器、发布核对、本机导入与预览已在 `modules/characters`（`createCharactersActionHandlers`），Host 的 `characters-host.ts` 用端口建出它们交给插件，`plugins/native/characters/src/plugin.ts` 只做动作绑定与旧路径路由。其余各点没动，装配仍是 Runtime 插件。
 
 进度（CHR-1，2026-10-22）：下面的第 1～5 点和第 7 点已做，第 6 点（安装记录）是维护项，不在产品代码里：
 
@@ -225,7 +225,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 
 1. **代码放哪**：宿主还是 `modules/characters`。Module 已经拥有草稿、修订和启用状态；放进 `apps/local-host` 要遵守「apps 只装配与做 IO，不写业务规则」（`docs/system/DEVELOPMENT-REQUIREMENTS.md`）。
 2. **设置里的一节**：并进宿主后，「角色」在 `apps/workbench/src/settings-sections.ts` 的 `HOST_SECTIONS` 里是第 12 项，位置（`order: 35`）不变；舞台页 `page` 也要有归宿。位置数见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.6。
-3. **要删的**：监督器条目与 `charactersPluginPorts`、目录条目、`RUNTIME_ASSEMBLED` 里的 `characters`、`charactersWorkbenchPanel` 对插件舞台的拼装，以及 `characters-host.ts` 里的 `codingCharacterPorts`。2026-10-18 改（统筹定，依据「插件不分官方还是个人、不给某个插件在宿主里开私路」，`specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行）：Coding 与助理要用的角色能力（列出、冻结某个角色的某一版）不再走宿主里留的端口；这些处理器放进 `modules/characters`，作为动作公开列出/冻结角色，Coding（`project-plugins.ts`）和助理（`assistant-http.ts`）都经统一动作服务调用，端口随之删除。导入相关的文件（`character-import-discovery.ts`、`character-import-plugins.ts`、`character-native-execution.ts`）是否留在宿主，由这一片定。在这之前代码仍是：`codingCharacterPorts` 留在 `characters-host.ts`，两处调用它。
+3. **要删的**：监督器条目与 `charactersPluginPorts`、目录条目、`RUNTIME_ASSEMBLED` 里的 `characters`、`charactersWorkbenchPanel` 对插件舞台的拼装，以及 `characters-host.ts` 里的 `codingCharacterPorts`。2026-10-18 改（统筹定，依据「插件不分官方还是个人、不给某个插件在宿主里开私路」，`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行）：Coding 与助理要用的角色能力（列出、冻结某个角色的某一版）不再走宿主里留的端口；这些处理器放进 `modules/characters`，作为动作公开列出/冻结角色，Coding（`project-plugins.ts`）和助理（`assistant-http.ts`）都经统一动作服务调用，端口随之删除。导入相关的文件（`character-import-discovery.ts`、`character-import-plugins.ts`、`character-native-execution.ts`）是否留在宿主，由这一片定。在这之前代码仍是：`codingCharacterPorts` 留在 `characters-host.ts`，两处调用它。
 4. **「角色」成果类型的声明要换主人**：Manifest 的 `artifacts.produces` 现在声明了 `CHARACTER_ARTIFACT_TYPE` 和预览动作 `characters.artifacts.preview`；AGENTS.md 要求成果类型在 Manifest 声明、带 owner。插件没了，这个声明和预览动作要落到宿主或 Module 的声明里，`tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts` 要继续成立。
 5. **动作的提供方会换**：`CHARACTERS_ACTIONS` 今天由 Runtime 安装提供（`provider_id` 是 `install_id`），并进宿主后换成宿主提供方。动作 id 与版本不变，但 `provider_id` 变，影响面同 4.2 的「提供方身份」里的存量引用（MCP 授权、工作流步骤按 `provider_id` 匹配），要在同一个决定里处理，不要在这一片里悄悄改。4.2 的清点命令在代码里没有查到写死 Characters `provider_id` 的行，所以它没有第 3 类后果。**（已定：用户 2026-10-10 选内置插件一律用插件名，W3-06 C 已把 Characters 登记在 `io.molis.work.characters` 之下，并进宿主时 `provider_id` 不用再变；这一项剩下的只是维护七改写存量引用。）**CHR-1 已按此做，见上面的进度。
 6. **安装记录**：每个项目库的 `plugin_runtime_installs` 里有 `io.molis.work.characters` 的记录（监督器启动时建）。决定写的是「安装记录与 Runtime 条目一起删」。对真实 Home 的项目库，这是删数据，走第 7 节的流程：先备份，在拷贝上演练，逐库核对。
@@ -260,7 +260,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 
 - `tests/builtin-plugin-assembly-gate.test.ts` 已经有三条：每个目录条目要么在 `RUNTIME_ASSEMBLED`，要么是批过的构建期例外；Runtime 条目确实被监督器启动；不再出现名单外的 `*-native-plugin-http.ts`。W1-05 要加：名单与磁盘完全一致（删了文件的条目必须移出）、冻结以插件命名的 `*-actions.ts` 和 `registerProvider` 行数、识别混合插件、按插件统计包外点名次数只许减少。
 - 每个迁移 PR 在同一个 PR 里缩短名单。两种名单的防回头机制不同：`pnpm health:check` 把当前数字和合并基点比对，改不了；而这个测试里的名单是写死在测试文件里的集合，由迁移 PR 直接编辑，缩短靠评审和 W1-05 加的「与磁盘完全一致」那一条，不靠比对基点。
-- 迁完之后（W6-01）：删 `native-plugin-api.ts` 的别名（2026-10-26 已删，RAC-1020）和 `/api/<短名>` 路由（余下的等 Feed/Inbox、Goals、成果库，见 `specs/repository-anti-corruption/slices/w6-01-aliases.md`）；把 AGENTS.md 那条硬约束改写成「新的内置插件 = 自己的包 + 声明」；构建期名单只留批过的例外（2026-10-31 已做，T-147：Alchemist、插件创作台两个，第 3 节的四个已在 2026-10-18 取消）。
+- 迁完之后（W6-01）：删 `native-plugin-api.ts` 的别名（2026-10-26 已删，RAC-1020）和 `/api/<短名>` 路由（余下的等 Feed/Inbox、Goals、成果库，见 `specs/archive/repository-anti-corruption/slices/w6-01-aliases.md`）；把 AGENTS.md 那条硬约束改写成「新的内置插件 = 自己的包 + 声明」；构建期名单只留批过的例外（2026-10-31 已做，T-147：Alchemist、插件创作台两个，第 3 节的四个已在 2026-10-18 取消）。
 
 ## 9. 怎样量进展
 

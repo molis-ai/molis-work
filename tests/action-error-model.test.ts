@@ -26,7 +26,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
-// specs/repository-anti-corruption W3-02-A: one error model. An error is a code, a message, and optionally a kind and details; the code
+// specs/archive/repository-anti-corruption W3-02-A: one error model. An error is a code, a message, and optionally a kind and details; the code
 // says whose it is (`<owner>.<reason>`), the kind says what sort of failure it is, and the transport derives the status from the kind.
 
 /** The eleven kinds and the one HTTP status each: the table the SDK edge answers with (`satisfies` keeps it exhaustive). */

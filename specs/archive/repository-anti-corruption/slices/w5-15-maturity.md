@@ -2,7 +2,7 @@
 
 状态：阶段1 方案**已获统筹通过**（2026-10-25T18:09:26Z，PR #1300；Q1-Q7 裁定见 §7）。阶段2 开工条件：batch-39 进 `origin/main` 后，从 `origin/main` 新建 `deepseek/w5-15-maturity`；在那之前本分支只维护方案文档。事实按 `origin/batch/1025-39`（`0cbc76492`）重核。manifest 版本重置与下一次发布不在本片（见 §5.4）。
 
-依据：`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` 第 89 行 W5-15；用户 2026-10-25 任务书（`deepseek-goal-C-w5-15-maturity.md`）；`docs/SSOT-MATRIX.md` §2；`specs/repository-anti-corruption/spec.md` §4.4/§4.12/§5.1；W5-02 登记线（`specs/repository-anti-corruption/slices/w5-02-registry.md`）。
+依据：`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` 第 89 行 W5-15；用户 2026-10-25 任务书（`deepseek-goal-C-w5-15-maturity.md`）；`docs/SSOT-MATRIX.md` §2；`specs/archive/repository-anti-corruption/spec.md` §4.4/§4.12/§5.1；W5-02 登记线（`specs/archive/repository-anti-corruption/slices/w5-02-registry.md`）。
 
 验收编号：W5-15-01～W5-15-16（见 §6，阶段2 实现时把编号写进测试名或注释）。
 
@@ -62,7 +62,7 @@
 ### 1.4 文档、技能、快照
 
 - 活文档：`docs/SSOT-MATRIX.md`（§2 词表、构成句、70 行成熟度格）、`skills/molis-plugin-dev/host.md:90`（把插件 `molis-work` 块的字段、kind/maturity 由目录定的规则写给人看）、`docs/system/GLOSSARY.md:14`（只指向 SSOT，不需改）、`docs/platform/PLUGIN-DEVELOPMENT.md:5`（只写 `registration` 声明，不需改）。
-- 历史文档（不改）：`docs/reviews/cleanup-audit-2026-10-20.md`、`specs/archive/**`、`specs/molis-work-architecture-reorganization/f2-validation.md`、`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`、`specs/repository-anti-corruption/slices/sc-4-sessions-offline.md`。
+- 历史文档（不改）：`docs/reviews/cleanup-audit-2026-10-20.md`、`specs/archive/**`、`specs/molis-work-architecture-reorganization/f2-validation.md`、`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`、`specs/archive/repository-anti-corruption/slices/sc-4-sessions-offline.md`。
 - API 快照：见上；`packages/contracts` 无版本号，形状只记在快照里（`docs/system/CONTRACT-CHANGES.md`）。
 
 ### 1.5 与 W5-02、batch-39 的边界
@@ -403,13 +403,13 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 - `package-inventory`：行集合、层、状态不变；`spec.md` §5.1 表不重生。
 - 源码计数（旧名/空 catch/`as unknown as`/`explicit any`/console）：新代码按 0 写；不新增任何一项。
 - 翻译、页面资源、动作合同快照：不涉及。
-- spec 状态句：新增文件在 `specs/repository-anti-corruption/slices/` 下，不在 `specs/` 根目录的 spec 目录判定范围内（`scripts/gates/spec-index.mjs` 与 `scripts/check-health-gates.mjs:498-511` 只看 `specs/<dir>/spec.md`），预期不增加状态句计数；阶段2 用 `--report` 复核。
+- spec 状态句：新增文件在 `specs/archive/repository-anti-corruption/slices/` 下，不在 `specs/` 根目录的 spec 目录判定范围内（`scripts/gates/spec-index.mjs` 与 `scripts/check-health-gates.mjs:498-511` 只看 `specs/<dir>/spec.md`），预期不增加状态句计数；阶段2 用 `--report` 复核。
 
 ### 5.3 文档与技能
 
 - `docs/SSOT-MATRIX.md`：§2 词表换四个词；§1 第 21 行与 §8 的说明措辞跟着改；§3-§7 的 70 行成熟度格换词（保留必要括号注释）；构成句改成 70 = 6+1+10+13+9+24+6+1 并写日期；8 个 absent 行不动。
 - `skills/molis-plugin-dev/host.md:90`：插件块字段清单改成 §4.7 的 5 个键；删「kind 与 maturity 也由目录定」中关于 maturity 的部分，改成「maturity 由插件包声明，取值 ∈ 词表；kind/contract 由路径与常量定」；`legacySources`/`migrationGoals`/`summary`/`notResponsibleFor` 的提法删除。
-- `docs/SSOT-MATRIX.md:50` 与 `specs/repository-anti-corruption/spec.md` §4.4 的状态句：本片只改数字错误（构成句），不把 §4.4 标完成——那属于统筹归档。`spec.md` §5.1 表不动。
+- `docs/SSOT-MATRIX.md:50` 与 `specs/archive/repository-anti-corruption/spec.md` §4.4 的状态句：本片只改数字错误（构成句），不把 §4.4 标完成——那属于统筹归档。`spec.md` §5.1 表不动。
 - AGENTS.md：Q7 裁定加一句，与「归属列」那句并列：「包成熟度词表在 SSOT §2 四个词（production/experimental/slice/absent），registry 与 SSOT 一致由 `scripts/package-owners.mjs` 检查」。（AGENTS 是枢纽文件，改动写进交付评论。）
 
 ### 5.4 不在本片（说明理由）
@@ -452,7 +452,7 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 | W5-15-12 | SSOT 构成句数字正确（70 = 6+1+10+13+9+24+6+1）且日期更新 | 文档 diff |
 | W5-15-13 | 构建通过（机器时段）；定向非浏览器测试通过 | `node scripts/machine-slot.mjs run build --label w5-15-build -- pnpm build`；`node scripts/machine-slot.mjs run browser --label w5-15-test -- node scripts/run-tests.mjs --jobs 1 <files>` |
 | W5-15-14 | `pnpm secrets:check` 通过；无未提交改动；分支与提交清单在交付评论里 | 命令输出 + `git log --oneline` |
-| W5-15-15 | 本方案文档随阶段2 分支入 `specs/repository-anti-corruption/slices/w5-15-maturity.md`；PR 说明逐条对照本表 | 文件 + 评论 |
+| W5-15-15 | 本方案文档随阶段2 分支入 `specs/archive/repository-anti-corruption/slices/w5-15-maturity.md`；PR 说明逐条对照本表 | 文件 + 评论 |
 | W5-15-16 | 未做清单写清楚（manifest/发布/release、summary 若 Q4 保留、spec 归档、另开片的重复项） | PR 说明末尾 |
 
 ## 7. 统筹裁定（2026-10-25T18:09:26Z，PR #1300；阶段2 按此执行）
@@ -481,7 +481,7 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 
 1. `git fetch origin main`；确认 batch-39 已进 `origin/main`：`git log origin/main --oneline | grep -E "batch-39|W5-02"`，且 `git show origin/main:scripts/workspace-packages.mjs | grep -c NATIVE_PLUGIN_ENTRIES` 非零。
 2. 查在途 PR 是否碰本片文件：`scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、`scripts/package-owners.mjs`、`scripts/gates/module-repository-exports.mjs`、`tooling/gates/api/**`、70 个 `package.json`/README、`src/index.ts`；有冲突就让统筹排期，不抢。
-3. 从 `origin/main` 开 `deepseek/w5-15-maturity`；把本方案文档放回 `specs/repository-anti-corruption/slices/w5-15-maturity.md`（阶段1 分支只有这一个文件）。
+3. 从 `origin/main` 开 `deepseek/w5-15-maturity`；把本方案文档放回 `specs/archive/repository-anti-corruption/slices/w5-15-maturity.md`（阶段1 分支只有这一个文件）。
 4. 机器时段：构建/测试按任务书只走 `node scripts/machine-slot.mjs`；不做全量、不跑浏览器批次；同一时间不并发构建。
 
 ### 8.2 提交拆分（同一分支）

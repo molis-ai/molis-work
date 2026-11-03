@@ -39,7 +39,7 @@ const sqlOf = (tx: { get(sql: string, parameters?: readonly never[]): unknown; r
 });
 
 /**
- * Inbox as a Plugin Runtime plugin, one instance per project (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md). The
+ * Inbox as a Plugin Runtime plugin, one instance per project (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md). The
  * entries are Attention's and read and changed through `services.attention`; the next-step scene is its own (`services.scenes`,
  * `services.judgments`, the binding row in its own table); what Feed keeps arrives through Feed's public actions, and what Pages writes
  * through Pages', both by the action directory (`actions:delegate`) as the person or client that called.

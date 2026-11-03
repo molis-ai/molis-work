@@ -15,7 +15,7 @@
 - **成果（`artifacts`、`process_items`）**：项目执行器的客户端是绑死一个项目的（`createPluginArtifactClient({ project_id })`），写进去的版本还要通知这个项目的接线图（`observePluginArtifacts`）。Home 实例没有项目，要给就得让客户端每次调用从当前调用取项目，并通知别的项目的平台。
 - **端口、事件**：接线的记录（`SqlitePluginWiringRepository`）、事件队列与日志（`SqlitePluginEventsRepository`）存在项目库里，投递靠该项目的监督器（`PluginSupervisor`）的生命周期。Home 安装不在任何项目的监督器里，没有地方挂。
 
-**没有使用者。** Home 级内置插件六个：Cognia、Images、Issues、Jelly、Todo 都没有声明端口、事件、成果或过程项；Shelf 声明了，但它是双实例，这些由它的项目那一半拿（`specs/dual-instance-plugins`）。原先要靠这一行的 Alchemist 迁入（PG-092）已经撤销（用户 2026-10-21 定不迁，2026-10-23 定本轮不删、绕过、以后重做）。
+**没有使用者。** Home 级内置插件六个：Cognia、Images、Issues、Jelly、Todo 都没有声明端口、事件、成果或过程项；Shelf 声明了，但它是双实例，这些由它的项目那一半拿（`specs/archive/dual-instance-plugins`）。原先要靠这一行的 Alchemist 迁入（PG-092）已经撤销（用户 2026-10-21 定不迁，2026-10-23 定本轮不删、绕过、以后重做）。
 
 ## 2. 做什么
 

@@ -6,7 +6,7 @@
 
 ## 1. 保留机制：`<home>/sessions/` 退役存储（D6 方案 A，用户 2026-10-23 确认）
 
-**要登记的一条**（写进 `specs/repository-anti-corruption` 的保留机制，用户 2026-10-23 确认（统筹会话弹窗）方案 A）：
+**要登记的一条**（写进 `specs/archive/repository-anti-corruption` 的保留机制，用户 2026-10-23 确认（统筹会话弹窗）方案 A）：
 
 - 是什么：Home 下的 `sessions/` 目录（`sessions.db`、`content/`、`content.key`）是已退役的存储。SC-4 之后没有业务代码打开它；只有两处还认得这个目录——备份集（`home-stores.ts` 的登记，备份要同一时点包含 db 与 content）和 `uninstall --purge-user-data`（经同一份登记删除）。W5-16 的持锁离线技术链按该纯字面声明用 SQLite backup API、核原 owner/meta 版本 7 与完整性，不查询业务表、不解密正文；密封 blob 原字节保存，原 key 仅留同 Home 依赖引用。
 - 没有的：没有业务 reader，没有迁移，没有升级路径，没有按版本分支，没有「兜底读旧数据」。离线技术备份不恢复 Sessions 功能，未知版本/坏库/缺必要 key 拒绝，也不允许正常 Host 首次启动或重启打开它。删项目不再有 `sessions` 这个 owner，所以删掉的项目留在这个目录里的行不会被清；这是已知的、被接受的残留，直到下面的删除条件成立。

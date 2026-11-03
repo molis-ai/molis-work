@@ -2,11 +2,11 @@
 
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
 
-> **阶段二的起点（用户 2026-10-08 定，`specs/repository-anti-corruption/spec.md` §1「『不留兼容』何时结束」；路线图待决 #15）：第一个装到开发机之外的版本。** 用户 2026-10-29 又定「1.0.0 之前都是开发版本」：0.3.0 和 1.0.0 之前的其他版本都是开发版本，不是起点，所以起点不早于 1.0.0。开发机指参与开发的人（现在是用户和同事）用来开发和试用的机器。起点之前一律按阶段一的「不留兼容」做。
+> **阶段二的起点（用户 2026-10-08 定，`specs/archive/repository-anti-corruption/spec.md` §1「『不留兼容』何时结束」；路线图待决 #15）：第一个装到开发机之外的版本。** 用户 2026-10-29 又定「1.0.0 之前都是开发版本」：0.3.0 和 1.0.0 之前的其他版本都是开发版本，不是起点，所以起点不早于 1.0.0。开发机指参与开发的人（现在是用户和同事）用来开发和试用的机器。起点之前一律按阶段一的「不留兼容」做。
 >
 > 起点日期：**还没到，没有固定日期。** 起点发生时，发那个版本的 PR 在这里写下版本号、日期和提交，第 3 节标为已结束，第 4 节开始适用。第 5 节的前置要在那之前就位。
 
-起点之前，没有要保留的旧用户数据：2026-10-02 用户确认没有同事在用要保留的 Home（`specs/repository-anti-corruption/spec.md` §1），所以破坏性变更直接做，不留兼容代码。起点之后才有「读取兼容、写入严格」的兼容期，那时每一段兼容都要写明消费者和删除条件。本文把两个阶段都写下来，让起点一到就有流程可用，也让现在的做法有边界。
+起点之前，没有要保留的旧用户数据：2026-10-02 用户确认没有同事在用要保留的 Home（`specs/archive/repository-anti-corruption/spec.md` §1），所以破坏性变更直接做，不留兼容代码。起点之后才有「读取兼容、写入严格」的兼容期，那时每一段兼容都要写明消费者和删除条件。本文把两个阶段都写下来，让起点一到就有流程可用，也让现在的做法有边界。
 
 ## 1. 哪些算合同
 
@@ -24,7 +24,7 @@
 
 ## 2. 版本号的编号方案
 
-产品版本的编号方案已定（`specs/repository-anti-corruption/spec.md` §1，2026-10-08「版本与发布策略」）：一个产品版本，下一版 0.3.0；根包、桌面端、Tauri 跟同一版本，内置插件的 Manifest 跟宿主版本，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。这个方案的落地由路线图做，现在还没完成。
+产品版本的编号方案已定（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-08「版本与发布策略」）：一个产品版本，下一版 0.3.0；根包、桌面端、Tauri 跟同一版本，内置插件的 Manifest 跟宿主版本，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。这个方案的落地由路线图做，现在还没完成。
 
 能力定义的 `version`、Home 库的结构版本、对外合同 `$id` 里的版本是各自合同的版本，是代码里单独的字段，不跟产品版本走。本文规定「形状变了就升这份合同自己的版本」。
 
@@ -59,7 +59,7 @@
 
 ### 存储版本变更登记
 
-当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/repository-anti-corruption/` 目录。
+当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
 
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
@@ -74,7 +74,7 @@
 | `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
 | `plugin-runtime/plugin-runtime.db` | 2 → 3 | ac-trust T1（`claude/ac-trust-t1`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
 | `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
-| `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](../../specs/repository-anti-corruption/slices/platform-scenes-judgments-services.md)） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](../../specs/archive/repository-anti-corruption/slices/platform-scenes-judgments-services.md)） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
 | `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
 | `projects/<project_id>/molis-work.db` | 11 → 1 | 干净Home第一片 | 不迁移旧库；保留现行完整DDL，只在干净Home创建1。旧Home搬开由统筹另获“开始”；错版仍拒绝，项目旧维护链已删。 |
 | `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同第一片 | Feed现行12表和索引不改，声明起点1；旧账本不升级。 |
@@ -91,7 +91,7 @@
 | `feed/secrets.json` | 2 → 1 | 干净Home第六片（统筹6517794305 / 6518340875） | 只改外层文件格式号；AES-GCM、AAD、Home绑定及缺原key拒绝保持，不改Keychain或SDK内部形状；旧Home整体搬开，真实未开始。 |
 | `config/mcp-tools.json` | 3 → 1 | 干净Home第六片（统筹6517794305） | 现行逐客户端/动作精确授权字段归外层1，权限与撤销保持；旧Home整体搬开后用户重授权，不转换旧授权。 |
 | `shelf/catalog.json` | 2 → 1 | 干净Home第六片（统筹6517794305） | 当前item/job/clipboard字段不变，外层1；旧转换工具删除，坏格式不补造；旧Home整体搬开后新建。 |
-| `connectors/connectors.db` | 2 → 1 | 干净 Home 连接库片（统筹 #1332 6520836999） | [本片规格](../../specs/repository-anti-corruption/slices/clean-home-connectors.md)；保留现行完整DDL（含授权结果表），旧库不迁移，用户批准开始后整份Home搬开重建；当前只有代码候选和临时Home验证，真实Home未操作。 |
+| `connectors/connectors.db` | 2 → 1 | 干净 Home 连接库片（统筹 #1332 6520836999） | [本片规格](../../specs/archive/repository-anti-corruption/slices/clean-home-connectors.md)；保留现行完整DDL（含授权结果表），旧库不迁移，用户批准开始后整份Home搬开重建；当前只有代码候选和临时Home验证，真实Home未操作。 |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -108,7 +108,7 @@
 
 ## 5. 起点之前要先有的东西
 
-起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/repository-anti-corruption/spec.md` §10 为准：
+起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/archive/repository-anti-corruption/spec.md` §10 为准：
 
 - 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
 - 动作合同快照（每个内置 Manifest 的 `capability@version`、提供方和 schema 哈希，进 `pnpm test:contracts`）：**已就位**（路线图 W2-15，门禁见第 3 节第 6 条）。schema 变了而版本没变，失败信息会单独点出来，由评审拦下；要不要在 CI 里对照 merge-base 直接拦死「同一版本下形状变化」，取决于「只加可选字段算不算形状变」（第 4 节开头把它列为阶段二才有的例外），这是合同语义，等用户定。

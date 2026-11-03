@@ -3,7 +3,7 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createProjectWithoutGoals } from "./fixtures/goals-agreement.js";
 
-// ac-trust T3b (RAC-400, specs/repository-anti-corruption/slices/ac-trust-install.md §3.4.1), in a real browser: the person took back the
+// ac-trust T3b (RAC-400, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4.1), in a real browser: the person took back the
 // agreement that keeps Goals in every project, and a project made after that has no Goals. Its page opens on its home and offers no Goals;
 // a link to a Goal opens nothing; Goals is one to add again from the plugin list, and added, it opens as in any other project.
 

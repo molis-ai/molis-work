@@ -41,7 +41,7 @@ const idOf = (value: { capability_id: string; version: number }) => `${value.cap
 const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, feedSourceActions.delete.capability_id]);
 
 /**
- * Feed as a Plugin Runtime plugin, one instance per project (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
+ * Feed as a Plugin Runtime plugin, one instance per project (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
  * The application is the same one the Host builds; what changes is what it stands on. Its tables are the plugin's own library, its Inbox
  * entries are Attention's (`services.attention`), its links to Goals the Context Ledger's, what its out rules capture the 成果库's
  * (`services.artifacts.join`, in the same commit), its journal the project's, and its retained

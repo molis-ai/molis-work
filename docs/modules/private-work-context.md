@@ -4,7 +4,7 @@
 
 大白话说，它保存的是“这个外部 Runtime 的工作入口（或工作目录）属于哪个 Project”：谁在什么时候绑定、解绑，用户拒绝过哪些建议，幂等请求做到了哪一步。这些事实默认只在本机。
 
-Sessions 插件已下线（SC-4，`specs/repository-anti-corruption/slices/sc-4-sessions-offline.md`）：Session 身份、事件与加密内容引用、Handoff、会话目录和关联规则的实现都已删除，重做见 `specs/BACKLOG.md` 的 BL-177。本模块只留下 Runtime 项目绑定。
+Sessions 插件已下线（SC-4，`specs/archive/repository-anti-corruption/slices/sc-4-sessions-offline.md`）：Session 身份、事件与加密内容引用、Handoff、会话目录和关联规则的实现都已删除，重做见 `specs/BACKLOG.md` 的 BL-177。本模块只留下 Runtime 项目绑定。
 
 ## 本模块拥有
 

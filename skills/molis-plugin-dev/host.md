@@ -44,7 +44,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 - **双实例可选权限**（U1，2026-11-01 Functions A / T406）：每个实例各有授权记录，人只在 Home 管可选开关；项目可选权限同时要求自身 grant 与同 Home、同插件/发布者/安装身份的 Home 现行授权，不能借 Home 补项目缺权，也不写授权镜像。Home 缺失、停用、换代只拒可选能力，必需能力和项目生命周期各自独立。Runtime 保留实际调用接受权限时的原 Home 激活撤销检查，关→开不复活旧调用或失败记账。门禁 `scripts/gates/dual-instance.mjs` 要求每条权限的 required 明写 `true` 或 `false`，展开、缺失或表达式仍拒绝；两份名单与可信配对规则不变。项目记录仍可持有只有 Home 一半才使用的权限，但项目一半没有那些处理器。
 - **路由**：Manifest 声明过的路由，Home 正在运行的一半绑定了的由 Home 答，其余交给项目实例；Manifest 没声明的路径照旧由 Home 答 404。项目路径（`/projects/<id>/api/plugins/<插件>/…`）下两半各答自己的，都在那个项目里；不带前缀时只有 Home 一半的路由，项目一半的路由和别的不带项目的项目路由一样答 400、请人先选项目。Home 一半停了就不绑定任何路由：项目路径下只有项目那一半此刻绑定的路由交给它（项目的插件平台还没起来时，宿主先把它起来再看）；两半都不绑定的由 Home 照停了的 Home 插件答，不交给项目实例。
 - **服务句柄不互借**（S-48）：每个服务按正在运行的动作所属的实例（`install_id` 加 `installation_generation`）核对。在一半的动作里拿另一半的句柄写入或调用服务（存储、事件、动作调用、模型、材料、主人文件、后台等）都被拒，所以每一半只用自己 `start` 拿到的 `services`，不要把句柄放进两半共用的模块状态。读（如 `storage.get`）不按动作核对，也别拿另一半的句柄读。
-- **只给宿主装配的插件**（用户 2026-10-20 定，U2）：第三方与沙箱插件不能声明。这和「插件待遇一样」之间的差距，是同一个平台缺口（外部插件还装不了 Home 实例），不是给内置插件开的私路，记在[防腐 spec](../../specs/repository-anti-corruption/spec.md) §1。
+- **只给宿主装配的插件**（用户 2026-10-20 定，U2）：第三方与沙箱插件不能声明。这和「插件待遇一样」之间的差距，是同一个平台缺口（外部插件还装不了 Home 实例），不是给内置插件开的私路，记在[防腐 spec](../../specs/archive/repository-anti-corruption/spec.md) §1。
 
 ### Home 主人文件树
 
@@ -82,7 +82,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 一件事要随插件这次激活一直跟着（等外部回信、跟一个会话到结束），先在 Manifest 写 `background: { jobs: [{ job_id, reason, permissions }] }`（`permissions` 只能是 Manifest 声明过的），再 `context.services.background.keep(job_id, async control => …)`。只在三处登记：本安装的命令通过了最后一次授权检查之后（自己的 `await caller.beforeEffect()` 返回过，或平台在它的一次写入前核过、它发的命令返回过），而且登记时这次调用还有效（提交后同步调 `keep()`，检查之后被取消或撤权就被拒）；激活的 `start()` 返回之前；同一激活的另一个还在跑的作业里（停了的作业登记被拒）。别处是 `plugin.background_job_origin`，命令还没通过检查是 `plugin.background_job_unchecked`。
 
-作业只有安装自己的授权：control 里没有原调用者，发出的调用以安装身份、按 `plugin` 受众走。每次写之前 `await control.beforeEffect()`；平台在每次写和每 200 ms 重核激活、安装记录与权限，插件停止、项目关闭或删除、Home 关闭就停，之后经平台服务的写一律拒。单次调用取消、撤权不停它，这只为把已经受理的那件事跟到底、记下真实结果，不发起新的业务（`specs/repository-anti-corruption/spec.md` §12.10）。平台不落盘、不重放：要在重启后接着跟，插件在 `start()` 里读自己的记录再登记。沙箱没有这项服务。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」与 `docs/system/SECURITY-INVARIANTS.md` S-52。
+作业只有安装自己的授权：control 里没有原调用者，发出的调用以安装身份、按 `plugin` 受众走。每次写之前 `await control.beforeEffect()`；平台在每次写和每 200 ms 重核激活、安装记录与权限，插件停止、项目关闭或删除、Home 关闭就停，之后经平台服务的写一律拒。单次调用取消、撤权不停它，这只为把已经受理的那件事跟到底、记下真实结果，不发起新的业务（`specs/archive/repository-anti-corruption/spec.md` §12.10）。平台不落盘、不重放：要在重启后接着跟，插件在 `start()` 里读自己的记录再登记。沙箱没有这项服务。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」与 `docs/system/SECURITY-INVARIANTS.md` S-52。
 
 要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。首页标题栏的后台任务列表走这条路：用 SDK 的 `defineHomeBackgroundTasksAction` 声明、回答 `{ source: { surface }, tasks }`，宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
 
@@ -210,7 +210,7 @@ Inbox 的 `GET/POST /api/plugins/io.molis.work.inbox/pages` 由 Plugin Runtime �
 
 路由也是一次调用（BL-403）：Plugin Runtime 派发路由时给它记一个和动作同样的作用域，处理器答复以后这次调用结束。激活撤下时（停用、崩溃、重启），还在等的请求由 Runtime 当场答 403（`actions.forbidden`），这次调用随之结束，处理器之后再调服务照上一段什么也不做；谁留着旧激活的路由再调，也是 403，处理器不会跑。流式路由（`stream: "ndjson"`）不提前答，由路由器取消那次调用（`actions.cancelled`）。路由处理器抛出带我们的码的错误（`defineErrorCodes` 声明的、`ActionError`，别的包里同样形状的也算），Runtime 按它的 kind 答，响应体带码和 `details`（BL-404），手写路由不用自己写 catch；没有码的错误交给宿主，答通用的「请求未能完成」，不带原消息。
 
-Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
+Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
 
 宿主动作由 Module/Host 自己登记（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，宿主动作（模型起草 `agent.draft-text.v1`、工作区读取、Git 的暂存与操作准备及两项读取、Agent Host 的会话与轮次）和调别的动作一样经 `services.actions.invoke` 调，调用之前可用 `services.actions.availability` 只读查它在不在，按本插件自己的授权（起草要 `model:invoke`，Git 的暂存与操作要 `review:git-index`、`review:git-operation`）；宿主那边只有 `registerAction` 一个登记口（R8 删掉了 typed 的 `register` / `registerCapability` 与 `services.capabilities`）。
 

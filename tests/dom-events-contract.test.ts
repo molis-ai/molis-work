@@ -10,7 +10,7 @@ import { ASSISTANT_EFFECT_EVENT, ASSISTANT_MESSAGE_EVENT, ASSISTANT_SURFACE_CHAN
 import { CONTEXT_ACTION_CHOSEN_EVENT, PLACE_CHANGED_EVENT, SURFACE_FOCUS_EVENT } from "@molis-ai/molis-work-contracts/services/contextual";
 import { DOM_EVENTS_CONTRACT, domEventProblems, domEventReport, formatDomEventReport, ownerPrefixOf, readRegistry } from "../scripts/gates/dom-events.mjs";
 
-// specs/repository-anti-corruption §4.8 (W2-13): every page event is registered in
+// specs/archive/repository-anti-corruption §4.8 (W2-13): every page event is registered in
 // packages/contracts/src/platform/dom-events.ts, and scripts/gates/dom-events.mjs (in `pnpm health:check`) reads the
 // browser source to keep it true. The contract is checked against what the page's other contracts already name, the
 // gate against the real tree, and each of its rules is mutation-verified: a violation is added to the real tree in

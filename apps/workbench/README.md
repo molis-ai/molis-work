@@ -76,7 +76,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 ### 目标：稳定键
 
-用户 2026-10-08 定（`specs/repository-anti-corruption/spec.md` 决策表「界面翻译」一行，PR #312）：约 164 个源文件的中文键都换成稳定键，词典按主人分。检查已经认得下面的写法，所以文件可以一个一个迁，新旧并存期间两种键都照常检查。
+用户 2026-10-08 定（`specs/archive/repository-anti-corruption/spec.md` 决策表「界面翻译」一行，PR #312）：约 164 个源文件的中文键都换成稳定键，词典按主人分。检查已经认得下面的写法，所以文件可以一个一个迁，新旧并存期间两种键都照常检查。
 
 - **键**：`<主人>.<区域>.<名称>`，小写，2～5 段，段内可用 `-` 和 `_`（`images.service.delete-confirm`）。主人是包目录名：`plugins/native/images` → `images`，`apps/workbench` → `workbench`；Workbench 另有共用词 `common.*`，任何主人都可以用。名称说意思，不抄措辞。键只写成字面量，不拼接；必须拼时用前缀加常量（`` L(`images.status.${state}`) ``），前缀 `images.status.` 让这一族键不算无用。
 - **词典**：主人包里的 `src/messages.ts`，一个平铺对象，一键一条，中英文并排：

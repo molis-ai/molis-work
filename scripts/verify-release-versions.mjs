@@ -285,7 +285,7 @@ function checkBaselineCalls(directories, declaredNames) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
         // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker, and the
-        // project of a library partitioned by project (specs/plugin-project-partition), which is not a baseline. Its declarations are counted above;
+        // project of a library partitioned by project (specs/archive/plugin-project-partition), which is not a baseline. Its declarations are counted above;
         // no other file, inline argument, or different call in this file is exempt from named-baseline checks.
         if (file === "apps/local-host/src/plugin-database.ts" && match[1] === "openBaselineHomeSqlite"
           && args.join(",") === "home,declaration.store_name,declaration,partition?.project_id"

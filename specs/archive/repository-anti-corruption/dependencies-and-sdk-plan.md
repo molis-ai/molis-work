@@ -2,7 +2,7 @@
 
 状态：方案与清单（2026-10-08；数量量于 main 35d7f320，行号已按合并 origin/main cad49419 之后的树复核；两者之间依赖声明与锁文件没有变化，只多了根 `package.json` 的 `secrets:check` 脚本与 CI 的 `secret-scan` 作业）；已落实的有根 `packageManager` 与 CI 读它（W1-20），以及 §4.4 第 1 步（W1-23，分支 `chore/repo-hygiene`：`vendor/prologue-sdk/` 的 `.sha256`、`.provenance.json`、`patch-history.json`，25 份历史补丁已删，README 与 BL-024 已改）；推送无从做起（§4.1：早已合入上游）；删除 tgz 与 `side-panel-memory.patch`、改依赖版本都没有做，等用户确认后按 §4.4 的顺序分片执行
 
-来源：路线 [roadmap-2026-10-07.md](../archive/repository-anti-corruption/roadmap-2026-10-07.md) §4.17 与 N-14、N-02；用户决定见 [spec.md](spec.md) §1 的「2026-10-08 Prologue SDK 收敛与私有包」一行（`spec.md:119`，已在 main）。本文每条结论后面写了证据：代码路径、命令或外部记录；没有核对的写「未验证」，从代码读出来但没有运行的写「推断」。
+来源：路线 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) §4.17 与 N-14、N-02；用户决定见 [spec.md](spec.md) §1 的「2026-10-08 Prologue SDK 收敛与私有包」一行（`spec.md:119`，已在 main）。本文每条结论后面写了证据：代码路径、命令或外部记录；没有核对的写「未验证」，从代码读出来但没有运行的写「推断」。
 
 ## 1. 摘要
 

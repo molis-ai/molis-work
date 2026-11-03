@@ -18,7 +18,7 @@ import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
-// PG-077 step 1 (specs/repository-anti-corruption/slices/pg077-artifacts-provider.md): the 成果库 is the platform's own provider, under the
+// PG-077 step 1 (specs/archive/repository-anti-corruption/slices/pg077-artifacts-provider.md): the 成果库 is the platform's own provider, under the
 // id it was called by as a plugin. Grants, workflow references and the search index name a provider by id, so none of them changes.
 
 const projectId = "artifacts-platform-project";

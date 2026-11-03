@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  * by `checkWorkspacePackages`, so by `pnpm boundary:check` and CI) fails when either file differs from what the rules
  * below produce.
  *
- * The decision (specs/repository-anti-corruption/spec.md §1, 2026-10-02 and 2026-10-07): a role plus accounts per row;
+ * The decision (specs/archive/repository-anti-corruption/spec.md §1, 2026-10-02 and 2026-10-07): a role plus accounts per row;
  * LEAD answers for everything, CODING_REVIEWER also for Coding, Agent Host, Jelly, Shelf and Diff. CODEOWNERS only asks
  * for review; branch protection is not changed here.
  *
@@ -56,7 +56,7 @@ const ALSO_REVIEWED_BY_CODING_REVIEWER = new Set([
 
 /**
  * A built-in plugin's src/registration.ts holds fields the Host trusts from it alone (personal, companions, the Home Runtime;
- * W5-02, PG-065 in specs/repository-anti-corruption/privileges.md), so the platform's reviewers are asked for it whoever
+ * W5-02, PG-065 in specs/archive/repository-anti-corruption/privileges.md), so the platform's reviewers are asked for it whoever
  * answers for the package. The last matching line wins: a package with reviewers of its own gets a line of its own after the
  * pattern, naming both.
  */
@@ -95,7 +95,7 @@ export function renderCodeowners(packages) {
     "# `pnpm boundary:check` fails when this file differs from what the rules produce.",
     "#",
     "# Review is requested from these accounts, not required: branch protection and the merge queue are unchanged",
-    "# (specs/repository-anti-corruption/spec.md §1, 2026-10-02 and 2026-10-07). The role of each package is in the 归属",
+    "# (specs/archive/repository-anti-corruption/spec.md §1, 2026-10-02 and 2026-10-07). The role of each package is in the 归属",
     "# column of docs/SSOT-MATRIX.md. The last matching line wins.",
     "",
     `* ${LEAD}`,

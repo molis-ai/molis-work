@@ -20,7 +20,7 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import Database from "better-sqlite3";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
-// specs/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
+// specs/archive/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
 // project catalog's error class, the artifact edge's four classes, the project-reference class and the edge refusals' bare 403 are gone; a failure
 // is an ActionError with a code and a kind, and the status comes from the kind (SDK `actionHttpStatus`).
 //

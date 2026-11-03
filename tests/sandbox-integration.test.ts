@@ -16,7 +16,7 @@ import { createSandboxRunner } from "@molis-ai/molis-work-plugin-sandbox";
 import { definePollingIntegrationPlugin, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { IntegrationRegistry, readSandboxIntegrationPackage, sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "@molis-ai/molis-work-app-local-host";
 
-// BL-530 (specs/repository-anti-corruption/slices/bl530-sandboxed-integrations.md): an external integration is a signed sandbox package
+// BL-530 (specs/archive/repository-anti-corruption/slices/bl530-sandboxed-integrations.md): an external integration is a signed sandbox package
 // of its own kind, run in the sandbox and reached by the Host's proxy as the platform's operations. These tests take the parts that do not
 // wait for the Home's sandbox instance (BL-628): the package's shape, the proxy's reading of a pull, and where a service's origins come from.
 

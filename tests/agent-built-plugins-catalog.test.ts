@@ -54,7 +54,7 @@ test('the capability board is the project\'s action directory: platform, install
   assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'schedules.add')?.provider_id, SCHEDULE_OPERATION_PROVIDER_ID, 'scheduled operations belong to Schedule too');
 });
 
-// Decision 19 (specs/repository-anti-corruption, W2-03): no plugin uses memory and a generated plugin's call carries no Host-confirmed plugin
+// Decision 19 (specs/archive/repository-anti-corruption, W2-03): no plugin uses memory and a generated plugin's call carries no Host-confirmed plugin
 // identity, so the real declarations of memory.recall, memory.list and memory.write stay out of what a generated plugin may be granted.
 test('memory is closed to generated plugins: the board offers none of it and lists recall, list and write as not offered, with the reason', async () => {
   const { actions } = project();

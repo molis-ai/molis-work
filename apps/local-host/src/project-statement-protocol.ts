@@ -3,7 +3,7 @@ import type { HomePluginDatabaseDeclaration } from "@molis-ai/molis-work-contrac
 import type { PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import type { InstalledLibraryOwner } from "./installed-plugin-libraries.js";
 
-// What the Host and the process that runs a sandboxed plugin's statements say to each other (specs/repository-anti-corruption/
+// What the Host and the process that runs a sandboxed plugin's statements say to each other (specs/archive/repository-anti-corruption/
 // slices/sandbox-project-database-limits.md §2). Every value is JSON; a row holds text, finite numbers and null, nothing else.
 
 export type StatementValue = string | number | null;

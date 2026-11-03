@@ -10,7 +10,7 @@ import { completeApiOAuth, connectorProtocolSecrets, handleLocalConnectorsSettin
   withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
-// W5-11 slices 6 and 7 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6 "旧的 OAuth 连接", §10 Q2 "10-27 用户改定"):
+// W5-11 slices 6 and 7 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6 "旧的 OAuth 连接", §10 Q2 "10-27 用户改定"):
 // a Gmail or Notion connection made by the dedicated flow it replaced is `auth_method: "oauth"` with credentials that are not the generic flow's.
 // It is not read, not refreshed and not sent anywhere; reconnecting it ends with "add a new connection" and writes nothing of it. A
 // connection of another shape, and the service whose flow is still its own (GitHub), are not touched.

@@ -121,7 +121,7 @@ test("inputs from anyone but the person are proposals, kept apart from deliverab
   db.close();
 });
 
-// An input an Agent or an MCP client only proposed (specs/repository-anti-corruption §1, 2026-10-10) is shown for what it is, and the
+// An input an Agent or an MCP client only proposed (specs/archive/repository-anti-corruption §1, 2026-10-10) is shown for what it is, and the
 // person decides it from the Goal's own input list.
 test("a proposed Feed input shows on the Goal as pending with 认可 and 移除; the person's accept makes it confirmed, and removing takes it off", async t => {
   const served = await openTestHome(t);

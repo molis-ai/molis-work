@@ -9,7 +9,7 @@ import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { EXECUTOR_MODES, roleOfCapability, roleViews } from "./fixtures/work-executor-fake.js";
 
-// S-62 (specs/repository-anti-corruption PG-036, C8-3): the Assistant takes a plugin as the executor of a work only by the
+// S-62 (specs/archive/repository-anti-corruption PG-036, C8-3): the Assistant takes a plugin as the executor of a work only by the
 // work-executor protocol and the plugin's id. A look-alike is not an executor; a plugin that is gone, unavailable or short of a role is
 // refused and no other one takes its place; and nothing in the Assistant names a plugin.
 

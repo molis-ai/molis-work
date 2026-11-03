@@ -1,4 +1,4 @@
-// What the error gates read out of the TypeScript sources (specs/repository-anti-corruption W3-02-B). One parse of each file
+// What the error gates read out of the TypeScript sources (specs/archive/repository-anti-corruption W3-02-B). One parse of each file
 // serves four counts, all of them per file, all of them only allowed to fall (scripts/gates/error-metrics.mjs turns them into
 // metrics, scripts/gates/error-owners.mjs adds the fourth, the owner of a code):
 //

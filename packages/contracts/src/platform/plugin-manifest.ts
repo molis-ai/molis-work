@@ -185,7 +185,7 @@ export interface PluginManifest {
     messages?: PluginMessagesDeclaration;
     /**
      * v2: English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
-     * stable keys (specs/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
+     * stable keys (specs/archive/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
      * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
      * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
      * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
@@ -210,7 +210,7 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
-  /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
+  /** The plugin's own tables, by scope (PG-020, specs/archive/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
   /** The plugin's own files in the Home (`services.ownerFiles`, PG-102): a root and its top-level entries, like `databases.home` declared here and nowhere else. */
   owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;

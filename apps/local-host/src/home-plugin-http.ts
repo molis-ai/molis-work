@@ -57,7 +57,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     sendLocalWebJson(response, missing.status, missing.body); return true;
   }
   if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
-  // A dual-instance plugin's routes are split between its halves (specs/dual-instance-plugins): the Home answers those its running half
+  // A dual-instance plugin's routes are split between its halves (specs/archive/dual-instance-plugins): the Home answers those its running half
   // binds and leaves every other declared route to the project's instance, next in the request chain. Only the Host's start list marks a plugin so.
   const split = Boolean(route) && !PLUGIN_MANAGEMENT_OPERATIONS.has(operation) && host.homePlugins.dualInstance(pluginId);
   let platform;

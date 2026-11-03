@@ -13,7 +13,7 @@ const root = path.resolve(import.meta.dirname, "..");
 // Deliberate counterexamples are assembled, so this test's own current code is scanned too.
 const retiredHelperPrefix = ["MOLIS", "JELLY", ""].join("_");
 const retiredStorageName = ["resolve", "Feed", "SecurityDirectory"].join("");
-const slice = "specs/repository-anti-corruption/slices/ac-artifacts.md";
+const slice = "specs/archive/repository-anti-corruption/slices/ac-artifacts.md";
 
 function textEncoding(prefix: Buffer): string | undefined {
   const bom = prefix.subarray(0, 2).toString("hex");

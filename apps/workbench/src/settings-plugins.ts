@@ -1,5 +1,5 @@
 /**
- * 插件 in a project's settings (ac-trust T7, specs/repository-anti-corruption/slices/ac-trust-install.md): what is installed in the project
+ * 插件 in a project's settings (ac-trust T7, specs/archive/repository-anti-corruption/slices/ac-trust-install.md): what is installed in the project
  * with who signed it, what it asked for and why, what it keeps doing in the background and the agreements the person gave it; installing a
  * signed package (preview, then confirm; a newer package of an installed plugin is its upgrade) and switching a signed plugin off and on or taking it
  * off (BL-623); taking an agreement back. What it shows and installs goes through

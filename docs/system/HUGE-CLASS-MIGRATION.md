@@ -4,7 +4,7 @@
 
 ## 1. 规则
 
-2026-11-03 W6-04 候选实测补记：`dc34adcb6` 有7个超过800行文件、12个超过300行类、11个超过25方法类、26个超过150行函数；类按两项阈值去重后为17个。50项巨大登记全部匹配，无未登记或尺寸失配；`agent-authoring.ts` 为821行，`AgentBuilderWorkflow` 为664行／40方法，`MolisWorkProjectCatalog` 为247行／34方法，均沿已审内聚职责登记。此补记不把上方历史迁移表改写为现状，也不表示最终main已采用；同口径首尾解释与样本去重的适用边界见[主spec §12.5](../../specs/repository-anti-corruption/spec.md#125-可比度量与有效运行证据)。
+2026-11-03 W6-04 候选实测补记：`dc34adcb6` 有7个超过800行文件、12个超过300行类、11个超过25方法类、26个超过150行函数；类按两项阈值去重后为17个。50项巨大登记全部匹配，无未登记或尺寸失配；`agent-authoring.ts` 为821行，`AgentBuilderWorkflow` 为664行／40方法，`MolisWorkProjectCatalog` 为247行／34方法，均沿已审内聚职责登记。此补记不把上方历史迁移表改写为现状，也不表示最终main已采用；同口径首尾解释与样本去重的适用边界见[主spec §12.5](../../specs/archive/repository-anti-corruption/spec.md#125-可比度量与有效运行证据)。
 
 阈值在 `tooling/gates/limits.json`，只许收紧：文件超过 800 行；类超过 300 行或超过 25 个方法；函数超过 150 行。统计 `apps/`、`horizontal/`、`modules/`、`packages/`、`plugins/`、`server/`、`tooling/` 下的 `.ts`、`.mts`，不含测试、`dist`、`fixtures`；类的行数与方法数分开记。
 
@@ -205,11 +205,11 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
 | W2-06 | 删四处跨主人 SQL（含 `demo-seed.ts` 一处） | — | 只删几行，不改判定 |
 
-已定的决定对判定的影响（决定的编号是 `specs/repository-anti-corruption/spec.md` §10 用户决定表里的序号，N-03 是 10-07 的“记忆、放置与情境启发式的层次”）：
+已定的决定对判定的影响（决定的编号是 `specs/archive/repository-anti-corruption/spec.md` §10 用户决定表里的序号，N-03 是 10-07 的“记忆、放置与情境启发式的层次”）：
 
 - 决定 #3（系统助理）：先在原处按包形边界拆，再搬成独立包。所以助理是“拆 · W4-05、W5-10”，搬包是 W5-10 的最后一步，不是例外；拆的时候就要让协作者只经端口依赖宿主。
 - 决定 #4（IM 与“讨论”页签）：保留并继续迭代，只修三处账目。所以 `im-ui` 的两个单元判“拆”，不冻结。
-- 决定 #26（Characters 并进宿主，成为设置的一节）：原判“归线 · §4.6 · W5-01”的 `createCharactersPlugin` 与 `start` 已由 CHR-0 拆到阈值以下（处理器搬进 `modules/characters`，插件定义只剩绑定与路由），从清单删去；Runtime 条目与界面的去向仍按决定 #26，见 `specs/repository-anti-corruption/spec.md` 的 W5-01 Characters 一节；第 4 波的承接切片在路线里还没有自己的片号，要 W1-01 补。（CHR-1 已做，2026-10-22：插件包与 Runtime 条目已删，界面是宿主的一节。）
+- 决定 #26（Characters 并进宿主，成为设置的一节）：原判“归线 · §4.6 · W5-01”的 `createCharactersPlugin` 与 `start` 已由 CHR-0 拆到阈值以下（处理器搬进 `modules/characters`，插件定义只剩绑定与路由），从清单删去；Runtime 条目与界面的去向仍按决定 #26，见 `specs/archive/repository-anti-corruption/spec.md` 的 W5-01 Characters 一节；第 4 波的承接切片在路线里还没有自己的片号，要 W1-01 补。（CHR-1 已做，2026-10-22：插件包与 Runtime 条目已删，界面是宿主的一节。）
 - 决定 N-03（记忆、放置、搜索、情境启发式归“平台产品服务”，代码不搬）：路线 W4-08 末尾的“再拆 MemoryService”不再执行，`MemoryService`、`PlacementService`、`SearchService` 改在包内由 W5-10 拆。
 - 决定 #7（宿主设置写入只走 HTTP，登记为管理接口的例外）：那份例外写在 CALL-CHAINS 的例外表里，和本文的巨大单元例外是两回事；它说连接器路由以后搬进各自的官方接入插件，所以 `web-connectors-settings.ts` 判“归线 · W5-11”。2026-10-26 核：它的处理函数已缩到约 115 行，低于阈值，不再是巨大单元，搬迁时不用再为它拆。
 - 决定 #16（界面翻译全部换成稳定键，词典按主人分）：`en.ts` 不是例外，判“归线 · §4.7 · W5-03”。词典按主人分已经定了，这张表不再是“必须一整块”的东西；W5-03 把插件自有词条移给主人、删无引用的键，它随之变小。
@@ -344,10 +344,10 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 | --- | --- | --- | --- | --- | ---: |
 | `design-system` | `src/plugin-component-client.ts` | `createPluginComponentClient` 函数 754 行 | 已拆（W5-10 R4a） | 渲染器按层拆成十个函数（`pcKit`、`pcRelations`、`pcRecords`、`pcDetail`、`pcControls`、`pcOutput`、`pcQuery`、`pcSubmit`、`pcPart`、`pcLifecycle`），分在 `plugin-component-{kit,records,controls,output,part,client}.ts`，各层是 `(state + 前面各层) → 本层函数` 的纯函数，仍用 `toString` 拼成同一个工厂脚本（`PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT` 的求值结果不变）。可变的标量（`view`、`selection`、`epoch`…）放在共享状态上，别的与原闭包同文。最大一层 143 行。W5-04 改成打包模块时可把层间交接改成 import（BL-551）。 | 3 |
 | `design-system` | `src/primitives/catalog.ts` | 文件 947 行<br>`renderPrimitiveCatalog` 函数 648 行 | 已拆（W5-10 R4a） | 章节搬到 `catalog-controls.ts`（控件）、`catalog-layout.ts`（目录与外壳）、`catalog-compose.ts`（选项与组合）、`catalog-parts.ts`（`section`/`mark`/`specimen`），`renderPrimitiveCatalog` 只列章节；页尾演示脚本改成 `src/browser/catalog.ts` 打包进 `dist/catalog-client.js`（`page-clients.ts` 读）。除脚本外，板子的 HTML 与拆分前逐字节相同。 | 3 |
-| `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 5 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/repository-anti-corruption/spec.md` §W4-12。 | 3 |
+| `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 5 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/archive/repository-anti-corruption/spec.md` §W4-12。 | 3 |
 | `design-system` | `src/styles/craft-finish.ts` | 文件 2,313 行 | 已拆样式，脚本留 W5-04（R4a） | 1,720 行样式拆成 `craft-finish-bar.ts`、`craft-finish-assistant.ts`、`craft-finish-pages.ts` 三份（按小节切、级联顺序不变，拼出的 `CRAFT_FINISH_STYLES` 与拆分前逐字节相同），共用的选择器片段在 `craft-finish-selectors.ts`；不登记例外。235 行 `CRAFT_FINISH_CLIENT_SCRIPT` 仍在 `craft-finish.ts`：搬到新文件会让「文本程序」计数在新文件 0→1，所以留到 W5-04 打包成 TypeScript（BL-550）。 | 14 |
 | `design-system` | `src/styles/momentum.ts` | 文件 819 行（门禁量） | 例外 · 样式表 | `MOMENTUM_STYLES` 一个模板字符串，纯 CSS（Goals 动量视图）。2026-10-25 复核（用户「本身合理可以不硬拆，标明即可」）：维持例外，`kind: stylesheet`；#1289 合入后在 `giant-exceptions.json` 补 `size: 819`。 | 4 |
-| `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 4 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/repository-anti-corruption/spec.md` §W4-12。 | 1 |
+| `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 4 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/archive/repository-anti-corruption/spec.md` §W4-12。 | 1 |
 | `design-system` | `src/styles/primitives.ts` | 文件 1,258 行（门禁量） | 例外 · 样式表 | `PRIMITIVE_STYLES` 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量。2026-10-25 复核：维持例外，`kind: stylesheet`；#1289 合入后补 `size: 1258`。 | 1 |
 | `im-ui` | `src/browser/controller.ts` | 文件 966 行<br>`startIm` 函数 957 行 | 已拆（W5-10） | `startIm` 剩约 35 行装配：页面状态收进一个 `ImState`（原来 29 个闭包变量），元素与服务放进 `ImCtx`，十层各一个自包含工厂 `controller-{shell,composer,sync,rooms,topics,navigate,dialogs,startup,page,clicks}.ts`（最大 126 行），层与层经 `c.<名字>` 后绑定调用，仍由 `client.ts` 用 `toString` 序列化进页面。函数体逐字搬动，只把变量引用改成 `s.<名字>`/`c.<名字>`；一处原有的空 `catch` 补了说明。浏览器用例交集成批。 | 1 |
 | `im-ui` | `src/views.ts` | `createViews` 函数 149 行 | 已拆 · W5-10 | `584112c6` 实测 162→149 行（原表 164 为旧值）；chrome 的 markup/cache/focus 操作提为同文件私有装配函数，由 client 显式捕获进序列化闭包。根节点与两 WeakMap 仍按实例持有，controller/交互规则不变；相关说明移到函数外仍保留，实际下发脚本 81,646→81,448 字节。 | 0 |
@@ -413,4 +413,4 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 - 新写的东西超限：先看它是不是只做一件事。混了几件事的，按职责拆到每一块都在阈值以下；本身合理的（文案表、样式表、静态数据、生成代码、内聚的状态机或解析器），在 `tooling/gates/giant-exceptions.json` 标明（`kind`、理由、门禁报错里给出的 `size`），并在这里加一行“例外”。不要把“懒得拆”写成理由，理由里写的事实要能在代码里查到。
 - 给没有标明的单元加功能：先把要加的部分抽到新文件，再接上去，门禁不会放行它变大；它若本身合理，也可以在同一个 PR 里标明并写上新的 `size`，这里的判定改成“例外”。清单里点名的各片（W3-01、W3-05、W3-06、W3-07、W4-02、W5-02）会碰到的类，也这样处理。
 - 判“拆”的单元（多数在 W5-10）照上面重新看一遍：本身合理的改判“例外”并标明，不为凑数字硬拆。
-- 路线收尾（W6-04）重量这些数字，和 2026-10-02 开工时对比：当时 37 个超过 800 行的文件、43 个超过 300 行的类、25 个方法数超过 25 的类、99 个超过 150 行的函数（`specs/repository-anti-corruption/spec.md` §2.3）。
+- 路线收尾（W6-04）重量这些数字，和 2026-10-02 开工时对比：当时 37 个超过 800 行的文件、43 个超过 300 行的类、25 个方法数超过 25 的类、99 个超过 150 行的函数（`specs/archive/repository-anti-corruption/spec.md` §2.3）。

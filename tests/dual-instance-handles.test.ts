@@ -14,7 +14,7 @@ import { openDualHome } from "./fixtures/dual-home.js";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 
 /**
- * DUAL-16, S-48 (specs/dual-instance-plugins U3): the two halves of a dual-instance plugin share `install_id` and differ in
+ * DUAL-16, S-48 (specs/archive/dual-instance-plugins U3): the two halves of a dual-instance plugin share `install_id` and differ in
  * `installation_generation`. A half's code may keep the other half's handles (both run in this process), but every service checks
  * the running action's instance, not only its installation: inside one half's action the other half's model, owner files,
  * materials and background handles are refused before they reach their port, and the half's own handles pass that check.

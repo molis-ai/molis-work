@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import type { HomePreparationCall, StatementCall, StatementFatal, StatementMessage, StatementReply, StatementRow, StatementValue } from "./project-statement-protocol.js";
 
-// The process that runs one sandboxed plugin's statements (specs/repository-anti-corruption/slices/sandbox-project-database-limits.md
+// The process that runs one sandboxed plugin's statements (specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md
 // §2). Neither SQLite driver the Host has can interrupt a statement that is running, and `Worker.terminate()` cannot stop a native
 // call, so a statement of a plugin the Host does not trust runs in a process the Host can kill: past its time, or past its memory,
 // its controller kills the whole process with SIGKILL independently of the Host, and the plugin gets a coded error. The next statement starts a fresh process, so nothing of

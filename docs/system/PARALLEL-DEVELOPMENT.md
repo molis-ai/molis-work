@@ -2,14 +2,14 @@
 
 状态：现行规范（2026-10-08 入库）。同一台机器上常有几个会话（人和 Agent）、很多个工作树、几个在途 PR 同时在改这个仓库。这份文档写它们怎样不互相踩：开工、改枢纽文件、构建与测试排时段、合并、清理。每条规则后面写了依据；还没做、还开着的在最后一节「还没做、还开着」。`AGENTS.md`「协作」一节指到这里。
 
-文中的「路线图」是 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`，`W1-13` 这样的编号是它排出的切片，进度以 `specs/repository-anti-corruption/spec.md` §10 为准；「spec」指该目录的 `spec.md`。
+文中的「路线图」是 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`，`W1-13` 这样的编号是它排出的切片，进度以 `specs/archive/repository-anti-corruption/spec.md` §10 为准；「spec」指该目录的 `spec.md`。
 
 合同怎样变更见 [合同变更流程](CONTRACT-CHANGES.md)。每个包归谁见 [`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md) 的「归属」列和 `.github/CODEOWNERS`。
 
 ## 1. 开工
 
 - 先看别人在做什么：`git fetch -q origin main`、`git worktree list`、`gh pr list --state open`。
-- 自己开工作树，不在主检出里改。分支从最新 `origin/main` 开，不基于别的分支或旧分支开新工作（`specs/repository-anti-corruption/spec.md` §1，2026-10-03「任务书来源」）：
+- 自己开工作树，不在主检出里改。分支从最新 `origin/main` 开，不基于别的分支或旧分支开新工作（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-03「任务书来源」）：
 
   ```sh
   cd <主检出> && git fetch -q origin main
@@ -40,7 +40,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发，连同它的路由表 `web-project-platform-routes.ts`、`web-catalog-index-routes.ts`）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
 | 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`（与同目录的 `plugin-manifest.ts`、`plugin-host-services.ts`、`plugin-routes.ts`）、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
-| 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
+| 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/archive/repository-anti-corruption/spec.md` |
 | 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
 
 `apps/local-host/src/project-plugins.ts` 不到 7 次，但 `AGENTS.md` 把每个新内置插件的装配点指到它的监督器条目，按枢纽对待。`tests/ci-product-subset.txt`（2026-10-09 才有，谈不上次数）也按枢纽对待：它点名三百多个用例，其中任何一个改名或删除，都要在同一个 PR 里改它的那一行，不然 `pnpm health:check` 变红（见第 3 节）；一行一个文件，解冲突时两边的行都留。
@@ -244,7 +244,7 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 
 - 只有 `horizontal/agent-host` 依赖 `@prologue/sdk`（`AGENTS.md` 硬约束）。包放在 `vendor/prologue-sdk/`，目录里只留当前使用的一份，最多再加一份在途分支的；换新包时删掉旧包，旧包从 Git 历史取。健康门禁数这个目录里的 `.tgz` 包数，上限是 `tooling/gates/limits.json` 的 `vendoredPrologueSdk`（现在是 2：当前一份加一份在途）。
 - 两条线要不同的 SDK 改动时，合成一个包共用，不各带一份：先落地的线在 Prologue 仓库里把几条分支合成一个分支，打一个包；后一条线在这个包的基础上重建，不另加包。当前包的来源记在 `vendor/prologue-sdk/<包>.provenance.json` 和 `.sha256`，`vendor/prologue-sdk/README.md` 当前一节写重建步骤（检出哪个上游提交、构建、`pnpm pack`）与验证结果；这几份的写法就是模板，`pnpm health:check` 核对它们和 tgz 相符。
-- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：来源分支 `feat/molis-side-panel-surfaces-on-memory` 收敛到上游基线，按一个合成流程、一个负责人；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。来源分支早已作为 Prologue PR #3 合入上游 main，没有要推的东西；历史补丁已删，记录在 `vendor/prologue-sdk/patch-history.json`（W1-23）。换包的规矩：Molis 只依赖 Prologue `main` 上的一个具名提交，不依赖分支、不叠补丁；一次换包是一个 Molis PR，里面是 `vendor/` 的新包与记录、`pnpm-lock.yaml`、`horizontal/agent-host` 的适配与测试，不夹别的改动；需要先试用没合并的 SDK 改动时才临时多放一份在途包（`vendoredPrologueSdk` 的上限 2），合并前换成 `main` 上的提交。不自动前进，只在功能需要上游的改动、安全修复、或负责人看过落后提交数决定追时才换。tgz 移出公开仓库（改从私有 release 附件取、清单加取包脚本、CI 配只读凭据、门禁改成不允许跟踪 tgz）还没做，设计见 [dependencies-and-sdk-plan.md](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5；做完之前上面的做法照旧，删除 vendored 的 tgz 按用户当次的授权办。
+- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：来源分支 `feat/molis-side-panel-surfaces-on-memory` 收敛到上游基线，按一个合成流程、一个负责人；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。来源分支早已作为 Prologue PR #3 合入上游 main，没有要推的东西；历史补丁已删，记录在 `vendor/prologue-sdk/patch-history.json`（W1-23）。换包的规矩：Molis 只依赖 Prologue `main` 上的一个具名提交，不依赖分支、不叠补丁；一次换包是一个 Molis PR，里面是 `vendor/` 的新包与记录、`pnpm-lock.yaml`、`horizontal/agent-host` 的适配与测试，不夹别的改动；需要先试用没合并的 SDK 改动时才临时多放一份在途包（`vendoredPrologueSdk` 的上限 2），合并前换成 `main` 上的提交。不自动前进，只在功能需要上游的改动、安全修复、或负责人看过落后提交数决定追时才换。tgz 移出公开仓库（改从私有 release 附件取、清单加取包脚本、CI 配只读凭据、门禁改成不允许跟踪 tgz）还没做，设计见 [dependencies-and-sdk-plan.md](../../specs/archive/repository-anti-corruption/dependencies-and-sdk-plan.md) §5；做完之前上面的做法照旧，删除 vendored 的 tgz 按用户当次的授权办。
 - 合成负责人：还没有指定人。上面的决定要求设一个，W1-20 出方案时提名。在那之前，谁要换包谁做，并把 README 写全；`/vendor/` 在 `.github/CODEOWNERS` 里走默认规则，只请求 @yijunw0212。指定之后，把负责人写在这一节。
 
 ## 12. 还没做、还开着

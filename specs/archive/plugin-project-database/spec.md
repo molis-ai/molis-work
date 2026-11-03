@@ -1,11 +1,11 @@
 # 项目库里的插件表
 
-状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；旧v7维护八已被2026-10-30干净Home重建取代；现行项目结构起点1，重建前不要用新构建打开旧Home。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）已在 `claude/ac-pg022-manifest-declarations` 做好、未合入（片稿 `specs/repository-anti-corruption/slices/pg022-manifest-declarations.md`，只给宿主启动名单上的插件，发布者账本是 P1b）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
+状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；旧v7维护八已被2026-10-30干净Home重建取代；现行项目结构起点1，重建前不要用新构建打开旧Home。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）已在 `claude/ac-pg022-manifest-declarations` 做好、未合入（片稿 `specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md`，只给宿主启动名单上的插件，发布者账本是 P1b）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
 
 依据：
 
-- `specs/repository-anti-corruption/spec.md` §1 2026-10-18「项目库里的插件表」（X-5）和 2026-10-19 的两条用户决定。
-- `specs/repository-anti-corruption/privileges.md` PG-020、PG-021，以及 PG-022 的项目一半。
+- `specs/archive/repository-anti-corruption/spec.md` §1 2026-10-18「项目库里的插件表」（X-5）和 2026-10-19 的两条用户决定。
+- `specs/archive/repository-anti-corruption/privileges.md` PG-020、PG-021，以及 PG-022 的项目一半。
 - 统筹 D15、D23 对计划的裁定（决策记录见第 4 节）。
 
 ## 1. 要做什么
@@ -155,7 +155,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | 2026-10-21 | 没有文件的项目库（L2 日常取舍） | 插件平台的库不是宿主自己连到文件的 better-sqlite3 连接（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路 | ② |
 | 2026-10-21 | Coding 什么时候改用新服务 | 服务在 L2 里给到 Coding（它已声明表，启动时拿到）；Coding 的代码改用它、删掉宿主给 Coding 的那条路是 ③ 的 C1，排在 L2 之后，按统筹 10-20 的派单。改了 2026-10-19「L2 里由 ② 做」那一行 | 统筹派单 |
 | 2026-10-21 | Home 级插件拿不拿项目库（L2） | 不拿：`HomePluginExecutor` 不给 `project_database`；Home 级插件按项目的数据放在 S0a 分区后的 Home 库里 | ② |
-| 2026-10-21 | 沙箱插件的语句跑多久（L3 评审） | 逐句检查只管碰得到哪些表；沙箱插件的语句原先在宿主主线程上同步跑，没有时间与结果大小的上限。L3 记成已知缺口与 BL-395，修法动信任边界，要问用户。**2026-10-23 用户在统筹会话弹窗定：做完子进程执行**（没选“先限量并关住入口”）：沙箱插件的语句跑在宿主能 SIGKILL 的子进程里，超时、超内存就杀、答带码的错误，结果在读的时候按行数与字节停，递归查询不开始；见 `specs/repository-anti-corruption/slices/sandbox-project-database-limits.md`，S-59 | ⑤ 评审、用户 |
+| 2026-10-21 | 沙箱插件的语句跑多久（L3 评审） | 逐句检查只管碰得到哪些表；沙箱插件的语句原先在宿主主线程上同步跑，没有时间与结果大小的上限。L3 记成已知缺口与 BL-395，修法动信任边界，要问用户。**2026-10-23 用户在统筹会话弹窗定：做完子进程执行**（没选“先限量并关住入口”）：沙箱插件的语句跑在宿主能 SIGKILL 的子进程里，超时、超内存就杀、答带码的错误，结果在读的时候按行数与字节停，递归查询不开始；见 `specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md`，S-59 | ⑤ 评审、用户 |
 
 ## 5. 验收标准
 
@@ -168,7 +168,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | PLIB-05 | 原v7→v8迁移已被干净Home重建取代，SQL/演练删除；当前完整新库、账本与重开不增行见RAC-2360，原事务迁移不再执行 | L1b、S8 | `tests/project-database-baseline.test.ts` |
 | PLIB-06 | 逐句检查的每种拒绝各一条，外键读 `project_root` 放行 | L2 | `tests/security-invariants-plugin-project-database.test.ts` |
 | PLIB-07 | 取消、撤权、换了提供方、别的安装、停用之后不写任何记录（S-18） | L2 | `tests/security-invariants-plugin-original-caller.test.ts`（目标 `project_database`）；沙箱一侧 `tests/installed-plugin-execution.test.ts`（PLIB-10） |
-| PLIB-08 | 同一个进程里同一文件只用一份 SQLite 库（测试断言客户端的连接类型）；2026-10-23 用户定：沙箱插件的语句在另一个进程里，那个进程用自己的一份 better-sqlite3 开同一个文件（口径、锁与一致性、崩溃见 `specs/repository-anti-corruption/slices/sandbox-project-database-limits.md` 第 2.3 节），那个进程里同样只有一份库 | L2、BL-395 | `tests/security-invariants-plugin-project-database.test.ts`；`tests/security-invariants-sandbox-project-database-limits.test.ts`（S-59） |
+| PLIB-08 | 同一个进程里同一文件只用一份 SQLite 库（测试断言客户端的连接类型）；2026-10-23 用户定：沙箱插件的语句在另一个进程里，那个进程用自己的一份 better-sqlite3 开同一个文件（口径、锁与一致性、崩溃见 `specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md` 第 2.3 节），那个进程里同样只有一份库 | L2、BL-395 | `tests/security-invariants-plugin-project-database.test.ts`；`tests/security-invariants-sandbox-project-database-limits.test.ts`（S-59） |
 | PLIB-09 | 项目的身份是 `project_root`：正好一行；11 张表的外键指向它；`boards` 由 Goals 声明，它的外键也指向 `project_root`，Goals 的其余表仍指向 `boards` | L1b、S8 | `tests/project-database-baseline.test.ts` |
 | PLIB-10 | 沙箱插件经 broker 读写，检查与原生插件相同 | L3 | `tests/security-invariants-plugin-project-database.test.ts`；`tests/installed-plugin-execution.test.ts`（装进项目的沙箱插件，取消与撤权） |
 | PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | L4 | `tests/home-library-declaration.test.ts` |

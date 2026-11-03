@@ -3,7 +3,7 @@ import type { PluginProjectDatabase } from "@molis-ai/molis-work-contracts/platf
 import type { FeedRuntimePorts } from "./runtime-ports.js";
 
 /**
- * How a Runtime Feed writes (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11). Feed's application writes
+ * How a Runtime Feed writes (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11). Feed's application writes
  * synchronously through ports, and the platform's write transaction is synchronous too, so the two meet in one place: the ports are bound
  * to a transaction for the length of a synchronous body, and a write made at any other time fails with `actions.execution_failed` instead
  * of landing anywhere. Every write is therefore a commit that opens after `beforeEffect()` has been awaited and re-asks the grants and the

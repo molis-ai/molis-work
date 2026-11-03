@@ -22,7 +22,7 @@ import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperat
  * redone on the Plugin Runtime; none joins.
  *
  * The lists match the disk exactly, both ways: a name that is no longer there has to leave the list, and a plugin the
- * Runtime starts has to be on the Runtime list (specs/repository-anti-corruption W1-05). The numbers that cannot be gamed
+ * Runtime starts has to be on the Runtime list (specs/archive/repository-anti-corruption W1-05). The numbers that cannot be gamed
  * by editing this file (plugin-named Host files, registerProvider lines, hybrid plugins, names of a plugin outside its
  * package) are compared with the merge-base by `pnpm health:check` (scripts/gates/assembly.mjs).
  */
@@ -40,7 +40,7 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 
 /**
  * The only built-in plugins assembled by hand at build time, each with the decision that keeps it (W6-01, BL-377): Alchemist
- * and the plugin studio are neither migrated nor deleted this round (specs/repository-anti-corruption/privileges.md, the
+ * and the plugin studio are neither migrated nor deleted this round (specs/archive/repository-anti-corruption/privileges.md, the
  * 2026-10-23 note at the top; specs/post-anticorruption-roadmap/spec.md). Each names the user's dates and the BACKLOG row
  * that redoes it, and that row has to be open (RAC-2650).
  */
@@ -166,7 +166,7 @@ test("the lists name exactly what exists: no id, route file or Runtime plugin is
  * person's act to its registered actions (`goal-callers.ts`, `web-goals-read.ts`, `feed-goal-promotion.ts`) and the page layer that takes
  * `goalsActions`, `goalsManifest` and the route matchers from its package (`web-view.ts`, `web-request.ts`, `web-planning.ts`,
  * `web-panel.ts`; the workbench takes its styles, scripts and dictionaries). What is left to remove is BL-386 (the route rewrite and the
- * clients), PG-031's remaining imports, W6-01 and W5-06 (specs/repository-anti-corruption/privileges.md, PG-094). Goals leaves when
+ * clients), PG-031's remaining imports, W6-01 and W5-06 (specs/archive/repository-anti-corruption/privileges.md, PG-094). Goals leaves when
  * that code is gone; no other plugin joins.
  */
 const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>(["goals"]);
@@ -230,7 +230,7 @@ test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace G
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-// RAC-44 (Cognia moved to a Home Runtime, specs/repository-anti-corruption): Cognia reaches the product only through its
+// RAC-44 (Cognia moved to a Home Runtime, specs/archive/repository-anti-corruption): Cognia reaches the product only through its
 // catalog entry's Home Runtime declaration and the public plugin contract; the old Host wiring is gone and none comes back.
 // The hybrid check above reads the project supervisor's list only, so the Host side is asserted here for Cognia: no Host
 // file named after it, no provider registered for it, no Host source that imports its package. That it really starts

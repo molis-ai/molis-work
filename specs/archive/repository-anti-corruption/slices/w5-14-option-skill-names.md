@@ -1,6 +1,6 @@
 # W5-14：判断规则编辑器的 Behavior 改叫 Option，Agent 的 Method 合同名改叫 Skill（T-111）
 
-状态：已合入 main（2026-10-29，T-111 #1468，`b8be29f28`；T-110 #1440 先合入），待统筹按 `specs/README.md` 归档。做法是 [GLOSSARY 的 R-A5、R-A6](../../../docs/system/GLOSSARY.md)：只改标识符，值、动作 id、Manifest 键、落库字段都不动；方案在 #1332【方案 T-111】，甲档，统筹 6486335681 定设备 A 自己定。验收号 RAC-1755～1758。
+状态：已合入 main（2026-10-29，T-111 #1468，`b8be29f28`；T-110 #1440 先合入），待统筹按 `specs/README.md` 归档。做法是 [GLOSSARY 的 R-A5、R-A6](../../../../docs/system/GLOSSARY.md)：只改标识符，值、动作 id、Manifest 键、落库字段都不动；方案在 #1332【方案 T-111】，甲档，统筹 6486335681 定设备 A 自己定。验收号 RAC-1755～1758。
 
 ## 1. 改了什么
 

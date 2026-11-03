@@ -1,4 +1,4 @@
-// Gate: the repository root holds only what tooling/gates/root-allowlist.json names (specs/repository-anti-corruption §4.12,
+// Gate: the repository root holds only what tooling/gates/root-allowlist.json names (specs/archive/repository-anti-corruption §4.12,
 // decision 22: introduction pages, outputs/ and personal tool folders move out of the repository).
 //
 // A root entry is the first path segment of a tracked file: a file at the root, or a folder with everything below it. An

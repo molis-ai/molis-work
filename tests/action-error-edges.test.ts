@@ -24,7 +24,7 @@ import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
-// specs/repository-anti-corruption W3-02-A. Todo's failures used to be a class of their own (`TodoError extends Error`: a code on a plain Error, not an
+// specs/archive/repository-anti-corruption W3-02-A. Todo's failures used to be a class of their own (`TodoError extends Error`: a code on a plain Error, not an
 // ActionError), so a Host edge that branches on `instanceof ActionError` answered them as "some other error". Todo raises ActionErrors now (`todoErrors`).
 // Not every such edge saw a TodoError on origin/main, though: Todo's subject reader (`todo.search.subject`) already raised `new ActionError("todo.not_found")`.
 // So each test below says which kind it is. Changed by this slice (each fails when Todo's errors are put back to the origin/main shape): the MCP action port,

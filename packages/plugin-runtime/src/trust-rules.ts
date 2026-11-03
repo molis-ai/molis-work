@@ -3,7 +3,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import { definitionOrigin } from "./platform-definitions.js";
 import type { PluginConsentGrant, PluginConsentGranter, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
-// Install trust and the declarations that need consent (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
+// Install trust and the declarations that need consent (ac-trust T1, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
 // Pure rules: the install, the supervisor and the tests read the same ones. A level is evidence the Host gives; nothing a plugin writes
 // (its Manifest, its package, a caller's input) can name its own.
 

@@ -14,7 +14,7 @@ import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
-// specs/repository-anti-corruption PG-062 (C7, plugin half), slice 4b: Coding's round questions, its suggestions' cards and the
+// specs/archive/repository-anti-corruption PG-062 (C7, plugin half), slice 4b: Coding's round questions, its suggestions' cards and the
 // row beside its composer are drawn by the platform's `services.interaction`, asked by Coding on what its routes answer its page.
 // The server here runs no Coding route hooks, so nothing else could have drawn them.
 const HAN = /[一-鿿]/u;

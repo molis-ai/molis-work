@@ -10,7 +10,7 @@ import { resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { takeBackGoals } from "./fixtures/goals-agreement.js";
 
-// ac-trust T3b (RAC-400, specs/repository-anti-corruption/slices/ac-trust-install.md §3.4.1): the person takes back the agreement that keeps Goals
+// ac-trust T3b (RAC-400, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4.1): the person takes back the agreement that keeps Goals
 // in every project, and a project made after that has no Goals. Its pages draw and answer with the plugin list, home and links as for any other plugin that is not on (Goals' stage and dialogs stay
 // in the page's hidden pool, which the one workbench program binds), and nothing says "internal error" or opens a Goal view; a project that still has Goals is drawn as before.
 

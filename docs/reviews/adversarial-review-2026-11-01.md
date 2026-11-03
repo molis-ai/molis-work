@@ -59,7 +59,7 @@
 | 浏览器文本程序 | `*_SCRIPT` 98 个程序 / 69 个文件；空 catch 74；裸 fetch 6 | `node scripts/check-health-gates.mjs --report` |
 | `AGENTS.md` | 29,628 字节；「构建与测试」一节约占 60% | `wc -c`、按节统计 |
 | 翻译 | 80 本词典、9,560 条；死键 2,518（`apps/workbench/src/i18n/en.ts` 一本占 1,762）；577 个键定义不止一处；冲突 136 | `node scripts/gates/translations.mjs [--dead]` |
-| 防腐 spec | `specs/repository-anti-corruption/spec.md` 1,467,074 字节；`privileges.md` 216,019 字节 | `wc -c` |
+| 防腐 spec | `specs/archive/repository-anti-corruption/spec.md` 1,467,074 字节；`privileges.md` 216,019 字节 | `wc -c` |
 | `specs/` + `docs/` | 约 92 MB：PNG 49.9 MB（217 个）、Markdown 20.6 MB（994 个）、JPG 8 MB、MP4 3 MB | `git ls-files` 按扩展名 |
 | 验收编号 | 61 份在进行的 spec，992 条验收里 294 条有测试引用；570 个编号没有任何证明 | `node scripts/check-spec-coverage.mjs` |
 | BACKLOG | 254 行；163 行没有主人；17 行列数不对 | 解析 `specs/BACKLOG.md` |
@@ -313,7 +313,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
   | `specs/BACKLOG.md` | 158 |
   | `scripts/gates/page-assets.mjs` | 122 |
   | `docs/system/SECURITY-INVARIANTS.md` | 110 |
-  | `specs/repository-anti-corruption/privileges.md` | 106 |
+  | `specs/archive/repository-anti-corruption/privileges.md` | 106 |
   | `tooling/gates/baseline.json` | 105 |
   | 防腐 spec | 78 |
   | `apps/local-host/src/index.ts` | 69 |

@@ -4,7 +4,7 @@ import type { PluginConsentGrant, PluginConsentGranter, PluginConsentRecord, Plu
 import type { PluginRuntimeDatabase } from "./repository.js";
 import { consentGranter, consentSubject } from "./trust-rules.js";
 
-// The consent ledger and the pinned publishers (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3). One
+// The consent ledger and the pinned publishers (ac-trust T1, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.3). One
 // row per consent, written once and revoked by `revoked_at`, never rewritten or deleted. Both tables are Home-wide: a project's
 // installs are its own, but what a person agreed to and whom they trust is one answer for the Home. Plugin Runtime owns the tables;
 // anything else reads them through this port.

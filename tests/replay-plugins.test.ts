@@ -1,4 +1,4 @@
-// W4-01 (specs/repository-anti-corruption/slices/w5-02-registry.md §6; docs/system/CONTRACT-CHANGES.md §4 item 7): the plugins in
+// W4-01 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §6; docs/system/CONTRACT-CHANGES.md §4 item 7): the plugins in
 // the replay corpus load, run, upgrade and run again on this build, and a sample that breaks any of those steps fails the replay.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

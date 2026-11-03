@@ -2,33 +2,33 @@
 
 状态：既有交付入口与已核证据已汇总；最终交付、整线完成及归档未验收。负责人：Codex 根统筹，沿原 W6-06 接续，不改变专门事实的 owner。
 
-文档基准为 `8315c6936745c992d75b4ef21f800baeffa81f8e` / tree `cc6654467265d7764fc26d0a469451773fa3a902`，不是最终共同树 F。要求沿[原任务书 §6](../../../docs/prompts/repository-anti-corruption.md#6-交付)；映射采用 `/tmp/codex-w6-closeout/w6-06-deliverable-index-draft.md` 及其 `w6-06-index-review.md`／`w6-06-index-reply.md`，第9项漏列插件版本回放的 P1 已在原稿修正。历史代码头、执行者、失败与替身边界保留，本次没有重跑或重审各 owner。
+文档基准为 `8315c6936745c992d75b4ef21f800baeffa81f8e` / tree `cc6654467265d7764fc26d0a469451773fa3a902`，不是最终共同树 F。要求沿[原任务书 §6](../../../../docs/prompts/repository-anti-corruption.md#6-交付)；映射采用 `/tmp/codex-w6-closeout/w6-06-deliverable-index-draft.md` 及其 `w6-06-index-review.md`／`w6-06-index-reply.md`，第9项漏列插件版本回放的 P1 已在原稿修正。历史代码头、执行者、失败与替身边界保留，本次没有重跑或重审各 owner。
 
 表中入口表示可复用文档／既有记录，不代表本基准已独立动态通过；复合项沿[主 spec §12](../spec.md)汇总，专门结论仍回原文件。当前规则和机器输入已由 T404 迁出到下列现行入口，不重复迁出旧归档计划的第一片。
 
 | 原交付 | 现行入口与可复用内容 | 尚缺证据／接续 |
 | --- | --- | --- |
 | 1 首尾度量 | [主 spec](../spec.md) §12.5 的历史序列与方法；原 T370 证据线 | 候选F23eac单次实测、B/M/旧F对照与增长解释已核收，见主spec§12.5；B/M未重算，仍待最终main采用绑定 |
-| 2 兼容清理、保留理由、库与 Home | [合同保留机制／版本登记](../../../docs/system/CONTRACT-CHANGES.md)、[Home 数据](../../../docs/system/HOME-DATA.md)；主 spec §4 留历史 | 当前代码差集和真实干净 Home 最终结果；旧迁移已取消，不恢复维护八或存量转换 |
-| 3 包与审查深度 | [现行包清单](../../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)、[SSOT](../../../docs/SSOT-MATRIX.md)；原源码审查见主 spec §12.7／12.9 | 只接现行成员相对历史切点的增量；源码审完不等于整改或运行通过 |
+| 2 兼容清理、保留理由、库与 Home | [合同保留机制／版本登记](../../../../docs/system/CONTRACT-CHANGES.md)、[Home 数据](../../../../docs/system/HOME-DATA.md)；主 spec §4 留历史 | 当前代码差集和真实干净 Home 最终结果；旧迁移已取消，不恢复维护八或存量转换 |
+| 3 包与审查深度 | [现行包清单](../../../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)、[SSOT](../../../../docs/SSOT-MATRIX.md)；原源码审查见主 spec §12.7／12.9 | 只接现行成员相对历史切点的增量；源码审完不等于整改或运行通过 |
 | 4 问题、证据、根因与结果 | 主 spec §12.8／12.11 及原修复证据 | W5 后继实际采用与最终核收；旧“待整合”不自动重开同一实现 |
-| 5 主链及修后变化 | [CALL-CHAINS](../../../docs/system/CALL-CHAINS.md) | 后续变动链的文档／实际返回差集，归 W6-05 AC 与真实场景 |
-| 6 分层与能力收敛 | [ARCHITECTURE](../../../docs/system/ARCHITECTURE.md)、[PACKAGE-BOUNDARIES](../../../docs/system/PACKAGE-BOUNDARIES.md)、[去特权表](../privileges.md) | 相关 W5 最终采用与原 PG 裁决；不把 I6 数字当现状 |
-| 7 巨大单元 | [判定与迁移表](../../../docs/system/HUGE-CLASS-MIGRATION.md)、[有效例外](../../../tooling/gates/giant-exceptions.json) | F23eac的50项巨大登记全部匹配；节点修复使既有驱动内聚登记更新为209行，最终main另绑；登记不等于体量消失 |
-| 8 扩展点与演练 | [EXTENSION-POINTS](../../../docs/system/EXTENSION-POINTS.md) 的现行操作入口与注明切点的历史成本／推演 | 已实现方向与真实探针的最终对应；推演不算实际演练，成本不重算 |
-| 9 并行、合同、API、回放、CI、反馈与上手 | [协作规则](../../../docs/system/PARALLEL-DEVELOPMENT.md)、[合同流程](../../../docs/system/CONTRACT-CHANGES.md)、[API／门禁](../../../tooling/gates/README.md)；[插件回放工具](../../../scripts/replay-plugins.mjs)、[corpus](../../../tests/fixtures/replay-plugins/corpus.json)、[正反测试](../../../tests/replay-plugins.test.ts) | 两真实来源样本已入库，计数器与人工适配清单各有独立真签包回放，见各README；[答卷回放](../../../docs/platform/STUDIO-SKILL-REPLAY.md)不能互代。反馈／热点归 W6-04，上手归 W6-03，最终 CI 归 W6-05 |
-| 10 逐插件实现、契约、接入、体验 | [plugin-conclusions](../../archive/repository-anti-corruption/plugin-conclusions.md)、[前端动线](../../archive/repository-anti-corruption/frontend-flow-walk.md) | FR／LC按既有原件接续；Pages跨搜索/MCP停启及Coding中断恢复差量已核收，剩最终组合适用性和下列真实边界 |
-| 11 数据、状态、事件、权限、生命周期 | [Home owner](../../../docs/system/HOME-DATA.md)、[共写表](../../../tooling/gates/table-owners.json)、[安全不变量](../../../docs/system/SECURITY-INVARIANTS.md)、[W6-02](w6-02-lifecycle-rest.md) | Shelf／Goals原生命周期及Pages、Coding新增差量已核收；T409恢复、T122/T141 Home/origins、S8自动调度沿用；最终组合与真实Home仍归W6-05 |
-| 12 AI 下沉、共享、业务保留与暂缓 | [AI 入口分类](../../archive/repository-anti-corruption/ai-entry-inventory.md)、[AI 手册](../../../docs/platform/PROLOGUE-AI.md) | 后续改变入口及恢复／取消路径的差集；原暂缓边界不解除 |
-| 13 术语 | [GLOSSARY](../../../docs/system/GLOSSARY.md) | 已知术语／手册指针与T414合同差集已接回原文档；终局随W6-03核收，不重走六路线 |
-| 14 静态检查 | [门禁规则集](../../../tooling/gates/README.md) | 准确最终头的检查／CI 与告警处置；接入不等于零告警，不放宽配置 |
-| 15 依赖与 SDK | [依赖／SDK 方案](../dependencies-and-sdk-plan.md)、[当前包来源](../../../vendor/prologue-sdk/README.md)、[Memory 合同](../../prologue-memory-strategy/spec.md) | 当前组合、恢复与产品采用；provenance、上游合入和本产品实操分别记录 |
-| 16 安全不变量 | [SECURITY-INVARIANTS](../../../docs/system/SECURITY-INVARIANTS.md) | 最终共同安全集、适用 Mac 边界及 HOLD 的原限制；Verify 绿不等于所有安全用例均已跑 |
-| 17 切换、清理、去留与发布 | 主 spec §1、[Runtime 迁移](../../../docs/system/RUNTIME-MIGRATION.md)、[W6-01](w6-01-aliases.md)、[仓库卫生](../../../docs/system/REPOSITORY-HYGIENE.md)、[发布策略](../../../docs/releases/POLICY.md) | 剩余切换／实际采用／自有现场清理；两项获批装配例外保留，发布与真实 Home 仍按原授权 |
-| 18 门禁及突变验证 | [门禁说明](../../../tooling/gates/README.md)、[规则实现入口](../../../scripts/gates/README.md)；主 spec §5a 留历史 | 各原变更到有效红／绿的对应；不因统一收尾重演全套突变或改门禁 |
-| 19 原报告、附录 A、第一步交接 | 主 spec §12.2、[体检报告](../../archive/repository-systematic-review/spec.md)、[第一步基线](../../archive/post-merge-review/spec.md) | 当前剩余条目的证据闭环；主 spec R-01～14 与协调 R-01～73 不能同号销账 |
+| 5 主链及修后变化 | [CALL-CHAINS](../../../../docs/system/CALL-CHAINS.md) | 后续变动链的文档／实际返回差集，归 W6-05 AC 与真实场景 |
+| 6 分层与能力收敛 | [ARCHITECTURE](../../../../docs/system/ARCHITECTURE.md)、[PACKAGE-BOUNDARIES](../../../../docs/system/PACKAGE-BOUNDARIES.md)、[去特权表](../privileges.md) | 相关 W5 最终采用与原 PG 裁决；不把 I6 数字当现状 |
+| 7 巨大单元 | [判定与迁移表](../../../../docs/system/HUGE-CLASS-MIGRATION.md)、[有效例外](../../../../tooling/gates/giant-exceptions.json) | F23eac的50项巨大登记全部匹配；节点修复使既有驱动内聚登记更新为209行，最终main另绑；登记不等于体量消失 |
+| 8 扩展点与演练 | [EXTENSION-POINTS](../../../../docs/system/EXTENSION-POINTS.md) 的现行操作入口与注明切点的历史成本／推演 | 已实现方向与真实探针的最终对应；推演不算实际演练，成本不重算 |
+| 9 并行、合同、API、回放、CI、反馈与上手 | [协作规则](../../../../docs/system/PARALLEL-DEVELOPMENT.md)、[合同流程](../../../../docs/system/CONTRACT-CHANGES.md)、[API／门禁](../../../../tooling/gates/README.md)；[插件回放工具](../../../../scripts/replay-plugins.mjs)、[corpus](../../../../tests/fixtures/replay-plugins/corpus.json)、[正反测试](../../../../tests/replay-plugins.test.ts) | 两真实来源样本已入库，计数器与人工适配清单各有独立真签包回放，见各README；[答卷回放](../../../../docs/platform/STUDIO-SKILL-REPLAY.md)不能互代。反馈／热点归 W6-04，上手归 W6-03，最终 CI 归 W6-05 |
+| 10 逐插件实现、契约、接入、体验 | [plugin-conclusions](../plugin-conclusions.md)、[前端动线](../frontend-flow-walk.md) | FR／LC按既有原件接续；Pages跨搜索/MCP停启及Coding中断恢复差量已核收，剩最终组合适用性和下列真实边界 |
+| 11 数据、状态、事件、权限、生命周期 | [Home owner](../../../../docs/system/HOME-DATA.md)、[共写表](../../../../tooling/gates/table-owners.json)、[安全不变量](../../../../docs/system/SECURITY-INVARIANTS.md)、[W6-02](w6-02-lifecycle-rest.md) | Shelf／Goals原生命周期及Pages、Coding新增差量已核收；T409恢复、T122/T141 Home/origins、S8自动调度沿用；最终组合与真实Home仍归W6-05 |
+| 12 AI 下沉、共享、业务保留与暂缓 | [AI 入口分类](../ai-entry-inventory.md)、[AI 手册](../../../../docs/platform/PROLOGUE-AI.md) | 后续改变入口及恢复／取消路径的差集；原暂缓边界不解除 |
+| 13 术语 | [GLOSSARY](../../../../docs/system/GLOSSARY.md) | 已知术语／手册指针与T414合同差集已接回原文档；终局随W6-03核收，不重走六路线 |
+| 14 静态检查 | [门禁规则集](../../../../tooling/gates/README.md) | 准确最终头的检查／CI 与告警处置；接入不等于零告警，不放宽配置 |
+| 15 依赖与 SDK | [依赖／SDK 方案](../dependencies-and-sdk-plan.md)、[当前包来源](../../../../vendor/prologue-sdk/README.md)、[Memory 合同](../../../prologue-memory-strategy/spec.md) | 当前组合、恢复与产品采用；provenance、上游合入和本产品实操分别记录 |
+| 16 安全不变量 | [SECURITY-INVARIANTS](../../../../docs/system/SECURITY-INVARIANTS.md) | 最终共同安全集、适用 Mac 边界及 HOLD 的原限制；Verify 绿不等于所有安全用例均已跑 |
+| 17 切换、清理、去留与发布 | 主 spec §1、[Runtime 迁移](../../../../docs/system/RUNTIME-MIGRATION.md)、[W6-01](w6-01-aliases.md)、[仓库卫生](../../../../docs/system/REPOSITORY-HYGIENE.md)、[发布策略](../../../../docs/releases/POLICY.md) | 剩余切换／实际采用／自有现场清理；两项获批装配例外保留，发布与真实 Home 仍按原授权 |
+| 18 门禁及突变验证 | [门禁说明](../../../../tooling/gates/README.md)、[规则实现入口](../../../../scripts/gates/README.md)；主 spec §5a 留历史 | 各原变更到有效红／绿的对应；不因统一收尾重演全套突变或改门禁 |
+| 19 原报告、附录 A、第一步交接 | 主 spec §12.2、[体检报告](../../repository-systematic-review/spec.md)、[第一步基线](../../post-merge-review/spec.md) | 当前剩余条目的证据闭环；主 spec R-01～14 与协调 R-01～73 不能同号销账 |
 | 20 预期修正、回归与行为基线 | 主 spec §12.3 TE／§12.5；各原失败及干净基线证据 | FR／LC／TE／AC沿原件与Pages/Coding差量接续；旧审批未实调decide、真实模型及辅助技术边界保留，最终CI／Full仍待 |
-| 21 手册／Skill | [W6-03 接续与原 smoke](w6-03-skill-replay-smoke.md)、[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)、[插件 Skill](../../../skills/molis-plugin-dev/SKILL.md)、[Prologue Skill](../../../skills/molis-prologue-ai/SKILL.md) | 六路线、原smoke、已修手册、T414及两样本回放均分源核收；reading历史unknown与新提示词模型质量未验保留，RAC-11终局随最终承载结算 |
+| 21 手册／Skill | [W6-03 接续与原 smoke](w6-03-skill-replay-smoke.md)、[开发要求](../../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)、[插件 Skill](../../../../skills/molis-plugin-dev/SKILL.md)、[Prologue Skill](../../../../skills/molis-prologue-ai/SKILL.md) | 六路线、原smoke、已修手册、T414及两样本回放均分源核收；reading历史unknown与新提示词模型质量未验保留，RAC-11终局随最终承载结算 |
 | 22 用户待决与 C 端方案 | 主 spec §1 的后续决定、[C 端就绪方案](../c-end-readiness.md) | 保留真正未决事项与原产品验收；方案已交不等于实现，不重问已决事项 |
 | 23 未验证范围及原因 | 主 spec §8／§12 与下列剩余边界 | 最终由根按 W5／W6 原证据结算；不把已取消迁移、已补跑路线继续记成待执行 |
 

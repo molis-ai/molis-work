@@ -2,7 +2,7 @@
 
 状态：现行（2026-10-08，按 main `bf99c8cb` 的代码核对，并按同日全部 27 项用户决定修订）。第 4 节的界面用词等用户批准；第 5 节的代码改名尚未执行。
 
-这份表回答「同一个东西在仓库里该叫什么」。依据是用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「术语表收敛范围」）：文档里一个概念一个名字、一个定义；代码内部标识符随之改名；用户看得见的用词变化先列清单、经用户批准再发。任务来源是 `docs/prompts/repository-anti-corruption.md` §4.15。
+这份表回答「同一个东西在仓库里该叫什么」。依据是用户 2026-10-08 的决定（`specs/archive/repository-anti-corruption/spec.md` §1「术语表收敛范围」）：文档里一个概念一个名字、一个定义；代码内部标识符随之改名；用户看得见的用词变化先列清单、经用户批准再发。任务来源是 `docs/prompts/repository-anti-corruption.md` §4.15。
 
 ## 0. 怎么用
 
@@ -87,7 +87,7 @@
 - 定义：宿主给一次入口级操作的编号：页面上的一次请求、MCP 的一次 `tools/call`、助理或 Agent 的一轮、一条命令行命令、一次定时触发。这次操作引起的所有动作调用与宿主能力调用共用它，所以一份报告能对到这次操作走过的每一步。字段是 `ActionCallContext.call_id`（合同类型 `ActionCallOrigin`，`packages/contracts/src/platform/actions.ts`），格式是 UUID，给人看的短形式取前 8 位。
 - 它不是身份，也不授予权限：只由宿主给，从调用上下文、此刻打开的作用域或新生成取，不从请求头、MCP 参数、`_meta`、业务输入或插件交来的字段读；处理器可以记录或返回它，不能凭它做判断。
 - 代码：作用域在 `packages/kernel/src/call-scope.ts`，结算在 `packages/kernel/src/action-settlement.ts`；宿主自己的项目客户端也经 `ActionService.invoke` 结算，没有另一条路（R8 删掉了 typed 口）。调用记录的行带编号（W3-01 B）；给人看的短形式 `shortCallId` 在 `packages/ui-host/src/call-id.ts`，不在内核（W3-01 F）；页面答复在这次操作留了行时带编号（响应头 `x-molis-work-call-id`，错误体里的 `call_id`，W3-01 C），装了共用请求助手的页面和工作台主程序里已迁到助手的部分把错误体里的编号显示成「诊断编号」按钮（`packages/ui-host/src/request-client.ts`，W3-10-1a、W3-10-1b）；助理与 Agent 每一轮的冻结记录带编号（`AgentRunView.frozen.call_id`，不是 `AgentToolActivity.call_id`，那是 Prologue 给一次工具调用的 id）、命令行每条命令一个（W3-01 E）；MCP 的错误文本与命令结果带编号（W3-01 D，`apps/local-host/src/mcp-call-id.ts`）；「能力 › 调用记录」每行显示诊断编号，「设置 › 诊断」按诊断编号查找（W3-01 F）；工作台尚未迁到共用助手的部分和插件客户端的错误详情继续随 W3-10 后续片。
-- 界面用名：「诊断编号」（英文 Diagnostic ID），2026-10-10 用户批准（`specs/repository-anti-corruption/spec.md` §1）。文档写「调用编号」，只有讲界面时写「诊断编号」。
+- 界面用名：「诊断编号」（英文 Diagnostic ID），2026-10-10 用户批准（`specs/archive/repository-anti-corruption/spec.md` §1）。文档写「调用编号」，只有讲界面时写「诊断编号」。
 - 不是：一次性键 `x-molis-work-idempotency-key`（HTTP 入口防重放，不往下传）；也不是 `runtime_session_id`（Runtime 会话）或 Agent 的 `run_id`；也不是助理与 Agent 工具活动里的 `call_id`（`AgentToolActivity.call_id`、`AssistantActivity.call_id`、`AgentCommandOutputRef.call_id`，在 `packages/contracts/src/services/agent-host.ts` 与 `assistant.ts`）：那是一行活动的标识（Prologue 给每次工具调用的编号，或 Agent Host 为推理、纠正等行合成的字符串），只在所在的一轮内唯一，没有操作含义。所以一轮有一个调用编号，轮里的每行活动各有自己的 `call_id`，两者无关；同一份记录里要同时放这两个编号时，字段名要分开，不并排写两个 `call_id`。
 
 **调用记录**
@@ -100,7 +100,7 @@
 - 定义：`HostCapabilityDescriptor`（`packages/contracts/src/platform/app-host.ts`）是注册表条目的引用，有 `capability_id`、`version`、`operation`（`query`、`command`、`wait`）。动作是带 `action` 元数据的 capability（`ActionDefinition extends HostCapabilityDescriptor`，`packages/contracts/src/platform/actions.ts`）；R8 删掉了不带 `action` 的 typed 宿主能力（`HostCapabilityDefinition`、`registerCapability`、插件的 `services.capabilities`），注册表里现在只有动作。
 - 现状：宿主只有 `LocalHost.registerAction()`（`apps/local-host/src/local-host.ts`）一个登记口，进动作服务；`CapabilityRegistry`（`packages/kernel/src/index.ts`）只收带 `action` 的定义。Manifest 的 `capabilities.provides` / `consumes` 列的是动作 id，插件经 `services.actions` 只能调用自己声明消费的（`apps/local-host/src/plugin-actions-client.ts`）；动作写在 Manifest 的 `actions`。
 - 调用：`LocalHost.invoke()` 只走 `ActionService.invoke`（宿主策略、授权复查、输入输出合同、一次结算都与动作客户端相同）；没有注册的 id 答 `actions.missing`。
-- 方向（2026-10-07 用户决定，`specs/repository-anti-corruption/spec.md` §1「两套能力机制收敛」）：对外的只走动作。Goals 的十四个 typed 桥、隔离开发入口与 Agent、调度、工作区的宿主能力先后转成动作，R8「删 typed 通道」把定义类型、注册口和插件的 `services.capabilities` 一起删掉；注册表里没有 typed 条目由 `tests/typed-registry-inventory.test.ts` 核对。
+- 方向（2026-10-07 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「两套能力机制收敛」）：对外的只走动作。Goals 的十四个 typed 桥、隔离开发入口与 Agent、调度、工作区的宿主能力先后转成动作，R8「删 typed 通道」把定义类型、注册口和插件的 `services.capabilities` 一起删掉；注册表里没有 typed 条目由 `tests/typed-registry-inventory.test.ts` 核对。
 - 写法：文档写「动作」；只有讲注册表类型时写 capability；讲已删除的旧通道写「宿主能力（typed）」。`docs/system/ARCHITECTURE.md` §4 与 `docs/platform/PLUGIN-PLATFORM.md` §3 里的 Capability 指宿主能力这一层。
 
 ### 2.2 判断体系
@@ -150,7 +150,7 @@
 **Character**
 
 - 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。草稿归 `modules/characters`，发布到项目后是成果的一个固定版本（类型 `character.definition.v1`）。起跑时按精确版本选用，且只对插件在 Manifest 的 `agent` 块里用 `characters.role_ids` 声明接受 Character 的 Agent role 开放（声明类型 `AgentManifest`，`packages/contracts/src/platform/plugin-agent.ts:189`；Coding 的声明在 `plugins/native/coding/src/roles.ts:38`；起跑时的核对在 `horizontal/agent-host/src/index.ts:466`）。
-- 归属（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。（CHR-1 已落地，2026-10-22；旧安装记录改走维护，见 `docs/releases/CHECKLIST.md`。）
+- 归属（2026-10-08 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。（CHR-1 已落地，2026-10-22；旧安装记录改走维护，见 `docs/releases/CHECKLIST.md`。）
 - 现行代码（CHR-1，2026-10-22 已落地；之前是 `plugins/native/characters`，一个经 Plugin Runtime 装配的插件）：Characters 没有自己的包、Manifest、`registration` 和监督器条目。动作声明、处理器与归属绑定在 `modules/characters`，宿主侧有 5 个文件：`apps/local-host/src/characters-host.ts`（为每个项目注册动作提供方）、`apps/local-host/src/characters-http.ts`（页面 14 个地址的门）、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。动作提供方仍叫 `io.molis.work.characters`（`kind: "plugin"`，标题 Characters，D1），所以动作引用、MCP 工具名与已发布的生产者继续对得上；有了 Module 这一种之后叫什么，是 BL-378。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:14-15`），`modules/characters/src/publications.ts:26` 读取时核对，两个值保留；发布写入的 `producer_plugin_version` 是产品版本（D4）。这是代码身份，不属于术语改名。
 - 代码：`CharacterDraft`、`CharacterContent`（`packages/contracts/src/modules/characters.ts`）。
 - 注意：设置的「角色」页同时列出 Character（「我的角色」）和 Agent role（「系统与插件带来的角色」）。界面把两者统称「角色」，文档分开写：个人的叫 Character，声明出来的叫 Agent role。裸写「角色」只用于引用这个界面标签。
@@ -206,7 +206,7 @@
 
 ### 2.6 讨论（项目讨论）
 
-- 定义：右栏的「讨论」页签（页签名「讨论」，页内标题「项目讨论」，内嵌页标题「群聊与 Thread」）：一个项目里的群聊和内联 Thread。它是在用、会继续迭代的产品功能，不是实验，也不是待删的东西（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「右栏『讨论』页签与 IM 代码」）。
+- 定义：右栏的「讨论」页签（页签名「讨论」，页内标题「项目讨论」，内嵌页标题「群聊与 Thread」）：一个项目里的群聊和内联 Thread。它是在用、会继续迭代的产品功能，不是实验，也不是待删的东西（2026-10-08 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「右栏『讨论』页签与 IM 代码」）。
 - 代码：页签与内嵌框在 `apps/workbench/src/side-panel.ts:38,42`；服务端包 `server/`（`@molis-ai/molis-work-server`，Home 下的库 `server/server.sqlite`，表名前缀 `mw_`，`server/src/database.ts`）里的群聊域；界面包 `packages/im-ui`（`@molis-ai/molis-work-im-ui`）；合同子路径 `@molis-ai/molis-work-contracts/services/im`；宿主挂载在 `apps/local-host/src/im-server.ts`。`apps/server` 是同一服务的独立启动器，没有产品入口，去留随功能迭代另定。
 - 写法：文档写「讨论」或「项目讨论」，代码缩写是 IM。不再写「IM 实验」「实验线」。它也不在内置插件清单里。
 - 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 已登记进 Home 数据与备份表（`docs/system/HOME-DATA.md` 3.4），`uninstall --purge-user-data` 也清除 `server/`（W2-12）；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`，W2-06 未做）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
@@ -214,7 +214,7 @@
 ### 2.7 术语与翻译键
 
 - 现状：翻译键就是中文原文。`apps/workbench/src/i18n/en.ts` 的 `EN: Record<string, string>` 由工作台和各插件的词典展开合成，条目形如 `"连接不可用": "Connection unavailable"`。所以改一个界面用词要同时改源码里的文字和每份词典的键，同一句中文在不同词典里还可以有不同的英文，例如「判断规则」在 `apps/workbench/src/judgment-rules/en.ts:148` 是 Judgment rules，在 `plugins/native/lingguang/src/en.ts:47` 是 Rules，在 `plugins/native/workflows/src/en.ts:151` 是 Judgment rule。
-- 决定（2026-10-08，`specs/repository-anti-corruption/spec.md` §1「界面翻译」，用户没有选推荐）：全部换成稳定键，词典按主人分，CI 查缺失、无用与冲突；路线第 5 波的「翻译按主人分」改成「稳定键」，先做一个插件样板（W5-03）。
+- 决定（2026-10-08，`specs/archive/repository-anti-corruption/spec.md` §1「界面翻译」，用户没有选推荐）：全部换成稳定键，词典按主人分，CI 查缺失、无用与冲突；路线第 5 波的「翻译按主人分」改成「稳定键」，先做一个插件样板（W5-03）。
 - 术语怎样对应键（规则；样板落地时按实际调整，调整在同一个 PR 里改本节）：
   1. 键标识概念和位置，不含措辞；中文和英文措辞都是词典的值。所以第 4 节的界面用词获批后只改词典的值，键、代码标识符和文档都不动；不获批就保持现值。英文值跟中文值同一批审批，例如「能力」今天译作 Capabilities（`apps/workbench/src/i18n/gap-en.ts:109`）。
   2. 键用英文小写加点分层，形如 `<主人>.<位置>.<元素>`：主人是 `project_plugin_id`（第 3 节）或宿主区域（如 `settings`、`shell`）。键里指本表概念的那一段，用下表「键里的词」；旧称不进新键。示例（不是现存的键）：`judgment_rule.editor.step.scene`。
@@ -292,7 +292,7 @@
 | `workflows` | 工作流程 | 工作流程 | Manifest 的 `plugin_id` 是 `io.molis.work.native.workflows`，比其他插件多一段 `.native.`（表后第 1 条） |
 | `issues` | Issue | Issue | |
 
-中文界面里显示名中英文混用：17 个用英文（Goals、Inbox、Feed、Schedule、Coding、Files、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），7 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/repository-anti-corruption/spec.md` §1），不在清单里。
+中文界面里显示名中英文混用：17 个用英文（Goals、Inbox、Feed、Schedule、Coding、Files、Git、Diff、Text stats、Cognia、Jelly、Shelf、Pages、Forms、Dataset、PPT、Issue），7 个用中文（成果、插件创作工作台、图片、灵光、待办、炼金术士、工作流程）。Characters 是设置的一节而不是插件（2.3，CHR-1，2026-10-22 已并入宿主），不在这张清单里。实验插件（`experiments`）2026-10-10 已删（`specs/archive/repository-anti-corruption/spec.md` §1），不在清单里。
 
 表外的几处不规则：
 
@@ -429,7 +429,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-B2 | 判断规则：动作 id `functions.list`、`functions.describe`、`functions.invoke`、`functions.published.<function_key>`；权限串 `functions:invoke`、`functions:manage`；`FUNCTIONS_PLUGIN_ID`（`io.molis.work.functions`）；字段 `function_key`；库表 `function_judgments` 等；Home 里的 `functions` 库名（`openBaselineHomeSqlite(home, "functions", …)`） | 改成 `judgments.*` / `judgment_rule`，或保留 | `functions.*` 动作 id 源码 9 个文件，权限串 10，`function_key` 28 | 动作 id 派生 MCP 工具名，改名会使已有客户端授权失效；权限串写在安装授权里；库名要走维护（2026-10-26 不做，见 R-C） |
 | R-B3 | Board 系：事件类型与错误码 `board.created`、`board.active_goal_changed`、`board.not_found`、`board.exists`；能力 id `io.molis.work.local-host.board.initialize`、`io.molis.work.local-host.board.snapshot`；动作 id `goals.board.initialize` | 动作 `goals.library.initialize`，事件与错误码 `goals_library.*`（如 `goals_library.not_found`） | 事件与错误码 7 个源码文件 | 事件与动作 id 对外可见（2026-10-26 不做，见 R-C） |
 | R-B4 | 推荐选项：结果类型 `molis.behavior-recommendation.v1`、字段 `suggested_behavior_ids`、判断规则草稿里的 `scene_map`（值是场景内的符号）、库列 `suggested_json` 里的内容 | `molis.recommendation.v1`、`suggested_option_ids` | 结果类型 6 个源码文件，`suggested_behavior_ids` 30，`scene_map` 9 | 已存的判断记录与草稿里有旧值；结果合同写入严格，读取不兜底，所以要先改存量（2026-10-26 不做，见 R-C） |
-| R-B5 | Skill：Manifest 的 `methods` 键；动作 id `assistant.methods.*`（现有 `assistant.methods.read`）；助理里 Skill 的 id 字段 `method_id`（`assistant.methods.read` 的输入和输出字段，`apps/local-host/src/assistant/assistant-rule-actions.ts:61-65,86-87`；物料里的 `method.method_id`）；助理物料种类值 `"method"`（`packages/contracts/src/services/assistant.ts:199`），它存在轮次记录的 `materials` 里（`apps/local-host/src/assistant/assistant-store.ts:107`） | `skills` / `assistant.skills.*` / `skill_id` / `"skill"` | `assistant.methods` 2 个源码文件；`method_id` 在助理一侧 5 个源码文件（`apps/local-host/src/assistant/assistant-rule-actions.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`、`packages/contracts/src/services/assistant.ts`） | Manifest 是插件 SDK 的公开合同（`packages/contracts/src/platform/plugin.ts`）；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。Goals 的 `method_id` 指规划方法，不在此列（R-C）。**排序**：W4-02 让 Manifest 的 `methods` 对 Runtime 和已安装插件生效（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Runtime 与安装插件声明的 methods」），改键名与它碰同一个 Manifest 合同，应和 W4-02 一起问、或排在它之后，让合同只变一次（2026-10-26 不做，见 R-C） |
+| R-B5 | Skill：Manifest 的 `methods` 键；动作 id `assistant.methods.*`（现有 `assistant.methods.read`）；助理里 Skill 的 id 字段 `method_id`（`assistant.methods.read` 的输入和输出字段，`apps/local-host/src/assistant/assistant-rule-actions.ts:61-65,86-87`；物料里的 `method.method_id`）；助理物料种类值 `"method"`（`packages/contracts/src/services/assistant.ts:199`），它存在轮次记录的 `materials` 里（`apps/local-host/src/assistant/assistant-store.ts:107`） | `skills` / `assistant.skills.*` / `skill_id` / `"skill"` | `assistant.methods` 2 个源码文件；`method_id` 在助理一侧 5 个源码文件（`apps/local-host/src/assistant/assistant-rule-actions.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`apps/workbench/src/scripts/client/assistant-island.ts`、`apps/workbench/src/settings-agent-diagnostics.ts`、`packages/contracts/src/services/assistant.ts`） | Manifest 是插件 SDK 的公开合同（`packages/contracts/src/platform/plugin.ts`）；动作 id 派生 MCP 工具名；`method_id` 是动作的输入输出字段；物料种类值存在已存的轮次里，改名要走维护。Goals 的 `method_id` 指规划方法，不在此列（R-C）。**排序**：W4-02 让 Manifest 的 `methods` 对 Runtime 和已安装插件生效（2026-10-08 用户决定，`specs/archive/repository-anti-corruption/spec.md` §1「Runtime 与安装插件声明的 methods」），改键名与它碰同一个 Manifest 合同，应和 W4-02 一起问、或排在它之后，让合同只变一次（2026-10-26 不做，见 R-C） |
 | R-B6 | Agent 动作工具名 `find-capabilities`、`read-capability`、`change-capability` | `find-actions`、`read-action`、`change-action`（`suggest-action`、`change-reversible` 已一致） | 源码 6 个文件 46 处，测试 10 个文件 | 助理提示词引用这些名字（`apps/local-host/src/assistant/assistant-agent.ts`），提示词可由用户改写（`user_revision`），改名要升提示词版本并核对用户改写的版本（2026-10-26 不做，见 R-C） |
 | R-B7 | 工作流程衔接类型 `function`（模板转换） | `template` | `plugins/native/workflows/src` 的 `actions.ts`、`client.ts`、`model.ts` | 已保存的流程和实例里存着这个值（2026-10-26 不做，见 R-C） |
 | R-B8 | 工作流程的 `plugin_id` `io.molis.work.native.workflows` | `io.molis.work.workflows` | 字面量在 `plugins/native/workflows/src/` 的 3 个源码文件（`client.ts:69,213`、`model.ts:8`、`prompts.ts:5`），常量 `WORKFLOWS_PLUGIN_ID` 另有 `actions.ts`、`manifest.ts`、`ui.ts` 引用 | `plugin_id` 是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`）的键，改名要改这些存量（2026-10-26 不做，见 R-C） |

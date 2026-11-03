@@ -16,7 +16,7 @@
 
 原件暂存在上列本机证据目录；这里只接入已有结论。Projects 首轮通过；Knowledge 首轮因临时断言混同索引 revision 与 owner revision 失败，按 owner 合同修正后仅补该项通过。路线3～6首轮整批为 2/4 文件通过：Chrome 启动受沙箱限制，workspace 的 Node 内部断言崩溃根因仍未知；后续同源码仅补未绿两文件，分别 12/12、4/4。保留首败，不合写一次总绿。
 
-现行操作入口是[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)、[插件 Skill](../../../skills/molis-plugin-dev/SKILL.md)、[Prologue Skill](../../../skills/molis-prologue-ai/SKILL.md)、[扩展点 §3.1](../../../docs/system/EXTENSION-POINTS.md#31-内置插件)及[并行规则 §5.1](../../../docs/system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)。本基准已说明 registration／生成登记及本次 CI Full 覆盖规则，旧静态报告中的操作文字差异不再重复派修；历史成本数字不改成当前实测。
+现行操作入口是[开发要求](../../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)、[插件 Skill](../../../../skills/molis-plugin-dev/SKILL.md)、[Prologue Skill](../../../../skills/molis-prologue-ai/SKILL.md)、[扩展点 §3.1](../../../../docs/system/EXTENSION-POINTS.md#31-内置插件)及[并行规则 §5.1](../../../../docs/system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)。本基准已说明 registration／生成登记及本次 CI Full 覆盖规则，旧静态报告中的操作文字差异不再重复派修；历史成本数字不改成当前实测。
 
 2026-11-02 接续：T411 在上述 `8315c693` 完成原计数器／清单两份真实隔离 smoke，2/2 到达 designed，3 次内置修正，原始结果见 `/tmp/t411-evidence/REAL-SMOKE-RESULT.md`。W4 计数器真实生成、四例验收、签包及独立安装／升级／重启已通过；清单本轮空态界面断言失败，修复阶段请求与用量回执不等后停止，未取得两样本整体通过。有效已绿步骤沿用，均不因最终集成换头重跑。
 

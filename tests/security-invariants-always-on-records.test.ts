@@ -17,7 +17,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-// ac-trust T3 (specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
+// ac-trust T3 (specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
 // install records each time it is asked, nothing names a plugin, and the server refuses to uninstall, switch off or remove a 常开 plugin.
 
 const ALWAYS_ON = { kind: "always_on", subject: consentSubject.alwaysOn() } as const;

@@ -3,7 +3,7 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // The relation editor says that relation changes proposed by tools wait in the Inbox, and links to it. The Goal-era `/decisions`
-// page that link used to open (the Inbox as a page of its own) is gone (specs/repository-anti-corruption, W2-02): the link opens
+// page that link used to open (the Inbox as a page of its own) is gone (specs/archive/repository-anti-corruption, W2-02): the link opens
 // the Inbox plugin the way the plugin switcher does, and where the plugin is not available it falls back to the project's front page.
 test("the Inbox link in the relation editor opens the Inbox plugin, not a page of its own", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t);

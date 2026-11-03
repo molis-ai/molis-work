@@ -1,4 +1,4 @@
-// W4-01 (specs/repository-anti-corruption/slices/w5-02-registry.md §6, RAC-579): the probe in examples/probe-plugin becomes a
+// W4-01 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §6, RAC-579): the probe in examples/probe-plugin becomes a
 // built-in by its own package alone. In a copy of the repository the test puts it at plugins/native/probe, runs the generator and
 // `pnpm install`, builds the probe and the two apps, and checks that outside the probe only what the generator and pnpm write has
 // changed. A child process in that copy then walks the lifecycle in a one-off Home: enable, discover, invoke (its route and an

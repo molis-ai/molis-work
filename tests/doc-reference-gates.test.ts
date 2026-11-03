@@ -7,7 +7,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 
-// specs/repository-anti-corruption §4.12–§4.14 (W1-06): the documentation and repository-shape gates of `pnpm health:check`
+// specs/archive/repository-anti-corruption §4.12–§4.14 (W1-06): the documentation and repository-shape gates of `pnpm health:check`
 // (scripts/gates/README.md). Each rule is mutation-verified here on a small scratch repository, the way
 // tests/health-gates-merge-base.test.ts does the numeric ones: the base is clean, one violation is added on a branch, and
 // `--base main` must fail with the rule's message. For the counts that may only fall (root strays, .impeccable files)

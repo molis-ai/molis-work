@@ -10,7 +10,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-// specs/repository-anti-corruption W5-07: handleMolisWorkWebRequest became an ordered route table. What the table must keep is which
+// specs/archive/repository-anti-corruption W5-07: handleMolisWorkWebRequest became an ordered route table. What the table must keep is which
 // handler answers each address, in the same order, and what falls through to the 404s. This asks the public web server (the same
 // local control guard in front) a fixed list of requests and pins what comes back: status, content type, redirect, and the JSON
 // error code and message or the top-level keys, or an HTML page's title. The snapshot was written on main before the refactor

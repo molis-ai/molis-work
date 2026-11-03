@@ -1,5 +1,7 @@
 # Home 级插件的库按项目分开（S0a）
 
+> 归档（2026-11-04）：判定为**已实现**。S0a 已合入 main，PART-01～12 有编号测试；`purge` 一段已被 PG-024 取代，现行写法在 `docs/platform/PLUGIN-DEVELOPMENT.md`。剩余事项已移到统一待办清单：BL-639（分区库升级）。
+
 状态：执行中：S0a 本 PR（2026-10-20）。负责人：平台线 ②。本文记设计、取舍、用户的决定和验收。依据：用户 2026-10-20 定的 Alchemist 问题 1（按项目分区的插件库），[防腐 spec](../repository-anti-corruption/spec.md) 的决策表那一行与 §10 的第 15 条（Alchemist、Images 留在 Home 级，Home 级实例要能按调用所在的项目给出库）；方案底稿是本地笔记 `alchemist-platform-plan.md` §2.1（不在仓库里）。Alchemist 改用它是迁移线 ③ 的事，不在本片。
 
 ## 1. 要解决的事

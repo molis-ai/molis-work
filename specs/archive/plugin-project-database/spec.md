@@ -1,5 +1,7 @@
 # 项目库里的插件表
 
+> 归档（2026-11-04）：判定为**已实现**。L1a～L4 与 Coding 改用项目库服务均已合入 main，PLIB-01～15 除已被取代的 PLIB-05 外都有编号测试；v7→v8 维护已被 2026-10-30 的干净 Home 重建取代。仍生效的规则在 `docs/platform/PLUGIN-DEVELOPMENT.md`「项目库里插件自己的表」。剩余事项已移到统一待办清单：BL-377（创作台要能生成声明 `databases.project` 的插件）。
+
 状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；旧v7维护八已被2026-10-30干净Home重建取代；现行项目结构起点1，重建前不要用新构建打开旧Home。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）已在 `claude/ac-pg022-manifest-declarations` 做好、未合入（片稿 `specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md`，只给宿主启动名单上的插件，发布者账本是 P1b）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
 
 依据：

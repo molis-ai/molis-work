@@ -10,7 +10,7 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandb
 import { SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, valuesOf } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// BL-715 (PG-011, S-94; specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): what the settings page tells the person about the
+// BL-715 (PG-011, S-94; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): what the settings page tells the person about the
 // packages installed in the Home, and what the person can do with them from there. The lists say why a package is not running (RAC-2601, RAC-2607),
 // the Home's list is reconciled against the publishers the person took back before it is read (RAC-2602), and a package of the Home is switched off
 // and on and taken off through the Host settings door (RAC-2605). The refusals of that door are in security-invariants-plugin-permissions*.test.ts.

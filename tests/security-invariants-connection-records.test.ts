@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ProjectDeletionService, connectorPluginSlotActions, createPluginConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createPluginConnectionsClient, runInPluginAction, type PluginConnectionsPort } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -267,9 +267,11 @@ test("S-71 RAC-348 only the person binds a record's account, in the project they
 
 test("S-71 RAC-470 deleting a project removes its per_record bindings, of every plugin, and nothing of another project or installation slot", { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "connection-records-deletion-")); t.after(() => rm(directory, { recursive: true, force: true }));
-  const home = join(directory, "home"), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); t.after(() => catalog.close());
-  const gone = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
-  const kept = await catalog.createProject({ display_name: "留下的项目", actor_id: "test-user" });
+  const home = join(directory, "home");
+  const [gone, kept] = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => [
+    await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" }),
+    await catalog.createProject({ display_name: "留下的项目", actor_id: "test-user" }),
+  ]);
   // An installation that stays in the kept project: a binding no installation holds goes with a deleted project too (S-71 RAC-864), so these are held.
   const probe = ownerFilesProbe("recordsdeletion", "project"), rig = ownerFilesProject(home, probe, { file: kept.database_path, projectId: kept.project_id }); t.after(() => rig.close());
   const record = rig.platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.withoutFiles(), deployment: "local", grants: probe.permissions }).install;

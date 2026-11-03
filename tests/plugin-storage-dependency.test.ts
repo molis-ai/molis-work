@@ -14,7 +14,7 @@ import * as workflows from "@molis-ai/molis-work-plugin-workflows";
 import { openCogniaStore, openDatasetStore, openFormStore, openJellyStore, openLingguangStore, openPagesStore, openPptStore, openTodoStore, openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { tmpdir } from "node:os";
 
-// specs/repository-anti-corruption/slices/plugin-packages-drop-storage.md, PG-023: a plugin gets its library from the Runtime
+// specs/archive/repository-anti-corruption/slices/plugin-packages-drop-storage.md, PG-023: a plugin gets its library from the Runtime
 // (`services.database`); it does not depend on the private storage package or open a file of the Home by path.
 
 const PLUGINS = { todo, form, lingguang, dataset, ppt, jelly, cognia, workflows, pages } as const;

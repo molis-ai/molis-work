@@ -1,5 +1,5 @@
 {
-  "giantUnits": 43,
+  "giantUnits": 50,
   "giant": {
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "lines": 257,
@@ -13,20 +13,28 @@
       "lines": 443,
       "methods": 45
     },
-    "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
-    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
+    "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 209,
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 261,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
-    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 161,
-    "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 208,
-      "methods": 32
+    "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 191,
+    "class apps/local-host/src/home-plugins.ts#HomePluginHost": {
+      "lines": 280,
+      "methods": 26
     },
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
-    "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
-    "file apps/workbench/src/i18n/en.ts": 3270,
-    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
-    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
+    "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": 155,
+    "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
+      "lines": 247,
+      "methods": 34
+    },
+    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
+      "lines": 303,
+      "methods": 23
+    },
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 156,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 153,
+    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": 188,
+    "file apps/workbench/src/i18n/en.ts": 3208,
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {
       "lines": 1015,
@@ -36,16 +44,17 @@
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 396,
-      "methods": 15
+      "lines": 442,
+      "methods": 16
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
       "methods": 23
     },
+    "file packages/plugin-runtime/src/index.ts": 830,
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 623,
-      "methods": 29
+      "lines": 654,
+      "methods": 31
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
       "lines": 567,
@@ -56,10 +65,10 @@
       "methods": 26
     },
     "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
-      "lines": 311,
+      "lines": 315,
       "methods": 9
     },
-    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
+    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 192,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
@@ -68,6 +77,8 @@
       "lines": 120,
       "methods": 27
     },
+    "function plugins/native/feed/src/plugin.ts#createFeedPlugin": 159,
+    "function plugins/native/feed/src/plugin.ts#start": 157,
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 267,
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 241,
     "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
@@ -77,20 +88,22 @@
     "function plugins/native/goals/src/module/event-state-effects.ts#recordTrustedDecision": 152,
     "function plugins/native/goals/src/module/lifecycle-archive.ts#setTrashed": 155,
     "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": 245,
+    "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": 229,
     "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {
       "lines": 417,
       "methods": 13
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
+    "file plugins/native/plugin-builder/src/agent-authoring.ts": 821,
+    "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 228,
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
-      "lines": 654,
+      "lines": 664,
       "methods": 40
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 412,
+  "testInternalImports": 405,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -147,13 +160,13 @@
     "tests/connector-account-actions.test.ts": 1,
     "tests/connector-api-oauth.test.ts": 6,
     "tests/connector-authorization-recovery.test.ts": 3,
-    "tests/connector-cli.test.ts": 2,
+    "tests/connector-cli.test.ts": 1,
     "tests/connector-connections.test.ts": 2,
     "tests/connector-document-import.test.ts": 1,
     "tests/connector-mcp.test.ts": 9,
     "tests/connector-method-directory.test.ts": 4,
     "tests/connector-oauth-broker.test.ts": 3,
-    "tests/connector-oauth-choice.test.ts": 4,
+    "tests/connector-oauth-choice.test.ts": 3,
     "tests/connector-provider-contracts.test.ts": 3,
     "tests/connector-reconnect-regressions.test.ts": 1,
     "tests/connectors-settings-behaviors.test.ts": 4,
@@ -169,9 +182,8 @@
     "tests/current-project-settings.test.ts": 1,
     "tests/external-mcp-actions.test.ts": 4,
     "tests/external-mcp-dispatch.test.ts": 3,
-    "tests/feed-assistant-context.test.ts": 1,
     "tests/feed-capture-scenes.test.ts": 1,
-    "tests/feed-inbox-pages-loop.test.ts": 3,
+    "tests/feed-inbox-pages-loop.test.ts": 2,
     "tests/feed-item-actions.test.ts": 3,
     "tests/feed-source-actions.test.ts": 1,
     "tests/feed-sync-authority.test.ts": 1,
@@ -218,7 +230,7 @@
     "tests/jelly-native-material.test.ts": 1,
     "tests/jelly-plugin.test.ts": 1,
     "tests/jelly-source-providers.test.ts": 3,
-    "tests/list-silent-refresh.test.ts": 5,
+    "tests/list-silent-refresh.test.ts": 3,
     "tests/local-web-actions.test.ts": 2,
     "tests/material-documents.test.ts": 1,
     "tests/material-extraction.test.ts": 5,
@@ -281,7 +293,7 @@
     "tests/tab-strip-share.test.ts": 3,
     "tests/tab-workspace-ops.test.ts": 1,
     "tests/todo-plugin.test.ts": 1,
-    "tests/ui-audit-2026-09-22.test.ts": 5,
+    "tests/ui-audit-2026-09-22.test.ts": 4,
     "tests/web-catalog-recovery.test.ts": 1,
     "tests/web-service-settings-client.test.ts": 1,
     "tests/work-placement.test.ts": 1,
@@ -306,21 +318,17 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 74,
+  "emptyCatchesInScriptsTotal": 66,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
-    "apps/local-host/src/browser/surface-driver.ts": 1,
     "apps/workbench/src/scripts/client/agent-review.ts": 1,
-    "apps/workbench/src/scripts/client/events-secondary.ts": 1,
-    "apps/workbench/src/scripts/client/feed-rule-authoring.ts": 3,
     "apps/workbench/src/scripts/client/frame-container.ts": 5,
     "apps/workbench/src/scripts/client/global-search.ts": 1,
     "apps/workbench/src/scripts/client/home-offers.ts": 1,
     "apps/workbench/src/scripts/client/immersive-navigation.ts": 2,
     "apps/workbench/src/scripts/client/initialization.ts": 3,
     "apps/workbench/src/scripts/client/navigation-feed.ts": 1,
-    "apps/workbench/src/scripts/client/navigation-inbox.ts": 3,
     "apps/workbench/src/scripts/client/navigation-presentation.ts": 2,
     "apps/workbench/src/scripts/client/placement.ts": 2,
     "apps/workbench/src/scripts/client/plugin-membership.ts": 2,
@@ -346,11 +354,10 @@
   "oldNames": {
     "packages/storage/src/adapters/file-secret-store.ts": 1
   },
-  "scriptConstantsTotal": 98,
+  "scriptConstantsTotal": 95,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
-    "apps/local-host/src/browser/surface-driver.ts": 1,
     "apps/workbench/src/judgment-rules/bootstrap.ts": 1,
     "apps/workbench/src/judgment-rules/client.ts": 1,
     "apps/workbench/src/judgment-rules/settings-client.ts": 1,
@@ -365,14 +372,12 @@
     "apps/workbench/src/scripts/client/events-accessibility.ts": 1,
     "apps/workbench/src/scripts/client/events-primary.ts": 1,
     "apps/workbench/src/scripts/client/events-secondary.ts": 1,
-    "apps/workbench/src/scripts/client/feed-rule-authoring.ts": 1,
     "apps/workbench/src/scripts/client/frame-container.ts": 1,
     "apps/workbench/src/scripts/client/global-search.ts": 1,
     "apps/workbench/src/scripts/client/home-offers.ts": 1,
     "apps/workbench/src/scripts/client/immersive-navigation.ts": 1,
     "apps/workbench/src/scripts/client/initialization.ts": 1,
     "apps/workbench/src/scripts/client/navigation-feed.ts": 1,
-    "apps/workbench/src/scripts/client/navigation-inbox.ts": 1,
     "apps/workbench/src/scripts/client/navigation-presentation.ts": 2,
     "apps/workbench/src/scripts/client/placement.ts": 1,
     "apps/workbench/src/scripts/client/plugin-membership.ts": 1,
@@ -435,9 +440,9 @@
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseChangeSet": 31,
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseCodingChangeSet": 23
   },
-  "hostEntryExportStarTotal": 8,
+  "hostEntryExportStarTotal": 7,
   "hostEntryExportStar": {
-    "apps/local-host/src/index.ts#export-star": 8
+    "apps/local-host/src/index.ts#export-star": 7
   },
   "layerExceptionsTotal": 10,
   "layerExceptions": {
@@ -480,28 +485,28 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 55,
+  "pluginOutsideMentionsTotal": 37,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
-    "coding#outside-files": 2,
+    "coding#outside-files": 0,
     "cognia#outside-files": 0,
     "dataset#outside-files": 0,
     "diff#outside-files": 0,
-    "feed#outside-files": 13,
+    "feed#outside-files": 5,
     "files#outside-files": 0,
     "form#outside-files": 0,
     "git#outside-files": 0,
-    "goals#outside-files": 12,
+    "goals#outside-files": 9,
     "images#outside-files": 0,
-    "inbox#outside-files": 6,
+    "inbox#outside-files": 3,
     "issues#outside-files": 0,
     "jelly#outside-files": 0,
     "lingguang#outside-files": 0,
     "pages#outside-files": 1,
     "plugin-builder#outside-files": 13,
     "ppt#outside-files": 0,
-    "schedule#outside-files": 1,
-    "shelf#outside-files": 2,
+    "schedule#outside-files": 0,
+    "shelf#outside-files": 1,
     "text-stats#outside-files": 0,
     "todo#outside-files": 0,
     "workflows#outside-files": 0
@@ -685,7 +690,7 @@
   "emptyCatches": {
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 146,
+  "unknownCastsTotal": 142,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -693,7 +698,6 @@
     "apps/local-host/src/placement-http.ts": 2,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 1,
     "apps/local-host/src/plugin-builder/catalog.ts": 2,
-    "apps/local-host/src/plugin-builder/exposed-actions.ts": 2,
     "apps/local-host/src/plugin-event-http.ts": 1,
     "apps/local-host/src/search-http.ts": 2,
     "horizontal/agent-host/src/adapters/plugin-builder.ts": 1,
@@ -766,7 +770,6 @@
     "tests/feed-source-actions.test.ts": 2,
     "tests/fixtures/coding-surface.ts": 1,
     "tests/generated-plugin-prompts.test.ts": 1,
-    "tests/inbox-automatic-scenes.test.ts": 2,
     "tests/inbox-prepared-pages.test.ts": 1,
     "tests/pages-draft-race.test.ts": 2,
     "tests/pages-plugin.test.ts": 1,
@@ -788,7 +791,7 @@
   "floatingPromises": {
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 464,
+  "explicitAnyTotal": 459,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -908,7 +911,6 @@
     "tests/prologue-compaction.test.ts": 8,
     "tests/prologue-inference-images.test.ts": 2,
     "tests/prologue-inference-native.test.ts": 1,
-    "tests/prologue-materials.test.ts": 5,
     "tests/prologue-model-retry.test.ts": 1,
     "tests/prologue-review-child-command.test.ts": 5,
     "tests/prologue-review-feedback.test.ts": 3,
@@ -1008,7 +1010,7 @@
     "orderDependent": [],
     "nested": []
   },
-  "errorSubclassTotal": 25,
+  "errorSubclassTotal": 24,
   "errorSubclasses": {
     "apps/local-host/src/browser/cdp.ts": 1,
     "apps/local-host/src/connector-api-oauth.ts": 1,
@@ -1031,7 +1033,6 @@
     "plugins/native/alchemist/src/studio/server/sources/http-source-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/official-integrations/catalog/src/http.ts": 1,
-    "plugins/official-integrations/catalog/src/notion-oauth.ts": 1,
     "plugins/official-integrations/github/src/provider.ts": 1,
     "server/src/errors.ts": 1,
     "server/src/im/errors.ts": 1

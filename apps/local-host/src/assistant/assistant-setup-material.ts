@@ -18,6 +18,6 @@ export function assistantSetupMaterial(home: string, work: StoredWork, offered: 
       intent_revision: status.intent_revision, commit_held: status.commit_held === true, completion_ready: status.completion_ready === true }];
   });
   if (!requests.length) return undefined;
-  return { material_id: "connector-setups", source_artifact_id: work.work_id, source_version: work.revision,
+  return { material_id: "connector-setups",
     title: "本会话未完成的服务接入（当前状态）", text: JSON.stringify({ previous_wait_withdrawn: previousWaitWithdrawn, requests }) };
 }

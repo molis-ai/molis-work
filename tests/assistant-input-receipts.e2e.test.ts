@@ -10,9 +10,10 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 // question waits, each supplement carries the runtime's receipt, and a Send whose outcome was lost goes again after a
 // refresh under the same key. The model is a local fixture; the Assistant, its runtime and the Host are real.
 async function assistantPage(t: TestContext, behavior: IssueModelBehavior, storage = true) {
-  const browser = await openGoalBrowser(t, "user");
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, behavior); },
+  });
   if (!browser) return null;
-  await issueModel(t, browser.homeDirectory, behavior);
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
   await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, browser.sessionId);
   if (!storage) await browser.command("Page.addScriptToEvaluateOnNewDocument", {

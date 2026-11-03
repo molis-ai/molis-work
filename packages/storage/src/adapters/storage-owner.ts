@@ -2,6 +2,7 @@ import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, realpathSync, t
 import { isAbsolute, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
 
 const errors = defineErrorCodes("storage.owner", {
   busy: "conflict", invalid: "invalid", closed: "invalid", borrowed: "conflict",
@@ -30,6 +31,8 @@ interface Ownership {
   database: DatabaseSync;
   released: boolean;
   borrowed: boolean;
+  retained: number;
+  recovering: boolean;
 }
 
 const owners = new WeakMap<object, Ownership>();
@@ -113,7 +116,7 @@ function hasBusinessFiles(directory: string): boolean {
  * The same SQLite EXCLUSIVE lock used by Prologue, acquired before any Home business owner opens.
  * Every acquisition is strict, including a second Host in this process. The lock file stays in place after release.
  */
-export function acquireStorageOwner(directory: string): StorageOwner {
+function acquireOwner(directory: string, recovering: boolean): StorageOwner {
   const root = prepareDirectory(directory);
   let database: DatabaseSync | undefined;
   try {
@@ -121,11 +124,12 @@ export function acquireStorageOwner(directory: string): StorageOwner {
     database.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
     const current = directoryIdentity(root.path);
     if (!current || !sameNode(current.stat, root.stat) || !sameNode(lockIdentity(root.file), root.fileIdentity)) throw invalid();
+    if (!recovering) assertNoPendingHomeRestore(root.path);
     const held: Ownership = { directory: root.path, directoryIdentity: root.stat, fileIdentity: root.fileIdentity,
-      database, released: false, borrowed: false };
+      database, released: false, borrowed: false, retained: 0, recovering };
     const proof: StorageOwner = Object.freeze({ [ownerBrand]: true as const, release() {
       if (held.released) return;
-      if (held.borrowed) throw errors.borrowed("执行服务仍借用此存储所有权；请先完成执行服务的关闭");
+      if (held.borrowed || held.retained) throw errors.borrowed("存储资源仍借用此所有权；请先完成资源的关闭");
       held.database.close();
       held.released = true;
     } });
@@ -141,9 +145,29 @@ export function acquireStorageOwner(directory: string): StorageOwner {
   }
 }
 
+export function acquireStorageOwner(directory: string): StorageOwner {
+  return acquireOwner(directory, false);
+}
+
+/** Recovery uses the same exclusive inode and cannot authorize normal Catalog or SDK startup while pending. */
+export function acquireStorageOwnerForRecovery(directory: string): StorageOwner {
+  return acquireOwner(directory, true);
+}
+
+/** Catalogs retain a genuine parent independently of the SDK's single execution borrow. */
+export function retainStorageOwner(directory: string, proof: unknown): { release(): void } {
+  const held = heldOwner(directory, proof);
+  assertNoPendingHomeRestore(held.directory);
+  held.retained++;
+  let released = false;
+  return { release() { if (!released) { released = true; held.retained--; } } };
+}
+
 /** SDK startup borrows only a genuine parent for this root; releasing the child never releases its parent. */
 export function borrowStorageOwner(directory: string, proof: unknown): StorageOwnerBorrow {
   const held = heldOwner(directory, proof);
+  assertNoPendingHomeRestore(held.directory);
+  if (held.recovering) throw errors.invalid("离线恢复所有权不能用于启动 SDK");
   if (held.borrowed) throw errors.busy("此存储所有权已由一个执行服务借用，不能启动第二个执行服务");
   held.borrowed = true;
   let released = false;

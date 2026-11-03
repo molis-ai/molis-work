@@ -11,11 +11,12 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
     const node = part.node;
     return async (event: SubmitEvent) => {
         event.preventDefault(); if (part.busy || !ready(node.submit?.operationId)) return;
-        const generation = c.epoch, submitted = part.draft;
+        const generation = c.epoch, submitted = part.draft, querying = operation(node.submit?.operationId)?.kind === 'query';
         try {
           const values: Record<string, unknown> = {};
           for (const input of form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]')) {
-            const spec = schema.properties![input.dataset.field!]!; if (!input.value && !input.required) continue;
+            const field = input.dataset.field!, spec = schema.properties![field]!;
+            if (!input.value && !input.required && !(querying && spec.type === 'string' && schema.required?.includes(field))) continue;
             values[input.name] = spec.type === 'boolean' ? input instanceof HTMLInputElement && input.type === 'checkbox' ? input.checked : input.value === 'true' : typedValue(input, spec) ?? input.value;
           }
           // A model call can take tens of seconds; say so rather than "saving".
@@ -30,9 +31,9 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
           const flags = result && typeof result === 'object' && !Array.isArray(result) ? Object.values(result as Record<string, unknown>).filter(value => typeof value === 'boolean') : [];
           const undone = (verb === '打卡' || verb === '完成') && flags.length === 1 && flags[0] === false;
           report(part, 'success', (undone ? '已取消' + verb : verb ? '已' + verb : '已完成') + (part.draft === submitted ? '' : '；新输入还未提交'));
-          // Show a command's result only when the design points at it or it is a plain value; an internal id or record is not a message.
-          if (!part.node.read && (part.node.submit?.outputPath || ['string', 'number', 'boolean'].includes(typeof result))) output(part, result, 'submit');
-          if (part.draft === submitted) {
+          // Queries show the whole result; commands show only a requested path or a plain value.
+          if (!part.node.read && (querying || part.node.submit?.outputPath || ['string', 'number', 'boolean'].includes(typeof result))) output(part, result, 'submit');
+          if (!querying && part.draft === submitted) {
             if (!Object.values(part.node.submit?.input ?? {}).some(source => source.source === 'form' && source.prefill)) {
               form.reset(); form.querySelectorAll<HTMLInputElement>('input[data-pc-choice]').forEach(input => { input.value = input.dataset.pcInitial ?? ''; }); syncChoices(form);
               form.querySelectorAll('textarea').forEach(area => { area.style.height = ''; window.molisFit?.(area); }); form.querySelectorAll('select').forEach(choice => choice.dispatchEvent(new Event('change', { bubbles: true })));
@@ -48,7 +49,7 @@ export function pcSubmit(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry) {
 }
 
 export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub) {
-  const { options, make, glyph, button, MARKS, TEMPLATE, naming, headingOf, operation, collections, rowLabel, composer, signature, exportRows, vocabulary, control, overlay, query, onSubmit } = c;
+  const { options, make, glyph, button, MARKS, TEMPLATE, naming, headingOf, operation, collections, rowLabel, composer, signature, exportRows, vocabulary, control, overlay, query, report, onSubmit } = c;
   function createPart(node: PluginComponentNode): Part {
     const kind = node.kind, element = make('section', undefined, 'pc-node pc-kind-' + kind); element.dataset.componentId = node.id; element.setAttribute('aria-label', node.props.title || node.purpose);
     const description = make('p', TEMPLATE.test(node.props.description ?? '') ? '' : node.props.description ?? '', 'pc-part-description');
@@ -101,7 +102,7 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
       const typed = Object.values(node.submit.input).filter(source => source.source === 'form').length;
       for (const [field, source] of Object.entries(node.submit.input)) if (source.source === 'form') {
         const spec = schema.properties![field]!, words = vocabulary(node.pageId, field), label = spec.description ? naming(spec.description, field).label : words.label || field;
-        const made = control(spec, source.field, field, label, schema.required?.includes(field) ?? false, false, words.values, typed === 1 && composer(node) && kind === 'form');
+        const made = control(spec, source.field, field, label, schema.required?.includes(field) ?? false, false, words.values, typed === 1 && composer(node) && kind === 'form', operation(node.submit.operationId)?.kind === 'query');
         if ('group' in made && made.group) { const box = make('div', undefined, 'mw-field pc-field-choice'); box.append(make('span', label, 'mw-field__label'), made.group); if ((spec.enum?.length ?? 0) > 5) box.classList.add('pc-field-wide'); fields.append(box); continue; }
         const input = made.input!;
         if (input instanceof HTMLInputElement && input.type === 'checkbox') { const row = make('label', undefined, 'mw-check-row pc-field-check'); row.append(input, make('span', label)); fields.append(row); continue; }
@@ -151,7 +152,14 @@ export function pcPart(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub)
         form.append(panel);
         if (composer(node)) form.classList.add('pc-composer');
       }
-      const edited = () => { part.draft++; }; form.addEventListener('input', edited); form.addEventListener('change', edited);
+      const edited = () => { part.draft++; if (part.feedback.dataset.pcInvalid !== undefined && form.checkValidity()) { report(part, '', ''); delete part.feedback.dataset.pcInvalid; } };
+      form.addEventListener('input', edited); form.addEventListener('change', edited);
+      form.addEventListener('invalid', event => {
+        const field = event.target;
+        if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) return;
+        report(part, 'error', field.validity.valueMissing ? part.node.props.requiredText || field.validationMessage : field.validationMessage);
+        part.feedback.dataset.pcInvalid = '';
+      }, true);
       form.addEventListener('submit', onSubmit(part, form, submit, schema));
       part.form = form; if (!part.dialog) element.append(form);
     }

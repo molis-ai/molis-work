@@ -168,6 +168,14 @@ export function installDirectory(page: ShelfPage): void {
   lifetime.listen(directory, "click", (event) => directoryClick(page, event));
   lifetime.listen(directory, "dblclick", (event) => directoryDoubleClick(page, event));
   lifetime.listen(directory, "dragstart", (event) => directoryDragStart(page, event));
+  lifetime.listen(directory, "keydown", (event) => {
+    const key = event as KeyboardEvent;
+    if (key.key !== "Escape" || key.defaultPrevented || key.isComposing || key.altKey || key.ctrlKey || key.metaKey || key.shiftKey) return;
+    const menu = directory.querySelector<HTMLElement>("[data-shelf-side-menu]");
+    if (!menu || menu.hidden) return;
+    key.preventDefault(); key.stopPropagation(); menu.hidden = true;
+    directory.querySelector<HTMLButtonElement>("[data-shelf-side-more]")?.focus();
+  });
   lifetime.listen(search, "input", () => {
     paintLists(page);
     if (page.findTimer) lifetime.clearTimeout(page.findTimer);

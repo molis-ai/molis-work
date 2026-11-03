@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { createHomeSnapshot, createMolisWorkLocalHost, MolisWorkUninstallService, MolisWorkWebServiceManager, RuntimeIntegrationService,
   type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopUninstallService, openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopUninstallService, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { acquireStorageOwner, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { isCompletePrefs } from "@molis-ai/molis-work-service-memory";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -361,12 +361,12 @@ test("RAC-105-S-11 S-07: successful purge leaves exactly the original empty lock
   finally { technical.close(); }
   const host = createMolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   try {
-    const fresh = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
-    try {
+    const withCatalog = host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
+    await withCatalog({ homeDirectory: f.home }, async fresh => {
       assert.deepEqual(fresh.listProjects(), []);
       const project = await fresh.createProject({ display_name: "Fresh after purge", actor_id: "fixture" });
       assert.equal((await fs.stat(project.database_path)).isFile(), true);
-    } finally { fresh.close(); }
+    });
     const ledger = openMemoryLedger({ homeDirectory: f.home });
     try {
       const prefs = ledger.prefs(LOCAL_PERSON_ACTOR_ID, "personal");

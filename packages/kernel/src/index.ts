@@ -19,6 +19,7 @@ interface RegisteredCapability<Context> {
   descriptor: HostCapabilityDescriptor;
   handler: CapabilityHandler<Context, unknown, unknown>;
   availability?: (context: Context) => ActionAvailability;
+  metadataAvailability?: (context: Context) => ActionAvailability;
   synchronous?: boolean;
 }
 
@@ -62,7 +63,7 @@ export class CapabilityRegistry<Context> {
   register<Input, Output>(
     definition: ActionDefinition<Input, Output>,
     handler: CapabilityHandler<Context, Input, Output>,
-    options: { availability?: (context: Context) => ActionAvailability; synchronous?: boolean } = {},
+    options: { availability?: (context: Context) => ActionAvailability; metadataAvailability?: (context: Context) => ActionAvailability; synchronous?: boolean } = {},
   ): () => void {
     const descriptor = frozen(normalizedDescriptor(definition));
     const key = capabilityKey(descriptor);
@@ -106,6 +107,13 @@ export class CapabilityRegistry<Context> {
   availability(context: Context, reference: RegistryReference): ActionAvailability {
     const entry = this.entries.get(capabilityKey(reference));
     return entry ? entry.availability?.(context) ?? { available: true }
+      : { available: false, code: "actions.missing", reason: "能力未注册或已停用" };
+  }
+
+  /** Composition-only declaration eligibility; execution always uses the ordinary availability evaluator. */
+  metadataAvailability(context: Context, reference: RegistryReference): ActionAvailability {
+    const entry = this.entries.get(capabilityKey(reference));
+    return entry ? (entry.metadataAvailability ?? entry.availability)?.(context) ?? { available: true }
       : { available: false, code: "actions.missing", reason: "能力未注册或已停用" };
   }
 

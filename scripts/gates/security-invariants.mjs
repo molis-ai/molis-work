@@ -1,4 +1,4 @@
-// Gate: the security invariants document names tests that exist (specs/repository-anti-corruption §4.18, W2-19).
+// Gate: the security invariants document names tests that exist (specs/archive/repository-anti-corruption §4.18, W2-19).
 //
 // docs/system/SECURITY-INVARIANTS.md is a table: one row per invariant (`| S-01 | … |`), with the code that holds it and the
 // tests that assert its refusal. A table of promises is only worth what is behind it, so this reads the table and checks that

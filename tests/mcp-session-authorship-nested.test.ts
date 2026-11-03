@@ -26,8 +26,9 @@ async function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-session-nested-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost({ homeDirectory });
   const project = await catalog.createProject({ display_name: "署名", actor_id: "user" });
+  catalog.close();
+  const host = createMolisWorkLocalHost({ homeDirectory });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const authors: string[] = [];
   const create: ActionDefinition<{ title: string }, { plugin: string; item_id: string; title: string }> =
@@ -59,7 +60,7 @@ async function fixture() {
     { homeDirectory, ...(nativeRuntimeSessionId ? { nativeRuntimeSessionId } : {}),
       runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
   return { workflow, authors, server, person,
-    done: async () => { await served.close(); await host.close(); catalog.close(); rmSync(directory, { recursive: true, force: true }); } };
+    done: async () => { await served.close(); await host.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
 test("a Runtime without a stable Session cannot start a workflow whose first station creates session-authored content", async () => {

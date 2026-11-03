@@ -13,7 +13,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 /** What the server answers to tools/list and tools/call, as far as this test reads it. */
 interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content: Array<{ text: string }> }
 
-// Decision 19 (specs/repository-anti-corruption, W2-03): the MCP audience of memory stays, and this is the use case that goes through the
+// Decision 19 (specs/archive/repository-anti-corruption, W2-03): the MCP audience of memory stays, and this is the use case that goes through the
 // person's grant (`config/mcp-tools.json`, which only the person's own settings write) the way a real external client meets it: nothing is
 // visible or callable before the grant, only `memory.recall` can be granted, what it reads follows the person's switches, and revoking the
 // grant takes the tool away.
@@ -26,11 +26,12 @@ test("an external MCP client reads memory only through the person's grant for me
   let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
   t.after(async () => { for (const server of servers) await server.close(); await served?.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
   served = await serveTestHost(null, { home, host });
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+  const withHostCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "Memory MCP", actor_id: LOCAL_PERSON_ACTOR_ID });
     return catalog.getProject(created.project_id);
   });
-  ensureSystemAgentService(host, home, withMolisWorkProjectCatalog);
+  ensureSystemAgentService(host, home, withHostCatalog);
   const projectId = project.project_id;
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId });
   const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [...MEMORY_PERMISSIONS] };

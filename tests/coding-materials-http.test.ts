@@ -8,11 +8,12 @@ import { createServer } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
+import { codingRunSummary } from "@molis-ai/molis-work-plugin-coding";
 
 // specs/project-knowledge PMAT-18: what the person picks for Coding's next round is pieces of project knowledge, named by their
 // subject, and each is read through `knowledge.read` as the round starts. Coding has no reader of its own by type any more.
@@ -20,7 +21,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 type Piece = { title: string; text: string; revision: string; refuse?: string };
 const REPORT = artifactSubjectId({ artifact_id: "report:1", version: 2 });
 
-test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.read; a piece that cannot be read stops the round before it starts", async () => {
+test("RAC-2923 PMAT-18 Coding keeps fixed knowledge versions and live Page revisions without fake artifact sources", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");
   await seedConfiguredModels(root); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "项目资料", runtime_id: "prologue", at: new Date().toISOString() });
@@ -49,7 +50,7 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
       } }] });
     return actions;
   };
-  const starts: AgentStartRequest[] = []; let created = 0;
+  const starts: AgentStartRequest[] = []; let created = 0, latest: AgentRunView | undefined;
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -57,8 +58,16 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
-      if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as [unknown, AgentStartRequest])[1])); return { ref: { session_id: "sdk", run_id: "run" } } as Output; }
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
+      if (definition.capability_id === agent.startRun.capability_id) {
+        const request = structuredClone((args as [unknown, AgentStartRequest])[1]); starts.push(request);
+        latest = { ref: { session_id: "sdk", run_id: "run" }, phase: "completed", started_at: "2026-11-02T00:00:00Z", ended_at: "2026-11-02T00:00:01Z",
+          frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", directory: { canonical_path: root, realpath_verified: true },
+            prompts: [], skills: [], mcp_tools: [], host_tools: [], budget: null, text_materials: (request.text_materials ?? []).map(({ text: _text, ...metadata }) => metadata) },
+          turns: [{ turn_id: "t", kind: "user", text: request.task, at: null }], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [] };
+        return { ref: latest.ref, frozen: latest.frozen } as Output;
+      }
+      if (definition.capability_id === agent.readSession.capability_id) return { runs: latest ? [latest.ref] : [] } as Output;
+      if (definition.capability_id === agent.readRun.capability_id) return latest as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
@@ -96,12 +105,22 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
     assert.deepEqual(reads.map(read => `${read.subject.kind}:${read.subject.id}`), ["page:p1", `artifact:${REPORT}`, "page:long"]);
     const materials = starts[0]!.text_materials ?? [];
     assert.deepEqual(materials.map(item => [item.material_id, item.title, item.source_artifact_id, item.source_version]), [
-      ["page:p1@4", "试用说明", "page:p1", 1],
+      ["page:p1@4", "试用说明", undefined, undefined],
       [`artifact:${REPORT}@2`, "执行报告", "report:1", 2],
-      ["page:long@1", "长文", "page:long", 1],
+      ["page:long@1", "长文", undefined, undefined],
     ], "a fixed version keeps its identity; a live object is named by its subject and revision");
     assert.match(materials[0]!.text, /已向它的主人读取（版本 4）[\s\S]*试用期两周。/u);
+    for (const item of [materials[0]!, materials[2]!]) {
+      assert.equal(Object.hasOwn(item, "source_artifact_id"), false);
+      assert.equal(Object.hasOwn(item, "source_version"), false);
+    }
     assert.match(materials[2]!.text, /后面还有没放进来的部分；需要时用 knowledge\.read/u, "a long piece goes as its opening part, said as such");
+    const summary = codingRunSummary(latest!);
+    assert.deepEqual(summary.frozen.text_materials, materials.map(({ text: _text, ...metadata }) => metadata), "ordinary material ids and titles survive the lightweight projection");
+    const taskboard = await request("/taskboard");
+    assert.equal(taskboard.status, 200, JSON.stringify(taskboard.body));
+    assert.deepEqual(taskboard.body.taskboard_plans, [], "mixed materials do not become fixed execution plans or crash their source filter");
+    assert.deepEqual(taskboard.body.runs[0].frozen.text_materials, summary.frozen.text_materials);
 
     // Words the page sends with a pick are not the material: only what knowledge.read gives is.
     assert.equal((await start([{ ...pick("page", "p1", "伪造名称"), text: "伪造正文" }])).status, 200);

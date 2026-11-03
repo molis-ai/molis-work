@@ -32,8 +32,8 @@ async function fixture(run: (f: {
   const old = { ...process.env };
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MINIMAX_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT"]) delete process.env[key];
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const homeOwner = new MolisWorkLocalHost({ homeDirectory: home });
+  const withCatalog = homeOwner.configurePersonalPlanning(home, homeOwner.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
   const server = createServer(async (request, response) => {
@@ -65,8 +65,8 @@ async function fixture(run: (f: {
     }
   });
   const modelOrigin = await listen(server);
-  try { await run({ home, host: homeOwner, catalog, modelOrigin, requests, answer: next => { handler = next; } }); }
-  finally { await homeOwner.close(); await close(server); catalog.close(); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
+  try { await withCatalog({ homeDirectory: home }, catalog => run({ home, host: homeOwner, catalog, modelOrigin, requests, answer: next => { handler = next; } })); }
+  finally { await homeOwner.close(); await close(server); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
 }
 function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId = "configured", format: "openai-chat-completions" | "anthropic-messages" = "openai-chat-completions") {
   const connection = withConnectorConnections(f.home, store => {
@@ -157,7 +157,7 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
     await http(`${path}/conversations/${conversation.id}/messages`, { body: "已经断开" }, 503);
     assert.equal(f.requests.length, 1);
     assert.equal((await host.actionClient(ref).invoke(caller, lingguangActions.getConversation, { id: conversation.id })).messages.length, 2);
-  } finally { await close(web); await host.close(); }
+  } finally { await close(web); }
 }));
 
 test("discovery and Jelly settings never decrypt; explicit selections stay invalid rather than changing account", async t => fixture(async f => {
@@ -213,11 +213,9 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
       if (change === "replace-model") f.catalog.models.upsert({ ...f.catalog.models.get("configured")!, models: [{ model_id: "replacement", enabled: true }] });
       if (change === "delete") f.catalog.models.remove("configured");
     } finally { release(); }
-    try {
-      await rejected;
-      assert.equal((await client.invoke(caller, lingguangActions.getConversation, { id: conversation.id })).messages.length, 0);
-      assert.equal(f.requests.length, 1);
-    } finally { await host.close(); }
+    await rejected;
+    assert.equal((await client.invoke(caller, lingguangActions.getConversation, { id: conversation.id })).messages.length, 0);
+    assert.equal(f.requests.length, 1);
   }));
 }
 
@@ -245,20 +243,22 @@ test("protocol, cache preference, cancellation and scoped Home are preserved on 
 test("two configured Homes keep account credentials separate even under another ambient Home", async () => fixture(async f => {
   configure(f);
   const homeB = join(f.home, "other-home");
-  const catalogB = await openMolisWorkProjectCatalog({ homeDirectory: homeB });
   // Each Home's inference is owned by that Home's Host.
   const hostB = new MolisWorkLocalHost({ homeDirectory: homeB });
+  const withCatalogB = hostB.configurePersonalPlanning(homeB, hostB.ensureWebCatalog(homeB, openMolisWorkProjectCatalog).withCatalog);
   try {
-    const connectionB = configure({ ...f, home: homeB, catalog: catalogB });
-    withConnectorConnections(homeB, store => store.replaceToken(connectionB.connection_id, "other-home-fixture-key"));
-    const a = hostCompleteText({ homeDirectory: f.home })!, b = hostCompleteText({ homeDirectory: homeB })!;
-    await runWithMolisWorkHome(homeB, () => a("Home A"));
-    await runWithMolisWorkHome(f.home, () => b("Home B"));
-    assert.deepEqual(f.requests.map(request => request.headers.authorization), ["Bearer configured-fixture-key", "Bearer other-home-fixture-key"]);
-    resetSecretStoreCache();
-    await hostCompleteText({ homeDirectory: f.home })!("After cache restart");
-    assert.equal(f.requests[2]!.headers.authorization, "Bearer configured-fixture-key");
-  } finally { await hostB.close(); catalogB.close(); }
+    await withCatalogB({ homeDirectory: homeB }, async catalogB => {
+      const connectionB = configure({ ...f, home: homeB, catalog: catalogB });
+      withConnectorConnections(homeB, store => store.replaceToken(connectionB.connection_id, "other-home-fixture-key"));
+      const a = hostCompleteText({ homeDirectory: f.home })!, b = hostCompleteText({ homeDirectory: homeB })!;
+      await runWithMolisWorkHome(homeB, () => a("Home A"));
+      await runWithMolisWorkHome(f.home, () => b("Home B"));
+      assert.deepEqual(f.requests.map(request => request.headers.authorization), ["Bearer configured-fixture-key", "Bearer other-home-fixture-key"]);
+      resetSecretStoreCache();
+      await hostCompleteText({ homeDirectory: f.home })!("After cache restart");
+      assert.equal(f.requests[2]!.headers.authorization, "Bearer configured-fixture-key");
+    });
+  } finally { await hostB.close(); }
 }));
 
 // Only the model catalog configures text models, or an explicit environment key in development (repository-anti-corruption
@@ -296,32 +296,30 @@ test("Dataset uses the configured model connection, keeps local columns offline 
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
   const host = f.host;
-  try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
-    const client = host.actionClient(ref);
-    assert.equal((await client.discover(caller)).find(row => row.capability_id === datasetActions.generateAi.capability_id)!.availability.available, true);
-    const { dataset } = await client.invoke(caller, datasetActions.create, { title: "Private table contents are not sent" });
-    await client.invoke(caller, datasetActions.generate, { id: dataset.id, prompt: "Offline column" });
-    assert.equal(f.requests.length, 0);
-    f.answer(async () => ({ choices: [{ message: { content: "截止日期" } }] }));
-    const generated = await client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "计划的日期" });
-    assert.equal(generated.dataset.columns.at(-1)!.name, "截止日期");
-    assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
-    assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
-    assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
-    assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private table|Offline column/);
-    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-    f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: "不得保存" } }] }; });
-    const pending = client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "被撤权的请求", expected_version: generated.dataset.version });
-    const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
-    await entered.promise;
-    try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
-    finally { release.resolve(); }
-    await rejected;
-    assert.equal((await client.invoke(caller, datasetActions.get, { id: dataset.id })).dataset.columns.length, 2);
-    assert.equal((await client.invoke(caller, datasetActions.list, {})).ai_available, false);
-  } finally { await host.close(); }
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
+  const client = host.actionClient(ref);
+  assert.equal((await client.discover(caller)).find(row => row.capability_id === datasetActions.generateAi.capability_id)!.availability.available, true);
+  const { dataset } = await client.invoke(caller, datasetActions.create, { title: "Private table contents are not sent" });
+  await client.invoke(caller, datasetActions.generate, { id: dataset.id, prompt: "Offline column" });
+  assert.equal(f.requests.length, 0);
+  f.answer(async () => ({ choices: [{ message: { content: "截止日期" } }] }));
+  const generated = await client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "计划的日期" });
+  assert.equal(generated.dataset.columns.at(-1)!.name, "截止日期");
+  assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
+  assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
+  assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
+  assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private table|Offline column/);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: "不得保存" } }] }; });
+  const pending = client.invoke(caller, datasetActions.generateAi, { id: dataset.id, prompt: "被撤权的请求", expected_version: generated.dataset.version });
+  const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
+  await entered.promise;
+  try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
+  finally { release.resolve(); }
+  await rejected;
+  assert.equal((await client.invoke(caller, datasetActions.get, { id: dataset.id })).dataset.columns.length, 2);
+  assert.equal((await client.invoke(caller, datasetActions.list, {})).ai_available, false);
 }));
 
 test("Form uses the configured model connection, keeps local questions offline and refuses revoked results", { timeout: 30_000 }, async () => fixture(async f => {
@@ -330,30 +328,28 @@ test("Form uses the configured model connection, keeps local questions offline a
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
   const host = f.host;
-  try {
-    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };
-    const client = host.actionClient(ref);
-    assert.equal((await client.discover(caller)).find(row => row.capability_id === formActions.draft.capability_id)!.availability.available, true);
-    const { form } = await client.invoke(caller, formActions.create, { title: "Private form contents are not sent" });
-    await client.invoke(caller, formActions.generate, { id: form.id, prompt: "Offline question" });
-    assert.equal(f.requests.length, 0);
-    f.answer(async () => ({ choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "截止日期", type: "date" }] }) } }] }));
-    const generated = await client.invoke(caller, formActions.draft, { id: form.id, prompt: "计划的日期" }) as { form: { version: number; questions: Array<{ title: string }> } };
-    assert.equal(generated.form.questions.at(-1)!.title, "截止日期");
-    assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
-    assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
-    assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
-    assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private form|Offline question/);
-    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-    f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "不得保存", type: "text" }] }) } }] }; });
-    const pending = client.invoke(caller, formActions.draft, { id: form.id, prompt: "被撤权的请求", expected_version: generated.form.version });
-    const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
-    await entered.promise;
-    try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
-    finally { release.resolve(); }
-    await rejected;
-    assert.equal((await client.invoke(caller, formActions.get, { id: form.id })).form.questions.length, 2);
-    assert.equal((await client.invoke(caller, formActions.list, {})).ai_available, false);
-  } finally { await host.close(); }
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };
+  const client = host.actionClient(ref);
+  assert.equal((await client.discover(caller)).find(row => row.capability_id === formActions.draft.capability_id)!.availability.available, true);
+  const { form } = await client.invoke(caller, formActions.create, { title: "Private form contents are not sent" });
+  await client.invoke(caller, formActions.generate, { id: form.id, prompt: "Offline question" });
+  assert.equal(f.requests.length, 0);
+  f.answer(async () => ({ choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "截止日期", type: "date" }] }) } }] }));
+  const generated = await client.invoke(caller, formActions.draft, { id: form.id, prompt: "计划的日期" }) as { form: { version: number; questions: Array<{ title: string }> } };
+  assert.equal(generated.form.questions.at(-1)!.title, "截止日期");
+  assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.url, "/v1/chat/completions");
+  assert.equal(f.requests[0]!.headers.authorization, "Bearer configured-fixture-key");
+  assert.match(f.requests[0]!.body.messages[0].content, /计划的日期/);
+  assert.doesNotMatch(f.requests[0]!.body.messages[0].content, /Private form|Offline question/);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  f.answer(async () => { entered.resolve(); await release.promise; return { choices: [{ message: { content: JSON.stringify({ status: "done", questions: [{ title: "不得保存", type: "text" }] }) } }] }; });
+  const pending = client.invoke(caller, formActions.draft, { id: form.id, prompt: "被撤权的请求", expected_version: generated.form.version });
+  const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
+  await entered.promise;
+  try { withConnectorConnections(f.home, store => store.disconnect(connection.connection_id)); }
+  finally { release.resolve(); }
+  await rejected;
+  assert.equal((await client.invoke(caller, formActions.get, { id: form.id })).form.questions.length, 2);
+  assert.equal((await client.invoke(caller, formActions.list, {})).ai_available, false);
 }));

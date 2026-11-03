@@ -1,6 +1,6 @@
 # 仓库卫生：哪些材料留在树里
 
-这里写不属于任何包、却会在仓库里越积越多的材料：评审截图与设计记录、根目录的杂项、vendored 的 Prologue 包。每一类说清楚留什么、不留什么、谁来拦。依据是仓库防腐整理的决定（2026-10-08，`specs/repository-anti-corruption/spec.md` §1 的「评审截图与根目录材料」与「Prologue SDK 收敛与私有包」）。
+这里写不属于任何包、却会在仓库里越积越多的材料：评审截图与设计记录、根目录的杂项、vendored 的 Prologue 包。每一类说清楚留什么、不留什么、谁来拦。依据是仓库防腐整理的决定（2026-10-08，`specs/archive/repository-anti-corruption/spec.md` §1 的「评审截图与根目录材料」与「Prologue SDK 收敛与私有包」）。
 
 删除一律只从当前的树里拿掉，Git 历史不改写：旧提交里仍然看得到，下面各节写明了去哪里取。
 

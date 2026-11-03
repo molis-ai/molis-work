@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CI product subset (specs/repository-anti-corruption §4.7, W2-16, decision #14): runs the test files of tests/ci-product-subset.txt
+// CI product subset (specs/archive/repository-anti-corruption §4.7, W2-16, decision #14): runs the test files of tests/ci-product-subset.txt
 // one by one, each with its own MOLIS_WORK_HOME (the Linux probe's runner, scripts/ci-linux-probe/run.mjs), and fails when a file
 // that counts does not pass. The list holds the fast user-flow files that passed on Linux in the probe, the i18n test and 3 to 5
 // browser smokes; tests/quarantine.json holds the flaky ones, each with an owner and an end date (scripts/ci-product-subset/plan.mjs

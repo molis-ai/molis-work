@@ -29,7 +29,7 @@ const NO_DETAIL_NOTICE = ['(no recorded detail answers in this corpus: the studi
 export const SEED_NOTICE = [
   '(no recorded detail answers among these sources. tests/fixtures/studio-replay/corpus.json is the hand-written seed: entries that each exercise one host rule.',
   ' The studio\'s headline number, the share of full designs accepted first time, is NOT measured by the seed alone. The real full-design answers (380 on 2026-10-08,',
-  ' exported read-only from a copy of three projects of the person\'s Home and reviewed for personal data, specs/repository-anti-corruption/spec.md §1) are committed',
+  ' exported read-only from a copy of three projects of the person\'s Home and reviewed for personal data, specs/archive/repository-anti-corruption/spec.md §1) are committed',
   ' in tests/fixtures/studio-replay/recorded.json and are replayed by the default run: pnpm studio:replay. See docs/platform/STUDIO-SKILL-REPLAY.md)'] as const;
 
 const percent = (passed: number, total: number) => total ? `${Math.round(100 * passed / total)}%` : '–';

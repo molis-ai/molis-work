@@ -1,10 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
 import type http from "node:http";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import { COMPUTER_SOCKET_PATH, type ComputerClientMessage, type ComputerServerMessage } from "@molis-ai/molis-work-contracts/services/computer";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { controlTokenMatches } from "../web-control-token.js";
 import type { ComputerDesk } from "./computer-desk.js";
 
 /**
@@ -12,12 +12,6 @@ import type { ComputerDesk } from "./computer-desk.js";
  * stop / pause / take over / hand back up. Authenticated like the browser channel — same-host origin, then the control
  * token as the first message. The pictures are PNGs of only the app the Assistant is looking at, password fields covered.
  */
-function tokenMatches(expected: string, actual: unknown): boolean {
-  if (typeof actual !== "string") return false;
-  const a = Buffer.from(expected), b = Buffer.from(actual);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 const send = (ws: WebSocket, message: ComputerServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message)); };
 
 export function attachMolisWorkComputerSocket(server: http.Server, controlToken: string, desk: () => ComputerDesk | null): void {
@@ -49,7 +43,7 @@ export function attachMolisWorkComputerSocket(server: http.Server, controlToken:
       let message: ComputerClientMessage;
       try { message = JSON.parse(raw.toString("utf8")) as ComputerClientMessage; } catch { return; }
       if (!authed) {
-        if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "电脑通道校验失败" }); ws.close(); return; }
+        if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "电脑通道校验失败" }); ws.close(); return; }
         authed = true;
         const current = desk();
         if (!current) { send(ws, { type: "error", message: "这个进程没有电脑助手" }); ws.close(); return; }

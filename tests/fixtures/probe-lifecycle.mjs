@@ -1,4 +1,4 @@
-// W4-01 (specs/repository-anti-corruption/slices/w5-02-registry.md §6): one phase of the probe's lifecycle, run by
+// W4-01 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §6): one phase of the probe's lifecycle, run by
 // tests/probe-plugin.test.ts inside a copy of the repository where the probe is a built-in. Every import resolves to that copy's
 // builds, so the Host here is the one the generator and the build produced from the probe's own package. The phase prints one
 // JSON line of what it saw; the test asserts on it.

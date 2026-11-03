@@ -9,7 +9,7 @@ import { runFile } from "../scripts/ci-linux-probe/run.mjs";
 import { failing, FAILING, STATUSES, summaryMarkdown, totals } from "../scripts/ci-product-subset/report.mjs";
 import { blockingJobs, blockingTestRuns, jobBlock, workflow } from "./fixtures/ci-workflow.js";
 
-// specs/repository-anti-corruption §4.7 (W2-16, decision #14): the runner of the CI product subset (scripts/ci-product-subset.mjs)
+// specs/archive/repository-anti-corruption §4.7 (W2-16, decision #14): the runner of the CI product subset (scripts/ci-product-subset.mjs)
 // and the job that calls it. Each rule is mutation-verified here on scratch repositories of small fake test files: what counts and
 // what only runs, every result (pass, flaky, fail, skipped-everything, timeout, not reached) and what each does to the exit code, the
 // two time budgets, the quarantine and its end date, the order the phases run in, a run that CI cancels, and the refusals. The rules

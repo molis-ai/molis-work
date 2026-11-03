@@ -6,6 +6,10 @@ import type {
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { gmailAccountPresentation } from "./account-presentation.js";
+import { GMAIL_SCOPE_PRESETS } from "./scope.js";
+import type { SourcePresentation } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+
+export const gmailSourcePresentation = (): SourcePresentation => ({ scope_options: GMAIL_SCOPE_PRESETS.map(({ value, label }) => ({ value, label })) });
 
 export {
   classifyGmailForbiddenPayload,
@@ -21,11 +25,12 @@ export const gmailIntegrationManifest = {
   plugin_id: "io.molis.work.integration.gmail",
   // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.2.0: declares its OAuth flow as data (W5-11).
-  version: "1.2.0",
+  version: "1.3.0",
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
   host_api_version: 2,
+  source_presentations: ["gmail-scope"],
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
     { permission: "network:googleapis.com", required: true, reason: "读取 Gmail profile、history 和 message" },
@@ -42,13 +47,13 @@ export const gmailIntegrationManifest = {
     title: "Gmail",
     group_id: "mail",
     summary: "本机账号。Feed 只读收信。",
-    auth_kind: "gmail",
+    auth_kind: "oauth",
     auth: { methods: [{
       kind: "oauth", grant: "authorization_code", authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
       token_url: "https://oauth2.googleapis.com/token", scopes: ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"], pkce: "S256",
       parameters: { access_type: "offline", prompt: "consent" },
       identity: { url: "{account}/v1/userinfo", account_id: [["identity:/sub"]], label: ["identity:/email", "identity:/name", "identity:/sub"] },
-    }] },
+    }, { kind: "mcp", endpoint: "https://gmailmcp.googleapis.com/mcp/v1", auth: "either", registration: "manual" }] },
     capabilities: [
       { label: "Feed 只读收信", fulfillment: "live" },
       { label: "发送邮件", fulfillment: "unfulfilled" },
@@ -77,6 +82,7 @@ export function createGmailIntegrationPlugin(input: {
       return input.providerFor(binding);
     },
     presentAccount: (cursor, label, binding) => gmailAccountPresentation(cursor, label, binding.config.scope),
+    presentSource: gmailSourcePresentation,
     now: input.now,
   });
 }

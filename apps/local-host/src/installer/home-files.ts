@@ -1,7 +1,8 @@
 import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
+import path from "node:path";
+import { isCurrentInstallManifest, isCurrentReleaseManifest, installationMatchesRelease, isOwnedLauncherText } from "./home-contract.js";
 import type { TextMutation, InstallManifest } from "./home-contract.js";
 
 export async function ensureDirectory(directory: string): Promise<void> {
@@ -35,7 +36,7 @@ export async function replaceOwnedJson(
   const previous = await readTextIfPresent(filePath);
   if (previous != null) {
     const parsed = parseJson(previous, filePath);
-    if (!isOwnedInstaller(parsed.installer)) {
+    if (!isCurrentInstallManifest(parsed)) {
       throw installerErrors["installer.home.unknown_file"](`不会覆盖未知用户文件: ${filePath}`);
     }
   }
@@ -43,14 +44,26 @@ export async function replaceOwnedJson(
   await writeAtomic(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-export async function readOwnedJson<T extends { installer: string }>(filePath: string): Promise<T | null> {
+export async function readOwnedJson(filePath: string): Promise<InstallManifest | null> {
   const text = await readTextIfPresent(filePath);
   if (text == null) return null;
-  const parsed = parseJson(text, filePath) as T;
-  if (!isOwnedInstaller(parsed.installer)) {
+  const parsed = parseJson(text, filePath);
+  if (!isCurrentInstallManifest(parsed)) {
     throw installerErrors["installer.home.unknown_file"](`不会读取或覆盖未知用户文件: ${filePath}`);
   }
   return parsed;
+}
+
+/** Metadata only: validating a current installation does not require its program files to be intact. */
+export async function readInstalledRelease(homeDirectory: string) {
+  const installation = await readOwnedJson(path.join(homeDirectory, "config", "installation.json"));
+  if (!installation) return null;
+  const releasePath = path.join(homeDirectory, installation.release_path, "release.json");
+  const release = await readJsonIfPresent<unknown>(releasePath);
+  if (!isCurrentReleaseManifest(release) || !installationMatchesRelease(installation, release)) {
+    throw installerErrors["installer.release.conflict"](`Molis Work 安装引用的 release 元数据不受支持: ${releasePath}`);
+  }
+  return { installation, release };
 }
 
 export async function rollbackTextMutations(mutations: TextMutation[]): Promise<void> {
@@ -95,9 +108,9 @@ export async function readJsonIfPresent<T>(filePath: string): Promise<T | null> 
   return text == null ? null : (parseJson(text, filePath) as T);
 }
 
-function parseJson(text: string, filePath: string): Record<string, unknown> {
+function parseJson(text: string, filePath: string): unknown {
   try {
-    return JSON.parse(text) as Record<string, unknown>;
+    return JSON.parse(text);
   } catch {
     throw installerErrors["installer.release.conflict"](`Molis Work 安装文件无法解析: ${filePath}`);
   }

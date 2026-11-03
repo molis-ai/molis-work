@@ -10,7 +10,8 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 // The real settings endpoint returns after withdrawing the activation, not merely after hiding its UI.
 test("SYS-15-S7: new projects enable Schedule; settings stop its Runtime, preserve tasks and restore the same installation", { timeout: 60_000 }, async t => {
   const f = await openTestHome(t), project = await f.createProject("Schedule lifecycle");
-  assert.ok(await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.listProjectPlugins(project.project_id).includes("schedule")));
+  const withHostCatalog = f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
+  assert.ok(await withHostCatalog({ homeDirectory: f.home }, catalog => catalog.listProjectPlugins(project.project_id).includes("schedule")));
   const caller = { actor_id: "web-user", project_id: project.project_id, audience: "user" as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
   const client = f.host.actionClient(project.reference);
   const created = await client.invoke(caller, scheduleActions.createTask, { title: "Morning brief", instructions: "Summarize supplied facts", time: "08:30" });

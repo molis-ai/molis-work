@@ -5,7 +5,7 @@ import { openPluginProjectDatabase, type PluginProjectDatabaseRecord, type Plugi
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 
-// Plugins' own tables in a project's library (PG-020, specs/plugin-project-database L1b). When the Host opens a library, every
+// Plugins' own tables in a project's library (PG-020, specs/archive/plugin-project-database L1b). When the Host opens a library, every
 // built-in project plugin whose Manifest declares `databases.project` gets its tables there through the platform's one open
 // function: made and recorded the first time, checked against the ledger after. A refusal (another publisher, another version, a
 // changed shape) stops only that plugin: the library and the other plugins open as usual, and the plugin's own paths throw the

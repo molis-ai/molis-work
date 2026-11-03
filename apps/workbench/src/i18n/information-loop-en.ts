@@ -49,6 +49,7 @@ export const INFORMATION_LOOP_EN: Record<string, string> = {
   "先从 Feed 将需要整理的消息放入 Inbox。": "Add messages from Feed to Inbox first.",
   "请至少选择一条材料": "Select at least one material",
   "正在整理材料，完成后可在 Pages 中继续编辑…": "Writing from your materials. You can continue editing in Pages when ready…",
+  "草稿已保留，可继续编辑或重试。": "Your draft is saved. You can keep editing or retry.",
   "文稿已保存到 Pages；原事项仍待你确认处理结果。": "Saved to Pages. The original Inbox items still await your review.",
   "筛选后自动入 Inbox，待复核单独标明": "Automatically add matches to Inbox; review cases are labeled",
   "匹配消息会保留精确版本；可另外选择筛选后自动放入 Inbox。": "Matching messages retain their exact version. You can also enable automatic Inbox admission.",

@@ -7,10 +7,11 @@ import { issueModel } from "./fixtures/issue-model.js";
 // wherever the assistant is open. The project chooser resets every list on its own page, and an answer read there had lost
 // its bullets and numbers; the answer's Markdown now owns its markers.
 test("VUX-14: an answer's bullet and numbered lists keep their markers on the project chooser and in the project", { timeout: 90_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, "user");
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: "两件事：\n\n- 先读第一部分\n- 再定时间\n\n步骤：\n\n1. 开场\n2. 讨论" }); },
+  });
   if (!browser) return;
-  const { homeDirectory, projectId, origin, command, sessionId, navigate, evaluate, waitFor, click } = browser;
-  await issueModel(t, homeDirectory, { replyText: "两件事：\n\n- 先读第一部分\n- 再定时间\n\n步骤：\n\n1. 开场\n2. 讨论" });
+  const { projectId, origin, command, sessionId, navigate, evaluate, waitFor, click } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);

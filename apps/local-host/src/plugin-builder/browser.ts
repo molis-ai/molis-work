@@ -10,31 +10,39 @@ import type { AgentBuild, BrowserAcceptance } from '@molis-ai/molis-work-plugin-
 import { locateBrowser } from '../browser/locate.js';
 import { trackHostChildEndpoint } from '../host-endpoints.js';
 
+/** Supplied only by the Host's current acceptance trial; never accepted from browser input. */
+interface AcceptanceTrial {
+  submitCalls(componentId: string): number;
+  faultRead(componentId: string): () => void;
+}
+
 /** Host-owned G7 driver. Contract steps never supply JavaScript, selectors, URLs or browser launch arguments. */
 /** Each case starts from empty data, as the designer is told: `reset` empties the preview and the page is reopened. */
-export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { url: string; signal: AbortSignal; executable?: string; reset?: () => Promise<void>; capture?: (browser: BuilderBrowser, pageId: string) => Promise<void> }): Promise<NonNullable<AgentBuild['browserResult']>> {
+export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { url: string; signal: AbortSignal; executable?: string; reset?: () => Promise<void>; trial?: AcceptanceTrial; capture?: (browser: BuilderBrowser, pageId: string) => Promise<void> }): Promise<NonNullable<AgentBuild['browserResult']>> {
   if (!build.design) throw new Error('缺少界面验收合同');
   const browser = await BuilderBrowser.open(options.signal, options.executable);
   const cases: NonNullable<AgentBuild['browserResult']>['cases'] = [];
   const captured = new Set<string>();
   const detailsCaptured = new Set<string>();
+  let blocked: string | undefined;
   try {
     await browser.navigate(options.url);
     try { await browser.wait(`globalThis.__molisPluginReady===true`); }
     catch { throw new Error('试用页没有在 20 秒内打开完成：请确认功能都已接通后重新验收'); }
     for (const [index, test] of build.design.acceptance.entries()) {
       options.signal.throwIfAborted();
-      if (index > 0 && options.reset) {
-        await options.reset();
-        // Clear the old page's flag first, so the wait below can only be satisfied by the reopened page.
-        await browser.evaluate('globalThis.__molisPluginReady=false');
-        await browser.navigate(options.url);
-        try { await browser.wait(`globalThis.__molisPluginReady===true`); }
-        catch { throw new Error('试用页没有在 20 秒内打开完成：请确认功能都已接通后重新验收'); }
+      if (index > 0) {
+        try {
+          if (!options.reset) throw new Error('缺少独立用例的隔离重置');
+          await options.reset();
+          // Clear the old page's flag first, so only the reopened page can satisfy the wait.
+          await browser.evaluate('globalThis.__molisPluginReady=false'); await browser.navigate(options.url);
+          await browser.wait(`globalThis.__molisPluginReady===true`);
+        } catch (error) { options.signal.throwIfAborted(); blocked = '验收隔离或环境重置失败：' + (error instanceof Error ? error.message : String(error)); break; }
       }
       let position = 0;
       try { const selected = new Map<string, string>(); for (const step of test.steps) {
-        await executeStep(browser, step, selected); position++;
+        await executeStep(browser, step, selected, options.trial); position++;
         if (options.capture && ['expect', 'select'].includes(step.action)) {
           const page = await browser.evaluate<string>('document.querySelector(".pc-page:not([hidden])")?.dataset.page??""');
           if (page && !captured.has(page) && await browser.evaluate<boolean>('!!document.querySelector(".pc-page:not([hidden]) [data-record-id]")')) { await options.capture(browser, page); captured.add(page); }
@@ -43,11 +51,21 @@ export async function runBuilderBrowserAcceptance(build: AgentBuild, options: { 
           if (page && detailVisible && !detailsCaptured.has(page)) { await options.capture(browser, page + ' · 详情'); detailsCaptured.add(page); }
         }
       } cases.push({ id: test.id, passed: true, detail: test.description }); }
-      catch (error) { cases.push({ id: test.id, passed: false, detail: await diagnose(browser, test.steps[position], position, error, build.nodes.some(node => node.id === (test.steps[position] as { componentId?: string } | undefined)?.componentId && !!node.read)) }); break; }
+      catch (error) {
+        options.signal.throwIfAborted();
+        cases.push({ id: test.id, passed: false, detail: await diagnose(browser, test.steps[position], position, error, build.nodes.some(node => node.id === (test.steps[position] as { componentId?: string } | undefined)?.componentId && !!node.read)) });
+        if (browser.unavailable) { blocked = '验收浏览器连接不可用：' + browser.unavailable.message; break; }
+      }
     }
-    for (const test of build.design.acceptance) if (!cases.some(row => row.id === test.id)) cases.push({ id: test.id, passed: false, detail: '前置用例失败，尚未执行' });
-    if (options.capture) for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map()); await options.capture(browser, page.id); }
-    return { passed: cases.length > 0 && cases.every(row => row.passed), cases, at: new Date().toISOString() };
+    for (const test of build.design.acceptance) if (!cases.some(row => row.id === test.id)) cases.push({ id: test.id, passed: false, detail: '尚未执行：' + blocked });
+    if (!blocked && options.capture) {
+      try { for (const page of build.design.contract.pages) if (!captured.has(page.id)) { await executeStep(browser, { action: 'page', pageId: page.id }, new Map()); await options.capture(browser, page.id); } }
+      catch (error) {
+        options.signal.throwIfAborted();
+        blocked = browser.unavailable ? '验收浏览器连接不可用：' + browser.unavailable.message : '验收截图未能完成：' + (error instanceof Error ? error.message : String(error));
+      }
+    }
+    return { passed: !blocked && cases.length > 0 && cases.every(row => row.passed), cases, at: new Date().toISOString(), ...(blocked ? { blocked } : {}) };
   } finally { await browser.close(); }
 }
 /** Screenshots contain only the isolated plugin canvas, using the same authored acceptance data as G7. */
@@ -69,6 +87,7 @@ export async function inspectBuilderPresentation(build: AgentBuild, options: Par
     await browser.evaluate('document.documentElement.dataset.resolvedTheme="light"');
   } });
   if (!result.passed) issues.push(...result.cases.filter(test => !test.passed).map(test => test.detail));
+  if (result.blocked) issues.push(result.blocked);
   return { structural: issues.length === 0, issues, images };
 }
 const literal = (value: unknown) => JSON.stringify(value);
@@ -104,7 +123,7 @@ async function reach(browser: BuilderBrowser, id: string, target: string) {
 /** Folded records (the catalog's accordion) are opened before their text is read. */
 const unfold = (root: string) => `(${root})?.querySelectorAll('details:not([open])').forEach(el=>{el.open=true})`;
 /** `selected` remembers, per collection, the record a case chose, for actions that sit on that record. */
-async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['steps'][number], selected: Map<string, string>) {
+async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['steps'][number], selected: Map<string, string>, trial?: AcceptanceTrial) {
   if (step.action === 'reload') { await browser.evaluate('globalThis.__molisPluginReady=false'); await browser.command('Page.reload'); await browser.wait('globalThis.__molisPluginReady===true'); return; }
   if (step.action === 'page') {
     // A one-page plugin shows no page switcher: asking for its only page is already done.
@@ -130,6 +149,28 @@ async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['ste
     }
     if (typeof step.value === 'boolean') await browser.evaluate(`(()=>{const el=${field};if(!el)throw Error('验收字段不存在');if(el.type==='checkbox')el.checked=${step.value};else el.value=${literal(String(step.value))};el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     else await browser.fill(field, step.value);
+  } else if (step.action === 'faultRead') {
+    if (!trial) throw new Error('读取故障只允许当前隔离验收');
+    await browser.wait('globalThis.__molisPluginPending===0&&!document.querySelector("[data-pc-pending]")');
+    const verify = trial.faultRead(step.componentId);
+    try { await browser.evaluate(`(()=>{if(typeof globalThis.__molisPluginRefresh!=='function')throw Error('缺少验收读取入口');return globalThis.__molisPluginRefresh(${literal(step.componentId)})})()`); }
+    finally { verify(); }
+  } else if (step.action === 'retry') {
+    await browser.click(`(${root})?.querySelector('[data-pc-retry]')`);
+    await browser.wait(`(()=>{const el=${root},error=el?.querySelector('[data-pc-feedback].pc-error');if(error?.textContent&&globalThis.__molisPluginPending===0)throw Error(error.textContent);return globalThis.__molisPluginPending===0&&!el?.querySelector('[data-pc-feedback][data-pc-read]')})()`);
+  } else if (step.action === 'submitBlocked') {
+    if (!trial) throw new Error('提交拒绝观察只允许当前隔离验收');
+    const field = `[...(${root})?.querySelectorAll('form [data-field]')??[]].find(el=>el.name===${literal(step.field)})`, submit = `(${root})?.querySelector('[type=submit]')`;
+    await reach(browser, step.componentId, submit);
+    if (!await browser.evaluate<boolean>(`!!(${submit})&&!(${submit}).matches(':disabled')`)) throw new Error('提交拒绝需要可用的提交按钮');
+    const before = trial.submitCalls(step.componentId);
+    await browser.evaluate(`(()=>{const field=${field};if(!field||!field.willValidate)throw Error('缺少可校验的表单字段');const state={field,fired:false};state.listener=()=>{state.fired=true};field.addEventListener('invalid',state.listener);globalThis.__molisAcceptanceInvalid=state})()`);
+    try {
+      await browser.click(submit);
+      await browser.wait(`(()=>{const state=globalThis.__molisAcceptanceInvalid,feedback=(${root})?.querySelector('[data-pc-feedback].pc-error');return state?.fired&&state.field.validity.valueMissing&&!!feedback?.textContent&&!!feedback.getClientRects().length})()`);
+      if (trial.submitCalls(step.componentId) !== before) throw new Error('被拒绝的表单仍调用了提交操作');
+      if (await browser.evaluate<boolean>(`!!(${root})?.querySelector('.pc-success')`)) throw new Error('被拒绝的表单仍显示成功反馈');
+    } finally { await browser.evaluate(`(()=>{const state=globalThis.__molisAcceptanceInvalid;if(state)state.field.removeEventListener('invalid',state.listener);delete globalThis.__molisAcceptanceInvalid})()`); }
   } else if (step.action === 'submit') {
     // An action on one record is a button on the chosen record, not a block of its own.
     const host = await browser.evaluate<string | null>(`[...document.querySelectorAll('[data-pc-action]')].find(el=>el.dataset.pcAction===${literal(step.componentId)})?.closest('[data-component-id]')?.dataset.componentId??null`);
@@ -186,6 +227,12 @@ class BuilderBrowser {
   private sequence = 0;
   private session = '';
   private closed = false;
+  private transportFailure?: Error;
+  get unavailable() {
+    return this.transportFailure
+      ?? (this.socket.readyState !== WebSocket.OPEN ? new Error('验收浏览器连接已关闭')
+        : this.child.exitCode !== null || this.child.signalCode !== null ? new Error('验收浏览器进程已退出') : undefined);
+  }
   private readonly contexts = new Map<string, { id: number; session: string }>();
   private readonly pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
   private constructor(private readonly child: ChildProcess, private readonly socket: WebSocket, private readonly directory: string, private readonly signal: AbortSignal) {
@@ -201,7 +248,10 @@ class BuilderBrowser {
       this.pending.delete(result.id); clearTimeout(pending.timer);
       if (result.error) pending.reject(new Error(result.error.message || '浏览器命令失败')); else pending.resolve(result.result);
     });
-    socket.on('close', () => this.rejectPending(new Error('验收浏览器已关闭')));
+    const unavailable = (error: Error) => { this.transportFailure ??= error; this.rejectPending(error); };
+    socket.on('close', () => unavailable(new Error('验收浏览器连接已关闭')));
+    socket.on('error', unavailable);
+    child.once('exit', () => unavailable(new Error('验收浏览器进程已退出')));
     signal.addEventListener('abort', this.abort, { once: true });
   }
   private abort = () => { void this.close(); };
@@ -232,7 +282,9 @@ class BuilderBrowser {
     } catch (error) { socket?.close(); child.kill('SIGKILL'); await rm(directory, { recursive: true, force: true }); throw error; }
   }
   command<T = unknown>(method: string, params: Record<string, unknown> = {}, session = this.session): Promise<T> {
-    this.signal.throwIfAborted(); if (this.closed) throw new Error('浏览器已关闭'); const id = ++this.sequence;
+    this.signal.throwIfAborted(); if (this.closed) throw new Error('浏览器已关闭');
+    const unavailable = this.unavailable; if (unavailable) throw unavailable;
+    const id = ++this.sequence;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('浏览器步骤超时：' + method)); }, 30_000);
       this.pending.set(id, { resolve: value => resolve(value as T), reject, timer }); this.socket.send(JSON.stringify({ id, method, params, ...(session ? { sessionId: session } : {}) }));
@@ -259,7 +311,7 @@ class BuilderBrowser {
   async wait(expression: string) {
     const deadline = Date.now() + 20_000; let failure: unknown;
     while (Date.now() < deadline) {
-      try { if (await this.evaluate(expression)) return; } catch (error) { failure = error; }
+      try { if (await this.evaluate(expression)) return; } catch (error) { const unavailable = this.unavailable; if (unavailable) throw unavailable; failure = error; }
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     throw new Error('验收等待超时', { cause: failure });

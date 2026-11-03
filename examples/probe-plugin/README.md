@@ -1,6 +1,6 @@
 # @molis-ai/molis-work-plugin-probe
 
-A probe built-in plugin that exists only for the platform's own tests (W4-01, `specs/repository-anti-corruption/slices/w5-02-registry.md` §6).
+A probe built-in plugin that exists only for the platform's own tests (W4-01, `specs/archive/repository-anti-corruption/slices/w5-02-registry.md` §6).
 It ships in no build and is not a workspace package here: `tests/probe-plugin.test.ts` copies the repository, puts this package at
 `plugins/native/probe`, runs the generator and `pnpm install`, builds, and walks the lifecycle in a one-off Home. Its id is written
 only in this package.

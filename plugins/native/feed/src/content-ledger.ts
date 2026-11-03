@@ -2,7 +2,7 @@ import { feedErrors } from "./contract/feed.js";
 import type { HomePluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
- * Feed's Home reference ledger (specs/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md §3.2).
+ * Feed's Home reference ledger (specs/archive/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md §3.2).
  *
  * Evidence bodies live in the Home, content-addressed, so one body can be held by sources of several projects. The ledger says which
  * (project, source) holds which body, and nothing else: no content, and no way to read another project's library. It is a superset of what is

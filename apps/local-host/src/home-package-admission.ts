@@ -14,6 +14,6 @@ import { declaresProjectCoordination } from './plugin-project-coordination.js';
 export function assertHomePackageAllowed(manifest: PluginManifest): void {
   if (manifest.always_on === true) throw pluginErrors.declaration_invalid('装进 Home 的插件不能声明 always_on：它会在所有项目里删不掉、停不了');
   if (declaresProjectCoordination(manifest)) {
-    throw pluginErrors.state_invalid('Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）');
+    throw pluginErrors.state_invalid('Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）');
   }
 }

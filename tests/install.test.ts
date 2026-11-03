@@ -4,7 +4,7 @@ import { homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger } from "@molis-ai
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, readlink, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, readlink, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -188,7 +188,7 @@ test("source and built CLI without --source use the product root even from anoth
   });
 });
 
-test("home install is scoped, idempotent, and produces an owned release layout", async () => {
+test("IMETA-01 home install is scoped, idempotent, and produces the complete current release layout", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
     const home = join(directory, "home", ".molis-work");
@@ -220,6 +220,16 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     assert.ok((await stat(join(first.skill_directory, "goal-advance", "SKILL.md"))).isFile());
     assert.ok((await stat(join(first.skill_directory, "molis-plugin-dev", "SKILL.md"))).isFile());
     assert.ok((await stat(first.launchers.mcp)).isFile());
+    const manifestPaths = [join(home, "config", "installation.json"), join(first.release_directory, "release.json")];
+    const manifests = await Promise.all(manifestPaths.map(file => readFile(file, "utf8")));
+    const [installation, release] = manifests.map(text => JSON.parse(text));
+    assert.equal(installation.schema_version, 1); assert.equal(release.schema_version, 1);
+    assert.equal(release.dependencies, "embedded"); assert.equal(release.source_directory, undefined);
+    assert.match(release.content_digest, /^[0-9a-f]{64}$/);
+    assert.equal(installation.content_digest, release.content_digest);
+    assert.equal(installation.version, release.version);
+    assert.equal(installation.release_path, "releases/molis-work-1.0.0");
+    assert.ok(Number.isFinite(Date.parse(installation.updated_at))); assert.ok(Number.isFinite(Date.parse(release.created_at)));
     await assert.rejects(stat(join(home, "bin", "goalboard")));
     await assert.rejects(stat(join(home, "bin", "goalboard-mcp")));
     await assert.rejects(stat(join(home, "bin", "goalboard-web")));
@@ -227,6 +237,7 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     const second = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(second.status, "unchanged");
     assert.deepEqual(second.written_paths, []);
+    assert.deepEqual(await Promise.all(manifestPaths.map(file => readFile(file, "utf8"))), manifests);
   });
 });
 
@@ -288,7 +299,7 @@ test("plugin-dev skill is published under skills and linked from Cursor", async 
   assert.equal(await readlink(cursor), "../../skills/molis-plugin-dev");
 });
 
-test("same-version content changes refresh atomically and identical content stays unchanged", async () => {
+test("IMETA-03 same-version content changes refresh atomically and identical content stays unchanged", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
     const home = join(directory, "home", ".molis-work");
@@ -401,7 +412,7 @@ test("workspace source changes reject an old build before touching the installed
   });
 });
 
-test("upgrade failure rolls back the new release and leaves project data and current release intact", async () => {
+test("IMETA-02 IMETA-03 product-version upgrade and rollback preserve the existing current installation and project", async () => {
   await withTemporaryDirectory(async (directory) => {
     const sourceOne = await fixtureSource(directory, "1.0.0");
     const sourceTwo = await fixtureSource(directory, "2.0.0");
@@ -439,7 +450,7 @@ test("upgrade failure rolls back the new release and leaves project data and cur
   });
 });
 
-test("repair replaces a broken owned release without changing its current version", async () => {
+test("IMETA-03 repair replaces a broken current release without changing its current version", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
     const home = join(directory, "home", ".molis-work");
@@ -453,38 +464,66 @@ test("repair replaces a broken owned release without changing its current versio
       (JSON.parse(await readFile(join(home, "config", "installation.json"), "utf8")) as { version: string }).version,
       "1.0.0",
     );
+    await rm(join(repaired.release_directory, "node_modules"), { recursive: true });
+    await symlink(join(source, "node_modules"), join(repaired.release_directory, "node_modules"), "dir");
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "repaired");
+    assert.equal((await lstat(join(repaired.release_directory, "node_modules"))).isSymbolicLink(), false);
   });
 });
 
-test("repair upgrades the obsolete linked release layout in place", async () => {
+test("IMETA-02 rejects same-number linked metadata, wrong schemas and incomplete metadata before any Home mutation", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
     const home = join(directory, "home", ".molis-work");
     const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
-    await rm(join(first.release_directory, "node_modules"), { recursive: true, force: true });
-    await symlink(join(source, "node_modules"), join(first.release_directory, "node_modules"), "dir");
-    await writeFile(
-      join(first.release_directory, "release.json"),
-      `${JSON.stringify({
-        schema_version: 1,
-        installer: "molis-work-home-install-v1",
-        version: "1.0.0",
-        source_directory: source,
-        created_at: "2026-08-16T00:00:00.000Z",
-      }, null, 2)}\n`,
-    );
-
-    const repaired = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
-    assert.equal(repaired.status, "repaired");
-    assert.equal((await lstat(join(repaired.release_directory, "node_modules"))).isSymbolicLink(), false);
-    const manifest = JSON.parse(await readFile(join(repaired.release_directory, "release.json"), "utf8")) as {
-      schema_version: number;
-      dependencies: string;
-      source_directory?: string;
-    };
-    assert.equal(manifest.schema_version, 4);
-    assert.equal(manifest.dependencies, "embedded");
-    assert.equal(manifest.source_directory, undefined);
+    const installationPath = join(home, "config", "installation.json"), releasePath = join(first.release_directory, "release.json");
+    const installation = { ...JSON.parse(await readFile(installationPath, "utf8")), schema_version: 1 };
+    const release = { ...JSON.parse(await readFile(releasePath, "utf8")), schema_version: 1 };
+    const project = join(home, "projects", "kept.db"); await writeFile(project, "user project");
+    const files = [installationPath, releasePath, ...Object.values(first.launchers), project,
+      homeSqlitePath(home, MEMORY_LEDGER_STORE), join(first.program_directory, "cli", "main.js")];
+    const oldRelease = { schema_version: 1, installer: "molis-work-home-install-v1", version: "1.0.0",
+      source_directory: source, created_at: "2026-08-16T00:00:00.000Z" };
+    const noDigest = { ...installation }; delete noDigest.content_digest;
+    const noEmbedded = { ...release }; delete noEmbedded.dependencies;
+    const cases = [
+      ["linked1", installation, oldRelease], ["installation4", { ...installation, schema_version: 4 }, release],
+      ["release4", installation, { ...release, schema_version: 4 }], ["missing digest", noDigest, release],
+      ["missing embedded", installation, noEmbedded], ["extra old field", installation, { ...release, source_directory: source }],
+      ["digest mismatch", installation, { ...release, content_digest: "f".repeat(64) }], ["null", null, release],
+    ] as const;
+    for (const [name, badInstall, badRelease] of cases) {
+      await writeFile(installationPath, JSON.stringify(badInstall)); await writeFile(releasePath, JSON.stringify(badRelease));
+      const modules = join(first.release_directory, "node_modules"), saved = join(directory, "saved-modules");
+      if (name === "linked1") { await rename(modules, saved); await symlink(join(source, "node_modules"), modules, "dir"); }
+      try {
+        const before = await Promise.all(files.map(file => readFile(file)));
+        const entries = await readdir(join(home, "releases")), steps: string[] = [];
+        await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: source, beforeStep(step) { steps.push(step); } }),
+          (error: unknown) => error instanceof ActionError && ["installer.home.unknown_file", "installer.release.conflict"].includes(error.code), name);
+        assert.deepEqual(steps, [], `${name}: rejection precedes stage/promote/write`);
+        assert.deepEqual(await Promise.all(files.map(file => readFile(file))), before, `${name}: all existing files stay unchanged`);
+        assert.deepEqual(await readdir(join(home, "releases")), entries);
+        if (name === "linked1") assert.equal(await readlink(modules), join(source, "node_modules"));
+      } finally {
+        if (name === "linked1") { await rm(modules, { recursive: true, force: true }); await rename(saved, modules); }
+      }
+    }
+    await writeFile(installationPath, JSON.stringify(installation)); await writeFile(releasePath, JSON.stringify(release));
+    const sourceTwo = await fixtureSource(directory, "2.0.0"), target = join(home, "releases", "molis-work-2.0.0");
+    await mkdir(target); await writeFile(join(target, "release.json"), JSON.stringify({ ...release, version: "2.0.0", schema_version: 4 }));
+    const beforeTarget = await Promise.all(files.map(file => readFile(file))), steps: string[] = [];
+    const targetEntries = await readdir(join(home, "releases"));
+    await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: sourceTwo, beforeStep(step) { steps.push(step); } }),
+      (error: unknown) => error instanceof ActionError && error.code === "installer.release.conflict");
+    assert.deepEqual(steps, []); assert.deepEqual(await Promise.all(files.map(file => readFile(file))), beforeTarget);
+    assert.deepEqual(await readdir(join(home, "releases")), targetEntries, "target metadata is checked independently before creating a new version");
+    const bare = join(directory, "unsupported-home"); await mkdir(join(bare, "config"), { recursive: true });
+    await writeFile(join(bare, "config", "installation.json"), JSON.stringify({ ...installation, schema_version: 4 }));
+    const entries = await readdir(bare);
+    await assert.rejects(installMolisWorkHome({ homeDirectory: bare, sourceDirectory: source }));
+    assert.deepEqual(await readdir(bare), entries, "unsupported metadata does not initialize Home directories");
+    await assert.rejects(stat(homeSqlitePath(bare, MEMORY_LEDGER_STORE)), { code: "ENOENT" });
   });
 });
 
@@ -658,7 +697,7 @@ test("home install rejects a declared production dependency that cannot be resol
   });
 });
 
-test("all installed launchers keep running after the installation source is deleted", async () => {
+test("IMETA-01 all installed launchers keep running after the installation source is deleted", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
     const home = join(directory, "home", ".molis-work");
@@ -668,6 +707,46 @@ test("all installed launchers keep running after the installation source is dele
     for (const [name, launcher] of Object.entries(result.launchers)) {
       const output = await execFileAsync(process.execPath, [launcher], { cwd: directory });
       assert.equal(output.stdout.trim(), `${name}:embedded`);
+    }
+  });
+});
+
+test("IMETA-04 real generated Node launchers reject unsupported metadata before executing their existing payload", async () => {
+  await withTemporaryDirectory(async directory => {
+    const source = await fixtureSource(directory, "test"), home = join(directory, "home");
+    const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
+    const installPath = join(home, "config", "installation.json"), releasePath = join(installed.release_directory, "release.json");
+    const installation = { ...JSON.parse(await readFile(installPath, "utf8")), schema_version: 1 };
+    const release = { ...JSON.parse(await readFile(releasePath, "utf8")), schema_version: 1 };
+    const cases = [
+      [{ ...installation, schema_version: 4 }, release],
+      [installation, { schema_version: 1, installer: "molis-work-home-install-v1", version: "test", source_directory: source, created_at: release.created_at }],
+      [installation, { ...release, version: "different" }],
+      [installation, { ...release, content_digest: "f".repeat(64) }],
+    ];
+    for (const [badInstallation, badRelease] of cases) {
+      await writeFile(installPath, JSON.stringify(badInstallation)); await writeFile(releasePath, JSON.stringify(badRelease));
+      for (const launcher of Object.values(installed.launchers)) {
+        await assert.rejects(execFileAsync(process.execPath, [launcher], { cwd: directory }), (error: unknown) => {
+          assert.ok(error instanceof Error && "code" in error && "stdout" in error && "stderr" in error);
+          assert.equal(error.code, 1); assert.equal(error.stdout, "");
+          assert.match(String(error.stderr), /安装元数据不受支持/);
+          assert.doesNotMatch(String(error.stderr), /ReferenceError|SyntaxError/);
+          return true;
+        });
+      }
+    }
+    const outside = join(directory, "outside"); await mkdir(join(outside, "dist", "mcp"), { recursive: true });
+    await writeFile(join(outside, "release.json"), JSON.stringify(release));
+    await writeFile(join(outside, "dist", "mcp", "server.js"), 'console.log("ESCAPED_PAYLOAD");\n');
+    await writeFile(installPath, JSON.stringify({ ...installation, release_path: "../outside" }));
+    await assert.rejects(execFileAsync(process.execPath, [installed.launchers.mcp]), (error: unknown) => {
+      assert.ok(error instanceof Error && "stdout" in error && "stderr" in error);
+      assert.equal(error.stdout, ""); assert.match(String(error.stderr), /安装元数据不受支持/); return true;
+    });
+    await writeFile(installPath, JSON.stringify(installation)); await writeFile(releasePath, JSON.stringify(release));
+    for (const [name, launcher] of Object.entries(installed.launchers)) {
+      assert.equal((await execFileAsync(process.execPath, [launcher], { cwd: directory })).stdout.trim(), `${name}:embedded`);
     }
   });
 });
@@ -693,7 +772,7 @@ test("installed MCP launcher preserves the Runtime caller workspace", async () =
   });
 });
 
-test("only the bundled Web launcher exports its LaunchAgent process identity", async () => {
+test("IMETA-01 only the bundled Web launcher exports its LaunchAgent process identity", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
     const bundledNode = join(source, "runtime", "node");
@@ -712,7 +791,7 @@ test("only the bundled Web launcher exports its LaunchAgent process identity", a
   });
 });
 
-test("bundled Node launchers use the installed runtime when PATH has no Node", async () => {
+test("IMETA-01 IMETA-03 bundled Node launchers preserve current packaging, metadata refusal and missing-file repair", async () => {
   await withTemporaryDirectory(async (directory) => {
     const source = await fixtureSource(directory, "1.0.0");
     const bundledNode = join(source, "runtime", "node");
@@ -722,6 +801,16 @@ test("bundled Node launchers use the installed runtime when PATH has no Node", a
     await chmod(bundledNode, 0o755);
     const home = join(directory, "home", ".molis-work");
     const result = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
+    const installationPath = join(home, "config", "installation.json"), releasePath = join(result.release_directory, "release.json");
+    const installation = await readFile(installationPath, "utf8"), release = await readFile(releasePath, "utf8");
+    const brokenMetadata = JSON.parse(release); delete brokenMetadata.node_runtime;
+    await writeFile(releasePath, JSON.stringify(brokenMetadata));
+    await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: source }),
+      (error: unknown) => error instanceof ActionError && error.code === "installer.release.conflict");
+    assert.equal(await readFile(installationPath, "utf8"), installation);
+    await writeFile(releasePath, release);
+    await rm(join(result.release_directory, "runtime", "node"));
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "repaired");
     assert.ok((await stat(join(result.release_directory, "runtime", "node"))).isFile());
     assert.match(await readFile(result.launchers.cli, "utf8"), /^#!\/bin\/sh\n# molis-work-home-launcher-v2/);
     const releaseManifest = JSON.parse(
@@ -737,6 +826,21 @@ test("bundled Node launchers use the installed runtime when PATH has no Node", a
       });
       assert.equal(output.stdout.trim(), `${name}:embedded`);
     }
+  });
+});
+
+test("IMETA-03 a current same-version release can refresh between both supported Node packaging choices", async () => {
+  await withTemporaryDirectory(async directory => {
+    const source = await fixtureSource(directory, "test"), home = join(directory, "home");
+    const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
+    const nodePath = join(source, "runtime", "node"); await mkdir(join(source, "runtime"));
+    await writeFile(nodePath, `#!/bin/sh\nexec '${process.execPath.replaceAll("'", `'"'"'`)}' "$@"\n`, { mode: 0o755 });
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "refreshed");
+    assert.equal(JSON.parse(await readFile(join(first.release_directory, "release.json"), "utf8")).node_runtime, "embedded");
+    await rm(nodePath);
+    assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source })).status, "refreshed");
+    assert.equal(JSON.parse(await readFile(join(first.release_directory, "release.json"), "utf8")).node_runtime, undefined);
+    assert.equal((await execFileAsync(process.execPath, [first.launchers.cli])).stdout.trim(), "cli:embedded");
   });
 });
 

@@ -21,6 +21,8 @@ export interface LocalHostOptions<Runtime> {
   runtimeFactory: LocalHostRuntimeFactory<Runtime>;
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
+  /** A plugin scene retains its original producer authority across preparation, judgment and consumption. */
+  retainSceneAuthority?(scene: ActionSceneView, project?: LocalHostProjectReference): Promise<() => void>;
   actionAvailability?: ActionAvailabilityPolicy;
   /** Throws to refuse a provider before it is registered: nothing is registered or written for a refused one. */
   admitActionProvider?(provider: ActionProvider, scenes?: readonly ActionSceneDefinition[]): void;

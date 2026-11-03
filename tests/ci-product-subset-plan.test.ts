@@ -10,7 +10,7 @@ import { BROWSER_SMOKES, datingProblems, dayNumber, LIST_FILE, parseList, parseQ
 import { productSubsetProblems } from "../scripts/gates/product-subset.mjs";
 import { blockingJobs, jobBlock } from "./fixtures/ci-workflow.js";
 
-// specs/repository-anti-corruption §4.7 (W2-16, decision #14): the rules the CI product subset's two files keep, as the health gate
+// specs/archive/repository-anti-corruption §4.7 (W2-16, decision #14): the rules the CI product subset's two files keep, as the health gate
 // and the runner both read them (scripts/ci-product-subset/plan.mjs). Each rule is mutation-verified here on small scratch
 // repositories: the base is valid, one thing is broken, and the gate must say so. The runner's own behaviour is in
 // tests/ci-product-subset.test.ts.

@@ -105,6 +105,7 @@ test("real Host: the file tab lists and previews plugin files through the action
   await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: a.project_id, plugin_id: "pages", actor_id: "owner" }));
   const ref = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   let runtime: PluginRuntime | undefined;
@@ -153,7 +154,7 @@ test("real Host: the file tab lists and previews plugin files through the action
     assert.equal((await get(`/api/side/files/entries?source=${encodeURIComponent(joined.id)}`)).status, 404);
 
     // Another project's route never reaches this project's files.
-    const [b] = await withCatalog({ homeDirectory: home }, async catalog => [await catalog.createProject({ display_name: "别的项目", actor_id: "owner" })]);
+    const [b] = await withHostCatalog({ homeDirectory: home }, async catalog => [await catalog.createProject({ display_name: "别的项目", actor_id: "owner" })]);
     const other = await fetch(`${origin}/projects/${b.project_id}/api/side/files/entries?source=${encodeURIComponent(pages.id)}`);
     const otherBody = await other.json() as { page?: { entries: unknown[] } };
     assert.ok(other.status === 404 || (otherBody.page?.entries.length ?? 0) === 0, "project boundary");
@@ -169,7 +170,7 @@ test("real Host: the file tab lists and previews plugin files through the action
     assert.match(await gone.text(), /侧栏内容已经不在了/u);
 
     // Hidden from this project, a plugin leaves the side panel as it leaves the page: no tab, no files; shown again, back.
-    const membership = (hide: boolean) => withCatalog({ homeDirectory: home }, catalog => {
+    const membership = (hide: boolean) => withHostCatalog({ homeDirectory: home }, catalog => {
       for (const plugin_id of ["pages", "lingguang"]) hide ? catalog.removeProjectPlugin({ project_id: a.project_id, plugin_id, actor_id: "owner" })
         : catalog.addProjectPlugin({ project_id: a.project_id, plugin_id, actor_id: "owner" });
     });

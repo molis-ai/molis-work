@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID, goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchLocale, inWordsOf } from "@molis-ai/molis-work-app-workbench";
@@ -83,26 +83,32 @@ async function hostRig(label: string, plugin?: ReturnType<typeof goalsPlugin>) {
     assert.equal(issued.plugin_id, plugin.definition.manifest.plugin_id, "the caller is the one the Host issued that plugin");
     return { actor_id: issued.actor_id, actor_kind: "user", project_id, audience: "plugin", permissions, plugin_install_id: issued.install_id, host_plugin: issued };
   };
-  return { home, project_id, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller,
+  const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+  return { home, project_id, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller, withCatalog: withHostCatalog,
     close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 async function mcpRig(runtimeId: string, stable: string | null) {
   const directory = await mkdtemp(join(tmpdir(), "goals-ack-mcp-"));
   const homeDirectory = join(directory, "home");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  // T405-OWNER-CI-01: finish the offline seed before the real Host takes the Home owner.
+  const project = await withCatalog({ homeDirectory }, catalog => catalog.createProject({ display_name: "Ack MCP", actor_id: "user" }));
   const host = createMolisWorkLocalHost({ homeDirectory });
-  const project = await catalog.createProject({ display_name: "Ack MCP", actor_id: "user" });
-  // The rig's Host is the Home's: the grants go through the access settings it serves.
-  const served = await serveTestHost(null, { home: homeDirectory, host });
-  await grantGoalsMcp({ web: served.web }, project, `runtime:${runtimeId}`);
-  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
-  const mcp = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },
-    { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
-  const call = async (id: string, input: object) => JSON.parse(await mcp.callTool(TOOL(id), input));
-  return { mcp, call, host, actions, person, project_id,
-    close: async () => { await mcp.close(); await served.close(); await host.close(); catalog.close(); await rm(directory, { recursive: true, force: true }); } };
+  // T405-OWNER-CI-02: failed setup must close every transport already started.
+  let served: Awaited<ReturnType<typeof serveTestHost>> | undefined, mcp: MolisWorkServer | undefined;
+  const close = async () => { await mcp?.close(); await served?.close(); await host.close(); await rm(directory, { recursive: true, force: true }); };
+  try {
+    // The rig's Host is the Home's: the grants go through the access settings it serves.
+    served = await serveTestHost(null, { home: homeDirectory, host });
+    await grantGoalsMcp({ web: served.web }, project, `runtime:${runtimeId}`);
+    const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
+    const running = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },
+      { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
+    mcp = running;
+    const call = async (id: string, input: object) => JSON.parse(await running.callTool(TOOL(id), input));
+    return { mcp: running, call, host, actions, person, project_id, close };
+  } catch (error) { await close(); throw error; }
 }
 
 test("RCPT-376: a stable-session MCP caller says how it will treat the person's note: one system record under the session, the note it answers, replayed by key", { timeout: 120_000 }, async () => {
@@ -202,7 +208,7 @@ test("RCPT-377/378: only a note, a requirement or the person's decision is answe
     for (const [index, event_id] of wrongKind.entries()) await refusal("goals.event_acknowledgement.reference_kind", () => say(goal_id, event_id, cursor, `kind-${index}`), `kind ${index}`);
     await refusal("goals.event_acknowledgement.reference_missing", () => say(goal_id, "gevt-no-such-record", cursor, "missing"), "an unknown record");
     await refusal("goals.event_acknowledgement.reference_missing", () => say(goal_id, foreign.event_id, cursor, "foreign-goal"), "a record of another Goal");
-    const project2 = await withCatalog({ homeDirectory: r.home }, c => c.createProject({ display_name: "Other", actor_id: "user" }));
+    const project2 = await r.withCatalog({ homeDirectory: r.home }, c => c.createProject({ display_name: "Other", actor_id: "user" }));
     const ref2 = molisWorkHostProjectReference({ projectId: project2.project_id, databasePath: project2.database_path });
     const otherPerson = managementGoals(r.host.actionClient(ref2), project2.project_id);
     await otherPerson.invoke(goalsActions.create, { goal_id, title: "另一个项目里同名的目标", outcome: "x", idempotency_key: "create-2" });

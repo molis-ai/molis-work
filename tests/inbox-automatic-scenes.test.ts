@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
 import { FEED_ACTION_PERMISSIONS, createFeedCaptureTrigger, feedCaptureScene, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
@@ -8,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, listFeedSourceCatalog, scheduleServiceFor, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, scheduleServiceFor, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { reminderActions, SCHEDULE_PLUGIN_ID, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxJudgmentTrigger, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
@@ -43,8 +44,10 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     },
   } };
   // Desktop imports the same Catalog through package dist; bridge its nominal private-field type for this source-level Host test.
-  const policy = projectActionAvailability(async (_options, run) => run(catalog as unknown as Parameters<typeof run>[0]), home);
+  const policy = projectActionAvailability((options, run) => withCatalog(options, run), home);
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const token = "automatic-inbox-01234567890123456789";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   // The fetches reuse a kept-alive connection while this same process runs long synchronous steps between them; under load the
@@ -155,7 +158,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     // fetched and holds, only the RSS response stood in for.
     const pull = t.mock.method(globalThis, "fetch", async () => new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
     const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, () => now, home, feedOptions);
-    const publicSource = publicSources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const publicSource = publicSources.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     publicSources.feed.outRules.create(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
     const feedActions = bindActionClient(host.actionClient(reference), () => ({ ...caller, permissions: [...new Set([...caller.permissions, ...FEED_ACTION_PERMISSIONS])] }));
     const syncPublic = () => feedActions.invoke(feedSourceActions.sync, { source_id: publicSource.source_id, idempotency_key: "auto-public-once" });
@@ -190,7 +193,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     assert.equal(localCalls, 5);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
 
@@ -213,9 +216,11 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
         probabilities: { "inbox.done": 1 }, confidence: null, model: record.model };
     },
   } };
-  const policy = projectActionAvailability(async (_options, run) => run(catalog as unknown as Parameters<typeof run>[0]), home);
+  const policy = projectActionAvailability((options, run) => withCatalog(options, run), home);
   const owner = scheduledOwnerPlugin();
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy, pluginFixtures: { project: [owner.definition] } });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const history = () => withFunctionsService(home, service => service.listJudgments(), functions);
   try {
     await host.actionClient(reference).invoke(caller, inboxActions.writeJudgment, { function_key: "system_pick_inbox_next" });
@@ -243,6 +248,6 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
     assert.equal(getScheduleReminder(runtime.store.db, second.reminderId), null, "the one-off reminder was consumed by its delivery");
     assert.ok(inputs.length >= 2, "the failing judgment was attempted");
   } finally {
-    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 });

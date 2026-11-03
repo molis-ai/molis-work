@@ -8,6 +8,9 @@ import { withConnectorProtocols, type ConnectorProtocolConfiguration } from "./c
 import { connectionChanged } from "./connection-change-events.js";
 import { connectionTenantOrigin, serviceTenant } from "./connector-request-credentials.js";
 import type { OAuthServiceOwner } from "./integration-registry.js";
+import type { McpSourceCheck, McpSourceSnapshot } from "./connector-mcp-configuration.js";
+import type { McpConfiguration } from "./connector-mcp.js";
+import { requiresMcpDeclaration } from "./connector-mcp-endpoint.js";
 
 type Input<K extends "createToken" | "upsertOAuth" | "saveProtocol" | "saveCli"> = Parameters<ConnectorConnectionStore[K]>[0];
 type Target = { connectionId: string; expectedRevision?: string };
@@ -18,11 +21,12 @@ export type ConnectorActivation =
   | { kind: "oauth"; input: Input<"upsertOAuth">; target: Target; credentials: Record<string, string | null>; protocol?: ConnectorProtocolConfiguration;
     /** The generic flow's pins (W5-11 §3.2), judged again before a held result takes effect; never saved with the connection. */
     declaration?: { plugin: Omit<OAuthServiceOwner, "method">; fingerprint: string } }
-  | { kind: "mcp"; input: Input<"saveProtocol">; target: Target; credentials: Record<string, string | null>; protocol: ConnectorProtocolConfiguration }
+  | { kind: "mcp"; input: Input<"saveProtocol">; target: Target; credentials: Record<string, string | null>; protocol: ConnectorProtocolConfiguration;
+    declaration?: McpSourceSnapshot }
   | { kind: "cli"; input: Omit<Input<"saveCli">, "expectedRevisions">; revisions: Array<[string, string]>; binary: string; fingerprint: string; installation_id?: string };
 
 /** No await between the owner's final intent check and activation. A changed connection must be re-prepared. */
-export function activateConnectorConnection(home: string, completion: ConnectorActivation) {
+export function activateConnectorConnection(home: string, completion: ConnectorActivation, mcpCheck?: McpSourceCheck) {
   if (completion.kind === "token") completion = { ...completion, input: normalizeConnectorTokenInput(completion.input) };
   // A tenant's service is pinned to the tenant its credential was checked on (BL-595): a reauthorization on another tenant is refused
   // before anything is written, so plugin requests never take a credential to a tenant the connection was not made for.
@@ -39,6 +43,7 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
     }
     if (pinned && pinned !== tenantOrigin) throw connectorErrors["connector.connection.service_mismatch"](`这条连接是 ${pinned} 的；要连 ${tenantOrigin}，请新增连接`);
   }
+  assertMcpActivationSource(completion, mcpCheck);
   if (completion.kind === "oauth" || completion.kind === "mcp") {
     const prefix = completion.kind === "mcp" || completion.protocol ? "connector-protocol:" : "connector-connection:";
     runWithMolisWorkHome(home, () => {
@@ -76,4 +81,12 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
   const cleanup = cleanupConnectorInstallation(home, oldInstallation);
   connectionChanged(home, row.connection_id);
   return { ...withConnectorConnections(home, store => store.view(row)), ...(cleanup ? { cleanup } : {}) };
+}
+
+/** Final synchronous check against the live registry object, including a held completion read after the last await. */
+export function assertMcpActivationSource(completion: ConnectorActivation, check?: McpSourceCheck): void {
+  if (completion.kind !== "mcp") return;
+  const config = completion.protocol as McpConfiguration;
+  if (requiresMcpDeclaration(config.serviceId, config.endpoint, config.transport) && !check) throw connectorErrors["connector.mcp.configuration"]("MCP 声明来源未经当前宿主核实，请重新连接");
+  check?.(config, completion.declaration);
 }

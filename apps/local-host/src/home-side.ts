@@ -1,6 +1,6 @@
 import path from "node:path";
 import { closeAssistantService } from "./assistant/assistant-http.js";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type PluginDefinition, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { homeStores } from "./home-stores.js";
@@ -29,6 +29,8 @@ export interface PluginPlatformHome {
   readonly stores: HomeStoreRegistry;
   /** What a person agreed to for the plugins of this Home, and the publishers they pinned (ac-trust): one answer for every project. */
   readonly consents: PluginConsentLedger;
+  /** Captures the matching Home activation's permission, never exposes that activation to a project. */
+  capturePermission(project: PluginInstanceRecord, permission: string): () => void;
 }
 
 type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor">;
@@ -69,7 +71,15 @@ export function releaseHomeSide(host: MolisWorkLocalHost): void {
 export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
   const directory = path.resolve(homeDirectory);
   return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures),
-    consents: new HomeConsentLedger(directory) };
+    consents: new HomeConsentLedger(directory), capturePermission(project, permission) {
+      const owner = sides.get(directory)?.host.homePlugins;
+      if (!owner) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+      const check = owner.capturePermission(project, permission);
+      return () => {
+        if (sides.get(directory)?.host.homePlugins !== owner) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
+        check();
+      };
+    } };
 }
 
 /** The existing, single Agent runtime of this Home; never creates a second runtime for a plugin. */

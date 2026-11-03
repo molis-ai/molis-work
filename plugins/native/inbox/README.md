@@ -23,7 +23,7 @@
 | [src/scenes.ts](src/scenes.ts) | 判断场景、事件上下文准备和结果消费校验 |
 | [src/scene-runtime.ts](src/scene-runtime.ts) | 下一步场景的判断：哪些已发布规则可绑定、哪些建议仍成立、怎样记录；跑在 `services.scenes` 与 `services.judgments` 上，Feed 条目的正文由 `inbox.judgment.evaluate` 先读到、暂存给这一次运行的回调（PG-034） |
 
-可对照现有调用方 [apps/workbench/src/inbox-projection-ui.ts](../../../apps/workbench/src/inbox-projection-ui.ts) 与本包的 [route-handlers.ts](src/route-handlers.ts)（页面的请求只把 HTTP 转成本插件自己的动作，路由在 Manifest 的 `routes` 里声明，挂在 `/api/plugins/io.molis.work.inbox/` 下）。
+舞台由本包 [ui.ts](src/ui.ts) 按 `inbox.stage.read` 的结果绘制；[route-handlers.ts](src/route-handlers.ts) 把页面的 HTTP 请求转成本插件自己的动作，路由在 Manifest 的 `routes` 里声明，挂在 `/api/plugins/io.molis.work.inbox/` 下。
 
 ## 接入与边界
 
@@ -33,13 +33,15 @@
 
 “判断下一步”依赖当前项目的真实场景绑定。`prepare` 从事项引用读取内容，`consume` 核对事项和内容未变化后保存建议；建议不会自动完成或忽略事项。兼容性来自注册能力的输入输出合同，其他插件的判断也可以绑定。关闭判断保留引用。`inbox.judgment.read` 返回共同目录中的判断与实际绑定摘要，网页不再根据静态系统函数列表猜测名称或可运行状态。`inbox.judgment.recommendations` 校验当前绑定、提供方、版本、权限和事项原文，只返回当前仍有效的结果；停用、撤权或原文变化会撤回当前建议，原历史保留。新增记录在原历史的 `scene_provenance` 保存这些依据，旧记录缺少依据时仅用于历史查阅。
 
+已认证舞台读取沿同一次 `inbox.stage.read` 取得 owner 自己保存绑定的元数据，摘要使用该 usage 的 `function_title`；普通配置候选仍来自原动作目录。读取不执行目标判断，也不让舞台执行未声明 query、command 或付费能力。快照在读取返回前核对当前授权与绑定，之后的变化由下次读取和实际判断重新校验。验证见 `tests/plugin-query-consumers.test.ts` 的 FULL17 与原完整 `tests/inbox-current.e2e.test.ts`。
+
 Feed 创建 Attention 时，通过注入的 `createInboxJudgmentTrigger`（宿主侧是 `plugins/native/inbox/src/judgment-trigger.ts`，它调 Inbox 自己的动作 `inbox.judgment.evaluate`）使用同一份绑定；调用者与触发上下文要有 `judgments:write`、`feed:read`。正式 Web 组合根已向 Feed HTTP、来源和连接器同步、定时调度、工作流交接传入该端口。未绑定、停用或失效时不启动自动判断；供应商失败与上下文超限保存为 needs_review，已入箱材料不因此被删除或误报入箱失败。
 
 工作流交接透传原调用者，后续判断不会切换成后台身份。没有模型权限时仍可完成授权的入箱，但不启动判断。每次交接只排出自己创建的 Inbox 事件，不处理其他来源的待判断队列。显式判断及嵌套交接保留发起动作的精确授权，等待期间撤权后不保存结果；已经保存的材料/事项不伪装成回滚。
 
 当前仍有迁移边界：旧 Functions 编辑器的场景选择、完整系统能力页面、其他直接创建 Attention 的业务方，以及中断后尚未执行的自动事件恢复待迁移。不能把本路径通过视为插件全量完成。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。
 
 文稿生成通过插件的 `pages.ts` 解析 Inbox 材料，再调用 Pages 注册动作；Host 只注入同作用域动作客户端与材料读取端口。`required_actions` 固定所需 Pages 能力的版本和提供方，目录自动反映下游权限、模型配置及文档存储状态。移除 Inbox 自己重复判断模型配置的逻辑。原请求、材料快照与文稿结果仍由 Pages 保存，失败可恢复，成功重试保留后续手工修改；生成不会自动完成 Inbox 事项。
 
@@ -63,7 +65,7 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - 负责：需要介入的事项列表、详情与处置（完成、忽略）。
 - 不负责：Feed 与 Goal 的事实和 Store、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-inbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不直接读 Feed 或 Goals 表，不依赖 Feed、Goals、Functions 插件的实现。
   - 失败都是 `ActionError`：码是 `inbox.<原因>`（`inboxErrors`，声明在合同 `modules/attention-resumption`，因为 Feed 插件找不到 Inbox 事项时也用它）；状态只由 kind 推出，本插件没有错误类和状态表。

@@ -149,6 +149,44 @@ test("RAC-2781 deferred discovery obeys the real parent's exact cancellation rea
   }
 });
 
+test("SYS-05 the same captured authority outlives discovery and is released after all providers", async () => {
+  const project = reference("captured-authority");
+  const views = ["first", "second"].map(id => ({ ...unavailableView(project.project_id), capability_id: "homeagg." + id, availability: { available: true } }));
+  let contexts = 0, captured: AbortSignal | undefined, discovery: AbortSignal | undefined;
+  const providers: AbortSignal[] = [];
+  const validate = async () => { assert.ok(captured); captured.throwIfAborted(); };
+  const ports: HomeAggregatePorts = {
+    openProjects: () => [project], projectPlugins: async () => () => true, whileOpen: async (_project, work) => work(),
+    context: async (_project, signal) => { contexts++; captured = signal; return { ...context(project.project_id), signal, validate_authority: validate }; },
+    client: () => ({ discover: async caller => { discovery = caller.signal; assert.notEqual(discovery, captured); return views; },
+      invoke: async (caller, source) => {
+        assert.equal(caller.validate_authority, validate); assert.equal(caller.query_only, true);
+        assert.equal(discovery?.aborted, true, "only the completed discovery deadline has been disposed");
+        assert.ok(caller.signal); assert.notEqual(caller.signal, captured); providers.push(caller.signal);
+        await caller.validate_authority!(source); return source.capability_id;
+      } }),
+  };
+  const result = await collectHomeAggregate(ports, TYPE, {});
+  assert.deepEqual(result.answers.map(answer => answer.output), ["homeagg.first", "homeagg.second"]);
+  assert.deepEqual(result.issues, []); assert.equal(contexts, 1);
+  assert.notEqual(providers[0], providers[1]); assert.ok(providers.every(signal => signal.aborted));
+  assert.equal(captured?.aborted, true, "collection cleanup releases the captured context after both providers");
+});
+
+test("SYS-05 a context resolving after its discovery timeout cannot start a late discovery", { timeout: 6_000 }, async () => {
+  const project = reference("late-context"), held = Promise.withResolvers<ActionCallContext>();
+  let captured: AbortSignal | undefined, discoveries = 0, invocations = 0;
+  const result = await collectHomeAggregate({ openProjects: () => [project], projectPlugins: async () => () => true,
+    whileOpen: async (_project, work) => work(), context: async (_project, signal) => { captured = signal; return held.promise; },
+    client: () => ({ discover: async () => { discoveries++; return []; }, invoke: async () => { invocations++; return {}; } }),
+  }, TYPE, {});
+  assert.deepEqual(result, { answers: [], issues: [{ project_id: project.project_id, source: null, code: "actions.timeout" }] });
+  assert.equal(captured?.aborted, true);
+  held.resolve(context(project.project_id));
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(discoveries, 0); assert.equal(invocations, 0);
+});
+
 test("RAC-2437 homeAggregatePorts wires the Host's own manifest lookup, which refuses when that Host has no catalog", async () => {
   const host = new MolisWorkLocalHost();
   try {
@@ -163,10 +201,10 @@ test("RAC-2437 through a real catalog, the judgement resolves a Manifest id to t
   const { join } = await import("node:path");
   const home = await mkdtemp(join(tmpdir(), "home-aggregate-catalog-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  host.configurePersonalPlanning(home, withCatalog);
-  const create = (displayName: string) => withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: displayName, actor_id: "user" }));
+  const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+  const create = (displayName: string) => withHostCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: displayName, actor_id: "user" }));
   const listedProject = await create("启用 Feed 的项目"), bareProject = await create("没有 Feed 的项目");
-  await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listedProject.project_id, plugin_id: "feed", actor_id: "user" }));
+  await withHostCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listedProject.project_id, plugin_id: "feed", actor_id: "user" }));
   const reference = (project: { project_id: string; database_path: string }) => molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const view = (code: string): ActionView => ({
     capability_id: "homeagg.catalog.read", version: 1, operation: "query",

@@ -7,7 +7,7 @@ import { declaresProjectCoordination } from "./plugin-project-coordination.js";
 import { ARTIFACTS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 
 // The platform's facts about the plugins this build ships, derived in this one place from the plugins' own registrations
-// (W5-02 PR-B, PG-065 in specs/repository-anti-corruption/privileges.md). scripts/generate-plugin-registry.mjs writes the list
+// (W5-02 PR-B, PG-065 in specs/archive/repository-anti-corruption/privileges.md). scripts/generate-plugin-registry.mjs writes the list
 // beside the shell's copy (apps/workbench/src/builtin-plugins.ts); the Host decides from this one, never from the workbench, and
 // hands the shell what it needs to draw (S-08, S-15: the start list is one).
 

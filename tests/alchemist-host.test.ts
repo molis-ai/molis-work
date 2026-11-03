@@ -99,16 +99,23 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
 async function configuredAi(t: test.TestContext, endpoint = "http://127.0.0.1:1") {
   const home = await mkdtemp(join(tmpdir(), "alchemist-prologue-"));
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  let ownedHost: MolisWorkLocalHost | undefined;
+  t.after(async () => {
+    const failures: unknown[] = [];
+    try { await ownedHost?.close(); } catch (error) { failures.push(error); }
+    try { resetSecretStoreCache(); } catch (error) { failures.push(error); }
+    if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior;
+    try { await rm(home, { recursive: true, force: true }); } catch (error) { failures.push(error); }
+    if (failures.length) throw new AggregateError(failures, "Alchemist fixture cleanup failed");
+  });
+  const host = ownedHost = new MolisWorkLocalHost({ homeDirectory: home });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  const withCatalog = host.configurePersonalPlanning(home, access.withCatalog);
+  const catalog = await withCatalog({ homeDirectory: home }, current => current);
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Alchemist test", token: "explicit-test-secret" }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
   catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
-  const host = new MolisWorkLocalHost({ homeDirectory: home }); ensureSystemAgentService(host, home);
-  t.after(async () => {
-    await host.close(); catalog.close(); resetSecretStoreCache();
-    if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior;
-    await rm(home, { recursive: true, force: true });
-  });
+  ensureSystemAgentService(host, home, withCatalog);
   return { home, catalog, host, secrets: runWithMolisWorkHome(home, () => createFileSecretStore()) };
 }
 
@@ -129,6 +136,11 @@ test("Alchemist packed Prologue borrows the shared Home owner and fixed model, a
     changeConfiguration?.();
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(events.join(""));
   });
+  const closeModel = async () => {
+    server.closeAllConnections();
+    if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
+  };
+  t.after(closeModel);
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const f = await configuredAi(t, `http://127.0.0.1:${address.port}`);
@@ -174,7 +186,7 @@ test("Alchemist packed Prologue borrows the shared Home owner and fixed model, a
     assert.equal(requests.length, 8); assert.equal(borrowed, 8);
     await assert.rejects(access(join(f.home, "alchemist", "projects", "p", "runtime")), { code: "ENOENT" });
     await f.host.close(); await assert.rejects(resolvePrologueInference(f.home), /尚未装配/);
-  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+  } finally { await closeModel(); }
 });
 
 test("Alchemist search initializes its own persistent SEL storage and returns actual provider materials", { timeout: 15_000 }, async t => {

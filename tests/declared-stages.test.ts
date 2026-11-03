@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
-import { BUILTIN_PLUGIN_CATALOG, stageContributionId } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, renderStagePage, stageContributionId } from "@molis-ai/molis-work-app-workbench";
+import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
@@ -17,6 +19,23 @@ test("FIX-2 the shared view contribution rule preserves default ids and explicit
   const view = { view_id: "main", slot: "stage" as const, title: "Probe" };
   assert.equal(stageContributionId({ ...manifest, ui: { views: [view] } }), "io.molis.work.id-probe.main");
   assert.equal(stageContributionId({ ...manifest, ui: { views: [{ ...view, contribution_id: "explicit.probe" }] } }), "explicit.probe");
+});
+
+test("RAC-2519 a registration outside the builtin catalog mounts its declared surfaces independently and keeps main-only factories unchanged", () => {
+  const id = "io.example.surface-owner", contribution_id = id + ".stage";
+  const manifest = { ...BUILTIN_PLUGIN_CATALOG[0]!.manifest, plugin_id: id, name: "External owner", ui: { contributions: [contribution_id], views: [{ view_id: "main", title: "External owner", slot: "stage" as const, contribution_id }] } };
+  const contribution: UiContribution = { descriptor: { contribution_id, surfaces: [
+    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
+    { surface_id: "overlays", target_slot_id: "workbench.overlay", format: "declarative-html" },
+  ] }, render: request => request.surface === "overlays" ? "" : request.surface === "directory" ? '<aside data-directory-panel="external"><button>Own directory</button></aside>' : '<main data-work-surface="external">Own workbench</main>' };
+  const mounted = renderStagePage(contribution, {}, "external", false, undefined, { manifest, client: { clientFactory: "host => {}", clientMounts: "surfaces" } });
+  assert.match(mounted.html, /data-plugin-owner="io.example.surface-owner".*data-plugin-contribution="io.example.surface-owner.stage".*data-plugin-surface="workbench".*data-plugin-slot="workbench.main"/);
+  assert.match(mounted.panels, /data-plugin-surface="directory".*data-plugin-slot="workbench.directory"/);
+  assert.equal(mounted.overlays, "", "empty optional surfaces never mount a second frame");
+  assert.match(mounted.html, /data-plugin-document/); assert.match(mounted.panels, /data-plugin-document/);
+  const old = renderStagePage(contribution, {}, "external", false, undefined, { manifest, client: { clientFactory: "host => {}" } });
+  assert.equal(old.panels.includes("data-plugin-document"), false, "a preexisting factory is still main-only");
 });
 
 function emptyView(): MolisWorkWebView {
@@ -51,11 +70,72 @@ function emptyView(): MolisWorkWebView {
   } as MolisWorkWebView;
 }
 
+test("T405-FULL-15: the first paint reserves only the active, enabled and actually rendered declared directory", () => {
+  const id = "initial-directory-probe";
+  const directory = [{ id, plugin_id: "io.example.initial-directory", name: "Initial directory", chosen: true,
+    ui: { views: [{ view_id: "directory", slot: "navigator" as const, title: "Initial directory", order: 1 }] } }];
+  const page = { owner: id, html: `<section data-work-surface="${id}">Runtime stage</section>`, parts: { open_stage: true }, before_global_search: "", after_global_search: "" };
+  const panel = { [id]: "<div data-initial-directory-probe>Runtime directory</div>" };
+  for (const [name, overrides, expected] of [
+    ["declared runtime directory", {}, id],
+    ["no actual panel", { plugin_panels: {} }, "root"],
+    ["alias-only panel", { plugin_panels: { [id]: '<div data-directory-panel="another-directory">Alias contents</div>' } }, "root"],
+    ["explicit owner panel", { plugin_panels: { [id]: `<div data-directory-panel="${id}">Owner directory</div>` } }, id],
+    ["no directory declaration", { plugin_directory: [] }, "root"],
+    ["disabled plugin", { shown_plugins: [] }, "root"],
+    ["root page", { page_stage: undefined }, "root"],
+  ] as const) {
+    const html = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [id], plugin_directory: directory, plugin_panels: panel, page_stage: page, ...overrides });
+    const workspace = html.match(/<main class="immersive-workspace[^>]*>/u)![0];
+    assert.equal(workspace.includes("is-plugin-directory-empty"), expected === "root", `${name}: initial column width`);
+    assert.ok(html.includes(`id="goal-tree-pane" data-desktop-directory="${expected}"`), `${name}: initial aside selection`);
+    const section = html.match(new RegExp(`<section[^>]*data-plugin-section="${id}"[^>]*>`, "u"));
+    assert.equal(Boolean(section && !/\shidden(?:\s|>)/u.test(section[0])), expected === id, `${name}: the same directory starts active`);
+  }
+});
+
+test("T405-FULL-15: the shell applies the same project's saved directory width before CSS, with collection isolation and embedded exclusion", () => {
+  const key = "molis-work-ui:" + PROJECT;
+  for (const [collection, width, storage, expected] of [
+    ["current", 820, { [key + ":current"]: '{"treeWidth":240}' }, 240],
+    ["current", 1440, { [key]: '{"treeWidth":311}' }, 311],
+    ["current", 820, { [key + ":current"]: '{"treeWidth":900}', [key]: '{"treeWidth":311}' }, 460],
+    ["archive", 820, { [key + ":archive"]: '{"treeWidth":190}', [key + ":current"]: '{"treeWidth":311}' }, 200],
+    ["trash", 1440, { [key + ":trash"]: '{"treeWidth":367}' }, 367],
+    ["archive", 820, { [key]: '{"treeWidth":311}' }, undefined],
+    ["current", 390, { [key + ":current"]: '{"treeWidth":240}' }, undefined],
+    ["current", 820, { [key + ":current"]: 'unreadable' }, undefined],
+    ["current", 820, {}, undefined],
+  ] as const) {
+    const page = { owner: "home", html: "", parts: { body_attributes: { "data-board-view": collection } }, before_global_search: "", after_global_search: "" };
+    const html = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [], page_stage: page });
+    const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]!).find(source => source.includes(key));
+    assert.ok(script); assert.ok(html.indexOf(script) < html.indexOf('rel="stylesheet"'), "the preference runs before stylesheet/layout");
+    const styles: Array<{ textContent?: string }> = [], reads: string[] = [], localReads: string[] = [];
+    const matchMedia = (query: string) => ({ matches: query === "(max-width:600px)" && width <= 600 });
+    const window: { parent?: object; top?: object; matchMedia: typeof matchMedia } = { matchMedia };
+    window.parent = window; window.top = window;
+    const documentElement: { dataset: Record<string, string> } = { dataset: {} };
+    runInNewContext(script, { window, innerWidth: width, matchMedia,
+      localStorage: { getItem(name: string) { localReads.push(name); return null; } },
+      sessionStorage: { getItem(name: string) { reads.push(name); return (storage as Record<string, string>)[name] ?? null; } },
+      document: { documentElement, createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
+    assert.deepEqual(localReads, ["molis-work:theme", "molis-work:density", "molis-work:terminal-theme"]);
+    assert.deepEqual(documentElement.dataset, { theme: "system", resolvedTheme: "light", density: "standard", terminalTheme: "auto", resolvedTerminalTheme: "light" });
+    assert.deepEqual(styles.map(style => style.textContent), expected === undefined ? [] : [`body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:${expected}px}`]);
+    assert.ok(reads.every(name => name === key + ":" + collection || collection === "current" && name === key));
+  }
+  const embedded = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [], pane_plugin: "home" });
+  assert.ok(![...embedded.matchAll(/<script>([\s\S]*?)<\/script>/g)].some(match => match[1]!.includes(key)), "embedded panes do not read the outer project's directory preference");
+});
+
 /** Stage pages in the owner document (a framed stage's own document travels inert, so it is not counted). */
 const stages = (html: string, surface: string) => (html.match(new RegExp(`\\sdata-work-surface="${surface}"`, "g")) ?? []).length;
 
 /** One stage page's markup in the owner document, up to the next stage page. */
 function stage(html: string, surface: string): string {
+  const own = pluginDocuments(html).find(body => body.includes('data-work-surface="' + surface + '"'));
+  if (own) return own;
   const start = html.indexOf(` data-work-surface="${surface}"`);
   assert.ok(start >= 0, `${surface} has a stage`);
   const next = html.indexOf(" data-work-surface=", start + 1);
@@ -85,7 +165,7 @@ test("W5-06 a plugin the project does not show has no stage, and one a host path
     ...emptyView(),
     enabled_plugins: ["goals"],
     hidden_plugins: ["dataset", "ppt"],
-    plugin_stage_ids: [stageContributionId(todo.manifest)!],
+    plugin_stage_surfaces: [{ contribution_id: stageContributionId(todo.manifest)!, surface: "workbench" }],
     plugin_stages: ['<section data-work-surface="todo" data-stage="host"></section>'],
   } as MolisWorkWebView;
   const owner = draw(view);
@@ -93,6 +173,7 @@ test("W5-06 a plugin the project does not show has no stage, and one a host path
   assert.equal(stages(owner, "ppt"), 0, "a hidden personal plugin has no stage");
   assert.equal(stages(owner, "schedule"), 0, "a project plugin the project has not added has no stage");
   assert.equal(stages(owner, "inbox"), 0, "a project plugin the project has not added has no stage");
+  assert.equal(stages(owner, "sources"), 0, "RAC-2508 an unshown Feed owner does not draw its Sources stage");
   assert.equal(stages(owner, "pages"), 1, "a shown personal plugin keeps its stage");
   assert.equal(stages(owner, "todo"), 1, "the host's stage is the only one");
   assert.match(owner + pluginDocuments(owner).join("\n"), /data-stage="host"/);

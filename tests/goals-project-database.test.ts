@@ -10,7 +10,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 
-// PLIB-12, PLIB-13 (specs/plugin-project-database S8, PG-020): Goals declares its project library in its own Manifest (`databases.project`),
+// PLIB-12, PLIB-13 (specs/archive/plugin-project-database S8, PG-020): Goals declares its project library in its own Manifest (`databases.project`),
 // and the Host opens it in every project's library as it does the other plugins' (the refusals are tests/goals-project-database-refusal.test.ts).
 // These run on an empty in-memory library that holds only the platform's ledger, and prove the declaration is one the platform accepts
 // and makes what the project library baseline (version 7) made for Goals and Governance, the board aside: it has no name now (the

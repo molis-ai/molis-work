@@ -16,7 +16,7 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import * as shelfPlugin from "@molis-ai/molis-work-plugin-shelf";
 import type { ShelfActionPorts } from "@molis-ai/molis-work-plugin-shelf";
 
-// specs/repository-anti-corruption W3-02-F: Shelf, Jelly, Cognia and Images lose their route-error mappers and their error classes, and so do the Host's
+// specs/archive/repository-anti-corruption W3-02-F: Shelf, Jelly, Cognia and Images lose their route-error mappers and their error classes, and so do the Host's
 // material errors (Jelly's source and material readers, the text extractor). Their failures are ActionErrors whose codes the owners declare
 // (`defineErrorCodes`); the Host's edge answers every one through the SDK, so the status comes from the failure's kind and the same platform code gets the
 // same status at all four plugins.

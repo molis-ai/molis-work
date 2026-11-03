@@ -19,7 +19,7 @@ import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
-// BL-530 part 2 (specs/repository-anti-corruption/slices/bl530-sandboxed-integrations.md §2.2, §2.7, §2.8): a signed integration package is
+// BL-530 part 2 (specs/archive/repository-anti-corruption/slices/bl530-sandboxed-integrations.md §2.2, §2.7, §2.8): a signed integration package is
 // installed in the Home and runs in its sandbox instance (BL-628). The Home hands the registry its declarations and the Host's proxy while it
 // runs, and takes them back when it is switched off or removed; its ids are checked against the registry before anything is written.
 

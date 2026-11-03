@@ -181,7 +181,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
   if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, codingActions(context, beforeWrite)));
   if (text_materials.length > 30) throw codingFailure("coding.server.materials-30");
-  const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, record.session_id, codingActionControl(beforeWrite));
+  const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, codingActionControl(beforeWrite));
   if (catalog) text_materials.push(catalog);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }

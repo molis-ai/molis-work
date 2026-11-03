@@ -28,7 +28,7 @@ export function gitClient(host: GitHost, sentences: GitSentenceTable): GitBrowse
     };
   });
   lifetime.watchRevision((signal) => host.request("/view-revision", "GET", undefined, signal), async () => {
-    if (page.preparing || result.getAttribute("aria-busy") === "true" || (refreshButton.disabled && !page.initialRead)) return false;
+    if (page.busy || page.preparing || result.getAttribute("aria-busy") === "true" || (refreshButton.disabled && !page.initialRead)) return false;
     page.initialRead = false;
     await refresh(page);
   });

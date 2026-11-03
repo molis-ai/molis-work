@@ -44,13 +44,13 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
     return scope;
   };
   /** One call as the action's original caller: the grant and the caller's own last check before it and again after it. */
-  const call = async <T>(change: "none" | "change" | "wait", run: (caller: ActionExecutionContext) => Promise<T> | T): Promise<T> => {
+  const call = async <T>(change: "none" | "change" | "wait", run: (caller: ActionExecutionContext, origin: ReturnType<typeof originOf>) => Promise<T> | T): Promise<T> => {
     const scope = originOf(), original = scope.caller;
     if (change !== "none" && pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读调用不能修改场景");
     if (change === "wait" && scope.definition.action.scheduling !== "concurrent") throw new ActionError("actions.forbidden", "运行场景要等判断结果，只能由并行动作调用");
     const check = () => { holding(); requireSynchronous(original.assert_authority_current?.(), "最终授权检查必须同步完成"); };
     check();
-    const result = await run({ ...original, delegated_by: manifest.plugin_id });
+    const result = await run({ ...original, delegated_by: manifest.plugin_id }, scope);
     check();
     return result;
   };
@@ -70,8 +70,15 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
   return Object.freeze<PluginSceneClient>({
     discoverScenes: judgment => call("none", async caller => (await scenes.discoverScenes(caller, judgment))
       .filter(view => view.provider.plugin_id === manifest.plugin_id && own.has(sceneKey(view.definition.scene_id, view.definition.version)))),
-    usages: judgment => call("none", async caller => {
-      const usages = await scenes.usages(caller, judgment), providers = await ownProviders(caller);
+    usages: judgment => call("none", async (caller, scope) => {
+      const metadata = caller.stage_scene_metadata, entry = caller.current_action;
+      if (metadata && (!entry || metadata.entry.capability_id !== scope.definition.capability_id || metadata.entry.version !== scope.definition.version
+        || metadata.entry.provider_id !== entry.provider_id || metadata.owner.plugin_id !== manifest.plugin_id
+        || metadata.owner.install_id !== scope.install_id || metadata.owner.installation_generation !== scope.installation_generation
+        || metadata.actor_id !== caller.actor_id || metadata.audience !== caller.audience || metadata.project_id !== caller.project_id)) {
+        caller = { ...caller }; Reflect.deleteProperty(caller, "stage_scene_metadata");
+      }
+      const providers = await ownProviders(caller), usages = await scenes.usages(caller, judgment);
       return usages.filter(usage => providers.has(sceneKey(usage.scene_id, usage.scene_version)));
     }),
     targets: (judgment, scene) => {

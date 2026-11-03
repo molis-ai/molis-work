@@ -15,7 +15,7 @@ import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 import { openTestShelfFiles, openTestShelfStore } from "./shelf-direct-actions.js";
 
 /**
- * PG-026 (specs/repository-anti-corruption/privileges.md): Shelf keeps its files through the owner-files client, over the entries it declares.
+ * PG-026 (specs/archive/repository-anti-corruption/privileges.md): Shelf keeps its files through the owner-files client, over the entries it declares.
  * What that client and its port refuse (outside the declared entries, links, an asynchronous or expired writer) and how they replace a
  * whole file is the platform's, tested on the Runtime: SHF-IO-S02 to S06 (tests/security-invariants-plugin-owner-files*.test.ts).
  * S1-6 concurrent appends keep every line because the write callback is synchronous; SHF-IO-S02 to S06 do not test concurrent appends.

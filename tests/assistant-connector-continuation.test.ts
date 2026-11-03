@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MolisWorkLocalHost, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -27,7 +28,7 @@ for (const restart of [false, true]) test(`ASC-09 ASC-18 ASC-25 ASC-33: the Assi
     if (turn === 4) return "正在等待你填写工作服务凭据。";
     if (turn === 5) return query(authorization);
     return "已读取到接入状态；连接已保存。";
-  });
+  }, undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text: "帮我接入工作服务，完成后读取接入状态", request_id: crypto.randomUUID() });
   const review = await untilSetup(async () => (await read(home, sent.work.work_id)).reviews[0], "setup approval");
   await home.web.post(`/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision: "approve" });
@@ -92,7 +93,7 @@ test("ASC-33 ASC-34: latest Send holds the original setup; an explicit retain su
     if (turn === 9) return "按最新要求继续等待；接好后只读状态。";
     if (turn === 10) return query(authorization);
     return "已只读核对接入状态。";
-  });
+  }, undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text: "接入工作服务后保存资料", request_id: crypto.randomUUID() });
   const approve = async (reviewId: string) => home.web.post(`/api/assistant/works/${sent.work.work_id}/reviews/${reviewId}`, { decision: "approve" });
   const initialReview = await untilSetup(async () => (await read(home, sent.work.work_id)).reviews[0], "initial setup approval");

@@ -14,7 +14,7 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// specs/repository-anti-corruption PG-036 (C8-3): the Assistant carries a work in any plugin that publishes the work-executor protocol,
+// specs/archive/repository-anti-corruption PG-036 (C8-3): the Assistant carries a work in any plugin that publishes the work-executor protocol,
 // found by the roles' types and kept by the plugin's id. These tests speak the protocol with a plugin that is not Coding.
 
 const PLUGIN = "io.molis.work.fixture-agent", KIND = "fixture_session", MODES = EXECUTOR_MODES;

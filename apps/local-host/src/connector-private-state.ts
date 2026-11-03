@@ -3,7 +3,7 @@ import { closeSync, constants, fstatSync, lstatSync, opendirSync, openSync, read
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openExistingHomePayload, sealExistingHomePayload, type SealedHomePayload } from "@molis-ai/molis-work-storage";
-import { readManagedConnectorTool } from "./connector-tool-install.js";
+import { readManagedConnectorTool, inspectManagedConnectorToolSnapshot } from "./connector-tool-install.js";
 
 export const CONNECTOR_PRIVATE_STATE_OWNER = "connector-private-state";
 const errors = defineErrorCodes("connector.private_state", { invalid: "invalid", limit_exceeded: "too_large" });
@@ -106,14 +106,15 @@ function regularFile(file: string, entry = info(file)): Stats {
   return entry;
 }
 
-function ownedInstallation(home: string, id: string) {
+function ownedInstallation(home: string, id: string, archiveDataDirectory?: string) {
   if (!installationId.test(id)) throw fail();
   const root = installsRoot(home);
   if (!root) throw fail();
   const directory = join(root, id);
-  plainDirectory(directory); regularFile(join(directory, "installation.json"));
+  plainDirectory(directory);
+  if (!archiveDataDirectory) regularFile(join(directory, "installation.json"));
   try {
-    const installed = readManagedConnectorTool(home, id);
+    const installed = archiveDataDirectory ? inspectManagedConnectorToolSnapshot(home, id, archiveDataDirectory) : readManagedConnectorTool(home, id);
     return { root: join(directory, ".home"), source: createHash("sha256").update(JSON.stringify(installed.source)).digest("hex") };
   } catch { throw fail(); }
 }
@@ -242,7 +243,7 @@ function inspectDestination(root: string, tree: RestoredTree, budget: ReadBudget
 }
 
 /** Returns a complete memory-only file plan; the shared restore publisher still owns every write and rollback. */
-export function preflightConnectorPrivateStateRestore(homeDirectory: string, snapshot: unknown): ConnectorPrivateStateRestorePlan[] {
+export function preflightConnectorPrivateStateRestore(homeDirectory: string, snapshot: unknown, options: { readonly archiveDataDirectory?: string } = {}): ConnectorPrivateStateRestorePlan[] {
   return ownerRead(() => {
     const home = homeRoot(homeDirectory);
     if (!record(snapshot) || snapshot.schema_version !== 1 || snapshot.owner !== CONNECTOR_PRIVATE_STATE_OWNER || !Array.isArray(snapshot.installations)) throw fail();
@@ -257,7 +258,7 @@ export function preflightConnectorPrivateStateRestore(homeDirectory: string, sna
     for (const entry of snapshot.installations) {
       if (!record(entry) || typeof entry.installation_id !== "string" || typeof entry.source_sha256 !== "string" || seen.has(entry.installation_id)) throw fail();
       seen.add(entry.installation_id);
-      const owned = ownedInstallation(home, entry.installation_id);
+      const owned = ownedInstallation(home, entry.installation_id, options.archiveDataDirectory);
       if (entry.source_sha256 !== owned.source) throw fail();
       const tree = parseTree(openExistingHomePayload(home, binding(entry.installation_id, owned.source), entry.payload), budget);
       destination.nodes(); inspectDestination(owned.root, tree, destination);

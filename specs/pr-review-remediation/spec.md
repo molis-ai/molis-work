@@ -15,7 +15,7 @@
 | 编号 | 来源 PR | 级别 | 确认方式 | 证据 |
 | --- | --- | --- | --- | --- |
 | PRR-01 | #839 | P1 | 代码路径 + 纯函数复现 | `knowledge-actions.ts:131-135` 把 plugin 的 `reader` 换成 owner；`workspace.ts:25-27,78` 工作目录读用 `access.reader`；复现脚本显示 `discover`/`invoke` 都以 owner 身份调用，并读出了 `workspace_file` |
-| PRR-02 | #733 | P1 | 代码 + 裁定 11 | `cognia/src/directory.ts:1-2,7-9` 直接 `node:fs`；`actions.ts:11` 的 `directory.scan` 受众含 agent/mcp/workflow；`specs/repository-anti-corruption/spec.md:3063` 要求平台服务与同意流程 |
+| PRR-02 | #733 | P1 | 代码 + 裁定 11 | `cognia/src/directory.ts:1-2,7-9` 直接 `node:fs`；`actions.ts:11` 的 `directory.scan` 受众含 agent/mcp/workflow；`specs/archive/repository-anti-corruption/spec.md:3063` 要求平台服务与同意流程 |
 | PRR-03 | #733 | P1/P2 | 代码路径 + 用户决定 B | 平台目录服务与 Host grant 已落地（`plugin-directory-service.ts`、`directoryGrantRoute`）；Cognia 只拿 grant id，不再 import `node:fs` |
 | PRR-04 | #629 | P2 | 纯函数复现 | `announce-guard.ts:125-128` 的 `ACTING_TOOLS` 含 `suggest-action`/`suggest-memory`；复现脚本确认两者返回后 `actedThisRound=true`；`prologue-stop-guard.ts:99-101` 在 `changed` 为真时直接放行，不跑 `reviewEnding` |
 | PRR-05 | #839 | P2 | 纯函数复现 | `coding/src/manifest.ts:71` 只 consume `knowledge.read`；`knowledge-tools.ts:33-38` 却调 `knowledge.list`；复现脚本确认 `invoke` 抛 `actions.forbidden`、catalog 为 null |
@@ -27,11 +27,11 @@
 | PRR-11 | #729 | P2 | 代码核对 | `plugins/native/lingguang/src/manifest.ts:9,28-36` 所有 POST 路由都用 `BODY_BYTES = 36_000_000` |
 | PRR-12 | #729 | P2 | 代码核对 | 已改为 Manifest `stage` view + Plugin 自己的 contribution 渲染；`ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts` 不再有 Lingguang 专用分支 |
 | PRR-13 | #681 | P2 | 身份复现 | `installIdentity(todoManifest)` 得到 `plugin-install-<sha>`，不等于 `io.molis.work.todo`；`agent-question-surfaces.ts:48-49` 的 `builtinOf` 因此返回 undefined |
-| PRR-14 | #835 | P3 | spec 行核对 | `specs/repository-anti-corruption/spec.md:283-284` 的 RES09 是探索恢复；`:309` 又把 RES09 给 Pulse 取消 |
+| PRR-14 | #835 | P3 | spec 行核对 | `specs/archive/repository-anti-corruption/spec.md:283-284` 的 RES09 是探索恢复；`:309` 又把 RES09 给 Pulse 取消 |
 | PRR-15 | #857 | P3 | 代码核对 | `project-database.ts:217` 的 `ROLLBACK` 可能盖掉原错误；`:167` 的 `JSON.parse` 没有映射成 `shape_mismatch` |
 | PRR-16 | #718 | P3 | 行对照 | `docs/reviews/anthropic-capability-assembly-2026-10-18.md:25` 写两个 role、四项 host_tools；实际是三个 role、六项（`assistant-agent.ts:144-150`、`plugin-agent.ts:25`）；2026-10-18 修订记录仍未补 |
 | PRR-17 | #771 | P3 | 行对照 | `docs/product-operations/产品介绍.md:198` 说打开/保存面板总在另一个进程；`specs/computer-use/open-decisions.md:5-11` 说可能是同 pid sheet，真机事实未定 |
-| PRR-18 | #847 | P3 | 计数/文件对照 | `specs/repository-anti-corruption/spec.md:1627` 写 86 个源文件、15,982 行、`client.ts` 1,118 行；当前 90 个 `.ts`、`client.ts` 1,114 行；CHANGELOG 没有 Pages 迁移的升级须知；spec 说 Pages 已声明 runtime，但 `registration.ts` 没有 |
+| PRR-18 | #847 | P3 | 计数/文件对照 | `specs/archive/repository-anti-corruption/spec.md:1627` 写 86 个源文件、15,982 行、`client.ts` 1,118 行；当前 90 个 `.ts`、`client.ts` 1,114 行；CHANGELOG 没有 Pages 迁移的升级须知；spec 说 Pages 已声明 runtime，但 `registration.ts` 没有 |
 | PRR-19 | #766 | P3 | 行对照 | `specs/visual-ui-experience/spec.md:27,86,280` 把附件状态归 UIV；`specs/unified-input-voice/spec.md` 没有附件状态条文；`:30` 仍钉在 482149c7e；`:234` 对测试的描述不准确 |
 | PRR-20 | #764/#762/#828/#703 | P3 | 行对照 | `产品介绍.md:40` 的「预览/开发中」与 `:27`、`:36`、`:288` 不一致；`privileges.md:143-144` 的 PG-018/019 仍写「待做」；`ai-development-handbook/spec.md:11,29-35` 的交接事实/头不一致；`actions.ts:448-455` 的注释错位 |
 | PRR-21 | #831 | P3 | 测试行核对 | `shelf-side-links.e2e.test.ts:87-97` 比较 `[data-tab-workspace] [role=tab]` 的 29 个内部控件，不是可见的 `[data-titlebar-tabs] [data-tab-id]`；`:85` 固定「等你处理 · 1」；`:94` 只转义第一个点；`context-pick-result.e2e.test.ts:173` 仍拦截 `molis:side-open` |
@@ -100,11 +100,11 @@
 11. **PRR-11**（#729，P2）灵光每条 POST 路由有自己的 `max_body_bytes`；只有上传/导入用大上限，小写入路由不再接受 36 MB。测试：`tests/lingguang-http.test.ts` 的 `PRR-11 each route has its own body limit`。
 12. **PRR-12**（#729，P2）灵光的工作面由 Manifest 声明的 `stage` view 和 Plugin 自己的 UI contribution 渲染；工作台删掉 `renderLingguangContribution`/`renderLingguangNativePluginSurface` 与页面池里的插件 id 分支，保留现有视觉与交互。测试：`tests/lingguang-plugin.test.ts` 的 `PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染`；`[人工]` 侧栏/工作面视觉验收。
 13. **PRR-13**（#681，P2）`builtinOf` 按 `provider.plugin_id` 与 `BUILTIN_PLUGIN_CATALOG` 识别内置；Runtime 内置插件（Todo）隐藏/未显示时不进对象引用题，内置在前排序成立。测试：`tests/agent-question-surfaces.test.ts` 的 `PRR-13 a hidden Runtime builtin is not a reference kind`。
-14. **PRR-14**（#835，P3）Pulse 取消验收改用 `W5-01-ALC-RES11`；RES09 只保留探索恢复。更新 `specs/repository-anti-corruption/spec.md`、`tests/alchemist-pulse-cancel.test.ts`、`tests/alchemist-mcp.test.ts`、`tests/alchemist-actions.test.ts` 的注释和 QA 报告。测试：`tests/alchemist-pulse-cancel.test.ts` 的 `W5-01-ALC-RES11 …`；`[人工]` 编号一致性检查。
+14. **PRR-14**（#835，P3）Pulse 取消验收改用 `W5-01-ALC-RES11`；RES09 只保留探索恢复。更新 `specs/archive/repository-anti-corruption/spec.md`、`tests/alchemist-pulse-cancel.test.ts`、`tests/alchemist-mcp.test.ts`、`tests/alchemist-actions.test.ts` 的注释和 QA 报告。测试：`tests/alchemist-pulse-cancel.test.ts` 的 `W5-01-ALC-RES11 …`；`[人工]` 编号一致性检查。
 15. **PRR-15**（#857，P3）`openPluginProjectDatabase` 的回滚不盖掉原错误；`tables_json` 解析失败按 `plugin.project_database.shape_mismatch` 拒绝并带 `where`。测试：`tests/plugin-project-database-ledger.test.ts` 的 `PRR-15 rollback keeps the original error` 与 `PRR-15 corrupt tables_json is shape_mismatch`。
 16. **PRR-16**（#718，P3）修正 `docs/reviews/anthropic-capability-assembly-2026-10-18.md:25` 的 role/host_tools 事实；补回 `specs/assistant-service-connections/spec.md` 的 2026-10-18 修订记录。`[人工]` 行对照；文档链接门禁通过。
 17. **PRR-17**（#771，P3）把 `docs/product-operations/产品介绍.md:198` 的打开/保存面板说法改成与 `specs/computer-use/open-decisions.md` 的决定 A 一致：同 pid sheet 照常操作，只有独立进程才拒绝并请用户自己完成；同步 `功能全景.md` 与 `角色链路/D-专业服务与个人.md`。`[人工]` 行对照。
-18. **PRR-18**（#847，P3）用 `node scripts/gates/package-inventory.mjs --table` 重生成 `specs/repository-anti-corruption/spec.md:1627` 的 Pages 行；`docs/releases/CHANGELOG.md` 补 Pages 迁移的升级须知（旧 `/api/pages` 404、三个动作权限变宽、已授权 MCP 要重新授权）；把 spec 里“Pages 已声明 runtime”的说法与 `registration.ts`/`native-plugin-api.ts` 对齐。`[人工]` 行对照 + 文档门禁。
+18. **PRR-18**（#847，P3）用 `node scripts/gates/package-inventory.mjs --table` 重生成 `specs/archive/repository-anti-corruption/spec.md:1627` 的 Pages 行；`docs/releases/CHANGELOG.md` 补 Pages 迁移的升级须知（旧 `/api/pages` 404、三个动作权限变宽、已授权 MCP 要重新授权）；把 spec 里“Pages 已声明 runtime”的说法与 `registration.ts`/`native-plugin-api.ts` 对齐。`[人工]` 行对照 + 文档门禁。
 19. **PRR-19**（#766，P3）附件状态与「@」「/」建议归 VUX 验收（UIV 没有这些条文）；归属决定：存量 `assistant-attachments.ts` / `assistant-island.ts` 是附件的唯一 owner，VUX 只验收展示与恢复，UIV 未定义合同时不新建状态机；`specs/visual-ui-experience/spec.md:30` 改成相对链接或 PR 链接并写明以合入 main 的 `plugin-tab-groups` 为准；`:234` 的测试描述改成实际规则。`[人工]` 行对照。
 20. **PRR-20**（#764/#762/#828/#703，P3）统一 `产品介绍.md:40` 的“预览/开发中”标签；`privileges.md:143-144` 的 PG-018/019 改成 PR 号或“已做”；`ai-development-handbook/spec.md:11,29-35` 的交接事实/头更新；`packages/contracts/src/platform/actions.ts:448-455` 的注释移回 `BoundActionClient`。`[人工]` 行对照。
 21. **PRR-21**（#831，P3）QA-018 比较 `[data-titlebar-tabs] [data-tab-id]` 的可见页签与选中项；QA-017 走到真实打开；铃铛 aria-label 不固定为 1；通知正则转义所有点。测试：`tests/shelf-side-links.e2e.test.ts` 的 `PRR-21 QA-018 compares visible titlebar tabs`；`tests/context-pick-result.e2e.test.ts` 的 `PRR-21 QA-017 opens the side panel`。

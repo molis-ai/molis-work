@@ -16,7 +16,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { seedBoard } from "./fixtures/goal-application.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-100 (provisional number; RAC-510, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a plugin pins a 成果 version
+// S-100 (provisional number; RAC-510, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a plugin pins a 成果 version
 // in its own project transaction through `services.artifacts.join`, as it writes an Inbox entry through `services.attention.join` (S-68). The
 // version is a savepoint of the plugin's transaction, committed with its rows or rolled back with them. Every `head` and `publish` asks the
 // gate S-68 asks (the installation and its grant, the original caller, a concurrent action that declares artifact:write), the type must be

@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { acquireStorageOwner, assertStorageOwner, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, type StorageOwner } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { hostErrors } from "./host-errors.js";
@@ -49,7 +49,7 @@ export function retainInitializationCleanup(reason: unknown, dispose: () => Prom
 const owners = new WeakMap<object, { home: string; owner: StorageOwner; released: boolean; resources: Set<() => Promise<void>> }>();
 
 /** A Host acquires strictly once. Later transports and its one Agent can only use that same physical Home. */
-export function ensureHomeStorageOwner(host: object, homeDirectory: string): StorageOwner {
+export function ensureHomeStorageOwner(host: object, homeDirectory: string, beforeAcquire?: (home: string) => void): StorageOwner {
   const requested = path.resolve(homeDirectory), held = owners.get(host);
   if (held) {
     if (held.released) throw hostErrors.closed("Local Host 的存储所有权已释放");
@@ -58,8 +58,12 @@ export function ensureHomeStorageOwner(host: object, homeDirectory: string): Sto
     catch { throw new ActionError("actions.home_mismatch", "Host 的原 Home 不再可用"); }
     if (canonical !== held.home) throw new ActionError("actions.home_mismatch", "Host 不能绑定到另一个 Home");
     assertStorageOwner(agentRuntimeDirectory(held.home), held.owner);
+    assertNoPendingHomeRestore(agentRuntimeDirectory(held.home));
     return held.owner;
   }
+  assertNoPendingHomeRestore(agentRuntimeDirectory(requested));
+  // Product admission precedes only the first acquisition; an existing owner's checks retain their order.
+  beforeAcquire?.(requested);
   const owner = acquireStorageOwner(agentRuntimeDirectory(requested));
   try {
     const home = realpathSync(requested);

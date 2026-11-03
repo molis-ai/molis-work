@@ -4,7 +4,7 @@ import type { PluginConsentKind, PluginConsentRecord } from "@molis-ai/molis-wor
 import type { PluginConsentLedger } from "./consent-ledger.js";
 import { consentSubject } from "./trust-rules.js";
 
-// 常开插件 (ac-trust T3, specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): a plugin is on in every project, and stays
+// 常开插件 (ac-trust T3, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): a plugin is on in every project, and stays
 // installed and on, exactly while an unrevoked `always_on` agreement of the Home's consent ledger names it. An agreement exists only
 // for a Manifest that declares `always_on` (a grant for anything else is refused when it is recorded), so the ledger alone answers.
 

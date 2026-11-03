@@ -79,7 +79,8 @@ test("RAC-1012: a notification waits without a Feed in the project, and reaches 
   assert.equal(queued()[0]!.sender_plugin_id, SCHEDULE_PLUGIN_ID);
   assert.deepEqual(await f.inbox(), [], "nothing is written into a Feed the project does not have");
 
-  await withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => { catalog.addProjectPlugin({ project_id: f.project.project_id, plugin_id: "feed", actor_id: "test" }); });
+  const withCatalog = f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
+  await withCatalog({ homeDirectory: f.home }, catalog => { catalog.addProjectPlugin({ project_id: f.project.project_id, plugin_id: "feed", actor_id: "test" }); });
   await f.reopen();
   const reopened = await f.store();
   for (let attempt = 0; attempt < 100 && new PluginNotificationQueue(reopened.db).pending(f.project.project_id).length; attempt++) await new Promise(resolve => setTimeout(resolve, 50));

@@ -1,5 +1,5 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { installationBindingsWhere, installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere } from "./plugin-binding-scopes.js";
+import { installationBindingsWhere, installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere, type PluginBindingTarget } from "./plugin-binding-scopes.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -410,10 +410,16 @@ export class ConnectorConnectionStore {
     return forgetBindings(this.db, match, this.onBindingChange);
   }
 
-  /** The installations that have a binding of any kind, so a caller can ask which of them are still installed (BL-596). */
-  bindingInstallationIds(): string[] {
-    const rows = this.db.prepare("SELECT DISTINCT scope_id FROM connector_bindings").all() as Array<{ scope_id: string }>;
-    return [...new Set(rows.flatMap(row => isPluginBindingScope(row.scope_id) ? parsePluginBindingScope(row.scope_id)?.install_id ?? [] : []))];
+  /**
+   * The plugins' bindings, each read back from its scope: installation slots and `per_record` ones, of every connection or of one. A caller
+   * asks which installations have any, to see which are still installed (BL-596), or what one connection is bound to, which the platform
+   * reports as its uses (`connectors.plugin_slot.usages`, T-121). A scope that is not a plugin's is a built-in consumer's, not listed.
+   */
+  pluginBindings(connectionId?: string): Array<PluginBindingTarget & { plugin_id: string; slot_id: string }> {
+    const rows = (connectionId === undefined
+      ? this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings ORDER BY scope_id, plugin_id, slot_id").all()
+      : this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings WHERE connection_id = ? ORDER BY scope_id, plugin_id, slot_id").all(connectionId)) as Array<{ scope_id: string; plugin_id: string; slot_id: string }>;
+    return rows.flatMap(row => { const target = parsePluginBindingScope(row.scope_id); return target ? [{ ...target, plugin_id: row.plugin_id, slot_id: row.slot_id }] : []; });
   }
 
   unbind(scopeId: string, pluginId: string, slotId: string): void {

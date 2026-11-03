@@ -32,10 +32,11 @@ export function checkGoalsManagementWiring(source, mode) {
   const external = creates.find(node => node.pos < fallback?.pos);
   const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 3
     && imports.has("./home-storage-lifetime.js:ensureHomeStorageOwner")
+    && imports.has("./memory/memory-initialization.js:preflightMemoryHome")
     && imports.has("./project-storage.js:prepareLocalProjectStorage")
     && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
     && creates.length === 2 && text(external?.parent.parent) === 'if(operation==="init"&&!homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
-    && text(body.statements[0]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home);'
+    && text(body.statements[0]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home,preflightMemoryHome);'
     && text(body.statements[1]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
     && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
   const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";

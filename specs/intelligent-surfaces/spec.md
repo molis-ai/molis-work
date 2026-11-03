@@ -270,7 +270,7 @@ flowchart LR
 | [plugin-builder-upgrade](../plugin-builder-upgrade/spec.md) | 生成插件、场景组装 | 生成插件同样写呈现声明；保存的操作面可以交给创作台 |
 | [Prologue 的 Tool、MCP、Skill 策略](../prologue-tool-strategy/spec.md) | 工具的发现、选择、授权与健康 | 工具与 Skill 的结果在操作面里怎么呈现 |
 | [观测和采集层](../observation-collection/spec.md) | 工作记录 | 读它当组合依据；助理组合的记录交给它 |
-| [主线](../work-mainline/spec.md) | 事项的排列、切换与每件事项的工作台状态 | 切换器与列表里事项的形态、「放进主线」这一类操作的呈现 |
+| [主线](../work-mainline/spec.md) | 事项的排列、切换与每件事项的工作台状态 | 切换器与列表里事项的形态、「设为事项」「放进事项」这一类操作的呈现 |
 
 ## 11. 组件板、开发手册与生成
 

@@ -490,6 +490,12 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
      - N22 从 schema 推出处理器的输入类型。
    - 各包自己的小片，由主人按包排：N18 删死导出，N19、N20 删转发层，N23 到 N25。
    - 先问用户的：N16 的源码计数门禁。
+11. **第五遍新增（第 18 节，用户 11-02 定版本收敛到初始、清理全部兼容）**：
+   - §18.6 四件用户已定：产品版本复位到 0.1.0（删旧 release 与 tag 只能用户做，排期时先问）、阶段一不升版本、id 里不带版本、加「全是 1」的检查；
+   - 合同一片并进 R2（共享核心集成分支）：N26～N29 与 N39 里核实过的字段；
+   - 和真实 Home 重建同一时段：N30～N33、N36、N37；
+   - 各包小片：N38、N40；
+   - 最后改规则和门禁：N35、N41。
 
 ## 16. 复查（2026-11-01，第二遍）
 
@@ -882,3 +888,256 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
   - 另外两类数了、但没有单列成发现：
     - 425 个不 await 的 async 函数：多数是为了满足异步接口，算不上问题；
     - 166 个直接返回固定值的 `catch`：抽 10 个，7 个是解析不了就当没有，合理；3 个把动作调用的失败变成空值。其中 `assistant-round-materials.ts` 写明 `null` 就是「读不了」，调用方分得清；`horizontal/placement/src/index.ts:528` 返回的 `[]` 和「没有绑定」分不清，交主人看。
+
+## 18. 第五遍：版本收敛到初始，清理全部兼容（2026-11-02）
+
+**用户 2026-11-02 定**：这次防腐收尾之后，所有版本——库、代码、格式等——都收敛到初始；现在没有用户，不考虑兼容；所有兼容问题都清理并检查一遍。本节盘点还差什么，照旧只出报告，排期交统筹（§15 第 11 项）。
+
+和已有决定的关系：
+
+- 10-30 的「真实 Home 清空重建」已把各库与带版本的 JSON 合成第 1 版，删了旧维护脚本（[发布检查单](../releases/CHECKLIST.md) §3 的 41 个库全是 1，`node scripts/verify-release-versions.mjs` 通过）；
+- [合同变更流程](../system/CONTRACT-CHANGES.md) 现在处在「阶段一，不留兼容期」；
+- 用户 10-29 定「1.0.0 之前都是开发版本」。
+
+这一遍把范围从库扩到全部带版本的东西，并查读取时兜底旧形状的代码。
+
+对象是 origin/main `2a582a2e9`（2026-11-03 04:28Z，含 #1734）。
+
+### 18.1 方法
+
+- **数版本**：
+  - 动作合同快照 `tooling/gates/actions/*.tsv` 的 942 行；
+  - 23 个内置 Manifest 与沙箱插件的 Manifest 生成器；
+  - 代码里的 `*VERSION = n` 常量；
+  - 提示词与角色的 `version`；
+  - 带 `vN` 的字符串标识：扫描 `apps`、`packages`、`plugins`、`horizontal`、`modules`、`server` 里引号中的标识，不含测试与 `dist`；
+  - 发布物：根包、桌面端、GitHub 上的 release 与 tag。
+- **找兼容**：
+  - 健康门禁的兼容标记（`--report`）；
+  - 注释里描述旧数据、旧格式、旧记录、「仍可读」「兜底」的 158 行（133 个文件）。逐条分开「旧数据兼容」与「时间上较早」（较早的提交、过期的读取），前者再读代码核实。
+  - 扫描脚本放在本会话的临时目录（`scan-versioned-ids.py`、`scan-compat-comments.py`），没有入库。
+- **结论分档同前**：「已证实」读过代码；「推断」只看了注释或类型。
+
+### 18.2 已经在初始的，不用动
+
+- **库**：发布检查单 §3 的 41 个库都是 1，与代码一致。
+- **格式**：
+  - 成果与过程项的 `schema_version` 都是 1（56 处），工作区引用、文件快照、选区、变更集、Git 结果也都是 1；
+  - 密钥文件 `FORMAT_VERSION`、MCP 工具偏好、项目目录、Shelf 目录、插件包载荷、Gmail 游标，也都是 1。
+- **对外名称**：MCP 工具名的 `molis_work_v1_` 前缀；307 个带 `v1` 的字符串标识。
+- **SQL 夹具**：29 份全是现行第 1 版结构（`tests/fixtures/goal-event-history/README.md` 写明不含升级链）。
+
+### 18.3 还不在初始的版本
+
+**N26 插件 Manifest 两个格式版本并存（P1，已证实）**
+
+- 合同 `packages/contracts/src/platform/plugin-manifest.ts:115`、`:131` 写成 `schema_version: 1 | 2`、`host_api_version: 1 | 2`；
+- 校验认两种：`packages/plugin-sdk/src/manifest.ts:35`–`46` 认两种，应用类型只许 2，第 225 行报「需要 schema_version 2」；`packages/plugin-runtime/src/runtime-rules.ts:10` 同样认两种；
+- 字段说明里有 18 处写「v2:」。
+- 全部 23 个内置 Manifest、`apps/local-host/src/sandbox-plugin-manifest.ts:72`、`:104` 都写 2。文档与样例也写 2：`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/ui.md`、`examples/plugin-sample`、`examples/probe-plugin`。
+- 建议：
+  - 现行形状改称 1，类型收成字面量 1，删掉第 1 版的校验分支、「v2:」标注和「需要 2」的报错；
+  - 同一改动里改文档、Skill、样例，跑 `pnpm api:update`；
+  - 外部插件作者不受影响：还没有发布出去的插件。
+
+**N27 95 个动作不在 @1（P1，已证实）**
+
+- 快照 942 行，95 行在 1 以上：
+  - Manifest 声明的 582 行里有 60 行：56 个 @2、3 个 @3、1 个 @8（`coding.runs.control`）；
+  - 宿主另登记的 360 行里有 35 行：28 个 @2、6 个 @3、1 个 @4（`plugins.install.preview`）。
+- 根因在规则：CONTRACT-CHANGES §3 第 3 条「有版本字段的合同，形状变了就升版本」在阶段一同样适用，`AGENTS.md`「动作合同快照」一条也照写。所以每改一次形状，版本就涨一次。
+- 建议：
+  - 全部回到 @1；
+  - 代码里写死的 `version: 2` 跟着改，例如 `apps/local-host/src/assistant/assistant-rule-actions.ts:37`、`:72`，测试里的 `git.state@2`；
+  - 跑 `pnpm actions:update`。
+- Home 里存着的固定引用（工作流程步骤、Characters 草稿里的动作选择）随真实 Home 重建清掉；开发用的 Home 要一起重建。
+- 不改第 3 条的话，复位后还会再涨，见 N35。
+
+**N28 一个动作的两个「版本」其实是两个动作（P2，已证实）**
+
+- `connectors.plugin_slot.read` 与 `.bind` 各有 @1 和 @2，同时登记（`apps/local-host/src/connector-plugin-slot-actions.ts:36`–`53`）。
+- @1 按安装绑定，@2 按记录绑定：输入不同（多了 `record_key`），范围不同（`scope: "project"`）。这是两个动作，借用了版本号。
+- 建议拆成两个 id，例如 `connectors.plugin_slot.record.read@1` 与 `.record.bind@1`。
+
+**N29 能力 id 里又写了一遍版本（P2，已证实）**
+
+- 56 个 `agent.*` 能力的 id 以 `.vN` 结尾，版本另记在 `@N`，同一件事写了两遍。
+- 其中 9 个两处对不上：
+  - `agent.run.read.v1@3`、`agent.run.wait.v1@3`、`agent.session.read.v1@3`；
+  - `agent.run.start.v1@2`、`agent.runtimes.v1@2`、`agent.project-work.queue.v1@2`、`agent.subagents.list.v1@2`；
+  - `agent.write_checkers.list.v1@2`、`.save.v1@2`。
+- 另有 `agent.collaboration.revise.v2`、`agent.inputs.send.v3` 把版本写进了名字。
+- 用户定 id 里不再带版本，只认 `@N`（§18.6 第 3 项）。这会改动作 id，连带 MCP 工具名、Skill 正文、工作流程绑定。
+
+**N30 服务 id、密钥标签与密钥盐带旧版本或旧名（P2，已证实）**
+
+- 服务 id：`io.molis.work.service.im.v2`（`packages/contracts/src/services/im.ts:115`）、`io.molis.work.service.memory.v2`（`packages/contracts/src/services/memory.ts:11`）。
+- 密钥的命名空间与引用：
+  - `feed-intent-v2`（`apps/local-host/src/search-intelligence-client.ts:39`）；
+  - `system:feed:evidence-content-key:v1` 与 `:v2`（`packages/storage/src/adapters/evidence-content.ts:15`–`16`）。
+- 密钥派生盐：`ENV_KEY_SALT = "goalboard-feed-secretstore-v1"`（`packages/storage/src/adapters/file-secret-store.ts:67`）。它就是健康门禁「旧名 1 处」那一处，注释写着改了会让既有密文读不出来。
+- 建议全部改成 v1 和现在的名字。密钥引用和盐一改，已存的密文就读不了，所以只能和真实 Home 重建同一时段落（同 ④）。
+
+**N31 提示词与角色版本（P2，已证实）**
+
+- 77 处提示词与角色登记，41 处在 1 以上。最高的几个：
+  - `assistant-base` 31（`apps/local-host/src/assistant/assistant-agent.ts:124`）；
+  - `coding-base` 14（`plugins/native/coding/src/roles.ts:130`）；
+  - `coding-coordinator` 7，`coding-writers` 6；
+  - `coding-builder` 角色 5，`memory.extract` 4。
+- 这些版本存进 Agent 定义库，也进运行记录。建议随重建复位到 1。
+- 创作台的 `promptVersion` 记录与 `pnpm studio:replay` 语料若引用这些版本，要一起重做基线（推断，没逐份核对语料）。
+
+**N32 记忆规则 v3（P2，已证实）**
+
+- `horizontal/memory/src/policy.ts:6` 写 `MEMORY_GATE_VERSION = 3`；
+- 它会显示给用户（「自动记住 · 规则 v3」），也写进每条自动记住的记录（`apps/local-host/src/memory/memory-runtime.ts:48`）；
+- `horizontal/memory/README.md` 的「M2 来源绑定与规则 v3」一节跟着这个数。
+- 建议复位到 1，随重建落。
+
+**N33 安装清单 `SCHEMA_VERSION = 4`**（已有裁定 ④，main 上仍是 4，`apps/local-host/src/installer/home-contract.ts:9`）：照 §15 第 5 项。
+
+**N34 产品版本与内置插件版本（用户定复位到 0.1.0，§18.6 第 1 项）**
+
+- 现状：
+  - 根包、桌面端、Tauri、`PRODUCT_VERSION` 与内置 Manifest 都是 `0.3.0`；
+  - GitHub 上 v0.1.0～v0.2.0 已经公开发布（当时叫 GoalBoard），v0.3.0 是草稿；
+  - 桌面端只在内置版本更新时才替换已装的运行时（`apps/desktop/adapters/tauri/src/web_service.rs:218`）。
+- 复位到 0.1.0 会有两个后果：
+  - 新版本号和已有的 tag `v0.1.0` 撞号；
+  - 装过 0.3.0 的开发机不会自动换上新运行时。
+- 用户定复位到 0.1.0，连带要做的见 §18.6 第 1 项。
+
+**N35 不改规则，版本还会涨回去（P1，用户定阶段一不升，§18.6 第 2 项）**
+
+- 三处一起推着改形状就升版本：
+  - CONTRACT-CHANGES §3 第 3 条；
+  - `AGENTS.md` 的「形状变了按 CONTRACT-CHANGES 升 `version`」；
+  - 快照门禁会单独点出「同一版本下形状变了」。
+- 复位到 1 之后照旧执行，到 M1 时又会是一堆 @2、@3。
+- 建议阶段一在原版本上直接改形状，不升版本：
+  - 快照门禁照样显示 schema 哈希变了，PR 里写影响；
+  - 开发用 Home 里固定的旧引用，调用时按现行 schema 校验输入，会明确失败，不会悄悄当成新形状；
+  - 从阶段二起点（第一个装到开发机之外的版本）起，恢复「形状变了就升版本」。
+- 用户已定照这条做（§18.6 第 2 项）。
+
+### 18.4 还留着的兼容代码
+
+**N36 Feed 证据正文的 v1 密钥加 v2 恢复层（P1，已证实）**
+
+- `packages/storage/src/adapters/evidence-content.ts:14`–`16` 为「既有引用与密文仍可读」保留 v1 的引用名，另加 v2 恢复密钥；
+- 第 128–140 行：旧密钥对不上旧目录时，不覆盖原来的块，另在恢复目录用 v2 密钥重写一份，「不删历史密文」。
+- 这是为迁移来的项目库写的读取兼容。重建之后只剩一把密钥、一个目录：恢复层、恢复目录和第二个密钥引用都可以删。
+
+**N37 Feed 搜索意图换命名空间绕开旧账本（P1，已证实）**
+
+- `apps/local-host/src/search-intelligence-client.ts:36`–`39` 写明：用 v2 命名空间，是为了不碰「旧的 v1 账本」——迁移来的项目库里有 v1 的控制状态，却没有对应的本机密钥。
+- 重建后没有这种库。建议回到一个命名空间，删掉注释里描述的绕行。
+
+**N38 读取时兜底旧行、旧记录、旧标记（P2，已证实）**
+
+- **库与记录：**
+  - `apps/local-host/src/model-provider-store.ts:92`：「这一列加上之前写的行」读成 `off`；
+  - `apps/local-host/src/action-call-log.ts:154`：旧形状的行留到下一次重写才丢；
+  - `horizontal/agent-host/src/adapters/prologue-review-documents.ts:281`：旧记录没有取消时间，按「已取消、无可恢复批准」恢复；
+  - `apps/local-host/src/context-onboarding-service.ts:41`–`48`：认出「旧版存储」的整理记录，提示重新选择；
+  - `apps/local-host/src/agent-definitions/agent-definitions.ts:98`：只有旧声明的提示词仍可编辑；
+  - `apps/local-host/src/assistant/assistant-work-view.ts:10`：存储里旧版本写的键不进视图。
+- **请求与页面：**
+  - `apps/local-host/src/web-planning.ts:14`：给「旧的 HTTP 编辑器」剥掉多交的字段；
+  - `apps/workbench/src/browser/characters/action-client.ts:31`：旧版 Characters 页面没有动作字段时的退路。
+- **生成插件：**
+  - `packages/design-system/src/plugin-component-client.ts:24`：旧构建的部件种类映射到组件目录；
+  - `plugins/native/plugin-builder/src/agent-studio.ts:141`：旧名字映射到组件目录；
+  - `plugins/native/plugin-builder/src/agent-presentation.ts:46`：「历史版面仍可读」。
+- 建议逐条删掉兜底，只认现行形状。重建后这些旧东西都不存在。生成插件那三处，要等创作台与生成插件迁到 Plugin Runtime 后再删：迁的时候重新生成。
+
+**N39 合同里为旧记录留的可选字段（P2，推断）**
+
+- 注释写明某个字段可以缺，是因为旧记录没有：
+  - 记忆：`packages/contracts/src/services/memory.ts:119`、`:663`；
+  - 工作区成果：`packages/contracts/src/modules/workspace-artifacts.ts:141`、`:517`；
+  - Agent 运行与启动：`packages/contracts/src/services/agent-host-run-view.ts:195`，`agent-host-start.ts:25`、`:75`；
+  - Agent 输入与创作台：`agent-inputs.ts:179`、`agent-host-builder.ts:32`、`agent-host-memory.ts:93`；
+  - 平台模块：`packages/contracts/src/modules/functions.ts:237`、`artifacts.ts:36`；
+  - Goals：`plugins/native/goals/src/contract/governance-collaboration.ts:255`，存储里的历史项保留另一种记录形状；
+  - 记忆服务与 Agent 适配器：`horizontal/memory/src/facts.ts:82`、`formation.ts:39`、`prefs.ts:25`，`horizontal/agent-host/src/adapters/prologue-questions.ts:4`、`prologue-session-index.ts:16`。
+- 建议：
+  - 先核写入方是不是每次都写这个字段；总写的，改成必填，删掉「缺了怎样」的分支；
+  - 合同改动走共享核心集成分支，跑 `pnpm api:update`。
+- 只看了注释和类型，没逐个核写入方，所以记「推断」。
+
+**N40 为旧库保留的约束与旧称（P3，已证实）**
+
+- **列顺序**：`plugins/native/{dataset,pages,ppt}/src/database.ts:5`、`plugins/native/form/src/database.ts:14`、`modules/judgment-rules/src/store-schema.ts:5` 要求列顺序与「已有的库」一致。重建后可以删掉这条约束。
+- **名字里的旧称或旧版本**：
+  - `DEMO_PROJECT_ID = "molis-work-v1-demo"`，注释写「旧示例保留它建时的 id」（`apps/local-host/src/demo-project-id.ts:1`）；
+  - 色板的 `--blue*` 保留历史名字、实际是铜色（`packages/design-system/src/palette.ts:172`）；
+  - `shell-page-renderer.ts:138` 的函数保留旧名；
+  - `navigation-feed-stage.ts:389` 保留旧的开关钩子；
+  - Coding Manifest 的注释「1.30–1.44 不迁移接着用」已过时（`plugins/native/coding/src/manifest.ts:55`）。
+- **测试与夹具的名字**：`tests/action-read-compatibility.test.ts` 和 `tests/fixtures/goal-event-history/legacy.sql`，内容是现行结构，名字却写着兼容、旧版。
+- 建议随各自的片改名。
+
+**N41 兼容标记门禁量不到真正的兼容（P2，已证实）**
+
+- 门禁数到的 8 处兼容标记（6 个文件）没有一处是读取兼容：
+  - `pdfjs-dist/legacy` 的导入路径；
+  - 一句翻译；
+  - 一个 Goal 关系的显示文字；
+  - 插件升级声明 `compatible_from_versions`。按 CONTRACT-CHANGES §3 第 7 条，升级声明是要保留的机制。
+- N36～N40 的兼容代码一个词也不含。
+- 建议：
+  - 清理完以后，不靠数词，改成直接检查版本：阶段一里每个动作是 @1、Manifest 是 1、提示词与角色是 1、`*VERSION` 常量是 1；
+  - 用户已定加这条检查（§18.6 第 4 项）。
+
+**保留、不算兼容的**（CONTRACT-CHANGES §3 第 7 条）：
+
+- `applySqliteBaseline` 按版本拒绝不符的库；
+- 插件升级声明的机制；
+- 固定引用失效时报错、不换成新版本；
+- 桌面端「内置版本更新才替换」；
+- 阶段二的读取兼容流程。
+
+这些是起点之后要用的，只把它们里面为过去版本写的声明清掉。
+
+### 18.5 怎么落
+
+1. **§18.6 的四件已定**（11-02）。N35 的规则和复位同一批落，否则复位只管一时。
+2. **合同一片（共享核心集成分支，一次全量）：**
+   - N26 Manifest 收成 1；
+   - N27 动作回到 @1；
+   - N28 拆 id；
+   - N29 去掉 id 里的版本；
+   - N39 里核实过的必填字段；
+   - 跑 `pnpm api:update`、`pnpm actions:update`；改文档、Skill、样例；
+   - 在途改了动作版本的 PR，变基时一起改回 @1。
+3. **和真实 Home 重建同一时段：**
+   - N34 产品版本复位到 0.1.0；用户先删 GitHub 上旧的 release 与 tag；
+   - N30 的密钥引用与盐、N31 的提示词与角色、N32 记忆规则、N33 安装清单；
+   - N36、N37 删恢复层；
+   - 开发用的 Home 一并重建。
+4. **各包小片：** N38 的兜底分支、N40 的约束与改名。生成插件那三处等创作台迁到 Plugin Runtime（路线书 PBR）。
+5. **最后：**
+   - 改 CONTRACT-CHANGES §3 第 3 条与 `AGENTS.md` 那一句（N35）；
+   - 门禁改成直接检查版本（N41）；
+   - 在 HOME-DATA 与发布检查单里写明这是统一起点。
+
+### 18.6 用户的决定（2026-11-02，弹窗）
+
+1. **产品版本复位到 0.1.0（N34）。** 没选推荐的「保留 0.3.0」。连带要做的：
+   - 先删掉 GitHub 上旧的 release 与 tag，否则新版本和 `v0.1.0` 撞号。这是对外、删了收不回的操作，只能用户做；统筹排期时先问用户；
+   - 根包、桌面端（`tauri.conf.json`、`Cargo.toml`、`Cargo.lock`）、`PRODUCT_VERSION`、23 个内置 Manifest 一起改 0.1.0；
+   - 跟着改的文档：`docs/releases/` 的 CHANGELOG、`v0.2.0.md`、`v0.3.0.md`，POLICY 与 CONTRACT-CHANGES §2 里的「下一版 0.3.0」；`node scripts/verify-release-versions.mjs` 要通过；
+   - 装过 0.3.0 的开发机不会自动换上新运行时（`web_service.rs:218` 只在内置版本更新时替换），随真实 Home 重建手动重装。
+2. **阶段一改形状不升版本（N35）。** 采纳推荐：复位到 1 以后，在原版本上直接改；从阶段二起点起，恢复「形状变了就升版本」。要改 CONTRACT-CHANGES §3 第 3 条、`AGENTS.md` 那一句，以及快照门禁的提示文字。
+3. **能力 id 里不带版本，只认 `@N`（N29）。** 采纳推荐：56 个 `agent.*` 去掉末尾的 `.vN`，放在合同一片里，MCP 工具名、Skill 正文、工作流程绑定一次改完。
+4. **加「阶段一全是 1」的直接检查（N41）。** 采纳推荐：动作 @1、Manifest 1、提示词与角色 1、`*VERSION` 常量 1，阶段一里不许出现别的数；替换兼容词计数。这条门禁的写法过评审后合入。
+
+### 18.7 局限
+
+- 带版本的标识只扫了引号里的字符串，拼出来的标识没扫到。
+- 兼容只找了注释里写明的。没写注释的兜底，比如 `?? 旧字段`，没有系统地找。
+- N39 只看了注释和类型；N31 的语料只是推断。
+- 没有跑任何用例，没碰真实 Home。
+- 浏览器脚本的模板字符串、Rust 与 Swift 只扫了注释。

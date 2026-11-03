@@ -4,7 +4,7 @@ import type { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalActionGatewayClient, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -159,7 +159,9 @@ export async function openTestHome(t: TestContext, options: { host?: Partial<Hos
     ...(options.catalogPolicy === false ? {} : { actionAvailability: projectActionAvailability((settings, operation) => withCatalog(settings, operation), home) }),
     ...options.host,
   });
-  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  // T405-FULL-13: policy and workspace reads share the Web catalog whose active borrows Host.close waits for.
+  const withCatalog = host.configurePersonalPlanning(home,
+    host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   let served: TestHostServer | undefined;
   t.after(async () => {
     const failures: unknown[] = [];

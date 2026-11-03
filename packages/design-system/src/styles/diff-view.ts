@@ -5,8 +5,15 @@
 // tint reaches the end of a horizontal scroll, and the numbers stay put while the code scrolls under them. Side by side has a
 // number and a code column per side and wraps instead of scrolling, so both halves stay level.
 export const DIFF_VIEW_STYLES = `
-.mw-diff .mw-diff-sides { display:grid; gap:8px; padding:12px 0; font-size:12px; overflow-wrap:anywhere; }
+/* What is compared sits in one box: the earlier side marked in the removal colour, the later in the addition colour, and where
+   the content is held as a tag under them. */
+.mw-diff .mw-diff-sides { display:grid; gap:4px; margin:0 0 12px; padding:10px 12px; border-radius:var(--radius-item,10px); background:var(--paper); box-shadow:0 0 0 1px var(--line); font-size:12px; overflow-wrap:anywhere; }
+.mw-diff .mw-diff-sides > span { position:relative; padding-left:14px; }
+.mw-diff .mw-diff-sides > span:nth-child(-n+2)::before { content:""; position:absolute; left:2px; top:.55em; width:6px; height:6px; border-radius:50%; background:var(--red); }
+.mw-diff .mw-diff-sides > span:nth-child(2)::before { background:var(--green); }
+.mw-diff .mw-diff-sides .mw-diff-path { color:var(--ink); }
 .mw-diff .mw-diff-source { display:block; color:var(--muted); overflow-wrap:anywhere; }
+.mw-diff .mw-diff-sides > span:nth-child(3) { justify-self:start; margin-top:2px; padding:0 8px; border-radius:6px; background:var(--rail); line-height:20px; }
 .mw-diff .mw-diff-rows { --diff-num:calc(var(--diff-digits,3) * 1ch + 16px); --diff-bg:var(--surface-soft); display:grid; grid-template-columns:minmax(max-content,1fr); align-content:start; padding:8px 0; list-style:none; overflow:auto; border:1px solid var(--line); border-radius:var(--radius-panel,12px); background:var(--diff-bg); font:12px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; tab-size:var(--code-tab,4); }
 .mw-diff .mw-diff-rows li { --diff-tint:transparent; display:grid; grid-template-columns:var(--diff-num) var(--diff-num) minmax(max-content,1fr); background:var(--diff-tint); }
 .mw-diff .mw-diff-rows:not(.mw-diff-split) > li { contain-intrinsic-size:auto none auto 1lh; }
@@ -33,7 +40,8 @@ export const DIFF_VIEW_STYLES = `
 .mw-diff .mw-diff-counts [data-sign=insert] { background:color-mix(in srgb,var(--green) 12%,transparent); color:var(--green); }
 .mw-diff .mw-diff-counts [data-sign=delete] { background:color-mix(in srgb,var(--red) 10%,transparent); color:var(--red); }
 @media (prefers-reduced-motion:reduce) { .mw-diff .mw-diff-files li { transition:none; } }
-.mw-diff .mw-diff-notices { padding:0; list-style:none; font-size:12px; line-height:1.65; color:var(--muted); }
+.mw-diff .mw-diff-notices { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; padding:0; list-style:none; font-size:12px; line-height:1.65; color:var(--ink-soft); }
+.mw-diff .mw-diff-notices li { padding:1px 8px; border-radius:6px; background:color-mix(in srgb,var(--amber) 11%,transparent); }
 .mw-diff .mw-diff-sign { display:inline-block; width:2ch; user-select:none; }
 .mw-diff .mw-diff-before,.mw-diff .mw-diff-after { position:sticky; left:0; z-index:1; padding:0 8px; background:linear-gradient(var(--diff-tint),var(--diff-tint)) var(--diff-bg); color:var(--muted); text-align:right; white-space:nowrap; user-select:none; }
 .mw-diff .mw-diff-rows:not(.mw-diff-split) .mw-diff-after { left:var(--diff-num); }

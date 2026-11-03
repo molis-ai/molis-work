@@ -1101,10 +1101,9 @@ export const PRIMITIVE_STYLES = `
   .mw-dir-row--compact { height: 28px; min-height: 28px; }
   .mw-dir-row-wrap:has(> .mw-dir-row--nested) { padding-left: 16px; }
   .mw-dir-row--nested:not(.mw-dir-row-wrap .mw-dir-row--nested) { padding-left: 24px; }
-  .mw-dir-row--meta {
-    height: 36px; min-height: 36px; align-items: center; padding-block: 4px;
-  }
-  .mw-dir-row--meta:has(.mw-dir-row__icon) { align-items: start; }
+  /* A row with a second fact stays one line: the title, then the fact in muted words (cut first when room runs out), then the
+     count or state. A row never stacks its facts. A plugin's record row (.pc-row) is content to read and keeps its own layout. */
+  .mw-dir-row--meta { height: 36px; min-height: 36px; align-items: center; padding-block: 0; }
   .mw-dir-row:hover { color: var(--ink); background: var(--nav-hover); }
   .mw-dir-row:active { background: var(--nav-press); }
   .mw-dir-row.is-selected,
@@ -1126,7 +1125,6 @@ export const PRIMITIVE_STYLES = `
     display: grid; place-items: center;
   }
   .mw-dir-row__icon svg { width: 16px; height: 16px; }
-  .mw-dir-row--meta .mw-dir-row__icon { margin-top: 4px; }
   .mw-dir-row__copy {
     min-width: 0; overflow: hidden; display: grid; align-content: center; column-gap: 12px;
   }
@@ -1135,7 +1133,12 @@ export const PRIMITIVE_STYLES = `
     align-items: center;
   }
   .mw-dir-row--compact .mw-dir-row__headline { display: contents; }
-  .mw-dir-row--meta .mw-dir-row__copy { grid-template-rows: 18px 14px; }
+  .mw-dir-row--meta:not(.pc-row) .mw-dir-row__copy {
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr); grid-auto-columns: auto; grid-auto-flow: column;
+    align-items: baseline; column-gap: 8px;
+  }
+  .mw-dir-row--meta:not(.pc-row) .mw-dir-row__headline { display: contents; }
+  .mw-dir-row--meta:not(.pc-row) .mw-dir-row__headline > :not(strong) { order: 2; justify-self: end; }
   .mw-dir-row__headline {
     min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
     column-gap: 8px; align-items: center;
@@ -1153,7 +1156,7 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-dir-row__ext { flex: none; }
   .mw-dir-row--meta .mw-dir-row__copy small {
-    min-width: 0; max-width: 100%; overflow: hidden;
+    order: 1; min-width: 0; max-width: 100%; overflow: hidden;
     color: var(--muted); font-size: 12px; font-weight: 400; line-height: 14px;
     text-overflow: ellipsis; white-space: nowrap;
   }

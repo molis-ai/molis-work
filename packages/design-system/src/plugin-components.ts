@@ -354,7 +354,7 @@ export const PLUGIN_COMPONENT_STYLES = `
 .pc-tools{display:flex;align-items:center;gap:4px;margin-left:auto}.pc-count{font-size:12px;color:var(--faint);margin-right:4px}.pc-count[data-count]:not([data-count=""])::before{content:"共 " attr(data-count) " 条"}
 .pc-output{min-width:0}
 .pc-directory{display:flex;flex-direction:column;border:0;border-radius:0;background:transparent;overflow:visible}
-.pc-directory>.pc-record,.pc-agenda-items>.pc-record{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-top:1px solid var(--line);border-radius:var(--r-row,10px)}.pc-directory>.pc-record:first-child,.pc-agenda-items>.pc-record:first-child{border-top:0}
+.pc-directory>.pc-record,.pc-agenda-items>.pc-record{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:var(--r-row,10px);background:var(--paper);box-shadow:0 0 0 1px var(--line),0 1px 3px color-mix(in srgb,var(--shadow-color,#000) 6%,transparent)}.pc-directory>.pc-record+.pc-record,.pc-agenda-items>.pc-record+.pc-record{margin-top:8px}
 .pc-row{display:flex!important;align-items:center;gap:12px;flex:1;min-width:0;height:auto!important;min-height:52px;padding:12px 12px!important;cursor:default;white-space:normal!important;background:none!important}
 .pc-row .mw-dir-row__copy{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}.pc-row .mw-dir-row__headline strong{font-size:15px;font-weight:500;white-space:normal;overflow-wrap:anywhere}
 .pc-record[data-selectable]{cursor:pointer;transition:background-color var(--dur-move) var(--ease-quint)}.pc-record[data-selectable]:hover{background:var(--nav-hover)}.pc-record[aria-current=true]{background:var(--nav-active)!important;box-shadow:none}

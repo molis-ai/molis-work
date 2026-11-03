@@ -81,9 +81,13 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat .mw-progress { margin-top: 16px; }
 
   .mw-items { display: grid; width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
-  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 6px 8px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
-  .mw-item > span:nth-child(2), .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  /* An item is one line: its name, then where it lives in muted words, cut first when room runs out. */
+  .mw-item > span:nth-child(2) { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .mw-item strong { flex: 0 1 auto; min-width: 0; }
+  .mw-item small { flex: 1 1 0; min-width: 0; }
   .mw-item strong, .mw-setting strong { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
   .mw-item small, .mw-setting p { margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; }
   .mw-item small { white-space: nowrap; }
@@ -109,7 +113,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-dt table { width: 100%; min-width: 600px; border-collapse: collapse; font-size: 13px; }
   .mw-dt--small table { min-width: 0; }
   .mw-dt th { height: 36px; padding: 0 12px; background: color-mix(in srgb, var(--ink) 2.5%, transparent); box-shadow: inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line); color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); text-align: left; white-space: nowrap; }
-  .mw-dt td { height: 56px; padding: 0 12px; color: var(--ink-soft); white-space: nowrap; }
+  .mw-dt td { height: 44px; padding: 0 12px; color: var(--ink-soft); white-space: nowrap; }
   .mw-dt tbody tr + tr td { box-shadow: inset 0 1px 0 var(--line); }
   .mw-dt tbody tr { transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-dt tbody tr:is(:hover, :focus-within) { background: var(--nav-hover); }
@@ -119,7 +123,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-dt :is(th, td):last-child:not(:first-child, :nth-child(2)) { width: 32px; padding-left: 0; }
   .mw-dt .is-num { text-align: right; font-variant-numeric: tabular-nums; }
   .mw-dt td > div { display: flex; align-items: center; gap: 12px; }
-  .mw-dt td > div > span:last-child { display: grid; gap: 2px; }
+  .mw-dt td > div > span:last-child { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   .mw-dt td strong { color: var(--ink); font-weight: var(--weight-control, 500); }
   .mw-dt td small { color: var(--muted); font-size: 12px; }
   .mw-dt th button { display: inline-flex; align-items: center; gap: 4px; height: 26px; margin: 0 -6px; padding: 0 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }

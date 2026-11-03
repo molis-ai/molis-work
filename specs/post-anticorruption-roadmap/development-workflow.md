@@ -76,8 +76,8 @@
 | 3 | **能力注册**：能力在自己的声明里注册一次，页面、工作流、Agent、MCP 都用这一份；可信身份取自调用上下文；等模型或外部服务的动作声明 `scheduling: "concurrent"` | [动作架构](../action-architecture/spec.md)第 3 节 |
 | 4 | **合同**：改不改合同、改哪几项；按现在所处的阶段做（M1 之前不留兼容期，一个 PR 改完所有消费者；M1 之后带读取兼容）；要不要先单独开一个只改合同的 PR | [合同变更流程](../../docs/system/CONTRACT-CHANGES.md)、路线书第 5 节规则 1 |
 | 5 | **放在哪个包**：依赖方向合不合分层；新的平台服务放 `horizontal/` 下的新包，不进宿主（用户 2026-11-01 定）；新的内置插件就是它自己的包加 `registration` | [包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)、[包的开发要求](../../docs/system/DEVELOPMENT-REQUIREMENTS.md) |
-| 6 | **表与存储**：新表归哪个包，别的包只调它导出的函数；项目库里的插件表在 Manifest 里声明；库结构的变化怎样进升级链 | [表的主人](../../tooling/gates/table-owners.json)、[插件项目库](../plugin-project-database/spec.md)、[升级后持续可用](../upgrade-continuity/spec.md) |
-| 7 | **兼容与迁移**：不加兼容读取或迁移逻辑；确实要的，先写进防腐线的保留机制，经用户确认 | `AGENTS.md` 硬约束、[防腐整理](../repository-anti-corruption/spec.md) |
+| 6 | **表与存储**：新表归哪个包，别的包只调它导出的函数；项目库里的插件表在 Manifest 里声明；库结构的变化怎样进升级链 | [表的主人](../../tooling/gates/table-owners.json)、[插件项目库](../archive/plugin-project-database/spec.md)、[升级后持续可用](../upgrade-continuity/spec.md) |
+| 7 | **兼容与迁移**：不加兼容读取或迁移逻辑；确实要的，先写进防腐线的保留机制，经用户确认 | `AGENTS.md` 硬约束、[防腐整理](../archive/repository-anti-corruption/spec.md) |
 | 8 | **安全边界**：碰不碰本机的安全边界（回环绑定、令牌、动作网关、MCP 授权、地址与路径校验、密钥引用、提示注入、桌面 IPC）；碰了就同步改不变量表和「拒绝」测试 | [安全不变量](../../docs/system/SECURITY-INVARIANTS.md) |
 | 9 | **调用次数**：一次用户操作发出几个请求，每个请求做几遍目录发现和授权核对、开几次库；不重复读同一份数据，不按条目逐个请求，页面在后台不轮询；带缓存的按缓存过期之后的真实成本算 | [对抗式审查](../../docs/reviews/adversarial-review-2026-11-01.md)第 19 节 |
 | 10 | **升级与数据**：升级之后，已有的数据、保存的引用和设置是否都还在、能否接着用 | [升级后持续可用](../upgrade-continuity/spec.md) |

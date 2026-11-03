@@ -9,7 +9,7 @@
 1. **结构健康，门禁没有代码性失败。** 72 个 workspace 包、251 条依赖边，`node scripts/check-package-boundaries.mjs` 0 违规；没有深导入，产品源码里没有跨包相对导入。健康门禁当前唯一失败是 `specs/BACKLOG.md` 指向一份尚未纳入 Git 的文档（两处断链，见 §7），不是代码。
 2. **无用代码不多，但公开面很宽。** 产品入口走不到的 6 个文件里，3 个是真正的死文件；不在任何包公开入口上、且定义文件之外没有引用的导出里，54 个完全没人用（28 个运行时值、26 个类型），540 个只在本文件里用（可以收回 `export`）；另有 **约 1,251 个公开导出在生产代码里没有消费者**（去掉 `packageDescriptor` 约定后 1,136；静态口径的上限），这是“入口太宽”，不是死代码；4 个 workspace 依赖没有被包内代码导入；`plugins/official-integrations/web-query` 整包是登记在案的非产品包。
 3. **重复实现集中在少数几类，不是大面积复制。** 逐字相同的函数体 8 组：`canonicalize` 7 份、路由 `handle` 6 份、`ledgerDatabase` 2 份、`writeResponse` 2 份、`deletionRecord` 2 份、`reopenCompletion` 2 份、`resolveSourceFaults` 2 份、Alchemist 的 idea 映射 2 份；小工具同名/同用途实现 `isRecord` 14 处、`parseJson` 11 处、`unique` 16 处。翻译词典是最大的冗余体：47 本、10,261 条，2,472 个死键、192 个冲突、476 个重复键。
-4. **边界债主要已经在冻结清单和迁移线里，不能靠删几行解决。** 10 个构建期装配插件、9 个 `<plugin>-native-plugin-http.ts`、20 处 `registerProvider`、4 个 hybrid 插件、187 处 typed capability、381 处插件包外点名、10 条层间例外、8 个 Module Repository 导出、11 个宿主 `export *`。每一项都有门禁只许下降，清理应按 `specs/repository-anti-corruption` 与 W4/W5 的片推进，而不是临时开一条线。
+4. **边界债主要已经在冻结清单和迁移线里，不能靠删几行解决。** 10 个构建期装配插件、9 个 `<plugin>-native-plugin-http.ts`、20 处 `registerProvider`、4 个 hybrid 插件、187 处 typed capability、381 处插件包外点名、10 条层间例外、8 个 Module Repository 导出、11 个宿主 `export *`。每一项都有门禁只许下降，清理应按 `specs/archive/repository-anti-corruption` 与 W4/W5 的片推进，而不是临时开一条线。
 5. **先做三件低风险的事，收益最大。** ① 删 3 个死文件、54 个无引用导出、4 个未用依赖；② 把 `canonicalize` 收进 Plugin SDK，顺带处理 `parseJson`/`isRecord` 中最值得的两三个；③ 修工作树卫生：469 MB 未忽略的 Jelly 构建产物、57 个可清理的 worktree、两处断链。
 
 ### 0.1 复查：修正了什么、置信度
@@ -134,7 +134,7 @@
 
 ### 3.4 整包没有产品调用方
 
-- `plugins/official-integrations/web-query`：54 行、1 个文件。除自己的文件和登记表外，没有代码、脚本或测试按包名引用它，根 `package.json` 的依赖里也没有；Feed 的 `web_query` 来源由 [`plugins/native/feed/src/source-request.ts`](../../plugins/native/feed/src/source-request.ts#L1) 自己处理。`specs/repository-anti-corruption/spec.md` §5.2 已把它判为“非产品”，`specs/action-architecture/migration.md` 里“它驱动 Feed 来源服务”的说法与代码不符。
+- `plugins/official-integrations/web-query`：54 行、1 个文件。除自己的文件和登记表外，没有代码、脚本或测试按包名引用它，根 `package.json` 的依赖里也没有；Feed 的 `web_query` 来源由 [`plugins/native/feed/src/source-request.ts`](../../plugins/native/feed/src/source-request.ts#L1) 自己处理。`specs/archive/repository-anti-corruption/spec.md` §5.2 已把它判为“非产品”，`specs/action-architecture/migration.md` 里“它驱动 Feed 来源服务”的说法与代码不符。
   - **建议**：删除整包，或明确写下“保留为未来外部集成骨架”的理由。删除会改动包数量（72→71），要同步 `scripts/workspace-packages.mjs`、SSOT §5.1 的表、`.github/CODEOWNERS`、根 `package.json`、`pnpm-lock.yaml`，并跑 `node scripts/gates/package-inventory.mjs --table`。这是一次需要用户确认的边界变更，不放进普通清理 PR。
 - `apps/server`（约 180 行）与 `packages/test-kit`（约 1,180 行）也是“非产品”，但都是有意的：前者是独立的跨设备测试启动器，后者是测试工具。不要按“没人 import”删除。
 
@@ -386,23 +386,23 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 候选 | 为什么现在不能删 | 证据 | 再删的时点 | 置信度 |
 | --- | --- | --- | --- | --- |
-| Alchemist 的 38 个死导出、`bootstrap.ts`、`job.ts` | Studio 的 `/bootstrap`、任务事件、ALC-LIFE/ALC-RES 和 Runtime 迁移仍在做；这些 DTO 是同一接口层的类型，今天没被 import 不等于接口不再要 | `specs/repository-anti-corruption/spec.md` W5-01 ALC-LIFE/ALC-RES；`plugins/native/alchemist/src/studio/server/api/action-routes.ts:28`；#867 改 Alchemist 测试夹具 | Alchemist Runtime/ALC-RES 合入、owner 确认后 | 高 |
-| `gmail/history-cursor.ts`、`GmailFixtureCursor`、`./history-cursor` 子路径 | W2-18-GMAIL/P1 正在修“每页只留 25 个、超过的增量永久跳过”；这个文件/子路径是活动文件，不是死文件 | `specs/repository-anti-corruption/spec.md:3428`；未合入的 `5c4aa66f2`、`a0d442b86` 改过它 | W2-18-GMAIL 合入后，只删确实没用的类型，不删子路径 | 高 |
+| Alchemist 的 38 个死导出、`bootstrap.ts`、`job.ts` | Studio 的 `/bootstrap`、任务事件、ALC-LIFE/ALC-RES 和 Runtime 迁移仍在做；这些 DTO 是同一接口层的类型，今天没被 import 不等于接口不再要 | `specs/archive/repository-anti-corruption/spec.md` W5-01 ALC-LIFE/ALC-RES；`plugins/native/alchemist/src/studio/server/api/action-routes.ts:28`；#867 改 Alchemist 测试夹具 | Alchemist Runtime/ALC-RES 合入、owner 确认后 | 高 |
+| `gmail/history-cursor.ts`、`GmailFixtureCursor`、`./history-cursor` 子路径 | W2-18-GMAIL/P1 正在修“每页只留 25 个、超过的增量永久跳过”；这个文件/子路径是活动文件，不是死文件 | `specs/archive/repository-anti-corruption/spec.md:3428`；未合入的 `5c4aa66f2`、`a0d442b86` 改过它 | W2-18-GMAIL 合入后，只删确实没用的类型，不删子路径 | 高 |
 | Goals 的 4 个死导出、`GoalEventSystemOperation` | #881 正把 Goals 项目库改成声明式、四个动作升 v2；#837 已合入 origin/main；Goals 错误模型分支也改这些文件 | open PR #881；origin/main `ed090054e`；未合入的 `40b601a5f` | #881 与 Goals 错误模型线合入后 | 高 |
 | `apps/local-host` 的 7 个死导出 | #867/#883/#881 都在改 local-host 的项目库、插件库与装配；材料服务、Computer Use、Onboarding、Connector 也各自有在途分支改这些文件 | open PR #867/#883/#881；未合入的 `1741b3b9c`、`391a983fd`、`5768d93ec` | 这一批 PR 合入后，逐文件确认 | 高 |
 | `apps/workbench` 的 3 个死导出 | 15 个视觉 UX PR 正在改 workbench；`sideViewKeys` 所在文件被 #864/#851 直接改；`renderShelfSettingsContribution`/`ArrivalShell` 附近的页面还在视觉线里 | open PR #851/#864 等；未合入的 `a754b1b8f`、`fbb90b892` | 视觉线合入后；`renderPluginRailAccountFooter` 已被 spec 点名无调用方，可随那一批删 | 高 |
 | Feed 的投影死导出 | #867 正改 Feed 的数据库、索引与注册；投影层与它们同包 | open PR #867 | #867 合入后 | 高 |
 | `apps/mcp/src/tool-schemas.ts:v1PayloadTool` | #881 正改 `apps/mcp` 的 Goals 工具与分发；MCP 工具 schema 是同一块 | open PR #881 | #881 合入后，由 MCP owner 确认 | 中 |
-| Jelly 的 `ownJellyStores` 等公开面无消费者导出 | 当时不删：`ownJellyStores` 已被 spec 记为死导出，但 Jelly 的 Runtime/数据库迁移（#743、PG-023）当时还在进行；它当时算公开面无消费者，不是 §3.2 的 54 个死导出 | `specs/repository-anti-corruption/privileges.md` PG-023；#743 | 已做（PG-023；`ownJellyStores` 到 T-194 #1492，2026-10-29 才删） | 中 |
-| plugin-builder 的 `parseBuilderJson`、`BUILDER_PROJECT_PLUGIN_ID`（公开面无消费者） | 创作台/Studio 仍在线上，manifest 与 agent validation 还在改 | `specs/repository-anti-corruption` 的 Studio 线；open PR 无直接冲突，但属于活动包 | Studio 迁移/收口后 | 中 |
+| Jelly 的 `ownJellyStores` 等公开面无消费者导出 | 当时不删：`ownJellyStores` 已被 spec 记为死导出，但 Jelly 的 Runtime/数据库迁移（#743、PG-023）当时还在进行；它当时算公开面无消费者，不是 §3.2 的 54 个死导出 | `specs/archive/repository-anti-corruption/privileges.md` PG-023；#743 | 已做（PG-023；`ownJellyStores` 到 T-194 #1492，2026-10-29 才删） | 中 |
+| plugin-builder 的 `parseBuilderJson`、`BUILDER_PROJECT_PLUGIN_ID`（公开面无消费者） | 创作台/Studio 仍在线上，manifest 与 agent validation 还在改 | `specs/archive/repository-anti-corruption` 的 Studio 线；open PR 无直接冲突，但属于活动包 | Studio 迁移/收口后 | 中 |
 | `packages/design-system` 的 `validatePluginComponentNodes`（公开面无消费者） | 视觉 UX/设计系统 15 个 PR 正在改；组件校验属于这条线 | open PR #851/#861/#864 等 | 视觉线合入后 | 高 |
 | RSS 的 3 个公开面无消费者导出 | 没有 open PR 直接改，但 integration 目录仍在维护；低优先，不是“绝对安全” | `plugins/official-integrations/rss/README.md`、SSOT 官方集成行 | 找 RSS owner 确认后 | 中 |
-| `plugins/official-integrations/web-query` 整包 | SSOT 与 context-toolbar 把它列为官方集成；它是“非产品”骨架，不是普通死代码。删它会改包数量、SSOT §5.1、CODEOWNERS 与文档 | `docs/SSOT-MATRIX.md:161`；`specs/context-toolbar/spec.md:203,384`；`specs/repository-anti-corruption/spec.md:1610,1630` | 产品明确不要这个集成时，单独一个边界变更 PR | 高 |
-| `apps/server` | 决定 #4 是保留并继续迭代；跨设备测试在用；它是非产品，但不是死代码 | `specs/repository-anti-corruption/spec.md` 决定 #4 | 产品决定放弃跨设备/服务器时 | 高 |
+| `plugins/official-integrations/web-query` 整包 | SSOT 与 context-toolbar 把它列为官方集成；它是“非产品”骨架，不是普通死代码。删它会改包数量、SSOT §5.1、CODEOWNERS 与文档 | `docs/SSOT-MATRIX.md:161`；`specs/context-toolbar/spec.md:203,384`；`specs/archive/repository-anti-corruption/spec.md:1610,1630` | 产品明确不要这个集成时，单独一个边界变更 PR | 高 |
+| `apps/server` | 决定 #4 是保留并继续迭代；跨设备测试在用；它是非产品，但不是死代码 | `specs/archive/repository-anti-corruption/spec.md` 决定 #4 | 产品决定放弃跨设备/服务器时 | 高 |
 | `packages/test-kit` | SSOT 记着“时钟、fake capability 与其余重复 harness 待迁移”；它是迁移目标，不是清理对象 | `docs/SSOT-MATRIX.md` test-kit 行 | 测试 harness 迁移完成后 | 高 |
 | `packages/im-ui` 与 `server` | 右栏“讨论”是现行功能；context-program F12 还要 im-ui 加输入落点与外部引文 | 决定 #4；`specs/context-program/spec.md:204,247` | 讨论/IM 功能改版后 | 高 |
 | Sessions（`work`、`private-work-context` 的相关部分） | BL-177 明说这一轮只清理、以后重做；整包/整功能删除会打断重做 | `specs/BACKLOG.md` BL-177 | 清理片合入、重做需求书经用户审后 | 高 |
-| Characters | 决定 26：长期要并进宿主或某个 Module，不再作为长期 Runtime 插件；现在删代码会打断迁移 | `specs/repository-anti-corruption/spec.md` 决定 26 | 合并进宿主/Module 的那一片 | 高 |
+| Characters | 决定 26：长期要并进宿主或某个 Module，不再作为长期 Runtime 插件；现在删代码会打断迁移 | `specs/archive/repository-anti-corruption/spec.md` 决定 26 | 合并进宿主/Module 的那一片 | 高 |
 | 构建期插件装配（`*-native-plugin-http.ts`、`*-actions.ts`、`registerProvider`、catalog 条目） | #853 正在迁 Workflows，Pages 已由 #847 迁走，注册表已由 #840 改；其余按 W4/W5 迁移。先删会绕过装配门禁 | open PR #853；origin/main #847/#840；`tests/builtin-plugin-assembly-gate.test.ts` | 每个插件迁移完成时，随该 PR 删 | 高 |
 | `tests/fixtures/artifact-browser.ts` | 它本身没人 import，但 artifact 测试仍在跑，#881 还改 `tests/artifact-browser.test.ts`；等 artifact 线合入后再判断 | open PR #881；`specs/archive/artifact-positioning/spec.md` | artifact 线合入后 | 中 |
 | `scripts/preview-*.mts`、`studio-replay` | 视觉/创作台/回放线在用；它们是开发工具，不是死代码 | `specs/ai-development-handbook/spec.md`、`docs/platform/STUDIO-SKILL-REPLAY.md` | 工具被替换时 | 高 |

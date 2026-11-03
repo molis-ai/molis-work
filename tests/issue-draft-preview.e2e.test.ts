@@ -12,8 +12,9 @@ const digestImages = `(items => Promise.all(items.map(async image => {
 const thumbnails = digestImages + "([...d.querySelectorAll('[data-issue-thumbs] img')].map(i => ({ name: i.alt, data_url: i.src })))";
 
 test("ISSUE-45 image drafts survive full navigation, removal, sending and undo beyond localStorage quota", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await issueModel(t, b.homeDirectory);
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
+  }); if (!b) return;
   const v = await issueView(t, b, "issue-draft-preview");
   await v.go("/"); await v.chord(); await v.composerFocused();
   await v.type("跨页面填写图文草稿，所有截图应保持原始顺序和内容。");
@@ -76,8 +77,9 @@ test("ISSUE-45 a failed draft write rejects the new image visibly and preserves 
 });
 
 test("ISSUE-45 sending clears immediately without erasing words typed during the disk write", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, 'empty'); if (!b) return;
-  await issueModel(t, b.homeDirectory);
+  const b = await openGoalBrowser(t, 'empty', undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
+  }); if (!b) return;
   const v = await issueView(t, b);
   await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]');
   await v.type('记录第一条，后续输入属于下一条'); await v.paste();

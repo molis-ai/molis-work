@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Which acceptance criteria of the specs in progress carry an id, and which of those ids a test cites
-// (specs/repository-anti-corruption §4.8 "需求可追溯", slice W2-14). The convention (what an id looks like, where it is
+// (specs/archive/repository-anti-corruption §4.8 "需求可追溯", slice W2-14). The convention (what an id looks like, where it is
 // written, how a test cites it, how a criterion is marked manual or retired) is in specs/README.md under "验收编号"; the
 // reading is scripts/gates/spec-coverage.mjs, and the cases it rejects are listed at the top of that file.
 //

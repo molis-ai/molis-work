@@ -74,14 +74,15 @@ async function setup(t: TestContext, probes: readonly Probe[] = [delegateProbe("
     await platform.runtime.stop(install.install_id); platform.runtime.grant(install.install_id, permissions.filter(permission => declared.includes(permission))); await platform.supervisor.restart(target.id);
   };
   for (const each of probes) await regrant(each, each === probe ? grants : GRANTED);
-  const client = served.host.actionClient(project.reference), ran: string[] = [], targetsSeen: ActionExecutionContext[] = [];
+  const client = served.host.actionClient(project.reference), ran: string[] = [], targetsSeen: ActionExecutionContext[] = [], availabilitySeen: ActionCallContext[] = [];
   const hold: { wait?: () => Promise<void> } = {};
   const offer = (definitions: readonly ActionDefinition[]) => served.host.actionRegistry(project.reference).registerProvider({
     provider: { provider_id: "delegation-targets", title: "Delegation targets", kind: "system" }, definitions: [...definitions],
-    handlers: definitions.map(definition => ({ ...definition, handle: async (caller: ActionExecutionContext) => { ran.push(definition.capability_id); targetsSeen.push(caller); await hold.wait?.(); return "done"; } })) });
+    handlers: definitions.map(definition => ({ ...definition, availability: (caller: ActionCallContext) => { availabilitySeen.push(caller); return { available: true as const }; },
+      handle: async (caller: ActionExecutionContext) => { ran.push(definition.capability_id); targetsSeen.push(caller); await hold.wait?.(); return "done"; } })) });
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: PAGE_PERMISSIONS };
   const run = (directive: Directive, current: ActionCallContext = caller, which: Probe = probe) => client.invoke(current, which.action, directive);
-  return { ...served, project, platform, probe, regrant, client, ran, targetsSeen, hold, offer, caller, run,
+  return { ...served, project, platform, probe, regrant, client, ran, targetsSeen, availabilitySeen, hold, offer, caller, run,
     log: () => readFileSync(join(served.home, "logs/action-calls.jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>) };
 }
 
@@ -234,6 +235,22 @@ test("W5-01-DELEGATE-04 S-43 the nested caller is the original under the workflo
   assert.equal(s.probe.contexts.at(-1)!.grants.includes("delegate:read"), false);
   // The plugin's own action saw the original, not a delegated caller.
   assert.equal(s.probe.seen.at(-1)!.audience, "agent"); assert.equal(s.probe.seen.at(-1)!.delegated_by, undefined);
+});
+
+test("T405-FULL17-D S-43 directory delegation removes stage metadata before target availability or dispatch", async t => {
+  const s = await setup(t); s.offer([OPEN]);
+  const entry = (await s.client.discover(s.caller)).find(view => view.capability_id === s.probe.action.capability_id)!;
+  const install = s.host.homePlugins!.installation(s.probe.id)!;
+  const original: ActionCallContext = { ...s.caller, stage_scene_metadata: { actor_id: s.caller.actor_id, audience: s.caller.audience, project_id: s.caller.project_id,
+    entry: { capability_id: entry.capability_id, version: entry.version, provider_id: entry.provider.provider_id },
+    owner: { plugin_id: s.probe.id, install_id: install.install_id, installation_generation: install.installation_generation, scope: "home" }, scenes: [],
+    actions: [{ ...ref(OPEN), provider_id: "delegation-targets" }] } };
+  s.availabilitySeen.length = 0;
+  assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, original), "done");
+  const downstream = s.availabilitySeen.filter(context => context.delegated_by === s.probe.id);
+  assert.ok(downstream.length > 0, "the delegated target availability was checked");
+  assert.ok(s.targetsSeen.length > 0); assert.ok(s.probe.seen.length > 0);
+  for (const context of [...downstream, ...s.targetsSeen, ...s.probe.seen]) assert.equal(Object.hasOwn(context, "stage_scene_metadata"), false);
 });
 
 test("W5-01-DELEGATE-05 S-43 a target not open to workflow, a permission the original caller lacks, and a pinned provider that is not the owner are refused", async t => {

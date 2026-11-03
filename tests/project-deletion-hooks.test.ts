@@ -250,6 +250,7 @@ async function webFixture(t: TestContext) {
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "可删除的项目", actor_id: "test-user" });
+  catalog.close();
   const localHost = createMolisWorkLocalHost({ homeDirectory });
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN, localHost });
   server.listen(0, "127.0.0.1");
@@ -260,10 +261,9 @@ async function webFixture(t: TestContext) {
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await localHost.close();
-    catalog.close();
     await rm(directory, { recursive: true, force: true });
   });
-  return { homeDirectory, catalog, project, origin };
+  return { homeDirectory, project, origin };
 }
 
 test("the delete dialog lists what goes with the project, and the web deletion returns the owners' steps", async t => {

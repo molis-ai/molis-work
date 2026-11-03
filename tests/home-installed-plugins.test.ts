@@ -23,7 +23,7 @@ function upgradePackage(publisher: ReturnType<typeof newPublisher>, version = "1
   }, { version });
 }
 
-// BL-628 (S-80, S-84, S-91; specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): a signed package whose Manifest says
+// BL-628 (S-80, S-84, S-91; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): a signed package whose Manifest says
 // `runtime: { scope: "home" }` is installed in the Home: one sandboxed instance every project shares, started and recovered by the Home's
 // plugin host, offered through the Home's action service, reachable from every project unless it hides it, and removed by the same lifecycle
 // a project's packages have.

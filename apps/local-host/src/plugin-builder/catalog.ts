@@ -15,6 +15,7 @@ import { MODEL_STAND_IN_PREFIX, studioCapability, type AgentBuilderPorts } from 
 import { isMcpToolCapability } from '../mcp-tool-actions.js';
 import { issuePluginCaller } from '../plugin-callers.js';
 import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
+import { projectReachSubject } from '../plugin-project-reach-subject.js';
 
 /** The catalog version a design records: designs call real actions with their real schemas. */
 export const CATALOG_VERSION = 'actions/1';
@@ -37,6 +38,7 @@ export interface ProjectActions { registry: ActionRegistryPort; client: ActionCl
 export interface CatalogCapability {
   /** The name plugins call it by. */
   id: string; version: number; provider_id: string;
+  scope?: 'home' | 'project';
   /** The id the action is registered under, when that is not the name plugins call it by (the Home's `model.generate`). */
   registered_id?: string;
   title: string; description: string;
@@ -109,7 +111,7 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
     const source = view.provider.kind === 'mcp' || isMcpToolCapability(view.capability_id) ? { kind: 'mcp' as const, title: view.provider.title }
       : view.provider.kind === 'system' ? { kind: 'platform' as const, title: view.provider.title }
       : { kind: 'plugin' as const, title: view.provider.title, ...(view.provider.plugin_id ? { plugin_id: view.provider.plugin_id } : {}) };
-    return { id: calledAs, ...(calledAs === view.capability_id ? {} : { registered_id: view.capability_id }), version: view.version, provider_id: view.provider.provider_id, title: view.action.title, description: view.action.description,
+    return { id: calledAs, scope: view.action.scope, ...(calledAs === view.capability_id ? {} : { registered_id: view.capability_id }), version: view.version, provider_id: view.provider.provider_id, title: view.action.title, description: view.action.description,
       consent: platform && known ? known.consent : (effect === 'read' ? '读取：' : '写入：') + view.action.title + '（' + view.provider.title + '）',
       effect, input: view.action.input_schema, ...(view.action.output_schema ? { output: view.action.output_schema } : {}), permissions: view.action.permissions,
       source, offered: isOffered, ...(isOffered ? {} : { reason: effect === 'irreversible' ? '不能撤销，不开放给插件' : refused ? '只对它自己的使用方开放' : dependent ? '依赖其他能力，插件一次只能调用一项，暂不开放' : '提供方没有开放给插件' }),
@@ -165,20 +167,23 @@ export { MODEL_STAND_IN_PREFIX };
  * to the Host. The caller is withdrawn when the call ends.
  */
 export function catalogCapabilities(options: { actions: ProjectActions; catalog(): Promise<CatalogCapability[]>; live(identity: Readonly<SandboxIdentity>): boolean;
+  target?(context: SandboxServiceContext, id: string): Promise<{ actions: ProjectActions; catalog: CatalogCapability[]; assertCurrent?: () => void }>;
   declaration(identity: Readonly<SandboxIdentity>): HostPluginCaller['declaration'] | undefined; granted(identity: Readonly<SandboxIdentity>): readonly string[];
   author?(pluginId: string): string | undefined }): NonNullable<SandboxServices['capability']> {
   return {
     async call(context, id, input) {
-      const catalog = await options.catalog(), entry = latestCapability(catalog, id);
+      const target = options.target ? await options.target(context, id) : { actions: options.actions, catalog: await options.catalog() };
+      await context.beforeEffect?.(); context.signal.throwIfAborted();
+      const { catalog, actions } = target, entry = latestCapability(catalog, id);
       if (!entry) throw new SandboxError('plugin_builder.capability_denied', '平台目录里没有开放给插件的能力：' + id);
       if (!options.live(context.identity) || entry.effect !== 'read' && context.identity.namespace !== 'installed') return standIn(entry, input);
       // Who is calling comes first (its project and declaration, `capability_denied`); then only the capability itself approves
       // its call: another one the plugin holds with the same permissions does not (`capability_refused`).
-      const plugin = sandboxCaller(options, context), granted = options.granted(context.identity), registeredId = entry.registered_id ?? entry.id;
+      const plugin = sandboxCaller({ ...options, actions }, context, target.assertCurrent), granted = options.granted(context.identity), registeredId = entry.registered_id ?? entry.id;
       if (!granted.includes(entry.id)) throw new SandboxError('plugin_builder.capability_refused', '插件没有声明或没有获得这项能力的授权：' + id);
       const author = options.author?.(context.identity.pluginId);
       const withdraw = issuePluginCaller(plugin, grantedPermissions(catalog, granted));
-      const caller: ActionCallContext = { actor_id: plugin.actor_id, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin', host_plugin: plugin,
+      const caller: ActionCallContext = { actor_id: plugin.actor_id, actor_kind: 'runtime', project_id: actions.project_id, audience: 'plugin', host_plugin: plugin,
         plugin_install_id: context.identity.installationId, permissions: [...entry.permissions], ...(author ? { audit_actor_id: '插件「' + author + '」' } : {}),
         allowed_actions: [{ capability_id: registeredId, version: entry.version, provider_id: entry.provider_id }], signal: context.signal,
         validate_authority: async () => {
@@ -186,10 +191,17 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
           context.signal.throwIfAborted();
           if (!options.live(context.identity)) throw new SandboxError('plugin_builder.capability_denied', '这个插件的能力调用已停止');
         } };
-      try { return await options.actions.client.invoke(caller, { capability_id: registeredId, version: entry.version, provider_id: entry.provider_id }, input) as SandboxJson; }
+      let returned = false;
+      try {
+        const result = await actions.client.invoke(caller, { capability_id: registeredId, version: entry.version, provider_id: entry.provider_id }, input) as SandboxJson;
+        returned = true;
+        await context.beforeEffect?.(); context.signal.throwIfAborted();
+        target.assertCurrent?.();
+        return result;
+      }
       catch (error) {
         const code = (error as { code?: string })?.code;
-        const uncertain = context.signal.aborted || ['actions.timeout', 'actions.provider_changed', 'actions.output_invalid_after_effect', 'actions.outcome_unknown'].includes(code ?? '');
+        const uncertain = returned && entry.effect !== 'read' || context.signal.aborted || ['actions.timeout', 'actions.provider_changed', 'actions.output_invalid_after_effect', 'actions.outcome_unknown'].includes(code ?? '');
         throw new SandboxError('plugin_builder.capability_refused', error instanceof Error ? error.message : String(error), uncertain ? 'unknown' : undefined);
       }
       finally { withdraw(); }
@@ -203,12 +215,19 @@ function grantedPermissions(catalog: readonly CatalogCapability[], granted: read
 }
 
 /** The Host caller of one sandbox capability call: the plugin itself, in this project and installation, for as long as the call and the plugin live. */
-function sandboxCaller(options: Pick<Parameters<typeof catalogCapabilities>[0], 'actions' | 'live' | 'declaration'>, context: SandboxServiceContext): HostPluginCaller {
+function sandboxCaller(options: Pick<Parameters<typeof catalogCapabilities>[0], 'actions' | 'live' | 'declaration'>, context: SandboxServiceContext, assertCurrent?: () => void): HostPluginCaller {
   const { identity } = context, declaration = options.declaration(identity);
-  if (identity.projectId !== options.actions.project_id) throw new SandboxError('plugin_builder.capability_denied', '插件的执行身份不属于这个项目');
+  const assertScope = () => {
+    assertCurrent?.();
+    if (identity.projectId === options.actions.project_id) return;
+    if (identity.projectId === null && context.projectReach && projectReachSubject(context.projectReach, identity).project_id === options.actions.project_id) return;
+    throw new SandboxError('plugin_builder.capability_denied', '插件的执行身份不属于这个项目');
+  };
+  assertScope();
   if (!declaration || declaration.manifest.plugin_id !== identity.pluginId) throw new SandboxError('plugin_builder.capability_denied', '这个插件的声明已失效');
   return Object.freeze({ plugin_id: identity.pluginId, install_id: identity.installationId, actor_id: 'plugin:' + identity.pluginId, project_id: options.actions.project_id, declaration,
     assertActive: () => {
+      assertScope();
       context.signal.throwIfAborted();
       if (!options.live(identity) || !options.declaration(identity)) throw new SandboxError('plugin_builder.capability_denied', '这个插件的能力调用已停止');
     } });

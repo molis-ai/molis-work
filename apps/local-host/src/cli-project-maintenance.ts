@@ -57,9 +57,7 @@ function printDemoResult(action: string, result: object | null, json: boolean): 
  * nothing listens): there is nothing to ask, and the command deletes in its own process. A Host that answers and refuses
  * stops the command, whatever the reason; it does not delete behind that Host's back.
  */
-async function removeDemoThroughResidentHost(withCatalog: LocalWebCatalogRunner, homeDirectory: string | undefined): Promise<ProjectDeletionResult | null> {
-  const demo = await withCatalog({ homeDirectory }, catalog => catalog.listProjects().find(project => project.data_class === "regenerable_demo"));
-  if (!demo) return null;
+async function removeDemoThroughResidentHost(homeDirectory: string | undefined): Promise<ProjectDeletionResult | null> {
   const address = process.env[RESIDENT_HOST_URL_ENV]?.trim() || DEFAULT_RESIDENT_HOST_URL;
   const answer = await postToResidentHost({ origin: residentHostOrigin(address), homeDirectory: homeDirectory ?? resolveConfiguredHome(),
     path: "/api/settings/demo", body: { action: "remove", user_confirmed: true },
@@ -83,7 +81,7 @@ export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalo
   if (!["create", "reset", "remove"].includes(action)) throw new Error(`未知 demo 操作: ${action}`);
   const homeDirectory = flag(args, "--home");
   if (action === "remove" && args.includes("--confirm")) {
-    const forwarded = await removeDemoThroughResidentHost(withMolisWorkProjectCatalog, homeDirectory);
+    const forwarded = await removeDemoThroughResidentHost(homeDirectory);
     if (forwarded) { printDemoResult(action, forwarded, args.includes("--json")); return 0; }
   }
   return await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {

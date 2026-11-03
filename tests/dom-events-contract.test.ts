@@ -10,7 +10,7 @@ import { ASSISTANT_EFFECT_EVENT, ASSISTANT_MESSAGE_EVENT, ASSISTANT_SURFACE_CHAN
 import { CONTEXT_ACTION_CHOSEN_EVENT, PLACE_CHANGED_EVENT, SURFACE_FOCUS_EVENT } from "@molis-ai/molis-work-contracts/services/contextual";
 import { DOM_EVENTS_CONTRACT, domEventProblems, domEventReport, formatDomEventReport, ownerPrefixOf, readRegistry } from "../scripts/gates/dom-events.mjs";
 
-// specs/repository-anti-corruption §4.8 (W2-13): every page event is registered in
+// specs/archive/repository-anti-corruption §4.8 (W2-13): every page event is registered in
 // packages/contracts/src/platform/dom-events.ts, and scripts/gates/dom-events.mjs (in `pnpm health:check`) reads the
 // browser source to keep it true. The contract is checked against what the page's other contracts already name, the
 // gate against the real tree, and each of its rules is mutation-verified: a violation is added to the real tree in
@@ -184,9 +184,9 @@ test("a listener on a page prefix that nothing registers fails: a typo hears not
     'window.addEventListener("click", () => {});',
     'window.addEventListener("molis:placement-result", () => {});',
     'lifetime.listen(window, "storage", () => {});',
-    'document.addEventListener("workbench-feed-task", () => {});',
+    'document.addEventListener("workbench-open-group", () => {});',
     'window.addEventListener<any>("molis:placement-result", () => {});',
-    "document.addEventListener<CustomEvent<{ id: string }>>('workbench-feed-task', (event) => {});",
+    "document.addEventListener<CustomEvent<{ id: string }>>('workbench-open-group', (event) => {});",
     'lifetime.listen<CustomEvent<Detail>>(window, "molis-work:goal-changed", () => {});',
     'lifetime.listen<Event>(window, "storage", () => {});',
     'window.addEventListener<"click">("click", () => {});',
@@ -263,8 +263,8 @@ test("an owner's files exist, and an owner without events is deleted", () => {
 });
 
 test("the registry itself is held to its shape: order, names, prefixes, fields", () => {
-  const twice = domEventProblems(withRegistry('    name: "workbench-open-group"', '    name: "workbench-feed-task"'));
-  assert.ok(twice.some((problem) => /"workbench-feed-task" is listed twice/.test(problem)), twice.join("\n"));
+  const twice = domEventProblems(withRegistry('    name: "workbench-open-group"', '    name: "molis-work:select-item"'));
+  assert.ok(twice.some((problem) => /"molis-work:select-item" is listed twice/.test(problem)), twice.join("\n"));
   const order = domEventProblems(withRegistry(/name: "molis-shelf-notice"/, 'name: "molis-shelf-zeta"'));
   assert.ok(order.some((problem) => /"molis-shelf-refresh" is out of name order \(after "molis-shelf-zeta"\)/.test(problem)), order.join("\n"));
   const prefix = domEventProblems(withRegistry('    name: "workbench-open-group"', '    name: "pane-open-group"'));
@@ -279,9 +279,9 @@ test("the registry itself is held to its shape: order, names, prefixes, fields",
   assert.ok(target.some((problem) => /"molis:side-close" has on "page"/.test(problem)), target.join("\n"));
   const flag = domEventProblems(withRegistry('on: "document", cancelable: true', 'on: "document", cancelable: false'));
   assert.ok(flag.some((problem) => /has cancelable: false; leave it out or write true/.test(problem)), flag.join("\n"));
-  const nobody = domEventProblems(withRegistry('name: "workbench-open-group", kind: "request", owner: "navigation-feed"', 'name: "workbench-open-group", kind: "request", owner: "ghost"'));
+  const nobody = domEventProblems(withRegistry('name: "workbench-open-group", kind: "request", owner: "tab-workspace"', 'name: "workbench-open-group", kind: "request", owner: "ghost"'));
   assert.ok(nobody.some((problem) => /"workbench-open-group" is owned by "ghost", which is not in PAGE_STATE_OWNERS/.test(problem)), nobody.join("\n"));
-  const silent = domEventProblems(withRegistry('    summary: "Open a group of the Feed directory.",\n', ""));
+  const silent = domEventProblems(withRegistry('    summary: "Open the named plugin default page with its current group selection; the layout owner selects the pane and tab.",\n', ""));
   assert.ok(silent.some((problem) => /"workbench-open-group" needs a summary sentence/.test(problem)), silent.join("\n"));
 });
 

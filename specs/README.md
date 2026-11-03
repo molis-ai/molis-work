@@ -42,7 +42,6 @@
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
-- [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。
 - [repository-cleanup](repository-cleanup/spec.md)：Work 与 Prologue 存量代码一次性清理，负责人 Codex；本地清理完成，Prologue 已由用户合入，Work #996 已合入 main（已实现）。覆盖全部包/模块；基线失败、环境跳过和具体保留依据见同目录 inventory。
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。2026-10-18 补充多代理 PR 评审、置信分、安全评审、真人批准门、有界迭代与对抗验证。
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
@@ -52,15 +51,12 @@
 - [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；2026-10-18 新立，尚未实现。
 - [agent-approval](agent-approval/spec.md)：Agent 变更的授权复用与显式人审；有效委托内持续执行，明确启用的人审按人员与版本校验，Coding 可选 AI 代批不计真人票数；2026-10-28 对齐，尚未实现。
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。
-- [plugin-project-database](plugin-project-database/spec.md)：项目库里的插件表——插件在 Manifest 里声明，平台第一次打开时建表、记账本、核对发布者与版本，项目身份改成 `project_root`（PG-020、PG-021）；L1a 已做（声明、检查与打开函数），宿主还不按它建表。S8 让 Goals 的 31 张表（含 `boards`）也改由 Goals 自己声明（待审，与 L1b 同批）。
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。
 - [onboarding-coverage](onboarding-coverage/spec.md)：先接通真实文件选择、模型整理、失败恢复与材料进入项目/Coding；再扩场景包、动态引导、全局/项目/任务设置、项目助理团与 AI 交互首页；2026-11-02 补页面帮助与下一步进入引导、复用配置并返回原任务（ONB-47～49）。整项尚未实现，本轮只改文档，F 轨统筹；需求维护：Codex。
 - [onboarding-intake-progress](onboarding-intake-progress/spec.md)：引导来源页去掉已废止的 200 份 / 50 MB / 20 MB 文案；大文件夹先按条目显示清点进度，再保存清单。2026-10-25，待验收。
 - [onboarding-model-link](onboarding-model-link/spec.md)：引导里选文件和连接文字模型是前后两步；第二步用模型设置的保存和读取，版式仍是引导的左右栏，不进入设置。2026-10-25，待验收。
 - [onboarding-folder-places](onboarding-folder-places/spec.md)：桌面引导里下载、文稿、桌面和其他文件夹改成一列，并且可以同时选。2026-10-25，待验收。
 - [plugin-frame-desktop-load](plugin-frame-desktop-load/spec.md)：桌面 WebKit 里沙箱插件框要能加载脚本；页面策略写上本次请求自己的回环 origin。2026-10-26，待验收。
-- [dual-instance-plugins](dual-instance-plugins/spec.md)：同一个插件同时有 Home 实例和项目实例（Shelf 迁 Plugin Runtime 的前提）；用户已定授权与范围（U1、U2），S0-2a（本机页面调用按各库记录授权）进行中，S0-2b-1、S0-2b-2、S0-2c 随后；2026-10-20 新立。
-- [plugin-project-partition](plugin-project-partition/spec.md)：Home 级插件的库按调用所在的项目分开（S0a，Alchemist 的前提）；平台按项目打开、闲置关闭、删项目时关库删目录，插件 API 不变；用户 2026-10-20 定，执行中。
 - [prologue-skill-strategy](prologue-skill-strategy/spec.md)：Prologue Skill 的选择、唤起、组合与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-tool-strategy](prologue-tool-strategy/spec.md)：Prologue Tool 的工具面、搜索、结果预算与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-mcp-strategy](prologue-mcp-strategy/spec.md)：Prologue MCP 的服务器信任、发现、健康与认证；独立需求，需求已整理，待评审后实施。
@@ -115,6 +111,7 @@
 
 ## 梳理记录
 
+- 2026-11-04：[系统性代码与架构防腐整理](archive/repository-anti-corruption/spec.md)归档（部分实现；工程项随 #1725 合入，剩余 BL-928～930）。同批归档本线的三份卫星：[项目库里的插件表](archive/plugin-project-database/spec.md)（已实现，BL-377）、[Home 级插件的库按项目分开](archive/plugin-project-partition/spec.md)（已实现，BL-639）、[双实例](archive/dual-instance-plugins/spec.md)（部分实现，BL-933）。防腐目录里另有早先归档的 6 份历史文件与 `evidence/`；`assistant-service-connections`、`repository-cleanup`、`pr-review-remediation` 不属本线，留在根目录。未实现的 C 端方案与依赖／SDK 方案的剩余在 BL-931、BL-932。
 - 2026-10-23：[系统评审问题修复](archive/system-review-fixes/spec.md)归档（本轮已实现，负责人 Codex）；#1018、#1058、#1061、#1062 已合入，#1049 收尾衔接随本 PR 合入。按一骏明确的完成边界，三项偶发测试与安装验收分别转 BL-412、BL-413。
 - 2026-10-21：`logic-diagnosis-fixes`、`goal-closure-identity`、`artifact-positioning` 归档（已实现；goal 与 artifact 的用户验收见 BL-401、BL-400）；`project-knowledge` 归档（部分实现，剩余 BL-396～399）。`artifact-positioning` §4 的整页例外清单拆成现行规范 [shell-page-exceptions](shell-page-exceptions/spec.md)。
 - 2026-10-17：[合作源码与商业授权](archive/commercial-source-license/spec.md)归档（已实现，负责人 Codex）；#636 已合入 main，许可、分发材料及安装器许可传递通过定向验证、PR CI 和合并队列检查。

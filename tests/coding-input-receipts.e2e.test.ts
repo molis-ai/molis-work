@@ -41,15 +41,18 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { for (const res of [...held, ...later, ...continued]) res.destroy(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
-  const b = await openGoalBrowser(t, "seeded"); if (!b) return;
+  const prepareHome = async (homeDirectory: string) => {
+    await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+      const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
+      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
+        models: [{ model_id: "fixture-plain", enabled: true }] });
+    }));
+  };
+  const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome }); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "coding");
   const {click, evaluate, waitFor} = child;
   const { command, sessionId, homeDirectory } = b;
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
-    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
-      models: [{ model_id: "fixture-plain", enabled: true }] });
-  }));
+
   const workspace = join(homeDirectory, "coding-receipts-fixture");
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "login.txt"), "login uses the old endpoint\n");

@@ -6,7 +6,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { parseFilePath, type GitFileMode, type WriterIntegrationFile, type WriterIntegrationView } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { createGitWorktreePort } from "./workspace-git-worktrees.js";
 import { readWorkspaceFile } from "./workspace-files.js";
-import { runWorkspaceGit as git } from "./workspace-git.js";
+import { currentWorkspaceBranch as branch, runWorkspaceGit as git } from "./workspace-git.js";
 
 interface Side { text: string | null; mode: GitFileMode | null }
 interface WriterIntegrationSelection { workspace_id: string; writer_workspace_id: string }
@@ -43,10 +43,6 @@ async function diskSide(id: string, segments: string[], grants: readonly Project
   if (file.outcome !== "text" || !file.mode) throw new Error(file.outcome === "too-large" ? "文件超过完整审查上限（256 KiB）"
     : file.outcome === "binary" ? "二进制文件尚未接通整合审查" : "文件不是稳定可读的普通 UTF-8 文本，请核对权限、类型或目录变化");
   return { text: file.text, mode: file.mode };
-}
-async function branch(root: string) {
-  try { return (await git(root, ["symbolic-ref", "-q", "HEAD"])).toString().trim(); }
-  catch (error) { if ((error as { code?: number }).code === 1) return "detached"; throw error; }
 }
 
 /**

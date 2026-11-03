@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -8,7 +9,7 @@ import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/pla
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { FEED_ACTION_PERMISSIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
-import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, listFeedSourceCatalog, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
@@ -39,7 +40,7 @@ test("the platform's clock wakes Feed through its registered action, records ref
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
-  const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+  const source = sources.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
   sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let enabled = true;
   const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: (_, action) => !enabled && action.provider.plugin_id === "io.molis.work.feed"
@@ -66,7 +67,7 @@ test("W3-01 C every wakeup of the platform's clock is an operation of its own, n
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
-  const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+  const source = sources.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
   sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   t.mock.method(globalThis, "fetch", async () => new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
@@ -101,7 +102,7 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
     });
     t.signal.addEventListener("abort", () => { controller.abort(); release.resolve(); }, { once: true });
     try {
-      const { source } = await host.actionClient(reference).invoke(owner, feedSourceActions.register, { kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id });
+      const { source } = await host.actionClient(reference).invoke(owner, feedSourceActions.register, { kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id });
       const mcpCaller: ActionCallContext = { ...owner, actor_id: "rss-client", audience: "mcp", permissions: [] };
       const view = (await host.inspectActions(mcpCaller, reference)).find(row => row.capability_id === feedSourceActions.sync.capability_id)!;
       await served.grant(mcpCaller.actor_id, PROJECT, [view]);
@@ -147,7 +148,7 @@ for (const mode of ["disabled", "paused", "reconfigured"] as const) {
     seedDemoBoard(database);
     const store = new LocalProjectDatabase(database), then = new Date(Date.now() - 360_000);
     const sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => then);
-    const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const source = sources.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     const original = sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let enabled = true, requests = 0;
@@ -218,13 +219,14 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
       assert.equal(requests, 1);
       assert.equal((store.db.prepare("SELECT lease_owner FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id) as { lease_owner: string | null }).lease_owner, null, "the owned lease is released even after refusal");
       allowed = true; fails = false;
-      let recoverySource = source.source_id;
+      let recoverySource: string = source.source_id;
       if (mode === "paused") sources.setEnabled(source.source_id, true);
       if (mode === "disconnected") {
         const replacement = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Restored account", token: "fixture-restored-token" }));
-        recoverySource = sources.update(source.source_id, { connection_id: replacement.connection_id }).source_id;
-        assert.notEqual(recoverySource, source.source_id, "a different account keeps a separate source identity and dedupe scope");
-        assert.equal(feed.sources.get(DEMO_PROJECT_ID, source.source_id).enabled, false);
+        // The person binds another account to the same source (T-121: the account is the platform's binding, never a field Feed writes);
+        // this local arrangement stands for that binding. The source keeps its identity.
+        feed.sources.upsert({ ...feed.sources.get(DEMO_PROJECT_ID, source.source_id), credential_ref: replacement.credential_ref, config: { connection_id: replacement.connection_id } });
+        recoverySource = source.source_id;
       }
       const retry = { ...input, source_id: recoverySource };
       if (mode === "scheduled-revoked") {

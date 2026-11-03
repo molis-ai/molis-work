@@ -16,7 +16,7 @@ export function shelfTextMaterial(file: { item: ShelfItemRecord; bytes: Buffer }
     content_hash: createHash("sha256").update(bytes).digest("hex"),
     source: { item_id: item.item_id, kind: item.kind, group: item.group, source_item_ids: [...item.source_item_ids], job_id: item.job_id, ...(item.artifact_source ? { artifact: structuredClone(item.artifact_source) } : {}) } };
   // Use the same bound as Coding; do not silently truncate the confirmed body.
-  try { agentTextMaterialContent({ material_id: item.item_id, title: item.name, text, source_artifact_id: item.item_id, source_version: 1 }); }
+  try { agentTextMaterialContent({ material_id: item.item_id, title: item.name, text }); }
   catch (error) { throw shelfErrors.invalid(error instanceof Error ? error.message : "这份材料不能作为项目材料保存"); }
   const fingerprint = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   return { payload, fingerprint };

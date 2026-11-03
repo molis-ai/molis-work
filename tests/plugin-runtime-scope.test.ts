@@ -7,7 +7,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { HOST_BUILD_TRUST, PluginRuntime, UNSIGNED_TRUST, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
-// specs/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-011: where a plugin runs is its Manifest's `runtime`,
+// specs/archive/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-011: where a plugin runs is its Manifest's `runtime`,
 // and only code of the Host's build can be started in the Home. BL-628 (S-80, the person decided 2026-10-26) opens exactly one more
 // way in: a signed package of a pinned publisher that runs in the sandbox.
 

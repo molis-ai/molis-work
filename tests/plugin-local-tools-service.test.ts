@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { grantLocalTools, localToolsProbe } from "./fixtures/plugin-local-tools.js";
 
-// specs/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-112: the Host looks for the tools a Manifest declares,
+// specs/archive/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-112: the Host looks for the tools a Manifest declares,
 // with file-system queries only, and gives the answer to a plugin that holds the permission and is still running.
 
 const PATH_ENV = "MOLIS_WORK_LOCAL_TOOLS_PATH", SWITCH_ENV = "MOLIS_WORK_LOCAL_TOOLS";

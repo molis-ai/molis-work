@@ -1,3 +1,4 @@
+import { INBOX_CLIENT_FACTORY_SCRIPT } from "./client.js";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { INBOX_PROJECT_PLUGIN_ID, createInboxPlugin, inboxManifest, inboxUiContribution } from "./index.js";
 
@@ -10,6 +11,7 @@ export const registration: PluginRegistration = {
   manifest: inboxManifest,
   project_runtime: { create: createInboxPlugin, package_name: "@molis-ai/molis-work-plugin-inbox", factory_export: "createInboxPlugin" },
   workbench: {
+    clientFactory: INBOX_CLIENT_FACTORY_SCRIPT, clientMounts: "surfaces",
     order: 6,
     contributions: [inboxUiContribution],
     recordRow: { selector: "[data-inbox-row][data-inbox-entry-id]", idDataset: "inboxEntryId" },

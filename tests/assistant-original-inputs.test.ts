@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -29,7 +30,7 @@ test("MEM-35: protected Assistant input is available to the first real remember 
     assert.equal(current.store.list(LOCAL_PERSON_ACTOR_ID).flatMap(work => current.store.rounds(work.work_id)).length, 0, "the App has not recorded a display round yet");
     assert.equal(typeof toolField(body.messages, "memory_id"), "string", "the actual tool obtained canonical words and saved memory");
     observed = true; release(); return "已按你的原话记住。";
-  });
+  }, undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const before = Date.now();
   const sent = await home.web.post<AssistantSendResult>("/api/assistant/send", { text, request_id: inputId });
   await finished(home, sent.work.work_id); assert.equal(observed, true);
@@ -53,7 +54,7 @@ test("MEM-35: protected Assistant input is available to the first real remember 
 
 test("MEM-35: absent Host proof and page text still run without a personal original; business fields cannot forge the original", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), current = await owner(home);
-  await connectorAssistantModel(t, home.home, () => "已读。");
+  await connectorAssistantModel(t, home.home, () => "已读。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const unknown = await current.service.send({ text: "未证明作者的输入", request_id: randomUUID() }, {});
   await finished(home, unknown.work.work_id);
   assert.ok(unknown.run_id);

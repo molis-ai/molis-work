@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Which tests does this change need? The 2026-10-03 validation-frequency rule as a script (specs/repository-anti-corruption
+// Which tests does this change need? The 2026-10-03 validation-frequency rule as a script (specs/archive/repository-anti-corruption
 // spec §1; docs/system/PARALLEL-DEVELOPMENT.md section 6, roadmap W2-17): batch small changes, build once, run the tests the
 // batch touches, run the full suite only for a big change. It reads the change set from git (or the files you name), the test
 // files under tests/, the workspace packages and their READMEs; it runs nothing unless you pass --run.

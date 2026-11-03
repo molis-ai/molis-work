@@ -1,3 +1,4 @@
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
@@ -8,8 +9,7 @@ import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test('Relation HTTP validates direction/type/project scope and replays writes without duplicate history',{timeout:30000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
-  const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-  const other=await catalog.createProject({display_name:'其他隔离项目',actor_id:'test'});catalog.close();
+  const other=await createProject(b.web, '其他隔离项目');
   const prefix=`/projects/${b.projectId}`;
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+prefix+'/'},b.sessionId));
   // The page names the act in the body (a retry replays by that key) and spends a fresh Host one-time key per attempt.

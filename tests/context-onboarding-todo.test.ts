@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -31,7 +31,7 @@ async function fixture(t: Parameters<Parameters<typeof test>[1]>[0], todoModel: 
   const dir = await mkdtemp(join(tmpdir(), "molis-context-todo-"));
   const host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: todoModel });
   t.after(async () => { await host.close(); await rm(dir, { recursive: true, force: true }); });
-  const withCatalog = withMolisWorkProjectCatalog;
+  const withCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
   const ports = {
     withCatalog,
     model: async () => ({ completeText: async () => "# 新版方案\n张总要求周五前发新版方案，预算等小李确认。[S1]" }),
@@ -89,7 +89,7 @@ test("when the drafts cannot be made, the overview still comes and the project i
   assert.equal(ready.todo?.status, "failed");
   assert.match(ready.todo!.error!, /文字模型/);
   const adopted = await adoptContextJourney(dir, id, { title: "新版方案", body: ready.summary!.body, todo_selected: [] }, ports);
-  assert.equal(adopted.phase, "complete");
+  assert.equal(adopted.phase, "complete", adopted.error ?? "");
 });
 
 for (const mode of ["missing", "cancelled"] as const) {

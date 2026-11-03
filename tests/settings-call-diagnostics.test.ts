@@ -25,6 +25,7 @@ async function withPages(run: (context: { read: (path: string) => Promise<string
   const home = await mkdtemp(join(tmpdir(), "call-diagnostics-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "诊断范围", actor_id: "test" });
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: "call-diagnostics-test-control-token" });
   try {
@@ -38,7 +39,7 @@ async function withPages(run: (context: { read: (path: string) => Promise<string
     await run({ read, base, host, projectId: created.project_id, record });
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
+    await host.close(); await rm(home, { recursive: true, force: true });
   }
 }
 

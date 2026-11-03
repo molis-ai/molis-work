@@ -11,7 +11,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { withLibrary } from "./home-library.js";
 import { person } from "./home-runtime.js";
 
-// A Home plugin whose library is partitioned by project (specs/plugin-project-partition), shipped the way a built-in one is: an entry
+// A Home plugin whose library is partitioned by project (specs/archive/plugin-project-partition), shipped the way a built-in one is: an entry
 // in the platform's registration list (`PLATFORM_PLUGIN_REGISTRATIONS`, the Host's own since W5-02 PR-B). The Home's store registry is made from the catalog once per process, so the entry is added when this
 // module loads, before anything asks for the registry, and stays for the test file's process.
 

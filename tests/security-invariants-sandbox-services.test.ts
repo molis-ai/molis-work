@@ -14,7 +14,7 @@ import { assertSandboxDeclarations, sandboxServicesFor, SANDBOX_NOT_GIVEN, SANDB
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { homeProbe } from "./fixtures/home-runtime.js";
 
-// S-60 (PG-017, specs/repository-anti-corruption/slices/pg017-sandbox-services.md): a sandboxed plugin is an install trust, not a second set
+// S-60 (PG-017, specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md): a sandboxed plugin is an install trust, not a second set
 // of permissions. The services it reaches are the ones the Host built for the activation from its Manifest and the person's grants, forwarded
 // through the broker. What the sandbox is not given is a refusal with a code when the installation starts, never a silent absence. This file
 // asserts those refusals; the per-service ones (over-reach, unapproved, after revoke) sit beside each service as it is given.

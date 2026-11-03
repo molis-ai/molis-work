@@ -29,7 +29,7 @@ import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// specs/repository-anti-corruption W3-02-D: the document plugins (Pages, PPT, Dataset, Form, Lingguang, Workflows) lose their route-error mappers and
+// specs/archive/repository-anti-corruption W3-02-D: the document plugins (Pages, PPT, Dataset, Form, Lingguang, Workflows) lose their route-error mappers and
 // their error classes. Their failures are ActionErrors whose codes the plugins declare (`defineErrorCodes`); the Host's edge answers every one through the
 // SDK, so the status comes from the failure's kind and the same platform code gets the same status at all six plugins.
 //

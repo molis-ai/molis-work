@@ -7,6 +7,32 @@ import { ISSUE_FRAME, issueView, type IssueBrowser } from "./fixtures/issue-brow
 const entry = "[data-side-plugin-open]";
 const open = "document.body.dataset.sideOpen === 'true'", closed = "document.body.dataset.sideOpen === 'false'";
 
+/** T405-FULL-03: one observation on refusal, without changing focus or the wait's bound. */
+async function composerFocused(t: Parameters<typeof openGoalBrowser>[0], b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>) {
+  try { await v.composerFocused(); }
+  catch (error) {
+    const child = await v.ask(`(() => {
+      const input = $('[data-issue-composer] [name=description]'), style = input && d.defaultView.getComputedStyle(input);
+      return { focus: d.hasFocus(), visibility: d.visibilityState, ready: d.readyState, active: d.activeElement?.outerHTML.slice(0, 260),
+        input: input && { rects: input.getClientRects().length, bounds: input.getBoundingClientRect().toJSON(), disabled: input.disabled,
+          hidden: !!input.closest('[hidden], [inert]'), display: style.display, visibility: style.visibility } };
+    })()`).catch(String);
+    const owners = await b.evaluate(`(() => {
+      const describe = node => node && { tag: node.tagName, id: node.id, title: node.getAttribute('title'), side: node.getAttribute('data-side-body') };
+      const frame = node => { const style = getComputedStyle(node); return { ...describe(node), src: new URL(node.src).pathname,
+        rects: node.getClientRects().length, bounds: node.getBoundingClientRect().toJSON(), hidden: !!node.closest('[hidden], [inert]'),
+        display: style.display, visibility: style.visibility }; };
+      const outer = document.querySelector(${JSON.stringify(ISSUE_FRAME)}), owner = outer?.contentDocument;
+      return { top: { focus: document.hasFocus(), visibility: document.visibilityState, active: describe(document.activeElement),
+          sideOpen: document.body.dataset.sideOpen, selected: document.querySelector('[data-side-tab][aria-selected=true]')?.dataset.sideTab },
+        outer: outer && frame(outer), owner: owner && { focus: owner.hasFocus(), visibility: owner.visibilityState, ready: owner.readyState,
+          active: describe(owner.activeElement), children: [...owner.querySelectorAll('iframe')].slice(0, 4).map(frame) } };
+    })()`).catch(String);
+    t.diagnostic(`Issue composer focus: ${JSON.stringify({ child, owners })}`);
+    throw error;
+  }
+}
+
 /** The page and the panel side by side (or stacked on a phone), nothing cut off, the entry still clickable. */
 async function beside(b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>, width: number, name: string) {
   await v.viewport(width, width < 600 ? 844 : 900); await b.waitFor(open);
@@ -22,15 +48,16 @@ async function beside(b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>,
 }
 
 test("ISSUE-35 in a project the chord and the button summon Issue from the page and from inside other frames, and put it away from inside", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await issueModel(t, b.homeDirectory);
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
+  }); if (!b) return;
   const v = await issueView(t, b, "issue-global-navigation");
   await v.viewport(1440); await v.go(`/projects/${b.projectId}/?desktop=1`);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(entry)}).getAttribute('aria-keyshortcuts')`), "Meta+Shift+I");
   assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(entry)}).title`), /Issue (⌘⇧I|Ctrl\+Shift\+I)/);
   await b.waitFor(`'loaded' in (document.querySelector(${JSON.stringify(ISSUE_FRAME)})?.dataset ?? {})`, 10_000);
   const url = await b.evaluate<string>("location.href");
-  await v.chord(); await b.waitFor(open); await v.composerFocused();
+  await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
   assert.equal(await b.evaluate("location.href"), url, "the work stays where it was");
   await beside(b, v, 1440, "project");
   // From inside the tool the chord puts it away and the keyboard goes back to the page.
@@ -38,7 +65,7 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   assert.equal(await b.evaluate("document.querySelector('[data-side-panel]').contains(document.activeElement)"), false);
   // The button is a switch, and it brings the keyboard along.
   await b.click(entry); await b.waitFor(open);
-  await v.composerFocused();
+  await composerFocused(t, b, v);
   await v.type("项目页里写了一半");
   await b.click(entry); await b.waitFor(closed);
   // Pressed while the keyboard is inside another side view's frame, the chord still reaches the shell.
@@ -50,7 +77,7 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
     await b.evaluate(`document.querySelector('[data-side-body="${other}"] iframe').focus()`);
     await v.chord();
     await b.waitFor(`document.querySelector('[data-side-tab="plugin:issues/capture"]').getAttribute('aria-selected') === 'true'`);
-    await v.composerFocused();
+    await composerFocused(t, b, v);
   }
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), "项目页里写了一半", "the draft was kept while closed");
   // The discussion is its own app in a frame; typing there, the chord still reaches the shell.
@@ -59,7 +86,7 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   await b.evaluate("document.querySelector('[data-side-body=\"discussion\"] iframe').focus()");
   await v.chord();
   await b.waitFor("document.querySelector('[data-side-tab=\"plugin:issues/capture\"]').getAttribute('aria-selected') === 'true'");
-  await v.composerFocused();
+  await composerFocused(t, b, v);
   for (const width of [1024, 390, 320]) await beside(b, v, width, "project");
 });
 
@@ -67,17 +94,17 @@ test("ISSUE-31 ISSUE-35 on Home the draft survives closing and a full navigation
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-global-navigation");
   await v.viewport(1440); await v.go("/");
-  await b.click(entry); await b.waitFor(open); await v.composerFocused();
+  await b.click(entry); await b.waitFor(open); await composerFocused(t, b, v);
   await beside(b, v, 1440, "home");
   await v.type("首页写到一半，");
   await v.escape(); await b.waitFor(closed);
   assert.equal(await b.evaluate(`document.activeElement === document.querySelector(${JSON.stringify(entry)})`), true, "focus returns to what opened it");
   // Writing is kept on this device until it is sent, across pages that each have their own panel.
   await v.go(`/projects/${b.projectId}/?desktop=1`);
-  await v.chord(); await b.waitFor(open); await v.composerFocused();
+  await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), "首页写到一半，");
-  await v.go("/"); await v.chord(); await b.waitFor(open); await v.composerFocused();
-  await v.type("接着写"); await v.go("/"); await v.chord(); await b.waitFor(open); await v.composerFocused();
+  await v.go("/"); await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
+  await v.type("接着写"); await v.go("/"); await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), "首页写到一半，接着写");
   for (const width of [1024, 390, 320]) await beside(b, v, width, "home");
 });
@@ -87,7 +114,7 @@ test("RAC-2801 RAC-2802: native search from the nested Issue composer keeps its 
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
   const v = await issueView(t, b, "issue-global-navigation");
   await v.viewport(1440); await v.go(`/projects/${b.projectId}/?desktop=1`);
-  await b.click(entry); await b.waitFor(open); await v.composerFocused();
+  await b.click(entry); await b.waitFor(open); await composerFocused(t, b, v);
   await v.type("Keep this unsent draft");
   await b.evaluate(`(() => { window.searchSenders=[]; window.issueSearchFrame=document.querySelector(${JSON.stringify(ISSUE_FRAME)});
     addEventListener('message', event => { if(event.data?.type==='molis:side-key') { const f=window.issueSearchFrame, body=f.closest('[data-side-body]');

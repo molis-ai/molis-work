@@ -33,14 +33,16 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/feed-client.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
     "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
+    "marked": "^18.0.11",
+    "sanitize-html": "^2.17.7"
   },
   "molis-work": {
     "maturity": "slice",
@@ -55,7 +57,12 @@
     ],
     "extraDependencies": {
       "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
-      "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
+      "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
+      "marked": "^18.0.11",
+      "sanitize-html": "^2.17.7"
     }
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

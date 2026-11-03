@@ -4,7 +4,7 @@ import { join, posix } from "node:path";
 import test from "node:test";
 import ts from "typescript";
 
-// RAC-564 (specs/repository-anti-corruption/slices/w5-02-registry.md §B1): the platform decides from its own registration
+// RAC-564 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §B1): the platform decides from its own registration
 // (`apps/local-host/src/plugin-registry.ts`), never from the shell's copy of the catalog. Read as an import graph: of the names the
 // workbench takes from its catalog modules, the Host imports only shell rendering that takes the Host's entries or titles a tab, and,
 // until ac-artifacts' A3 derives them from the installed Manifests, the artifact types' five (and their type).

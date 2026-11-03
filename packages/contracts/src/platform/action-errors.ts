@@ -1,4 +1,4 @@
-// One error model (specs/repository-anti-corruption W3-02). An error is a code, a message, and optionally a kind and details.
+// One error model (specs/archive/repository-anti-corruption W3-02). An error is a code, a message, and optionally a kind and details.
 // The code says whose error it is: `<owner>.<reason>`, the owner's name first. The kind says what sort of failure it is, and the
 // transport (plugin SDK `actionHttpStatus`) derives its status from the kind, so no plugin keeps a status table of its own.
 

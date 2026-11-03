@@ -1,7 +1,7 @@
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -42,9 +42,8 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const shelf = await pluginFrameBrowser(t, browser, "shelf", '[data-side-body="plugin:shelf/side"] iframe');
   const shelfStandalone = await pluginFrameBrowser(t, browser, "shelf");
   const viewFor = (selector: string) => views[selector.match(/data-(form|dataset|lingguang|pages)-/)?.[1] ?? ""] ?? browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const other = await catalog.createProject({ display_name: "市场活动", actor_id: "placement-test" });
-  catalog.close();
+  const other = await createProject(browser.web, "市场活动");
+
   const text = JSON.stringify;
   const output = new URL(`../${specEvidenceDirectory("specs/archive/work-placement/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
@@ -102,7 +101,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   assert.ok(spaces.some(space => space.project_id === other.project_id), "the second project is a place to put things");
 
   // 1. AC2 — launched from a Goal: the new deck goes into the Goal's project, is bound to the Goal and opens from there.
-  await go(`/projects/${projectId}/?openPlugin=goals&openItem=CORE&openGoalView=work`);
+  await go(`/projects/${projectId}/?openPlugin=goals&openItem=CORE&openView=work`);
   await press('[data-goal-view="CORE"] [data-goal-materials-entry]');
   await press('[data-placement-goal-materials][data-goal-id="CORE"] [data-placement-create="ppt"]');
   await card("已新建演示稿《");

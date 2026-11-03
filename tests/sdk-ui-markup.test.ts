@@ -38,7 +38,7 @@ import { listedIconNames, registeredIconNames } from "@molis-ai/molis-work-desig
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 
 // The parts of the Plugin SDK's `/ui` write class names and `data-*` hooks that the host's style sheets and page scripts define,
-// so the markup is a contract with the host page (specs/repository-anti-corruption/slices/pg055-sdk-ui-parts.md §4).
+// so the markup is a contract with the host page (specs/archive/repository-anti-corruption/slices/pg055-sdk-ui-parts.md §4).
 
 const TONES: readonly MwTone[] = ["neutral", "info", "success", "warning", "danger"];
 const VARIANTS: readonly MwButtonVariant[] = ["primary", "secondary", "ghost", "danger", "danger-outline", "link"];

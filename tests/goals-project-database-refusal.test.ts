@@ -19,7 +19,7 @@ import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { codingView } from "./fixtures/coding-view.js";
 
 /**
- * PLIB-14 (S8; specs/plugin-project-database/spec.md §2.3 and §2.4): Goals' tables in a project's library are Goals' own, declared in
+ * PLIB-14 (S8; specs/archive/plugin-project-database/spec.md §2.3 and §2.4): Goals' tables in a project's library are Goals' own, declared in
  * its Manifest and opened by the platform like Coding's, Feed's and Schedule's. When they no longer match Goals' ledger row (another
  * publisher, another version, a changed shape), Goals alone is refused: its actions are not in the project's directory and a call to one
  * is refused, the refusal the platform recorded is the one the library keeps, and the library itself opens, with the other plugins

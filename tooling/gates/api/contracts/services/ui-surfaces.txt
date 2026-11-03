@@ -80,6 +80,7 @@ export interface HostSurfaceDriver {
     release?(ended?: HostSurfaceRoundEnd): Promise<void>;
     close(): Promise<void>;
     describePoint?(x: number, y: number): Promise<string>;
+    describeNode?(node: string): Promise<string>;
     focusedField?(): Promise<{
         readonly label: string;
         readonly sensitive: boolean;

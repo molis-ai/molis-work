@@ -1,6 +1,11 @@
 {
-  "note": "Giant units that stay whole because they are reasonable as one unit (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked; specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). Each entry has a kind, a reason that says why splitting it would be wrong, and \"size\": the measured size (lines for a file or a function, { lines, methods } for a class), which has to equal what the gate measures, so an entry reserves no headroom and growth shows as an edit here. A unit with a valid entry is admitted by the merge-base comparison, new or grown; a giant unit without one may not appear or grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data, generated-code or cohesive-unit (one responsibility that splitting would scatter: a state machine, a parser, a protocol adapter). A unit that mixes several jobs is split, not marked. Edits here are reviewed like edits to the gate.",
+  "note": "Giant units that stay whole because they are reasonable as one unit (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked; specs/archive/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). Each entry has a kind, a reason that says why splitting it would be wrong, and \"size\": the measured size (lines for a file or a function, { lines, methods } for a class), which has to equal what the gate measures, so an entry reserves no headroom and growth shows as an edit here. A unit with a valid entry is admitted by the merge-base comparison, new or grown; a giant unit without one may not appear or grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data, generated-code or cohesive-unit (one responsibility that splitting would scatter: a state machine, a parser, a protocol adapter). A unit that mixes several jobs is split, not marked. Edits here are reviewed like edits to the gate.",
   "exceptions": {
+    "file plugins/native/plugin-builder/src/agent-authoring.ts": {
+      "kind": "cohesive-unit",
+      "reason": "设计答卷 DSL 的内聚解析与归一化单元，类型、操作、组件绑定和验收共用标识与诊断，联合展开为同一严格设计合同；拆开会分散同一语法的交叉引用和归一化顺序。",
+      "size": 821
+    },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "kind": "cohesive-unit",
       "reason": "助理模块的 SQLite 存储：39 个方法共 267 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者。",
@@ -19,18 +24,15 @@
     },
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
-      "reason": "项目目录的门面：32 个方法里多数是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
-      "size": {
-        "lines": 208,
-        "methods": 32
-      }
+      "reason": "项目目录的门面及连接寿命：现行结构检查、同 Home owner 持有与释放都围绕目录连接，其余方法多为转发；按资源拆出更多门面只会增加转发层，不改善这一职责边界。",
+      "size": { "lines": 247, "methods": 34 }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
-      "reason": "动作服务：登记提供方（registerProvider 131 行，登记时的全部声明检查）、绑定、调用、场景和依赖可用性，共享同一份登记表；内核的唯一动作注册与调用入口，只超 300 行 96 行，拆开会让登记表有两个读写者。",
+      "reason": "动作服务统一持有提供方登记、绑定、调用、场景与依赖可用性的登记表；阶段元数据从同一提供方读取并随调用权限约束，保持唯一注册与调用入口，拆开会分散同一登记表的所有权。",
       "size": {
-        "lines": 396,
-        "methods": 15
+        "lines": 442,
+        "methods": 16
       }
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -43,10 +45,10 @@
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
       "kind": "cohesive-unit",
-      "reason": "插件安装生命周期状态机：安装、升级（changeVersion 117 行）、卸载、恢复、崩溃上报、启停，同一张安装记录表和同一套事务/恢复规则；各转移互相依赖前一状态，拆开会让状态转移散在几个类里。授权与兑换（grant、redeem、receipt）合计不到 60 行。",
+      "reason": "插件安装生命周期状态机：安装、升级、卸载、恢复、崩溃上报、启停和授权捕获，共用同一张安装记录表、激活上下文及撤销状态；捕获的权限必须跟随原激活失效，拆开会让状态转移和授权检查散在几个类里。",
       "size": {
-        "lines": 623,
-        "methods": 29
+        "lines": 654,
+        "methods": 31
       }
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -93,14 +95,14 @@
       "kind": "cohesive-unit",
       "reason": "一次插件创作的工作流状态机：提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用，每步读写同一份运行记录；40 个方法最长 53 行，是同一条流水线上的相邻阶段，拆开会让一次创作的状态散在几个类里。",
       "size": {
-        "lines": 654,
+        "lines": 664,
         "methods": 40
       }
     },
     "file apps/workbench/src/i18n/en.ts": {
       "kind": "translation-table",
       "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
-      "size": 3270
+      "size": 3208
     },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
@@ -119,13 +121,13 @@
     },
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": {
       "kind": "cohesive-unit",
-      "reason": "浏览器面的驱动对象：返回体 141 行是对一个接口的方法实现（身份、范围、观察、操作），共享 mark、settle 等助手；一个对象实现一个接口，超 150 行 16 行。",
-      "size": 166
+      "reason": "浏览器面的驱动对象实现同一页面的身份、范围、观察、输入和关闭生命周期，共享授权、接管、遮罩及释放边界。节点点击在同一接口中复用这些边界，返回对象整体保持内聚，不为减少行数拆散输入派发。",
+      "size": 209
     },
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": {
       "kind": "cohesive-unit",
       "reason": "连接器 MCP 宿主：启动连接、完成授权、取令牌、调用工具、读资源，共享同一张连接表和同一个受保护的 fetch；连接的状态在闭包里，拆开要把这张表传来传去。",
-      "size": 246
+      "size": 261
     },
     "function apps/local-host/src/home-actions.ts#homeActionProvider": {
       "kind": "cohesive-unit",
@@ -135,37 +137,37 @@
     "class packages/plugin-sandbox/src/broker.ts#SandboxBroker": {
       "kind": "cohesive-unit",
       "reason": "沙箱 SDK 请求的统一授权与派发边界：队列、执行生命周期、效果检查和动作退出校验共享同一调用上下文；模型请求只隔离正常 RPC 清理且保留真实取消转发，拆散会把同一安全边界的开始与结束分离。",
-      "size": { "lines": 311, "methods": 9 }
+      "size": { "lines": 315, "methods": 9 }
     },
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": {
       "kind": "cohesive-unit",
       "reason": "Home 已安装插件运行期的装配工厂：安装记录、发布者信任、动作暴露和关停护栏共享同一组闭包，返回的页面查询复用这些状态；职责是建立并关闭一个安装运行期实例，拆开会把它的装配与生命周期接线分散。",
-      "size": 161
+      "size": 191
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
       "kind": "cohesive-unit",
       "reason": "网页服务的装配根：返回创建服务的函数，内含 HTTP 服务、本机宿主、周期调度、侧栏浏览器登记、PTY 挂接与关停，是进程的装配；装配根的职责就是把这些放在一处。",
-      "size": 154
+      "size": 156
     },
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": {
       "kind": "cohesive-unit",
       "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。",
-      "size": 151
+      "size": 153
     },
-    "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": {
+    "function plugins/native/goals/src/page/capsule-items.ts#createCapsuleItemProjection": {
       "kind": "cohesive-unit",
       "reason": "胶囊条目的投影：由目标与状态推出决定、可做、阻塞、进行中、等待、最近完成六类条目，共用 itemBase 与排序；一个投影按条目类别分支，每类 14 到 19 行。",
       "size": 229
     },
-    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": {
+    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": {
       "kind": "cohesive-unit",
-      "reason": "外壳整页的渲染（名字沿用旧称）：renderMolisWorkWeb 的 140 行主要是一个 HTML 模板，加 22 行的刷新片段；一页一个模板，超 150 行 26 行。",
-      "size": 176
+      "reason": "单个不透明插件 frame 的生命周期与私有端口适配：消息分派共享同一个 scope、page、窗口和清理闭包，统一在显隐与卸载时撤销；业务处理已在独立模块，拆开此入口会分散同一端口的所有权和释放顺序。",
+      "size": 188
     },
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
       "kind": "cohesive-unit",
       "reason": "标签布局的纯操作集（拆分、移动、并排打开、规范化、关闭、固定），对同一棵布局树做变换；它被 toString 注入浏览器，必须自成一体，W5-04 打包后才能分文件。",
-      "size": 425
+      "size": 441
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": {
       "kind": "cohesive-unit",
@@ -175,7 +177,7 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": {
       "kind": "cohesive-unit",
       "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
-      "size": 173
+      "size": 192
     },
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": {
       "kind": "cohesive-unit",
@@ -235,12 +237,55 @@
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": {
       "kind": "cohesive-unit",
       "reason": "把一份设计答卷展开成插件的文件与验收用例：对零件、表单、读写操作和浏览器验收逐个生成，是一条代码生成流水线（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
-      "size": 225
+      "size": 228
     },
     "class apps/local-host/src/agent-definitions/agent-definitions.ts#AgentDefinitions": {
       "kind": "cohesive-unit",
       "reason": "同一 AgentDefinitions 数据主人的声明登记、用户覆盖、history 和 uses 共用同一份来源引用及 SQLite 事务；新增的是精确读取与已接受使用的两个既有职责，拆分会分散同一状态和记录，不新增第二份业务账。",
       "size": { "lines": 257, "methods": 26 }
+    },
+    "function plugins/native/feed/src/plugin.ts#createFeedPlugin": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 159
+    },
+    "function plugins/native/feed/src/plugin.ts#start": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 157
+    },
+    "class apps/local-host/src/home-plugins.ts#HomePluginHost": {
+      "kind": "cohesive-unit",
+      "reason": "Home 插件组合与生命周期门面：统一启动、关闭及访问同一个 Home 平台，具体行为委派既有 owner；权限捕获只读取该 Runtime 的授权，按方法数拆分会增加转发并散开共享平台状态。",
+      "size": { "lines": 280, "methods": 26 }
+    },
+    "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": {
+      "kind": "cohesive-unit",
+      "reason": "一个项目插件平台的组合根：构造既有 executor、Runtime、supervisor、wiring 与 events，并绑定统一的启动关闭顺序；Home 权限上限是此处注入的端口，拆开会分散构造顺序及生命周期所有权。",
+      "size": 155
+    },
+    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
+      "kind": "cohesive-unit",
+      "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
+      "size": { "lines": 303, "methods": 23 }
+    },
+    "file packages/plugin-runtime/src/index.ts": {
+      "kind": "cohesive-unit",
+      "reason": "PluginRuntime 安装状态机及其包入口：主体、输入型别与导入导出围绕同一份安装和激活状态，权限捕获必须跟随同一撤销 cell；为文件行数搬走出口或拆散状态机只会增加接口与状态耦合。",
+      "size": 830
+    },
+    "class horizontal/memory/src/service.ts#MemoryService": {
+      "kind": "cohesive-unit",
+      "reason": "用户 2026-11-02 明确授权 T-061 按现行 Memory 暂缓拆分：写入审批、召回、维护学习与范围搬运仍共用同一记忆账本和后端端口，本轮先按当前大小登记；#1101 新记忆体系与 #1059 偏好扩展留后，两项产品实际采用后由记忆线按批 C 的四协作者方案重评，保留原判拆与后继责任。",
+      "size": {
+        "lines": 1015,
+        "methods": 48
+      }
+    },
+    "file horizontal/memory/src/service.ts": {
+      "kind": "cohesive-unit",
+      "reason": "用户 2026-11-02 明确授权 T-061 按现行 Memory 暂缓拆分：写入审批、召回、维护学习与范围搬运仍共用同一记忆账本和后端端口，本轮先按当前大小登记；#1101 新记忆体系与 #1059 偏好扩展留后，两项产品实际采用后由记忆线按批 C 的四协作者方案重评，保留原判拆与后继责任。文件还含调用者、服务端口与提交输入声明；本轮不搬动这些声明。",
+      "size": 1151
     }
   }
 }

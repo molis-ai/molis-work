@@ -14,7 +14,7 @@ import { CATALOG_MISS, LIVE_ENTRY_IDS, builtinEntries, compare, parseBaseline, r
 import { runSmoke } from "../scripts/studio-replay/smoke.mjs";
 import { standInAnswers } from "../scripts/studio-replay/stand-in.mjs";
 
-// specs/repository-anti-corruption §4.14 (W1-12): the studio Skill replay. Recorded designer answers go through the host's
+// specs/archive/repository-anti-corruption §4.14 (W1-12): the studio Skill replay. Recorded designer answers go through the host's
 // design checks and are compared with a committed baseline; a generation smoke runs the same studio workflow against a real
 // model on an isolated Home. Each rule here is mutation-verified on scratch copies: break one thing, the command fails.
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -51,7 +51,7 @@ test("the committed corpus replays exactly as its baseline records, and every sy
 });
 
 test("the committed corpus holds the real design answers exported from the person's Home, and the default report measures the full-design rate from them", () => {
-  // The fact the doc (§2.2) and the report state plainly. The export was decided on 2026-10-08 (specs/repository-anti-corruption/spec.md §1): three projects of the Home,
+  // The fact the doc (§2.2) and the report state plainly. The export was decided on 2026-10-08 (specs/archive/repository-anti-corruption/spec.md §1): three projects of the Home,
   // copied read-only, harvested, reviewed twice for personal data, locations redacted. If the set changes, this test and the doc's §2.2 change together.
   const file = JSON.parse(readFileSync(recordedFixture, "utf8")) as { format: string; entries: ReplayEntry[] };
   assert.equal(file.format, "studio-replay-corpus/1");

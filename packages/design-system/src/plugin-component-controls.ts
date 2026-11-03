@@ -75,7 +75,7 @@ export function pcControls(c: State & Kit & Rel) {
     return values;
   }
   /** One field of a form or a filter, in the catalog control that suits its type. */
-  function control(spec: SandboxSchema, name: string, field: string, label: string, required: boolean, filtering: boolean, words?: Record<string, string>, alone = false) {
+  function control(spec: SandboxSchema, name: string, field: string, label: string, required: boolean, filtering: boolean, words?: Record<string, string>, alone = false, querying = false) {
     const say = (value: unknown) => words && Object.hasOwn(words, text(value)) ? words[text(value)]! : typeof value === 'boolean' ? value ? '是' : '否' : text(value);
     if ((spec.enum && chipsFit(spec.enum.map(say))) || spec.type === 'boolean' && filtering) {
       const values = spec.enum ?? [true, false], options = values.map(value => ({ value: text(value), label: say(value) }));
@@ -90,9 +90,9 @@ export function pcControls(c: State & Kit & Rel) {
       input = make('select', undefined, 'mw-select'); input.dataset.slot = 'select';
       if (filtering && !required) { const all = make('option', '全部'); all.value = ''; input.append(all); }
       for (const value of spec.enum ?? [true, false]) { const option = make('option', say(value)); option.value = text(value); input.append(option); }
-    } else if (!filtering && (['object', 'array'].includes(spec.type) || spec.type === 'string' && (spec.maxLength !== undefined ? spec.maxLength > (alone ? 1000 : 200)
+    } else if (!filtering && (['object', 'array'].includes(spec.type) || spec.type === 'string' && !spec.format && !picker(spec) && (spec.maxLength !== undefined ? spec.maxLength > (alone ? 1000 : 200)
       // Without a limit, the field's own name says whether it is a line (标题, 标签) or a passage (描述, 内容).
-      : !alone && /描述|内容|正文|笔记|说明|详情|感受|心得|回答|答案|总结|摘抄|summary|content|body|description|note|answer|detail/i.test(field + ' ' + (spec.description ?? ''))))) {
+      : !alone && !/^(id|title|name)$/i.test(field) && /文本|描述|内容|正文|笔记|说明|详情|感受|心得|回答|答案|总结|摘抄|\btext\b|summary|content|body|description|note|answer|detail/i.test(field + ' ' + (spec.description ?? ''))))) {
       input = make('textarea', undefined, 'mw-textarea'); input.dataset.slot = 'textarea'; input.rows = 3; input.dataset.fit = ''; input.style.setProperty('--fit-max', '320px');
     } else if (spec.type === 'boolean') {
       input = make('input', undefined, 'mw-check'); input.type = 'checkbox'; input.dataset.slot = 'checkbox';
@@ -103,7 +103,12 @@ export function pcControls(c: State & Kit & Rel) {
     }
     input.name = name; input.dataset.field = field;
     const hint = naming(spec.description, field).hint; if (hint && !picker(spec) && 'placeholder' in input && !(input instanceof HTMLSelectElement)) input.placeholder = hint;
-    if (!filtering) input.required = spec.type !== 'boolean' && required;
+    if (!filtering) {
+      const emptyString = querying && spec.type === 'string' && !spec.minLength && !spec.format
+        && (!spec.enum || spec.enum.includes('')) && (spec.const === undefined || spec.const === '');
+      input.required = spec.type !== 'boolean' && required && !emptyString;
+      if (querying && 'minLength' in input && spec.minLength !== undefined) input.minLength = spec.minLength;
+    }
     if ('maxLength' in input && spec.maxLength !== undefined) input.maxLength = spec.maxLength;
     return { input };
   }

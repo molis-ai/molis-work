@@ -35,7 +35,8 @@ const localHost = new MolisWorkLocalHost({
     const selected = prompt.trim().split("\n").at(-1)!.trim().slice(0, 24);
     return `【写作替身·非真实模型】${selected}…`;
   },
-  actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, homeDirectory),
+  actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), homeDirectory),
 });
+const withCatalog = localHost.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
 const server = createMolisWorkWebServer({ homeDirectory, localHost });
 server.listen(port, "127.0.0.1", () => console.log(`P1 workbench (writing model is a stand-in; judgment: ${jevFrom ? "Jev" : "this Home's connection, else rules"}): http://127.0.0.1:${port}`));

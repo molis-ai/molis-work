@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ test(`forget ${scope} final commit: ${permission}`, { timeout: 60_000 }, async t
     return bound;
   });
   await connectorAssistantModel(t, home.home, (_body, turn) => turn === 1
-    ? { name: "forget-memory", input: { memory_id: targetId } } : "已处理。");
+    ? { name: "forget-memory", input: { memory_id: targetId } } : "已处理。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>(`${projectBase}/api/assistant/send`, { text: "停用刚才的要点列表偏好", request_id: randomUUID() });
   await untilSetup(async () => reached ? true : undefined, "actual forget passed authorization and async Host check");
   assert.deepEqual(await formal(), [before], "the gate precedes the first formal commit");

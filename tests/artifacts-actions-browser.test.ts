@@ -57,9 +57,10 @@ test("RAC-2345 actual platform Artifact import, exact Goal input, English naviga
   const fixedInput = `Boolean(document.querySelector('[data-goal-inputs] [data-goal-input-fixed] [data-workbench-item-id="/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/1"]'))`;
   await visit("/goals/V1");
   assert.equal(await evaluate(fixedInput), true);
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
+  assert.ok(b.localHost);
+  const withCatalog = b.localHost.ensureWebCatalog(b.homeDirectory, openMolisWorkProjectCatalog).withCatalog;
   const artifactEntry = '.plugin-rail-items button.plugin-rail-item[data-plugin-id="artifacts"][data-work-surface-open]';
-  try {
+  await withCatalog({ homeDirectory: b.homeDirectory }, async catalog => {
     assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), true, "the platform has a real navigation entry");
     assert.throws(() => catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     assert.equal(catalog.listProjectPlugins(projectId!).includes("artifacts"), false);
@@ -98,5 +99,5 @@ test("RAC-2345 actual platform Artifact import, exact Goal input, English naviga
     assert.equal(handoff.object.version, exact!.version);
     assert.equal(handoff.source.surface, "artifacts");
     assert.match(handoff.materials[0]!.text, /浏览器原始文档/);
-  } finally { catalog.close(); }
+  });
 });

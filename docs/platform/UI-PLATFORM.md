@@ -131,10 +131,13 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 - **没有回答时不显示浏览器英文原话。** 读取报 `ui_host.unreachable`「连不上 Molis Work 服务，请稍后重试」；写入报 `ui_host.outcome_unknown`「不知道这次操作有没有完成，请刷新后核对」，页面保留已填内容、不替人重发。已有自己重发设计的界面（助理输入框用同一 `request_id`、Goal 表单复用键）保持原样。
 - **诊断编号只在查得到时出现。** 助手只读错误体里的 `call_id`，不读响应头；宿主只在这次调用在调用记录里留下了行时才往错误体写它，所以界面上出现的编号，在「设置 › 诊断」里一定查得到。管理类写入和入口的安全拒绝不进调用记录，没有编号。`show(目标, 错误, 兜底)` 把消息写进错误区域，有编号时加一个「诊断编号 xxxxxxxx」按钮（点一下复制完整编号）；`toast(...)` 是同样的错误吐司，带编号的停约 8 秒，指着或聚焦时不消失；吐司上换了新消息，旧按钮连同它的焦点就算没了，不等浏览器报「失去焦点」（有的浏览器引擎在聚焦的节点被删时不报）。
 - **谁拥有什么。** 键、头、错误形状、编号按钮归助手；错误文案、放在页面哪里、要不要保留输入仍归各界面。
+- **插件的页面代码不自己发请求。** `plugins/native/*/src` 里的 TypeScript 不调 `fetch`、`XMLHttpRequest`、`EventSource`、`sendBeacon`（代码里或送进页面的字符串里都不行），只用助手；只有 Alchemist 与插件创作台绕过（与构建期接线的两个批过的例外同一批，BL-376/377）。`tests/plugin-client-request.test.ts` 静态扫这些写法，绕过名单 `BYPASSED` 里的插件一旦不再自己发请求就必须从名单删掉；它不覆盖 `.js`、别名调用（`const f = fetch`）、`WebSocket` 和动态 `import()`，是所列写法的回归检查，不是网络路径的安全边界。
 
 `molisWorkControlHeaders()` 留着，是同一助手只给头的入口，供还没迁的调用方使用（删除条件见 [UI Host README](../../packages/ui-host/README.md#浏览器请求)）。进度：W3-10-1a 把助手装到不进 `/assets/` 的内联页面（设置、项目设置、引导、新建项目旅程、选择页、侧栏独立页、创作台页）；W3-10-1b 让工作台主程序（`/assets/molis-work-workbench.js`）以助手开头，所以挂进工作台的页面（设置里的各页、侧栏）不用自带，并先迁了设置一组（模型、提示词、助理、记忆、诊断、常驻服务、项目与项目说明、Runtime 接入预览）、侧栏（含浏览器与文件）、设置目录、后台任务和插件通知；工作台的其余请求（导航、Feed、插件挂载、助理底栏、放置、搜索，W3-10-2～4）和插件客户端（W5-04）还在用各自的包装。挂进工作台的页面里的「诊断编号」按钮只有一个复制入口（`data-molis-call-id`，助手的点击处理），不再另挂 `data-copy-value`。
 
 隔离视图另可调用 `host.confirm(message)`、`host.prompt(message, initial)` 和 `host.copyText(text)`：前两者是当前视图内可取消的异步组件对话框，后者只在真实用户操作后复制文字，不提供系统剪贴板读取。模型设置更新的通知由外壳传给各视图，再由插件按自身权限重读状态。
+
+页面终端有两样平台件，都在 `dist/web/pty-client.js`（`apps/workbench/src/terminal-client.ts`）：`molisTerminalRenderer` 画一个面板的屏幕（xterm、键盘、回放、主题、尺寸），`molisPageTerminal` 是页面拿到的通道。插件框架里的页面由框架经父页的受限通道给；工作台自己画的页面（Characters 的执行记录等）由 `terminal/page-terminal.ts` 的 `createPageTerminal` 在外壳自己的 `/pty` 通道上给出同一个 `UiPageTerminal`。页面只能 `attach` / `write` / `resize` / `kill` 后端已经建好的面板：通道在入口处拒绝别的命令（`spawn`、认证、缺 `panelId`、空命令），并按字段重建消息，页面不能起进程，也带不出额外字段；框架里已有 `molisPageTerminal` 时不覆盖（`tests/page-terminal.test.ts`）。终端客户端随各自的客户端包发，工作台的终端入口与 `terminal/` 不 import 任何插件包、不含插件 id；留在工作台的只有 Goal 工作面板的「工作终端」（靠控制令牌的 `/pty` 通道启动进程，`startWorkTerminalClient`）。
 
 隔离页面的 `host.terminal.mount(element, { panelId, onEvent })` 按需加载平台已有终端资源。返回的视图提供 `focus()`、`fit()` 和 `dispose()`；卸载视图不停止已接受的进程，停止须显式发送 `kill`。共享滚动、流式文字与复制反馈在子页面中初始化；`navigator.clipboard.writeText` 也接到同一受限复制通道，宿主仍检查真实用户激活，不提供剪贴板读取。
 

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { AgentBuild, AgentRelease } from './agent-model.js';
+import { assertPublicationReady, buildScope, releaseScope } from './agent-publication.js';
 interface State { builds: AgentBuild[]; releases: AgentRelease[] }
 const KEY = 'plugin-builder:agent-built:v1';
 export class AgentBuilderStore {
@@ -23,7 +24,16 @@ export class AgentBuilderStore {
     if (!build || build.revision !== revision) throw Object.assign(new Error('草稿已更新，请重试'), { code: 'revision_conflict' });
     mutate(build); build.id = id; build.revision = revision + 1; build.updatedAt = new Date().toISOString(); this.write(raw, state); return structuredClone(build);
   }
-  release(release: AgentRelease) { const { raw, state } = this.read(); if (state.releases.some(item => item.buildId === release.buildId && item.version === release.version)) throw new Error('发布版本已存在'); state.releases.push(structuredClone(release)); this.write(raw, state); }
+  release(release: AgentRelease, revision: number) {
+    const { raw, state } = this.read(), build = state.builds.find(item => item.id === release.buildId);
+    if (!build || build.revision !== revision) throw new Error('发布候选已改变，请重新检查');
+    assertPublicationReady(build);
+    if (build.design!.contract.pluginId !== release.pluginId || buildScope(build) !== releaseScope(release)
+      || release.version !== Math.max(0, ...state.releases.filter(item => item.buildId === build.id).map(item => item.version)) + 1
+      || state.releases.some(item => item.buildId === build.id && releaseScope(item) !== buildScope(build))) throw new Error('发布版本已存在或范围不一致');
+    state.releases.push(structuredClone(release)); this.write(raw, state);
+  }
+  referencesDirectory(directory: string): boolean { return this.read().state.releases.some(item => item.directory === directory); }
   versions(id: string) { return structuredClone(this.read().state.releases.filter(item => item.buildId === id).sort((a, b) => b.version - a.version)); }
   releases() { const found = new Map<string, AgentRelease>(); for (const item of this.read().state.releases) if ((found.get(item.pluginId)?.version ?? 0) < item.version) found.set(item.pluginId, item); return structuredClone([...found.values()]); }
   remove(id: string, revision: number) { const { raw, state } = this.read(), build = state.builds.find(item => item.id === id); if (!build || build.revision !== revision || build.active) throw new Error('请先停止构建并刷新'); if (state.releases.some(item => item.buildId === id)) throw new Error('已发布作品请在插件设置中卸载，保留版本记录'); state.builds = state.builds.filter(item => item.id !== id); this.write(raw, state); }

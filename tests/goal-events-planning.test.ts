@@ -55,6 +55,7 @@ function eventMethod(methodId: string, note: string, versionLabel: string): Plan
 test("engineering planning drives configure/report; no template is not auto-adopted; method upgrades do not rewrite adopted Goals", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-events-planning-"));
   const homeDirectory = join(directory, "home");
+  await savePersonalMethodInHome(homeDirectory, eventMethod("personal-story", "留下玩家观察", "个人版"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   let mcp: MolisWorkServer | undefined;
   try {
@@ -63,8 +64,8 @@ test("engineering planning drives configure/report; no template is not auto-adop
     assert.ok(software.event_types.some((type) => type.type_id === "engineering-delivery"));
     assert.ok(software.default_requirements.some((item) => item.requirement_id === "engineering-ui-inspection"));
 
-    await savePersonalMethodInHome(homeDirectory, eventMethod("personal-story", "留下玩家观察", "个人版"));
     const project = await catalog.createProject({ display_name: "规划采用", actor_id: "user" });
+    catalog.close();
     await grantGoalsMcp(homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
@@ -269,7 +270,6 @@ test("engineering planning drives configure/report; no template is not auto-adop
       item.origin?.planning?.template_requirement_id === "engineering-delivery")?.requirement_id, g2Req.requirement_id);
   } finally {
     await mcp?.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -281,6 +281,7 @@ test("configure idempotency uses the original request before resolving upgraded 
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "幂等采用", actor_id: "user" });
+    catalog.close();
     await grantGoalsMcp(homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
@@ -362,7 +363,6 @@ test("configure idempotency uses the original request before resolving upgraded 
     assert.ok(!persisted.config.types.some((type: { type_id: string }) => type.type_id === "changed-request"));
   } finally {
     await mcp?.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -374,6 +374,7 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "合并规划", actor_id: "user" });
+    catalog.close();
     await grantGoalsMcp(homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, projectId: project.project_id,
@@ -453,7 +454,6 @@ test("equivalent planning packs merge with provenance; conflicting packs fail at
     assert.equal(unchanged.config.adopted_planning.length, 0);
   } finally {
     await mcp?.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

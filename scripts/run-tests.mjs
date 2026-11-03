@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
+import { createServer } from "node:net";
 import { availableParallelism, tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -90,13 +91,19 @@ if (targets.length > 1) {
   // resolved to its real path where it enters (S-11), and a test that builds one under tmpdir() then names it the way the product does.
   const temporary = await realpath(tmpdir());
   const home = await mkdtemp(join(temporary, "molis-test-home-"));
+  // A forwarding process that is told no address asks 127.0.0.1:4173, where this machine may run a real Home's service. Each test
+  // process gets its own free loopback port instead: nothing answers there, as on CI, and a resident the test starts can bind it.
+  const residentUrl = await new Promise((resolveUrl, reject) => {
+    const probe = createServer().once("error", reject);
+    probe.listen(0, "127.0.0.1", () => { const { port } = probe.address(); probe.close(() => resolveUrl(`http://127.0.0.1:${port}`)); });
+  });
   try {
     const environment = { ...process.env };
     // This is a new test coordinator, including when a test verifies the runner.
     delete environment.NODE_TEST_CONTEXT;
     const child = spawn(process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", ...testArgs, ...targets], {
       stdio: "inherit",
-      env: { ...environment, NODE_ENV: "test", TMPDIR: temporary, MOLIS_WORK_HOME: home,
+      env: { ...environment, NODE_ENV: "test", TMPDIR: temporary, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: residentUrl,
         MOLIS_WORK_SECRET_BACKEND: "file", MOLIS_WORK_ENCRYPTION_KEY: "" },
     });
     const interrupt = () => child.kill("SIGINT");

@@ -125,7 +125,7 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
   assert.equal((await service.recall(tables, { query: "导出 格式" })).items.some(item => item.text === "上次导出用的是 CSV 格式"), false);
 });
 
-// Decision 19 (specs/repository-anti-corruption, W2-03): no plugin uses memory, and a plugin's call carries no Host-confirmed plugin identity
+// Decision 19 (specs/archive/repository-anti-corruption, W2-03): no plugin uses memory, and a plugin's call carries no Host-confirmed plugin identity
 // today (the Studio's generated plugins carry none), so `memory.write` was refused and `memory.recall` and `memory.list` could not apply the
 // person's rule for one plugin. The directory shows plugins none of them until a plugin really uses memory with a Host-confirmed identity;
 // MemoryService above still holds a plugin to its own namespace and to the kinds the person allows, for that day. The Studio's capability

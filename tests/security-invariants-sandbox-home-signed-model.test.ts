@@ -1,23 +1,24 @@
+import { effectsFromContract, sandboxDerivedPermissions, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { sandboxedPluginDefinition, pluginInstallActions, sandboxImageNamespace, sandboxProviderId, withConnectorConnections, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { sandboxDerivedPermissions, sandboxPluginManifest } from "@molis-ai/molis-work-app-local-host";
+
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
-import { effectsFromContract } from "@molis-ai/molis-work-plugin-sandbox";
+
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, runtimeStore } from "./fixtures/home-sandbox.js";
 import { IMAGE_DOMAIN, IMAGE_PNG, signedImageProvider } from "./fixtures/home-signed-model-provider.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
-// BL-491 (PG-017; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60, S-66, S-91): a signed package installed in the Home asks for its model and
+// BL-491 (PG-017; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60, S-66, S-91): a signed package installed in the Home asks for its model and
 // its image connections in `contract.json` and nothing else; the Host derives the Manifest rows, the names and the clean-up. This file runs real packages in real
 // sandbox processes behind a real Home: it asserts what the package can do (call the model, choose among the enabled models, bind an image connection the person already
 // pinned) and what it cannot (name an address, a connection or an account, pin a connection itself, bind outside its approved domains, do any of it from a project).
@@ -70,11 +71,10 @@ async function rig(t: test.TestContext, completeText: HostCompleteText = complet
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   const h = await openTestHome(t, { host: { completeText } });
   const project = await h.createProject("BL-491");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: h.home });
-  t.after(() => catalog.close());
+  const withHostCatalog = h.host.configurePersonalPlanning(h.home, withMolisWorkProjectCatalog);
   const model = withConnectorConnections(h.home, store => store.createToken({ serviceId: "model-api", displayName: "模型账号", token: "model-test-credential" }));
   withConnectorConnections(h.home, store => store.assertTarget(model.connection_id, "model-api", "http://127.0.0.1:1"));
-  catalog.models.upsert({ credential_ref: model.credential_ref!, provider_id: "fixture", display_name: "测试供应商", base_url: "http://127.0.0.1:1", api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
+  await withHostCatalog({ homeDirectory: h.home }, catalog => catalog.models.upsert({ credential_ref: model.credential_ref!, provider_id: "fixture", display_name: "测试供应商", base_url: "http://127.0.0.1:1", api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] }));
   const account = (name: string, origin?: string) => {
     const created = withConnectorConnections(h.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: `image-${name}` }));
     if (origin) withConnectorConnections(h.home, store => store.assertTarget(created.connection_id, "image-api", origin));
@@ -212,7 +212,7 @@ test("BL-491 RAC-2654 a package that asks for model settings or image generation
   // The install error does not carry the cause, so the guard itself is asked: a project's instance of a package with either effect never starts, and says why.
   const context = { project_id: "p", install_id: "refusal", installation_generation: "1", requireGrant: () => {} } as Partial<PluginStartContext> as PluginStartContext;
   for (const effects of [{ imageGeneration: ["read"] }, { modelSettings: ["read"] }] satisfies SandboxEffects[]) {
-    const contract = { operations: [{ id: "draw", kind: "command" as const, effects, input: { type: "null" }, output: { type: "null" } }] };
+    const contract = { pluginId: "io.molis.work.example.projectrefusal", operations: [{ id: "draw", kind: "command" as const, effects, input: { type: "null" }, output: { type: "null" } }] };
     const release = { buildId: "project-refusal", pluginId: "io.molis.work.example.projectrefusal", version: 1, bundlePath: "/nowhere", design: { title: "refusal", contract, parts: [], acceptance: [] } } as AgentRelease;
     await assert.rejects(sandboxedPluginDefinition(release, effects, []).start(context), (error: { code?: string; message?: string }) =>
       error.code === "plugin.declaration_invalid" && /模型设置和图片生成只给装在 Home 里的插件/u.test(error.message ?? ""), JSON.stringify(effects));

@@ -52,7 +52,7 @@ async function openProbe() {
   let background: Promise<unknown> | undefined;
   const definition = definePlugin({ manifest, async start(context) {
     const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive() {},
-      requireGrant(permission: string) {
+      installationPermissions: manifest.permissions.map(row => row.permission), requireGrant(permission: string) {
         if (state.revoked && permission === MODEL) throw pluginErrors.grant_denied(`Plugin 没有 ${MODEL} grant`);
         context.requireGrant(permission);
       } };

@@ -8,7 +8,7 @@ import test from "node:test";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
@@ -30,8 +30,14 @@ test("a plugin disabled in the project leaves the results and comes back when en
   // Goals is a 常开 plugin (ac-trust T3) that no project removes; Schedule is an ordinary project plugin, so it is the one switched off and on here.
   await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const open = () => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: projectActionAvailability(withCatalog, home) });
-  let host = open();
+  const open = () => {
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
+      actionAvailability: projectActionAvailability((options, operation) => withHostCatalog(options, operation), home) });
+    // Borrow the Host owner without binding the plugin catalog: this case keeps its original availability-only composition.
+    const withHostCatalog: ReturnType<MolisWorkLocalHost["ensureWebCatalog"]>["withCatalog"] = host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog;
+    return { host, withHostCatalog };
+  };
+  let { host, withHostCatalog } = open();
   try {
     const call = async <I, O>(definition: ActionDefinition<I, O>, input: I) =>
       await host.actionClient(reference).invoke(await host.localPersonContext(reference), definition, input) as O;
@@ -52,19 +58,19 @@ test("a plugin disabled in the project leaves the results and comes back when en
     const indexedAt = first.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at;
     assert.ok(indexedAt);
 
-    await withCatalog({ homeDirectory: home }, catalog => { catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
+    await withHostCatalog({ homeDirectory: home }, catalog => { catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
     const disabled = await search("复盘");
     assert.deepEqual(titles(disabled), []);
     assert.equal(disabled.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)?.state, "disabled");
 
-    await withCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
+    await withHostCatalog({ homeDirectory: home }, catalog => { catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" }); });
     const enabled = await search("复盘");
     assert.deepEqual(titles(enabled), ["季度复盘会议"], "re-enabled, the plugin is indexed again from its own data");
     const reindexedAt = enabled.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at;
 
     // Restart: the index is where it was; an unchanged collection is not rebuilt.
     await host.close();
-    host = open();
+    ({ host, withHostCatalog } = open());
     const afterRestart = await search("复盘");
     assert.deepEqual(titles(afterRestart), ["季度复盘会议"]);
     assert.equal(afterRestart.sources.find(source => source.plugin_id === SCHEDULE_PLUGIN_ID)!.indexed_at, reindexedAt);
@@ -72,7 +78,7 @@ test("a plugin disabled in the project leaves the results and comes back when en
     // The index file is lost while the Host is closed: the next Host rebuilds it from the owners.
     await host.close();
     for (const suffix of ["", "-wal", "-shm"]) { const file = homeSqlitePath(home, "search") + suffix; if (existsSync(file)) rmSync(file); }
-    host = open();
+    ({ host, withHostCatalog } = open());
     assert.deepEqual(titles(await search("复盘")), ["季度复盘会议"]);
     await createTask("复盘之后的行动", "按复盘结论排期");
     assert.deepEqual(titles(await search("复盘")), ["复盘之后的行动", "季度复盘会议"]);
@@ -95,7 +101,8 @@ test("an external MCP client searches through the same action with only what it 
     const form = (await host.actionClient(reference).invoke(owner, formActions.create, { title: "采购审批问卷" }) as { form: { id: string; version: number } }).form;
     await host.actionClient(reference).invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "预算审批流程" });
     const origin = served.origin;
-    await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    await withHostCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({
       context: { runtime_id: "search-client", stable_work_context_id: "search-session", host_declares_stable: true },
       project_id: project.project_id, actor_id: "user", user_confirmed: true,
     }));

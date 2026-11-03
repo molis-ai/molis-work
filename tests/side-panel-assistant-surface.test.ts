@@ -140,6 +140,46 @@ test("from a blank page the Assistant looks, then opens a site and clicks only a
   } finally { await f.close(); }
 });
 
+test("T405-S4-01 SDK node approvals name the original owner's target, preserve the action and keep declines/stops at zero dispatch", { timeout: 60_000 }, async t => {
+  const node = "node_0123456789abcdef0123456789abcdef";
+  for (const outcome of ["approve", "reject", "stop", "unavailable"] as const) await t.test(outcome, async t => {
+    const f = await fixture(t, [
+      () => reply({ name: "surface-list", input: {} }),
+      body => reply({ name: "surface-observe", input: { target: targetOf(body), kind: "accessibility-tree" } }),
+      body => reply({ name: "surface-act", input: { observation: observationOf(body), do: "pointer", node, x: 0, y: 0, button: "left", clicks: 2 } }),
+      () => reply(undefined, "这一步结束。"),
+    ], [], "https://example.com");
+    const described: string[] = [];
+    let points = 0;
+    f.page.driver.observe = async () => new TextEncoder().encode(`页面：Example Domain\nnode=${node} input「准确字段」 @(120,80)`);
+    f.page.driver.describeNode = async target => {
+      described.push(target);
+      if (outcome === "unavailable") throw new Error("目标已离开页面");
+      return "准确字段";
+    };
+    f.page.driver.describePoint = async () => { points += 1; return "错误坐标诱饵"; };
+    try {
+      const sent = await f.send("双击准确字段");
+      const pending = await f.pending();
+      const detail = pending.document.fields?.find(field => field.label === "详情")?.value ?? "";
+      assert.deepEqual([...new Set(described)], [node], "the SDK's node token is described by this session's original owner");
+      assert.equal(points, 0, "a node approval never describes the supplied fallback point");
+      if (outcome === "unavailable") assert.match(detail, /目标已不可用/u);
+      else assert.equal(detail, "双击「准确字段」");
+      assert.doesNotMatch(detail, /错误坐标诱饵|（0, 0）/u);
+      assert.deepEqual(f.page.done, [], "no input before approval");
+      if (outcome === "stop") {
+        await f.service.control(sent.work.work_id, { kind: "stop" });
+        await until(() => f.page.released() >= 1, "the stopped node step released");
+      } else {
+        await f.queue.respond({ review_id: pending.review_id, decision: outcome === "approve" ? "approve" : "reject", actor_id: "web-user" });
+        await until(async () => ["completed", "failed"].includes((await f.service.read(sent.work.work_id)).work.state), "the node round ended");
+      }
+      assert.deepEqual(f.page.done, outcome === "approve" ? [{ what: "pointer", node, x: 0, y: 0, button: "left", clicks: 2 }] : [], "only explicit approval dispatches the original typed node action");
+    } finally { await f.close(); }
+  });
+});
+
 /** A desk that only looks: what an app shows, and nothing done. */
 function fakeDesk(): HostSurfaceDriver {
   return {

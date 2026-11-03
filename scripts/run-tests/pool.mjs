@@ -1,4 +1,4 @@
-// The parallel run of scripts/run-tests.mjs (specs/repository-anti-corruption W5-12): every test file in its own process with its
+// The parallel run of scripts/run-tests.mjs (specs/archive/repository-anti-corruption W5-12): every test file in its own process with its
 // own MOLIS_WORK_HOME and secret store (scripts/run-tests.mjs started again with that one file, the Linux probe's runner), several
 // files at once, browser files capped separately because Chrome under load is what times out. The longest files start first, from
 // the durations the last runs on this checkout recorded.

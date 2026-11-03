@@ -6,7 +6,7 @@ import { SandboxError } from './schema.js';
 
 // A plugin's own tables, across the channel (`sdk.projectDatabase`). The sandbox sends statements and gets rows back as JSON. The
 // statements do not run on the Host's thread: the Host hands them to a runner that executes them in a process it can kill
-// (`services.project_statements`; BL-395, specs/repository-anti-corruption/slices/sandbox-project-database-limits.md), and the runner
+// (`services.project_statements`; BL-395, specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md), and the runner
 // makes the checks the Host's client makes for a plugin in the Host's process (the statement check of S-46, the grants, the
 // original caller). This side bounds what crosses and adds the operation's signal and invocation check.
 

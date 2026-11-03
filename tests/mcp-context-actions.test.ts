@@ -31,6 +31,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     audience: "user", permissions: ["goals:read", "goals:write"] }));
   // The Host's own web server: the access settings the grants go through, and the action service the MCP launcher reaches.
   const served = await serveTestHost(t, { home, host });
+  const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
   const origin = served.origin;
   const sdk = new Client({ name: "untrusted-client-label", version: "1" });
   const runtimeContext = { runtime_id: "context-actions", stable_work_context_id: "context-actions-session", host_declares_stable: true };
@@ -38,8 +39,8 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await actions.invoke(goalsActions.create, { goal_id: "CONTEXT-SECRET", title: "Authorized goal content", idempotency_key: "create-context" });
     await actions.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "Authorized project instruction", reason: "Fixture",
       confirmation_summary: "Exact instruction confirmed", user_confirmed: true, idempotency_key: "guidance-context" });
-    await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context: runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
-    const bindingsBefore = await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
+    await withHostCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context: runtimeContext, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
+    const bindingsBefore = await withHostCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
     const cursorBefore = await host.withProject(ref, r => r.store.eventCursor(project.project_id));
     await sdk.connect(new StdioClientTransport({ command: process.execPath,
       args: ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/mcp/server.ts", import.meta.url))],
@@ -82,7 +83,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     result = await resolve();
     assert.equal(result.status, "bound"); assert.equal(result.resume, null); assert.ok(result.resume_error);
     disabled = false;
-    assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), bindingsBefore);
+    assert.deepEqual(await withHostCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), bindingsBefore);
     assert.equal(await host.withProject(ref, r => r.store.eventCursor(project.project_id)), cursorBefore, "read-only recovery never claims work or rewrites project facts");
     result = await contextCall("molis_work_v1_context_bind", { project_id: second.project_id,
       user_confirmed: true, rebind_confirmed: true });
@@ -95,7 +96,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await contextCall("molis_work_v1_context_bind", { project_id: project.project_id,
       user_confirmed: true, rebind_confirmed: true });
     await grant(goalsActions.guidanceRead.capability_id, true);
-    const offlineBindings = await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
+    const offlineBindings = await withHostCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
     await served.close();
     const offline = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
     assert.equal(offline.isError, true, JSON.stringify(offline));
@@ -103,7 +104,7 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     // C5 (w5-16 step 5) first tries this Home's installed launcher; a test Home has none, so the answer is that install error, never a local read.
     assert.match(JSON.stringify(offline), /mcp\.startup_entry_missing/);
     assert.doesNotMatch(JSON.stringify(offline), /Authorized goal content|Authorized project instruction/);
-    assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), offlineBindings,
+    assert.deepEqual(await withHostCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), offlineBindings,
       "RAC-105-A-09: the offline call does not resolve or rewrite a local binding");
   } finally {
     await sdk.close(); await served.close();

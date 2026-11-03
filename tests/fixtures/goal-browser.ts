@@ -1,5 +1,5 @@
 import { observePluginFrames } from "./plugin-frame-browser.js";
-import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,8 +19,8 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
-  webOptions: Pick<WebServerOptions, "chooseDirectory"> = {},
-  pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
+  webOptions: Pick<WebServerOptions, "chooseDirectory"> & { prepareHome?: (homeDirectory: string) => void | Promise<void> } = {},
+  pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[], profileTimeouts = false) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
@@ -88,11 +88,18 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
     await seed(databasePath);
   }
+  // T405-FULL-01: initial setup owns the Home only before the serving Host is created.
+  const { prepareHome, ...serverOptions } = webOptions;
+  await prepareHome?.(directory);
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
-    ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
+  if (completion !== undefined || functions || workspaceFor || pluginFixtures) {
+    localHost = new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
+      ...(projectId ? { actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), directory) } : {}) });
+    const withCatalog = localHost.configurePersonalPlanning(directory,
+      localHost.ensureWebCatalog(directory, openMolisWorkProjectCatalog).withCatalog);
+  }
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
-    controlToken: CONTROL_TOKEN, ...webOptions });
+    controlToken: CONTROL_TOKEN, ...serverOptions });
   const setFrameInitScript = observePluginFrames(server);
   server.on("connection", connection => {
     connections.add(connection);
@@ -100,11 +107,17 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   });
   // The limits stop a hang; they are not speed checks. They are sized for the Linux CI runner, which runs these pages about
   // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
-  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000, profileTimeouts, ...(chromeArgs ? { extraArgs: chromeArgs } : {}) });
   harness = browser;
   /** A page load may take far longer than any other command. */
-  function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
-    return browser.command<T>(method, params, sessionId, timeoutMs);
+  async function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
+    try { return await browser.command<T>(method, params, sessionId, timeoutMs); }
+    catch (error) {
+      if (profileTimeouts && error instanceof Error && "diagnostics" in error) {
+        t.diagnostic(JSON.stringify({ method, error: error.message, cause: error.cause, diagnostics: error.diagnostics }));
+      }
+      throw error;
+    }
   }
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();

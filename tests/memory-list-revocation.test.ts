@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ for (const change of ["none", "revoke", "form-off"] as const) {
     };
     t.mock.method(capability, "withCaller", (who: Parameters<typeof withCaller>[0]) => observe(withCaller(who)));
     await connectorAssistantModel(t, home.home, (_body, turn) => turn === 1
-      ? { name: "list-memories", input: {} } : "已查看当前允许读取的记忆。");
+      ? { name: "list-memories", input: {} } : "已查看当前允许读取的记忆。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
     const sent = await home.web.post<AssistantSendResult>(`/projects/${project.project_id}/api/assistant/send`, {
       text: "列出你目前记住的内容", request_id: randomUUID(),
     });

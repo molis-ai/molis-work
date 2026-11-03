@@ -9,7 +9,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, pollDeviceOAuth, startApiOAuth, startDeviceOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
@@ -147,11 +147,21 @@ test("S-70 RAC-349 a token connection is not refreshed: its 401 goes back to the
 
 test("S-70 RAC-349 GitHub device OAuth has an ordinary secret and no refresh material: return the first 401 without resending", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "connection-refresh-home-")); t.after(() => rm(home, { recursive: true, force: true }));
-  // connector-github-device commits this same createToken shape after device authorization, with authMethod oauth.
-  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "device-access", authMethod: "oauth" }));
+  // The platform's device authorization (W5-11 slice 8) commits a generic OAuth connection: GitHub's answer carries an access token and no refresh token.
+  const remote = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/login/device/code")) return json({ device_code: "private-device", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
+    if (url.endsWith("/login/oauth/access_token")) return json({ access_token: "device-access" });
+    return json({ id: 12, login: "octo" });
+  }) as typeof fetch;
+  const started = await startDeviceOAuth(home, { serviceId: "github", displayName: "GitHub", clientId: "github-app", origin: ORIGIN }, remote);
+  const now = Date.now(); t.mock.method(Date, "now", () => now + 6_000);
+  const finished = await pollDeviceOAuth(home, { origin: ORIGIN, state: started.state }, remote);
+  assert.equal(finished.status, "authorized");
+  const connection = withConnectorConnections(home, store => store.require(started.connection_id));
   assert.equal(connection.auth_method, "oauth");
   assert.equal(connection.refresh_ref, null);
-  assert.match(connection.credential_ref!, /:token$/u);
+  assert.match(connection.credential_ref!, /^connector-protocol:/u);
   const github = { ...target, service_id: "github" };
   withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(github.install_id), pluginId: github.plugin_id, slotId: github.slot_id, serviceId: "github", connectionId: connection.connection_id }));
   const refreshes = tokenEndpoint(t, () => assert.fail("a device credential cannot be refreshed"));

@@ -3,7 +3,7 @@ import test from "node:test";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 import { homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-// DUAL-09 (specs/dual-instance-plugins/spec.md) and security invariant S-31 (docs/system/SECURITY-INVARIANTS.md): a dual-instance plugin's
+// DUAL-09 (specs/archive/dual-instance-plugins/spec.md) and security invariant S-31 (docs/system/SECURITY-INVARIANTS.md): a dual-instance plugin's
 // routes are split between its halves. Of the routes the Manifest declares, the Home answers those its running half binds and leaves the
 // others to the project's instance next in the request chain; a path the Manifest does not declare stays the Home's. Under a project's path
 // each half runs in that project, whose id comes from the path alone; without the prefix only the Home half's routes are there, in no

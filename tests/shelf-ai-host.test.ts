@@ -27,8 +27,8 @@ async function fixture(run: (f: {
 }) => Promise<void>) {
   const home = await mkdtemp(join(tmpdir(), "shelf-ai-host-")), old = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   let handler = async (_request: Request): Promise<string> => "# 摘要\n\n交付日期：周五。";
   const requests: Request[] = [];
   const server = createServer(async (req, res) => {
@@ -49,13 +49,15 @@ async function fixture(run: (f: {
     const connection = store.createToken({ serviceId: "model-api", displayName: "Shelf fixture", token: "local-fixture-only" });
     store.assertTarget(connection.connection_id, "model-api", origin); return connection;
   });
-  catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture", api_format: "openai-chat-completions", base_url: origin + "/v1", prompt_cache: "off",
-    models: [{ model_id: "text", enabled: true }, { model_id: "vision", enabled: true, vision: true }] });
-  const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
-  try { await run({ home, catalog, host, actions, requests, answer(next) { handler = async request => next(request); } }); }
+  try { await withCatalog({ homeDirectory: home }, async catalog => {
+    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture", api_format: "openai-chat-completions", base_url: origin + "/v1", prompt_cache: "off",
+      models: [{ model_id: "text", enabled: true }, { model_id: "vision", enabled: true, vision: true }] });
+    const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
+    await run({ home, catalog, host, actions, requests, answer(next) { handler = async request => next(request); } });
+  }); }
   finally {
     await host.close(); await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
-    catalog.close(); resetSecretStoreCache(); if (old === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = old;
+    resetSecretStoreCache(); if (old === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = old;
     // Revoked work cannot mutate its frozen input. Only this fixture restores temporary directory access for deletion.
     const unlock = async (folder: string): Promise<void> => {
       await chmod(folder, 0o700);

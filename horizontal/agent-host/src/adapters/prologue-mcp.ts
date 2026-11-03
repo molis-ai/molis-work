@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentMcpToolDescriptor, AgentMcpToolRef, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
-export type HostMcpConnection = string | { credentialRef?: string; revision: string } | null;
+export type HostMcpConnection = string | { credentialRef?: string; revision: string;
+  /** Trusted synchronous check of this resolution's original source; never saved in SDK configuration. */
+  assertCurrent?: () => void } | null;
 export type SaveMcpConnection = (input: { label: string; endpoint: string; secret: string }) => Promise<{ connection_id: string; discard(): void | Promise<void> }>;
 const KIND = "molis-mcp";
 /** Each configuration has a distinct SDK connection identity; old calls cannot target a replacement. */
@@ -115,7 +117,9 @@ async function resolveHostCredential(options: McpLibraryOptions, saved: Saved) {
   const ref = typeof resolved === "string" ? resolved : resolved.credentialRef;
   if (ref && !options.credentialRefFor) throw new Error("MCP 凭据解析不可用");
   const credentialRef = ref ? await options.credentialRefFor!(ref) : undefined;
-  return { credentialRef, revision: typeof resolved === "string" ? undefined : resolved.revision };
+  const assertCurrent = typeof resolved === "string" ? undefined : resolved.assertCurrent;
+  assertCurrent?.();
+  return { credentialRef, revision: typeof resolved === "string" ? undefined : resolved.revision, assertCurrent };
 }
 
 /** The configuration a save stores, checked per transport; an HTTP server's new credential is handed back to discard if the save fails. */
@@ -141,7 +145,8 @@ interface McpState {
   invalidated: Set<string>;
   held(owner: AgentSkillOwner, id: string): Promise<Held>;
   assertDirectory(saved: Saved): Promise<void>;
-  resolveHost(saved: Saved): Promise<{ credentialRef?: ExactRef<"credential">; revision?: string }>;
+  resolveHost(saved: Saved): ReturnType<typeof resolveHostCredential>;
+  withDispatchGuard: McpLibraryOptions["withDispatchGuard"];
   refreshSelected(saved: Saved): Promise<void>;
 }
 
@@ -161,15 +166,19 @@ async function connectConfiguration(state: McpState, { saved }: Held, connection
   } else {
     if (saved.credential_ref) throw new Error("这个 MCP 的凭据没有持久保存，请重新填写认证信息或选择已有连接");
     let credentialRef: ExactRef<"credential"> | undefined;
+    let assertCurrent: (() => void) | undefined;
     if (saved.auth_connection_id) {
       linked.set(saved.id, { account: saved.auth_connection_id });
       const host = await state.resolveHost(saved);
       credentialRef = host.credentialRef;
+      assertCurrent = host.assertCurrent;
       linked.set(saved.id, { account: saved.auth_connection_id, credential: JSON.stringify(credentialRef), revision: host.revision });
     }
     if (invalidated.has(id)) throw new Error("MCP 账号已改变，请重新连接");
-    await dispatch();
-    await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } });
+    const check = async () => { await dispatch(); assertCurrent?.(); };
+    await check();
+    await state.withDispatchGuard(check, () => runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } }));
+    assertCurrent?.();
   }
   if (invalidated.has(id)) { await closeConnections(runtime, id); throw new Error("MCP 账号已改变，请重新连接"); }
   if (abort.signal.aborted) { await closeConnections(runtime, id);throw new Error("连接已取消"); }
@@ -245,6 +254,8 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
         await close(saved.id);
         await library.control(saved, saved.id, "connect", callOptions);
       }
+      current.assertCurrent?.();
+      return current.assertCurrent;
     } catch (error) { await close(saved.id); throw error; }
   };
   const locked = async <T>(id: string, action: string, work: (abort: AbortController) => Promise<T>) => {
@@ -257,7 +268,8 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
   const assertDirectory = async (saved: Saved) => {
     if (saved.transport === "stdio" && options.directoryAuthorized && !await options.directoryAuthorized(saved.project_id, saved.directory!.canonical_path)) throw new Error("MCP 的原工作区已取消授权，请重新配置");
   };
-  const state: McpState = { runtime, linked, invalidated, held, assertDirectory, resolveHost, refreshSelected: saved => refreshSelected(saved) };
+  const state: McpState = { runtime, linked, invalidated, held, assertDirectory, resolveHost, withDispatchGuard: options.withDispatchGuard,
+    refreshSelected: async saved => { await refreshSelected(saved); } };
   const reconnecting = new Map<string, Promise<void>>();
   const prepare = async (owner: AgentSkillOwner, ref: AgentMcpSourceRef, callOptions: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => {
     const { saved, version } = await held(owner, ref.server);
@@ -293,11 +305,12 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
     },
     async control(owner, id, action, callOptions = {}) {
       if (action === "cancel") { await held(owner, id);if (["connect", "refresh"].includes(busy.get(id)?.action ?? "")) busy.get(id)!.abort.abort();return; }
-      if (action === "refresh") { await callOptions.beforeDispatch?.(); callOptions.signal?.throwIfAborted(); await refreshSelected((await held(owner, id)).saved, callOptions); }
+      let assertCurrent: (() => void) | undefined;
+      if (action === "refresh") { await callOptions.beforeDispatch?.(); callOptions.signal?.throwIfAborted(); assertCurrent = await refreshSelected((await held(owner, id)).saved, callOptions); }
       await locked(id, action, async abort => {
         const cancelled = () => abort.abort();
         callOptions.signal?.addEventListener("abort", cancelled, { once: true });
-        const dispatch = async () => { await callOptions.beforeDispatch?.(); if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch."); };
+        const dispatch = async () => { await callOptions.beforeDispatch?.(); if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch."); assertCurrent?.(); };
         try {
         const record = await held(owner, id);
         if (callOptions.expected_version !== undefined && record.version !== callOptions.expected_version) throw new Error("MCP 配置已变化，请重新读取后操作");
@@ -309,8 +322,9 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
           await assertDirectory(record.saved);
           const conn = connection(connectionId);
           if (conn?.health !== "connected") throw new Error("这个 MCP 已断开，请重新连接");
-          await runtime.refreshMcp({ ref: conn.ref, signal: abort.signal });
+          await options.withDispatchGuard(dispatch, () => runtime.refreshMcp({ ref: conn.ref, signal: abort.signal }));
           await dispatch(); await assertDirectory(record.saved);
+          assertCurrent?.();
           runtime.adoptMcpTools(conn.ref);
         } else if (action === "disconnect") await close(id);
         else if (action === "remove") {
@@ -326,7 +340,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: McpLibraryOp
       const conn = connection(mcpConnectionId(ref));
       return conn?.health === "connected" && runtime.mcp.snapshotOf(conn.ref).tools.some(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version);
     },
-    call: (...args) => callMcpTool(runtime, library, held, prepare, assertDirectory, options.withDispatchGuard, ...args),
+    call: (...args) => callMcpTool(runtime, library, held, prepare, assertDirectory, resolveHost, options.withDispatchGuard, ...args),
     validate: (owner, selected) => validateMcpTools(state, owner, selected),
   };
   return Object.assign(library, { dispose: () => { unsubscribe?.(); linked.clear(); } });
@@ -336,10 +350,12 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
   held: (owner: AgentSkillOwner, id: string) => Promise<{ saved: Saved; version: number }>,
   prepare: (owner: AgentSkillOwner, ref: AgentMcpSourceRef, options: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => Promise<void>,
   assertDirectory: (saved: Saved) => Promise<void>,
+  resolveHost: McpState["resolveHost"],
   withDispatchGuard: <T>(guard: () => Promise<void>, operation: () => Promise<T>) => Promise<T>,
   ...[owner, ref, args, callOptions = {}]: Parameters<NonNullable<AgentMcpLibrary["call"]>>
 ) {
   const connection = (id: string) => runtime.mcp.list().find(item => item.id === id);
+  let assertSourceCurrent: (() => void) | undefined;
   const assertActive = () => {
     // This guard runs before dispatch. Preserve cancellation through the SDK's
     // public error contract; an arbitrary DOM AbortError is otherwise an App denial.
@@ -347,19 +363,27 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
   };
   const beforeDispatch = async () => {
     assertActive();
+    assertSourceCurrent?.();
     try { await callOptions.beforeDispatch?.(); await assertDirectory((await held(owner, ref.server)).saved); }
-    finally { assertActive(); }
+    finally { assertActive(); assertSourceCurrent?.(); }
   };
   return withDispatchGuard(beforeDispatch, async () => {
     await beforeDispatch();
+    const { saved: initial } = await held(owner, ref.server);
+    if (initial.auth_connection_id) assertSourceCurrent = (await resolveHost(initial)).assertCurrent;
+    assertSourceCurrent?.();
     await prepare(owner, ref, callOptions);
+    assertSourceCurrent?.();
     const [checked] = await library.validate(owner, [ref]);
+    assertSourceCurrent?.();
     const { saved } = await held(owner, checked!.server);
+    assertSourceCurrent?.();
     const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
     // Adopted on connect; adopting again after a reconnect keeps the catalog on the live shape.
     const conn = connection(mcpConnectionId(checked!));
     if (!conn || !runtime.tools.get(name)) runtime.adoptMcpTools(conn!.ref);
     const root = await runtime.workspace.authorize({ path: saved.transport === "stdio" ? saved.directory!.canonical_path : await callRoot() });
+    assertSourceCurrent?.();
     const run = runtime.createSystemToolRunner(root.ref);
     const observation = await runtime.createToolInvoker().invoke({
       request: { name, version: checked!.version!, args: { ...args } },
@@ -368,6 +392,7 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
         callOptions.onBusinessDispatch?.();
         try {
           const result = await run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request);
+          assertSourceCurrent?.();
           callOptions.onBusinessResult?.("succeeded"); return result;
         } catch (error) {
           callOptions.onBusinessResult?.(isPrologueError(error) && error.code === "MCP_CALL_FAILED" ? "failed" : "unknown"); throw error;
@@ -383,6 +408,7 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
         void runtime.readClock().then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock));
       },
     });
+    assertSourceCurrent?.();
     return { text: observation.text, truncated: observation.truncated };
   });
 }

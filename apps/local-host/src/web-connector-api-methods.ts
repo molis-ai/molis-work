@@ -3,6 +3,7 @@ import { cliRequestInstallation, preparedCliRequest, installPreparedCli, connect
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, requestHost, sendLocalWebJson as json } from "./web-http.js";
 import { startApiOAuth, completeApiOAuth, ApiOAuthError } from "./connector-api-oauth.js";
+import { pollDeviceOAuth, startDeviceOAuth } from "./connector-device-oauth.js";
 import { cliAvailability, cliLoginJob, connectCli, ConnectorCliError, inspectCliConnection, startCliLogin } from "./connector-cli.js";
 import { inspectApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -22,7 +23,7 @@ const ITEM = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/(verify|p
 export async function handleConnectorApiMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string | undefined,
   mcpTools: ConnectorMcpDirectory["remember"], beforeEffect: () => void | Promise<void>): Promise<boolean> {
   const item = ITEM.exec(url.pathname);
-  if (!home || (!item && !isOAuthCallback(url.pathname) && !url.pathname.startsWith(`${ROOT}/oauth/`) && !url.pathname.startsWith(`${ROOT}/cli/`))) return false;
+  if (!home || (!item && !isOAuthCallback(url.pathname) && !url.pathname.startsWith(`${ROOT}/oauth/`) && !url.pathname.startsWith(`${ROOT}/device/`) && !url.pathname.startsWith(`${ROOT}/cli/`))) return false;
   try {
     const host = requestHost(request);
     if (!host) throw new ApiOAuthError("连接操作必须来自本机应用");
@@ -44,6 +45,9 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
       try { returnTo = requestedOAuthReturn(home, body); } catch (refused) { throw new ApiOAuthError(refused instanceof Error ? refused.message : "请从来源清单重新发起连接"); }
       json(response, 200, await startApiOAuth(home, { serviceId: str("service_id"), displayName: str("display_name"), clientId: str("client_id"), clientSecret: str("client_secret"), settings, origin, redirectUri: str("redirect_uri"), connectionId: str("connection_id") || undefined, setupId: str("setup_id") || undefined, returnTo }));
     } else if (url.pathname === `${ROOT}/oauth/complete`) json(response, 200, await completeApiOAuth(home, { origin, returnedUrl: str("returned_url") }));
+    else if (url.pathname === `${ROOT}/device/start`) json(response, 200, await startDeviceOAuth(home, { serviceId: str("service_id"), displayName: str("display_name"), clientId: str("client_id"), origin,
+      connectionId: str("connection_id") || undefined, setupId: str("setup_id") || undefined }));
+    else if (url.pathname === `${ROOT}/device/poll`) json(response, 200, await pollDeviceOAuth(home, { origin, state: str("state") }));
     else if (url.pathname === `${ROOT}/cli/install`) json(response, 200, await installPreparedCli(home, str("setup_id"), { beforeEffect }));
     else if (url.pathname === `${ROOT}/cli/status`) {
       const installed = str("setup_id") ? cliRequestInstallation(home, str("setup_id"), str("service_id")) : undefined;

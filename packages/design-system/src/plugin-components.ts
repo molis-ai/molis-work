@@ -4,7 +4,7 @@ import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 /** A part's component: a UI catalog id (see PLUGIN_COMPONENTS), or a kind from before parts came from the catalog. */
 export type PluginComponentKind = string;
 export type PluginComponentIntent = 'heading' | 'description' | 'input' | 'action' | 'collection' | 'reading' | 'conversation' | 'evidence' | 'schedule' | 'feedback';
-export const PLUGIN_COMPONENT_PROP_KEYS = ['title', 'description', 'submitLabel', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'] as const;
+export const PLUGIN_COMPONENT_PROP_KEYS = ['title', 'description', 'submitLabel', 'requiredText', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'] as const;
 export type PluginInputValue = { source: 'literal'; value: SandboxJson }
   | { source: 'form'; field: string; prefill?: { componentId: string; field: string } }
   | { source: 'selection'; componentId: string; field: string };
@@ -13,6 +13,8 @@ export interface PluginComponentProps {
   title?: string;
   description?: string;
   submitLabel?: string;
+  /** Visible feedback when a required form field is missing; native validation remains authoritative. */
+  requiredText?: string;
   emptyText?: string;
   idField?: string;
   titleField?: string;

@@ -8,7 +8,7 @@ import { pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs"
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
-// RAC-568 (specs/repository-anti-corruption/slices/w5-02-registry.md §B2, PG-065): what the market and the page heading show is the
+// RAC-568 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §B2, PG-065): what the market and the page heading show is the
 // plugin's own declaration, so it is in the Manifest like every other plugin's: `summary` and `developer`. The fields the Host trusts
 // (personal, companions, the Home Runtime, …) stay on the trusted registration.
 

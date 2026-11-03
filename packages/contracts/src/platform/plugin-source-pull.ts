@@ -124,6 +124,7 @@ export interface SourceCatalogEntry {
  * same cursor to send a conditional request.
  */
 export interface PluginSourceVocabulary {
+  presentation(id: string, input: import("./plugin-integrations.js").SourcePresentationInput): Promise<import("./plugin-integrations.js").SourcePresentation>;
   readonly custom_rss_definition_id: string;
   readonly youtube_definition_id: string;
   readonly youtube_feed_host: string;

@@ -9,7 +9,7 @@ import { mkdtemp, mkdir, writeFile, symlink, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
@@ -34,13 +34,21 @@ async function home(t: Parameters<Parameters<typeof test>[1]>[0]) {
   t.after(async () => { await hosts.get(dir)?.close(); hosts.delete(dir); await rm(dir, {recursive:true,force:true}); }); return dir;
 }
 function pagesPorts(dir: string) {
+  // This fixture owns these Hosts; keep its lazy first Host creation and all failure/retry timing.
+  let host = hosts.get(dir);
+  let runCatalog = host ? host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog : withMolisWorkProjectCatalog;
+  const withCatalog: typeof withMolisWorkProjectCatalog = (options, operation) => runCatalog(options, operation);
   return { withCatalog, actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
     const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    let host = hosts.get(dir); if (!host) { host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host); }
+    if (!host) {
+      host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host);
+      runCatalog = host.configurePersonalPlanning(dir, host.ensureWebCatalog(dir, openMolisWorkProjectCatalog).withCatalog);
+    }
     return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
   } };
 }
+
 /** One chosen file, uploaded into the journey's staging the way the page does it; the selection names it by digest. */
 async function staged(dir: string, id: string, path: string, content: string | Buffer) {
   const file = await stageContextFile(dir, id, path, Buffer.from(content)); return { path: file.path, staged: file.staged };
@@ -72,7 +80,7 @@ test('adoption resumes after the summary action fails without replacing imported
     const [source] = store.list(failed.project_id); assert.ok(source); assert.equal(store.list(failed.project_id).length, 1);
     store.update(source.id, { title: 'User edited source' }, failed.project_id);
     const resumed = await adoptContextJourney(dir, id, { title: 'Ignored new title', body: 'Ignored new body' }, ports);
-    assert.equal(resumed.phase, 'complete'); assert.equal(resumed.project_id, failed.project_id);
+    assert.equal(resumed.phase, 'complete', resumed.error ?? ''); assert.equal(resumed.project_id, failed.project_id);
     assert.equal(store.list(resumed.project_id).length, 2);
     assert.equal(store.get(source.id, resumed.project_id).title, 'User edited source');
     const summary = store.get(resumed.document_id!, resumed.project_id);
@@ -186,10 +194,10 @@ test('local scope → grounded summary → one real project and editable source 
   startContextJourney(dir,id,ports);startContextJourney(dir,id,ports);
   const ready=await waitContextJourney(dir,id);assert.equal(ready.phase,'review');assert.equal(calls,1);assert.equal(ready.summary?.references.length,1);updateContextDraft(dir,id,{title:'已修改的草稿',body:ready.summary!.body});assert.equal(readContextJourney(dir,id).summary!.title,'已修改的草稿');assert.match(ready.sources[1]!.error!,/连接 Google/);
   const [a,b]=await Promise.all([adoptContextJourney(dir,id,{title:'用户确认的发布',body:ready.summary!.body},ports),adoptContextJourney(dir,id,{title:'用户确认的发布'},ports)]);
-  assert.equal(a.phase,'complete');assert.equal(a.project_id,b.project_id);
+  assert.equal(a.phase,'complete',JSON.stringify({error:a.error,other_phase:b.phase,other_error:b.error}));assert.equal(a.project_id,b.project_id);
   // The chooser introduces the new project in the words the person accepted: the summary's first paragraph, without its headings or [S1] marks.
   const introduced=readProjectArrival(dir).projects[a.project_id]?.description;assert.match(introduced??'',/10 月 8 日/);assert.doesNotMatch(introduced??'',/\[S\d+\]|^#/);
-  await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.projectPluginMembership(a.project_id).hidden.includes('pages'));});
+  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.ok(!catalog.projectPluginMembership(a.project_id).hidden.includes('pages'));});
   const pages=openPagesStore(dir);try{assert.equal(pages.list(a.project_id).length,2);const summary=pages.get(a.document_id!,a.project_id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
   await adoptContextJourney(dir,id,{title:'重复请求'},ports);
   const reopened=openPagesStore(dir);try{assert.equal(reopened.get(a.document_id!).title,'手动修改后');assert.equal(reopened.list(a.project_id).length,2);}finally{reopened.close();}
@@ -218,7 +226,7 @@ test('long source and project titles fit Pages while full titles, original bodie
     assert.ok(JSON.stringify(pages.get(saved.document_id!).body).includes(projectTitle));
     await adoptContextJourney(dir,id,{title:'Ignored retry'},ports);assert.equal(pages.list(saved.project_id).length,2);
   }finally{pages.close();}
-  await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,projectTitle);});
+  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,projectTitle);});
 });
 
 /**
@@ -304,7 +312,7 @@ test('empty project is real, idempotent, and has no implicit root Goal',async t=
   withContextJourneys(dir,s=>s.create(id));
   const result=await adoptContextJourney(dir,id,{title:'从空白开始',blank:true},{...pagesPorts(dir)});assert.equal(result.phase,'complete');
   assert.equal(readProjectArrival(dir).projects[result.project_id]?.description??null,null,'a blank start has no introduction to show');
-  await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'从空白开始');});
+  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'从空白开始');});
   // There is no goal command in the new flow; inspect the actual project database.
   const {DatabaseSync}=await import('node:sqlite');const db=new DatabaseSync(join(dir,'projects',result.project_id,'molis-work.db'));try{const table=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='goals'").get();assert.ok(table);assert.equal((db.prepare('SELECT COUNT(*) AS n FROM goals').get() as {n:number}).n,0);}finally{db.close();}
 });
@@ -454,8 +462,8 @@ test('creation failure after project registration resumes exactly that project, 
   startContextJourney(dir,id,{...pagesPorts(dir),model:async()=>({})});await waitContextJourney(dir,id);
   const failAfterCreate:typeof withCatalog=async(options,operation)=>{await withCatalog(options,operation);throw new Error('Simulated response loss after project creation');};
   const first=await adoptContextJourney(dir,id,{title:'Without AI',materials_only:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.match(first.error!,/response loss/);
-  const second=await adoptContextJourney(dir,id,{title:'retry ignored',materials_only:true},{...pagesPorts(dir)});assert.equal(second.phase,'complete');assert.equal(second.error,null);
-  await withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'Without AI');});
+  const second=await adoptContextJourney(dir,id,{title:'retry ignored',materials_only:true},{...pagesPorts(dir)});assert.equal(second.phase,'complete',second.error??'');assert.equal(second.error,null);
+  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>{assert.equal(catalog.listProjects().length,1);assert.equal(catalog.listProjects()[0]!.display_name,'Without AI');});
   const pages=openPagesStore(dir);try{assert.equal(pages.list(second.project_id).length,2);assert.match(JSON.stringify(pages.list(second.project_id)),/Fixture preserved body/);}finally{pages.close();}
 });
 
@@ -516,7 +524,7 @@ test('interrupted blank adoption resumes persisted acceptance without requiring 
   const recovered=readContextJourney(dir,id);assert.equal(recovered.phase,'failed');assert.equal(recovered.adoption!.title,'Accepted blank project');
   assert.throws(()=>reopenContextJourney(dir,id),/不能更改来源/);assert.throws(()=>startContextJourney(dir,id,{...pagesPorts(dir)}),/继续保存/);
   const saved=await adoptContextJourney(dir,id,{}, {...pagesPorts(dir)});assert.equal(saved.phase,'complete');assert.equal(saved.project_id,accepted.project_id);
-  await withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().length,1));
+  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().length,1));
   const pages=openPagesStore(dir);try{assert.equal(pages.list(saved.project_id).length,1);assert.equal(pages.get(saved.document_id!).title,'Accepted blank project · 工作摘要');}finally{pages.close();}
 });
 
@@ -782,7 +790,7 @@ test('RAC-2250 RAC-2252 a 120-character project name of two-unit characters is t
   withContextJourneys(dir,store=>store.create(id));
   const wide='🟢'.repeat(120);assert.equal([...wide].length,120);assert.equal(wide.length,240,'one character, two UTF-16 units');
   const adopted=await adoptContextJourney(dir,id,{title:wide,blank:true},{...pagesPorts(dir)});assert.equal(adopted.phase,'complete',adopted.error??'');
-  await withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().find(project=>project.project_id===adopted.project_id)?.display_name,wide,'the started project carries the name'));
+  await pagesPorts(dir).withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().find(project=>project.project_id===adopted.project_id)?.display_name,wide,'the started project carries the name'));
   const over=randomUUID();withContextJourneys(dir,store=>store.create(over));
   await assert.rejects(adoptContextJourney(dir,over,{title:'🟢'.repeat(121),blank:true},{...pagesPorts(dir)}),/请输入 1–120 字的项目名称/);
 });

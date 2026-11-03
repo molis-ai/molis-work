@@ -33,7 +33,7 @@ export interface InstalledLifecycleContext {
   closed(): boolean;
   /** Whether the publisher behind a package installation is still trusted (BL-559); a record not from a package always is. */
   trusted(record: PluginInstanceRecord): boolean;
-  recordFor(pluginId: string): PluginInstanceRecord | undefined;
+  recordFor(pluginId: string, retryUninstall?: boolean): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
   definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
@@ -140,7 +140,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
   };
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
-    const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId);
+    const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId, action === 'uninstall');
     if (action === 'install') {
       if (record) throw new Error('这个插件已经安装，可以直接打开或升级');
       if (!consent) throw new Error('安装前请确认插件要使用的权限');
@@ -182,6 +182,6 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
       await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;
     }
-    if (action === 'uninstall') await uninstall(release, record, grants.keepData === true);
+    if (action === 'uninstall') await uninstall(release, record, record.state === 'uninstalled' ? record.retain_private_data : grants.keepData === true);
   };
 }

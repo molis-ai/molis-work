@@ -85,7 +85,7 @@ export async function resolveGoalContext(context: PluginStartContext, sessionId:
 }
 /** Reads only this Run's frozen source, never the session's later association. */
 export function runGoalContext(context: PluginStartContext, run: AgentRunView) {
-  const refs = run.frozen.text_materials.filter(item => item.source_artifact_id.startsWith(PREFIX));
+  const refs = run.frozen.text_materials.filter((item): item is Extract<typeof item, { source_artifact_id: string }> => item.source_artifact_id?.startsWith(PREFIX) === true);
   if (!refs.length) return { goal: null };
   const references = refs.map(ref => ({ artifact_id: ref.source_artifact_id, version: ref.source_version }));
   try {

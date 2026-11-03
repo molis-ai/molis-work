@@ -476,7 +476,7 @@ const notForPlugins = { plugin: false as const };
  * everything that manages memories is the person's own. External MCP clients read project memories only, and personal
  * ones only where the person switched that on, and only with the person's grant for this action (`mcp-tools.json`).
  *
- * Plugins are not an audience of these actions yet (decision 19, specs/repository-anti-corruption): no plugin uses memory,
+ * Plugins are not an audience of these actions yet (decision 19, specs/archive/repository-anti-corruption): no plugin uses memory,
  * and a plugin's call carries no Host-confirmed plugin identity today, so `plugin: false` keeps all three out of the
  * directory for plugins (including the Studio's capability board). `MemoryService` still keeps a plugin to its own
  * namespace and to the kinds the person allows it, for the day a plugin uses memory with a Host-confirmed identity:

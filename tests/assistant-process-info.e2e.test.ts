@@ -61,12 +61,15 @@ test("VUX-13: a round's steps say what they did to what, open to where they came
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { holdA.resolve(); holdB.resolve(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const prepareHome = async (homeDirectory: string) => {
+    await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+      const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
+      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
+    }));
+  };
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, { prepareHome }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
-    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
-  }));
+
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-assistant-input]'))");

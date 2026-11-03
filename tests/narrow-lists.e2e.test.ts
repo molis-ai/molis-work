@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-// Frontend flow walk V-4 (docs: specs/repository-anti-corruption/frontend-flow-walk.md): on a phone, the Todo view tabs scroll
+// Frontend flow walk V-4 (docs: specs/archive/repository-anti-corruption/frontend-flow-walk.md): on a phone, the Todo view tabs scroll
 // and bring the chosen one fully into view, and a Goals row keeps to the screen instead of running off its right edge.
 test("390px: Todo reveals the chosen view tab, and Goals rows do not run past the screen", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded");

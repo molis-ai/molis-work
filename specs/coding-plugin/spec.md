@@ -2753,7 +2753,7 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 8. **W5-01-CODING-30** S-15：人撤回授权（停用后收回再启动）之后，列了的动作得 `plugin.grant_denied`，Characters 不被问到；从没被授权的插件同样被拒。测试：`tests/coding-input-ports.test.ts`。
 9. **W5-01-CODING-31** 重启后第一次 Agent 读就失败的恢复循环只试一次就结束，不每 5 秒重试；之后的 `coding.state` 读会再起一个。测试：`tests/coding-input-ports.test.ts`；启动时 Agent 服务未接上、没有 `ready` 可等：`tests/project-plugin-startup.test.ts`（第一次能力调用得「能力未注册」，之后同一实例读到 Home 里新配的模型）。
 
-说明：助理（`assistant-http.ts`）读角色的那半是 C2b（2026-10-24，[slices/pg086-c2b-assistant-characters.md](../repository-anti-corruption/slices/pg086-c2b-assistant-characters.md)）：助理以本人的身份经 `characters.list@1`、`characters.runnable@1` 读，`codingCharacterPorts` 与 `CodingCharacterPorts` 已删，`characters-host.ts` 不再从 Coding 包取类型；因此 `characters.runnable@1` 的受众是 `user` 与 `plugin`（上面写「只给 `plugin` 受众」是 C2 当时的口径）。一轮开始时冻结某个版本仍是宿主的 `freezeProjectCharacter`（`agent-host-composition.ts` 与助理都用它，是 Agent 宿主的授权来源，不是读动作）。
+说明：助理（`assistant-http.ts`）读角色的那半是 C2b（2026-10-24，[slices/pg086-c2b-assistant-characters.md](../archive/repository-anti-corruption/slices/pg086-c2b-assistant-characters.md)）：助理以本人的身份经 `characters.list@1`、`characters.runnable@1` 读，`codingCharacterPorts` 与 `CodingCharacterPorts` 已删，`characters-host.ts` 不再从 Coding 包取类型；因此 `characters.runnable@1` 的受众是 `user` 与 `plugin`（上面写「只给 `plugin` 受众」是 C2 当时的口径）。一轮开始时冻结某个版本仍是宿主的 `freezeProjectCharacter`（`agent-host-composition.ts` 与助理都用它，是 Agent 宿主的授权来源，不是读动作）。
 
 ### I. 需要人审查的宿主操作按 Manifest 声明的种类放行（2026-10-21，PG-009，C5）
 
@@ -2821,7 +2821,7 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 3. **W5-01-CODING-62** `redactSecrets` 从根入口导出，遮住私钥、授权与 Cookie 头、token/secret/password 的值、已知前缀的令牌和 JWT，其余文字不变。测试：同上。
 4. **W5-01-CODING-63** 仓库里只有一份：没有 Coding 的 `highlight.ts`、Feed 的 `rich-content.ts` 与 `context.ts`，Coding 与 Feed 的入口不导出这些函数。测试：同上。
 
-原有断言不动，只改成从 SDK 导入：富文本的在 `tests/feed-rich-content.test.ts`，着色的在 `tests/code-incremental-colour.test.ts`、`tests/code-diff-scale.e2e.test.ts`。插件一半（Diff、Text Stats、Coding 的路由结果自己带 html，删 `decorateRuntimeResult`、`decorateCodingResult`）归 ③；它不只动 Coding，验收号改用 `PG062-01` 起的编号，进度记在 `specs/repository-anti-corruption/privileges.md` 的 PG-062 行。
+原有断言不动，只改成从 SDK 导入：富文本的在 `tests/feed-rich-content.test.ts`，着色的在 `tests/code-incremental-colour.test.ts`、`tests/code-diff-scale.e2e.test.ts`。插件一半（Diff、Text Stats、Coding 的路由结果自己带 html，删 `decorateRuntimeResult`、`decorateCodingResult`）归 ③；它不只动 Coding，验收号改用 `PG062-01` 起的编号，进度记在 `specs/archive/repository-anti-corruption/privileges.md` 的 PG-062 行。
 
 ### L. 后台跟随者与唤醒循环是激活的后台作业（2026-10-22，PG-038 的 Coding 一半）
 

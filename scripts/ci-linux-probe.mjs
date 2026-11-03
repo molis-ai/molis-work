@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Linux probe (specs/repository-anti-corruption §4.7, W1-11, decision #14): runs the non-browser test files of tests/ one by
+// Linux probe (specs/archive/repository-anti-corruption §4.7, W1-11, decision #14): runs the non-browser test files of tests/ one by
 // one, on whatever machine it is started on (CI: the ubuntu job in .github/workflows/ci.yml), and records which of them pass.
 // It tells a result apart from its cause by marking every file: `darwin` (touches macOS-only paths or tools), `live`
 // (reaches a real model or service when opted in) and `browser` (needs Chrome; not run). The marks come from the test files

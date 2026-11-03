@@ -21,7 +21,7 @@ import * as feedPlugin from "@molis-ai/molis-work-plugin-feed";
 import * as inboxPlugin from "@molis-ai/molis-work-plugin-inbox";
 import * as schedulePlugin from "@molis-ai/molis-work-plugin-schedule";
 
-// specs/repository-anti-corruption W3-02-E: Feed, Inbox and Schedule lose their route-error mappers and their error classes. Their failures are
+// specs/archive/repository-anti-corruption W3-02-E: Feed, Inbox and Schedule lose their route-error mappers and their error classes. Their failures are
 // ActionErrors whose codes the owners declare (`defineErrorCodes`); the Host's edge answers every one through the SDK, so the status comes from the
 // failure's kind and the same platform code gets the same status at all three plugins.
 //

@@ -24,16 +24,17 @@ const PROBE = "bindings", OTHER = "bindingsother";
 /** A Home with a catalog of projects, the same plugin installed in as many of them as a test asks, and the accounts bound under it. */
 async function world(t: TestContext, projectCount: number) {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "installation-bindings-")));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  const projects = [];
-  for (let index = 0; index < projectCount; index += 1) projects.push(await catalog.createProject({ display_name: `项目 ${index}`, actor_id: "test-user" }));
+  const projects = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+    const projects = [];
+    for (let index = 0; index < projectCount; index += 1) projects.push(await catalog.createProject({ display_name: `项目 ${index}`, actor_id: "test-user" }));
+    return projects;
+  });
   const probe = ownerFilesProbe(PROBE, "project"), other = ownerFilesProbe(OTHER, "project");
   const opened = new Map<string, ReturnType<typeof ownerFilesProject>>();
   const closed = new Set<string>();
   const closeProject = async (projectId: string) => { if (closed.has(projectId)) return; closed.add(projectId); await opened.get(projectId)?.close(); };
   t.after(async () => {
     for (const projectId of opened.keys()) await closeProject(projectId);
-    catalog.close();
     rmSync(home, { recursive: true, force: true });
   });
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: randomUUID() }));

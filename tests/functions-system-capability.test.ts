@@ -393,13 +393,16 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     "plugins/native/inbox/src/route-handlers.ts",
     "plugins/native/inbox/src/routes.ts",
     "apps/workbench/src/home-flow.ts",
-    "apps/workbench/src/inbox-projection-ui.ts",
-    "apps/workbench/src/feed-projection-ui.ts",
+    "plugins/native/inbox/src/actions.ts",
+    "plugins/native/feed/src/query-actions.ts",
+    "plugins/native/feed/src/stage-ui.ts",
+    "apps/workbench/src/stage-renderers.ts",
+    "apps/workbench/src/declared-stages.ts",
     "apps/workbench/src/scripts/client/project-home.ts",
-    "apps/workbench/src/scripts/client/navigation-inbox.ts",
-    "apps/workbench/src/scripts/client/navigation-feed.ts",
-    "apps/workbench/src/scripts/client/navigation-feed-sources.ts",
-    "apps/workbench/src/scripts/client/navigation-feed-stage.ts",
+    "plugins/native/inbox/src/browser/client.ts",
+    "plugins/native/feed/src/browser/factory.ts",
+    "plugins/native/feed/src/browser/sources.ts",
+    "plugins/native/feed/src/browser/stage.ts",
     "apps/workbench/src/scripts/client/events-primary.ts",
     "apps/local-host/src/home-dock-http.ts",
     "apps/local-host/src/plugin-stage-fragment-http.ts",
@@ -426,6 +429,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   for (const plugin_id of ["feed", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const token = "home-dock-test-token-0123456789012345";
+  catalog.close();
   const localHost = new MolisWorkLocalHost({ homeDirectory, functions: { env: { TYPESAFE_API_KEY: "fixture-only" } } });
   const server = createMolisWorkWebServer({ homeDirectory, localHost, controlToken: token });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -437,7 +441,6 @@ test("home dock HTTP binds a published function at the scene without executing w
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await localHost.close();
-    catalog.close();
     await rm(homeDirectory, { recursive: true, force: true });
   });
 

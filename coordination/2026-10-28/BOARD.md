@@ -1,6 +1,6 @@
 # 看板
 
-> 2026-11-02 18:30Z：#1725已一次快进至a6b014d01（tree94b099eb），新CI41500998248在途，旧dcf6失败保留。T414最终55f、knowledge-lifecycle3/3、清单明确人工公开修订/G1–G7/签包及独立CLI安装升级Host重开均已核收；两真实来源样本入库，计数器及旧绿不重跑，新增模型0。51资源7363600B、builder122665B及两giant尺寸已评审并通过门禁；63包匹配、最终health/secrets、四文档链接/差量检查通过。F1517同口径实测与增长解释已入spec§12.5，B/M复用；Pages/Coding差量沿原件保留。Verify/SI绿后仅同一SHA推唯一integration收齐16片Full；实际采用、场景4、真实Home/本人验收和归档仍开放，privileges12及剩余本数不提前扣。
+> 2026-11-03 03:28Z：main仍885728，#1725仍17b5e7a且CI通过。Full41565001069已自然failure：16片10成功/4失败/2触发GitHub45m时限，集中处理10文件（7重试仍失败/3重试终态未知）。Feed焦点修复b20f32b候选已就绪；独立冻结9文件诊断在跑，未变有效绿沿用。场景4的确切MiniMax端点/合成材料/密钥使用已获用户明确批准，进程52588仅在公共浏览器槽排队，尚无模型调用。真实Home保留备份重建已获开始授权，待实际main/匹配构建/可恢复备份；本人认可单列。
 
 > 2026-11-02 14:54Z：遵用户最新要求，已绿且未受改动影响的验证直接沿用，不因换H/合流重复；仅失败路径与新增行为做必要验证。T405 SI41文件分源300/300、卸载3生产文件及8文件60/60已本地合流；DEV3 f891修复34/35文件有效212/213，唯一Onboarding更新页退出后owner.borrowed正限界诊断，其余绿保留。W4 counter生成/签包/独立生命周期已过；list本次生成空态投影失败且修复终态unknown，已停止清理，不追加付费轮。T411真实smoke2/2沿用。远端#1725仍40f，旧CI/Full失败保留，修复攒齐一次推。场景4、真实Home窗口/本人验收、privileges12正式关行与最终归档仍未完成；本数6～12不重复扣减。
 
@@ -38,13 +38,13 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-406 | 双实例可选权限共同遵守Home开关 | 甲 | Codex开发线1；独立t406_verify；加强t406_second | 最终4d815bb9两独立终签PASS；原探针独立1/1、作者92/92保来源，matching63及普通门禁全过 | 已交原开发3与T403一次普通合流，真实Feed接缝/组合CI/Full/采用待结 | tasks/T-406.md；原三类红例保留，不改Feed为required |
 | W6场景8补步 | 同profile原URL直接reload恢复 | 验证 | Codex w6_scene8_reload；独立核收ci1724_watch | a604匹配构建，同URL正常重启reload恢复详情/所测布局，独立核收通过 | 筛选全部回今天、空hash范围保留；不签最终F/完整场景8 | /tmp/w6-scene8-execution/REPORT.md与RELOAD-SECOND.md；无自有进程残留 |
 | W6路线3～6补步 | 装配、生命周期、同包安装与失败清理 | 验证 | Codex w6_routes_remainder；独立核收ci1724_watch | a604匹配构建，六完整文件及同包连续链分源通过，根与独立限定核收完成 | 首批2/4及Node崩溃UNKNOWN保留；私有笔记非Artifact，不签RAC11整体或最终F | /tmp/w6-03-dynamic/ROUTES-3-6.md与ROUTES-SECOND.md；四隔离根和自有进程已清 |
-| T-405 | 已审五成员普通合成后继 | 甲 | Codex根统筹；原独立审验 | 已随T403准确01d推#1725，资源/giant已结算；Full首败已定位聚合生命周期 | 原开发3集中修复CI回归，同头CI/SI/Full及采用未结 | tasks/T-405.md；分批有效证据及历史失败保持原来源 |
+| T-405 | 已审承载与最终Full修复 | 甲 | Codex根统筹；原独立审验 | cf005三SI修复已合365a476，独立11文件90/90，最终文档后继17b5e7a已推 | CI41561979960通过；Full41565001069在途，等main采用，原125绿＋36/36沿用 | tasks/T-405.md；旧Full133失败与分批证据保留原输入 |
 | W4-01 runner | 原真实corpus任务的真签包回放适配 | 甲 | Codex w401_runner；独立验证线3/w401_second | 两路径00e027f/treeab9f0c8冻结，最终4/4、matching与两独立审验通过；已纳入T405 | 真实模型两样本/最终W4-01仍WAIT；不新增片数 | scripts/replay-plugins.mjs、tests/replay-plugins.test.ts；机械临时包非模型产物 |
 | T-404 | W6-06现行规则与两处机器输入归owner | 甲 | Codex t404_rules_migration；独立t404_verify/t404_second | 最终853aef869/tree7edf16e普通合ad06，零本片差异；135/135及双审原有效证据保留，63构建匹配 | 父新CI修复及最终CI/采用待根；历史归档仍等原W6前置 | tasks/T-404.md；表保真，判断算法/版本/保护分支不变 |
 | T-068 | BL790远程MCP声明与完整来源保护 | 甲 | Codex开发线1；独立验证一审线1；加强二审一审线2 | 本地最终f1b752b33，正常合ad06且原MCP实现未变，63构建匹配、120/120、48资源同父，双审范围PASS | 完整进入#1725最终f9d4，统一CI/Full/采用待结，不重复排Full | plans/T067-T068/PLAN.md；不重跑未变成员矩阵 |
 | T-116 PR2 | 工作台统一view与旧布局一次失效 | 甲 | Codex开发线1；独立验证线1；加强二审线5 | 最终2ca72c337完整75有效通过、真实跨进程恢复及matching build/171预算/必要门禁通过，双审PASS | 已作为T399第六完整成员普通ff同H同tree，不再另开Full | 原失败/批次来源保留，组合CI/Full/采用未签 |
 | T-117 | 工作台展示类型回owner事实合同 | 乙 | Codex开发线2；一审线3/验证线1/二审线4 | aeb45297三阶段PASS，已完整纳入T399第五成员 | 发布/CI/Full/实际采用归T399，不另起重复Full | plans/T117/PLAN.md及16:59Z裁定；不碰#1101分支/Memory行为 |
-| T-403 | Feed/Inbox客户端回插件 | 甲 | Codex开发线3原作者；独立验证2与原末审；根采用 | 3b0最后两完整16/16及二审通过；最终93d合入T408/main并推#1725 | CI41417053838与Full41417218394自然失败且原件收齐；5确定fixture修复与5browser观察等T409释放，不重跑原绿矩阵 | 51资源7361882B、最终63绑定/门禁/secret通过；旧失败/UNKNOWN保留 |
+| T-403 | Feed/Inbox客户端回插件 | 甲 | Codex开发线3原作者；独立验证2与原末审；根采用 | 当前完整后继已在#1725 cf005；有效UI与失败修复各按原输入核收 | 等聚合承载同头CI/Full与main采用，不重复已绿矩阵 | 51资源7363600B；63包匹配；旧失败/UNKNOWN保留 |
 | T-118 | 工作台类型/舞台链文档收口 | 丙 | Codex起草线；一审线3书审通过 | 三文档候选交原起草线，从准确T403检查点8b04并行 | 最终签结等T117/PR2/T403实际采用；不抢关整行 | /tmp/t118-next/PLAN.md、REVIEW.md；Feed/Inbox factory旧句随同hunk修 |
 | T-067 | W5-11第9片文档收口 | 丙 | 起草线作者；独立验证线1/二审线5 | 七文档候选d80cc594，37+/15-，diff/health及双审通过；父/文档采用未签 | 父实际采用后回填真实来源；自身采用由PR记录，不自嵌提交SHA | 原PLAN六段/RAC2888～2893，full=false，不抢关BL790/PG045/046/W5-11 |
 | T-396 | PG045三类集成统一取钥 | 甲 | Codex辅助开发线t396_sol；独立审验另派 | 候选b30fe249的142/142、build及验证3/二审1通过；已正式交T395作为第五成员统一采用 | 发布采用在T395后；不写resolver，不与T402抢Feed owner实现 | plans/PG045-next/PLAN.md 11:55Z窗口；四Host适配器及GitHub异步provider，完整RAC2861～2864 |

@@ -210,13 +210,14 @@ async function replay(sample) {
 
     // A built-in is replayed in its own slot: the Host already runs the shipped copy under the plugin's id (one id is one plugin, and
     // its actions are registered once), so the packed copy must be that same plugin, and it comes in as the installation's upgrade.
+    // The offline Catalog takes the Home's storage owner (S-07), so the project is made and the Catalog closed before the Host holds it.
     const builtIn = sample.built_in === true, installed = new Set();
-    host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...(builtIn ? {} : { pluginFixtures: { project: [definition], installed } }) });
     const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
       const created = await catalog.createProject({ display_name: `Replay ${sample.id}`, actor_id: "owner" });
       if (builtIn) await catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: sample.project_plugin_id, actor_id: "owner" });
       return created;
     });
+    host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...(builtIn ? {} : { pluginFixtures: { project: [definition], installed } }) });
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const invoke = async () => {
       const owner = await host.localPersonContext(ref), client = host.actionClient(ref);

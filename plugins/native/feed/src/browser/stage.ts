@@ -1,6 +1,8 @@
 import type { FeedPage } from "./factory.js";
 
 const ENTRY = "[data-feed-entry-id]";
+/** The list's filter controls (search is read on input, these on change). */
+export const FILTER_FIELDS = "[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]";
 
 /** Feed's list/reader, within this one surface. No source directory or pane DOM is read here. */
 export function feedStage(page: FeedPage) {
@@ -83,7 +85,7 @@ export function feedStage(page: FeedPage) {
     if (q("[data-feed-list]") && host.scope.alive && host.scope.visible) try { sessionStorage.setItem(preferences, JSON.stringify({ quick, fields: { search: value("search", ""), "source-filter": source, "type-filter": provider, "time-filter": time, "status-filter": status, sort } })); } catch { /* Keep the current controls even when storage is unavailable. */ }
   };
   page.listen("input", event => { if (event.target instanceof Element && event.target.matches("[data-feed-search]")) filter(); });
-  page.listen("change", event => { if (event.target instanceof Element && event.target.matches("[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]")) filter(); });
+  page.listen("change", event => { if (event.target instanceof Element && event.target.matches(FILTER_FIELDS)) filter(); });
   page.listen("scroll", event => { if (event.target instanceof HTMLElement && event.target.matches(".feed-stage-item-detail")) event.target.toggleAttribute("data-scrolled", event.target.scrollTop > 4); });
   const click = async (target: Element, event: MouseEvent): Promise<void> => {
     if (target.closest("[data-feed-collapse]")) { collapse(); return; }

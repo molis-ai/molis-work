@@ -2,6 +2,15 @@
 
 <!-- 一两句：解决什么问题，用户或调用方看到的变化。对应的 spec / 问题编号。 -->
 
+## 开工前检查
+
+<!-- 分档与检查项见 specs/post-anticorruption-roadmap/development-workflow.md。 -->
+
+- [ ] 档位：小修 / 独立片 / 大需求；类型（产品线 / 体验与效果 / 横向能力 / 底层与架构，跨几类都写）
+- [ ] 小修：第 4 节涉及的项与结论写在这里；独立片与大需求：贴 spec 里「开工前检查」一节和统筹审过的评论
+- [ ] 新页面、新交互、新控件或视觉方向变化：贴 spec 决策记录里定样的决定；不涉及写「不涉及」
+- [ ] 预警（第 6 节）：触发了哪几种情形，预警卡和 spec 里结论的链接；没有触发写「无」
+
 ## 验证
 
 CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Biome 静态检查）及其变异用例、Rust（fmt、clippy）与 Swift 检查（macOS）、shell 脚本检查、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；安全不变量（`pnpm test:security`）与产品子集（`tests/ci-product-subset.txt`，含 5 个浏览器冒烟，跑用户动线上的一部分产品用例，不稳定的文件记在 `tests/quarantine.json`，见 `docs/system/PACKAGE-BOUNDARIES.md`「产品子集作业」）也挡合并：合并队列里跑整套；PR 上 some 跑选中项，whole 或选择故障仍跑整套，只允许选择成功且对应 mode 明确 none 的跳过；Linux 探针不挡合并，只记录哪些非浏览器测试文件在 Linux 上通过；清单自己的规则由健康门禁检查，重命名或删除清单里的用例要同步改 `tests/ci-product-subset.txt`。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { RECEIPT_LAYERS_STYLES, renderReceiptLayersSpecimen } from "./receipt-layers-specimen.js";
 
 /**
  * The component board's 协作零件 section: the parts the four Molis Work introduction demos (a bad review fixed the same day,
@@ -116,11 +117,12 @@ export function renderCollabSection(): string {
       ${specimen("AI 带来的东西 · 能点的回答，答了收成一行", broughtSpecimen())}
       ${specimen("同一件事串起来 · 和叫人的那条规则", sourcesSpecimen())}
       ${specimen("逐项过目 · 每个平台各点一次才能发", reviewSpecimen())}
+      ${renderReceiptLayersSpecimen()}
     </div>
   </section>`;
 }
 
-export const COLLAB_SECTION_STYLES = `#collab svg{width:14px;height:14px;flex:none}`
+export const COLLAB_SECTION_STYLES = `#collab svg{width:14px;height:14px;flex:none}` + RECEIPT_LAYERS_STYLES
   + `.mw-who{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--wash);color:var(--ink-soft);font-size:11px;font-weight:500;line-height:1;flex:none}`
   + `.mw-who[data-kind=ai]{border-radius:6px;background:var(--ink);color:var(--paper)}.mw-who[data-assistant]{background:var(--accent-soft);color:var(--accent)}`
   + `#collab .mw-who svg{width:12px;height:12px}.mw-who--lg{width:32px;height:32px;font-size:13px}.mw-who--lg[data-kind=ai]{border-radius:9px}#collab .mw-who--lg svg{width:16px;height:16px}`

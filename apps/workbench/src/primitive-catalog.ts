@@ -183,9 +183,12 @@ const SPECIMEN_SCRIPT = `
 /**
  * The board scrolls inside `.mw-catalog`; without it being their containing block, the specimens' visually hidden labels
  * (`.mw-sr-only`, absolutely positioned) overflowed the page itself, so a jump from the index scrolled the whole page up by
- * the header's height and hid the header — with the page's own scrolling turned off, there was no way back.
+ * the header's height and hid the header — with the page's own scrolling turned off, there was no way back. The index sticks
+ * to the top of that scroll area and is taller than it once the sections outnumber the window, so it scrolls on its own,
+ * held to the area's height (`cqh` of `.mw-catalog`, whose content box leaves out its 32px and 96px padding).
  */
-const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative}";
+const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;container-type:size}"
+  + "body.mw-catalog-page .mw-catalog__index{top:16px;max-height:calc(100cqh + 64px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}";
 
 /**
  * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and

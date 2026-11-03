@@ -1131,6 +1131,7 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
    - 跟着改的文档：`docs/releases/` 的 CHANGELOG、`v0.2.0.md`、`v0.3.0.md`，POLICY 与 CONTRACT-CHANGES §2 里的「下一版 0.3.0」；`node scripts/verify-release-versions.mjs` 要通过；
    - 装过 0.3.0 的开发机不会自动换上新运行时（`web_service.rs:218` 只在内置版本更新时替换），随真实 Home 重建手动重装。
 2. **阶段一改形状不升版本（N35）。** 采纳推荐：复位到 1 以后，在原版本上直接改；从阶段二起点起，恢复「形状变了就升版本」。要改 CONTRACT-CHANGES §3 第 3 条、`AGENTS.md` 那一句，以及快照门禁的提示文字。
+   - **库不在此列**（用户 11-02 同意，见 [upgrade-continuity](../../specs/upgrade-continuity/spec.md) §3）：库的结构改了而版本不升，旧库会被当成新库打开，比拒绝更糟。所以从统一起点（各库回到第 1 版、真实 Home 重建）起，改库结构必升版本，并带一段 `n → n+1` 的升级，不再「拒绝后重建」。这一条只管动作、Manifest、MCP 工具名与 `host_api_version`。
 3. **能力 id 里不带版本，只认 `@N`（N29）。** 采纳推荐：56 个 `agent.*` 去掉末尾的 `.vN`，放在合同一片里，MCP 工具名、Skill 正文、工作流程绑定一次改完。
 4. **加「阶段一全是 1」的直接检查（N41）。** 采纳推荐：动作 @1、Manifest 1、提示词与角色 1、`*VERSION` 常量 1，阶段一里不许出现别的数；替换兼容词计数。这条门禁的写法过评审后合入。
 

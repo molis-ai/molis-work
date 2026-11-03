@@ -178,9 +178,11 @@ export function bindLocalWebAction(host: MolisWorkLocalHost, reference: LocalHos
     const owner = entry.stage_read;
     if (!owner) return { ...caller, permissions: caller.permissions.filter(permission => declared.includes(permission)), allowed_actions: (caller.allowed_actions ?? []).filter(same) };
     owner.assertCurrent();
+    // The caller's synchronous check (`assertAuthority` above, made for this same `stage_read`) opens with this owner's fence and
+    // runs only Host reads after it, so the fence is not run a second time here: every nested read of the stage passes this check,
+    // and each fence re-serializes the whole Manifest. The asynchronous check keeps its own fence after the await.
     return { ...caller, read_only_effects: true,
-      validate_authority: async target => { await caller.validate_authority?.(target); owner.assertCurrent(); },
-      assert_authority_current: (target, permissions) => { caller.assert_authority_current?.(target, permissions); owner.assertCurrent(); } };
+      validate_authority: async target => { await caller.validate_authority?.(target); owner.assertCurrent(); } };
   }, definition);
 }
 

@@ -121,8 +121,8 @@
     },
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": {
       "kind": "cohesive-unit",
-      "reason": "浏览器面的驱动对象：返回体 141 行是对一个接口的方法实现（身份、范围、观察、操作），共享 mark、settle 等助手；一个对象实现一个接口，超 150 行 16 行。",
-      "size": 166
+      "reason": "浏览器面的驱动对象实现同一页面的身份、范围、观察、输入和关闭生命周期，共享授权、接管、遮罩及释放边界。节点点击在同一接口中复用这些边界，返回对象整体保持内聚，不为减少行数拆散输入派发。",
+      "size": 209
     },
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": {
       "kind": "cohesive-unit",

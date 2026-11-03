@@ -13,7 +13,7 @@
       "lines": 443,
       "methods": 45
     },
-    "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
+    "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 209,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 261,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
     "function apps/local-host/src/home-installed-plugins.ts#openHomeInstalledPlugins": 191,
@@ -318,11 +318,10 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 67,
+  "emptyCatchesInScriptsTotal": 66,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
-    "apps/local-host/src/browser/surface-driver.ts": 1,
     "apps/workbench/src/scripts/client/agent-review.ts": 1,
     "apps/workbench/src/scripts/client/frame-container.ts": 5,
     "apps/workbench/src/scripts/client/global-search.ts": 1,
@@ -355,11 +354,10 @@
   "oldNames": {
     "packages/storage/src/adapters/file-secret-store.ts": 1
   },
-  "scriptConstantsTotal": 96,
+  "scriptConstantsTotal": 95,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
-    "apps/local-host/src/browser/surface-driver.ts": 1,
     "apps/workbench/src/judgment-rules/bootstrap.ts": 1,
     "apps/workbench/src/judgment-rules/client.ts": 1,
     "apps/workbench/src/judgment-rules/settings-client.ts": 1,

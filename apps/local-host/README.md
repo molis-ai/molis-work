@@ -117,6 +117,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 关闭 Home 时，MemoryHost 先同步停止普通读写、撤下 provider，并阻止后续学习和维护入队；公开与后台业务共用受控 MemoryService，且要求 LocalHost 仍处于 running。原 ledger 与 Host 映射保留到 Adapter shutdown 及使用投影 flush 成功后才关闭。已发生的使用事实由可信 sink 向原未释放实例投影，项目查询 await 后仍同步复核实例身份；业务停止不撤销这项记账。actor、个人 Assistant 身份、已删除项目、遗忘屏障、去重与单调规则不变。关闭失败保留原 owner，显式重试同一关闭，不创建替代连接。补齐后台 await 后检查会使原注册函数超过 150 行门，因此把原学习/维护排程作为完整职责留在同文件的 memoryBackgroundWork；原队列、开关和关闭所有权不变，不以拆散 guard 或调高门槛通过。
 
+侧栏浏览器的 node 点击由浏览器 owner 保存观察到的 DOM 对象，给模型的 token 只在当前观察内有效。审批通过 `HostSurfaceDriver.describeNode` 读同一对象的名字；注入前重新检查对象、文档、可见性和命中位置，失效时拒绝，不使用备用坐标。已经派出的按压只在原会话视口外解除，保留原拒绝，不点击替代对象。新观察、轮次释放和关闭清理 CDP 对象；桌面 selector 与现有坐标点击不变。回归见 `tests/side-panel-browser.e2e.test.ts` 的 T405-S4-02/03 和 `tests/side-panel-assistant-surface.test.ts` 的 T405-S4-01。
+
 ## 开发要求
 
 首次 Host 或独立 Catalog 取得 Home 所有权前，先以只读检查拒绝非空且缺少 Memory ledger 的 Home，避免拒绝后新增 owner 目录。未完成恢复优先拒绝；已有 owner 的借用路径不变。早检查不授予初始化许可，取得锁后仍重新判定完整 Memory 状态。回归：`tests/cross-device-continuity.test.ts`、`tests/memory-initialization.test.ts`、`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。

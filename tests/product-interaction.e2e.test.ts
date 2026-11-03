@@ -332,8 +332,12 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   assert.equal(await evaluate<string>("window.__firstDetailAfterRetry"),'the press','the retry itself loads the detail again');
   assert.ok(feed.getFeedItem(DEMO_PROJECT_ID,item.item_id).read_at);
   assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'true');
-  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('[data-feed-detail="${item.item_id}"] h1')).display`),'none');
-  assert.match(await evaluate<string>(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content').textContent`),/阅读正文/);
+  // Marking the item read refreshes the view, which draws the reader again and reloads its detail. Read the title and the body
+  // together from one detail node, once it is there, so the refresh cannot fall between the two reads.
+  await waitFor(`(()=>{const detail=document.querySelector('[data-feed-detail="${item.item_id}"]'),title=detail?.querySelector('h1'),body=detail?.querySelector('.feed-rich-content');if(!title||!body)return false;window.__feedReading={display:getComputedStyle(title).display,text:body.textContent};return true;})()`);
+  const reading = await evaluate<{display:string;text:string}>('window.__feedReading');
+  assert.notEqual(reading.display,'none');
+  assert.match(reading.text,/阅读正文/);
   const headerTop=await evaluate<number>("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top");
   const bodyPoint=await child.point(`[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail`);
   await command('Input.dispatchMouseEvent',{type:'mouseWheel',...bodyPoint,deltaX:0,deltaY:300},sessionId);

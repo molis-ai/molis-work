@@ -257,7 +257,9 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     panel = node("section", undefined, "placement-panel mw-menu");
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", L("放在哪里"));
     panel.style.left = Math.max(8, Math.min(left, innerWidth - 400)) + "px";
-    panel.style.top = Math.min(bottom + 8, innerHeight - 120) + "px";
+    // In a short window the panel ends at the window's edge and scrolls, so its last actions stay reachable.
+    const top = Math.min(bottom + 8, innerHeight - 120);
+    panel.style.top = top + "px"; panel.style.maxHeight = innerHeight - Math.max(top + 8, 80) + "px";
     panel.append(node("h2", view.title, "placement-panel-title"));
     if (view.state !== "ok") panel.append(node("p", view.reason || L("暂时读不到"), "placement-panel-warning"));
     const facts = node("dl", undefined, "placement-panel-facts");

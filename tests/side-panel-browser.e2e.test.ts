@@ -218,7 +218,8 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
   const browsers = new BrowserHost({ homeDirectory: home, locate: () => ({ path: chrome, name: basename(chrome) }) });
   const page = browsers.page("node-project"), driver = createBrowserSurfaceDriver(page);
   const detach = page.attach({ state: () => {} }, { width: 800, height: 600, dpr: 1 });
-  let mouseInputs = 0;
+  let mouseInputs = 0, mousePresses = 0;
+  let gate: { waiting: boolean; entered(method: string): void; hold: Promise<void> } | null = null;
   const groups = new Set<string>();
   const clicks = () => page.evaluate("JSON.stringify(window.nodeClicks)");
   const observeNode = async () => {
@@ -240,9 +241,16 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     const running = await browsers.browser(), send = running.cdp.send.bind(running.cdp);
     t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
       if (method === "Input.dispatchMouseEvent") mouseInputs += 1;
+      if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") mousePresses += 1;
       if (method === "Runtime.evaluate" && typeof params.objectGroup === "string") groups.add(params.objectGroup);
-      return send(method, params, sessionId, timeoutMs).then(result => {
+      return send(method, params, sessionId, timeoutMs).then(async result => {
         if (method === "Runtime.releaseObjectGroup") groups.delete(String(params.objectGroup));
+        const active = gate;
+        if (active && !active.waiting && (method === "Runtime.releaseObject" || method === "Input.dispatchMouseEvent" && params.type === "mouseMoved")) {
+          active.waiting = true;
+          active.entered(method);
+          await active.hold;
+        }
         return result;
       });
     });
@@ -257,6 +265,27 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
     assert.equal(await clicks(), JSON.stringify([{ id: "target", target: "original", trusted: true }]), "the real CDP click reaches the moved original with isTrusted, never (0,0) or the new earlier element");
     assert.equal(await page.evaluate("document.activeElement.id"), "target");
     assert.deepEqual(page.snapshot().control.activity?.point, { x: 480, y: 260 }, "the owner's current position is used");
+
+    // T405-S4-03: block a real CDP response in the former cleanup gap, or the first actual move after that gap is removed.
+    // The move may already have happened; neither its completion nor a cached point permits a later press on a clone.
+    for (const interrupt of ["replace", "release"] as const) {
+      const raced = await observeNode(), beforeInputs = mouseInputs, beforePresses = mousePresses, beforeClicks = await clicks();
+      let entered: (method: string) => void = () => {}, resume: () => void = () => {};
+      const reached = new Promise<string>(resolve => { entered = resolve; });
+      const hold = new Promise<void>(resolve => { resume = resolve; });
+      gate = { waiting: false, entered, hold };
+      const acting = pointer(raced);
+      try {
+        const heldMethod = await Promise.race([reached, acting.then(() => { throw new Error("the action passed its CDP barrier"); })]);
+        if (interrupt === "replace") await page.evaluate("const original=document.getElementById('target'),replacement=original.cloneNode(true);replacement.dataset.target='raced replacement';original.replaceWith(replacement)");
+        else await driver.release!();
+        resume();
+        await assert.rejects(acting, /目标已不可用/u, `${interrupt} during the real CDP wait refuses the remaining action`);
+        assert.equal(mousePresses, beforePresses, `${interrupt}: no press follows the invalidated object or observation`);
+        assert.equal(mouseInputs, beforeInputs + (heldMethod === "Input.dispatchMouseEvent" ? 1 : 0), `${interrupt}: count an already-dispatched move, with no later input`);
+        assert.equal(await clicks(), beforeClicks, `${interrupt}: the replacement and fallback point have no click effect`);
+      } finally { resume(); gate = null; }
+    }
 
     const replaced = await observeNode();
     await page.evaluate("const el=document.getElementById('target'),copy=el.cloneNode(true);copy.dataset.target='replacement';el.replaceWith(copy)");

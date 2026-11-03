@@ -140,16 +140,24 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       const send = (method: string, params: Record<string, unknown>) => session.send(method, params);
       switch (action.what) {
         case "pointer": {
-          const target = action.node !== undefined ? await nodes.resolve(action.node) : null;
-          const { x, y, label } = target ?? { x: action.x, y: action.y, label: await labelAt(action.x, action.y) };
-          const pointerSend = target ? (method: string, params: Record<string, unknown>) => target.session.send(method, params) : send;
-          assertEnabled();
-          if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-          mark(sessionId, `在 ${origin()} ${action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击"}${label ? `「${label}」` : `（${x}, ${y}）`}`, { x, y });
-          await pointerSend("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none", buttons: 0 });
+          const coordinate = action.node === undefined ? { x: action.x, y: action.y, label: await labelAt(action.x, action.y) } : null;
+          const pointerSend = async (params: Record<string, unknown>) => {
+            // Each actual node input rereads the original object. In particular, a move that already happened grants
+            // no permission to press after a replacement, later observation, round release or browser takeover.
+            const target = action.node !== undefined ? await nodes.resolve(action.node) : null;
+            try {
+              const { x, y, label } = target ?? coordinate!;
+              assertEnabled();
+              if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
+              mark(sessionId, `在 ${origin()} ${action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击"}${label ? `「${label}」` : `（${x}, ${y}）`}`, { x, y });
+              target?.assertCurrent();
+              await (target?.session ?? session).send("Input.dispatchMouseEvent", { ...params, x, y });
+            } finally { await target?.release(); }
+          };
+          await pointerSend({ type: "mouseMoved", button: "none", buttons: 0 });
           for (let click = 1; click <= Math.max(1, Math.min(3, action.clicks)); click += 1) {
-            await pointerSend("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: action.button, buttons: 1, clickCount: click });
-            await pointerSend("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: action.button, buttons: 0, clickCount: click });
+            await pointerSend({ type: "mousePressed", button: action.button, buttons: 1, clickCount: click });
+            await pointerSend({ type: "mouseReleased", button: action.button, buttons: 0, clickCount: click });
           }
           await settle();
           return;
@@ -206,10 +214,13 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
     async describeNode(node: string) {
       assertEnabled();
       if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-      const { label } = await nodes.resolve(node);
-      assertEnabled();
-      if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
-      return label;
+      const target = await nodes.resolve(node);
+      try {
+        target.assertCurrent();
+        assertEnabled();
+        if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
+        return target.label;
+      } finally { await target.release(); }
     },
     describePoint: (x: number, y: number) => labelAt(x, y),
     async focusedField() {

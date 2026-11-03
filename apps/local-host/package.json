@@ -25,8 +25,8 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && node native/materials/build.mjs && node native/computer/build.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && node tooling/build-browser-surfaces.mjs && node native/materials/build.mjs && node native/computer/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json",
     "materials:build": "bash native/materials/build.sh",
     "materials:build:whisper": "bash native/materials/build-whisper.sh",
     "computer:build": "bash native/computer/build.sh"

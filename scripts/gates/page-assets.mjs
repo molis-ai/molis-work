@@ -256,11 +256,11 @@ const headErrors = (measured, budget, base) => {
 // the palette switch was removed from the board instead of shipped; the soft-fog commit's rewrite of buttons and badges is
 // smaller than what it replaced; no new asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [678738, 689735],
+  "/assets/molis-work-arrival.css": [678758, 689755],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
-  "/assets/molis-work-settings.css": [827276, 836989],
-  "/assets/molis-work-workbench.css": [1233068, 1247852],
-  "/assets/molis-work-workbench.js": [1152663, 1153428],
+  "/assets/molis-work-settings.css": [816992, 826705],
+  "/assets/molis-work-workbench.css": [1179610, 1194394],
+  "/assets/molis-work-workbench.js": [1073749, 1074514],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -6,6 +6,7 @@ import test, { type TestContext } from 'node:test';
 import { LocalHostHttpClient } from '@molis-ai/molis-work-test-kit/local-host-http';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { seedBoard } from './fixtures/goal-application.js';
+import { createLocalFeedSourceService } from './fixtures/feed-library.js';
 import { reviewEvidenceUrl } from './fixtures/review-evidence.js';
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
@@ -219,6 +220,8 @@ test('T405-17B5-UI-01: a real Feed refresh preserves retained menu focus and nev
     for (const type of ['rawKeyDown', 'keyUp'] as const) await b.command('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }, b.sessionId);
   };
   const refresh = async (whilePending?: () => Promise<void>) => {
+    // Feed redraws only when its read brings a change: a source is added in the store first (no view revision, so no second read).
+    createLocalFeedSourceService(b.store.db, b.projectId!).register({ kind: 'web_query', query: 'refresh ' + randomUUID() });
     await child(b).evaluate('window.__feedMenuTest.refresh()');
     await child(b).waitFor('window.__feedMenuTest.refreshState().held', limits.hold);
     const held = await state(); assert.equal(held.reads, 1); assert.equal(held.pending, 1); assert.equal(held.replaced, false);

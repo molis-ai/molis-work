@@ -184,8 +184,9 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
     const state=window.__scheduleBusy={hold:false};
     window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,factory){target[key]=key==='feed'?host=>{
       state.host=host;const read=host.view.readDocument;host.view.readDocument=async query=>{
-        const hold=state.hold&&!query?.object;if(hold)state.hold=false;
-        const html=await read(query);if(hold)await new Promise(resolve=>state.releaseRead=resolve);return html;
+        const whole=!query?.object,hold=state.hold&&whole;if(hold)state.hold=false;if(whole)state.asked=(state.asked||0)+1;
+        try{const html=await read(query);if(hold)await new Promise(resolve=>state.releaseRead=resolve);return html;}
+        finally{if(whole)state.answered=(state.answered||0)+1;}
       };return factory(host);
     }:factory;return true;}});
   `);
@@ -236,6 +237,8 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   try {
     await click(`${panel} [data-source-schedule-save]`);
     await b.waitFor('window.scheduleResponseReady===true');
+    // Something else changes while the save is held, so the refresh it causes draws the page again.
+    createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"保存期间到达的来源"});
     await evaluate(`(()=>{const state=window.__scheduleBusy;state.oldButton=document.querySelector('${panel} [data-source-schedule-save]');state.hold=true;state.host.invalidateView();})()`);
     await waitFor('window.__scheduleBusy.releaseRead');
     await evaluate('window.__scheduleBusy.releaseRead()');
@@ -269,6 +272,11 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await click('[data-feed-config-submit]');
   await waitFor(`document.querySelector('${panel} [data-source-action-status]').textContent.includes('无法保存配置')`);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
+  // The poll that follows a save (or any notice of a change already drawn) reads the same page. It leaves the panel alone:
+  // the error just shown stays, and the controls under the pointer are not swapped out.
+  const asked = await evaluate<number>(`(()=>{const state=window.__scheduleBusy;state.panel=document.querySelector('${panel}');const asked=state.asked||0;state.host.invalidateView();return asked;})()`);
+  await waitFor(`window.__scheduleBusy.asked>${asked}&&window.__scheduleBusy.answered===window.__scheduleBusy.asked`);
+  assert.deepEqual(await evaluate(`({same:document.querySelector('${panel}')===window.__scheduleBusy.panel,error:document.querySelector('${panel} [data-source-action-status]').textContent.includes('无法保存配置')})`),{same:true,error:true},"a refresh with nothing new keeps the panel and the error shown in it");
   await b.evaluate('window.restoreConfigFetch()');
   await b.evaluate(`{ const original = window.fetch; window.configRequests = 0; window.fetch = async (url, options) => {
     const response = await original(url, options);
@@ -345,8 +353,9 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   assert.equal(await evaluate("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top"),headerTop,'reader scroll never moves the toolbar');
   assert.equal(await evaluate("document.scrollingElement.scrollTop"),0);
   assert.equal(await b.evaluate("document.scrollingElement.scrollTop"),0);
-  // A refresh while the item is open (marking it read, a new count) draws the page again and reads the item again; the reader
+  // A refresh while the item is open (a new message arrives) draws the page again and reads the item again; the reader
   // keeps the place being read, through the redrawn reader and the detail read again.
+  feed.ingestItem({source,externalId:'reader-test-later',title:'阅读时到达的消息',summary:'新到的摘要',body:'新到的正文',priority:'normal',occurredAt:'2026-09-16T00:01:00.000Z',attention:false});
   const place=await evaluate<number>(`(()=>{const slot=document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail');window.__readingSlot=slot;window.__readingDetail=slot.querySelector('[data-feed-detail]');document.querySelector('[data-ui-client-root]').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));return slot.scrollTop;})()`);
   await waitFor(`(()=>{const slot=document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail'),detail=slot?.querySelector('[data-feed-detail]');return slot!==window.__readingSlot&&Boolean(detail)&&detail!==window.__readingDetail;})()`);
   assert.equal(await evaluate<number>(`document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail').scrollTop`),place,'a refresh keeps the place being read');

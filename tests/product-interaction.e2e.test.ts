@@ -345,6 +345,11 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   assert.equal(await evaluate("document.querySelector('.feed-stage-toolbar').getBoundingClientRect().top"),headerTop,'reader scroll never moves the toolbar');
   assert.equal(await evaluate("document.scrollingElement.scrollTop"),0);
   assert.equal(await b.evaluate("document.scrollingElement.scrollTop"),0);
+  // A refresh while the item is open (marking it read, a new count) draws the page again and reads the item again; the reader
+  // keeps the place being read, through the redrawn reader and the detail read again.
+  const place=await evaluate<number>(`(()=>{const slot=document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail');window.__readingSlot=slot;window.__readingDetail=slot.querySelector('[data-feed-detail]');document.querySelector('[data-ui-client-root]').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));return slot.scrollTop;})()`);
+  await waitFor(`(()=>{const slot=document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail'),detail=slot?.querySelector('[data-feed-detail]');return slot!==window.__readingSlot&&Boolean(detail)&&detail!==window.__readingDetail;})()`);
+  assert.equal(await evaluate<number>(`document.querySelector('[data-feed-entry-detail="${item.item_id}"] .feed-stage-item-detail').scrollTop`),place,'a refresh keeps the place being read');
   await click(`[data-feed-entry-detail="${item.item_id}"]:not([hidden]) [data-feed-collapse]`);
   await waitFor("document.querySelector('[data-feed-stage-shell]')?.dataset.expanded !== 'true'");
   assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'false');

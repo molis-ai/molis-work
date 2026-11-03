@@ -242,20 +242,22 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// Component skins (DESIGN「皮肤」, the board upgrade of 2026-10-30): the Tray and Pill layer (design-system styles/skins.ts, its toast
-// rule in toast.ts) closes each of the three page sheets, +7301 B on each, and the page script reads, applies and follows the skin
-// preference, +765 B on workbench.js.
-// The default components' details (DESIGN「Buttons」「Fields」「Menus」「Toasts」「Tables and cards」: legible disabled buttons, a
-// loading button that keeps its words, the alert glyph on field errors, menu shortcuts, groups, checkbox and disabled items) add
-// +2596 B on each sheet, +9897 B on each in all, under the 10 KB line.
-// Tried: each rule is written once for both skins over shared `--sk-*` tokens, and Soft Workbench draws nothing; the board's new
-// composed patterns stay out of the served sheets (inlined on the board page until a product page uses them); no new asset; the
-// error glyph's data URI is written once for both mask properties, and two polish rules (glyphs turning ink on hover, shortcut
-// tracking) were dropped to stay under the line.
+// Component board upgrade (DESIGN「皮肤」「Reading load」, 2026-10-30 to 11-03), approved by the user on 2026-11-03 over the 10 KB line:
+// - The Tray and Pill skins (design-system styles/skins.ts, its toast rule) close each of the three page sheets, +7301 B on each;
+//   the page script reads, applies and follows the skin preference, +765 B on workbench.js. The default components' details
+//   (legible disabled buttons, field error glyphs, menu shortcuts and groups) add +2596 B on each sheet.
+// - The reading-load rules (DESIGN「Reading load」): outlined ghost buttons, one-line meta rows, the diff file list, the operation
+//   card's target and impact chips and the input receipt's zones as containers in their own colours: +1145 B (settings),
+//   +1539 B (arrival), +4688 B (workbench, which also carries the diff view and receipts), +890 B on coding.css for the
+//   one-line session row with its state chip. The mist palette and the soft-fog defaults replace values and add nothing.
+// Tried: each skin rule is written once over shared `--sk-*` tokens; the board's own samples stay inlined on the board page;
+// the palette switch was removed from the board instead of shipped; the soft-fog commit's rewrite of buttons and badges is
+// smaller than what it replaced; no new asset.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [681487, 691384],
-  "/assets/molis-work-settings.css": [932843, 942740],
-  "/assets/molis-work-workbench.css": [1236101, 1245998],
+  "/assets/molis-work-arrival.css": [681487, 692923],
+  "/assets/molis-work-plugins/coding.css": [74624, 75514],
+  "/assets/molis-work-settings.css": [932843, 943885],
+  "/assets/molis-work-workbench.css": [1236101, 1250686],
   "/assets/molis-work-workbench.js": [1148981, 1149746],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

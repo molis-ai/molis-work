@@ -47,12 +47,15 @@ export function feedClient(host: FeedHost): void {
     error: (error, element) => { if (!scope.alive || !scope.visible || error instanceof DOMException && error.name === "AbortError") return; if (element?.isConnected) molisWorkRequest.show(element, error); else host.showToast(molisWorkRequest.text(error), true); },
   };
   const stage = feedStage(page), sources = feedSources(page), rules = feedRules(page);
-  let refreshSequence = 0, activeRefresh = Promise.resolve();
+  let refreshSequence = 0, activeRefresh = Promise.resolve(), drawn = "";
   page.refresh = () => {
     const check = page.guard(), sequence = ++refreshSequence;
     const refresh = async () => {
       const html = await host.view.readDocument({ signal: page.signal() }); check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
+      // A read that is what is already drawn (another notice of a change this page has drawn) leaves the page alone:
+      // redrawing it would only swap out the controls in use and the result a person was just shown.
+      if (html === drawn) return;
       const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter],[data-feed-sort]").map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
       const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
       const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]");
@@ -85,7 +88,7 @@ export function feedClient(host: FeedHost): void {
       }
       const dialog = page.q("[data-feed-sources-dialog]"), nextDialog = page.q("[data-feed-sources-dialog]", next);
       if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); for (const account of page.all<HTMLFormElement>("[data-feed-add-account]", dialog)) { const replacement = page.q<HTMLFormElement>('[data-feed-add-account="' + CSS.escape(account.dataset.feedAddAccount!) + '"]', nextDialog); if (replacement) replacement.replaceWith(account); } dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }
-      const scroll = stage.scroll(); root.replaceChildren(...next.childNodes);
+      const scroll = stage.scroll(); root.replaceChildren(...next.childNodes); drawn = html;
       if (menuFocus instanceof HTMLElement && menuFocus.isConnected) menuFocus.focus({ preventScroll: true });
       for (const saved of controls) { const control = page.q<HTMLInputElement | HTMLSelectElement>("[" + saved.attr + "]"); if (control) control.value = saved.value; }
       const filterPanel = page.q("[data-feed-filter-panel]"); if (filterPanel) filterPanel.hidden = !filterOpen;

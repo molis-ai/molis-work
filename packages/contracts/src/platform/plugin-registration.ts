@@ -103,7 +103,7 @@ export interface PluginWorkbenchRegistration {
 /**
  * One plugin this build ships and its already exported implementations. This declaration grants no authority. 2026-10-18 改:
  * each plugin package writes its own and the catalog is generated from them (W5-02, PG-065 in
- * specs/repository-anti-corruption/privileges.md).
+ * specs/archive/repository-anti-corruption/privileges.md).
  */
 export interface PluginRegistration {
   /** The plugin's key inside a project (`^[a-z0-9][a-z0-9-]*$`); the Manifest's `plugin_id` stays its identity. */
@@ -136,7 +136,7 @@ export interface PluginRegistration {
     /**
      * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each
      * project's instance from its `project_runtime`, and each half offers only its share of the one Manifest. Trusted, as above:
-     * no Manifest or installed package can say it (S-48). Every permission of such a Manifest is required (specs/dual-instance-plugins).
+     * no Manifest or installed package can say it (S-48). Every permission of such a Manifest is required (specs/archive/dual-instance-plugins).
      */
     readonly dual_instance?: true;
   };

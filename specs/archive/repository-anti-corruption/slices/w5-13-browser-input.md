@@ -2,7 +2,7 @@
 
 状态：RAC-115 已实现，作者定向验证 24 项通过、1 项既有失败已在同一干净基线复现，待独立 REVIEW/TEST 与合并。Codex 保留 C1 归属；RAC-113、RAC-114 的既有合入证据不代表 C1 整体完成。
 
-承接[总规格](../spec.md) W5-13 的 browser 区域吞错收尾，及侧栏浏览器的[既有输入与接手合同](../../archive/side-panel/spec.md) D03、D09、AC04。流水线在 FIX2 的 #1198 固定并明确释放后授予本片唯一 writer。准确基线 `2dd53591276982b6947369e345ddfcffcc21afd2`，32 个当前在途 PR 的完整文件清单没有修改本片 browser 目录、既有测试或本 slice。
+承接[总规格](../spec.md) W5-13 的 browser 区域吞错收尾，及侧栏浏览器的[既有输入与接手合同](../../side-panel/spec.md) D03、D09、AC04。流水线在 FIX2 的 #1198 固定并明确释放后授予本片唯一 writer。准确基线 `2dd53591276982b6947369e345ddfcffcc21afd2`，32 个当前在途 PR 的完整文件清单没有修改本片 browser 目录、既有测试或本 slice。
 
 ## 行为与边界
 

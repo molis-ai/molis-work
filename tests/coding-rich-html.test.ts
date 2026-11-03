@@ -14,7 +14,7 @@ import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
-// specs/repository-anti-corruption PG-062 (C7, plugin half), slice 2: Coding draws the model's words as rich text itself, with the
+// specs/archive/repository-anti-corruption PG-062 (C7, plugin half), slice 2: Coding draws the model's words as rich text itself, with the
 // plugin SDK's `/rich-text`, on what its routes answer its page; the Host adds none of it. The server here runs no Coding route hooks.
 const root = fileURLToPath(new URL("..", import.meta.url));
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Page resource budget (specs/repository-anti-corruption §4.8/§4.13, slice W1-07, decision #17): the workbench's
+// Page resource budget (specs/archive/repository-anti-corruption §4.8/§4.13, slice W1-07, decision #17): the workbench's
 // stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and by default only fall.
 // The budget is a size control, not a hard ceiling (the user amended decision #17 on 2026-10-18): growth a feature needs and
 // that cannot be won back in the same asset is admitted once through APPROVED_CEILINGS below, after review, with the reason,
@@ -79,7 +79,7 @@ const NOTE = "Only decreases. The size in bytes of each asset the host sends und
   + "measured from the built workspace by scripts/gates/page-assets.mjs. Lower it with "
   + "`node scripts/gates/page-assets.mjs --update --base origin/main` in the PR that shrinks an asset. CI compares this file with "
   + "the merge-base's copy, so raising a number or adding an asset here is refused. Frozen by decision #17; the real targets are "
-  + "set after the superseded skins are deleted (specs/repository-anti-corruption).";
+  + "set after the superseded skins are deleted (specs/archive/repository-anti-corruption).";
 
 const git = (gitArgs) => {
   try { return execFileSync("git", gitArgs, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "pipe"] }); }

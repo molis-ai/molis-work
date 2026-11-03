@@ -1,4 +1,4 @@
-// Gate: @molis-ai/molis-work-contracts has no placeholder subpath (specs/repository-anti-corruption §4.9/§4.12, R-11).
+// Gate: @molis-ai/molis-work-contracts has no placeholder subpath (specs/archive/repository-anti-corruption §4.9/§4.12, R-11).
 // A rule with no baseline: the six that existed were deleted in W2-01, so any hit is a failure (scripts/gates/doc-gates.mjs).
 //
 // A placeholder is a subpath whose source exports nothing but one `ContractDescriptor` constant (a name, a maturity word and

@@ -56,7 +56,7 @@ export class HomePluginExecutor implements PluginExecutor {
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
-    /** The Host's start list said this is the Home half of a dual-instance plugin (specs/dual-instance-plugins). */
+    /** The Host's start list said this is the Home half of a dual-instance plugin (specs/archive/dual-instance-plugins). */
     dualInstance(definition: PluginDefinition): boolean;
     storage: SqlitePluginPrivateStorage;
     active(): boolean;
@@ -73,7 +73,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const manifest = definition.manifest;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
     if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
-      throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
+      throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
     }
     let active = true, stopped = false;
     const generation = this.options.record(context.install_id)?.installation_generation;

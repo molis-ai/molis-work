@@ -13,7 +13,7 @@ import { createSandboxRunner, type SandboxServiceContext } from "@molis-ai/molis
 import { homeStores, openSandboxHomeLibrary } from "@molis-ai/molis-work-app-local-host";
 import { sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 
-// BL-490 (PG-017; specs/repository-anti-corruption/slices/pg017-sandbox-services.md §3.7): a sandboxed package that declares a library
+// BL-490 (PG-017; specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md §3.7): a sandboxed package that declares a library
 // in the Home (`databases.home`) gets it under the ledger every installed plugin has, but the Host holds no connection to it: the
 // statements run in the process S-59 can kill, over node:sqlite connections of that process's own. What this file asserts is the
 // refusal: another publisher, a taken name and a library partitioned by project open nothing; a grant taken back stops the next call;

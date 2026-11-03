@@ -9,7 +9,7 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandb
 import { APPROVED, SECOND_PLUGIN_ID, mac, person, ref } from "./fixtures/home-sandbox.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
-// BL-713 (PG-011; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): a signed package installed in the Home draws
+// BL-713 (PG-011; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): a signed package installed in the Home draws
 // its stage in the Home: a page of its own, a stage in every project's workbench, and a place on the tool bar that follows its state.
 // Every case here installs a signed package and runs it in the sandbox, which only macOS has (`mac`); what needs no package (the stage markup,
 // the tool bar's entries, the pages nothing registers) is in `home-plugin-stage-pages.test.ts`, which Linux CI runs.

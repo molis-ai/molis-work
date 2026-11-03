@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Tests and the packages they import (specs/repository-anti-corruption W2-10). A test process that loads one package from its
+// Tests and the packages they import (specs/archive/repository-anti-corruption W2-10). A test process that loads one package from its
 // source (../P/src/…, run by tsx) and from its build (the package name, ../P/dist/…) holds two copies of it, which breaks
 // instanceof, module-level caches and AsyncLocalStorage. This tool finds those processes and rewrites the imports so that every
 // package is reached from one place, public names through the package's entry. The graph and the rules are in

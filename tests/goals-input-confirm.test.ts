@@ -90,7 +90,7 @@ test("a confirmed source becomes the Goal's input receipt, once, under the calle
 
 /**
  * An input the assistant, an Agent, a workflow or an MCP client recorded stays `proposed` until the person says so in Goals
- * (specs/repository-anti-corruption §1, 2026-10-10): `goals.inputs.accept` is the person's alone, and the person can also take the
+ * (specs/archive/repository-anti-corruption §1, 2026-10-10): `goals.inputs.accept` is the person's alone, and the person can also take the
  * proposal off the Goal with `goals.inputs.release`.
  */
 test("an input an Agent proposed waits for the person, who alone accepts it, and who can remove it instead", async () => {

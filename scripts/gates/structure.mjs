@@ -1,4 +1,4 @@
-// The structure gates of specs/repository-anti-corruption W1-05, as metrics for scripts/check-health-gates.mjs: numbers
+// The structure gates of specs/archive/repository-anti-corruption W1-05, as metrics for scripts/check-health-gates.mjs: numbers
 // that may only fall, measured on the working tree and on the merge-base by the same code. Each gate is its own module in
 // this directory; this file lists them for the entry, which calls structureMetrics(helpers) once.
 import { assemblyMetrics, assemblyWantsText } from "./assembly.mjs";

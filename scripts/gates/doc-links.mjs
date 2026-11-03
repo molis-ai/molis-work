@@ -1,4 +1,4 @@
-// Gate: no broken relative link in a live Markdown file (specs/repository-anti-corruption §4.12/§4.13).
+// Gate: no broken relative link in a live Markdown file (specs/archive/repository-anti-corruption §4.12/§4.13).
 //
 // Live = every tracked .md at a root entry the root allow-list names, outside archive/, node_modules/, .impeccable/ and dist/
 // (markdown.mjs: liveDocs). A link is broken when its target file or directory is not tracked, or when it points at a

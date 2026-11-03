@@ -7,11 +7,11 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 
-// specs/repository-anti-corruption §4.5/§4.7 (W1-03): the health gates compare the head with the merge-base, so a PR
+// specs/archive/repository-anti-corruption §4.5/§4.7 (W1-03): the health gates compare the head with the merge-base, so a PR
 // that grows a number cannot hide it by rewriting tooling/gates/baseline.json. Each rule is mutation-verified here on a
 // small scratch repository: one violation added on a branch makes `--base main` fail, and running `--update` on that
 // branch (the laundering move) neither makes it pass nor is accepted when it is given the merge-base.
-// specs/repository-anti-corruption §4.5 (W1-19, user 2026-10-25): tooling/gates/giant-exceptions.json marks the giant units
+// specs/archive/repository-anti-corruption §4.5 (W1-19, user 2026-10-25): tooling/gates/giant-exceptions.json marks the giant units
 // that are reasonable as one unit and are not force-split, each with a kind, a reason and its measured size. A unit with a
 // valid entry whose size equals the measurement is admitted, new or grown; an entry whose size is not the measured one admits
 // nothing; an unregistered giant unit may not appear or grow; and an entry has to describe a giant unit that exists now.

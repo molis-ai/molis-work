@@ -1,4 +1,4 @@
-// A per-key count that may only fall, for the structure gates (specs/repository-anti-corruption W1-05).
+// A per-key count that may only fall, for the structure gates (specs/archive/repository-anti-corruption W1-05).
 //
 // scripts/check-health-gates.mjs owns the comparison (the working tree against the merge-base, measured by one definition on
 // both sides); a gate module only says what to count. A key is "<file>#<what>" or another stable name; a key with no record

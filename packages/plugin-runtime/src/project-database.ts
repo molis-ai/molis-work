@@ -2,7 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntimeDatabase } from "./repository.js";
 
-// A plugin's own tables in a project's library (PG-020, specs/plugin-project-database). The plugin declares them in its Manifest
+// A plugin's own tables in a project's library (PG-020, specs/archive/plugin-project-database). The plugin declares them in its Manifest
 // (`databases.project`); the platform tries the statements on an empty database first, then makes them in the project's library the
 // first time the plugin opens there and records them, with the publisher's signature, in one ledger. SQLite is the Host's: it hands
 // in a scratch database and storage's descriptions, so this package depends on no SQLite library.

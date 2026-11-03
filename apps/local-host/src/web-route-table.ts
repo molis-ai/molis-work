@@ -9,7 +9,7 @@ import type { LocalWebComposition } from "./web-composition.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 
 /**
- * One entry of an ordered HTTP route table (specs/repository-anti-corruption W5-07): it answers the request and says true,
+ * One entry of an ordered HTTP route table (specs/archive/repository-anti-corruption W5-07): it answers the request and says true,
  * or says false and the next entry tries. The order of a table is the order addresses are tried; the local control guard
  * (same origin, the token, one-time keys) has already run in front of every table.
  */

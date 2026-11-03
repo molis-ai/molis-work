@@ -22,7 +22,7 @@
 - `docs/system/CONTRACT-CHANGES.md`（合同变更、快照、版本）
 - `docs/system/SECURITY-INVARIANTS.md`（安全边界与拒绝测试）
 - `specs/computer-use/spec.md`、`specs/computer-use/goal-prompt.md`
-- `specs/repository-anti-corruption/spec.md`（防腐线）
+- `specs/archive/repository-anti-corruption/spec.md`（防腐线）
 - 相关包 README 的「开发要求」：`apps/local-host`、`apps/workbench`、`packages/contracts`、`packages/plugin-sdk`、`horizontal/agent-host`
 
 读完后先用一段话复述：现状、你要做的切片、你不做什么。不要先改代码。

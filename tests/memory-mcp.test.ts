@@ -13,7 +13,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 /** What the server answers to tools/list and tools/call, as far as this test reads it. */
 interface McpResult { tools: Array<{ name: string }>; isError?: boolean; content: Array<{ text: string }> }
 
-// Decision 19 (specs/repository-anti-corruption, W2-03): the MCP audience of memory stays, and this is the use case that goes through the
+// Decision 19 (specs/archive/repository-anti-corruption, W2-03): the MCP audience of memory stays, and this is the use case that goes through the
 // person's grant (`config/mcp-tools.json`, which only the person's own settings write) the way a real external client meets it: nothing is
 // visible or callable before the grant, only `memory.recall` can be granted, what it reads follows the person's switches, and revoking the
 // grant takes the tool away.

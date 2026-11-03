@@ -6,7 +6,7 @@ const OWN = "读写 Feed 内容、捕捉规则与首页事项，处理消息去�
 
 /**
  * Every permission of Feed's Manifest. Required collection/read permissions stay independent of the optional Functions management grant.
- * Feed's two instances retain their own grants; Home also caps the project's optional permission (specs/dual-instance-plugins, U1).
+ * Feed's two instances retain their own grants; Home also caps the project's optional permission (specs/archive/dual-instance-plugins, U1).
  * The gate reads this literal list. `tests/feed-runtime-plugin.test.ts` holds it to the actions, jobs and services, so a new permission
  * cannot be used without being listed here.
  */

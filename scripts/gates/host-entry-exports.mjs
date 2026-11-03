@@ -1,4 +1,4 @@
-// The Host's public entry is wide (specs/repository-anti-corruption N-11, W1-05).
+// The Host's public entry is wide (specs/archive/repository-anti-corruption N-11, W1-05).
 //
 // apps/local-host/src/index.ts re-exports whole files with `export *`, so every helper added to those files becomes public
 // surface that tests and other packages can import. This counts the `export *` / `export * as ns` declarations in the

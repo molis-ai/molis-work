@@ -78,7 +78,7 @@ test("RAC-2507 an attached presentation cannot return data after its original pr
   await registry.detach(manifest.plugin_id);
 });
 
-// PG-046 (specs/repository-anti-corruption/slices/feed-inbox-integration-registry.md): the Home's integration registry is built from
+// PG-046 (specs/archive/repository-anti-corruption/slices/feed-inbox-integration-registry.md): the Home's integration registry is built from
 // the declarations of the plugins enabled in it. The fixtures below are plugins nothing in the repository knows by name; they take the
 // same path as the built-in ones.
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -383,7 +383,7 @@ test("RAC-519 a registered plugin gets no connection service and its binding hol
   assert.ok(!JSON.stringify(given).includes("service_id"), "the binding is not looked up by service");
 });
 
-// PG-046's remainder (specs/repository-anti-corruption/slices/pg046-integrations-from-manifest.md §3).
+// PG-046's remainder (specs/archive/repository-anti-corruption/slices/pg046-integrations-from-manifest.md §3).
 const fixtureProvider = () => ({
   type: "fixture", async health() { return { ok: true, status: "connected" as const, message: "ready" }; },
   async sync() { return { ok: true as const, mode: "fixture" as const, items: [], cursor: {} }; },
@@ -427,7 +427,7 @@ test("RAC-892 the SDK refuses connection_methods missing, empty, repeated or unk
   assert.ok(parsePluginManifest(documents({ connection_methods: ["token", "oauth", "cli"] })));
 });
 
-// W5-11 slice 3 §2.8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): until installs are trusted by
+// W5-11 slice 3 §2.8 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): until installs are trusted by
 // signature, an OAuth flow as data is the Host's build's alone. A signed sandbox package that carries one is refused before anything of
 // its install or its ids is held. Since slice 4 a bare kind is refused by the Manifest checks.
 test("RAC-1081 a signed package's data-bearing oauth method is refused at attach and at the install preview, and holds nothing", async () => {

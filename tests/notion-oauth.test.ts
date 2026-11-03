@@ -10,7 +10,7 @@ import { completeApiOAuth, connectorLoginReady, connectorProtocolSecrets, handle
   resolveApiConnection, resolveApiOAuthToken, startApiOAuth, withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
-// W5-11 slice 7 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.4 "Notion"): Notion signs in through the
+// W5-11 slice 7 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.4 "Notion"): Notion signs in through the
 // generic OAuth flow, by what its declaration says (`CATALOG_OAUTH_METHODS.notion`). The dedicated flow it replaced kept one thing a
 // provider forced on it: Notion does not take a numeric IP in a registered redirect URI, so its return address names `localhost`. That
 // is the platform's alias table now (`connector-oauth-callback-paths.ts`), and only Notion's entry has a host.

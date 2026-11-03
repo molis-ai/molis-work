@@ -4,7 +4,7 @@ import type { PluginImageGenerationClient, PluginModelClient, PluginModelConfigu
 import { SANDBOX_IMAGE_LIMITS, type SandboxEffects, type SandboxJson, type SandboxOperationContract, type SandboxPluginContract, type SandboxSdkMethod } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, assertContract, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
 
-// BL-491 (PG-017; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60): a sandboxed package reaches its model settings and the person's image
+// BL-491 (PG-017; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60): a sandboxed package reaches its model settings and the person's image
 // connections through the broker. What is asserted here is the broker's half: the declared and approved effect, a command for anything that changes or spends,
 // the address a call names being one of the operation's approved `networkDomains`, the settings a package sees and may save, and the size of an image result.
 // The Host's half (the pinned origin, the names, the clean-up) is tests/sandbox-home-model-image.test.ts.

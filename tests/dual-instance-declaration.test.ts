@@ -11,7 +11,7 @@ import { dualPlugin } from "./fixtures/dual-plugin.js";
 
 type Fixtures = NonNullable<NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"]>;
 
-// DUAL-05 and DUAL-12 (specs/dual-instance-plugins/spec.md), security invariants S-15 and the dual-instance declaration row
+// DUAL-05 and DUAL-12 (specs/archive/dual-instance-plugins/spec.md), security invariants S-15 and the dual-instance declaration row
 // (docs/system/SECURITY-INVARIANTS.md): a plugin runs as the Home's instance and as each project's only when the Host's own start list
 // says so, on its Home side. Each half then offers only its share of the one Manifest; without the mark nothing is relaxed.
 

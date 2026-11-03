@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
 import { LINT_RULES, LINT_ROOTS, biomeEntry, createLintMetrics, isOwnRepository, lintTexts, looserThan, policyOf, policyProblems } from "../scripts/gates/lint.mjs";
 
-// specs/repository-anti-corruption §4.16 (W1-09): the static checks. A minimal Biome rule set (empty catch, `as unknown as`,
+// specs/archive/repository-anti-corruption §4.16 (W1-09): the static checks. A minimal Biome rule set (empty catch, `as unknown as`,
 // floating promises, explicit `any`, console, debugger) is counted per file like the other health gates: it may only fall,
 // a new file starts at 0, and the head is compared with the merge-base so that rewriting tooling/gates/baseline.json hides
 // nothing. The definitions are in scripts/gates/lint.mjs and tooling/gates/lint/*.grit. Here

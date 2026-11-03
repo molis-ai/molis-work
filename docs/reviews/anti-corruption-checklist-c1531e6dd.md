@@ -136,7 +136,7 @@ Health-gate families (only-decrease unless noted):
 - [x] P-HOME-DATA `docs/system/HOME-DATA.md` line 6 (real Home listing did not open databases), line 7 (registry `homeStores()` exists; backup command and backup class are still absent), and line 30 (derived `search/search.db` rebuilds): open findings F-29 and F-30. Line 8 is blank.
 - [x] P-EXT `docs/system/EXTENSION-POINTS.md` lines 37–51, 238–243, 291–299: open finding F-39.
 - [x] P-MIGRATION-DOC `docs/system/RUNTIME-MIGRATION.md` line 3: open finding F-40. The status sentence still says Form and Todo migration has not started. Line 39 still lists `RUNTIME_ASSEMBLED` as 7 and line 40 lists `form` inside `BUILD_TIME_ASSEMBLED`.
-- [x] P-SPEC-RAC `specs/repository-anti-corruption/spec.md` §12.4 lines 1992 and 2004: open finding F-41. Line 1992 still says the Form sample is unmerged and the split is 8/18. Line 2004 still says W4-11 is undelivered. At this commit Form is Runtime-started and `homeStores()` exists.
+- [x] P-SPEC-RAC `specs/archive/repository-anti-corruption/spec.md` §12.4 lines 1992 and 2004: open finding F-41. Line 1992 still says the Form sample is unmerged and the split is 8/18. Line 2004 still says W4-11 is undelivered. At this commit Form is Runtime-started and `homeStores()` exists.
 - [x] P-SECURITY-DOC `docs/system/SECURITY-INVARIANTS.md` section 4 lines 67–74: open findings F-34, F-35, F-36, F-32. Line 71 matches the vendored package `e4afd1a7`.
 - [x] P-CI-SECURITY `.github/workflows/ci.yml:374` and `:412-417`: open finding F-32. `Verify` needs do not include `security-invariants`. That job sets `continue-on-error: true`.
 - [x] P-CI-HEALTH `.github/workflows/ci.yml` health job: pass for wiring. Blocking health gates use the same script this review ran.

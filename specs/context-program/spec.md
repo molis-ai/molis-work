@@ -590,7 +590,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
   - 输入框上方留一个独立槽，挂本设计的「手上 + 落点」情境条；同排推荐只占输入框那一行的右侧，窄屏时挪到输入框上方、排在情境条之下；那边动输入区的 DOM 之前先把结构发过来；
   - 复用现行 `AssistantPreparedCard` 与卡片入口；这条是历史接口协作记录，不构成保留旧形状或读取兼容的要求。旧卡片 404/405 回退已删除，不恢复；合同变更遵守现行合同规则；
   - `context-actions.ts`、底栏动作条的容器（`assistant-dock.ts:72`）与样式（`craft-finish.ts:1079–1145`）归本设计，那边不改，也不依赖底部动作条。
-- **[repository-anti-corruption](../repository-anti-corruption/spec.md)**：它在拆 `AssistantService` 等巨大单元；本设计改到同一文件前先问。
+- **[repository-anti-corruption](../archive/repository-anti-corruption/spec.md)**：它在拆 `AssistantService` 等巨大单元；本设计改到同一文件前先问。
 - **[risk-plugin](../risk-plugin/spec.md)**：「记为风险」的去处等它落地，由它声明创建入口。
 
 ### 15.7 本轮实施基准与已确认纠正（2026-10-11）
@@ -1477,7 +1477,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 全量（run 39115596523）在 `context-pick-result.e2e` 的 PICK-05 红：Esc 收起浮条，可是已经排上或在路上的判断回来后又把浮条画了出来（慢机上判断回来得晚）。不是 W3-C2 的改动造成的，是 Esc 原本的缺口：现在 Esc 和「换了手上的东西」用同一个 `bus.hush()`，把排着的计时、在路上的判断和规则的回复都作废。PICK-05 加了一步：把判断扣住，按 Esc 之后再放行，浮条不再出来（不修时这一步失败）。workbench.js 因此再加 38 字节，并进 W3-C2 的一次性放行。
 - 2026-10-18 W4-1 创建入口：记成待办、记下灵光（分支 `context/w4-1-intake-todo-lingguang`；统筹 10-18 认可，带四个条件）：
   - Todo 的 `todo.items.create` 与灵光的 `lingguang.create` 声明 `intake`（`prepare` 是各自的 `*.fragment.offers`，不经模型）；两个旧的片段动作选项连同只有它们用的代码删掉（页面上没有只给它们的文案、事件与翻译键）。灵光加 `lingguang.revert`，`create.undo` 指向它。`scripts/contextual-slice/*` 只有自己的静态样例，不调已删的选项，留着；design-system 的示例标签留着。
-  - 宿主 `POST /api/contextual/create`（`apps/local-host/src/contextual/contextual-create.ts`）：起草后按声明决定；能直接建的条件：主人声明的撤销此刻可用（与助理共用 `directEligible`），不是 `proposes`、不是 `multiple`、没有缺的字段。浮条新建是本人亲手点的，不读助理的逐项确认 `confirm_always`：在助理里设成「每次都确认」的动作，在浮条上照样直接建（统筹裁定第 2 条，`specs/repository-anti-corruption` §10.28；`contextual-todo.e2e` 第一条把 Todo 的新建设成每次确认后再建两次，都直接建）。直接建时以本人的权限调用、返回建好的对象与撤销令牌；否则返回草稿，页面出卡片。`POST /api/contextual/undo` 花掉令牌（S-40，`tests/security-invariants-contextual-undo.test.ts`：重复用、换项目、换操作者、过期、提供方换了安装或停用、页面自己写撤销，都拒）。
+  - 宿主 `POST /api/contextual/create`（`apps/local-host/src/contextual/contextual-create.ts`）：起草后按声明决定；能直接建的条件：主人声明的撤销此刻可用（与助理共用 `directEligible`），不是 `proposes`、不是 `multiple`、没有缺的字段。浮条新建是本人亲手点的，不读助理的逐项确认 `confirm_always`：在助理里设成「每次都确认」的动作，在浮条上照样直接建（统筹裁定第 2 条，`specs/archive/repository-anti-corruption` §10.28；`contextual-todo.e2e` 第一条把 Todo 的新建设成每次确认后再建两次，都直接建）。直接建时以本人的权限调用、返回建好的对象与撤销令牌；否则返回草稿，页面出卡片。`POST /api/contextual/undo` 花掉令牌（S-40，`tests/security-invariants-contextual-undo.test.ts`：重复用、换项目、换操作者、过期、提供方换了安装或停用、页面自己写撤销，都拒）。
   - 页面（`context-bus.ts` 的 `create`）：同一个选区与入口复用同一个请求号（连点两次只建一个，主人按请求号去重），在途时第二次点击不发；完成卡片用落点的卡片，「打开」走 `describe` + `openObject`，「撤销」失败时卡片说「没能撤销」。
   - 顺带修好：Goals「拆成目标步骤」的提案条目号原来固定是 `step-1` 一类，同一个项目的第二份提案被拒；改成按请求号区分（`plugins/native/goals/src/fragment-offers.ts`）。
   - 动作合同快照：Todo、灵光几个动作的 `traits` 哈希变了，输入输出 schema 不变，不升版本；新增 `lingguang.revert@1`（MCP 工具多一个）。

@@ -1,5 +1,7 @@
 # Home 级插件的库按项目分开（S0a）
 
+> 归档（2026-11-04）：判定为**已实现**。S0a 已合入 main，PART-01～12 有编号测试；`purge` 一段已被 PG-024 取代，现行写法在 `docs/platform/PLUGIN-DEVELOPMENT.md`。剩余事项已移到统一待办清单：BL-639（分区库升级）。
+
 状态：执行中：S0a 本 PR（2026-10-20）。负责人：平台线 ②。本文记设计、取舍、用户的决定和验收。依据：用户 2026-10-20 定的 Alchemist 问题 1（按项目分区的插件库），[防腐 spec](../repository-anti-corruption/spec.md) 的决策表那一行与 §10 的第 15 条（Alchemist、Images 留在 Home 级，Home 级实例要能按调用所在的项目给出库）；方案底稿是本地笔记 `alchemist-platform-plan.md` §2.1（不在仓库里）。Alchemist 改用它是迁移线 ③ 的事，不在本片。
 
 ## 1. 要解决的事
@@ -61,7 +63,7 @@ Home 级插件只有一个实例，`services.database` 给它整个 Home 一个�
 - 宿主：`plugin-database-partitions.ts`（新文件：按项目取库、闲置关、删项目）；`plugin-database.ts` 接项目与关闭原因；`home-plugin-executor.ts`、`home-plugins.ts`、`plugin-project-cleanup.ts`（运行中实例的删除顺序）、`project-deleted-owners.ts`（宿主没开时：分区库先 `purge` 再删目录；别的主人没有 `purge` 时，建删除名单那一刻就报错）、`plugin-database-entries.ts`、`home-stores.ts` 接线与检查。不碰 `project-plugins.ts`、`builtin-plugins.ts`。
 - 测试夹具 `tests/fixtures/partition-probe.ts`：照生产路径往构建的目录里加一个分区探针条目。
 
-## 5. 安全不变量（[SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md)）
+## 5. 安全不变量（[SECURITY-INVARIANTS](../../../docs/system/SECURITY-INVARIANTS.md)）
 
 不新开边界：声明与授权仍是 S-15，取消、撤权、停用后不写仍是 S-18，项目只来自宿主核过的路由仍是 S-31。两条新的拒绝挂在已有的行下：S-31 补「不在项目里的调用用不了分区库，一个项目的调用碰不到另一个项目的库」（PART-04、PART-05）；S-18 补「删除开始前的调用不再读写、也不重建那个项目的库」（PART-10）。
 

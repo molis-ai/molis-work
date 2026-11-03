@@ -1,5 +1,5 @@
 /**
- * Installing a plugin from a signed sandbox package (ac-trust T2, specs/repository-anti-corruption/slices/ac-trust-install.md §3.1). One path
+ * Installing a plugin from a signed sandbox package (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.1). One path
  * for every package: a preview that checks it and tells the person what installing means, then a confirmation that pins the publisher
  * (when the person says so), keeps the package and installs it under the trust that pin gives. Nothing is written before the package has
  * been verified and read: a package that is unsigned, signed by a key its Manifest does not name, altered, from a revoked publisher, or not in

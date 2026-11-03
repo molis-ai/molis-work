@@ -2,7 +2,7 @@ import { PROJECT_ROOT_REFERENCE, pluginProjectDatabaseErrors, type PluginProject
 import type { PluginRuntimeDatabase } from "./repository.js";
 
 // Every statement a plugin runs in a project's library, checked against what the ledger says is its own (PLIB-06,
-// specs/plugin-project-database §2.4). The Host's SQLite library has no authorizer, so the check reads the statement's program:
+// specs/archive/plugin-project-database §2.4). The Host's SQLite library has no authorizer, so the check reads the statement's program:
 // `EXPLAIN` lists every step SQLite will take, foreign-key and cascade sub-programs included, and a statement is refused for a
 // step outside the list below, a b-tree that is not the plugin's own (beside the project's root row, which it may read), a
 // database other than the library itself, a write step in a read, or a virtual table other than the two JSON functions.
@@ -12,7 +12,7 @@ import type { PluginRuntimeDatabase } from "./repository.js";
 //
 // A statement also runs on the Host's own thread, and neither SQLite driver the Host has can interrupt one that is running, so a
 // recursive query (a CTE that reads itself, with or without the `RECURSIVE` keyword) is refused: nothing bounds how long it goes
-// on (specs/repository-anti-corruption/slices/sandbox-project-database-limits.md). `EXPLAIN QUERY PLAN` names it; a step list does not.
+// on (specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md). `EXPLAIN QUERY PLAN` names it; a step list does not.
 
 /** The SQLite the step list was read against. A Host on another version refuses every statement until the list is read again. */
 export const PLUGIN_STATEMENT_SQLITE_VERSION = "3.51.3";

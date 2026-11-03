@@ -11,7 +11,7 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandb
 import { SECOND_PLUGIN_ID, mac, operate, operationsOf, person, ref } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// BL-714 (PG-011, S-66, S-91; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §2): a package installed in the Home
+// BL-714 (PG-011, S-66, S-91; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §2): a package installed in the Home
 // reaches the model through the `model.generate` capability its `prompts.json` is for. The registry holds one entry per id, so the Home's
 // instance is registered as `model.generate.home` under the Home's own provider and the Home's catalog shows it to the package under the
 // name the package calls. It answers only the Home's own installations, with the instructions the package registered, and nothing is

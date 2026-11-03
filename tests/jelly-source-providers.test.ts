@@ -138,7 +138,7 @@ test("the reader's address policy refuses every address of the shared table that
   for (const address of ADDRESSES_PUBLIC) assert.equal(isMaterialPublicAddress(address), true, address);
 });
 
-// BL-492 (specs/repository-anti-corruption/slices/pg017-sandbox-services.md §3.4): the material reader can be held to a list of exact host
+// BL-492 (specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md §3.4): the material reader can be held to a list of exact host
 // names, so a caller that approved a few domains (a sandboxed plugin, over its broker) gets no page, redirect, API or media file from another
 // host. The list is checked before a host is looked up or contacted, on every request the reader makes.
 const refusal = (expected: string) => (error: unknown) => (error as { code?: string } | undefined)?.code === expected;

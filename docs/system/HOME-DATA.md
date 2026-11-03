@@ -1,18 +1,18 @@
 # Home 数据：库与文件的 owner 表
 
-一个 Home（默认 `~/.molis-work`，用 `MOLIS_WORK_HOME` 或入口的 `--home` 改写，解析在 `packages/storage/src/adapters/local-security-paths.ts:19`）下，每个库、每类文件归谁、怎样记版本、要不要备份、`uninstall --purge-user-data` 清不清。这是反腐败计划交付第 11 项（路线图 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` §4.11，进度见 `specs/repository-anti-corruption/spec.md`）。
+一个 Home（默认 `~/.molis-work`，用 `MOLIS_WORK_HOME` 或入口的 `--home` 改写，解析在 `packages/storage/src/adapters/local-security-paths.ts:19`）下，每个库、每类文件归谁、怎样记版本、要不要备份、`uninstall --purge-user-data` 清不清。这是反腐败计划交付第 11 项（路线图 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md` §4.11，进度见 `specs/archive/repository-anti-corruption/spec.md`）。
 
 - 基线是 origin/main `15c20920`（2026-10-07）。每一行都由代码推出，并写出打开它的代码位置；代码改了，对应行跟着改，行号会漂移。
 - 第 10 节的真实 Home 清单只用 `ls`、`stat`、`find`、`du` 看了名字、大小和日期，没有打开任何库或数据文件，也没有读任何密钥文件。所以真实库当前盖的是哪个版本，没有核对。只有一处例外，是为了回答旧启动脚本还有没有人在用：读了启动脚本 `bin/goalboard-mcp` 本身（约 1 KB，不含密钥），用 `grep -o` 只取出 Runtime 配置里含 `molis-work` 或 `goalboard` 的路径，用 `ps` 看了在跑的进程的命令行。
-- Home 存储的统一登记已有（W4-11，2026-10-15）：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里每个有数据的条目和它的 owner，库另带基线；各 owner 在打开它的代码旁声明（插件经目录条目的 `home_store` 带进来，类型在 `contracts/platform/plugin` 的 `HomeStoreDeclaration`），卸载清除、插件库的发放和基线用例都读它（见第 9 节）。W5-16 的离线 snapshot 由同一登记提供 owner、库基线、排除项、密封策略和原 key 依赖；带 Home 的枚举还经 installed-library owner 纳入实际动态库。CLI 不另列存储名单。恢复命令仍在后续实施，本表给出更细的子路径与恢复边界。
+- Home 存储的统一登记已有（W4-11，2026-10-15）：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里每个有数据的条目和它的 owner，库另带基线；各 owner 在打开它的代码旁声明（插件经目录条目的 `home_store` 带进来，类型在 `contracts/platform/plugin` 的 `HomeStoreDeclaration`），卸载清除、插件库的发放和基线用例都读它（见第 9 节）。W5-16 的离线 snapshot 由同一登记提供 owner、库基线、排除项、密封策略和原 key 依赖；带 Home 的枚举还经 installed-library owner 纳入实际动态库。CLI 不另列存储名单。恢复命令 `home restore` 由同一登记、同一 lease 编排（用法见 [CLI 与开发](../cli-and-development.md#home-离线快照)），本表给出更细的子路径与恢复边界。
 
-2026-10-30统一起点：用户决定旧Home整体搬开、以现行完整结构干净重建，现行库/存储 JSON 合为第1版；旧迁移/采用/搬迁、演练、旧结构、按版本分支与残留清理计划取消。不迁移、不猜偏好、不在启动时改表；每个库只保留当前建库结构，错版明确拒绝，可从权威数据重建的派生库按既有合同重建。[当前分片与授权边界](../../specs/repository-anti-corruption/slices/home-maintenance-window.md)，真实操作步骤只归 [CHECKLIST.md 第4节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)。各片落地前本表逐步对齐实际代码；项目主库和Feed声明已归1。旧Home等用户另说“开始”才整体搬开，不删Keychain或只读副本；真实Home尚未重建，不把代码版本当实测版本。
+2026-10-30统一起点：用户决定旧Home整体搬开、以现行完整结构干净重建，现行库/存储 JSON 合为第1版；旧迁移/采用/搬迁、演练、旧结构、按版本分支与残留清理计划取消。不迁移、不猜偏好、不在启动时改表；每个库只保留当前建库结构，错版明确拒绝，可从权威数据重建的派生库按既有合同重建。[当前分片与授权边界](../../specs/archive/repository-anti-corruption/slices/home-maintenance-window.md)，真实操作步骤只归 [CHECKLIST.md 第4节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)。各片落地前本表逐步对齐实际代码；项目主库和Feed声明已归1。旧Home等用户另说“开始”才整体搬开，不删Keychain或只读副本；真实Home尚未重建，不把代码版本当实测版本。
 
 版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝；原有明确的结构、路径、权限与密钥检查仍保留。这里只引用既有记录，没有重新读取真实Home。
 
 ## 1. 怎么读
 
-W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。离线 snapshot 复用该 owner；完整 restore 命令仍待实施。
+W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。离线 snapshot 与 restore 复用该 owner。
 
 路径从仓库根写起；`installer/X` 指 `apps/local-host/src/installer/X`；一行里以 `src/` 开头的文件，相对这一行前面写出的包目录；`:N` 紧跟在上一个文件后，指同一个文件的第 N 行。Prologue SDK 的文件写作 `node_modules/@prologue/sdk/<路径>`：包本体是 `vendor/prologue-sdk/` 里的 .tgz，里面的文件在 `vendor/` 下找不到；`pnpm install` 后解在 `horizontal/agent-host/node_modules/@prologue/sdk/`（只有 agent-host 依赖它）。
 
@@ -74,7 +74,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 
 路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts`），目录权限 0700、文件 0600。备份都是必备份，卸载都是 purge（每个库都登记在 `homeStores()`，由它的 owner 声明：插件的 `<插件>_HOME_STORE`，经插件自己 `registration` 的 `home_store` 带进登记（目录由 `registration` 生成）；插件的库是它 Manifest 的 `databases.home`，登记从 Manifest 推出）。项目里或 Home 里的 Runtime 插件在 Manifest 里声明的库（`databases.home`，PG-022；W3-06 D），必须是登记里**这个插件自己**的库、基线与声明相同（`apps/local-host/src/plugin-database-entries.ts`）：宿主、模块或别的插件的库，以及登记里不是库的条目，都拒绝；测试夹具的库按夹具自己的 id 登记，不能占用已登记的名字（`apps/local-host/src/home-side.ts`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
 
-**按项目分开的库**（[specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)，2026-10-20）：Home 级插件在 Manifest 的 `databases.home` 写 `partition: "project"`、登记的 `library.partition` 也是 `"project"` 时，没有 `{home}/<名>/<名>.db`，每个项目一个 `{home}/<名>/projects/<项目>/<名>.db`。`<项目>` 是项目 id 经 `encodeURIComponent`、点换成 `%2E` 的一个目录名，路径由 `homeSqlitePartitionDirectory` 给出（`packages/storage/src/home-sqlite.ts`），目录 0700、文件 0600、WAL。宿主按调用所在的项目打开（`apps/local-host/src/plugin-database-partitions.ts`），闲置 10 到 20 分钟关掉；删项目时删掉这个项目的整个目录，卸载 purge 时随 `<名>/` 一起删。现在还没有插件用它（Alchemist 改用是迁移线的事）。
+**按项目分开的库**（规则见 [PLUGIN-DEVELOPMENT 个人 Home Runtime 与插件 SQLite](../platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)，用户 2026-10-20 定）：Home 级插件在 Manifest 的 `databases.home` 写 `partition: "project"`、登记的 `library.partition` 也是 `"project"` 时，没有 `{home}/<名>/<名>.db`，每个项目一个 `{home}/<名>/projects/<项目>/<名>.db`。`<项目>` 是项目 id 经 `encodeURIComponent`、点换成 `%2E` 的一个目录名，路径由 `homeSqlitePartitionDirectory` 给出（`packages/storage/src/home-sqlite.ts`），目录 0700、文件 0600、WAL。宿主按调用所在的项目打开（`apps/local-host/src/plugin-database-partitions.ts`），闲置 10 到 20 分钟关掉；删项目时删掉这个项目的整个目录，卸载 purge 时随 `<名>/` 一起删。现在还没有插件用它（Alchemist 改用是迁移线的事）。
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |
@@ -109,9 +109,9 @@ Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当�
 
 原IM邀请离线转换、原件暂存和发布标记路线已于2026-10-30取消，工具与演练删除。现行库保留令牌哈希、当前安全邀请回执；旧Home整个搬开后新建，不把旧库或暂存副本带入当前Home。
 
-实验插件的私有库 `plugins/experiments/private.sqlite` 随插件在 2026-10-10 删除（`specs/repository-anti-corruption/spec.md` §1）；已有 Home 里的 `plugins/experiments/` 由维护六移出（`docs/releases/CHECKLIST.md` 第 4 节）。
+实验插件的私有库 `plugins/experiments/private.sqlite` 随插件在 2026-10-10 删除（`specs/archive/repository-anti-corruption/spec.md` §1）；已有 Home 里的 `plugins/experiments/` 由维护六移出（`docs/releases/CHECKLIST.md` 第 4 节）。
 
-工作室库的表（36 张）：`workspaces`、`workspace_actors`、`directions`、`exploration_runs`、`ideas`、`idea_cards`、`idea_versions`、`jobs`、`job_events`、`ui_context`、`activity_events`、`mvp_scope_versions`、`research_plans`、`lens_runs`、`evidence`、`lens_reports`、`claims`、`claim_evidence`、`decisions`、`source_settings`、`pulse_runs`、`source_fetches`、`supply_signals`、`pulse_reports`、`pulse_report_signals`、`opportunities`、`opportunity_signals`、`annotations`、`action_proposals`、`taste_rules`、`research_playbook_rules`、`memory_rule_applications`、`conversation_messages`、`runtime_settings`、`research_playbook_revisions`、`work_reuse_receipts`。其中 `conversation_messages`、`runtime_settings` 在 `src/studio/server/db/schema.ts:412`、`:424` 用带引号的标识符建表，按 `CREATE TABLE [a-z_]+` 扫描会漏掉它们。工作室库的 `workspaces` 与目录库的同名表、`jobs` 与 Images 的同名表是互不相干的表；炼金术士的表名（`workspaces`、`jobs`、`evidence`、`claims`）与平台库重名，因为每个项目一个独立的 `studio.sqlite`，不会冲突，`specs/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改。
+工作室库的表（36 张）：`workspaces`、`workspace_actors`、`directions`、`exploration_runs`、`ideas`、`idea_cards`、`idea_versions`、`jobs`、`job_events`、`ui_context`、`activity_events`、`mvp_scope_versions`、`research_plans`、`lens_runs`、`evidence`、`lens_reports`、`claims`、`claim_evidence`、`decisions`、`source_settings`、`pulse_runs`、`source_fetches`、`supply_signals`、`pulse_reports`、`pulse_report_signals`、`opportunities`、`opportunity_signals`、`annotations`、`action_proposals`、`taste_rules`、`research_playbook_rules`、`memory_rule_applications`、`conversation_messages`、`runtime_settings`、`research_playbook_revisions`、`work_reuse_receipts`。其中 `conversation_messages`、`runtime_settings` 在 `src/studio/server/db/schema.ts:412`、`:424` 用带引号的标识符建表，按 `CREATE TABLE [a-z_]+` 扫描会漏掉它们。工作室库的 `workspaces` 与目录库的同名表、`jobs` 与 Images 的同名表是互不相干的表；炼金术士的表名（`workspaces`、`jobs`、`evidence`、`claims`）与平台库重名，因为每个项目一个独立的 `studio.sqlite`，不会冲突，`specs/archive/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改。
 
 server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_projects`、`mw_access`、`mw_codes`、`mw_commands`、`mw_events`（`server/src/database.ts`），以及 IM 的 `im_rooms`、`im_members`、`im_threads`、`im_messages`、`im_thread_context`、`im_receipts`、`im_read_positions`（`server/src/im/schema.ts`）。
 
@@ -156,7 +156,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 宿主自己按需建的表也不在基线里：`project_runtime_settings(project_id, runtime_id)`（`apps/local-host/src/project-runtime-settings.ts`）记项目选定的 Agent 运行时，第一次选择时才建表，没有行就是 Home 默认；读取不建表，删除项目时随项目库文件一起走。只有 `apps/local-host` 读写这张表，Coding 与 Characters 经 `projects.settings.runtime.read.v1` 取。
 
-插件自己的表不在基线里（`specs/plugin-project-database`）：插件在 Manifest 的 `databases.project` 声明，宿主开库时经平台的打开函数第一次建表、在 `plugin_project_databases` 记一行，之后每次打开核对发布者、版本和形状，不符只停这个插件（`apps/local-host/src/project-plugin-databases.ts`）。现在声明了的：
+插件自己的表不在基线里（规则见 [PLUGIN-DEVELOPMENT 项目库里插件自己的表](../platform/PLUGIN-DEVELOPMENT.md#项目库里插件自己的表)）：插件在 Manifest 的 `databases.project` 声明，宿主开库时经平台的打开函数第一次建表、在账本 `plugin_project_databases` 记一行（列与拒绝码见上面链接），之后每次打开核对发布者、版本和形状，不符只停这个插件（`apps/local-host/src/project-plugin-databases.ts`）。现在声明了的：
 
 | 插件 | 库名 | 表 |
 | --- | --- | --- |
@@ -180,7 +180,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 规则：一张表只由建它的包读写，别的包要读写就走那个包导出的函数。门禁是 `scripts/gates/table-owners.mjs`（`pnpm health:check` 里跑，没有基线，出现一处就失败）；它从各包 TypeScript 源码的 SQL 字符串里找 `CREATE TABLE` 定出每张表的 owner 包，再找别的包里对这张表的 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE`。读不到的写在门禁文件开头：表名不是字面量的（`FROM ${table}`，Artifacts 的 Repository 从选项取表名、助理清理项目时遍历一个表名数组）、拼接出来的 SQL、非 TypeScript 文件里的 SQL。
 
 - `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），不属于任何模块或插件自己的声明。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。Goals 插件包里的 Goal 与 Governance 存储模块（原 `modules/goals`、`modules/governance-collaboration`）只依赖 `packages/contracts`、没法 import storage，现在由宿主在装配时注入一个日志端口（`GoalsJournal`、`GovernanceJournal`，结构上就是 storage 的那四个函数；Artifacts 用函数注入，做法同类），两个模块里不再有指向这两张表的语句（PG-094 S9-1，`tests/goals-storage-plugin-legal-sql.test.ts`），`tooling/gates/table-owners.json` 里这两条 `shared` 登记已删。
-- 一个包新加一句 `CREATE TABLE <别的包已建的表>` 不会让它成为这张表的 owner：同一张表被不止一个包建，必须登记在 `same_name`（表名、建它的包、理由），门禁两头核对。现有两项：`workspaces`（`modules/projects` 的目录库、炼金术士每项目一个的 `studio.sqlite`）和 `jobs`（炼金术士的 `studio.sqlite`、Images 的 `images.db`），都是不同库里互不相干的表（`specs/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改名）。
+- 一个包新加一句 `CREATE TABLE <别的包已建的表>` 不会让它成为这张表的 owner：同一张表被不止一个包建，必须登记在 `same_name`（表名、建它的包、理由），门禁两头核对。现有两项：`workspaces`（`modules/projects` 的目录库、炼金术士每项目一个的 `studio.sqlite`）和 `jobs`（炼金术士的 `studio.sqlite`、Images 的 `images.db`），都是不同库里互不相干的表（`specs/archive/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改名）。
 - 原先 4 处跨 owner 直接 SQL 已去掉，门禁另量到 2 处，一并改了。都改成 owner 导出的函数：
   - `apps/local-host/src/coding-background-tasks.ts` 读 Coding 的 `coding_sessions`：当时改成 Coding 导出 `listCodingBackgroundSessions`，宿主的路由把它传给跨项目列表。2026-10-21（C4，PG-043）再改：这个文件和导出都删了，Coding 把列表声明成自己的查询 `coding.home.background-tasks@1`（`home_aggregate`，`plugins/native/coding/src/home-background.ts`），宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问这类查询（`apps/local-host/src/home-aggregate.ts`，S-49），不再打开任何项目库、也不认识 Coding。
   - `apps/local-host/src/demo-seed.ts` 更新 Goals 的 `boards`：改用 `setActiveGoal`，所以演示项目的日志里多一条 `board.active_goal_changed`（与用户在界面上设当前目标是同一条路径）。
@@ -262,7 +262,7 @@ MCP授权当前完整格式起点为1，保留owner代次、精确动作引用�
 
 受管工具的维护边界：`runtime/connectors/installs/<id>/installation.json` 记录安装 id、固定来源和版本、命令路径、运行时路径及完成状态，npm 的锁文件与 Python 的 `requirements.lock` 记录依赖。它们与 `connectors/connectors.db` 中的 `installation_id` 引用应在停止宿主后一起备份；平台管理的连接凭据归现有 SecretStore，而第三方 CLI 写在私有 `.home` 的文件也可能含凭据，不能按普通程序文件复制。W5-16 B2b 的 `captureConnectorPrivateState` 使用同一平台 master 在内存中密封这些必要文件，不改第三方格式、不导出 master；原 `.home` 丢失且原 key 尚在时，`preflightConnectorPrivateStateRestore` 可在核对当前完整安装集合后给出原字节/目录与文件权限的完整内存计划；它不写目标，最终发布由统一恢复命令接续。第三方会话本身过期仍需重新授权。受管接入在 `startConnectorSetupSubmission` → `beginConnectorAuthorization` → `bindConnectorAuthorizationProtocol` 已初始化 master；完成清除 presentation 后即便 vault 条目为空，正常 SecretStore 重开仍绑定持久 backend，CLI payload 的原 backend/key 依赖单独保留和校验，不能按新偏好切换或补造替代 key。路径是本机绝对路径，直接恢复限原 Home 路径；换机器或路径应重新准备、安装和验证连接，不能只复制清单并改成完成。`runtimes/` 是多个安装可共享的运行时，`cache/` 是可重建缓存；停止安装及连接进程后才做缓存清理。连接移除经安装器重新核对引用、真实路径与所有权记录，只删除已无连接引用的那一份 `installs/<id>`，保留共享运行时和业务工作目录。当前不提供自动清除孤立安装或共享运行时的维护任务；维护真实 Home 仍须随发布取得授权，不由本 PR 提前操作。
 
-`config/casebook.json`（从前由 Casebook 通道读取）自 2026-10-10 起不再被任何代码读取；Home 里留着的这个文件是残留，含服务端凭据，按密钥对待，处置见 `specs/repository-anti-corruption/spec.md` §4.1 的维护六。
+`config/casebook.json`（从前由 Casebook 通道读取）自 2026-10-10 起不再被任何代码读取；Home 里留着的这个文件是残留，含服务端凭据，按密钥对待，处置见 `specs/archive/repository-anti-corruption/spec.md` §4.1 的维护六。
 
 B2b 的 owner 接口目前在内存中生成完整结果：所有安装合计最多 32 MiB 原始文件字节、10,000 个安装/目录/文件节点和 128 MiB 密封字符串字节，等于上限允许。安装和存在的 `.home` 根目录也计节点；恢复目标另有全批 10,000 节点扫描上限，不读取其文件内容、不重复计算源计划。超限以 `connector.private_state.limit_exceeded` 整次拒绝，不生成可用快照或部分恢复计划，也不跳过未知 `.cache`、截断文件。32 MiB 不是峰值内存；这些边界不代表已验证正常真实 Home 的覆盖，也不提供流式归档或自动清理。
 
@@ -286,7 +286,7 @@ B2b 的 owner 接口目前在内存中生成完整结果：所有安装合计最
 
 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]` 的实施使用同一 Home lease，在业务初始化前取得所有权，从唯一 `homeStores()` 捕获实际 SQLite 库、分区与必要非 SQLite 文件。SQLite 使用 backup API，包含已提交 WAL，不直接拷贝 `.db` 或侧车。用法、失败清理和原路径约束见 [CLI 与开发](../cli-and-development.md#home-离线快照)。`tests/home-backup-recovery.test.ts` 的旧局部恢复用例不能证明全部 owner 覆盖。
 
-W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key`；下表描述依赖配对，快照只保存非敏感 key 引用。B2a 的 vault/Runtime 与 B2b 的 CLI 私有状态预检沿原 owner 认证，A 早期互斥已接入本实现。SDK 原 key 与密文的零源写认证端口尚未闭合，不能把文件摘要称为可恢复证明；完整 restore、统一发布/回滚与重启续写仍待实施。逐项现行登记、认证缺口与工程证据见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key`；下表描述依赖配对，快照只保存非敏感 key 引用。B2a 的 vault/Runtime 与 B2b 的 CLI 私有状态预检沿原 owner 认证，A 早期互斥已接入本实现。SDK 密文经 agent-host 的原 SDK reader 用原 key 认证，不能把文件摘要称为可恢复证明；`home restore` 的预检、发布、回滚与续写见 [CLI 与开发](../cli-and-development.md#home-离线快照)。逐项登记以 `homeStores()` 为准，不另列静态名单。
 
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |
@@ -312,7 +312,7 @@ W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key
 | 应用数据目录下的 `directory-access/bookmarks.json` | 没设 `MOLIS_WORK_HOME` 时的目录授权书签 | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125` |
 | 用户授权的工作区目录 | 项目绑定的外部目录，不归 Molis Work 备份 | `docs/installation.md` 离线备份一节 |
 | 插件开发状态目录（调用时给定的 `state_directory`） | 标记文件 `.molis-work-plugin-development.json` 加 `development.db` | `apps/local-host/src/local-plugin-development.ts:10-20` |
-| macOS Keychain（其他系统是各自的系统凭据库），服务 `lark-mcp`，账户 `encryption-key` | 飞书/Lark MCP 连接器的包（`@larksuiteoapi/lark-mcp`）给自己的令牌存储文件加密用的 AES 密钥。**只在 `keytar` 已构建时才有，即 npm 归档路径**：装好后连接器每启动一次子进程就读这一项，没有就生成一个写进去，与是否保存登录无关。仓库检出、Home release、桌面安装包里 `keytar` 不构建，加载失败被包自己接住，不碰钥匙串。不受 `MOLIS_WORK_HOME` 约束，不联网，卸载不删。用户 2026-10-10 决定接受（`specs/repository-anti-corruption/spec.md` §1，说明在 `docs/installation.md`「npm 路径上的飞书/Lark 连接器」） | 读写在 `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:74-78`，名字在 `dist/auth/config.js:6-7`；Molis Work 一侧只是用 `apps/local-host/src/lark-mcp-launch.ts` 起这个子进程 |
+| macOS Keychain（其他系统是各自的系统凭据库），服务 `lark-mcp`，账户 `encryption-key` | 飞书/Lark MCP 连接器的包（`@larksuiteoapi/lark-mcp`）给自己的令牌存储文件加密用的 AES 密钥。**只在 `keytar` 已构建时才有，即 npm 归档路径**：装好后连接器每启动一次子进程就读这一项，没有就生成一个写进去，与是否保存登录无关。仓库检出、Home release、桌面安装包里 `keytar` 不构建，加载失败被包自己接住，不碰钥匙串。不受 `MOLIS_WORK_HOME` 约束，不联网，卸载不删。用户 2026-10-10 决定接受（`specs/archive/repository-anti-corruption/spec.md` §1，说明在 `docs/installation.md`「npm 路径上的飞书/Lark 连接器」） | 读写在 `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:74-78`，名字在 `dist/auth/config.js:6-7`；Molis Work 一侧只是用 `apps/local-host/src/lark-mcp-launch.ts` 起这个子进程 |
 | `~/Library/Application Support/lark-mcp-nodejs/`（其他系统是 `env-paths` 的用户数据目录） | 同一个包的数据目录。**同样只在 `keytar` 已构建时才建**（`keytar` 读写成功之后）。令牌存储文件 `storage.json` 只有该包自己的登录或保存令牌流程才会写，Molis Work 用环境变量传令牌，不触发，所以通常只有一个空目录。不受 `MOLIS_WORK_HOME` 约束，卸载不删 | `node_modules/@larksuiteoapi/lark-mcp/dist/auth/utils/storage-manager.js:87-91`，路径常量 `dist/utils/constants.js:10`、`dist/auth/config.js:8` |
 | `~/Library/Logs/lark-mcp-nodejs/`（其他系统是 `env-paths` 的用户日志目录） | 同一个包的日志目录，`lark-mcp-<日期>.log` 追加告警和错误，包自己只留最近 7 天的文件。**不限于 npm 路径、与 `keytar` 无关**：包一加载就建这个目录，仓库检出、Home release、桌面安装包和 npm 归档都一样；连接器子进程的环境里有 `HOME`，写的是用户真实的目录。不属于用户 2026-10-10 决定的那两件事，作为事实记在这里和 `docs/installation.md` 同一小节末尾。不受 `MOLIS_WORK_HOME` 约束，卸载不删 | `node_modules/@larksuiteoapi/lark-mcp/dist/utils/logger.js:21-25`（建目录）、`:26-49`（清 7 天前的）、`:97`（导入时就实例化），路径常量 `dist/utils/constants.js:10` |
 | 用户其他 Agent 的目录：`~/.claude`、`~/.codex`、`~/.cursor`、`~/.grok`、`~/.config` | 角色导入只读扫描，不写 | `apps/local-host/src/character-import-discovery.ts:86-100` |
@@ -363,7 +363,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 
 - Home 存储已有单一登记（W4-11）。登记只认 owner 声明的条目，没有门禁去找代码里**没登记**就写进 Home 的新目录；这一点仍靠评审、本表和上面几条用例（讨论挂载那条用例的写法可以照搬到别的入口）。
 - 共享日志表 `events`、`idempotency_records` 的跨 owner 语句已清零：Goals 与 Governance 两个模块改用宿主注入的日志端口（PG-094 S9-1），`shared` 两条登记已删。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。
-- 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
+- 备份与恢复是离线命令 `home snapshot` / `home restore`（第 7 节）；在线时没有同一时点的保证，须先停掉该 Home 的全部写入者。
 - W5-17 真实维护前的只读清单还须按各项目与 Home 的 Runtime 库分别列出违反 S-75 的安装：宿主保留 ID 或点分段嵌套、unsigned 同/异标签嵌套、不同 pinned key 嵌套及签名与信任不符；输出安装编号、插件号、信任等级与拒绝码，不输出私有数据或密钥。本片只记录后继检查要求，不扫描或改写真实 Home；正常启动重验拒绝并记诊断，既存记录的处置仍需维护窗口授权。
 - 旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。
 - purge 的用例读登记（W4-11），`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 也在遍历用例里写入再断言被删。`tests/uninstall.test.ts` 仍有一份写死的目录，只是它自己的场景，不再是清单。

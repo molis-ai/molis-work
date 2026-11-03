@@ -36,7 +36,7 @@ ActionService.registerProvider 注册同一提供方的合同、处理器与消�
 
 为什么在这里：决定 N-03 选了「平台产品服务」这一类，代码位置不变。内核的核心（上面表格里除 `contextual.ts` 以外的文件）保留目录、分发、可用性、授权与场景兼容。宿主那一半在 `apps/local-host/src/contextual/`，负责 I/O：目录缓存、模型调用、记忆召回、取消、计时与凭据。
 
-它只给工作台自己的选区条用，没有登记成系统动作：HTTP 在 `apps/local-host/src/contextual/contextual-http.ts` 的 `/api/contextual/*`，准备输入与上报信号都经调用者自己的动作，判断只排序、不执行。这是 2026-10-10 的日常取舍，删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作（[spec 决策记录](../../specs/repository-anti-corruption/spec.md)）。
+它只给工作台自己的选区条用，没有登记成系统动作：HTTP 在 `apps/local-host/src/contextual/contextual-http.ts` 的 `/api/contextual/*`，准备输入与上报信号都经调用者自己的动作，判断只排序、不执行。这是 2026-10-10 的日常取舍，删除条件：助理、工作流、MCP 或插件要用情境推荐时，把它做成只读的系统动作，HTTP 改为调这个动作（[spec 决策记录](../../specs/archive/repository-anti-corruption/spec.md)）。
 
 用的人从子入口取：`import { planContextualLayout } from "@molis-ai/molis-work-kernel/contextual"`；根入口不再转出它，所以只用核心的人加载不到它。边界由 `pnpm health:check` 的规则 K1–K5 守着（`scripts/gates/kernel-contextual.mjs`，见 [门禁说明](../../scripts/gates/README.md)）：核心不依赖情境排序；只有情境排序读合同的 `services/contextual`；它只读 `platform/actions`、`services/contextual`、`node:crypto` 与内核自己的文件；它无副作用、无模块级可变状态；从目录派生候选的代码不点名任何能力 id 或插件。
 

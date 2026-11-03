@@ -17,7 +17,7 @@ import { connectionsProbe, grantConnections } from "./fixtures/connections-runti
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 
-// W5-11 slice 5 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6, §10 Q3): an OAuth connection of the
+// W5-11 slice 5 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.6, §10 Q3): an OAuth connection of the
 // generic flow is bound to the plugin that declared its service when it was authorized, and its tokens are refreshed once at a time for
 // all the calls waiting on them. What these assert is the refusal and what is not written:
 // - RAC-1085: a sent refresh is not aborted when its callers leave. Its answer is written only after the last check (the declaring

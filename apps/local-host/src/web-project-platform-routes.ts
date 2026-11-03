@@ -42,7 +42,7 @@ import { assistantPortsFor } from "./web-catalog-index-routes.js";
 import { contextualPorts, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
 import type { WebRoute } from "./web-route-table.js";
 
-// The project's own platform routes (specs/repository-anti-corruption W5-07). None names a plugin package; the plugin
+// The project's own platform routes (specs/archive/repository-anti-corruption W5-07). None names a plugin package; the plugin
 // surfaces' entries, and the order of the whole table, are in web-request.ts.
 
 export const pluginPageRoute: WebRoute<ProjectRequestContext> = { id: "plugin-page",

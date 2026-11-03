@@ -1,4 +1,4 @@
-// W6-02 (specs/repository-anti-corruption/roadmap-2026-10-07.md §4.10; RAC-1030–RAC-1034): the lifecycle the probe walks
+// W6-02 (specs/archive/repository-anti-corruption/roadmap-2026-10-07.md §4.10; RAC-1030–RAC-1034): the lifecycle the probe walks
 // (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Todo and Jelly on the Home
 // supervisor, Pages and 灵光 on each project's. The walk itself is tests/fixtures/shipped-lifecycle.ts (the other plugins' files
 // use it too: tests/shipped-plugin-lifecycle-*.test.ts); this file keeps the four producers it was written for and RAC-1034.

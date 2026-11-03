@@ -647,7 +647,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
 }
 
 /**
- * What a page asks of the Host over HTTP (specs/repository-anti-corruption W3-10). Every request goes out with
+ * What a page asks of the Host over HTTP (specs/archive/repository-anti-corruption W3-10). Every request goes out with
  * `cache: "no-store"` and none is ever sent twice by the helper: whether to ask again is the person's decision.
  */
 export interface UiRequestInit {

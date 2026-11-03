@@ -1,4 +1,4 @@
-// The parallel run of scripts/run-tests.mjs (specs/repository-anti-corruption W5-12, scripts/run-tests/pool.mjs): several files at once,
+// The parallel run of scripts/run-tests.mjs (specs/archive/repository-anti-corruption W5-12, scripts/run-tests/pool.mjs): several files at once,
 // each in its own process with its own MOLIS_WORK_HOME, browser files capped on their own, the longest first, a failing file shown
 // and the run red.
 import assert from "node:assert/strict";

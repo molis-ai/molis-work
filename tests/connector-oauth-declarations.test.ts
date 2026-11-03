@@ -25,7 +25,7 @@ import { catalogOAuthMethod, catalogWhoami } from "@molis-ai/molis-work-integrat
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 
-// W5-11 slice 1 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): the `oauth` method a plugin declares as
+// W5-11 slice 1 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): the `oauth` method a plugin declares as
 // data, the SDK's shape check (any problem fails the whole Manifest) and the Host's one interpreter as pure functions. Nothing here sends
 // a request. The identity data is §2.1.1's, and so are the accounts it must read: the catalog's own `readIdentity` on the same responses
 // only corroborates them, and each place it is meant to differ says why.

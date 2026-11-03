@@ -12,7 +12,7 @@ import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// PG-002 (specs/repository-anti-corruption/slices/pg002-plugin-permission-settings.md): the person's switch for one optional permission,
+// PG-002 (specs/archive/repository-anti-corruption/slices/pg002-plugin-permission-settings.md): the person's switch for one optional permission,
 // `PluginRuntime.regrant`. The grants change only while no activation holds the old ones, so a running plugin is stopped, given the new
 // grants and started again as one step; taking a permission away withdraws the live activation's authority at once and the new grants
 // are saved before anything is stopped. These tests drive the Runtime itself and, for the in-flight call, a real platform.

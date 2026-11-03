@@ -10,7 +10,7 @@ import { createEvidenceContentStore, runWithMolisWorkHome } from "@molis-ai/moli
 import { openTestHome } from "./fixtures/test-home.js";
 
 /**
- * BL-368, DUAL-16, S-48 (specs/dual-instance-plugins U3): the services #1018 added check the running action's instance, not only its
+ * BL-368, DUAL-16, S-48 (specs/archive/dual-instance-plugins U3): the services #1018 added check the running action's instance, not only its
  * installation, like the ones `tests/dual-instance-handles.test.ts` proves. The two halves share `install_id` and differ in
  * `installation_generation`; each test holds one half's handle inside the other half's action, where that action meets every other
  * condition of the service, so the instance is the only reason left to refuse it. The half's own action then passes the same check

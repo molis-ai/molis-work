@@ -8,7 +8,7 @@ import { openPluginDatabaseConnection } from "./plugin-database.js";
 import { inspectPluginHomeSchema, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
-// A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/repository-anti-corruption/slices/pg022-manifest-declarations.md).
+// A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md).
 // The plugin declares it in its Manifest (`databases.home`), like a shipped one; what a shipped plugin has from the Host's store registry
 // (`home-stores.ts`) an installed one has from this ledger: one row per plugin, which library it made, under which publisher, at which
 // version and schema. The publisher is the install record's, fixed when the plugin was installed; the first value is the Manifest's own

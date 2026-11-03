@@ -9,7 +9,7 @@ import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { openDualHome } from "./fixtures/dual-home.js";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 
-// BL-713 (PG-011; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): the parts of a Home package's stage that need
+// BL-713 (PG-011; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): the parts of a Home package's stage that need
 // no sandbox, so they run on Linux CI as well. `home-plugin-stage-navigation.test.ts` installs a signed package and runs it in the macOS
 // sandbox, which only a Mac has.
 

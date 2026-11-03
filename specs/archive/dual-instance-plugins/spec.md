@@ -1,5 +1,7 @@
 # 同一个插件的 Home 实例和项目实例（双实例）
 
+> 归档（2026-11-04）：判定为**部分实现**。S0-2a／b／c 与 Goals、Shelf、Feed 的双实例登记已合入 main；DUAL-10 的一条已被取代，DUAL-15 没有用例。现行规则在 `docs/platform/PLUGIN-DEVELOPMENT.md`「双实例插件」与 `packages/plugin-runtime/README.md` 的开发要求。剩余事项已移到统一待办清单：BL-933。
+
 状态：在做：S0-2a（#877）、S0-2b-1（#882）、S0-2b-2（#891）、S0-2c（#893）已合，S0-2b-3（实例间服务句柄不互借）待合（2026-10-23）。负责人：平台线 ②。本文记设计取舍、用户的决定、切片顺序和验收。
 
 ## 1. 要解决的事
@@ -20,7 +22,7 @@ Shelf 迁到 Plugin Runtime 时，用户已定「同一个 `plugin_id` 双实例
 | 选项 | 做法 | 取舍 |
 | --- | --- | --- |
 | **P1（采用）** 隐式部分兑现加可信标记 | 每个实例的 `start` 只返回自己那一半的处理器；宿主启动名单的条目带可信标记，运行时只放宽「声明了没提供」，保留「提供了没声明」 | 不改合同、不改动作哈希、不升版本；标记只存在于宿主自己的条目对象上（与 `bundled` 同一信任规则），第三方和沙箱插件没有任何放宽。代价：「两半的并集等于 Manifest」不是运行时强制，由覆盖测试守；漏登记的动作在运行时是「动作不可用」，失败时拒绝 |
-| P2 Manifest 加 `instances` 一节 | 声明式，显式写各实例的动作、路由、视图 | 长期最干净，但改 Manifest 合同（`pnpm api:update`、[CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)），与在途 PR 同撞 `plugin.ts` 和 API 快照；留作终局，第二个双实例插件出现时再评 |
+| P2 Manifest 加 `instances` 一节 | 声明式，显式写各实例的动作、路由、视图 | 长期最干净，但改 Manifest 合同（`pnpm api:update`、[CONTRACT-CHANGES](../../../docs/system/CONTRACT-CHANGES.md)），与在途 PR 同撞 `plugin.ts` 和 API 快照；留作终局，第二个双实例插件出现时再评 |
 | P3 每个实例一份 Manifest（同 id、版本、签名） | 现有精确检查全保留 | 同一身份两份内容不同的 Manifest，签名意义变虚；目录、市场、动作快照、授权页都要「并集」 |
 
 P1 放宽的只有：`assertContributionMatchesManifest` 的 `partial` 参数、Runtime 只登记这一半提供了处理器的动作与场景（`offeredManifest`，内核 `exactBindings` 仍整套精确匹配）、`HomePluginExecutor` 对带标记条目不再因端口等声明拒绝、启动名单对显式双实例放行、Home 路由对带标记插件回落。Home 实例仍拿不到项目的成果库、端口和事件服务。实现层取舍由 ② 定，不放宽信任边界。
@@ -50,7 +52,7 @@ P1 放宽的只有：`assertContributionMatchesManifest` 的 `partial` 参数、
 
 顺序：S0-2a → S0-2b-1 → S0-2b-2 → S0-2c；S0-2b-3 等 #812 → Shelf S1 → S2。S2 要求 S0-2b-2、S0-2b-3 已合。不做：不改 `ActionDefinition`（会改哈希、升版本、变 MCP 工具名）；不在 `project-host.ts` 加按插件名的分支；不把项目实例搬进 `runtime`（等 PG-005 与项目库 L2）。
 
-## 5. 安全不变量的变化（[SECURITY-INVARIANTS](../../docs/system/SECURITY-INVARIANTS.md)）
+## 5. 安全不变量的变化（[SECURITY-INVARIANTS](../../../docs/system/SECURITY-INVARIANTS.md)）
 
 编号不在这里预写：新行开 PR 时按 main 加在途 PR 取空号。
 

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
 import { CONTEXTUAL_PACKAGES, ENTRY_REEXPORTS, kernelContextualProblems } from "../scripts/gates/kernel-contextual.mjs";
 
-// specs/repository-anti-corruption N-04 (W3-04), decision N-03: packages/kernel has a core (directory, dispatch, availability,
+// specs/archive/repository-anti-corruption N-04 (W3-04), decision N-03: packages/kernel has a core (directory, dispatch, availability,
 // grants, scene compatibility) and one platform product service, contextual ranking (contextual.ts), which stays in the kernel
 // and must stay pure. scripts/gates/kernel-contextual.mjs (in `pnpm health:check`, no baseline) keeps the boundary between the two:
 //   K1 the core does not depend on contextual ranking   K2 only contextual ranking reads Contracts services/*

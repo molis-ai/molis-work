@@ -1,6 +1,6 @@
 # 防腐收尾之后的实现路径
 
-状态：规划（2026-10-28 更新）。在防腐线（[repository-anti-corruption](../repository-anti-corruption/spec.md)）收尾之后执行；在那之前只作排期参考，不开工。本文只排先后、分轨道、定每一段的退出条件，不改任何需求的内容和验收：那些仍以各自的 spec 和 [统一待办清单](../BACKLOG.md) 为准。起草时读的是 main `0d8388b09`（batch-42，#1311）。10-26 复查：补进个人云同步与 CGS 两条 main 之外的线、产品建议的余项、BACKLOG 全部条目的去处（3.8 节），字体皮肤语言按段写开，并修了几处轨道借文件和兼容起点的排序。
+状态：规划（2026-10-28 更新）。在防腐线（[repository-anti-corruption](../archive/repository-anti-corruption/spec.md)）收尾之后执行；在那之前只作排期参考，不开工。本文只排先后、分轨道、定每一段的退出条件，不改任何需求的内容和验收：那些仍以各自的 spec 和 [统一待办清单](../BACKLOG.md) 为准。起草时读的是 main `0d8388b09`（batch-42，#1311）。10-26 复查：补进个人云同步与 CGS 两条 main 之外的线、产品建议的余项、BACKLOG 全部条目的去处（3.8 节），字体皮肤语言按段写开，并修了几处轨道借文件和兼容起点的排序。
 
 验收编号：不适用（排期文档；每一项的验收在它自己的 spec 里）。
 
@@ -18,7 +18,7 @@
 
 ## 1. 起点：防腐收尾之后的代码
 
-防腐线的收口范围是 §1 的 2026-10-18 那一行：W5、W6 全做完，[privileges.md](../repository-anti-corruption/privileges.md) 的行全部清掉。按这个范围，后面的需求面对的是这样一份代码：
+防腐线的收口范围是 §1 的 2026-10-18 那一行：W5、W6 全做完，[privileges.md](../archive/repository-anti-corruption/privileges.md) 的行全部清掉。按这个范围，后面的需求面对的是这样一份代码：
 
 - 插件一律经 Plugin Runtime 装配，同一套 SDK、Manifest 和平台服务。Goals、Feed、Inbox 都是普通插件，构建期装配名单清空（W6-01）。新插件和新能力只有这一条路可走，没有宿主私路可抄。
 - 成果库和角色是平台的一部分；Sessions 已在 SC-4 删除，重做另开（BL-177）。
@@ -35,7 +35,7 @@
 
 在 main `885728c79` 上只读核了一遍；#1725 合入后，阶段 0 照此再核一次：
 
-- 防腐线还没收尾：[privileges.md](../repository-anti-corruption/privileges.md) 的 114 行里还有 11 行待做（PG-011、017、045、046、060、064、070、078、093、094、111）；W6 收口 #1725（954 个文件）在跑全量；真实 Home 清空重建和本人验收的窗口还没开。
+- 防腐线还没收尾：[privileges.md](../archive/repository-anti-corruption/privileges.md) 的 114 行里还有 11 行待做（PG-011、017、045、046、060、064、070、078、093、094、111）；W6 收口 #1725（954 个文件）在跑全量；真实 Home 清空重建和本人验收的窗口还没开。
 - PG-070 还剩 Characters 的样式留在两张共用表里（`apps/workbench/src/characters/styles.ts`、`apps/workbench/src/page-assets.ts`），字体皮肤语言 C 段的前提还没满足。
 - 构建期装配名单只剩 Alchemist 与插件创作台（`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`）。宿主 `apps/local-host/src` 仍有 692 个文件、约 6.8 万行。
 - `personal` 分支比 main 多 24 个提交、少 554 个（3.2 节的 175 是 10-26 的数）；CGS 分支少 1538 个。
@@ -77,7 +77,7 @@
 | [computer-use](../computer-use/spec.md) | 能力已合入，等真机（BL-325） | 0：真机验收后归档；BL-326、BL-327 留在 BACKLOG |
 | [ai-development-handbook](../ai-development-handbook/spec.md) | 正文已写 | 0：BL-320 你验收；BL-321（ADH-23）随技能包在 1·C 做 |
 | [prologue-memory-strategy](../prologue-memory-strategy/spec.md) | #1101、#1059 在途，P0 的形成、召回、SDK 接入未完 | 0：两个 PR 收掉；P0 余项仍属 1·C；沿原暂停边界，恢复授权前不启动 |
-| 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../plugin-project-database/spec.md)、[dual-instance-plugins](../dual-instance-plugins/spec.md)、[plugin-project-partition](../plugin-project-partition/spec.md) | 随 W6-06 收尾 | 防腐线自己归档 |
+| 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../archive/plugin-project-database/spec.md)、[dual-instance-plugins](../archive/dual-instance-plugins/spec.md)、[plugin-project-partition](../archive/plugin-project-partition/spec.md) | 随 W6-06 收尾 | 防腐线自己归档 |
 | BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401 | 已合入，只差你试用 | 0：一张验收单，一次走完 |
 | 右栏选一段放进文稿（产品建议 F1；#712、#720） | 已合入；没用真实材料走过，落点只有 Pages | 0：真实 Shelf → Pages 走一遍，连同 #784 的 QA-030 复验；下一个落点等走完再定 |
 
@@ -180,7 +180,7 @@
 | [团队记忆](../team-memory/spec.md)（BL-022） | 像持续在线的 PMO 观察获准项目、沟通和工作，筛选可复用的决策、风险、知识、偏好和协作模式，减少三类上下文交接；助理／Skill 消费以支持主动协作、习惯和交付质量改善。成员个人发布需最终确认并告知不可撤回，管理员维护，个人与团队可采用不同策略；复用公共采集和记忆能力，不扩大原记忆 P0 | 1·C 在共同设计中核团队来源、用途与访问边界；3·C 细化形成／融合与使用方案，团队身份／同步、公共采集及所需记忆能力具备后于阶段 4 实施；未实现，不启动暂停的 Memory P0 |
 | 分享做法与成品（产品建议 G3、I2） | 技能包、工作流程、生成的插件导出成一个文件，导入时展示内容与权限；带出处的报告导出成文件。公开页和市场以后再谈 | 导出导入 3·C（技能包之后）；报告导出随 D4（3·E）；公开页不排（第 8 节） |
 
-### 3.5 发布就绪（C 端 M1、M2，见 [c-end-readiness](../repository-anti-corruption/c-end-readiness.md)）
+### 3.5 发布就绪（C 端 M1、M2，见 [c-end-readiness](../archive/repository-anti-corruption/c-end-readiness.md)）
 
 | 事项 | 去处 |
 | --- | --- |

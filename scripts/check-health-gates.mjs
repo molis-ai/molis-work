@@ -81,7 +81,7 @@ const update = flags.has("--update"), report = flags.has("--report");
 const root = options.root ? path.resolve(options.root) : path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const baselinePath = path.join(root, "tooling/gates/baseline.json");
 const limitsPath = path.join(root, "tooling/gates/limits.json");
-// The package table of specs/repository-anti-corruption §5 is checked against the registry (the scratch repositories of
+// The package table of specs/archive/repository-anti-corruption §5 is checked against the registry (the scratch repositories of
 // tests/health-gates-merge-base.test.ts have none, so the check does not apply to them).
 const packageRegistry = await loadRegistry(root);
 const exceptionsPath = path.join(root, "tooling/gates/giant-exceptions.json");

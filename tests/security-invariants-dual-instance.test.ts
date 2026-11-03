@@ -10,7 +10,7 @@ import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-c
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 
-// Security invariants S-08 and S-18 (docs/system/SECURITY-INVARIANTS.md), DUAL-06 (specs/dual-instance-plugins/spec.md): one plugin can
+// Security invariants S-08 and S-18 (docs/system/SECURITY-INVARIANTS.md), DUAL-06 (specs/archive/dual-instance-plugins/spec.md): one plugin can
 // run twice, as the Home's instance and as a project's. `install_id` is a hash of the plugin id and its publisher, so both databases hold
 // a record under the same `install_id`, each with its own generation and its own grants. The local person's call context reads each
 // instance's authority from the record of the database that instance lives in; it never lets one record stand in for the other.

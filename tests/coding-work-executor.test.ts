@@ -13,7 +13,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
-// specs/repository-anti-corruption PG-036 (C8-2): Coding takes on work from the Assistant as an executor of the work-executor
+// specs/archive/repository-anti-corruption PG-036 (C8-2): Coding takes on work from the Assistant as an executor of the work-executor
 // protocol v1. Its six roles answer through the code its page runs, so a work handed over is a Coding session the page shows.
 
 const roles = Object.fromEntries(codingManifest.actions!.flatMap(row => {

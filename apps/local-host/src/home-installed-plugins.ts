@@ -1,5 +1,5 @@
 /**
- * The signed sandbox packages installed in the Home (BL-628; S-80, S-84, S-91; specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md).
+ * The signed sandbox packages installed in the Home (BL-628; S-80, S-84, S-91; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md).
  * The Home's counterpart of `openInstalledPlugins`: the same install lifecycle and the same sandboxed definition, over the Home's Runtime
  * and the Home's action service instead of a project's. What differs is only what has no project to hang on: the person's approval, the
  * secrets and the prompt registrations sit under one Home key. Its sandbox identity keeps `project_id` null; a Host-issued invocation

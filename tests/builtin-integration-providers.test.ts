@@ -12,7 +12,7 @@ import { connectorControl } from "./fixtures/connector-control.js";
 import { withIntegrationHome } from "./fixtures/integration-home.js";
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 
-// T-120 (BL-740 group; specs/repository-anti-corruption/slices/pg046-integrations-from-manifest.md): which connector reads a source's
+// T-120 (BL-740 group; specs/archive/repository-anti-corruption/slices/pg046-integrations-from-manifest.md): which connector reads a source's
 // credential is decided where the built-in integrations are listed, one per kind, and not by a function that guesses the kind from the
 // integration id. The cases that say "unchanged" were run on the tree before the move and passed there.
 

@@ -1,4 +1,4 @@
-// The documentation and repository-shape gates of `pnpm health:check` (specs/repository-anti-corruption §4.12–§4.14,
+// The documentation and repository-shape gates of `pnpm health:check` (specs/archive/repository-anti-corruption §4.12–§4.14,
 // slice W1-06). check-health-gates.mjs imports this one file; scripts/gates/README.md says what each gate checks.
 //
 //   problems   rules with no baseline: they start at zero and any hit fails (links, citations, spec index, BACKLOG rows,

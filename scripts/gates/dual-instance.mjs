@@ -1,4 +1,4 @@
-// Gate: dual-instance plugins (specs/dual-instance-plugins, PG-012). Only adds checks; it loosens no other rule.
+// Gate: dual-instance plugins (specs/archive/dual-instance-plugins, PG-012). Only adds checks; it loosens no other rule.
 //
 // A dual-instance plugin is one `plugin_id` with a Home half (a Home catalog entry whose `runtime` says `dual_instance: true`)
 // and a project half (the same registration's `project_runtime`, PG-067, or an entry of the project start list that a factory
@@ -135,7 +135,7 @@ function optionalPermissions(snapshot, entry) {
     const required = permission && ts.isObjectLiteralExpression(permission.node) ? property(permission.node, "required")?.initializer : undefined;
     if (permission && ts.isObjectLiteralExpression(permission.node) && !spreads(permission.node)
       && (isTrue(required) || unwrap(required)?.kind === ts.SyntaxKind.FalseKeyword)) return [];
-    return [`${list.file}: the dual-instance plugin ${entry.package} has a permission whose required flag is not a true/false literal (\`${element.getText().slice(0, 80)}\`); write an explicit boolean (specs/dual-instance-plugins, U1)`];
+    return [`${list.file}: the dual-instance plugin ${entry.package} has a permission whose required flag is not a true/false literal (\`${element.getText().slice(0, 80)}\`); write an explicit boolean (specs/archive/dual-instance-plugins, U1)`];
   });
 }
 

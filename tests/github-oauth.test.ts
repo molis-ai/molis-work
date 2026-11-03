@@ -12,7 +12,7 @@ import { connectorAuthorizationStatus, connectorProtocolSecrets, createPeriodicT
   withConnectorConnections, type OAuthOwners } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
-// W5-11 slice 8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.5 "GitHub"): GitHub signs in through the
+// W5-11 slice 8 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md §2.5 "GitHub"): GitHub signs in through the
 // generic OAuth flow by what its declaration says: the web flow for a client of the person's own, the device grant (RFC 8628) for the
 // product's. The device grant is the platform's engine; the plugin only declares where to ask and where to poll (S-106).
 // - RAC-2540: GitHub connects by the device grant: the page gets a user code and an address, never the device code; the connection is the generic shape.

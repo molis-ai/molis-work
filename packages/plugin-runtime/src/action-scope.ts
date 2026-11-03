@@ -3,7 +3,7 @@ import { ActionError, requireSynchronous, type ActionDefinition, type ActionExec
 
 /**
  * One running instance of a Plugin. The Home half and the project half of a dual-instance plugin share `install_id` and differ in
- * `installation_generation` (specs/dual-instance-plugins U3), so a service compares both: a handle one half holds is not the other's.
+ * `installation_generation` (specs/archive/dual-instance-plugins U3), so a service compares both: a handle one half holds is not the other's.
  */
 export interface PluginInstance {
   readonly install_id: string;

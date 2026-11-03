@@ -7,7 +7,7 @@ import { pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-a
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, person, ref } from "./fixtures/home-sandbox.js";
 
-// BL-713 (PG-011; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §5): the one view a sandbox package has may name its icon,
+// BL-713 (PG-011; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §5): the one view a sandbox package has may name its icon,
 // from the platform's set. The package's Manifest is still compared with the one the Host builds, so the icon is the only thing it gained.
 
 const stageView = (manifest: PluginManifest) => manifest.ui.views![0]! as { icon?: string };

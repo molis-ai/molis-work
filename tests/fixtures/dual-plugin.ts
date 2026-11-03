@@ -10,7 +10,7 @@ type HalfAction = ActionDefinition<{ call?: string }, Answer>;
 type Share = Omit<PluginAppContribution, "kind">;
 
 /**
- * A dual-instance plugin (specs/dual-instance-plugins): one Manifest, two halves.
+ * A dual-instance plugin (specs/archive/dual-instance-plugins): one Manifest, two halves.
  * - The Home half offers two Home actions (`home`; `home-reach`, which only a person reaches), the `home` route and the stage view.
  * - The project half offers two project actions (`project`; `reach`, which only a person reaches), the `project` route and the
  *   input port's handler. The Manifest also publishes an event, which only a project instance can.

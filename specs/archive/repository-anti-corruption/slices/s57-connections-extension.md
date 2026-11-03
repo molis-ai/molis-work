@@ -122,7 +122,7 @@ binding: "installation" | "per_record"
 按 `docs/system/CONTRACT-CHANGES.md` §3 第 4 条：
 
 - 改 `sources` 的建库基线、升结构版本；版本不符的库被拒绝，不就地升级，读取时也不兜底旧字段。
-- 产品代码里不写迁移，所以不登记进 `specs/repository-anti-corruption` 的保留机制。
+- 产品代码里不写迁移，所以不登记进 `specs/archive/repository-anti-corruption` 的保留机制。
 - 开发 Home 用会话临时目录里的一次性脚本改，脚本不进仓库。脚本的做法：逐条有账号的来源，按它的 `connection_id` 写一条绑定，再清掉旧字段、升版本。
 
 ### 3.1 决定（用户 2026-10-24 定）

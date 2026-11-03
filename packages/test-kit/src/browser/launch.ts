@@ -34,23 +34,53 @@ const DEBUGGER_LINE = /DevTools listening on (ws:\/\/\S+)/;
 const STDERR_WINDOW = 8_192;
 const ERROR_TAIL = 700;
 const KILL_AFTER_MS = 1_000;
+const TERM_AFTER_MS = KILL_AFTER_MS / 2;
 const EXIT_GRACE_MS = 100;
 /** How long closing waits, after the main process, for the helpers holding its stderr: they still write into the profile while
  * they wind down, so removing the profile right away can fail with ENOTEMPTY (seen on Linux). Bounded, since a helper can hold
  * the pipe for seconds. */
 const HELPERS_GRACE_MS = 500;
 
-/** Waits for the main browser process to exit, then briefly for its helpers (the stderr pipe closing), never longer. */
-async function shutdown(child: ChildProcess): Promise<void> {
+/** Request normal shutdown without treating a protocol reply or a disconnected socket as a process exit. */
+function requestBrowserClose(debuggerUrl: string, rejected: () => void): () => void {
+  let socket: WebSocket | undefined, sent = false, failed = false;
+  const dispose = () => socket?.close();
+  const fail = () => { if (!failed) { failed = true; dispose(); rejected(); } };
+  try {
+    socket = new WebSocket(debuggerUrl);
+    socket.addEventListener("open", () => {
+      try { socket!.send(JSON.stringify({ id: 1, method: "Browser.close" })); sent = true; }
+      catch { fail(); }
+    }, { once: true });
+    socket.addEventListener("error", fail, { once: true });
+    socket.addEventListener("close", () => { if (!sent) fail(); }, { once: true });
+    socket.addEventListener("message", event => {
+      try { const reply = JSON.parse(String(event.data)); if (reply.id === 1 && reply.error) fail(); }
+      catch { fail(); }
+    });
+  } catch { fail(); }
+  return dispose;
+}
+
+/** Waits for normal browser exit within the existing signal budget, then briefly for its helpers' stderr. */
+async function shutdown(child: ChildProcess, debuggerUrl?: string): Promise<void> {
   const stderr = child.stderr;
   const released = stderr && !stderr.destroyed ? once(stderr, "close").then(() => undefined, () => undefined) : undefined;
   // A child that never started (no pid) emits no `exit`.
   if (child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
     const exited = once(child, "exit");
-    child.kill("SIGTERM");
+    let terminated = false;
+    const terminate = () => {
+      if (!terminated && child.exitCode === null && child.signalCode === null) { terminated = true; child.kill("SIGTERM"); }
+    };
+    let normal: ReturnType<typeof setTimeout> | undefined;
+    let dispose: (() => void) | undefined;
     const force = setTimeout(() => child.kill("SIGKILL"), KILL_AFTER_MS);
-    try { await exited; }
-    finally { clearTimeout(force); }
+    try {
+      if (debuggerUrl) { normal = setTimeout(terminate, TERM_AFTER_MS); dispose = requestBrowserClose(debuggerUrl, terminate); }
+      else terminate();
+      await exited;
+    } finally { clearTimeout(normal); clearTimeout(force); dispose?.(); }
   }
   if (released) {
     let timer: NodeJS.Timeout | undefined;
@@ -87,5 +117,6 @@ export async function launchHeadlessChrome(options: LaunchHeadlessChromeOptions)
     await shutdown(child);
     throw error;
   }
-  return { debuggerUrl, close: () => shutdown(child) };
+  let closing: Promise<void> | undefined;
+  return { debuggerUrl, close: () => closing ??= shutdown(child, debuggerUrl) };
 }

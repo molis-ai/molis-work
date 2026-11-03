@@ -1,5 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { definitionOrigin } from "./platform-definitions.js";
 import type { PluginConsentGrant, PluginConsentGranter, PluginDeclarationNeedingConsent, PluginTrust, PluginTrustLevel } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
 // Install trust and the declarations that need consent (ac-trust T1, specs/repository-anti-corruption/slices/ac-trust-install.md §2–§3).
@@ -115,7 +116,8 @@ export function assertLocalToolsAllowed(manifest: PluginManifest, trust: PluginT
 /** What `install` asks of a definition's trust: it fits where the code runs, a Home scope in the Manifest is the Host build's or a pinned sandbox package's, and a look for local tools is the Host build's alone. */
 export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust, inProcess?: InProcessAdmission): void {
   const execution = definition.execution ?? "host";
-  assertTrustFitsExecution(trust, execution, !inProcess || inProcess.admit.has(definition));
+  // The Host admits its own definition objects; the platform's view of one is checked as that object.
+  assertTrustFitsExecution(trust, execution, !inProcess || inProcess.admit.has(definitionOrigin(definition)));
   assertHomeScopeAllowed(definition.manifest, trust, execution);
   assertLocalToolsAllowed(definition.manifest, trust);
 }

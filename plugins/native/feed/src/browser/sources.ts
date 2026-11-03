@@ -4,7 +4,7 @@ import type { FeedPage } from "./factory.js";
 interface SourceAnswer { source: { source_id: string } }
 interface SyncAnswer { created?: number; deduped?: number; run?: { error_code?: string; receipt?: { rss_http?: { not_modified?: boolean } } } }
 
-const OPEN_CONFIG = "[data-feed-task-config]:not([hidden])";
+const OPEN_CONFIG = "[data-feed-task-config]:not([hidden])", ADD_FORM = "[data-feed-add-form]", REGISTER = "[data-feed-source-register]", SOURCE_ROW = "[data-source-entry-id]";
 const SOURCE_OPERATION_BUTTONS = "[data-feed-sources-close],[data-feed-config-submit],[data-feed-source-register],[data-source-schedule-save],[data-source-schedule-reset]";
 
 /** Reset a draft to the latest owner-rendered defaults, including the native select's visible adapter. */
@@ -27,7 +27,7 @@ function reflectSourceBusy(page: FeedPage, dialog: HTMLElement): void {
 function beginSourceOperation(page: FeedPage, button: HTMLButtonElement) {
   const dialog = button.closest<HTMLElement>("[data-feed-sources-dialog]");
   if (button.disabled || dialog?.hasAttribute("aria-busy")) return null;
-  const area = button.closest<HTMLElement>("[data-source-detail],[data-feed-task-config],[data-feed-add-form],[data-feed-add-account]") || (dialog && page.q(button.matches("[data-feed-source-register]") ? "[data-feed-add-form]" : OPEN_CONFIG, dialog)), inert = area?.inert || false;
+  const area = button.closest<HTMLElement>("[data-source-detail],[data-feed-task-config],[data-feed-add-form],[data-feed-add-account]") || (dialog && page.q(button.matches(REGISTER) ? ADD_FORM : OPEN_CONFIG, dialog)), inert = area?.inert || false;
   button.disabled = true; if (area) area.inert = true; dialog?.setAttribute("aria-busy", "true");
   const controls = dialog ? page.all<HTMLButtonElement>(SOURCE_OPERATION_BUTTONS, dialog) : [];
   const disabled = new Map(controls.map(control => [control, control === button ? false : control.disabled])); if (dialog) reflectSourceBusy(page, dialog);
@@ -73,11 +73,11 @@ export function feedSources(page: FeedPage) {
     for (const [selector, visible] of [["[data-feed-source-choices]", !config && !setup], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", config]] as const) { const node = q(selector, dialog); if (node) node.hidden = !visible; }
     all("[data-feed-task-config]", dialog).forEach(node => node.hidden = node.dataset.feedTaskConfig !== page.selection);
     all("[data-feed-config-section]", dialog).forEach(node => node.hidden = node.dataset.feedConfigSection !== view);
-    const draft = q<HTMLFormElement>("[data-feed-add-form]", dialog);
+    const draft = q<HTMLFormElement>(ADD_FORM, dialog);
     const back = q("[data-feed-setup-back]", dialog); if (back) back.hidden = Boolean(draft?.dataset.createdSourceId);
     all("[data-feed-setup-kind]", dialog).forEach(panel => { panel.hidden = !setup || panel.dataset.feedSetupKind !== kind; all<HTMLInputElement | HTMLSelectElement>("input,select", panel).forEach(input => input.disabled = panel.hidden || Boolean(draft?.dataset.createdSourceId)); });
     if (draft) draft.hidden = !setup || kind === "github" || kind === "gmail";
-    const create = q<HTMLButtonElement>("[data-feed-source-register]", dialog); if (create) { create.hidden = Boolean(draft?.hidden); create.dataset.feedSourceRegister = kind; }
+    const create = q<HTMLButtonElement>(REGISTER, dialog); if (create) { create.hidden = Boolean(draft?.hidden); create.dataset.feedSourceRegister = kind; }
     const save = q<HTMLButtonElement>("[data-feed-config-submit]", dialog); if (save) { save.hidden = !config || view === "rules"; save.dataset.sourceId = page.selection; }
     reflectSourceBusy(page, dialog);
     all("[data-feed-footer-kind]", dialog).forEach(node => node.hidden = !setup || node.dataset.feedFooterKind !== kind);
@@ -102,7 +102,7 @@ export function feedSources(page: FeedPage) {
   };
   page.listen("toggle", event => { const menu = event.target instanceof HTMLDetailsElement && event.target.matches("[data-feed-source-menu]") ? event.target : null; if (!menu) return; (q("[data-feed-workbench]") || host.root).dataset.railOpen = String(menu.open); q("[data-feed-rail-toggle]", menu)?.setAttribute("aria-expanded", String(menu.open)); });
   const filterSources = () => {
-    const rows = all("[data-source-entry-id]"); let count = 0;
+    const rows = all(SOURCE_ROW); let count = 0;
     rows.forEach(row => { const kind = row.dataset.sourceKind; row.hidden = !(filter === "all" || filter === "account" && ["github", "gmail", "connector"].includes(kind || "") || filter === "public" && kind === "rss" || filter === "attention" && row.dataset.sourceStatus === "attention"); if (!row.hidden) count++; });
     const countNode = q("[data-source-result-count]"); if (countNode) countNode.textContent = L("{count} 个来源", { count });
     const empty = q("[data-source-empty]"); if (empty) empty.hidden = count > 0;
@@ -122,8 +122,8 @@ export function feedSources(page: FeedPage) {
   page.listen("keydown", event => {
     if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    const source = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-source-entry-id]") : null;
-    const rows = all("[data-source-entry-id]").filter(row => row.checkVisibility());
+    const source = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>(SOURCE_ROW) : null;
+    const rows = all(SOURCE_ROW).filter(row => row.checkVisibility());
     const index = source ? rows.indexOf(source) : -1;
     if (index < 0) return;
     const next = event.key === "Home" ? rows[0] : event.key === "End" ? rows.at(-1) : rows[(index + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length];
@@ -138,7 +138,7 @@ export function feedSources(page: FeedPage) {
   });
   page.listen("submit", event => {
     const form = event.target instanceof HTMLFormElement ? event.target : null; if (!form?.matches("[data-feed-add-account],[data-feed-add-form]")) return;
-    event.preventDefault(); const button = form.querySelector<HTMLButtonElement>('button[type="submit"],[data-feed-source-register]') || q<HTMLButtonElement>("[data-feed-source-register]");
+    event.preventDefault(); const button = form.querySelector<HTMLButtonElement>('button[type="submit"],[data-feed-source-register]') || q<HTMLButtonElement>(REGISTER);
     if (!button) return;
     void run(button, async () => {
       if (!form.reportValidity()) return;
@@ -161,16 +161,16 @@ export function feedSources(page: FeedPage) {
     if (pick) { const region = pick.closest<HTMLElement>("[data-plugin-record-slot]"); if (!region) return true; await run(pick, async () => { const check = page.guard(), id = page.selection; const slot = JSON.parse(region.dataset.pluginRecordSlot!) as { slot_id: string; record_key: string }; const choice = await host.connectionSlot({ ...slot, mode: "choose", anchor: pick, signal: page.signal() }); check(); if (id !== page.selection || !choice) return; await changed(); page.select(id, "restore", "settings"); host.showToast(L(region.hasAttribute("data-feed-source-disconnected") ? "账号已保存。这个来源已断开，请点「恢复来源」再拉取。" : "账号已保存。")); }); return true; }
     const task = target.closest<HTMLElement>("[data-feed-task],[data-feed-task-toggle],[data-open-source-record]");
     if (task) { const id = task.dataset.feedTask || task.dataset.feedTaskToggle || task.dataset.openSourceRecord || "all"; page.select(id, "open"); host.openView({ surface: "workbench", id, intent: "open" }); return true; }
-    const source = target.closest<HTMLElement>("[data-source-entry-id]"); if (source) { openSource(source); return true; }
+    const source = target.closest<HTMLElement>(SOURCE_ROW); if (source) { openSource(source); return true; }
     const sourceFilter = target.closest<HTMLElement>("[data-source-filter],[data-source-filter-reset]"); if (sourceFilter) { filter = sourceFilter.dataset.sourceFilter || "all"; filterSources(); return true; }
     const tab = target.closest<HTMLElement>("[data-source-detail-tab]"); if (tab) { const area = tab.closest("[data-source-detail]"); if (area) { all("[data-source-detail-tab]", area).forEach(node => { const active = node === tab; node.classList.toggle("is-active", active); node.setAttribute("aria-selected", String(active)); }); all("[data-source-detail-panel]", area).forEach(node => node.hidden = node.dataset.sourceDetailPanel !== tab.dataset.sourceDetailTab); } return true; }
     const view = target.closest<HTMLElement>("button[data-feed-view]"); if (view) { show(view.dataset.feedView!); return true; }
-    if (target.closest("[data-feed-add-toggle]")) { const panel = q<HTMLFormElement>("[data-feed-add-form]")?.dataset.createdSourceId ? "setup" : "choose"; if (host.mount?.surface !== "workbench") host.openView({ surface: "workbench", id: page.selection, panel, intent: "open" }); else show(panel); return true; }
+    if (target.closest("[data-feed-add-toggle]")) { const panel = q<HTMLFormElement>(ADD_FORM)?.dataset.createdSourceId ? "setup" : "choose"; if (host.mount?.surface !== "workbench") host.openView({ surface: "workbench", id: page.selection, panel, intent: "open" }); else show(panel); return true; }
     const choice = target.closest<HTMLElement>("[data-feed-choose-kind]"); if (choice) { show("setup", choice.dataset.feedChooseKind); return true; }
     if (target.closest("[data-feed-sources-open],[data-feed-setup-back]")) { if (host.mount?.surface !== "workbench") host.openView({ surface: "workbench", id: page.selection, panel: "choose", intent: "open" }); else show("choose"); return true; }
     if (target.closest("[data-feed-sources-close]")) { const dialog = q("[data-feed-sources-dialog]"); if (dialog?.hasAttribute("aria-busy")) return true; const area = q(OPEN_CONFIG); if (area) { resetSourceControls(area, "[data-source-config-field],[data-feed-plan-region] input,[data-feed-plan-region] select"); status(area, ""); } show("messages"); return true; }
     const config = target.closest<HTMLElement>("[data-feed-task-config-open]"); if (config) { page.select(config.dataset.feedTaskConfigOpen!, "open", "settings"); show("settings"); return true; }
-    const register = target.closest<HTMLButtonElement>("[data-feed-source-register]"); if (register) { event.preventDefault(); const form = q<HTMLFormElement>("[data-feed-add-form]"); form?.requestSubmit(); return true; }
+    const register = target.closest<HTMLButtonElement>(REGISTER); if (register) { event.preventDefault(); const form = q<HTMLFormElement>(ADD_FORM); form?.requestSubmit(); return true; }
     const reset = target.closest("[data-source-schedule-reset]");
     if (reset) { const area = reset.closest("[data-feed-plan-region]"); if (area) resetSourceControls(area); return true; }
     const configSave = target.closest<HTMLButtonElement>("[data-source-config-save]");

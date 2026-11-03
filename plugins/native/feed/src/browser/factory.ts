@@ -48,14 +48,15 @@ export function feedClient(host: FeedHost): void {
     error: (error, element) => { if (!scope.alive || !scope.visible || error instanceof DOMException && error.name === "AbortError") return; if (element?.isConnected) molisWorkRequest.show(element, error); else host.showToast(molisWorkRequest.text(error), true); },
   };
   const stage = feedStage(page), sources = feedSources(page), rules = feedRules(page);
-  let refreshSequence = 0, activeRefresh = Promise.resolve(), drawn = "", redraw = false;
+  let refreshSequence = 0, activeRefresh = Promise.resolve(), drawn = "", redraw = false, reading = 0;
   page.refresh = notice => {
     // This page's own operations always redraw: what they change can live outside the page document (the open item's detail,
     // a source's account), and only a redraw reads those again. A notice coalesced with one of them redraws too.
     if (!notice) redraw = true;
     const check = page.guard(), sequence = ++refreshSequence;
     const refresh = async () => {
-      const html = await host.view.readDocument({ signal: page.signal() }); check();
+      reading++;
+      const html = await host.view.readDocument({ signal: page.signal() }).finally(() => reading--); check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
       // A notice that reads back what is already drawn (the poll after this page's own save) leaves the page alone:
       // redrawing it would only swap out the controls in use and the result a person was just shown.
@@ -105,10 +106,13 @@ export function feedClient(host: FeedHost): void {
   };
   page.select = (id, intent = "restore", panel) => {
     if (host.mount?.surface === "workbench" && !page.all("[data-feed-task]").some(node => node.dataset.feedTask === id)) id = "all";
-    if (id !== page.selection) page.change();
+    // A change of selection cancels this page's reads. The page document is the same whichever view is selected, so a
+    // refresh it cancels reads again: a change announced from outside meanwhile is still drawn.
+    if (id !== page.selection) { page.change(); if (reading) void page.refresh(true).catch(page.error); }
     page.selection = id; if (panel) page.panel = panel; else if (intent !== "restore") page.panel = "messages";
     sources.select(id, intent); stage.filter();
-    if (panel || page.panel !== "messages") sources.show(page.panel); rules.hydrate();
+    // Opening a view without naming a panel shows its messages, also when it was already selected with a panel open.
+    if (panel || intent !== "restore" || page.panel !== "messages") sources.show(page.panel); rules.hydrate();
   };
   page.listen("molis-work:select-item" as keyof HTMLElementEventMap, event => {
     const detail = (event as CustomEvent<{ itemId?: string | null; view?: string; panel?: string; intent?: string; invalidate?: boolean }>).detail;

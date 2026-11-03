@@ -126,9 +126,11 @@ export function pluginStatementGuard(connection: PluginRuntimeDatabase, record: 
   }
   const functions = new Set(FUNCTIONS.map(name => functionInstance(connection, name)));
   const passed = new Set<string>();
+  // Compiled once: the pragma reads the schema's current version each time it runs.
+  const schemaVersion = connection.prepare("PRAGMA schema_version");
   let schema: number | undefined, scope: Scope | undefined;
   return (sql, parameters, mode) => {
-    const current = Number((connection.prepare("PRAGMA schema_version").get() as { schema_version: number }).schema_version);
+    const current = Number((schemaVersion.get() as { schema_version: number }).schema_version);
     if (current !== schema) { schema = current; scope = undefined; passed.clear(); }
     const key = `${mode}\0${sql}`;
     if (passed.has(key)) return;

@@ -2,16 +2,28 @@ import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/
 
 /** Plugin code receives no Host-issued identity and can edit its view without changing the Runtime's original controls. */
 export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C {
-  return dropIssuedIdentity({ ...caller, permissions: [...caller.permissions],
+  const view = dropIssuedIdentity({ ...caller, permissions: [...caller.permissions],
     ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
     ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(reference => ({ ...reference })) } : {}),
-    ...(caller.signal ? { signal: AbortSignal.any([caller.signal]) } : {}),
     ...(caller.page_context ? { page_context: { ...caller.page_context } } : {}),
     ...(caller.user_action ? { user_action: { ...caller.user_action } } : {}),
     ...(caller.scene_binding ? { scene_binding: { ...caller.scene_binding } } : {}),
     ...(caller.assistant_reply ? { assistant_reply: structuredClone(caller.assistant_reply) } : {}),
     ...(caller.original_input ? { original_input: structuredClone(caller.original_input) } : {}),
   });
+  if (caller.signal) followSignal(view, caller.signal);
+  return view;
+}
+
+/**
+ * The view's own signal, which follows the Runtime's: made the first time it is read, and the plugin may set it like any field.
+ * Each one stays a dependant of the long-lived signal it follows until it is collected, and Node walks all of them as each is
+ * (a directory pass hands one to every action's availability check), so a callback that never reads it costs nothing.
+ */
+function followSignal(view: ActionCallContext, source: AbortSignal): void {
+  let own: { readonly signal: AbortSignal | undefined } | undefined;
+  Object.defineProperty(view, "signal", { configurable: true, enumerable: true,
+    get: () => (own ??= { signal: AbortSignal.any([source]) }).signal, set: (signal?: AbortSignal) => { own = { signal }; } });
 }
 
 /**

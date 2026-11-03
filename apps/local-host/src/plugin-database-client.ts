@@ -31,6 +31,9 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   check?(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write"): void;
 }
 
+/** How many compiled statements each connection of a client keeps (`prepared`). */
+const KEPT_STATEMENTS = 64;
+
 /**
  * The client a plugin is given over its own tables, in the Home or in the project's library; only the connections and the
  * per-statement check differ. Reads go through the read-only connection, and only `SELECT` or `WITH`; writes only inside
@@ -65,9 +68,22 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
     db.exec("PRAGMA query_only = ON");
     try { return read(); } finally { db.exec("PRAGMA query_only = OFF"); }
   };
+  // A plugin runs the same few statements over and over (a Goals page reads thousands): each connection keeps the ones it compiled,
+  // by text, the most recent `KEPT_STATEMENTS`. Every call still passes all the checks above first; SQLite re-prepares a kept
+  // statement by itself when the schema changes.
+  const kept = new Map<Connection, Map<string, ReturnType<Connection["prepare"]>>>();
+  const prepared = (db: Connection, sql: string): ReturnType<Connection["prepare"]> => {
+    const statements = kept.get(db) ?? new Map<string, ReturnType<Connection["prepare"]>>();
+    kept.set(db, statements);
+    const statement = statements.get(sql) ?? db.prepare(sql) as ReturnType<Connection["prepare"]>;
+    statements.delete(sql);
+    statements.set(sql, statement);
+    if (statements.size > KEPT_STATEMENTS) statements.delete(statements.keys().next().value!);
+    return statement;
+  };
   const reads = (db: Connection, check: () => void): PluginDatabaseReader => ({
-    get(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (db.prepare(sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
-    all(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => db.prepare(sql).all(...parameters) as PluginSqlRow[]); },
+    get(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => (prepared(db, sql).get(...parameters) as PluginSqlRow | undefined) ?? null); },
+    all(sql, parameters = []) { check(); assertReadStatement(sql); connections.check?.(db, sql, parameters, "read"); return readOnly(db, () => prepared(db, sql).all(...parameters) as PluginSqlRow[]); },
   });
   const client: PluginProjectDatabase | PluginDatabase = Object.freeze({
     ...reads(reader, () => permit(declaration.read_permission)),
@@ -93,7 +109,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
             check();
             assertWriteStatement(sql);
             connections.check?.(writer, sql, parameters, "write");
-            return writer.prepare(sql).run(...parameters) as { changes: number | bigint };
+            return prepared(writer, sql).run(...parameters) as { changes: number | bigint };
           },
           // The point's name is the platform's: nothing the plugin passes reaches the SQL text.
           savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T {

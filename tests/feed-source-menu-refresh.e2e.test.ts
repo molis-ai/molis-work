@@ -29,7 +29,14 @@ async function page(b: Browser, t: TestContext) {
   children.set(b, view);
   await b.setViewport(390, 640, false);
   await b.command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, b.sessionId);
-  b.setFrameInitScript(`window.t403Reads={total:0,pending:0};window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{const read=host.view.readDocument;host.view.readDocument=async(...args)=>{t403Reads.total++;t403Reads.pending++;try{return await read(...args)}finally{t403Reads.pending--}};return value(host)}:value;return true}});`);
+  b.setFrameInitScript(`window.t403Reads={total:0,pending:0,holdNext:false,held:false};
+    window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{
+      const read=host.view.readDocument;host.view.readDocument=async(...args)=>{
+        const hold=t403Reads.holdNext;t403Reads.holdNext=false;t403Reads.total++;t403Reads.pending++;
+        const released=hold?new Promise(resolve=>t403Reads.release=resolve):null;
+        try{const html=await read(...args);if(hold){t403Reads.held=true;await released;}return html;}
+        finally{t403Reads.pending--;if(hold){t403Reads.held=false;t403Reads.release=null;}}
+      };return value(host)}:value;return true}});`);
   await b.navigate(() => b.command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/?openPlugin=feed` }, b.sessionId));
   await b.waitFor("document.body.dataset.desktopSurface==='feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready'");
   await view.waitFor("t403Reads.total>0 && t403Reads.pending===0");
@@ -43,10 +50,14 @@ async function page(b: Browser, t: TestContext) {
       graphPresent:!!document.querySelector('[data-goal-momentum]'),graphLoaded:document.querySelector('[data-goal-momentum]')?.dataset.loaded||'',syncing:document.querySelector('[data-document-pane]')?.classList.contains('is-syncing'),tabFeed:!!document.querySelector('[data-tab-id][aria-current][data-plugin=feed]'),membership,attention:[...attention]};},stop(){document.removeEventListener('molis-work:plugins-changed',onMember);document.removeEventListener('molis-work:attention',onAttention);delete window.__feedOwnerTest;}};
   })()`);
   await view.evaluate(`(() => {
-    const root=document.querySelector('[data-feed-workbench]'),menu=root.querySelector('[data-feed-source-menu]'),add=root.querySelector(${JSON.stringify(railAdd)}),dialog=root.querySelector('[data-feed-sources-dialog]');
+    const root=document.querySelector('[data-feed-workbench]'),menu=root.querySelector('[data-feed-source-menu]'),summary=menu.querySelector('summary'),add=root.querySelector(${JSON.stringify(railAdd)}),dialog=root.querySelector('[data-feed-sources-dialog]');
+    let previousColumn=null,readAt=0;
     window.__feedMenuTest={snapshot(){return {same:root===document.querySelector('[data-feed-workbench]')&&menu===root.querySelector('[data-feed-source-menu]')&&add===root.querySelector(${JSON.stringify(railAdd)})&&dialog===root.querySelector('[data-feed-sources-dialog]')&&[root,menu,add,dialog].every(x=>x.isConnected),
       task:root.dataset.selectedSource,menuOpen:menu.open,expanded:menu.querySelector('summary').getAttribute('aria-expanded'),railOpen:root.dataset.railOpen,dialogHidden:dialog.hidden,choicesHidden:dialog.querySelector('[data-feed-source-choices]').hidden,setupHidden:dialog.querySelector('[data-feed-source-setup]').hidden};},
-      selectedTask(id){return root.querySelector('[data-feed-task-toggle="'+CSS.escape(id)+'"]').getAttribute('aria-current');},stop(){delete window.__feedMenuTest;}};
+      selectedTask(id){return root.querySelector('[data-feed-task-toggle="'+CSS.escape(id)+'"]').getAttribute('aria-current');},
+      refresh(){if(t403Reads.pending)throw Error('A Feed read is already pending');previousColumn=root.querySelector('[data-feed-column]');readAt=t403Reads.total;t403Reads.holdNext=true;root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));},
+      refreshState(){return {reads:t403Reads.total-readAt,pending:t403Reads.pending,held:t403Reads.held,replaced:!!previousColumn&&!previousColumn.isConnected&&previousColumn!==root.querySelector('[data-feed-column]'),documentFocused:document.hasFocus(),control:document.activeElement===summary?'summary':document.activeElement===add?'add':null};},
+      stop(){t403Reads.holdNext=false;t403Reads.release?.();delete window.__feedMenuTest;}};
   })()`);
 }
 const snapshot = async (b: Browser): Promise<Snapshot> => ({ ...await b.evaluate<Snapshot>('window.__feedOwnerTest.snapshot()'), ...await child(b).evaluate<Snapshot>('window.__feedMenuTest.snapshot()') });
@@ -198,4 +209,53 @@ test('RAC-2841: explicitly reselecting all, selecting a source and reselecting t
   } catch (error) { failures.push(error); try { await shot(b, 'selection-failed'); } catch (captureError) { failures.push(captureError); } }
   finally { try { await stopPage(b); } catch (error) { failures.push(error); } }
   if (failures.length) throw new AggregateError(failures, 'RAC-2841 explicit source selection failed');
+});
+
+test('T405-17B5-UI-01: a real Feed refresh preserves retained menu focus and never takes focus back from the owner', { timeout: 120_000 }, async t => {
+  const b = await browser(t), failures: unknown[] = [];
+  type RefreshState = { reads: number; pending: number; held: boolean; replaced: boolean; documentFocused: boolean; control: string | null };
+  const state = () => child(b).evaluate<RefreshState>('window.__feedMenuTest.refreshState()');
+  const press = async (key: string, code: number) => {
+    for (const type of ['rawKeyDown', 'keyUp'] as const) await b.command('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }, b.sessionId);
+  };
+  const refresh = async (whilePending?: () => Promise<void>) => {
+    await child(b).evaluate('window.__feedMenuTest.refresh()');
+    await child(b).waitFor('window.__feedMenuTest.refreshState().held', limits.hold);
+    const held = await state(); assert.equal(held.reads, 1); assert.equal(held.pending, 1); assert.equal(held.replaced, false);
+    if (whilePending) await whilePending();
+    await child(b).evaluate('t403Reads.release()');
+    await child(b).waitFor('(()=>{const s=window.__feedMenuTest.refreshState();return s.replaced&&s.pending===0;})()', limits.commit);
+    const after = await state(); assert.equal(after.reads, 1); assert.equal(after.held, false); assert.ok((await snapshot(b)).same);
+    return after;
+  };
+  try {
+    await page(b, t);
+    // Native summary activation and Tab establish focus; no test focus is applied after replacement.
+    for (const control of ['summary', 'add']) {
+      await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen');
+      if (control === 'add') await press('Tab', 9);
+      const before = await state(); assert.equal(before.documentFocused, true); assert.equal(before.control, control);
+      const after = await refresh(control === 'summary' ? async () => {
+        // VUX-29: Escape can return focus before the pending refresh commits its replacement.
+        await press('Escape', 27); await child(b).waitFor('!window.__feedMenuTest.snapshot().menuOpen');
+        assert.equal((await state()).control, 'summary');
+      } : undefined);
+      assert.equal(after.documentFocused, true); assert.equal(after.control, control, 'The same retained control must keep focus across detach and replacement');
+      assert.equal((await snapshot(b)).menuOpen, control === 'add'); assert.equal((await snapshot(b)).dialogHidden, true);
+      // The retained inner control must still reach the shared Escape handler after refresh, too.
+      if (control === 'add') { await press('Escape', 27); await child(b).waitFor('!window.__feedMenuTest.snapshot().menuOpen'); }
+      const closed = await state(); assert.equal(closed.documentFocused, true); assert.equal(closed.control, 'summary');
+    }
+    await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen');
+    assert.equal((await state()).control, 'summary');
+    await refresh(async () => {
+      await b.click('.navigator-project-selector');
+      assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('.navigator-project-selector')"), true);
+      assert.equal((await state()).documentFocused, false, 'The user moved focus out of the pending Feed document');
+    });
+    assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('.navigator-project-selector')"), true, 'The resolved read must not steal focus from the owner');
+    assert.equal((await state()).documentFocused, false); assert.equal((await snapshot(b)).menuOpen, true);
+  } catch (error) { failures.push(error); try { await shot(b, 'focus-refresh-failed'); } catch (captureError) { failures.push(captureError); } }
+  finally { try { await stopPage(b); } catch (error) { failures.push(error); } }
+  if (failures.length) throw new AggregateError(failures, 'T405-17B5-UI-01 Feed refresh focus failed');
 });

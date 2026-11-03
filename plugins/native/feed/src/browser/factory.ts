@@ -74,14 +74,19 @@ export function feedClient(host: FeedHost): void {
       }
       // Keep the disclosure, its Add control, and the inline form while rows/configuration refresh beneath them.
       const menu = page.q("[data-feed-source-menu]"), nextMenu = page.q("[data-feed-source-menu]", next);
+      let menuFocus: Element | null = null;
       if (menu && nextMenu) {
         const rail = page.q("[data-feed-source-rail]", menu), nextRail = page.q("[data-feed-source-rail]", nextMenu);
         if (rail && nextRail) { const nav = rail.querySelector("nav"), nextNav = nextRail.querySelector("nav"); if (nav && nextNav) nav.replaceChildren(...nextNav.childNodes); const count = rail.querySelector('[data-feed-task="all"] em'), nextCount = nextRail.querySelector('[data-feed-task="all"] em'); if (count && nextCount) count.textContent = nextCount.textContent; }
+        // Sample only at the synchronous move: a pending read or a blurred frame may have stale focus.
+        const focus = root.ownerDocument.hasFocus() ? root.ownerDocument.activeElement : null;
+        if (menu.contains(focus)) menuFocus = focus;
         nextMenu.replaceWith(menu);
       }
       const dialog = page.q("[data-feed-sources-dialog]"), nextDialog = page.q("[data-feed-sources-dialog]", next);
       if (dialog && nextDialog) { const draft = page.q<HTMLFormElement>("[data-feed-add-form]", dialog), nextDraft = page.q<HTMLFormElement>("[data-feed-add-form]", nextDialog); if (draft && nextDraft) nextDraft.replaceWith(draft); for (const account of page.all<HTMLFormElement>("[data-feed-add-account]", dialog)) { const replacement = page.q<HTMLFormElement>('[data-feed-add-account="' + CSS.escape(account.dataset.feedAddAccount!) + '"]', nextDialog); if (replacement) replacement.replaceWith(account); } dialog.replaceChildren(...nextDialog.childNodes); nextDialog.replaceWith(dialog); }
       const scroll = stage.scroll(); root.replaceChildren(...next.childNodes);
+      if (menuFocus instanceof HTMLElement && menuFocus.isConnected) menuFocus.focus({ preventScroll: true });
       for (const saved of controls) { const control = page.q<HTMLInputElement | HTMLSelectElement>("[" + saved.attr + "]"); if (control) control.value = saved.value; }
       const filterPanel = page.q("[data-feed-filter-panel]"); if (filterPanel) filterPanel.hidden = !filterOpen;
       page.q("[data-feed-filter-trigger]")?.setAttribute("aria-expanded", String(filterOpen));

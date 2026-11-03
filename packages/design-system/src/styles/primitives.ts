@@ -90,6 +90,8 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-btn--ghost { border-color: transparent; background: transparent; color: var(--ink-soft); }
   .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
+  /* A ghost with words keeps an outline, so a button never reads as plain text; one that is only an icon stays bare. */
+  .mw-btn--ghost:not(.mw-btn--icon, .mw-btn--icon-only) { border-color: var(--line-strong); }
   .mw-btn--danger {
     border-color: var(--danger-action, var(--red));
     background: var(--danger-action, var(--red));
@@ -1230,7 +1232,7 @@ export const PRIMITIVE_STYLES = `
   .mw-dir__add {
     display: flex; align-items: center; gap: 8px;
     width: 100%; margin-top: 8px; min-height: 32px; padding: 0 8px;
-    border: 0; border-radius: var(--radius-item, 8px);
+    border: 1px dashed var(--line-strong); border-radius: var(--radius-item, 8px);
     color: var(--ink-soft); background: transparent;
     font: inherit; font-size: 13px; font-weight: var(--weight-control, 500); text-align: left; cursor: pointer;
   }

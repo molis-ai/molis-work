@@ -86,7 +86,7 @@ W5-10 Pages 命令族拆分（2026-10-17，Codex，本地定向通过，待队�
 
 SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归仍期待底层异常 `Fixture model failure`，而本片已有公共模型服务故意隐藏底层异常。同步用例为精确 `plugin.model_failed` 与公共提示，保留会话消息为空的持久化断言及取消/撤权/并发修改分支，不恢复泄漏内部错误的旧行为。此项是当前模型失败合同的消费者补齐，生产实现不变；定向与后续全量另记。
 
-任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
+任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/archive/reviews/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 

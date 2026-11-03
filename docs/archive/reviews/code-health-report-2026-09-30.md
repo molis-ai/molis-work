@@ -1,5 +1,7 @@
 # Molis Work 代码与架构防腐体检报告
 
+> 历史报告（2026-11-03 归档）：保留 2026-09-30 基线上的发现、后续复查与第一轨记录，作为防腐工作的来源证据，不代表当前代码规模、缺陷或发布状态。当前进度与未完成项见[防腐 spec](../../../specs/repository-anti-corruption/spec.md)和[统一待办](../../../specs/BACKLOG.md)。
+
 日期：2026-09-30
 审查对象：`origin/main @ fa27207a`（PR #101 合入后），在独立只读工作树中静态审查；未改任何代码。
 参照：`docs/prompts/repository-systematic-review.md` 的 15 项要求、上一轮整理 `specs/archive/repository-systematic-review/spec.md`（F-01～F-35、D-01～D-05）。

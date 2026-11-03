@@ -1,5 +1,7 @@
 # 九项需求实施交接 Prompt
 
+> 历史交接（2026-11-03 归档）：保留当时的九项范围、分工和授权语境，不作为当前开工指令。需求已继续演进；接续请从[规格书索引](../../../specs/README.md)与[当前路线书](../../../specs/post-anticorruption-roadmap/spec.md)核对状态、负责人和依赖。归档不表示九项已实现或验收。
+
 请接手 Molis Work 的以下九份需求，统筹推进实现，直到达到各自 spec 约定的完成标准。子代理交互涉及 Prologue 与 Molis Work 两仓；AI 能力开发手册面向内部开发者和 Agent。
 
 需求来源：
@@ -8,7 +10,7 @@
 - 分支：main
 - 版本：以 origin/main 最新提交为准
 - 远端入口：https://github.com/molis-ai/molis-work/tree/main/specs
-- 交接文件：docs/prompts/requirements-handoff-2026-10-15.md
+- 交接文件：docs/archive/handoffs/requirements-handoff-2026-10-15.md
 
 九份独立需求书（路径相对于 Molis Work 仓库根目录）：
 

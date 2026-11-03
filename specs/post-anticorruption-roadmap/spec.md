@@ -67,10 +67,10 @@
 
 | 需求 | 现状 | 去处 |
 | --- | --- | --- |
-| [diff-frame-performance](../diff-frame-performance/spec.md)、[long-turn-performance](../long-turn-performance/spec.md)、[attention-aggregate-performance](../attention-aggregate-performance/spec.md) | #1010、#1017、#1073 都已合入 main，状态句没跟上 | 0：核对后归档 |
+| [diff-frame-performance](../diff-frame-performance/spec.md)、[long-turn-performance](../long-turn-performance/spec.md)、[attention-aggregate-performance](../attention-aggregate-performance/spec.md) | #1010、#1017、#1073 都已合入 main；2026-11-03 已核对并同步状态句，历史验证与未验证范围保留在各 spec | 0：核对后归档 |
 | [pr-review-remediation](../pr-review-remediation/spec.md) | #901 已合入 | 0：归档，QA-017 没跑通的进 BACKLOG |
 | [repository-cleanup](../repository-cleanup/spec.md) | 状态句已写「已实现」 | 0：归档 |
-| [status-ring-system](../status-ring-system/spec.md) | 组件和 43 个状态已在 design-system，状态句还停在 10-13 | 0：核对后归档，视觉验收进「待你验收」 |
+| [status-ring-system](../status-ring-system/spec.md) | #488 已合入 main，2026-11-03 已同步状态句；用户视觉验收仍待进行 | 0：核对后归档，视觉验收进「待你验收」 |
 | [plugin-tab-groups](../plugin-tab-groups/spec.md) | PTG 用例在 main | 0：核对后归档 |
 | [empty-goal-create](../empty-goal-create/spec.md)、[quiet-home-refresh](../quiet-home-refresh/spec.md)、[onboarding-intake-progress](../onboarding-intake-progress/spec.md)、[onboarding-model-link](../onboarding-model-link/spec.md)、[onboarding-folder-places](../onboarding-folder-places/spec.md) | 原列待验收；10-28 核实 #1306 已关闭、未合入 | 0：逐项核对成果是否由其他提交承接，保留未交付与待体验项；不再等待 #1306 合入 |
 | [issue-home-v0](../issue-home-v0/spec.md) | V0 与首期体验按工程验证完成（用户 10-12 定）；BL-149 的分支待评审 | 0：BL-149 合入或关掉后归档 |

@@ -6,6 +6,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 
 | 要做的 | 读 |
 | --- | --- |
+| 找文档入口、按任务选择阅读路径、区分现行与历史材料 | `docs/README.md`；权威来源的分工仍在 `docs/SSOT-MATRIX.md` |
 | 产品是什么、对用户的承诺 | `PRODUCT.md` |
 | 包清单、事实 owner、成熟度 | `docs/SSOT-MATRIX.md` |
 | 分层与依赖规则 | `docs/system/ARCHITECTURE.md`、`docs/system/PACKAGE-BOUNDARIES.md` |

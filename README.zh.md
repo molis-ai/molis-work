@@ -195,6 +195,7 @@ pnpm desktop:start:macos
 
 ## 更多文档
 
+- [按任务找文档](docs/README.md)：使用产品、开发插件、修改平台、发布维护与接续任务。
 - [架构 SSOT 与迁移归属](docs/SSOT-MATRIX.md)
 - [安装与维护](docs/installation.md)
 - [运行时协议](docs/runtime.md)
@@ -202,7 +203,8 @@ pnpm desktop:start:macos
 - [CLI 与开发](docs/cli-and-development.md)
 - [Runtime Skill](skills/goal-advance/SKILL.md)
 - [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
-- [Molis Work Bug 卡台账](docs/molis-work-bug-cards.md)
+
+当前需求和剩余事项见[规格书索引](specs/README.md)与[统一待办](specs/BACKLOG.md)。[0.1.x Bug 卡台账](docs/molis-work-bug-cards.md)仅作历史记录，其中的工作流程已退役。
 
 ## License
 

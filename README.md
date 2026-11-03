@@ -195,6 +195,7 @@ Each architecture ships separately because Molis Work's SQLite and PTY native ad
 
 ## Further reading
 
+- [Documentation by task (Chinese)](docs/README.md): use the product, develop plugins, change the platform, release and maintain, or resume a task.
 - [Architecture SSOT and migration ownership](docs/SSOT-MATRIX.md)
 - [Install & Maintenance](docs/installation.en.md)
 - [Runtime Protocol](docs/runtime.en.md)
@@ -202,7 +203,8 @@ Each architecture ships separately because Molis Work's SQLite and PTY native ad
 - [CLI & Development](docs/cli-and-development.en.md)
 - [Runtime Skill](skills/goal-advance/SKILL.md)
 - [Plugin 开发 Skill](skills/molis-plugin-dev/SKILL.md)
-- [Molis Work Bug Card Ledger (Chinese)](docs/molis-work-bug-cards.md)
+
+For ongoing requirements and remaining work, see the [spec index](specs/README.md) and [backlog](specs/BACKLOG.md) (Chinese). The [0.1.x Bug Card Ledger](docs/molis-work-bug-cards.md) is historical; its workflows have been retired.
 
 ## License
 

@@ -8,13 +8,13 @@
 
 | 原交付 | 现行入口与可复用内容 | 尚缺证据／接续 |
 | --- | --- | --- |
-| 1 首尾度量 | [主 spec](../spec.md) §12.5 的历史序列与方法；原 T370 证据线 | 候选F1517单次实测、B/M/旧F对照与增长解释已核收，见主spec§12.5；B/M未重算，仍待最终main采用绑定 |
+| 1 首尾度量 | [主 spec](../spec.md) §12.5 的历史序列与方法；原 T370 证据线 | 候选F23eac单次实测、B/M/旧F对照与增长解释已核收，见主spec§12.5；B/M未重算，仍待最终main采用绑定 |
 | 2 兼容清理、保留理由、库与 Home | [合同保留机制／版本登记](../../../docs/system/CONTRACT-CHANGES.md)、[Home 数据](../../../docs/system/HOME-DATA.md)；主 spec §4 留历史 | 当前代码差集和真实干净 Home 最终结果；旧迁移已取消，不恢复维护八或存量转换 |
 | 3 包与审查深度 | [现行包清单](../../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)、[SSOT](../../../docs/SSOT-MATRIX.md)；原源码审查见主 spec §12.7／12.9 | 只接现行成员相对历史切点的增量；源码审完不等于整改或运行通过 |
 | 4 问题、证据、根因与结果 | 主 spec §12.8／12.11 及原修复证据 | W5 后继实际采用与最终核收；旧“待整合”不自动重开同一实现 |
 | 5 主链及修后变化 | [CALL-CHAINS](../../../docs/system/CALL-CHAINS.md) | 后续变动链的文档／实际返回差集，归 W6-05 AC 与真实场景 |
 | 6 分层与能力收敛 | [ARCHITECTURE](../../../docs/system/ARCHITECTURE.md)、[PACKAGE-BOUNDARIES](../../../docs/system/PACKAGE-BOUNDARIES.md)、[去特权表](../privileges.md) | 相关 W5 最终采用与原 PG 裁决；不把 I6 数字当现状 |
-| 7 巨大单元 | [判定与迁移表](../../../docs/system/HUGE-CLASS-MIGRATION.md)、[有效例外](../../../tooling/gates/giant-exceptions.json) | F1517的50项巨大登记全部匹配；后继仅样本去重未改变核心测量，最终main另绑；登记不等于体量消失 |
+| 7 巨大单元 | [判定与迁移表](../../../docs/system/HUGE-CLASS-MIGRATION.md)、[有效例外](../../../tooling/gates/giant-exceptions.json) | F23eac的50项巨大登记全部匹配；节点修复使既有驱动内聚登记更新为209行，最终main另绑；登记不等于体量消失 |
 | 8 扩展点与演练 | [EXTENSION-POINTS](../../../docs/system/EXTENSION-POINTS.md) 的现行操作入口与注明切点的历史成本／推演 | 已实现方向与真实探针的最终对应；推演不算实际演练，成本不重算 |
 | 9 并行、合同、API、回放、CI、反馈与上手 | [协作规则](../../../docs/system/PARALLEL-DEVELOPMENT.md)、[合同流程](../../../docs/system/CONTRACT-CHANGES.md)、[API／门禁](../../../tooling/gates/README.md)；[插件回放工具](../../../scripts/replay-plugins.mjs)、[corpus](../../../tests/fixtures/replay-plugins/corpus.json)、[正反测试](../../../tests/replay-plugins.test.ts) | 两真实来源样本已入库，计数器与人工适配清单各有独立真签包回放，见各README；[答卷回放](../../../docs/platform/STUDIO-SKILL-REPLAY.md)不能互代。反馈／热点归 W6-04，上手归 W6-03，最终 CI 归 W6-05 |
 | 10 逐插件实现、契约、接入、体验 | [plugin-conclusions](../../archive/repository-anti-corruption/plugin-conclusions.md)、[前端动线](../../archive/repository-anti-corruption/frontend-flow-walk.md) | FR／LC按既有原件接续；Pages跨搜索/MCP停启及Coding中断恢复差量已核收，剩最终组合适用性和下列真实边界 |
@@ -44,7 +44,7 @@
 - W4 清单在 b2635c20b 的原答案续跑通过 G1–G6 及前三项 G7；负向提交被现行仅支持成功提交的执行器拒绝，后两项未执行，未签包。原两答案完整保留、新模型请求0、清理完成，负向验收合同缺口见 [W6-03 接续](w6-03-skill-replay-smoke.md)。原三 brief 也已有 notes／reading／expenses 设计冻结；这些结果不代替清单签包及真实生命周期，计数器不重跑。
 - dcf6af499 的两条独立差量已核收（`/tmp/w6-final-execution/LC-RESULT.md`、`CODING-RESULT.md`）：Pages同一安装移出后搜索与真实stdio MCP撤下、旧引用实调拒绝且owner零误写，加回后原文与身份恢复；主批16项有效、1项目录metadata误判保留，仅补目录可调用集为0。Coding真实SDK待批准写入时仅中断自有Host，同Home/profile/origin重开后保留原会话/轮次、显示核对界面，文件仍为原文、无模型/工具重放；7项自然通过。旧审批为cancelled且真实父文档无入口，未实调旧decide。两批均已清理，不重跑已绿路径。
 - FR/LC/TE/AC与S1–S11沿既有原件归回，详见本机 `FINAL-EVIDENCE-DELTA.md`。S8的持久任务重启、无项目页面时由Host自动执行、关闭后迟到拒绝已有09e329371的完整 `schedule-resident-runtime` 5/5；所属旧Full整批失败仍保留，后继目标链无实质变化，沿用而不改署dcf新跑。当前Todo真实HTTP→timer提醒也已通过。真人读屏/中文输入法、具体多窗口重连unknown及真实模型主动跟进/后台回报继续单列，不因未重复读旧日志而重开整套矩阵。
-- 候选F1517的四组同口径测量及增长解释已核收；已有build、63包匹配、typecheck／boundary及定向结果沿原切点有效差量复用，最后文档差量单独检查。准确最终承载的CI／Full、适用Mac终态、main实际采用及最终场景适用性尚待，不能把局部结果改署为新头全量。
+- 候选F23eac的四组同口径测量及增长解释已核收；已有build、63包匹配、typecheck／boundary及定向结果沿原切点有效差量复用，最后文档差量单独检查。准确最终承载的CI／Full、适用Mac终态、main实际采用及最终场景适用性尚待，不能把局部结果改署为新头全量。
 - 干净真实 Home 的搬开重建、安装／重开／使用、原恢复与本人验收仍未完成；沿原用户窗口，旧存量迁移不恢复。
 
 本次只把已有入口与证据接回原切片。W6-04／05 及适用 W5 边界核收前，整目录移动及其最终分类／引用切换、自有已合干净分支清理仍未完成；现行规范与未完成 accepted 合同继续保留活动入口。风险责任接续已在原协调表采用，本文件不复制风险登记、不改变关闭条件，也不新建任务或状态系统。

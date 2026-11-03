@@ -8,8 +8,8 @@ import { STATE_RING_STYLES } from "./state-ring.js";
 /** Keyboard focus: a 2px copper stroke just outside the control, the same on every control. */
 const CONTAINED_FOCUS = "outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: var(--focus-stroke-inset, 1px); box-shadow: none";
 const CONTAINED_FOCUS_DANGER = "outline: 2px solid var(--red); outline-offset: 1px; box-shadow: none";
-/** Writing in a field: the edge darkens and a soft copper halo sits around it. */
-const FIELD_FOCUS = "outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent)";
+/** Writing in a field: the wash lifts to the raised surface, the edge turns copper and a soft copper halo sits around it. */
+const FIELD_FOCUS = "outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background-color: var(--popover, var(--paper))";
 
 export const PRIMITIVE_STYLES = `
   ${STATE_RING_STYLES}
@@ -92,18 +92,10 @@ export const PRIMITIVE_STYLES = `
   .mw-btn--ghost:hover:not(:disabled) { background: var(--nav-hover); color: var(--ink); }
   /* A ghost with words keeps an outline, so a button never reads as plain text; one that is only an icon stays bare. */
   .mw-btn--ghost:not(.mw-btn--icon, .mw-btn--icon-only) { border-color: var(--line-strong); }
-  .mw-btn--danger {
-    border-color: var(--danger-action, var(--red));
-    background: var(--danger-action, var(--red));
-    color: var(--danger-action-ink, var(--page));
-  }
-  .mw-btn--danger:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--danger-action, var(--red)) 88%, var(--ink));
-    color: var(--danger-action-ink, var(--page));
-  }
-  .mw-btn--danger:active:not(:disabled) {
-    background: color-mix(in srgb, var(--danger-action, var(--red)) 76%, var(--ink));
-  }
+  /* Danger is a red wash with red words: it warns without shouting louder than the primary beside it. */
+  .mw-btn--danger { background: color-mix(in srgb, var(--red) 10%, transparent); color: var(--red); }
+  .mw-btn--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 16%, transparent); }
+  .mw-btn--danger:active:not(:disabled) { background: color-mix(in srgb, var(--red) 22%, transparent); }
   .mw-btn--danger-outline {
     border-color: color-mix(in srgb, var(--red) 30%, transparent);
     background: transparent;
@@ -130,24 +122,14 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-btn--link:active:not(:disabled) { color: var(--accent-strong, var(--accent)); }
   .mw-btn--link:focus-visible { box-shadow: none; outline: var(--focus-stroke); outline-offset: 2px; }
-  /* Disabled stays legible: a filled button fades whole and drops its lift; a wash, ghost, outline or link keeps its
-     ground and only its ink goes faint, so it never vanishes into the sheet. */
-  .mw-btn:disabled { cursor: not-allowed; opacity: .42; box-shadow: none; }
-  .mw-btn:disabled:not(.mw-btn--primary, .mw-btn--danger, [data-loading]) { opacity: 1; color: var(--faint); }
+  /* Disabled reads as switched off, not as a faded live button: muted words, and the filled kinds give up their fill for a flat wash.
+     A loading button keeps its own look. */
+  .mw-btn:disabled:not([data-loading]) { cursor: not-allowed; color: color-mix(in srgb, var(--ink) 35%, transparent); box-shadow: none; }
+  .mw-btn:is(.mw-btn--primary, .mw-btn--secondary, .mw-btn--danger):disabled:not([data-loading]) {
+    border-color: transparent; background: color-mix(in srgb, var(--ink) 5%, transparent);
+  }
   .mw-btn--danger-outline:disabled { border-color: var(--line); }
-  .mw-btn--primary:disabled,
-  .mw-btn--primary[data-loading] {
-    border-color: var(--action);
-    background: var(--action);
-    color: var(--action-ink);
-  }
-  .mw-btn--danger:disabled,
-  .mw-btn--danger[data-loading] {
-    border-color: var(--danger-action, var(--red));
-    background: var(--danger-action, var(--red));
-    color: var(--danger-action-ink, var(--page));
-  }
-  .mw-btn[data-loading] { pointer-events: none; opacity: 1; }
+  .mw-btn[data-loading] { pointer-events: none; }
   .mw-btn[data-loading] > :not(.mw-spinner) { visibility: hidden; animation: mw-loading-out var(--dur-move) var(--ease-quint) var(--dur-move) backwards; }
   .mw-btn[data-loading] > .mw-spinner { position: absolute; visibility: visible; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both; }
   /* With an icon the button keeps its words while it works: the spinner takes the icon's slot, so the width holds. */
@@ -161,10 +143,10 @@ export const PRIMITIVE_STYLES = `
     width: 100%;
     min-height: var(--control-h, 32px);
     padding: 0 12px;
-    border: 1px solid var(--control-input);
+    border: 1px solid transparent;
     border-radius: var(--radius-control, 8px);
     color: var(--ink);
-    background-color: var(--paper);
+    background-color: var(--control-fill);
     transition: border-color var(--dur-hover, 130ms) var(--ease-quint), box-shadow var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
     font: inherit;
     font-size: 13px;
@@ -189,15 +171,16 @@ export const PRIMITIVE_STYLES = `
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
   .mw-input::placeholder, .mw-textarea::placeholder { color: var(--muted); }
-  .mw-input:hover:not(:disabled):not(:focus-visible),
-  .mw-textarea:hover:not(:disabled):not(:focus-visible),
-  .mw-select:hover:not(:disabled):not(:focus-visible) {
-    border-color: color-mix(in srgb, var(--control-input) 72%, var(--ink));
+  .mw-input:hover:where(:not(:disabled, :focus-visible)),
+  .mw-textarea:hover:where(:not(:disabled, :focus-visible)),
+  .mw-select:hover:where(:not(:disabled, :focus-visible)) {
+    background-color: var(--nav-hover);
   }
   .mw-input:focus-visible, .mw-textarea:focus-visible, .mw-select:focus-visible,
   .mw-input:focus, .mw-textarea:focus { ${FIELD_FOCUS}; }
   .mw-input[aria-invalid="true"], .mw-textarea[aria-invalid="true"], .mw-select[aria-invalid="true"] {
     border-color: var(--red);
+    background-color: color-mix(in srgb, var(--red) 6%, transparent);
   }
   .mw-input[aria-invalid="true"]:focus-visible,
   .mw-textarea[aria-invalid="true"]:focus-visible,
@@ -207,10 +190,11 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-input:disabled, .mw-textarea:disabled, .mw-select:disabled {
     color: var(--faint);
-    background-color: var(--control-fill);
+    border-color: var(--control-border);
+    background-color: transparent;
   }
   ${SELECT_MENU_STYLES}
-  /* Search and other grouped fields blend into a wash until you write in them. */
+  /* Search and other grouped fields wear the same wash as a single field. */
   .mw-input-group {
     display: flex; align-items: center; gap: 8px;
     min-height: var(--control-h, 32px);
@@ -239,7 +223,7 @@ export const PRIMITIVE_STYLES = `
     background: transparent;
     box-shadow: none;
   }
-  .mw-input-group:focus-within { ${FIELD_FOCUS}; background: var(--paper); }
+  .mw-input-group:focus-within { ${FIELD_FOCUS}; }
   .mw-input-group svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
 
   .mw-check-row { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
@@ -263,16 +247,16 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-check:focus-visible, .mw-radio:focus-visible { ${CONTAINED_FOCUS}; }
   .mw-check:disabled, .mw-radio:disabled { opacity: .42; }
-  .mw-switch { position: relative; display: inline-grid; width: 32px; height: 18px; flex: none; }
+  .mw-switch { position: relative; display: inline-grid; width: 36px; height: 22px; flex: none; }
   .mw-switch input { appearance: none; position: absolute; inset: 0; margin: 0; opacity: 0; z-index: 1; cursor: pointer; background: transparent; border: 0; box-shadow: none; }
   .mw-switch__track {
-    display: block; width: 32px; height: 18px; border-radius: 99px;
+    display: block; width: 36px; height: 22px; border-radius: 99px;
     background: color-mix(in srgb, var(--ink) 16%, var(--paper));
     border: 1px solid transparent;
     transition: background-color var(--dur-hover, 130ms) var(--ease-quint), border-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .mw-switch__track::after {
-    content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+    content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
     background: var(--paper); box-shadow: var(--lift-1); transition: transform 130ms var(--ease-quint);
   }
   .mw-switch input:hover:not(:disabled) + .mw-switch__track { border-color: var(--control-input); }
@@ -319,14 +303,14 @@ export const PRIMITIVE_STYLES = `
 
   .mw-badge {
     display: inline-flex; align-items: center; gap: 4px; min-height: 18px; padding: 0 8px;
-    border: 0; border-radius: 6px; font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1;
+    border: 0; border-radius: 999px; font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1;
     font-variant-numeric: tabular-nums; white-space: nowrap;
     background: color-mix(in srgb, var(--status-tone, var(--ink)) 10%, transparent);
     color: var(--status-tone, var(--ink-soft));
   }
   .mw-status {
     display: inline-flex; align-items: center; gap: 4px; min-width: 0; min-height: 18px; padding: 0 8px;
-    border: 0; border-radius: 6px; font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1;
+    border: 0; border-radius: 999px; font-size: 11px; font-weight: var(--weight-control, 500); line-height: 1;
     background: color-mix(in srgb, var(--status-tone, var(--ink)) 10%, transparent);
     color: var(--status-tone, var(--ink-soft));
     white-space: nowrap;
@@ -343,10 +327,6 @@ export const PRIMITIVE_STYLES = `
   .mw-status--blocked, .mw-badge--danger { --status-tone: var(--tone-blocked, var(--red)); }
   .mw-status--done, .mw-badge--success { --status-tone: var(--tone-done, var(--green)); }
   .mw-status--quiet { --status-tone: var(--tone-quiet, var(--muted)); }
-  .mw-badge--info { background: color-mix(in srgb, var(--status-tone) 11%, transparent); color: var(--status-tone); }
-  .mw-badge--success { background: color-mix(in srgb, var(--status-tone) 11%, transparent); color: var(--status-tone); }
-  .mw-badge--warning { background: color-mix(in srgb, var(--status-tone) 11%, transparent); color: var(--status-tone); }
-  .mw-badge--danger { background: color-mix(in srgb, var(--status-tone) 11%, transparent); color: var(--status-tone); }
 
   .mw-alert {
     display: grid; gap: 4px; padding: 12px 16px; border: 1px solid transparent;
@@ -446,9 +426,9 @@ export const PRIMITIVE_STYLES = `
   .mw-dialog__close { flex: none; }
 
   .mw-popover, .mw-menu {
-    min-width: 180px; padding: 8px; border: 0;
-    border-radius: 12px; background: var(--paper);
-    box-shadow: var(--shadow), inset 0 1px 0 var(--edge-highlight, transparent); color: var(--ink);
+    min-width: 180px; padding: 6px; border: 0;
+    border-radius: var(--radius-surface, 14px); background: var(--paper);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 6%, transparent), var(--shadow), inset 0 1px 0 var(--edge-highlight, transparent); color: var(--ink);
   }
   .mw-menu hr { height: 0; margin: 4px 8px; border: 0; border-top: 1px solid var(--line); }
   .mw-menu__item {
@@ -535,10 +515,10 @@ export const PRIMITIVE_STYLES = `
   .mw-toggle-group {
     display: inline-flex; gap: 4px; padding: 4px;
     border: 0;
-    border-radius: 10px; background: var(--control-fill);
+    border-radius: 12px; background: var(--control-fill);
   }
   .mw-toggle {
-    min-height: 26px; padding: 0 12px; border: 0; border-radius: 6px;
+    min-height: 26px; padding: 0 12px; border: 0; border-radius: 8px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500);
     transition: color var(--dur-move, 250ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
@@ -832,21 +812,23 @@ export const PRIMITIVE_STYLES = `
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__panel p { margin: 0 0 12px; max-width: 52ch; }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__panel p:last-child { margin-bottom: 0; }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__footer { padding: 8px 32px 24px; }
+  /* A card lifts off the surface on a hairline and a soft shadow instead of a drawn frame. */
   .mw-card {
-    display: grid; border: 1px solid var(--line);
-    border-radius: 12px;
+    display: grid; border: 1px solid transparent;
+    border-radius: 16px;
     background: var(--paper); overflow: hidden;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 5%, transparent), var(--shadow-soft);
   }
-  .mw-card__header { display: flex; justify-content: space-between; gap: 12px; padding: 16px 16px 0; }
+  .mw-card__header { display: flex; justify-content: space-between; gap: 12px; padding: 20px 20px 0; }
   .mw-card__title { margin: 0; font-size: 15px; font-weight: var(--weight-control, 500); }
   .mw-card__description { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .mw-card__panel { padding: 12px 16px 16px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+  .mw-card__panel { padding: 12px 20px 20px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
   /* The card's padding is its only rhythm: a paragraph's own margins never add to it, and footer actions sit 8px apart. */
   .mw-card__panel > :first-child { margin-top: 0; }
   .mw-card__panel > :last-child { margin-bottom: 0; }
-  .mw-card__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 16px 16px; color: var(--muted); font-size: 12px; }
+  .mw-card__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 20px 20px; color: var(--muted); font-size: 12px; }
   .mw-card--tile {
-    border: 0; background: transparent; overflow: visible; width: auto; display: block;
+    border: 0; background: transparent; box-shadow: none; overflow: visible; width: auto; display: block;
   }
   .mw-scroll { overflow: auto; min-height: 0; }
   .mw-table-wrap {

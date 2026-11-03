@@ -275,7 +275,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     gap: 4px;
     padding: 4px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--control-fill);
     box-shadow: none;
   }
@@ -283,7 +283,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     min-height: 26px;
     padding: 0 12px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     color: var(--muted);
     font-size: 12px;

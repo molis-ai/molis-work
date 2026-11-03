@@ -239,7 +239,7 @@ export function renderControlMetrics(): string {
 /** Theme-independent shape, motion and focus. Safe to restate in late layers: it carries no metrics. */
 export function renderShapeTokens(): string {
   return [
-    "--radius-item: 8px; --radius-control: 8px; --radius-surface: 14px;",
+    "--radius-item: 8px; --radius-control: 10px; --radius-surface: 14px;",
     "--control-border: color-mix(in srgb, var(--ink) 9%, transparent);",
     "--control-input: color-mix(in srgb, var(--ink) 12%, transparent);",
     "--control-fill: color-mix(in srgb, var(--ink) 4%, transparent);",

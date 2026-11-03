@@ -95,7 +95,8 @@ test("primary and danger buttons keep semantic foregrounds across Light and Dark
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[^{}]*\{[^}]*background: var\(--action\) !important/);
   assert.match(arrivalStyles, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
   assert.match(settingsStyles, /\.mw-btn--primary[\s\S]*background: var\(--action\)/);
-  assert.match(workbenchStyles, /\.mw-btn--danger \{[^}]*background: var\(--danger-action, var\(--red\)\);/);
+  // The danger button is a red wash with red words; --danger-action stays the solid fill for confirming states.
+  assert.match(workbenchStyles, /\.mw-btn--danger \{[^}]*background: color-mix\(in srgb, var\(--red\) 10%, transparent\); color: var\(--red\);/);
   assert.doesNotMatch(workbenchStyles, /\.mw-btn--danger \{[^}]*!important/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.source-now button \{[^}]*color: #fff;[^}]*background: var\(--ink\)/);
 });

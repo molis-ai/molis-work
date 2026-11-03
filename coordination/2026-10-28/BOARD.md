@@ -1,6 +1,6 @@
 # 看板
 
-> 2026-11-03 07:57Z：T405已正常推c64c91f75/tree788f5dae；准确受测dc34独立25完整文件229/229、test-kit全部69/69通过，无失败/跳过/取消/重试，50profile及进程/槽清理完成。后继只合main bdee612b9一份审查资料及两份F指标文档，源码与构建输入不变。63包匹配、boundary/health、51资源7363765B、fresh-main后secrets41002行通过，独立源码审无Blocker/P1。CI41599460856在途，新Full待；e93原Full六失败及原误调用sandbox包测试失败保留。Scene4新payload已通过无模型正负验证，下一次真实Coding单次批准待答，正确固定接口api.minimax.cn/anthropic/v1/messages；未再调用模型。main采用、真实Home完整备份恢复及干净重建、最终归档/本人认可仍未签。
+> 2026-11-03 09:31Z：T405准确2f7f3148b/tree44f539fe已正常推送。首轮test-home改用Host唯一Catalog runner，独立4完整文件47/47；boundary/health/secrets通过，旧25文件229/229及test-kit69/69按未变路径复用。CI41607952835自然全绿（15成功/2条件skip），根已亲核Verify、两SI、两Product及native实际steps。同SHA唯一Full41611220069已创建并在途，收齐16片再结算，候选冻结。场景4本次单次获准Coding真实业务通过：正式diff一次批准落第一文件、第二文件停止无写、同work交回Assistant正确读回；22次CN请求均200、费用未知、清理通过。最终Assistant可见截图正补无模型核对。原失败保留；main实际采用、真实Home可恢复备份及干净重建、最终归档和本人认可仍开放。
 
 > 2026-11-02 14:54Z：遵用户最新要求，已绿且未受改动影响的验证直接沿用，不因换H/合流重复；仅失败路径与新增行为做必要验证。T405 SI41文件分源300/300、卸载3生产文件及8文件60/60已本地合流；DEV3 f891修复34/35文件有效212/213，唯一Onboarding更新页退出后owner.borrowed正限界诊断，其余绿保留。W4 counter生成/签包/独立生命周期已过；list本次生成空态投影失败且修复终态unknown，已停止清理，不追加付费轮。T411真实smoke2/2沿用。远端#1725仍40f，旧CI/Full失败保留，修复攒齐一次推。场景4、真实Home窗口/本人验收、privileges12正式关行与最终归档仍未完成；本数6～12不重复扣减。
 

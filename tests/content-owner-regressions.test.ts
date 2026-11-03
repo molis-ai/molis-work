@@ -129,7 +129,7 @@ test("W2-18-PAGES-SOURCES-01: prepared clipped snapshots generate once, disclose
   const text = (await f.bound.invoke(pagesContentActions.read, { item_id: generated.id })).body;
   assert.match(text, /已截断的节选，并非完整原文/);
   for (const source of snapshots) assert.ok(text.includes(`openPlugin=pages&openItem=${source.id}`));
-  assert.doesNotMatch(text, /inbox_entry=pages/);
+  assert.doesNotMatch(text, /openPlugin=inbox&openItem=pages/);
   assert.deepEqual(f.pages.get(a.id, f.project), a); assert.deepEqual(f.pages.get(b.id, f.project), b);
 });
 

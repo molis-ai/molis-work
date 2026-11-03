@@ -797,14 +797,8 @@ export const PRIMITIVE_STYLES = `
     margin: 0; color: var(--ink); font-size: 17px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 24px;
   }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__heading p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 16px; }
-  :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action { flex: none; padding-top: 4px; }
-  :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action .mw-btn {
-    min-height: 0; padding: 0; border: 0; border-radius: 0;
-    background: transparent; color: var(--muted); font-weight: var(--weight-control, 500); box-shadow: none;
-  }
-  :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action .mw-btn:hover:not(:disabled) {
-    background: transparent; color: var(--ink); text-decoration: underline; text-underline-offset: 3px;
-  }
+  /* A frame's header action keeps its own kind (primary, secondary, outlined ghost): a button there never thins to a text link. */
+  :is(.mw-catalog, .mw-layout-primitives) .mw-frame__action { flex: none; }
   :is(.mw-catalog, .mw-layout-primitives) .mw-frame__panel {
     flex: 1; min-height: 0; overflow: auto; padding: 12px 32px 32px;
     color: var(--ink-soft); font-size: 13px; line-height: 1.65;

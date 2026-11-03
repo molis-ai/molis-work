@@ -1,6 +1,6 @@
 # 全仓对抗式审查报告（2026-11-01）
 
-状态：审查完成。用户 2026-11-01 定**只出报告、不由本轮执行整治**；第 12 节分片与第 13 节裁定留给统筹排期。报告不改产品代码、门禁、测试、规格和真实 Home。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」；停下之前已经做了的，见第 15 节。同日又用另一套方法把全部数字、重复逻辑与 #1727 逐项复查了一遍（语法树计数、全文检索、变异检验），改动处标「（复查更正）」，新发现与逐项结果见第 16 节。11-02 把前两遍里按评论、正文状态或文档判的几项（关闭的 PR、BACKLOG、`privileges.md`、扩展点清单、例外台账）逐项改成对照基线代码，改动处标「（对照代码更正）」或「第三遍」，结果见第 16.5 节。同日又按用户要求补了第四遍，看哪些逻辑能下沉成平台能力、哪些实现多余、哪些检查谨慎过了头、调用链里有几层只是转发，用的是类型检查、转发链分析和在途分支核对；结果在第 17 节，对象是 `2ec20d4fc`。
+状态：审查完成。用户 2026-11-01 定**只出报告、不由本轮执行整治**；第 12 节分片与第 13 节裁定留给统筹排期。报告不改产品代码、门禁、测试、规格和真实 Home。初稿之后对抗式复核出的误判，已在原处更正并标「（更正）」；停下之前已经做了的，见第 15 节。同日又用另一套方法把全部数字、重复逻辑与 #1727 逐项复查了一遍（语法树计数、全文检索、变异检验），改动处标「（复查更正）」，新发现与逐项结果见第 16 节。11-02 把前两遍里按评论、正文状态或文档判的几项（关闭的 PR、BACKLOG、`privileges.md`、扩展点清单、例外台账）逐项改成对照基线代码，改动处标「（对照代码更正）」或「第三遍」，结果见第 16.5 节。同日又按用户要求补了第四遍，看哪些逻辑能下沉成平台能力、哪些实现多余、哪些检查谨慎过了头、调用链里有几层只是转发，用的是类型检查、转发链分析和在途分支核对；结果在第 17 节，对象是 `2ec20d4fc`。之后又按用户要求补了两遍：第五遍把版本收敛到初始、清理兼容（第 18 节）；第六遍在临时 Home 里数一次请求做了多少事，找无效调用与重复调用（第 19 节，对象是 `bdee612b9`）。
 
 - **对象**：origin/main `e4e98ed33`（2026-11-01 15:13Z；该提交的 CI 与 Full 均为绿）。第 1 节的趋势数字取同一分支在 10-13、10-20、10-27 的提交。
 - **依据**：[防腐整理要求](../prompts/repository-anti-corruption.md)（四个目标、§4.1–4.19、§7 完成标准、附录 A），[系统整理要求](../prompts/repository-systematic-review.md)，`AGENTS.md` 与 `docs/system/` 的现行规则，[上一轮清理检查](cleanup-audit-2026-10-20.md)。
@@ -496,6 +496,13 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
    - 和真实 Home 重建同一时段：N30～N33、N36、N37；
    - 各包小片：N38、N40；
    - 最后改规则和门禁：N35、N41。
+12. **第六遍新增（第 19 节，用户 11-02 要求减少无效调用与重复调用）**：
+   - 宿主动作目录一片（枢纽文件，先查在途 PR）：N42 一次请求一份上下文，N43 嵌套调用共用发现，N44 少变的事实按版本读、Home 插件库连接长开，N46 插件 id 映射启动时建好；
+   - 小片：N45 判断规则的连接状态订阅变更事件；
+   - 工作台一片：N52 侧栏文件一条请求、没配好的来源不请求，N53 合并重复读、去掉必然失败的请求，N54 轮询看前台、拿到 404 就停；
+   - 各包小片：N47 由插件运行时的主人定怎么改，N48～N51；
+   - 第 1、2 片之后：N55 逐个看短缓存还要不要；
+   - 先问用户的：N56 的调用预算门禁。
 
 ## 16. 复查（2026-11-01，第二遍）
 
@@ -1141,3 +1148,222 @@ CALL-CHAINS §10 末尾自己列着四组「没有检查过是否应该是动作
 - N39 只看了注释和类型；N31 的语料只是推断。
 - 没有跑任何用例，没碰真实 Home。
 - 浏览器脚本的模板字符串、Rust 与 Swift 只扫了注释。
+
+## 19. 第六遍：无效调用与重复调用（2026-11-02）
+
+**用户 2026-11-02 要求**：产品运行时和代码里，有没有引入无效的请求和调用。用户举的例子是 Codex 防腐检查里看到的：一个分栏页面请求触发了 1,789 次插件归属校验，逻辑没错，但大多是白做。用户补充说重点不在这个数，而在这一类问题：减少无效调用、减少重复调用，把产生它们的逻辑去掉。本节先盘点，照旧只出报告，整治排期交统筹（§15 第 12 项）。
+
+对象是 origin/main `bdee612b9`（含 #1736）。
+
+### 19.1 方法
+
+- **运行时计数**：
+  - 一次性的临时 Home：样例项目，`seedDemoGoals` 写入数据，项目级插件全部启用；
+  - 宿主在同一进程里起，用 `createMolisWorkWebServer`，端口只绑回环；
+  - V8 精确覆盖率，开了 `callCount`，按函数数调用次数。每个场景之前清零，场景之后读数，同时按路径数 HTTP 请求；
+  - 场景一：用 curl 单独打每个接口；
+  - 场景二：在内置浏览器里走首页、项目首页、Goals、打开右侧分栏、搜索，以及一个打开后不动的页面。
+- **找调用方**：在热点行设条件断点。条件永远为假，所以从不停下，只记下带 async 帧的调用栈，再按调用链汇总。
+- **静态扫描**：
+  - `setInterval` 与 `setTimeout` 轮询；
+  - 循环和 `.map` 回调里的请求、动作调用、发现与开库；
+  - 每次读取都重开的库。
+- **工具**：脚本放在本会话的临时目录（`call-harness.mjs`、`probe.sh`、`scan-fanout.py`），没有入库。跑完 Home 即删，没碰真实 Home。
+- **数字怎么读**：
+  - 下文的数字是这台开发机、这份样例项目里的；插件与动作越多，数字越大；
+  - 覆盖率计数会拖慢执行，所以耗时只看相对大小；
+  - 好几个接口有几秒的短缓存（见 N55），所以「未命中缓存」那次才是真实成本，表里标明了。
+
+先给一张总表，后面逐条说。表里的「归属判断」指插件归属判断，就是用户说的那类校验，在代码里是 `reachEntry`；「全量判断」是对全部动作逐个算一遍可用性。
+
+| 场景 | HTTP 请求 | 归属判断 | 可用性判断 | 重开连接库 | 重开 Home 插件库 |
+| --- | --- | --- | --- | --- | --- |
+| 打开右侧分栏（文件面） | 15（其中 `side/files/entries` 9 条） | 19,892 | 58,043 | 305 | 253 |
+| 进入项目首页 | 25 | 13,440 | 42,510 | 233 | 261 |
+| 打开 Goals | 8 | 8,894 | 26,647 | 170 | 162 |
+| 页面打开后不动 20 秒 | 0 | 4,670 | 13,407 | 85 | 70 |
+| 单个 `/api/projects/<id>/brief`（未命中缓存） | 1 | 2,194 | 6,082 | 25 | 约 30 |
+| 单个 `/api/board/momentum`（未命中缓存） | 1 | 2,663 | 8,309 | 61 | 69 |
+| 单个缺参数、返回 404 的 `side/files/entries` | 1 | 1,012 | 2,952 | 15 | 9 |
+| 单个 `/api/board/cursor` | 1 | 0 | 0 | 0 | 0 |
+
+最后一行是对照：不经动作目录的接口，一次请求只要约 1 毫秒。凡是要先建调用上下文的，一次至少 25 毫秒；未命中缓存的 brief 要 150 毫秒，momentum 要 215 毫秒。
+
+### 19.2 服务端：一次请求做了多少遍
+
+**N42 每个请求都把调用上下文从头建一遍（P1，已证实）**
+
+- `apps/local-host/src/local-web-actions.ts:13` 的 `localWebActionContext` 有 28 处调用，网页、助理、搜索、记忆、设置都有；
+- 每调一次：
+  - 对全部动作做一遍带可用性的检查（`host.inspectActions`，第 22 行），只为算出调用方的 `allowed_actions` 和权限；
+  - 再做一遍场景发现（第 56 行）；
+- 授权名单本来不需要可用性：可用性在真正调用时还会按被调的那个动作再判一遍；
+- 路由在校验参数之前就先建上下文：
+  - `side-files-http.ts:53` 先建上下文，第 55 行再做一遍全量发现，然后才看 `source` 参数；
+  - 所以一个缺参数、返回 404 的请求，也要花 1,012 次归属判断。
+- 同一个请求里的嵌套调用，又各自建上下文。brief 一次请求里，带可用性的全量检查跑了 4 遍：
+  - 建网页调用方的上下文 1 遍；
+  - `home-event-actions.ts` 的 `collect` 里 2 遍；
+  - `local-host-scenes.ts` 的 `usages` 里 1 遍。
+
+**N43 一次请求里反复做全量发现（P1，已证实）**
+
+- 未命中缓存时，内核的全量发现次数如下（都是一次请求）：
+
+  | 请求 | 动作发现 | 场景发现 | 绑定列表 |
+  | --- | --- | --- | --- |
+  | brief | 4 | 6 | 20 |
+  | momentum | 12 | 20 | 28 |
+
+- `HostAvailability.views`（`local-host-availability.ts:24`）在一遍发现之内共用依赖目录，这一点做对了；但一遍发现结束就丢掉，下一个嵌套调用从头再来；
+- 依赖查找是在数组上逐个 `find`（第 44、69 行），一个 brief 里约 3.4 万次。
+
+**N44 每次调用动作都重读项目目录、重开 Home 插件库并核对整库结构（P1，已证实）**
+
+- 调用时的可用性策略 `projectActionAvailability` 的 `live`（`project-action-availability.ts:75`）：
+  - 每判一个动作，就走一遍 `withCatalog` 和 `projectReachablePlugins`；
+  - 往下的 `alwaysOnCatalogEntries`（`always-on-plugins.ts:34`）每次都调 `openReadOnlyHomePluginStore`（`home-plugin-store.ts:45`）：先 `lstat`，再开 SQLite 连接，读 `user_version`，再用 `describeSqliteSchema` 对每张表跑 `PRAGMA table_info`、`foreign_key_list`、`index_list`，最后整串比较结构；
+- `ensureProjectPlugins`（`project-plugins.ts:107`）在已经启动的项目上，每次调用都 `refreshEnablement`，又是一遍目录读和 Home 插件库开关；
+- `withCatalog`（`web-catalog-access.ts:36`）每次都跑 `assertCurrentSchema`，前后各一次 `listProjects`；
+- 一个 momentum 请求：Home 插件库开了 69 次，目录结构核对 68 次；
+- 项目里启用了哪些插件、Home 装了哪些常驻插件，一天也变不了几次。这类事实应该按版本号或变更通知读一次，而不是每次判断都开库。
+
+**N45 判断规则的可用性每次都重开连接库（P1，已证实）**
+
+- `modules/judgment-rules/src/actions.ts:85`、`:92`、`:96` 的可用性判断调 `credentialAvailable()`；
+- 往下走 `functionsCredentialConfigured`（`judgment-rules-host.ts:71`）、`selectedTypeSafeConnection`（`typesafe-connection.ts:8`）、`withConnectorConnections`、`openConnectorsStore`；
+- 每次都新开连接库，并按基线核对整库结构（`packages/storage/src/sqlite-baseline.ts:172` 的 `describeSqliteSchema`，逐表 PRAGMA），只为知道「有没有配好判断模型的连接」；
+- 进项目首页一次开了 233 次。连接换了会发 `connection-change-events`，可以只在收到事件时读一次。
+
+**N46 插件归属判断逐个线性查找（P2，已证实；就是用户说的那类）**
+
+- `reachEntry`（`project-action-availability.ts:39`）每次都在 `PLATFORM_PLUGIN_REGISTRATIONS` 上 `find`，找不到再读一次 `homePluginsOutsideBuild`；
+- 调用时走 `live`，它和下面的 `state` 各算一遍 `entryOf`（第 61 行），同一个动作的同一次判断要查两遍；
+- 一个 brief 是 2,194 次判断、25,579 次比较；
+- 每次判断本身不贵，贵在被 N42、N43 乘上去了：一次分栏打开近 2 万次；
+- 插件 id 到登记的映射，进程启动时就能建好。
+
+**N47 每次插件回调都复制整份 `allowed_actions`（P2，已证实；改不改要主人定）**
+
+- `pluginCallbackContext`（`packages/plugin-runtime/src/callback-context.ts:4`）把调用方的 `allowed_actions` 逐条复制一份交给插件，几百条；
+- 一个 brief 里插件可用性回调 1,502 次，复制了 246,888 个对象；
+- `local-host-caller.ts:5` 的 `snapshotCaller` 每个嵌套调用也复制一份；
+- 复制是为了让插件改自己那份不影响宿主（注释写明），这个目的要留；
+- 可以改成交一份冻结的共享数组，或者在插件真读这个字段时再复制，由插件运行时的主人定。
+
+**N48 页面不动时，后台还在做全量发现（P2，已证实）**
+
+- 页面打开后 20 秒里没有一条 HTTP 请求，宿主仍然做了 13,407 次可用性判断、4,670 次归属判断，开了 85 次连接库；
+- 调用栈落在：
+  - 搜索重建索引 `SearchService.refreshKnown`（`horizontal/search/src/index.ts:448`）：任何命令动作成功后（`project-host.ts:141`）去抖触发，每个提供方先全量发现一遍，再为每个索引器建一遍调用上下文（`search-actions.ts` 的 `indexer` 经 `localWebActionContext`）；
+  - 资料的 `settle`（`knowledge-actions.ts`）；
+  - 插件动作客户端的 `discover`（`plugin-actions-client.ts`）。
+- 所以一个命令成功之后，即使没人再看，宿主也会把它所在提供方的索引从全量发现开始重建一遍。
+
+**N49 Inbox 读判断时，每一项都重新发现场景（P2，已证实）**
+
+- `plugins/native/inbox/src/scene-runtime.ts:124` 的 `readJudgment` 每读一项，都经 `apps/local-host/src/plugin-scene-service.ts` 的 `call` 走到 `discoverScenes`（第 63、67、71 行各一处）；
+- 一个 momentum 里这条链发现场景 4 次；`scene-runtime.ts:127` 对每个判断动作循环，`feed/src/scene-runtime.ts:81` 同样逐个；
+- 场景列表在一次读里不会变。
+
+**N50 冷启动时同一份 Manifest 的摘要算三遍（P2，已证实）**
+
+- 第一次打开项目时共算了 80 次 `pluginManifestDigest`（`packages/plugin-runtime/src/identity.ts:5`），其中写安装记录 24 次；第一个 `GET /` 里 `canonicalJson` 递归了 31 万次；
+- 算的地方：`installRecord`、`persistReleaseArtifact`（启动与 `#resolveInstalledEntry` 各一次）、`createPluginRuntimeReleaseArtifact`、`validateArtifact`；
+- 同一个 Manifest 对象的摘要，按对象记一次就够。
+
+**N51 画首页时逐个插件建视图注册表（P2，已证实）**
+
+- `apps/workbench/src/plugin-catalog.ts:143` 对目录里的每个插件，各建一个只含它自己的 `UiViewRegistry`，再取 `slot`；
+- 一次 `GET /` 建了 115 个；
+- 只建一个注册表，按插件分组就可以。
+
+### 19.3 页面：多发的、发了就错的请求
+
+**N52 侧栏文件按来源逐条请求，其中一条每次都是 409（P1，已证实）**
+
+- 打开分栏的文件面：`side-panel-files.ts:218` 对每个来源各发一条 `side/files/entries`，共 9 条；
+- 每一条在服务端都要建调用上下文、做全量发现（N42），一次打开就是 19,892 次归属判断；
+- `placement.ts:380` 对来源又循环请求一遍；
+- 「文件」来源（`io.molis.work.files|files.side.entries|1`）在没选工作目录时每次都返回 409 `files.invalid`；`sources` 照样把它列出来，页面照样去请求；
+- 可以改成一条请求取回所有来源的第一页，在服务端共用一份上下文；没配好的来源在 `sources` 里就标出状态，不去请求它的条目。
+
+**N53 页面加载时重复读、发了必然失败的请求（P2，已证实）**
+
+- 项目选择页一次加载里，`assistant/works` 读 4 次，`attention` 读 3 次；
+  - `attention` 在 `attention.ts` 的启动、插件栏点击、可见性变化、`molis-work:attention-refresh` 事件里各读一次；
+  - `assistant/works` 在 `assistant-island.ts:576`、`:607`、`:733` 等处各读一次；
+  - 同时在途的读没有合并。
+- 项目选择页每次加载都请求 `/api/contextual/surfaces`，还没选项目，所以必然 400「请先选择一个 Molis Work 项目」。调用方是 `context-actions.ts:125` 和 `plugin-frame/subjects.ts:9`；
+- `favicon.ico` 每页 404 三次；
+- 项目首页加载时，侧栏的插件框架先 `POST /api/host/plugin-pages` 登记，又马上 `DELETE`（`plugin-frame/parent.ts:80`、`:109`）：框架挂上就卸掉；
+- `molis-work-workbench.css` 一次加载请求两次，第二次 304。
+
+**N54 轮询不看页面在不在前台，也不因 404 停（P2，已证实）**
+
+- `attention.ts:96` 是 `setInterval(read, 15000)`：没有 `document.hidden` 判断，失败也不停、不退避；
+- 实测：原来那个项目没了以后，旧标签页一直在轮询它的 `attention`，连续拿到 404 和连接被拒；
+- 其他轮询的情况：
+  - `assistant-island.ts:610` 与 `project-home.ts:373` 看了 `document.hidden`；
+  - `capsule-shell.ts:517` 每 2.5 秒刷新一次，没有看；
+  - `todo/src/browser/events.ts:109` 看了；
+  - `refresh-decisions.ts` 的 `board/cursor` 打开 Goals 时 6 秒读了 4 次。它本身很便宜（约 1 毫秒），可以留着；
+- 宿主已经有推送通道：插件框架的事件流 `plugin-frame/events.ts`，服务端有 `server/src/events.ts`。外壳上的提醒、助理工作、看板游标却各自轮询。
+
+### 19.4 被缓存盖住的，和缺的门禁
+
+**N55 几秒的短缓存把浪费盖住了（P2，推断）**
+
+- `project-arrival-http.ts:33` 的 `BRIEF_TTL_MS = 5_000`，`contextual-http.ts:52` 的 `DIRECTORY_TTL_MS = 3_000`，助理的 `surface-kinds` 也是第二次请求就几乎不花；
+- 缓存期内看着很快，过期那一次照旧做满（brief 2,194 次归属判断）；
+- 这些缓存像是为了压住 N42～N45 的成本才加的；根因修好以后，逐个看还要不要留，留下的写明它防的是什么。
+
+**N56 没有门禁挡「调用变多」（P2，要用户定）**
+
+- 已有的门禁数文件、行数、字节数、兼容词，不数一次请求做了多少事；
+- N42～N54 都是逻辑上没错、只是多做的，测试不会红；
+- 可以加一份「调用预算」用例：在临时 Home 里打几个代表性请求，数全量发现次数、开库次数、归属判断次数，只许变少，口径与现有的结构数字一样；
+- 这是新门禁，按 `AGENTS.md` 要先问用户。
+
+### 19.5 怎么落
+
+整治的原则：
+
+- **一次请求一份上下文**：只在路由真要调动作时才建，嵌套调用共用；
+- **授权和可用性分开**：建授权名单不算可用性，可用性只对真被调的那个动作算；
+- **少变的事实读一次**：项目启用了哪些插件、Home 装了哪些常驻插件、判断模型的连接配没配，按版本号或变更通知读，不在每次判断时开库；只读的 Home 库连接长开，结构在打开时核对一次；
+- **页面一个面一条请求**：同时在途的读合并；没配好的不请求；不在前台就不轮询；拿到 404 就停。
+
+按依赖排的顺序：
+
+1. **N42、N43、N44、N46（宿主的动作目录，一片）**：
+   - 一次请求只建一份调用上下文；
+   - 嵌套调用沿用同一遍发现；
+   - 插件 id 到登记的映射在启动时建好；
+   - 项目的可达插件按目录版本读，Home 插件库的连接长开。
+   - 这一片动的是宿主枢纽文件（`local-host-availability.ts`、`project-action-availability.ts`、`local-web-actions.ts`、`project-plugins.ts`），要先查在途 PR，按 `PARALLEL-DEVELOPMENT.md` 排；改完跑安全不变量（`pnpm test:security`）和动作合同快照。
+2. **N45**：判断规则的连接状态订阅 `connection-change-events`。
+3. **N52、N53、N54（工作台，一片）**：
+   - 侧栏文件一条请求取全部来源；
+   - 选项目之前不请求 `contextual/surfaces`；
+   - 同时在途的读合并；
+   - 轮询看 `document.hidden`，拿到 404 就停；
+   - 侧栏框架不再挂上就卸；补 favicon。
+4. **N47、N48、N49、N50、N51（各包小片）**：
+   - N47 由插件运行时的主人定怎么改；
+   - N48 让重建索引只建一次上下文，只重建真改了内容的提供方；
+   - 其余三条是本包的局部改动。
+5. **N55**：在第 1、2 片之后逐个看短缓存还要不要。
+6. **N56**：先问用户，同意后和第 1 片同一个 PR 加，先记下当前数字作为基线。
+
+### 19.6 局限
+
+- 只走了首页、项目首页、Goals、右侧分栏的文件面、搜索，以及一个不动的页面。
+- 下面这些都没走：
+  - 助理发一轮（要模型）；
+  - Coding、Feed、Inbox、Pages 各自的页面；
+  - 插件安装与升级；
+  - 桌面壳。
+- 数字来自一份样例项目；真实 Home 的插件和数据更多，数字只会更大，没有在真实 Home 上测。
+- 静态扫描只看循环行和后面几行，误报不少，表里只收了运行时证实的。
+- 没有跑任何用例；没改产品代码、门禁、测试和真实 Home。

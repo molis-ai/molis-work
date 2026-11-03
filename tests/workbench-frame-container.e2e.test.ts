@@ -223,7 +223,8 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   const before = await stored(); assert.equal(before.blocks[1]!.kind,"inbox"); assert.equal(before.blocks[1]!.itemId,inboxEntry.entry_id); assert.equal(before.blocks[1]!.title,item.title);
   await capture("inbox-goal-pane");
   await b.click('[data-plugin-strip] [data-plugin-id=feed]'); await markSource("feed");
-  await child.waitFor("t403Reads.pending===0");
+  // Back on Feed the child context can be a fresh document: wait until it has been handed its source handle before reading it.
+  await child.waitFor("t403Reads.pending===0 && typeof window.t403Handle==='string'");
   const settled = () => b.evaluate<number>("document.querySelector('iframe[data-t403-goal-pane]').contentWindow.t403FrameTrace.filter(event=>event.method==='drag'&&('result' in event||'error' in event)).length");
   for (const reason of ["hidden", "producer"] as const) {
     const previous = await settled(), originalHandle = await child.evaluate<string>("t403Handle"), pending = await drag();

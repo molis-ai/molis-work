@@ -219,6 +219,8 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
   const page = browsers.page("node-project"), driver = createBrowserSurfaceDriver(page);
   const detach = page.attach({ state: () => {} }, { width: 800, height: 600, dpr: 1 });
   let mouseInputs = 0, mousePresses = 0;
+  const mouseEvents: Array<{ sessionId: string | undefined; params: Record<string, unknown> }> = [];
+  let afterPress: (() => Promise<void>) | null = null;
   let gate: { waiting: boolean; entered(method: string): void; hold: Promise<void> } | null = null;
   const groups = new Set<string>();
   const clicks = () => page.evaluate("JSON.stringify(window.nodeClicks)");
@@ -244,12 +246,16 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
       if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") mousePresses += 1;
       if (method === "Runtime.evaluate" && typeof params.objectGroup === "string") groups.add(params.objectGroup);
       return send(method, params, sessionId, timeoutMs).then(async result => {
+        if (method === "Input.dispatchMouseEvent") mouseEvents.push({ sessionId, params: { ...params } });
         if (method === "Runtime.releaseObjectGroup") groups.delete(String(params.objectGroup));
         const active = gate;
         if (active && !active.waiting && (method === "Runtime.releaseObject" || method === "Input.dispatchMouseEvent" && params.type === "mouseMoved")) {
           active.waiting = true;
           active.entered(method);
           await active.hold;
+        }
+        if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed" && afterPress) {
+          const interrupt = afterPress; afterPress = null; await interrupt();
         }
         return result;
       });
@@ -286,6 +292,25 @@ test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through mov
         assert.equal(await clicks(), beforeClicks, `${interrupt}: the replacement and fallback point have no click effect`);
       } finally { resume(); gate = null; }
     }
+
+    // T405-S4-03: a trusted mousedown replaces its own node; release the owner before the successful press returns.
+    // The action must preserve that refusal, pair its started gesture outside the viewport, and leave no click behind.
+    const downNode = await observeNode(), downStart = mouseEvents.length, beforeDownClicks = await clicks();
+    await page.evaluate("(() => {window.nodeDowns=[];const target=document.getElementById('target');target.addEventListener('mousedown',event=>{window.nodeDowns.push({trusted:event.isTrusted,button:event.button,buttons:event.buttons});const replacement=target.cloneNode(true);replacement.dataset.target='mousedown replacement';target.replaceWith(replacement)},{once:true})})()");
+    afterPress = () => driver.release!();
+    try {
+      await assert.rejects(pointer(downNode), error => {
+        assert.ok(error instanceof Error); assert.match(error.message, /目标已不可用/u); assert.doesNotMatch(error.message, /未能释放/u); return true;
+      });
+    } finally { afterPress = null; }
+    const cancelled = mouseEvents.slice(downStart);
+    assert.deepEqual(cancelled.map(event => event.params.type), ["mouseMoved", "mousePressed", "mouseReleased"], "an actual press is followed only by its cancellation release, not another target input");
+    assert.deepEqual(cancelled[2]!.params, { type: "mouseReleased", x: -1, y: -1, button: "left", buttons: 0, clickCount: 0 });
+    assert.equal(cancelled[2]!.sessionId, cancelled[1]!.sessionId, "cleanup uses the exact session that pressed, without opening another");
+    assert.equal(await page.evaluate("JSON.stringify(window.nodeDowns)"), JSON.stringify([{ trusted: true, button: 0, buttons: 1 }]));
+    assert.equal(await clicks(), beforeDownClicks, "neither the removed original, replacement nor fallback point receives a click");
+    await pointer(await observeNode());
+    assert.equal(await clicks(), JSON.stringify([{ id: "target", target: "original", trusted: true }, { id: "target", target: "mousedown replacement", trusted: true }]), "the next explicit fresh click works once, without a leftover press or cleanup click");
 
     const replaced = await observeNode();
     await page.evaluate("const el=document.getElementById('target'),copy=el.cloneNode(true);copy.dataset.target='replacement';el.replaceWith(copy)");

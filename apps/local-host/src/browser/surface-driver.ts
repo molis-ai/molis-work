@@ -141,6 +141,8 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       switch (action.what) {
         case "pointer": {
           const coordinate = action.node === undefined ? { x: action.x, y: action.y, label: await labelAt(action.x, action.y) } : null;
+          const gesture: { pressed: { session: typeof session; button: typeof action.button } | null } = { pressed: null };
+          let failure: unknown;
           const pointerSend = async (params: Record<string, unknown>) => {
             // Each actual node input rereads the original object. In particular, a move that already happened grants
             // no permission to press after a replacement, later observation, round release or browser takeover.
@@ -151,16 +153,34 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
               if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
               mark(sessionId, `在 ${origin()} ${action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击"}${label ? `「${label}」` : `（${x}, ${y}）`}`, { x, y });
               target?.assertCurrent();
-              await (target?.session ?? session).send("Input.dispatchMouseEvent", { ...params, x, y });
+              const inputSession = target?.session ?? session;
+              await inputSession.send("Input.dispatchMouseEvent", { ...params, x, y });
+              if (params.type === "mousePressed") gesture.pressed = { session: inputSession, button: action.button };
+              else if (params.type === "mouseReleased") gesture.pressed = null;
             } finally { await target?.release(); }
           };
-          await pointerSend({ type: "mouseMoved", button: "none", buttons: 0 });
-          for (let click = 1; click <= Math.max(1, Math.min(3, action.clicks)); click += 1) {
-            await pointerSend({ type: "mousePressed", button: action.button, buttons: 1, clickCount: click });
-            await pointerSend({ type: "mouseReleased", button: action.button, buttons: 0, clickCount: click });
+          try {
+            await pointerSend({ type: "mouseMoved", button: "none", buttons: 0 });
+            for (let click = 1; click <= Math.max(1, Math.min(3, action.clicks)); click += 1) {
+              await pointerSend({ type: "mousePressed", button: action.button, buttons: 1, clickCount: click });
+              await pointerSend({ type: "mouseReleased", button: action.button, buttons: 0, clickCount: click });
+            }
+            await settle();
+            return;
+          } catch (error) { failure = error; throw error; }
+          finally {
+            // This only pairs a press this action actually dispatched. A refused target must not leave the button held,
+            // and releasing outside the viewport with no click count must not click a replacement or the old point.
+            const held = gesture.pressed;
+            if (held && page.owns(held.session.targetId)) {
+              try { await held.session.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: -1, y: -1, button: held.button, buttons: 0, clickCount: 0 }); }
+              catch (cleanupError) {
+                if (!(failure instanceof Error)) throw cleanupError;
+                failure.cause = new AggregateError([failure.cause, cleanupError], "鼠标手势清理失败");
+                failure.message += "（已按下的鼠标未能释放。）";
+              }
+            }
           }
-          await settle();
-          return;
         }
         case "key": {
           // The keys are pressed together (["Control", "a"]); "Control+a" in one entry means the same.

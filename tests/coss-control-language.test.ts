@@ -88,9 +88,9 @@ test("legacy input cosmetics leave mw-* fields to the primitive layer", () => {
   assert.match(settings, /:not\(\[type="range"\]\):not\(\.mw-slider\):not\(\.mw-input\):not\(\.mw-textarea\):not\(\.mw-select\)/);
 });
 
-// Soft Workbench (DESIGN.md → Shapes): 8px controls, 14px surfaces, 32px controls from the shared helpers.
+// Soft Workbench (DESIGN.md → Shapes): 10px control corners, 14px surfaces, 32px controls from the shared helpers.
 test("shared tokens describe control radius, height, and translucent borders", () => {
-  assert.match(COSS_CONTROL_STYLES, /--radius-control: 8px;/);
+  assert.match(COSS_CONTROL_STYLES, /--radius-control: 10px;/);
   assert.match(COSS_CONTROL_STYLES, /--radius-item: 8px;/);
   assert.match(COSS_CONTROL_STYLES, /--radius-surface: 14px;/);
   assert.match(COSS_CONTROL_STYLES, /--control-h: 32px;/);

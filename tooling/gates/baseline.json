@@ -34,7 +34,7 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "file packages/design-system/src/styles/momentum.ts": 819,
-    "file packages/design-system/src/styles/primitives.ts": 1258,
+    "file packages/design-system/src/styles/primitives.ts": 1240,
     "class packages/kernel/src/action-service.ts#ActionService": {
       "lines": 396,
       "methods": 15

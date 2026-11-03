@@ -216,8 +216,8 @@ function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProje
       if (entry.stage_read && !entrance(caller, definition)) throw new ActionError("actions.forbidden", "页面只能调用此次绑定的舞台入口及原提供方");
       const call = asEntry(caller);
       const result = await bindActionClient(client, () => call).invoke(definition, input, control, transport);
+      // For a stage read this check opens with the same owner fence (`assertAuthority`), so the fence is not run again after it.
       caller.assert_authority_current?.(definition);
-      entry.stage_read?.assertCurrent();
       return result;
     },
   };

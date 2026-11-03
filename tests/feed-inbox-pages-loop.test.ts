@@ -7,15 +7,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
-import { generatePagesFromMaterials, openPagesStore, ownPagesStores, type PagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { generatePagesFromMaterials, ownPagesStores, type PagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import type { PagesGenerationRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /** Generation as the Runtime gives it: Pages' own stores, an original caller that is never refused, and the model's whole result. */
 const generate = (store: PagesStore, record: PagesGenerationRecord, completeText?: (input: Parameters<NonNullable<Parameters<typeof generatePagesFromMaterials>[3]>>[0]) => Promise<string>) =>
@@ -101,7 +104,7 @@ test("explicit auto admission separates positive, negative and review outcomes a
     const feed = createLocalFeedApplication(store.db, fixture.options);
     fixture.attach(feed, DEMO_PROJECT_ID);
     const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "语义筛选", match: { source_id: source.source_id }, judgment: fixture.reference, admission: "inbox" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "语义筛选", match: { source_id: source.source_id }, judgment: fixture.reference, admission: "inbox" });
     const ids = ["admit-item", "leave-item", "review-item"].map(id => feed.ingestItem({ source, externalId: id, title: id, summary: "", occurredAt: new Date().toISOString(), attention: false }).item.item_id);
     await feed.flushPendingJudgments();
     const entries = feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule");
@@ -177,11 +180,15 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
     const admitted = create("background-entry");
     const backgroundEntry = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, admitted.item_id, "manual").entry;
     // A rule that admits what the workflow delivers, so the receive itself queues an Inbox entry too.
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "工作流交来的", match: { contains: "工作流交来的内容" }, admission: "inbox" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "工作流交来的", match: { contains: "工作流交来的内容" }, admission: "inbox" });
 
     const receive = createFeedContentHandlers(feed, DEMO_PROJECT_ID, item => item).find(handler => handler.capability_id === feedContentActions.receive.capability_id)!;
     const caller: ActionCallContext = { actor_id: "workflow-user", project_id: DEMO_PROJECT_ID, audience: "workflow", permissions: ["feed:write"] };
-    const received = await receive.handle(caller, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" }) as { item_id: string };
+    const actions = new ActionService();
+    actions.registerProvider({ provider: { provider_id: "feed", title: "Feed", kind: "system", project_id: DEMO_PROJECT_ID },
+      definitions: [feedContentActions.receive], handlers: [receive] });
+    // Retained judgment authority comes from the real dispatch, including its current action and provider.
+    const received = await actions.invoke(caller, feedContentActions.receive, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" });
     const ownEntry = feed.listInboxEntries(DEMO_PROJECT_ID).find(entry => entry.subject_id === received.item_id)!;
     assert.ok(ownEntry, "the delivery was admitted to the Inbox by the rule");
     assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, received.item_id).source_label, "工作流程", "W4-6-05 a workflow audience files under 「工作流程」");
@@ -196,4 +203,55 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
       .concat(`home-inbox_entry:${backgroundEntry.entry_id}:background`, `inbox:${backgroundEntry.entry_id}:background`).sort(),
       "what the other producer queued is still there for it, under its own authority");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("RAC-2186: a generated document is at most 100,000 characters, however many units its characters take", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-length-"));
+  const store = openPagesStore(home);
+  try {
+    const accepted = await generate(store, { ...request(), request_id: "length-accepted", request_hash: "hash-accepted" }, async () => "😀".repeat(100_000));
+    assert.equal(accepted.document.title, "观察文稿");
+    assert.equal(accepted.replayed, false, "100,000 two-unit characters are saved, not refused for taking 200,000 units");
+    await assert.rejects(generate(store, { ...request(), request_id: "length-refused", request_hash: "hash-refused" }, async () => "😀".repeat(100_001)), /文稿为空或过长/);
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAC-2275: a document of 100,001 one-unit characters is refused by the character limit, though its 100,001 units are far under the unit limit", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-ascii-length-"));
+  const store = openPagesStore(home);
+  try {
+    const accepted = await generate(store, { ...request(), request_id: "ascii-accepted", request_hash: "hash-ascii-accepted" }, async () => "a".repeat(100_000));
+    assert.equal(accepted.replayed, false);
+    // 100,001 one-unit characters are 100,001 units, way under the 200,000-unit half of the check: only the character count can refuse them.
+    await assert.rejects(generate(store, { ...request(), request_id: "ascii-refused", request_hash: "hash-ascii-refused" }, async () => "a".repeat(100_001)), /文稿为空或过长/);
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAC-2409: the information planner cuts feed titles and source names to 200 whole characters before the prompt is built", async () => {
+  // Neither a feed title nor a source name has a length limit of its own (Feed keeps the title as it arrived), so the planner caps both
+  // in whole characters, as it already caps a summary at 1,000: a cut never keeps half of a two-unit character.
+  const title = "😀".repeat(250), sourceName = "😀".repeat(250);
+  let shown = "";
+  const result = await planInformationWork({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
+    feed_items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
+    inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }] }, "project-a", { prompt: "整理" },
+    async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
+  const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
+  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
+  assert.deepEqual([context.items[0]!.title, context.inbox[0]!.title, context.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200), "😀".repeat(200)],
+    "the prompt carries 200 whole characters of the feed title, the inbox entry's feed title and the source name, not 250");
+  assert.deepEqual(result.context, { project_id: "project-a", items: 1, inbox: 1 });
+});
+
+test("INFORMATION-PLANNER-SOURCES-LIMIT: the plan describes at most 20 sources in the prompt, so the data stays bounded", async () => {
+  // A Home can have many enabled sources; with no count bound the context could outgrow the port's data position. The items and inbox
+  // entries are already capped at 20, and the source list is capped the same way, in the snapshot's own order.
+  const sources = Array.from({ length: 25 }, (_, index) => ({ source_id: `s${index}`, name: `来源 ${index}`, enabled: true }));
+  let shown = "";
+  await planInformationWork({ sources, feed_items: [], inbox_entries: [] }, "project-a", { prompt: "整理" },
+    async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
+  const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
+  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[] };
+  assert.equal(context.sources.length, 20, "at most 20 sources are described, like items and inbox entries");
+  assert.deepEqual(context.sources.map(source => source.name), Array.from({ length: 20 }, (_, index) => `来源 ${index}`), "the first 20 enabled sources, in the snapshot's order");
 });

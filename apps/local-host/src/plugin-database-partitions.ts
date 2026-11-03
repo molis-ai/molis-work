@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase, PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginInvocation, lastBegunPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
+import { currentPluginInvocation, inPluginInstance, lastBegunPluginInvocation, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { openPluginDatabase } from "./plugin-database.js";
 
@@ -67,7 +67,7 @@ export interface PartitionedPluginDatabase {
  * the same checks as an unpartitioned one (`openPluginDatabase`).
  */
 export function openPartitionedPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void,
-  installId: string, deletions: PartitionDeletions): PartitionedPluginDatabase {
+  instance: PluginInstance, deletions: PartitionDeletions): PartitionedPluginDatabase {
   const parts = new Map<string, Part>();
   const { deletedUpTo, clearing } = deletions;
   let closed = false;
@@ -75,7 +75,7 @@ export function openPartitionedPluginDatabase(home: string, declaration: PluginD
   const project = (): string => {
     if (closed) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     const scope = currentPluginInvocation();
-    const projectId = scope?.install_id === installId ? scope.caller.project_id : null;
+    const projectId = inPluginInstance(scope, instance) ? scope!.caller.project_id : null;
     if (!scope || !projectId) throw new ActionError("actions.project_required", "这个插件的库按项目分开，只有在项目里调用的动作能读写它");
     if (scope.begun <= (deletedUpTo.get(projectId) ?? 0)) throw deleted();
     if (clearing.has(projectId)) throw new ActionError("actions.unavailable", "这个项目的插件库正在清理，稍后再试");
@@ -86,7 +86,7 @@ export function openPartitionedPluginDatabase(home: string, declaration: PluginD
     let part = parts.get(projectId);
     if (!part) {
       let removed = false;
-      const library = openPluginDatabase(home, declaration, authorize, installId, { project_id: projectId, refuse: () => { if (removed) throw deleted(); } });
+      const library = openPluginDatabase(home, declaration, authorize, instance, { project_id: projectId, refuse: () => { if (removed) throw deleted(); } });
       part = { library, busy: 0, touched: true, remove: () => { removed = true; library.close(); } };
       parts.set(projectId, part);
     }
@@ -98,7 +98,7 @@ export function openPartitionedPluginDatabase(home: string, declaration: PluginD
     for (const [projectId, part] of parts) {
       if (part.busy > 0 || part.touched) { part.touched = false; continue; }
       parts.delete(projectId);
-      try { part.library.close(); } catch (error) { hostLog.warn("plugins", "partition_close_failed", error, { install_id: installId }); }
+      try { part.library.close(); } catch (error) { hostLog.warn("plugins", "partition_close_failed", error, { install_id: instance.install_id }); }
     }
   }, PARTITION_IDLE_MS);
   sweep.unref?.();

@@ -1,20 +1,22 @@
+import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DATASET_ARTIFACT_SCHEMA_VERSION, DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { DATASET_ARTIFACT_SCHEMA_VERSION, DATASET_ARTIFACT_TYPE_ID } from "./contract.js";
 import { datasetManifest } from "./manifest.js";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, type DatasetActionPorts } from "./actions.js";
 import { datasetErrors } from "./error.js";
 import { DatasetStore, type DatasetStores } from "./store.js";
 import { datasetUiContribution } from "./ui.js";
 import type { DatasetLineHeadPort, DatasetPublicationSnapshot, DatasetPublishArtifactPort, DatasetReadArtifactPort } from "./promote.js";
+import { DATASET_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * Datasets as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
  * `dataset` store its Host entry declares; the 成果 it pins, the model and the actions it routes come from the Runtime's services.
  */
 export function createDatasetPlugin(): PluginDefinition {
-  return { manifest: datasetManifest, async start(context) {
+  return { manifest: datasetManifest, instructions: DATASET_INSTRUCTIONS, async start(context) {
     for (const permission of datasetManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, artifacts = context.services?.artifacts;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供数据表库");
@@ -28,7 +30,7 @@ export function createDatasetPlugin(): PluginDefinition {
     const ports: DatasetActionPorts = { ...stores, ...datasetArtifactPorts(context, artifacts),
       modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { completeText: async (prompt, options) => (await model.complete(prompt, { signal: options.signal })).text } : {}) };
-    return { kind: "app", views: [datasetUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [datasetUiContribution],
       actions: [...createDatasetActionHandlers(ports), ...createDatasetContentHandlers(stores)],
       routes: datasetRoutes(context) };
   } };

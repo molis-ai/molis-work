@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SchedulePluginRouteHandler, SchedulePluginRouteResponse } from "./routes.js";
 import { scheduleActions, type ScheduleTaskInput } from "./actions.js";
 import { scheduleErrors } from "./error.js";
@@ -6,7 +6,6 @@ import { scheduleErrors } from "./error.js";
 export interface ScheduleRouteHandlerPorts {
   readonly actions: BoundActionClient;
   changed(): void;
-  renderWorkbench?(): string | Promise<string>;
 }
 
 /** HTTP adapts presentation and form parameters; validation and business work belong to actions. */
@@ -25,11 +24,6 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
   const enabled = (body: Readonly<Record<string, unknown>>) => typeof body.enabled === "boolean" ? body.enabled : null;
   return {
     "schedule.list": () => run(scheduleActions.list, {}),
-    "schedule.workbench": async () => {
-      if (!options.renderWorkbench) throw new ActionError("actions.service_unavailable", "Schedule 工作区不可用");
-      await options.actions.invoke(scheduleActions.list, {});
-      return { status: 200, html: await options.renderWorkbench() };
-    },
     "schedule.readiness": () => run(scheduleActions.readiness, {}),
     "schedule.job.enabled": ({ params, request }) => {
       const value = enabled(request.body);

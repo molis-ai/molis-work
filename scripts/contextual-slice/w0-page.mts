@@ -1,4 +1,5 @@
-import { THEME_BOOTSTRAP_SCRIPT, TYPEFACE_STYLES, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { THEME_BOOTSTRAP_SCRIPT, TYPEFACE_STYLES, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { PAGES_STYLES } from "../../plugins/native/pages/src/styles.js";
 import { W0_STYLES } from "./w0-styles.mjs";
 import { TABS } from "./w0-sources.js";

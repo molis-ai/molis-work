@@ -2,7 +2,8 @@ import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform
 import type { InstructedPrompt, InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginModelConfigurationDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginModelClient, createPluginModelConfigurationClient, pluginModelErrors, type PluginModelPort } from "@molis-ai/molis-work-plugin-runtime";
-import { createConsumerModelConfiguration } from "./model-configuration.js";
+import { createConsumerModelConfiguration, modelConfigurationInvalid } from "./model-configuration.js";
+import { sandboxProviderName } from "./sandbox-home-names.js";
 import { decodePrologueJsonOutput, reportedTokenTotal } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -12,32 +13,37 @@ import { configuredModelChoices, openConfiguredModels, selectConfiguredTextModel
 import { withPluginModelImages } from "./plugin-model-images.js";
 import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import type { PluginPlatformHome } from "./home-side.js";
+import { MODEL_PERMISSIONS } from "./plugin-service-permissions.js";
 
 /**
- * `services.model` for a plugin this Host runs itself: declared `model:read` or `model:invoke`, not sandboxed, on a platform that
- * reaches a Home. `model:read` reaches only the list and availability; the Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
+ * `services.model` for a plugin this Host runs: declared `model:read` or `model:invoke`, on a platform that reaches a Home. A sandboxed
+ * package gets the same client (PG-017 P1, S-66): its broker forwards the three members a channel can carry and names the package's own instructions. `model:read` reaches only the list and availability; the Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
  * `beforeEffect` agreeing before and after); the port below only makes it, through `hostTextGeneration`, which is agent-host's
  * Prologue inference and the one path every other caller of the Host's text model takes. No call id is passed on (user decision 2026-10-10).
  */
 export function pluginModelFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
-  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
-  const gate = { install_id: context.install_id, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
-  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home), gate),
+  if (!home || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
+  // `sbx-…` is the provider id the Host derives for a sandboxed package; no declaration may take it (BL-491, S-91).
+  if (declaration && sandboxProviderName(declaration.custom_provider.provider_id)) throw modelConfigurationInvalid("这个供应商名保留给沙箱插件，不能声明");
+  const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
+  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate),
     ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
   });
 }
 
 /** Either builds the service: `model:read` for the list and availability, `model:invoke` for those and requests. */
-const MODEL_PERMISSIONS: readonly string[] = ["model:read", "model:invoke"];
 
 const unavailable = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });
 
 /**
  * The Host's model for one Home. What the Host was built with decides first, read when a call needs it and never kept: a function
  * stands in for the model (tests), `null` says there is none; otherwise the Home's own configuration, as for every other caller.
+ * A call sends only instructions the calling definition carries: the register also keeps other installations' and not-running ones
+ * (PG-051 Q1 b), which are not this one's to send.
  */
-export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort {
+export function createPluginModelPort(home: PluginPlatformHome, carried: readonly Pick<InstructionPrompt, "owner_id" | "prompt_id">[]): PluginModelPort {
+  const carries = (instruction: InstructionPrompt) => carried.some(item => item.owner_id === instruction.owner_id && item.prompt_id === instruction.prompt_id);
   const configured = (selection?: PluginModelSelection) => hostTextGeneration({ homeDirectory: home.directory, selection });
   return {
     choices: () => configuredModelChoices(home.directory),
@@ -63,6 +69,9 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
     complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, () => withPluginModelImages(dispatch, async images => {
       const injected = home.completeText();
       if (injected === null) throw textModelRequired();
+      for (const instruction of [prompt.instruction, ...dispatch.system ? [dispatch.system] : []]) {
+        if (!carries(instruction)) throw pluginModelErrors.model_instruction_refused(`指令 ${instruction.prompt_id} 不在本插件的定义里：在 PluginDefinition.instructions 里登记这段指令`);
+      }
       const { text, system } = resolved(home.directory, owner, prompt, dispatch.system);
       const options: HostTextRequestOptions = { ...(images ? { images } : {}), signal: dispatch.signal, beforeDispatch: dispatch.beforeDispatch,
         timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }),

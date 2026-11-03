@@ -1,9 +1,10 @@
+import { syncAggregateDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 import { syncError } from './sync-errors.js';
-import type { AggregateDefinition, PortableRow } from '@molis-ai/molis-work-storage';
+import type { SyncAggregateDefinition, SyncPortableRow } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export const datasetSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'datasets',title:'数据表与保存版本',schema_version:1,requires:[]}]};
-export const datasetAggregates:readonly AggregateDefinition[]=[{
+
+export const datasetAggregates:readonly SyncAggregateDefinition[]=[{
   kind:'dataset',copy:{kind:'io.molis.work.dataset:dataset',references(value,projectId){const ids=new Set<string>();if(value.record.artifact_id)ids.add(String(value.record.artifact_id));for(const saved of value.children.dataset_versions!){const snapshot=JSON.parse(String(saved.snapshot_json));if(snapshot.artifact_id)ids.add(snapshot.artifact_id);}return [...ids].map(id=>({kind:'io.molis.work.artifacts:artifact',id,projectId}));},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('io.molis.work.artifacts:artifact',String(value.record.artifact_id));for(const saved of value.children.dataset_versions!){const snapshot=JSON.parse(String(saved.snapshot_json));snapshot.id=value.record.id;snapshot.project_id=identity.targetProjectId;if(snapshot.artifact_id)snapshot.artifact_id=identity.id('io.molis.work.artifacts:artifact',snapshot.artifact_id);saved.snapshot_json=JSON.stringify(snapshot);}}},table:'datasets',columns:['id','project_id','title','description','status','columns_json','rows_json','created_at','updated_at','artifact_id','artifact_version'],
   children:[{table:'dataset_versions',parent:'dataset_id',columns:['id','dataset_id','note','snapshot_json','created_at'],orderBy:'created_at,id'}],versionColumn:'version',busyColumn:'publication_pending_json',
   validate({record:r,children}){
@@ -20,7 +21,7 @@ export const datasetAggregates:readonly AggregateDefinition[]=[{
   },
   dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw syncError("dependencies",'等待数据表关联的成果版本');},
 }];
-function base(r:PortableRow){
+function base(r:SyncPortableRow){
   for(const k of ['id','project_id','title','description','artifact_id'])check(typeof r[k]==='string');
   check(String(r.title).length>0&&String(r.title).length<=80&&String(r.description).length<=2000&&['draft','ready'].includes(String(r.status)));
   for(const k of ['created_at','updated_at'])check(typeof r[k]==='string'&&Number.isFinite(Date.parse(r[k])));
@@ -32,3 +33,5 @@ function table(columns:unknown,rows:unknown){
   for(const r of rows){check(r&&Object.keys(r).sort().join(',')==='cells,id'&&typeof r.id==='string'&&r.id.length>0&&!rowIds.has(r.id));rowIds.add(r.id);check(r.cells&&typeof r.cells==='object'&&!Array.isArray(r.cells)&&Object.keys(r.cells).length===ids.size&&Object.entries(r.cells).every(([k,v])=>ids.has(k)&&typeof v==='string'));}
 }
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'数据表同步数据不合法');}
+
+export const datasetSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'datasets',title:'数据表与保存版本',schema_version: 2,requires:[],aggregates:syncAggregateDeclaration(datasetAggregates)}]};

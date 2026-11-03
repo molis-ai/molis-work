@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { GeneratedImage, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import type { GeneratedImage, ImageJob } from "./contract.js";
 import { imagesErrors, isImagesFailure } from "./error.js";
 import { generateProviderImages } from "./providers.js";
 import type { ImagesServiceOptions, ImagesControl } from "./service.js";
+import { IMAGES_ASSETS } from "./owner-files.js";
 import type { ImagesStore, StoredConnection } from "./store.js";
 
 interface JobRun extends ImagesServiceOptions {
@@ -45,7 +46,8 @@ export async function runImageJob(run: JobRun): Promise<void> {
     for (const image of images) {
       const id = randomUUID(), extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[image.mime];
       const filename = `${id}.${extension}`;
-      await run.files.create(guarded, filename, image.bytes);
+      // The check and the write are one synchronous step: nothing can change the job or the connection between them.
+      await run.files.write(writer => { requireSynchronous(guarded.assert_authority_current?.()); writer.writeFile(`${IMAGES_ASSETS}/${filename}`, image.bytes, "create"); });
       saved.push({ id, filename, mime_type: image.mime, byte_length: image.bytes.length });
     }
     await run.write(guarded, store => store.finish(job.project_id, job.id, "succeeded", saved, ""));

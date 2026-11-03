@@ -1,30 +1,33 @@
+import type { DeclaredPageRouteMatch } from "@molis-ai/molis-work-plugin-sdk";
+import { GOALS_PLUGIN_ID } from "./identity.js";
+
 export type GoalDocumentCollection = "current" | "archive" | "trash";
-type ParametersReader = { get(name: string): string | null };
+
+/** A match of Goals' own declared routes (`GOALS_PAGE_ROUTES`), or null for anyone else's. */
+function ownMatch(match: DeclaredPageRouteMatch | null): DeclaredPageRouteMatch | null {
+  return match && match.plugin_id === GOALS_PLUGIN_ID ? match : null;
+}
+
 export type GoalsReadRoute =
   | { kind: "refresh"; collection: GoalDocumentCollection; goal_id?: string }
   | { kind: "momentum"; collection: "current" | "archive"; goal_id: string }
   | { kind: "document"; collection: GoalDocumentCollection; goal_id: string };
 export interface GoalsRouteError { status: 400 | 404; error: string }
 
-/** Parse only the existing GET presentation routes, after the host strips Project scope. */
-export function resolveGoalsReadRoute(pathname: string, params: ParametersReader): { route: GoalsReadRoute } | GoalsRouteError | null {
-  const refresh = pathname === "/api/board/refresh";
-  const momentum = pathname === "/api/board/momentum";
-  const document = pathname.match(/^\/api\/goals\/([^/]+)\/document$/);
-  if (!refresh && !momentum && !document) return null;
-  let goalId = "";
-  if (document) {
-    try { goalId = decodeURIComponent(document[1]!); }
-    catch { return { status: 404, error: "Goal 内容不存在" }; }
-  }
-  const collection = params.get("view") ?? "current";
+/** What the Host's match of a fragment route (`board-refresh`, `board-momentum`, `goal-document`) asks for, or the refusal; null when it is another route. */
+export function goalsReadRouteOf(declared: DeclaredPageRouteMatch | null): { route: GoalsReadRoute } | GoalsRouteError | null {
+  const match = ownMatch(declared);
+  const refresh = match?.route_id === "board-refresh", momentum = match?.route_id === "board-momentum", document = match?.route_id === "goal-document";
+  if (!match || !(refresh || momentum || document)) return null;
+  if (match.rejected) return document ? { status: 404, error: "Goal 内容不存在" } : { status: 400, error: "Goal 请求参数无效" };
+  const collection = match.params.view ?? "current";
   if (momentum) {
     if (collection !== "current" && collection !== "archive") return { status: 400, error: "Goal 推进态势集合无效" };
-    return { route: { kind: "momentum", collection, goal_id: params.get("goal_id")?.trim() || "" } };
+    return { route: { kind: "momentum", collection, goal_id: match.params.goal_id?.trim() || "" } };
   }
   if (collection !== "current" && collection !== "archive" && collection !== "trash") return { status: 400, error: "Goal 正文集合无效" };
-  if (refresh) return { route: { kind: "refresh", collection, goal_id: params.get("goal_id")?.trim() || undefined } };
-  return { route: { kind: "document", collection, goal_id: goalId } };
+  if (refresh) return { route: { kind: "refresh", collection, goal_id: match.params.goal_id?.trim() || undefined } };
+  return { route: { kind: "document", collection, goal_id: match.params.goal_id ?? "" } };
 }
 
 export function goalsReadRouteNotFound(route: GoalsReadRoute): string {
@@ -70,11 +73,13 @@ export function resolveGoalsPageCollection(route: GoalsPageRoute, view: GoalsPag
   return { route: { ...route, collection: trashView ? "trash" : archiveView ? "archive" : "current" } };
 }
 
-export function resolveGoalsPageRoute(pathname: string): { route: GoalsPageRoute } | GoalsRouteError | null {
-  if (pathname === "/") return { route: { collection: "current" } };
-  if (pathname === "/archive" || pathname === "/trash") return { route: { collection: pathname.slice(1) as "archive" | "trash" } };
-  const match = pathname.match(/^\/(?:(archive|trash)\/)?goals\/([^/]+)$/);
-  if (!match) return null;
-  try { return { route: { collection: (match[1] ?? "current") as GoalDocumentCollection, goal_id: decodeURIComponent(match[2]!) } }; }
-  catch { return { status: 404, error: "Goal 页面不存在" }; }
+const PAGE_ROUTE_COLLECTIONS: Readonly<Record<string, GoalDocumentCollection>> = { "project-page": "current", "goal-page": "current", "archive-page": "archive", "archive-goal-page": "archive", "trash-page": "trash", "trash-goal-page": "trash" };
+
+/** What the Host's match of a page route (the project, archive and trash pages and a Goal's page in each) asks for, or the refusal; null when it is another route. */
+export function goalsPageRouteOf(declared: DeclaredPageRouteMatch | null): { route: GoalsPageRoute } | GoalsRouteError | null {
+  const match = ownMatch(declared);
+  const collection = match ? PAGE_ROUTE_COLLECTIONS[match.route_id] : undefined;
+  if (!match || !collection) return null;
+  if (match.rejected) return { status: 404, error: "Goal 页面不存在" };
+  return { route: match.params.goal_id === undefined ? { collection } : { collection, goal_id: match.params.goal_id } };
 }

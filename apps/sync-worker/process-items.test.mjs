@@ -1,10 +1,11 @@
+import {createStaticPersonalSync as createPersonalSync} from '../../tests/fixtures/static-personal-sync.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { personalStorageSpace, ensureStorageSpace } from '@molis-ai/molis-work-storage';
-import { createPersonalSync, LocalProjectDatabase, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase, openProjectVersionStores } from '@molis-ai/molis-work-app-local-host';
 import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { CODING_PLAN_TYPE, codingManifest } from '@molis-ai/molis-work-plugin-coding';
 import { cloudFixture } from './testing.mjs';
@@ -22,7 +23,7 @@ test('PCSYNC-11/13/22/23 complete process versions use the actual Host collectio
   t.mock.method(globalThis, 'fetch', cloud.transport);
   const project = await withMolisWorkProjectCatalog({ homeDirectory: homes[0] }, catalog => catalog.createProject({ display_name: 'Saved process versions', actor_id: 'alice' }));
   const source = new LocalProjectDatabase(project.database_path); t.after(() => source.close());
-  const app = new GoalProjectApplication(source), text = '完整固定计划🙂\n'.repeat(75000), id = 'portable-coding-plan';
+  const app = openProjectVersionStores(source), text = '完整固定计划🙂\n'.repeat(75000), id = 'portable-coding-plan';
   const planSchema = codingManifest.process_items.produces.find(type => type.artifact_type_id === CODING_PLAN_TYPE).schema_version;
   const publish = version => app.processItems.commands.registerVersion({ project_id: project.project_id,
     artifact_id: id, version, artifact_type_id: CODING_PLAN_TYPE, schema_version: planSchema, actor_id: 'plugin:coding',
@@ -44,7 +45,7 @@ test('PCSYNC-11/13/22/23 complete process versions use the actual Host collectio
   }));
   assert.ok(received.project); assert.equal(received.plugins.some(row => row.plugin_id === 'coding' || row.plugin_id === 'artifacts'), false);
   const target = new LocalProjectDatabase(received.project.database_path); t.after(() => target.close());
-  const restored = new GoalProjectApplication(target);
+  const restored = openProjectVersionStores(target);
   assert.deepEqual(restored.processItems.query.getArtifactVersion(project.project_id, { artifact_id: id, version: 1 }).payload, { text });
   assert.deepEqual(restored.artifacts.query.listArtifacts(project.project_id), []);
   assert.equal(target.db.prepare('SELECT COUNT(*) AS n FROM coding_sessions').get().n, 0);

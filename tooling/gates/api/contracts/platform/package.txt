@@ -6,24 +6,11 @@ export interface ContractDescriptor {
     readonly contractId: string;
     readonly kind: "module" | "service" | "platform";
     readonly schemaVersion: number;
-    readonly maturity: PackageMaturity;
+    readonly maturity: ContractMaturity;
     readonly ssot: string;
 }
 
-export interface PackageDescriptor {
-    readonly packageName: string;
-    readonly packagePath: string;
-    readonly kind: PackageKind;
-    readonly maturity: PackageMaturity;
-    readonly contract: string;
-    readonly migrationGoals: readonly string[];
-    readonly ssot: string;
-    readonly capabilities: readonly string[];
-}
-
-export type PackageKind = "app" | "foundation" | "module" | "horizontal" | "native-plugin" | "integration-plugin" | "tooling";
-
-export type PackageMaturity = "contract-only" | "partial" | "implemented";
+export type ContractMaturity = "contract-only" | "partial" | "implemented";
 
 export declare const packageContract: {
     readonly contractId: "io.molis.work.platform.package.v1";

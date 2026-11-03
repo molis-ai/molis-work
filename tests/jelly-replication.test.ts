@@ -1,3 +1,6 @@
+import {openJellyStore} from "./fixtures/plugin-sync-stores.js";
+import {DatabaseSync} from "node:sqlite";
+import {homeSqlitePath} from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -5,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureStorageSpace, personalStorageSpace, type AggregateReplicaContext } from "@molis-ai/molis-work-storage";
 import type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
+
 
 function fixture(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), "jelly-sync-"));
@@ -66,4 +69,19 @@ test("Jelly preserves both sides of concurrent edits and rejects malformed remot
   f.replicas[1]!.receive({ ...event, operationId: "bad", revision: 2, value: invalid });
   assert.deepEqual(b!.read(), before);
   assert.equal(f.replicas[1]!.counts().conflicts, 1);
+});
+
+test("Jelly receive never replaces a missing workspace whose local history still exists", t => {
+  const f=fixture(t),[source,target]=f.stores;
+  source!.execute({type:"note.create",title:"Remote original"});
+  target!.execute({type:"note.create",title:"Local history must survive"});
+  const db=new DatabaseSync(homeSqlitePath(f.homes[1]!,"jelly"));
+  try {
+    const history=Number(db.prepare("SELECT count(*) AS n FROM jelly_history").get()!.n);assert.ok(history>0);
+    db.exec("DELETE FROM jelly_workspace");
+    const event=f.take();f.replicas[1]!.receive(event);assert.equal(f.replicas[1]!.conflicts().length,1);
+    assert.throws(()=>f.replicas[1]!.resolve(event.key,"remote",event.revision));
+    assert.equal(db.prepare("SELECT count(*) AS n FROM jelly_workspace").get()!.n,0);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM jelly_history").get()!.n,history);
+  } finally {db.close();}
 });

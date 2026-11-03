@@ -9,15 +9,17 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const exec = promisify(execFile), hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
 for (const mode of ["revoked", "reconfigured", "cancelled"] as const) {
   test(`research repository ${mode}: real Git fetch and verified package read cannot commit after authority changes; retry preserves original material identity`, { timeout: 20_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "feed-research-authority-")), repository = join(home, "remote"), bin = join(home, "bin");
+    await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const realGit = (await exec("which", ["git"])).stdout.trim(), oldPath = process.env.PATH;
     const research = JSON.stringify({ source_records: [{ id: "source-1", title: "Original evidence", url: "https://example.com/one", summary: "A bounded observation" }], findings: [{ id: "finding-1", claim: "One verifiable finding", source_ids: ["source-1"] }] });
     const report = "# Original report\nOne verifiable finding", packagePath = "packages/observations/daily-v1";
@@ -57,7 +59,7 @@ const fs = require('node:fs'), cp = require('node:child_process');
     const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, home);
     const host = new MolisWorkLocalHost({ homeDirectory: home }), controller = new AbortController();
     let allowed = true;
-    const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["feed:read", "feed:write"], validate_authority: () => {
+    const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS], validate_authority: () => {
       if (!allowed) throw new ActionError("actions.revoked", "Revoked");
     } };
     const reference = molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID });

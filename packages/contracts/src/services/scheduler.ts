@@ -1,5 +1,4 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import { defineErrorCodes } from "../platform/action-errors.js";
 
 export const servicesSchedulerContract = {
@@ -54,12 +53,6 @@ export interface ScheduleRegisterInput {
   recurrence?: ScheduleRecurrence;
 }
 
-/**
- * What a Plugin sends to `schedule.register`. The owner is the calling Plugin: the Scheduler reads it from the trusted
- * invocation, so the input has no `plugin_id` and one sent anyway is never read.
- */
-export type SchedulePluginRegisterInput = Omit<ScheduleRegisterInput, "plugin_id">;
-
 export interface ScheduleTickResult {
   invoked: number;
   failed: number;
@@ -94,30 +87,3 @@ export const schedulerErrors = defineErrorCodes("scheduler", {
   interval_too_short: "invalid",
   path_refused: "invalid",
 });
-
-/**
- * The typed `schedule.*` channel serves Runtime plugins only. Whose jobs a call touches is read from the trusted
- * invocation (`HostCapabilityInvocation.plugin`), never from the input; a call with no plugin identity is refused.
- */
-export const scheduleCapabilities = {
-  register: {
-    capability_id: "schedule.register",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<SchedulePluginRegisterInput, ScheduleJobRecord>,
-  cancel: {
-    capability_id: "schedule.cancel",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<{ job_id: string }, { cancelled: boolean }>,
-  setEnabled: {
-    capability_id: "schedule.setEnabled",
-    version: 1,
-    operation: "command",
-  } as HostCapabilityDefinition<{ job_id: string; enabled: boolean }, ScheduleJobRecord>,
-  list: {
-    capability_id: "schedule.list",
-    version: 1,
-    operation: "query",
-  } as HostCapabilityDefinition<Record<string, never>, { jobs: ScheduleJobRecord[] }>,
-} as const;

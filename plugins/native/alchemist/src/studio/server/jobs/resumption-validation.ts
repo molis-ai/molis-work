@@ -17,12 +17,12 @@ export function validateResumption(job: PersistedJob, d: { jobs: SqliteJobRunner
     // The checkpoint is saved just before the model is called, so a run stopped here may have been charged and continuing calls it again.
     if ((job.checkpoint as { stage?: string } | undefined)?.stage === "generating") return { unknownCall: { operation: "generating" as const } };
   } else if (job.kind === RESEARCH_LENS_JOB) {
-    const input = lensInputSchema.parse(job.input), run = d.research.getRun(input.lensRunId), plan = d.research.getPlan(input.planId);
+    const input = lensInputSchema.parse(job.input), run = d.research.runs.getRun(input.lensRunId), plan = d.research.plans.getPlan(input.planId);
     if (!run || !plan || run.jobId !== job.id || run.planId !== plan.id) throw new Error("alchemist.lens_run_input_invalid");
     const { budget, unknownCall, exhausted } = inspectLensProgress(job, plan, d.jobs.listEvents(job.id));
     return { budget, unknownCall, exhausted, modelId: plan.modelId };
   } else if (job.kind === DISCOVERY_PULSE_JOB) {
-    const input = validatePulseJob(job), run = d.pulse.getRun(input.pulseRunId);
+    const input = validatePulseJob(job), run = d.pulse.runs.getRun(input.pulseRunId);
     if (!run || run.jobId !== job.id) throw new Error("alchemist.pulse_run_input_invalid");
   }
 }

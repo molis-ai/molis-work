@@ -1,4 +1,4 @@
-import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody } from "./contract.js";
 
 interface PagesTemplate {
   readonly id: string;

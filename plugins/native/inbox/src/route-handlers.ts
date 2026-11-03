@@ -1,5 +1,5 @@
 import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { ActionError, type BoundActionClient, type ActionSceneBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { BoundActionClient, ActionSceneBinding, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, type InboxPagesInput, type InboxStatusInput } from "./actions.js";
 import type { InboxPluginRouteHandler } from "./routes.js";
 
@@ -14,7 +14,6 @@ export interface InboxJudgmentState { readonly summary?: InboxJudgmentSummary; r
 export interface InboxRouteHandlerPorts {
   actions: BoundActionClient;
   changed(): void;
-  renderWorkbench?(): string | Promise<string>;
 }
 
 /** HTTP adapts presentation and path parameters; validation and business work belong to actions. */
@@ -36,10 +35,5 @@ export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Recor
     "inbox.judgment.read": () => run(inboxActions.readJudgment, {}),
     "inbox.judgment.write": ({ request }) => run(inboxActions.writeJudgment, request.body as { function_key: string | null }),
     "inbox.judgment.evaluate": ({ request }) => run(inboxActions.evaluateJudgment, request.body as { entry_ids: string[] }),
-    "inbox.workbench": async () => {
-      if (!options.renderWorkbench) throw new ActionError("actions.service_unavailable", "Inbox 工作区不可用");
-      await options.actions.invoke(inboxActions.list, {});
-      return { status: 200, html: await options.renderWorkbench() };
-    },
   };
 }

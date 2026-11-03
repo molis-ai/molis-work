@@ -14,10 +14,10 @@ async function openEditor(t: TestContext, texts: string[]) {
     const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';
     script.onload=resolve;script.onerror=()=>reject(new Error('Editor asset failed to load'));document.head.append(script);
   })`);
-  await b.evaluate(`new Promise((resolve,reject)=>{
-    const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/molis-work-workbench.css';
+  await b.evaluate(`Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{
+    const css=document.createElement('link');css.rel='stylesheet';css.href=href;
     css.onload=resolve;css.onerror=()=>reject(new Error('Workbench styles failed to load'));document.head.append(css);
-  })`);
+  })))`);
   // W5-10-PGI-01: the host's bundled editor and styles, mounted through its public contract in a visible fixture.
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='insert-editor-fixture';root.className='pages-editor-host';

@@ -31,7 +31,8 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   let turns = 0, release: (() => void) | undefined;
   const held = new Promise<void>(resolve => { release = resolve; });
   const model = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(undefined, review)); return; }
@@ -88,9 +89,11 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   await waitFor("Boolean(document.activeElement?.closest('[data-review]')) && !document.activeElement.classList.contains('assistant-code-copy')", 10_000);
 
   await waitFor("document.querySelector('[data-review] .assistant-card-kicker .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
-  // RING-08: common status sizes survive the compact tab and card styles.
+  // RING-08: the compact tab and card styles keep a ring as tall as its words (1em + 2px), not squeezed below them.
+  const asTallAsItsWords = (selector: string) => `(() => { const ring = document.querySelector(${JSON.stringify(selector)}), box = ring.getBoundingClientRect();
+    return Math.abs(box.height - parseFloat(getComputedStyle(ring).fontSize) - 2) <= 1 && box.width === box.height && box.height >= 13; })()`;
   for (const selector of [".assistant-tab[data-current] .mw-state-ring", "[data-review] .assistant-card-kicker .mw-state-ring"]) {
-    assert.ok(await evaluate(`document.querySelector('${selector}').getBoundingClientRect().width >= 20`));
+    assert.ok(await evaluate(asTallAsItsWords(selector)), selector);
   }
   await click("[data-assistant-new]");
   await say("写一份周报草稿");
@@ -114,7 +117,7 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
       const selector = `#ring-host-sample .mw-ix-kicker .mw-state-ring[data-mw-state="${state}"]`;
       await evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: 'center' })`);
       assert.ok(await evaluate(`(() => { const ring = document.querySelector(${JSON.stringify(selector)}), box = ring.getBoundingClientRect();
-        return box.width >= 20 && box.height >= 20 && box.left >= 0 && box.right <= innerWidth && getComputedStyle(ring).display !== 'none'; })()`), `${state} at ${width}px`);
+        return Math.abs(box.height - parseFloat(getComputedStyle(ring).fontSize) - 2) <= 1 && box.height >= 13 && box.left >= 0 && box.right <= innerWidth && getComputedStyle(ring).display !== 'none'; })()`), `${state} at ${width}px`);
     }
   }
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync, promises as fs } from "node:fs";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -9,6 +9,7 @@ import { WebSocket } from "ws";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
 const TOKEN = "project-settings-deletion-test-0123456789";
 
@@ -58,7 +59,7 @@ test("PCSYNC-15 project rename HTTP rejects missing and stale observations witho
   assert.equal(saved.status, 200);assert.equal(catalog.getProject(project.project_id).display_name, "核对后保存");
 });
 
-test("project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
+test("RAC-1330 project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
   const { directory, homeDirectory, catalog, project, other, localHost, origin, post } = await fixture(t);
   const prefix = `/projects/${project.project_id}`;
   const deletePath = `/api/settings/projects/${project.project_id}/delete`;
@@ -132,6 +133,7 @@ test("project settings deletion requires authorization and confirmation, closes 
   assert.deepEqual(await replay.json(), { ...result, replayed: true });
   const conflict = await post(`/api/settings/projects/${other.project_id}/delete`, body);
   assert.equal(conflict.status, 400);
+  assert.equal(((await conflict.json()) as { code?: string }).code, "catalog.deletion_idempotency_conflict");
   assert.equal(existsSync(other.database_path), true);
   const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
@@ -166,10 +168,16 @@ test("project deletion reports incomplete physical cleanup and retries the same 
   assert.equal(existsSync(join(dirname(dirname(project.database_path)), staged[0])), false);
 });
 
-test("project deletion refuses a live terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
+test("RAC-1330 RAC-2568 project deletion refuses a live Goal terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
   const { directory, catalog, project, origin, post } = await fixture(t);
-  const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "test-terminal-goal", runtime_kind: "generic",
-    launch_command: "/bin/cat", cwd: directory, actor_id: "test-user", user_confirmed: true });
+  // The live terminal is a Goal's, started by Goals in a folder linked to the project; the channel below only attaches to it (S-103 ⑦).
+  const folder = join(directory, "terminal-workspace");
+  await mkdir(folder);
+  await linkTerminalFolder(catalog, project.project_id, await realpath(folder));
+  addTerminalGoal(project, "test-terminal-goal");
+  const opened = await post(goalTerminalsPath(project.project_id, "test-terminal-goal"), { key: "live", command: "/bin/cat" });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const panel = { panel_id: (await opened.json() as { panel_id: string }).panel_id };
   const socket = new WebSocket(origin.replace("http:", "ws:") + "/pty");
   t.after(() => socket.close());
   await once(socket, "open");
@@ -190,18 +198,68 @@ test("project deletion refuses a live terminal and succeeds after the user close
   }
   try {
     await message({ type: "auth", token: TOKEN }, "ready");
-    await message({ type: "spawn", panelId: panel.panel_id, command: "/bin/cat", cwd: directory }, "spawned");
+    assert.equal((await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned")).attached, true, "Goals started it");
     const deletePath = `/api/settings/projects/${project.project_id}/delete`;
     const body = { delete_confirmed: true, idempotency_key: "live-terminal-delete" };
     const blocked = await post(deletePath, body);
     assert.equal(blocked.status, 409);
-    assert.match((await blocked.json() as { error: string }).error, /关闭.*终端/);
+    const blockedBody = await blocked.json() as { error: string; code?: string };
+    assert.match(blockedBody.error, /关闭.*终端/);
+    assert.equal(blockedBody.code, "catalog.project_terminal_live");
     assert.equal(existsSync(project.database_path), true);
     socket.send(JSON.stringify({ type: "kill", panelId: panel.panel_id }));
     const detached = await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned");
     assert.equal(detached.attached, false);
     assert.equal((await post(deletePath, body)).status, 200);
     assert.equal(existsSync(project.database_path), false);
-    assert.deepEqual(catalog.listDesktopPanels(project.project_id), []);
+    assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), [], "RAC-2568: the project's terminal records went with it");
   } finally { socket.terminate(); }
+});
+
+test("RAC-1330 project deletion of a project that is not in the catalog answers 404 with its code", async t => {
+  const { post } = await fixture(t);
+  const response = await post("/api/settings/projects/no-such-project/delete", { delete_confirmed: true, idempotency_key: "missing-project-delete" });
+  assert.equal(response.status, 404);
+  assert.equal((await response.json() as { code?: string }).code, "catalog.project_not_found");
+});
+
+test("RAC-1333 a deletion failure that is not an ActionError keeps its text out of the response", async t => {
+  const { directory, catalog, project, localHost, post } = await fixture(t);
+  // The deletion port lets go of the project's runtime before the catalog deletes; here it fails with a plain Error that names a local path.
+  // That is not a refusal: the exit rethrows it, the Host's unhandled answer logs it and answers with a diagnostic id, never with its text.
+  const closeProject = localHost.closeProject;
+  localHost.closeProject = async () => { throw new Error(`closing failed at ${directory}`); };
+  try {
+    const response = await post(`/api/settings/projects/${project.project_id}/delete`, { delete_confirmed: true, idempotency_key: "release-fails-delete" });
+    const raw = await response.text();
+    assert.equal(response.status, 500, raw);
+    const body = JSON.parse(raw) as { error?: string; code?: string; diagnostic_id?: string };
+    assert.equal(body.code, "actions.execution_failed", "the unexpected failure is the Host's own");
+    assert.equal(typeof body.diagnostic_id, "string", raw);
+    assert.doesNotMatch(raw, /closing failed/, "the internal failure's own text is not passed on");
+    assert.ok(!raw.includes(directory), "the answer names no local path");
+  } finally {
+    localHost.closeProject = closeProject;
+  }
+  assert.equal(existsSync(project.database_path), true, "the catalog never got to delete");
+  assert.ok(catalog.listProjects().some(item => item.project_id === project.project_id));
+});
+
+test("RAC-1615 a deletion whose project id in the path is not valid percent-encoding is refused as the caller's mistake", async t => {
+  const { catalog, project, other, post } = await fixture(t);
+  const response = await post("/api/settings/projects/%zz/delete", { delete_confirmed: true, idempotency_key: "malformed-project-id" });
+  const raw = await response.text();
+  assert.equal(response.status, 400, raw);
+  assert.equal((JSON.parse(raw) as { code?: string }).code, "host.request_path_invalid");
+  assert.equal(existsSync(project.database_path), true);
+  assert.equal(existsSync(other.database_path), true);
+  assert.equal(catalog.listProjectDeletions().length, 0, "nothing was deleted");
+});
+
+test("RAC-1616 the deletion scope of a project id that is not valid percent-encoding is refused as the caller's mistake", async t => {
+  const { origin } = await fixture(t);
+  const response = await fetch(origin + "/api/settings/projects/%zz/delete-scope");
+  const raw = await response.text();
+  assert.equal(response.status, 400, raw);
+  assert.equal((JSON.parse(raw) as { code?: string }).code, "host.request_path_invalid");
 });

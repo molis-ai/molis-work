@@ -46,7 +46,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
   const schedule = adapter.schedule!;
   try {
-    assert.equal(await service.attachSchedule(), true);
+    assert.equal(await service.notices.attachSchedule(), true);
     const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-followups-1" }, { project_ref: project });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "first round");
     // Added the way the Assistant adds it: through its own action, attached to the work its round acts for.
@@ -76,11 +76,11 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     const late = new Date(Date.now() - 2 * 3600_000);
     store.followUps.save("web-user", { ...after, next_at: late.toISOString() });
     const before = requests.length;
-    await service.attachSchedule();
+    await service.notices.attachSchedule();
     const missed = await until(() => service.followUps.list(sent.work.work_id)[0]!.last?.outcome === "missed" ? service.followUps.list(sent.work.work_id)[0] : undefined, "missed");
     assert.equal(requests.length, before, "a missed time starts nothing late");
     assert.equal((await service.read(sent.work.work_id)).rounds.length, 2);
-    assert.match(service.notices(null).find(notice => notice.work_id === sent.work.work_id && /错过/.test(notice.text))!.text, /错过了「每天六点汇总」/);
+    assert.match(service.notices.notices(null).find(notice => notice.work_id === sent.work.work_id && /错过/.test(notice.text))!.text, /错过了「每天六点汇总」/);
     assert.ok(Date.parse(missed!.next_at!) > Date.now(), "the next time is in the future");
     await assert.rejects(service.followUps.save({ work_id: sent.work.work_id, text: "x", at: "2026-09-01T00:00:00.000Z", label: "过去" }), /之后/);
 
@@ -110,7 +110,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     unhandled();
     const service2 = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
     try {
-      await service2.attachSchedule();
+      await service2.notices.attachSchedule();
       assert.equal(service2.followUps.list(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.last?.outcome, "missed");
     } finally { service2.continuations.close(); }
 
@@ -145,7 +145,7 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
   const schedule = adapter.schedule!;
   let release: (() => void) | undefined;
   try {
-    assert.equal(await service.attachSchedule(), true);
+    assert.equal(await service.notices.attachSchedule(), true);
     const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-followups-archive-1" }, { project_ref: project });
     const workId = sent.work.work_id;
     await until(async () => (await service.read(workId)).work.state === "completed", "first round");

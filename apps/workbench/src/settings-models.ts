@@ -1,4 +1,4 @@
-import { renderChoice, renderSwitch, renderStateRing, type StateRingState, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderChoice, renderStateRing, renderSwitch, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   ModelApiFormat,
   ModelProviderHealth,
@@ -23,7 +23,7 @@ import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/ser
 export interface ModelSettingsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escape(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
 }
 
 /**

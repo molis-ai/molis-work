@@ -59,12 +59,18 @@ export type ProjectPluginId = string;
  */
 export interface ProjectPluginRegistry {
   has(pluginId: ProjectPluginId): boolean;
+  /** Initial memberships for a new project; never applied when reading or reopening an existing project. */
+  initial?(): readonly ProjectPluginId[];
   /** Plugins that must be enabled together with this one. */
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
   /** Always-on plugins a project may hide. Absent means none are personal. */
   isPersonal?(pluginId: ProjectPluginId): boolean;
-  /** 常开插件 (the Manifest's `always_on`): on in every project, and no project may hide or remove one. Absent means none are. */
-  isAlwaysOn?(pluginId: ProjectPluginId): boolean;
+  /**
+   * 常开插件 (the Manifest's `always_on`): the plugins that are on in every project, and that no project may hide or remove. The
+   * Host answers from what is installed and agreed to, each time it is asked, so a revoked or newly installed one counts at once.
+   * Absent means none are.
+   */
+  alwaysOn?(): readonly ProjectPluginId[];
 }
 
 export interface AddProjectPluginInput {
@@ -133,11 +139,10 @@ export interface CreateProjectInput {
 }
 
 /**
- * What an owner (a plugin, a module) keeps in the Home for a project outside the project's own directory (its stores are
- * partitioned by `project_id`), and how to clear it when the project is deleted. The owner exports one; a built-in plugin
- * attaches it to its catalog entry (`project_data`), and the Host builds the deletion's owners from the declarations it
- * already collects, so it never names a plugin or lists its tables. The owner's id in the deletion receipt is the
- * plugin's `project_plugin_id`.
+ * What a module of the Host's own keeps in the Home for a project outside the project's own directory (its stores are
+ * partitioned by `project_id`), and how to clear it when the project is deleted. The module exports one and the Host names it
+ * among the deletion's owners. A plugin declares its data in its Manifest instead (`databases.home.project_rows`, PG-024), and the
+ * platform deletes it without running the plugin's code.
  */
 export interface ProjectDataDeclaration {
   /** What the confirmation dialog tells the person goes with the project (Chinese source text, translated when shown). */
@@ -148,9 +153,8 @@ export interface ProjectDataDeclaration {
    * Clears the owner's data of the project from the Home. It works on the owner's own files, so any process on the Home
    * can run it without the owner's service running; it is idempotent (a failed receipt is retried, and a library that
    * does not exist yet is not created). Throws when something is left, and the step then stays pending in the receipt.
-   * Only a plugin whose Home library is partitioned by project may leave it out: the Host removes that project's library.
    */
-  purge?(homeDirectory: string, projectId: string): void | Promise<void>;
+  purge(homeDirectory: string, projectId: string): void | Promise<void>;
 }
 
 /** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */
@@ -198,6 +202,10 @@ export interface ProjectDeletionResult {
 
 export interface ProjectsQueryApi {
   wasProjectPluginRemoved(projectId:string,pluginId:ProjectPluginId):boolean;
+  /** Stored display facts only, without derived membership or any assertion of plugin availability. Never use for authorization. */
+  storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
+  /** Current derived membership and hidden marks, sharing one synchronous registry read. Later execution must read current state again. */
+  projectPluginMembership(projectId: string): ProjectPluginMembership;
   listProjectPlugins(projectId: string): ProjectPluginId[];
   listHiddenPlugins(projectId: string): ProjectPluginId[];
   listProjects(): ProjectRecord[];
@@ -240,6 +248,8 @@ const WORKSPACE_SCHEMA = { type: "object", properties: {
   realpath_verified: { type: "boolean" }, display_name: { type: "string" },
 }, required: ["workspace_id", "canonical_path", "realpath_verified", "display_name"], additionalProperties: false };
 
+const RUNTIME_PICK_SCHEMA = { anyOf: [{ type: "string", minLength: 1, maxLength: 200 }, { type: "null" }] };
+
 export const projectsCapabilities = {
   listWorkspaces: {
     capability_id: "projects.workspaces.list.v1",
@@ -281,22 +291,40 @@ export const projectSettingsCapabilities = {
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: { type: "string", minLength: 1, maxLength: 200 } },
       output_schema: WORKSPACE_SCHEMA, output_type: "project.workspace" },
   } as ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>,
+  /** The Runtime the person picked for this project's Agent sessions (`resolveProjectRuntime` reads it); null means the Home default. */
+  runtime: {
+    capability_id: "projects.settings.runtime.read.v1",
+    version: 1,
+    operation: "query",
+    action: { title: "项目运行时", description: "读取当前项目选定的 Agent 运行时标识；没有选择时返回空值，表示用默认运行时", kind: "query", scope: "project",
+      audiences: ["user", "agent", "workflow", "mcp"], permissions: [], subject_kinds: ["project"],
+      input_schema: { type: "array", maxItems: 0 }, output_schema: RUNTIME_PICK_SCHEMA, output_type: "project.runtime.optional" },
+  } as ActionDefinition<[], string | null>,
+  /** Which Runtime this project's sessions run on is the person's own setting: the local user only. Null returns to the Home default. */
+  selectRuntime: {
+    capability_id: "projects.settings.runtime.select.v1",
+    version: 1,
+    operation: "command",
+    action: { title: "选择项目运行时", description: "为当前项目选一个 Agent 运行时；空值恢复为默认运行时。选定的运行时不可用时，新会话与新一轮会被拒绝，不会换别的运行时", kind: "operation", scope: "project",
+      audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: RUNTIME_PICK_SCHEMA }, output_schema: RUNTIME_PICK_SCHEMA, output_type: "project.runtime.optional" },
+  } as ActionDefinition<[runtimeId: string | null], string | null>,
 } as const;
 
-/** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog; repair and unlink also move the sessions that used the folder. */
-const membership = <Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<Input, Output> => ({
-  capability_id: id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
+/** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog. */
+const membership = <Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>, version = 1): ActionDefinition<Input, Output> => ({
+  capability_id: id, version, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
     subject_kinds: ["project"], input_schema: { type: "object", properties: input, required: Object.keys(input), additionalProperties: false }, output_schema: { type: "object", properties: output, required: Object.keys(output) } },
 });
 const folderPath = { type: "string", minLength: 1, maxLength: 4096 }, folderId = { type: "string", minLength: 1, maxLength: 200 };
-const sessionCount = { type: "integer", minimum: 0 };
 export const projectWorkspaceActions = {
   add: membership<{ workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.add", "关联工作目录", "把本机一个目录加入当前项目的工作目录",
     { workspace_path: folderPath }, { workspace: { type: "object" } }),
-  repair: membership<{ workspace_id: string; workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord; updated_session_count: number }>("projects.workspaces.repair", "修复工作目录路径",
-    "目录搬走或改名后，把项目关系和使用它的会话一起指向新路径；中途失败会回滚", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" }, updated_session_count: sessionCount }),
-  unlink: membership<{ workspace_id: string }, { changed: boolean; updated_session_count: number }>("projects.workspaces.unlink", "解除工作目录", "解除当前项目与这个目录的关系；目录本身和会话内容都保留",
-    { workspace_id: folderId }, { changed: { type: "boolean" }, updated_session_count: sessionCount }),
+  // v2: Sessions are retired (BL-177), so repair and unlink no longer move them or report how many moved.
+  repair: membership<{ workspace_id: string; workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.repair", "修复工作目录路径",
+    "目录搬走或改名后，把项目关系指向新路径", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" } }, 2),
+  unlink: membership<{ workspace_id: string }, { changed: boolean }>("projects.workspaces.unlink", "解除工作目录", "解除当前项目与这个目录的关系；目录本身保留",
+    { workspace_id: folderId }, { changed: { type: "boolean" } }, 2),
 };
 
 function workspaceQuery(title: string, description: string, nullable: boolean): ActionMetadata {

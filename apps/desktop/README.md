@@ -1,12 +1,12 @@
 # 桌面应用装配
 
-把本地 Web 产品接入桌面窗口、Panel、Capsule 和 Runtime 启动流程，并提供 macOS 发布工具。
+把本地 Web 产品接入桌面窗口与 Capsule，并提供 macOS 发布工具。
 
 包名：`@molis-ai/molis-work-app-desktop`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
 
-createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。Panel 和 Capsule 通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问。
+createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 openMolisWorkProjectCatalog 提供。Capsule 通过 native bridge 与 Tauri 外壳交互，业务数据仍经各 Module 的公开接口访问。Goal 的工作终端由 Goals 经平台的启动终端服务开（S-103），本包不再有面板服务与启动配方（T-148）。
 
 ## 从哪里读代码
 
@@ -16,8 +16,7 @@ createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 o
 | --- | --- |
 | [src/web-host.ts](src/web-host.ts) | 桌面 Web Host 装配 |
 | [src/project-catalog.ts](src/project-catalog.ts) | 项目目录装配 |
-| [src/panels.ts](src/panels.ts) | Panel API |
-| [src/launch.ts](src/launch.ts) | Runtime 启动 |
+| [src/adapters/sqlite-panels.ts](src/adapters/sqlite-panels.ts) | 已停用的桌面面板两张表的建表语句（没有读写；何时删随 #1633 定） |
 
 可对照现有调用方 [apps/desktop/launchers/web/server.ts](../../apps/desktop/launchers/web/server.ts) 阅读装配方式。
 
@@ -27,9 +26,13 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
+桌面启动、原生命令分发及 Shelf 后台请求先用随机 challenge 和 Home 控制密钥验证本地服务的 HMAC 响应。后台请求复用已验证的 TCP 连接再发送令牌和内容；端口上的任意 HTTP 服务不能冒充本 Home。原生 PTY 已移除，终端仍走工作台的 WebSocket PTY。对应 SYS-14 的 Rust/HTTP 负向用例证明协议拒绝，原生 WebKit 实操单列验收。
+
 ## 产品启动与打包
 
 `launchers/` 保存 CLI、MCP、Web 的最终产品启动装配；它使用根产品 manifest 的依赖，由根 `tsconfig.json` 编译到原来的 `dist/cli`、`dist/mcp`、`dist/web`。协议实现仍在 CLI/MCP App，业务装配仍在 Local Host。
+
+CLI 的正常回答与退出码由原命令分发器负责；入口之外的意外拒绝只写现有 Host 的安全日志并退出 1。Web 收到 SIGINT/SIGTERM 后只发起一次关闭，先停接纳与空闲连接，给现有 owner 一轮事件循环结束流，再终止剩余活动 HTTP 和本服务登记的 socket（含升级后的 WebSocket）；HTTP/Host 清理和这些 socket 的实际 close 回调完成后才退出 0。关闭拒绝或原 2 秒界限内仍未完成则写安全诊断并退出 1，不宣称剩余清理已经完成。相关真实构建入口回归见 [desktop-entry-failures.test.ts](../../tests/desktop-entry-failures.test.ts)，含实际 SSE、认证 PTY、未完成请求与真实卡死对照。
 
 桌面 Rust 入口为 `adapters/tauri/src/main.rs`，`src-tauri/Cargo.toml` 指向它。仓库根运行 `pnpm desktop` 启动开发版，`pnpm desktop:build:macos` 构建 App/DMG；后者会准备本地 Runtime 资源，但不会自动安装应用。
 
@@ -54,6 +57,8 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
 
 ## 开发要求
 
+生产 MCP 在需要宿主时按需启动当前 Home 已安装的 `bin/molis-work-web`，只传固定 Home 与配置端口，不注册登录服务。Web 初次就绪有界，Home 健康认证通过才转发；MCP 退出后宿主继续常驻，App 按现有规则复用外部宿主，不接管其 Child 或 owner。MCP 取消/EOF 只结束该请求的等待与 HTTP，Web 启动失败经私有 fd 3 返回安全错误码，详细规则及真实进程验收见 [W5-16 C5](../../specs/repository-anti-corruption/slices/w5-16-mcp-autostart.md)。
+
 - 负责：macOS 产品外壳与原生桥的组合根，以及 CLI、MCP、Web 的启动器（`launchers/`）。
 - 不负责：业务事实、Module 规则、Runtime 状态。
 - 公开入口：`@molis-ai/molis-work-app-desktop`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
@@ -70,8 +75,5 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
 - [职责与接入说明](../../docs/platform/DESKTOP.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ap4`, `goal-reorg-dv4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

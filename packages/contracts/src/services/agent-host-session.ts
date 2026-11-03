@@ -119,14 +119,26 @@ export interface AgentBackgroundCapability {
 /** Who holds a step: only its holder reports on it. */
 export interface AgentStepOwner {
   kind: "session" | "subtask" | "person" | "none" | "other";
-  /** How the holder reads: 本会话, 子任务「…」, 用户, 没人认领. */
+  /** How the holder reads in the Host's words, for the round's model: 本会话, 子任务「…」, 用户, 没人认领. A page says `kind` in its own words. */
   label: string;
+  /** A subtask's title: the key the coordinator gave it when dispatching it. */
+  title?: string;
   /** The subtask holding it, as listed in the round's subagents. */
   subagent_id?: string;
   /** The person holding it. */
   actor_id?: string;
   /** A session holds it but has no round running and has not moved it for two hours: the person may reassign it. */
   expired?: true;
+}
+
+/** Who wrote a step's report. */
+export interface AgentStepReportAuthor {
+  /** `handover`: the report records the step passing from one holder to another. */
+  kind: "session" | "subtask" | "person" | "handover" | "other";
+  /** In the Host's words, for the round's model: 本会话, 子任务「…」, 用户, 改派. A page says `kind` in its own words. */
+  label: string;
+  /** A subtask's title: the key the coordinator gave it when dispatching it. */
+  title?: string;
 }
 
 export interface AgentStepBoard {
@@ -137,8 +149,8 @@ export interface AgentStepBoard {
   nodes: Array<{
     id: string;
     state: "not-started" | "ready" | "running" | "waiting" | "succeeded" | "failed" | "cancelled" | "blocked" | "needs-reconciliation";
-    /** Who reported (本会话, 子任务「…」, 用户); a handover says so. */
-    reports: Array<{ note: string; at_ms: number; by?: string; handover?: true; /** Inputs the report is about. */ inputs?: import("./agent-inputs.js").AgentInputRef[] }>;
+    /** Who reported; a handover says so. */
+    reports: Array<{ note: string; at_ms: number; by?: AgentStepReportAuthor; handover?: true; /** Inputs the report is about. */ inputs?: import("./agent-inputs.js").AgentInputRef[] }>;
     owner?: AgentStepOwner;
     /** The SDK node title; a person's inserted step carries its own. */
     title?: string;

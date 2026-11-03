@@ -1,34 +1,24 @@
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
+import { zh as pagesZh } from "./fixtures/pages-host.js";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
-import {
-  DATASET_CLIENT_FACTORY_SCRIPT,
-  datasetActions,
-  openDatasetStore,
-  renderDatasetWorkbench,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  FORM_CLIENT_FACTORY_SCRIPT,
-  formActions,
-  openFormStore,
-  renderFormWorkbench,
-} from "@molis-ai/molis-work-plugin-form";
+import { datasetActions, renderDatasetWorkbench } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { FORM_CLIENT_FACTORY_SCRIPT, formActions, renderFormWorkbench } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
   renderPagesWorkbench,
 } from "@molis-ai/molis-work-plugin-pages";
-import {
-  PPT_CLIENT_FACTORY_SCRIPT,
-  openPptStore,
-  pptActions,
-  renderPptWorkbench,
-} from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? ""),
@@ -36,7 +26,8 @@ const primitives = {
 };
 
 test("四个创作插件的列表和顶栏都有存为固定版本（放进 Artifacts）", () => {
-  const pages = renderPagesWorkbench({ primitives });
+  // Pages' words are stable keys: the page is shown in the person's language, as the Host would.
+  const pages = renderPagesWorkbench({ primitives: { ...primitives, text: (key: string, values?: Record<string, string | number>) => pagesZh(key, values) } });
   assert.match(pages, /data-pages-artifact-bar/);
   // Named by what the person gets: a version that no longer changes, kept in this location's Artifacts.
   assert.match(pages, /存为固定版本/);
@@ -50,11 +41,11 @@ test("四个创作插件的列表和顶栏都有存为固定版本（放进 Arti
   const dataset = renderDatasetWorkbench({ primitives });
   assert.match(dataset, /data-dataset-artifact-bar/);
   assert.match(dataset, /data-dataset-snapshot/);
-  assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /data-dataset-artifact/);
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/dataset/src/browser/commands.ts", import.meta.url)), "utf8"), /data-dataset-artifact/);
 
   const ppt = renderPptWorkbench({ primitives });
   assert.match(ppt, /data-ppt-artifact-bar/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /data-ppt-artifact/);
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/ppt/src/browser/commands.ts", import.meta.url)), "utf8"), /data-ppt-artifact/);
 });
 
 test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑稿还在", async () => {

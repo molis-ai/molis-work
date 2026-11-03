@@ -1,3 +1,4 @@
+import {runtimePersonalSync} from '../../tests/fixtures/runtime-personal-sync.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync} from 'node:fs';
@@ -11,7 +12,7 @@ import {syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
 import {cloudFixture} from './testing.mjs';
 
 test('PCSYNC-01/11/15/22 Inbox uses actual Host registry and Rust/D1/R2, retaining references without running them',async t=>{
- const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-attention-cloud-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-attention-cloud-'));
  const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b'].map(n=>join(root,n));homes.forEach(h=>ensureStorageSpace(h,space));
  const previous={origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL};process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';delete process.env.MOLIS_WORK_SYNC_LOCAL;
  t.after(()=>{for(const [name,value]of [['MOLIS_WORK_SYNC_ORIGIN',previous.origin],['MOLIS_WORK_SYNC_LOCAL',previous.local]])if(value===undefined)delete process.env[name];else process.env[name]=value;});t.mock.method(globalThis,'fetch',cloud.transport);
@@ -19,8 +20,10 @@ test('PCSYNC-01/11/15/22 Inbox uses actual Host registry and Rust/D1/R2, retaini
  const source=new LocalProjectDatabase(p.database_path);t.after(()=>source.close());const owner=new AttentionModule(source.db,{exists:()=>true});
  for(let n=0;n<320;n++){const entry=owner.commands.create({project_id:p.project_id,entry_id:'entry-'+n,subject_type:'feed_item',subject_id:'saved-item-'+n,reason:'manual',detail:{source_id:'source'}}).entry;if(n%2===0)owner.commands.setStatus(p.project_id,entry.entry_id,'done',entry.revision);}
  const check=()=>{},lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'alice'};
- const clients=await Promise.all(homes.map(home=>createPersonalSync(home,space,lease,withMolisWorkProjectCatalog,check)));t.after(()=>clients.forEach(c=>c.close()));
- const selected=clients[0].status().collections.find(row=>row.selection.collection_id==='attention');assert.ok(selected);assert.equal(clients[0].policy().selections.length,0,'new collection does not grant consent');
+ await withMolisWorkProjectCatalog({homeDirectory:homes[1]},async catalog=>{await catalog.ensureSyncedProject({project_id:p.project_id,display_name:'Restored project',actor_id:'alice'},check);catalog.addProjectPlugin({project_id:p.project_id,plugin_id:'inbox',actor_id:'alice'});});
+ const runtimes=await Promise.all(homes.map(home=>runtimePersonalSync(home,space,check,{accessToken:async()=>'alice',authOrigin:'https://auth.example.test'})));t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});const clients=runtimes.map(runtime=>runtime.sync);t.after(()=>clients.forEach(c=>c.close()));
+ await Promise.all(clients.map(client=>client.refreshCatalog()));
+ const selected=clients[0].status().collections.find(row=>row.selection.collection_id==='attention');assert.ok(selected,JSON.stringify(clients[0].status()));assert.equal(clients[0].policy().selections.length,0,'new collection does not grant consent');
  await clients[0].save({...clients[0].policy(),selections:[selected.selection]});await clients[0].run();await clients[1].run();clients.forEach(c=>assert.equal(c.status().error,null));
  const restored=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id));assert.ok(restored);
  const target=new LocalProjectDatabase(restored.database_path);t.after(()=>target.close());let effects=0;const received=new AttentionModule(target.db,{exists:()=>false},{eventSink(){effects++;}});

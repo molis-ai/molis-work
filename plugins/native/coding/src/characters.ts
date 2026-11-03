@@ -1,7 +1,6 @@
 import { codingFailure } from "./words.js";
 import { codingArtifacts } from "./artifacts.js";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
@@ -14,11 +13,6 @@ export interface CodingCharacterChoice {
   action_tools?: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null;
   available: boolean;
   reason?: string;
-}
-export interface CodingCharacterPorts {
-  list(): CodingCharacterChoice[];
-  /** Early validation before creating an SDK session; AgentHost independently resolves again at start. */
-  resolve(reference: ArtifactReference): AgentFrozenCharacter;
 }
 export function characterSelection(value: unknown): ArtifactReference | null {
   if (value === null) return null;

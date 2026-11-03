@@ -1,3 +1,4 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,6 +10,8 @@ import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime"
 import type { PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
+import { MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const runtimePath = (home: string) => join(home, "plugin-runtime", "plugin-runtime.db");
@@ -20,47 +23,90 @@ function readStore(path: string) {
   finally { db.close(); }
 }
 
-// W3-06-F-05: independent nonempty v1 facts, also used to label a damaged v2 that lacks KV. No production baseline constructs the fixture.
+// RAC-2365 RAC-2367 W3-06-F-05: independent current-schema facts at a wrong version or with KV removed; no historical DDL.
 async function rejectedStore(version: 1 | 2) {
   const home = await mkdtemp(join(tmpdir(), "home-runtime-version-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   await mkdir(join(home, "plugin-runtime"));
   const db = new DatabaseSync(runtimePath(home));
   try {
-    db.exec(await readFile(new URL("./fixtures/home-store-schemas/plugin-runtime-v1.sql", import.meta.url), "utf8"));
-    db.prepare("INSERT INTO plugin_runtime_installs VALUES (?,?)").run("original-install", JSON.stringify({ plugin_id: "example.old", install_id: "original-install",
-      installation_generation: "original-generation", grants: ["storage:private", "old:read"], state: "installed", version: "1.0.0" }));
-    db.prepare("INSERT INTO plugin_runtime_release_artifacts VALUES (?,?,?,?,?)").run("example.old", "original-publisher", "1.0.0", "original-digest", "{\"module_source\":\"original release\"}");
-    if (version === 2) db.exec("PRAGMA user_version = 2");
+    db.exec(await readFile(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8"));
+    db.prepare("INSERT INTO plugin_runtime_installs (install_id, record_json, publisher_trust) VALUES (?,?,?)").run("original-install", JSON.stringify({ plugin_id: "example.retained", install_id: "original-install",
+      installation_generation: "original-generation", grants: ["storage:private", "retained:read"], state: "installed", version: "1.0.0", publisher_trust: "unsigned" }), "unsigned");
+    db.prepare("INSERT INTO plugin_runtime_release_artifacts VALUES (?,?,?,?,?)").run("example.retained", "original-publisher", "1.0.0", "original-digest", "{\"module_source\":\"original release\"}");
+    if (version === 1) db.exec("DROP TABLE plugin_private_values");
+    db.exec(`PRAGMA user_version = ${version}`);
   } finally { db.close(); }
   return home;
 }
 
-for (const version of [1, 2] as const) {
-  test(`W3-06-F-05 W3-06-F-08 Home ${version === 1 ? "v1" : "incomplete v2"} is refused intact while Goals remains usable`, { timeout: 60_000 }, async t => {
+for (const version of [2, 1] as const) {
+  test(`W3-06-F-05 W3-06-F-08 RAC-402 RAC-404 Home ${version === 2 ? "wrong-version 2" : "incomplete current 1"} refuses Goals authority intact while its recovery page opens`, { timeout: 60_000 }, async t => {
     const home = await rejectedStore(version), before = readStore(runtimePath(home));
-    const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home });
+    const beforeBytes = await readFile(runtimePath(home));
+    const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home,
+      actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home) });
     const first = host.homePlugins!.ready();
-    const refusal = version === 1 ? { code: "storage.schema_version_mismatch" } : { code: "actions.execution_failed" };
+    const refusal = version === 2 ? { code: "storage.schema_version_mismatch" } : { code: "actions.execution_failed" };
     await assert.rejects(first, refusal);
     assert.equal(host.homePlugins!.ready(), first, "ordinary preparation keeps the failure and never retries");
-    const one = await project("Goals survives a broken Home runtime");
-    const snapshot = await host.actionClient(one.reference).invoke(person(["goals:read"], one.project_id), goalsActions.snapshot, {});
-    assert.ok(snapshot && typeof snapshot === "object");
-    const page = await request(`/projects/${one.project_id}`);
+    const one = await project("A broken Home has a recovery page");
+    // The stopped Runtime registered no Goals action; public discovery still enforces the original damaged-Home refusal.
+    const client = host.actionClient(one.reference, false), caller = person(["goals:read"], one.project_id);
+    await assert.rejects(client.invoke(caller, goalsActions.snapshot, {}), { code: "actions.missing" });
+    await assert.rejects(client.discover(caller), refusal);
+    const page = await request(`/projects/${one.project_id}`, { headers: { accept: "text/html" } });
     assert.equal(page.status, 200, await page.clone().text());
+    assert.match(page.headers.get("content-type") ?? "", /^text\/html\b/iu);
     const html = await page.text();
+    assert.equal(html.match(/<!doctype html>/giu)?.length, 1, "one Host document owns the failure response");
+    assert.equal(html.match(/<html[\s>]/giu)?.length, 1);
+    assert.equal(html.match(/<body[\s>]/giu)?.length, 1);
+    assert.match(html, /<body\b[^>]*\bdata-home-plugin-store-unavailable\b/iu);
+    assert.deepEqual(pluginDocuments(html), [], "the recovery Host must not carry a plugin's separate document");
+    assert.doesNotMatch(html, /<(?:iframe|object|embed)\b|\bsrcdoc\s*=/iu, "no plugin page is mounted inside the recovery document");
+    assert.doesNotMatch(html, /<script\b[^>]*\bsrc\s*=/iu, "only the inline Host theme/desktop bootstrap may run");
+    assert.doesNotMatch(html, /\btarget\s*=\s*["']?_blank\b|\bwindow\s*\.\s*open\s*\(/iu, "recovery stays in the current Host page");
+    assert.doesNotMatch(html, /id="molis-work-data"/u, "the failure response has no Goals snapshot");
+    assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1, "the unavailable Runtime stage owns the only Issues page");
+    assert.doesNotMatch(html, /<form\b[^>]*\bdata-issue-composer\b/u, "Manifest fallback must not revive the unavailable plugin");
     assert.match(html, /data-home-plugin-unavailable/u);
     assert.match(html, /查看插件状态/u);
+    assert.match(html, /Home 插件运行库不可用/u);
     const own = await request(`/api/plugins/${ISSUES_PLUGIN_ID}/state`);
     assert.equal(own.status, 503, "the unavailable Home entry keeps its own failure");
     assert.deepEqual(readStore(runtimePath(home)), before, "no installs, grants, generations, releases, version or schema were changed");
+    assert.deepEqual(await readFile(runtimePath(home)), beforeBytes, "rendering leaves the bad ledger bytes intact");
     assert.equal(host.homePlugins!.ready(), first);
     const retry = host.homePlugins!.retry();
     assert.equal(host.homePlugins!.retry(), retry, "explicit concurrent retries share one attempt");
     await assert.rejects(retry, refusal);
     assert.deepEqual(readStore(runtimePath(home)), before);
+    assert.deepEqual(await readFile(runtimePath(home)), beforeBytes, "explicit refusal retry also leaves the ledger bytes intact");
   });
 }
+
+test("W5-01-HOME-STAGE-01 Home stage remains single through Runtime disable and re-enable", { timeout: 60_000 }, async t => {
+  const { host, project, request } = await serveHomeRuntime(t);
+  const one = await project("Home stage has one Runtime owner");
+  const platform = await host.homePlugins!.ready();
+  const install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
+  const page = async () => {
+    const response = await request(`/projects/${one.project_id}`);
+    assert.equal(response.status, 200, await response.clone().text());
+    const html = await response.text();
+    assert.equal([...html.matchAll(/data-work-surface="issues"/gu)].length, 1);
+    return html + pluginDocuments(html).join("");
+  };
+  assert.match(await page(), /<form\b[^>]*\bdata-issue-composer\b/u);
+  platform.supervisor.revoke(ISSUES_PLUGIN_ID);
+  await platform.runtime.stop(install.install_id);
+  const unavailable = await page();
+  assert.match(unavailable, /data-home-plugin-unavailable/u);
+  assert.doesNotMatch(unavailable, /<form\b[^>]*\bdata-issue-composer\b/u);
+  await platform.supervisor.enable(ISSUES_PLUGIN_ID);
+  assert.match(await page(), /<form\b[^>]*\bdata-issue-composer\b/u);
+});
 
 test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an interleaved stale update from another connection", { timeout: 60_000 }, async t => {
   const first = homeProbe("firstkv"), other = homeProbe("otherkv");
@@ -80,11 +126,12 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
     assert.equal(second.get("revision"), "from-a");
   } finally { connection.close(); }
   await host.homePlugins!.close();
-  assert.throws(() => a.set("draft", "after close"), { code: "actions.forbidden" });
+  // BL-411: outside every call a handle kept after close is refused and does nothing; the restart below reads the draft unchanged.
+  assert.equal(a.set("draft", "after close"), undefined);
+  assert.equal(a.get("draft"), undefined, "it reads nothing either, though the draft is there");
   assert.equal(host.homePlugins!.installations().length, 0);
   // Opening another Host is allowed only after the old execution owner has closed.
   await host.close();
-  const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [first.definition, other.definition] } });
   try {
     await restarted.homePlugins!.ready();
@@ -95,10 +142,11 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
 });
 
 test("W3-06-F-04 candidate preflight is read-only and failed startup restores the original Home KV", { timeout: 60_000 }, async t => {
-  const probe = homeProbe(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const probe = homeProbe(), next = homeProbe("homeprobe", "1.1.0");
+  // The test acts as the Host's code: the candidate is the one other object admitted to the process (S-75 ⑥).
+  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed: new Set([next.definition]) } });
   const { platform, install } = await grantHomeProbe(host, probe);
   probe.contexts.at(-1)!.services!.storage!.set("draft", "original draft");
-  const next = homeProbe("homeprobe", "1.1.0");
   let checked: PluginUpgradeContext["services"];
   next.definition.validateUpgrade = async ({ context }) => { checked = context.services; assert.equal(context.services!.storage!.get("draft"), "original draft"); };
   next.definition.start = async context => { context.services!.storage!.set("draft", "candidate corruption"); throw new Error("candidate failed"); };

@@ -20,12 +20,25 @@ import ts from "typescript";
 import { recordMetric } from "./record-metric.mjs";
 
 const MODULE_DIRECTORY_ENTRY = /^modules\/[^/]+\/src\/index\.ts$/;
+
+/** The layer a package path names; the same rule as kindOfPath in scripts/workspace-packages.mjs (read as text here). */
+function kindOfPath(packagePath) {
+  if (packagePath === "server") return "module";
+  if (packagePath.startsWith("apps/")) return "app";
+  if (packagePath.startsWith("packages/")) return "foundation";
+  if (packagePath.startsWith("modules/")) return "module";
+  if (packagePath.startsWith("horizontal/")) return "horizontal";
+  if (packagePath.startsWith("plugins/native/")) return "native-plugin";
+  if (packagePath.startsWith("plugins/official-integrations/")) return "integration-plugin";
+  if (packagePath.startsWith("tooling/")) return "tooling";
+  return "unknown";
+}
 const WORKSPACE_PACKAGES = "scripts/workspace-packages.mjs";
 const REPOSITORY_NAME = /(?:Repository|Store)$/;
 
 /**
  * The entry files of the Modules in a snapshot: every modules/<name>/src/index.ts, and the entry of each package that
- * scripts/workspace-packages.mjs lists as `entry(path, name, "module", …)` (read as text, so the merge-base side is measured
+ * scripts/workspace-packages.mjs lists with a path whose layer is "module" (read as text, so the merge-base side is measured
  * from the same list). Exported for the gate's test.
  */
 export function moduleEntries(snapshot) {
@@ -35,8 +48,8 @@ export function moduleEntries(snapshot) {
   if (text) {
     const visit = (node) => {
       if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "entry") {
-        const [packagePath, , kind] = node.arguments;
-        if (packagePath && kind && ts.isStringLiteralLike(packagePath) && ts.isStringLiteralLike(kind) && kind.text === "module" && known.has(`${packagePath.text}/src/index.ts`)) entries.add(`${packagePath.text}/src/index.ts`);
+        const [packagePath] = node.arguments;
+        if (packagePath && ts.isStringLiteralLike(packagePath) && kindOfPath(packagePath.text) === "module" && known.has(`${packagePath.text}/src/index.ts`)) entries.add(`${packagePath.text}/src/index.ts`);
       }
       ts.forEachChild(node, visit);
     };

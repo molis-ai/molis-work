@@ -1,5 +1,5 @@
-import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/modules/sources";
-export type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+export type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 const RSS_HTTP_CURSOR_SCHEMA = "molis-work-rss-http-v1";
 const MAX_HEADER_LENGTH = 1_024;
 const MAX_URL_LENGTH = 2_048;

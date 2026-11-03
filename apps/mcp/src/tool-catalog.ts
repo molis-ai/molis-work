@@ -1,6 +1,5 @@
 import type { McpToolDefinition } from "./protocol.js";
-import { V1_TOOLS } from "./goal-tools.js";
-import { EVENT_TOOLS } from "./goal-event-tools.js";
+import { managementGoalTools, type McpManagementActionSource } from "./goal-tools.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
 
 /**
@@ -9,7 +8,15 @@ import { CONTEXT_TOOLS } from "./context-tools.js";
  */
 const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
 
-const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS];
+/** The management tools that call Goals; their text comes from the action directory, so the list of them is the Host's to build. */
+const MANAGEMENT_GOAL_TOOL_NAMES = ["molis_work_v1_initialize", "molis_work_v1_goal_tree_decide", "molis_work_v1_event_decide"] as const;
+
+/** Every platform tool, in the order a management client lists them: the Goals management tools, then the connection tools. */
+export function platformMcpTools(read: McpManagementActionSource): McpToolDefinition[] {
+  return [...managementGoalTools(read), ...CONTEXT_TOOLS];
+}
+
+const PLATFORM_TOOL_NAMES: ReadonlySet<string> = new Set<string>([...MANAGEMENT_GOAL_TOOL_NAMES, ...CONTEXT_TOOLS.map(tool => tool.name)]);
 
 const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_context_resolve",
@@ -21,11 +28,11 @@ const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_project_delete",
 ]);
 
-const RUNTIME_TOOLS = TOOLS.filter((tool) => RUNTIME_CONTEXT_TOOL_NAMES.has(tool.name));
+const RUNTIME_TOOLS = CONTEXT_TOOLS.filter((tool) => RUNTIME_CONTEXT_TOOL_NAMES.has(tool.name));
 
 /** Platform schema names, including management-only tools the Runtime must not treat as unknown. */
 export function isPlatformMcpTool(name: string): boolean {
-  return TOOLS.some((tool) => tool.name === name);
+  return PLATFORM_TOOL_NAMES.has(name);
 }
 
 /** The platform tools a Runtime may call: the connection tools, which run before a project has been resolved. */
@@ -33,4 +40,4 @@ export function isRuntimeContextMcpTool(name: string): boolean {
   return RUNTIME_CONTEXT_TOOL_NAMES.has(name);
 }
 
-export { TOOLS as MCP_TOOLS, RUNTIME_TOOLS as RUNTIME_MCP_TOOLS, SERVER_INFO as MCP_SERVER_INFO };
+export { RUNTIME_TOOLS as RUNTIME_MCP_TOOLS, SERVER_INFO as MCP_SERVER_INFO };

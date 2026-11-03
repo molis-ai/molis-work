@@ -21,7 +21,7 @@ ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/
 | [src/replication.ts](src/replication.ts) | 个人空间内嵌固定版本的可移植协议、校验与原子恢复 |
 | [src/replication-journal.ts](src/replication-journal.ts) | owner 选择业务表与稳定标识，Host 注入通用事务队列操作 |
 
-可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
+可对照现有调用方 [plugins/native/goals/src/plugin.ts](../../plugins/native/goals/src/plugin.ts) 阅读装配方式。
 
 ## 接入与边界
 
@@ -73,8 +73,7 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - [职责与接入说明](../../docs/modules/artifacts.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/artifacts`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ar1`, `goal-reorg-ar3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+“被谁引用”按声明链接种类（Manifest `artifacts.links`）的插件分组，输入、产出及提议均由声明方的 `link_subjects` 动作以当前调用者身份给出名称和打开位置；答不出名称时只显示对象id，未识别的其他引用仍计数。平台成果界面消费这个模型，事实与权限仍由各自owner管理。

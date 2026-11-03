@@ -1,3 +1,4 @@
+import {createStaticPersonalSync as createPersonalSync} from '../../tests/fixtures/static-personal-sync.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -7,7 +8,7 @@ import { ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-st
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
 import { shelfActions,SHELF_ACTION_PERMISSIONS,shelfManifest } from '@molis-ai/molis-work-plugin-shelf';
 import { hashBytes } from '@molis-ai/molis-work-module-shelf';
-import { createPersonalSync,MolisWorkLocalHost } from '@molis-ai/molis-work-app-local-host';
+import { MolisWorkLocalHost,bindPersonalSpaceAuthority } from '@molis-ai/molis-work-app-local-host';
 import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
 import { cloudFixture } from './testing.mjs';
@@ -15,10 +16,13 @@ import { cloudFixture } from './testing.mjs';
 test('PCSYNC-11/12/15/19/22 Shelf actual Host actions and catalog transfer complete files through Rust/D1/R2, with conflict and trash recovery',async t=>{
   const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'shelf-cloud-')),space=personalStorageSpace('https://auth.example.test','work','alice');
   const homes=['a','b'].map(name=>join(root,name));homes.forEach(home=>ensureStorageSpace(home,space));
+  const releases=homes.map(home=>bindPersonalSpaceAuthority(home,space.spaceId,()=>{}));
   const hosts=homes.map(home=>new MolisWorkLocalHost({homeDirectory:home,completeText:null}));
+  await Promise.all(hosts.map(host=>host.homePlugins.ready()));
   const actions=hosts.map(host=>bindActionClient(host.homeActionClient(),()=>({actor_id:'alice',project_id:null,audience:'user',permissions:SHELF_ACTION_PERMISSIONS})));
+  const initialIds=(await Promise.all(actions.map(action=>action.invoke(shelfActions.snapshot,{})))).flatMap(snapshot=>snapshot.materials.map(item=>item.item_id));
   const previous={origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL};process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';delete process.env.MOLIS_WORK_SYNC_LOCAL;
-  const clients=[];t.after(async()=>{for(const client of clients)client.close();for(const host of hosts)await host.close();rmSync(root,{recursive:true,force:true});
+  const clients=[];t.after(async()=>{for(const client of clients)client.close();for(const host of hosts)await host.close();for(const release of releases)release();rmSync(root,{recursive:true,force:true});
     for(const [key,value]of [['MOLIS_WORK_SYNC_ORIGIN',previous.origin],['MOLIS_WORK_SYNC_LOCAL',previous.local]])if(value===undefined)delete process.env[key];else process.env[key]=value;});
   t.mock.method(globalThis,'fetch',cloud.transport);
   const lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}};
@@ -34,7 +38,7 @@ test('PCSYNC-11/12/15/19/22 Shelf actual Host actions and catalog transfer compl
   const file=(index,id,child)=>actions[index].invoke(shelfActions.file,{item_id:id,...(child?{child}:{})});
   const read=async(index,id)=>{const bytes=Buffer.from((await file(index,id)).bytes_base64,'base64');return {text:bytes.toString('utf8'),content_hash:hashBytes(bytes)};};
   assert.deepEqual(Buffer.from((await file(1,item.item_id)).bytes_base64,'base64'),bytes);assert.deepEqual(Buffer.from((await file(1,folder.item_id,'nested/raw.bin')).bytes_base64,'base64'),binary);
-  const snapshot=await actions[1].invoke(shelfActions.snapshot,{});assert.equal(snapshot.settings.drop_wheel_enabled,true);assert.equal(snapshot.clipboard[0].body,'target clipboard only');assert.equal(snapshot.materials.length,2);
+  const snapshot=await actions[1].invoke(shelfActions.snapshot,{});assert.equal(snapshot.settings.drop_wheel_enabled,true);assert.equal(snapshot.clipboard[0].body,'target clipboard only');assert.deepEqual(snapshot.materials.map(row=>row.item_id).sort(),[...initialIds,item.item_id,folder.item_id].sort(),'both Homes retain their existing examples and exactly the two admitted materials');
   assert.ok((await cloud.bucket.list()).objects.length>0);const events=await cloud.db.prepare('SELECT value FROM sync_events').all();assert.doesNotMatch(events.results.map(row=>row.value).join(''),/clipboard|origin_realpath|relative_path|model_selection|execution/);
   const edit=async(index,text)=>actions[index].invoke(shelfActions.edit,{item_id:item.item_id,text,expected_content_hash:(await read(index,item.item_id)).content_hash});
   await edit(0,'source branch');await edit(1,'target branch');await clients[0].run();await clients[1].run();

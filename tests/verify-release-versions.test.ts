@@ -207,6 +207,8 @@ test("a plugin-owned database declaration has a listed literal baseline with the
     "const PLUGIN_DB: PluginDatabaseDeclaration = { version: 1, schema: `` };",
     "const PLUGIN_DB = { version: 1, schema: `` } satisfies PluginDatabaseDeclaration;",
     "const PLUGIN_DB = { version: 1, schema: `` } as PluginDatabaseDeclaration;",
+    "const PLUGIN_DB: HomePluginDatabaseDeclaration = { project_rows: ROWS, version: 1, schema: `` };",
+    "const PLUGIN_DB = { project_rows: { label: \"x\", tables: [] }, version: 1, schema: `` } satisfies HomePluginDatabaseDeclaration;",
   ]) {
     put("docs/releases/CHECKLIST.md", table); put("apps/alpha/src/plugin.ts", source);
     failsWith(run(), "apps/alpha/src/plugin.ts#PLUGIN_DB is a SqliteBaseline the 各库版本表 does not list");

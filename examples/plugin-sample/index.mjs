@@ -36,7 +36,7 @@ export default definePlugin({
     }
     services.ui.register({
       descriptor: {
-        contribution_id: manifest.ui.contributions[0], plugin_id: manifest.plugin_id,
+        contribution_id: manifest.ui.contributions[0],
         kind: "primary-page", label: "Local Plugin Sample", slots: [],
         surfaces: [{ surface_id: "main", target_slot_id: "plugin.main", format: "html" }],
       },

@@ -73,7 +73,8 @@ test('packed SDK child dispatch uses Host review, frozen roles, actual reads and
     await assert.rejects(adapter.subagents!.cancel(handle.ref,'foreign','user'),/不属于/);
     const forbidden=structuredClone(codingAgentManifest);forbidden.subagents!.roles[0]!.host_tools!.push('write');
     await assert.rejects(host.start('prologue',{...owner,session,directory,role_id:'coordinator',task:'must not start'},
-      {manifest:forbidden,prompts:codingPrompts,authorizedDirectories:[root]}),/只读子角色/);
+      {manifest:forbidden,prompts:codingPrompts,authorizedDirectories:[root]}),
+      (error: Error & {code?: string}) => error.code === "agent.role_execution_exceeded" && /子角色请求了当前父任务未开放的工具与目录/.test(error.message));
     const callCount=calls;await adapter.close();queue=new AgentReviewQueue();adapter=await make();
     assert.deepEqual(await adapter.subagents!.list(handle.ref),before);assert.equal(calls,callCount,'restart never redispatches child');
     assert.equal((await adapter.readSession(session)).recovery,undefined);

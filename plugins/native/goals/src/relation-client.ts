@@ -1,4 +1,5 @@
 /** Existing relation browser behavior, composed into the Workbench lexical host. */
+import { GOALS_PLUGIN_API } from "./plugin-api.js";
 const GOALS_RELATION_PREVIEW_SCRIPT = `    const updateRelationPreviews = () => {
       if (!form) return;
       const parent = form.elements.parent_goal_id?.selectedOptions?.[0];
@@ -109,10 +110,10 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         submit.textContent = L("正在保存…");
         errorBox.hidden = true;
         try {
-          await molisWorkRequest(route("/api/goals/" + encodeURIComponent(relationForm.dataset.goalId) + "/relations"), {
+          await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(relationForm.dataset.goalId) + "/relations"), {
             method: "POST",
-            key: relationForm.dataset.idempotencyKey ||= crypto.randomUUID(),
             body: {
+              idempotency_key: relationForm.dataset.idempotencyKey ||= crypto.randomUUID(),
               direction: values.get("direction"),
               type: values.get("type"),
               target_goal_id: values.get("target_goal_id"),
@@ -152,10 +153,9 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         controls.forEach(control => { control.disabled = true; });
         errorBox.hidden = true;
         try {
-          await molisWorkRequest(route("/api/relations/" + encodeURIComponent(relationDeactivateForm.dataset.relationId) + "/deactivate"), {
+          await molisWorkRequest(route("${GOALS_PLUGIN_API}/relations/" + encodeURIComponent(relationDeactivateForm.dataset.relationId) + "/deactivate"), {
             method: "POST",
-            key: relationDeactivateForm.dataset.idempotencyKey ||= crypto.randomUUID(),
-            body: { reason },
+            body: { reason, idempotency_key: relationDeactivateForm.dataset.idempotencyKey ||= crypto.randomUUID() },
             fallback: "关系解除失败",
           });
           await refreshBoard(true);

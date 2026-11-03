@@ -1,58 +1,16 @@
-import { actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderInteractionOperation, type InteractionField } from "@molis-ai/molis-work-design-system";
-import { wallClockIn } from "@molis-ai/molis-work-plugin-sdk";
+import { actionCardView, wallClockIn } from "@molis-ai/molis-work-plugin-sdk";
 import type { StoredCard } from "./assistant-store.js";
 import { CARD_RESULT_OPEN } from "../agent-next-steps.js";
 
 /**
- * An action card as the person sees it (specs/ai-interaction-experience H2): its fields as they read them, and the card
- * drawn on the Host with the design system's operation card, so the page only binds its buttons. What the card's
- * controls send back is turned into the strings its input takes here, beside the card that drew them.
+ * An action card as the person sees it (specs/ai-interaction-experience H2): its fields as they read them (the SDK's
+ * `actionCardView`, which every keeper of cards uses), and the card drawn on the Host with the design system's operation card, so
+ * the page only binds its buttons. What the card's controls send back is turned into the strings its input takes here, beside the
+ * card that drew them.
  */
-type SchemaProperties = Record<string, { title?: string; description?: string; properties?: SchemaProperties; type?: unknown }>;
-const labelOf = (properties: SchemaProperties | undefined, key: string) => actionFieldLabel(key, properties?.[key]);
-/**
- * A field with declared choices is shown by its label and edited by picking one; a day or a moment is picked too. The raw
- * value is what runs.
- */
-const choices = (declared: unknown, value: unknown) => {
-  const raw = typeof value === "string" ? { raw: value } : {};
-  const options = actionFieldOptions(declared);
-  if (options) return { options, ...raw };
-  const input = actionFieldInput(declared);
-  return input ? { input, ...raw } : {};
-};
-const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
-
-export function cardView(card: StoredCard): AssistantCard {
-  const properties = (card.input_schema.properties ?? {}) as SchemaProperties;
-  const input = plainObject(card.input) ? card.input : null;
-  const missingField = (key: string) => card.missing.some(item => item.field === key);
-  const fields: AssistantCard["fields"] = [];
-  if (input || card.missing.length) {
-    for (const key of [...new Set([...(input ? Object.keys(input) : []), ...card.missing.map(item => item.field)])]) {
-      const value = input?.[key];
-      const editable = card.editable.includes(key) || missingField(key);
-      // One level of nesting is shown field by field, the way the person reads it; the parent's permission carries down.
-      if (plainObject(value)) {
-        for (const [child, inner] of Object.entries(value)) {
-          if (inner === undefined || inner === null || inner === "") continue;
-          fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child), value: actionFieldValue(child, inner, properties[key]?.properties?.[child]), editable: editable || card.editable.includes(`${key}.${child}`),
-            ...choices(properties[key]?.properties?.[child], inner) });
-        }
-        continue;
-      }
-      // The object it acts on reads by its title, not by its identifier.
-      const target = !editable && card.target?.title && value === card.target.id ? card.target.title : null;
-      fields.push({ key, label: labelOf(properties, key), value: target ?? (value !== undefined ? actionFieldValue(key, value, properties[key]) : ""), editable, ...choices(properties[key], value) });
-    }
-  } else fields.push({ key: "", label: "内容", value: actionFieldValue("", card.input), editable: false });
-  return { card_id: card.card_id, revision: card.revision, run_id: card.run_id, title: card.title, summary: card.summary, provider: card.provider,
-    capability_title: card.capability_title, capability_id: card.reference.capability_id, effect: card.effect, fields, missing: card.missing, status: card.status,
-    ...(card.outcome ? { outcome: card.outcome } : {}), ...(card.presentation ? { presentation: card.presentation } : {}), ...(card.from ? { from: { ...card.from } } : {}), ...(card.source_object ? { source_object: { ...card.source_object } } : {}),
-    created_at: card.created_at, updated_at: card.updated_at };
-}
+export const cardView = (card: StoredCard): AssistantCard => actionCardView(card);
 
 const EFFECT = { read: "只读取，不改数据", write: "会修改，可在原处撤回", irreversible: "会修改，不能撤回" } as const;
 const CARD_RING = { ready: "ready", running: "running", done: "done", failed: "failed", unknown: "verify", stale: "stale", dismissed: "cancelled", "needs-input": "answer" } as const;

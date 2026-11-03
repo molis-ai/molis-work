@@ -1,37 +1,12 @@
-import { FEED_EN } from "@molis-ai/molis-work-plugin-feed";
-import { COGNIA_EN } from "@molis-ai/molis-work-plugin-cognia";
-import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_EN } from "@molis-ai/molis-work-plugin-jelly";
-import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
-import { WORK_EN } from "@molis-ai/molis-work-plugin-work";
-import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
-import { SHELF_EN } from "@molis-ai/molis-work-plugin-shelf";
-import { FUNCTIONS_EN } from "../functions/en.js";
-import { FORM_EN } from "@molis-ai/molis-work-plugin-form";
-import { PAGES_EN } from "@molis-ai/molis-work-plugin-pages";
-import { DATASET_EN } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_EN } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_EN } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_EN } from "@molis-ai/molis-work-plugin-todo";
-import { ALCHEMIST_EN } from "@molis-ai/molis-work-plugin-alchemist";
-import { WORKFLOWS_EN } from "@molis-ai/molis-work-plugin-workflows";
-import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
-import { GOALS_POLICY_EN, GOALS_SAFETY_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_RELATION_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_TREE_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_WORKSPACE_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_MOMENTUM_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_DOCUMENT_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_PLANNING_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_STATUS_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_DIALOGS_EN } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
+import { ARTIFACT_EN } from "../artifacts/en.js";
+import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
 import { CONTEXTUAL_EN } from "./contextual-en.js";
 import { SIDE_PANEL_EN } from "./side-panel-en.js";
+import { TERMINAL_EN } from "./terminal-en.js";
 import { ONBOARDING_EN } from "./onboarding-en.js";
 import { ARRIVAL_EN } from "./arrival-en.js";
 import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
@@ -39,11 +14,19 @@ import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
 import { MEMORY_EN } from "./memory-en.js";
 import { KNOWLEDGE_EN } from "./knowledge-en.js";
-
+import { SHARED_WORDS_EN } from "./shared-words-en.js";
+import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  "角色资料": "Role material",
+  "角色资料与方法": "Role materials and methods",
+  "新增正文": "Body added",
+  "正文已变化": "Body changed",
+  "已移除正文": "Body removed",
+  ...ARTIFACT_EN,
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
+  ...SHARED_WORDS_EN,
   ...CONTEXTUAL_EN,
   ...SIDE_PANEL_EN,
   "保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。": "Changes apply to subsequent runs. Restart text generation if its model or connection changes while it is running.",
@@ -56,6 +39,8 @@ export const EN: Record<string, string> = {
   "可在应用内连接": "Connect in Molis Work",
   "可在此粘贴凭据": "Paste credential here",
   "Molis Work 尚未接入": "Not yet integrated in Molis Work",
+  "来自 {package}": "From {package}",
+  "Molis Work（内置）": "Molis Work (built in)",
   "更多官方配置入口": "More official setup links",
   "步骤回报与验收": "Step reports and acceptance",
   "模型报告成功不代表用户验收通过。请核对原轮次的实际操作和结果后评价。": "A model report is not user acceptance. Review the actual actions and results in the original run before assessing.",
@@ -99,7 +84,7 @@ export const EN: Record<string, string> = {
   "正在读取原任务…": "Reading the original task…",
   "本轮结束，待核对": "Run ended; review required",
   "状态暂不可读": "Status unavailable",
-  "结果待核对": "Result needs reconciliation",
+  "结果待核对": "Review the outcome",
   "处理本轮审查": "Review this run",
   "处理文件回退": "Review file rollback",
   "回退待处理": "Rollback needs attention",
@@ -141,7 +126,6 @@ export const EN: Record<string, string> = {
   ...ARRIVAL_EN,
   ...RENDERER_GAP_EN,
   ...HOME_EN,
-  ...IMAGES_EN,
   "待解决：{text}": "To resolve: {text}",
   "待你验收：{text}": "Awaiting your review: {text}",
   "尚待完成：{text}": "Still to complete: {text}",
@@ -167,7 +151,7 @@ export const EN: Record<string, string> = {
   "均分所有窗口": "Equalize all panes",
   "关闭当前窗口": "Close current pane",
   "返回 Goal 画布": "Back to Goal canvas",
-  "收起 Goal，返回关系画布": "Collapse Goal and return to the relation canvas",
+  "收起 Goal，返回关系画布": "Collapse Goal and return to the canvas",
   "窗口": "Windows",
   "拉取任务": "Fetch tasks",
   "本机路径": "Local paths",
@@ -236,15 +220,11 @@ export const EN: Record<string, string> = {
   "增加完成要求": "Add completion requirement",
   "修改当前约定": "Change current agreement",
   "今天与日历": "Today and calendar",
-  "日期": "Dates",
+  "日期": "Date",
   "当天": "Today",
   "当天的事件": "Today's events",
   "这件事": "This item",
-  "对着这件事说一句": "Say something about this item",
-  "说一句": "Say something",
-  "收起对话": "Close conversation",
   "收起详情": "Close detail",
-  "带着这件事说一句": "Say something about this item",
   "打开 Session": "Open Session",
   "今天还没有事件走进来": "Nothing arrived today yet",
   "这一天没有事件": "Nothing on this day",
@@ -256,16 +236,14 @@ export const EN: Record<string, string> = {
   "今天": "Today",
   "件": "items",
   "个人": "Personal",
-  "组织": "Org",
+  "组织": "Organize",
   "没有事件走进来": "Nothing arrived",
   "这一天还空着。": "This day is still empty.",
   "个人事件": "Personal event",
   "组织事件": "Org event",
   "重新授权": "Reconnect",
-  "问问怎么回事": "Ask what happened",
   "接着做": "Continue",
   "做完了": "Done",
-  "说一句会打开这条工作对应的 Session。首页不另开一套聊天。": "Saying something opens the Session for this work. Home does not start a separate chat.",
   "月历": "Calendar",
   "上个月": "Previous month",
   "下个月": "Next month",
@@ -377,7 +355,7 @@ export const EN: Record<string, string> = {
   "比较固定版本，逐项阅读差异。": "Compare fixed versions and read each difference.",
   "统计文件快照的字数、字节与行数。": "Counts characters, bytes and lines in a file snapshot.",
   "今天的工作、当天的事件和回到手边的入口。": "Today's work, the day's events, and the things at hand.",
-  "推进": "Move forward",
+  "推进": "Advance",
   "写与做": "Write and make",
   "研究": "Research",
   "编码": "Coding",
@@ -407,33 +385,7 @@ export const EN: Record<string, string> = {
   "返回 Feed 列表": "Back to Feed list",
   "返回 Inbox 列表": "Back to Inbox list",
   "这个分组还没有事项": "Nothing in this group yet",
-  ...ARTIFACT_EN,
-  ...SHELF_EN,
   ...FUNCTIONS_EN,
-  ...FEED_EN,
-  ...PAGES_EN,
-  ...FORM_EN,
-  ...DATASET_EN,
-  ...PPT_EN,
-  ...LINGGUANG_EN,
-  ...TODO_EN,
-  ...JELLY_EN,
-  ...COGNIA_EN,
-  ...ALCHEMIST_EN,
-  ...WORKFLOWS_EN,
-  ...SCHEDULE_EN,
-  ...GOALS_POLICY_EN,
-  ...GOALS_SAFETY_EN,
-  ...GOALS_RELATION_EN,
-  ...GOALS_TREE_EN,
-  ...GOALS_MOMENTUM_EN,
-  ...GOALS_WORKSPACE_EN,
-  ...GOALS_DOCUMENT_EN,
-  ...GOALS_CONTEXT_EN,
-  ...GOALS_STATUS_EN,
-  ...GOALS_DIALOGS_EN,
-  ...GOALS_PLANNING_EN,
-  ...GOALS_PROPOSAL_EN,
   "Molis Work 已更新": "Molis Work has been updated",
   "你的 Project、Goal 和工作记录仍保存在本机。更新不会替你接受 Goal，也不会自动修改 Runtime 配置。": "Your Projects, Goals, and work history remain on this device. The update will not accept Goals for you or change Runtime settings automatically.",
   "新项目可以从一个真实结果开始": "A new Project can start with a concrete outcome",
@@ -718,9 +670,6 @@ export const EN: Record<string, string> = {
   "来源更新与发现": "Source updates and discoveries",
   "选择一个 Runtime；打开后会自动填入这条 Item 的上下文。": "Choose a Runtime. This item's context will be filled in after it opens.",
   "正在填入 Item 上下文…": "Filling in item context…",
-  "Item 上下文已填入，检查后再发送。": "Item context is filled in. Review it before sending.",
-  "Item 上下文已填入 Terminal": "Item context filled into Terminal",
-  "这条 Item 已不再关联当前 Goal，请返回 Inbox 或 Feed 重新开始处理。": "This item is no longer linked to the current Goal. Return to Inbox or Feed and start processing again.",
   "等待你验收": "Waiting for your acceptance",
   "完成验收": "Complete acceptance",
   "界面语言": "Language",
@@ -1488,7 +1437,7 @@ export const EN: Record<string, string> = {
   "退回补全": "Send the completion back",
   "项目已改名为“": "Project renamed to “",
   "项目默认与当前 Goal 规则在下方独立维护": "Project defaults and extra Goal rules are maintained separately below",
-  ...WORK_EN,
+  ...TERMINAL_EN,
 };
 
 Object.assign(EN, {
@@ -2997,6 +2946,7 @@ Object.assign(EN, {
   "每 30 分钟": "Every 30 minutes",
   "Notifications · PR · Review requests": "Notifications · PR · Review requests",
   "需重新授权": "Reauthorization required",
+  "这条连接是用旧的授权方式建立的，不能再使用：请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接": "This connection was made with an older way of signing in and can no longer be used. Add a new connection and bind the sources that used this one to the new connection.",
   "今天 13:06 · 失败": "Today at 13:06 · Failed",
   "授权恢复后补拉": "Catch up after authorization is restored",
   "每小时 · 工作时段": "Hourly · Working hours",
@@ -3099,7 +3049,6 @@ Object.assign(EN, {
   "完整消息、来源和已有资料保持关联": "The full message, source, and existing materials remain linked",
   "Goal 使用这条消息作为可追溯输入": "The Goal uses this message as a traceable input",
   "正在处理": "In progress",
-  "关联 Goal 已打开，原消息仍保留": "The related Goal is open and the original message is retained",
   "默认列表不再显示，仍可从状态筛选恢复": "Hidden from the default list; restore it with the status filter",
   "原消息仍然保留": "Original message retained",
   "查看原消息": "View original message",
@@ -3145,7 +3094,6 @@ Object.assign(EN, {
   "没有已完成或已忽略的事项": "No completed or ignored items",
   "完成或忽略的事项会留在这里，原对象不会被删除。": "Completed or ignored items stay here. The original object is not deleted.",
 });
-
 Object.assign(EN, {
   "未命名消息": "Untitled message",
   "可以重新打开，原消息仍保留在 Feed。": "You can reopen it; the original message remains in Feed.",
@@ -3318,5 +3266,4 @@ Object.assign(EN, {
   "打开工作区": "Open workspace",
   "在关系画布中定位": "Locate on the relation canvas",
 });
-
-Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN);
+Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);

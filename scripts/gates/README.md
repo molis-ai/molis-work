@@ -49,14 +49,14 @@
 
 | 项 | 说明 |
 | --- | --- |
-| 怎么判 | 包 = 源码文件向上最近的有 `package.json` 的目录。表的 owner = SQL 文本里有 `CREATE [VIRTUAL] TABLE <名>` 的包（同名表两个包各建一张，如 `workspaces`、`jobs`，两个都是 owner，库不同）。别的包的 SQL 里对它做 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`REPLACE INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE` 就失败 |
+| 怎么判 | 包 = 源码文件向上最近的有 `package.json` 的目录，或登记在 `areas` 里的目录，哪个近算哪个。表的 owner = SQL 文本里有 `CREATE [VIRTUAL] TABLE <名>` 的包（同名表两个包各建一张，如 `workspaces`、`jobs`，两个都是 owner，库不同）。别的包的 SQL 里对它做 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`REPLACE INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE` 就失败。表名可以带引号（`"t"`、`` `t` ``、`[t]`），也可以带 `main.`、`temp.` 库名：`FROM main.t` 读的是 t，不是一张叫 main 的表 |
 | 读什么 | `apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下 TypeScript 源码的字符串和模板字符串（语法树里找，注释不算；测试、夹具、`dist`、`.d.ts` 不看）。SQL 关键字只认大写：仓库里的 SQL 都这么写，不分大小写会把英文句子（`from Pages`）读成 SQL |
 | 失败时说什么 | `<文件>:<行> reads|writes table "<表>", which <owner 包> creates; go through that package's own API` |
 | 怎么办 | 让 owner 包导出一个函数（读就导出读取函数，写就走它的命令），宿主或别的包调用它。不要往基线或允许名单里加 |
-| 允许名单 | `tooling/gates/table-owners.json`，两节，都两头核对。`shared`：几个包有意共写的表，写 owner、用到它的其他包（`users`）、理由（至少 20 个字符）；用到而没登记的包失败，登记的包不再用它、owner 不是建表的包、没人建这张表、字段多余，都失败。`same_name`：两个包各建一张的同名表（不同库里的两张表，今天是 `workspaces`、`jobs`），写建它的包（`packages`，至少两个）和理由；一张表被不止一个包建而没登记就失败（所以给别的包的表自己再写一句 `CREATE TABLE` 不能让包变成共同 owner），登记的包和实际建表的包对不上、只剩一个包建了、同时登记在 `shared` 里，也失败 |
-| 读不到的（已知限制） | 表名不是字面量的 SQL（`FROM ${table}`：Artifacts 的 Repository 从选项取表名，助理清理项目时遍历一个表名数组）、字符串拼接出来的 SQL、非 TypeScript 文件里的 SQL、`PRAGMA table_info(<表>)` 这类读结构的语句 |
+| 允许名单 | `tooling/gates/table-owners.json`，三节，都两头核对。`shared`：几个包有意共写的表，写 owner、用到它的其他包（`users`）、理由（至少 20 个字符）；用到而没登记的包失败，登记的包不再用它、owner 不是建表的包、没人建这张表、字段多余，都失败。`same_name`：两个包各建一张的同名表（不同库里的两张表，今天是 `workspaces`、`jobs`），写建它的包（`packages`，至少两个）和理由；一张表被不止一个包建而没登记就失败（所以给别的包的表自己再写一句 `CREATE TABLE` 不能让包变成共同 owner），登记的包和实际建表的包对不上、只剩一个包建了、同时登记在 `shared` 里，也失败。`areas`：一个包里自己当 owner 的目录，写目录和理由（BL-802：Feed 的 `src/store/` 是 Feed 那些表的主人，包里别的文件走 store 的函数）。登记以后，包里其余的文件算另一个 owner：它们的 SQL 碰到 store 的表就失败，再写一句 `CREATE TABLE` 也算第二个建表的。目录不存在、目录里有 `package.json`（它本来就是包）、在另一个 area 里面、已经不建任何表、理由不够 20 个字符、写法不是相对仓库根的目录，都失败 |
+| 读不到的（已知限制） | 表名不是字面量的 SQL（`FROM ${table}`：Artifacts 的 Repository 从选项取表名，助理清理项目时遍历一个表名数组）、逗号连接里第一张以后的表（`FROM a, t` 只读到 a）、`main`、`temp` 以外的库名（附加的库）、字符串拼接出来的 SQL、非 TypeScript 文件里的 SQL、`PRAGMA table_info(<表>)` 这类读结构的语句 |
 
-加一条允许：改 `tooling/gates/table-owners.json`，评审时要说清为什么 owner 的函数接不住。今天 `events` 和 `idempotency_records` 在 `shared` 里的理由是依赖方向：`modules/goals` 和 `modules/governance-collaboration` 只依赖 contracts、没法 import storage 的日志函数（`LocalSqliteJournal` 与模块的事务在同一条连接上，事务不是障碍）；去掉它们的办法是宿主注入日志端口，Artifacts 已经这样做了，登记随后删掉。验证：`node scripts/run-tests.mjs tests/health-gates-table-owners.test.ts`（每种写法在临时仓库里被违反一次，门禁必须变红；注释、小写、测试、夹具、动态表名与自己的表必须不变红）。
+加一条允许：改 `tooling/gates/table-owners.json`，评审时要说清为什么 owner 的函数接不住。今天 `shared` 是空的：`events` 和 `idempotency_records` 原先登记在里面，理由是依赖方向（Goals 插件包里的 Goal 与 Governance 存储模块只依赖 contracts，没法 import storage 的日志函数）；这两个模块改用宿主注入的日志端口之后（PG-094 S9-1），两条登记已经删掉，`tests/health-gates-table-owners.test.ts` 钉着真实名单里的 `shared` 没有键。验证：`node scripts/run-tests.mjs tests/health-gates-table-owners.test.ts`（每种写法在临时仓库里被违反一次，门禁必须变红；注释、小写、测试、夹具、动态表名与自己的表必须不变红）。
 
 ## 内核的两半（`kernel-contextual.mjs`，W3-04）
 
@@ -78,16 +78,16 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 ## 双实例插件（`dual-instance.mjs`，S0-2b-2）
 
-双实例插件是一个 `plugin_id`、一份 Manifest，分两半：Home 一半是 Home 目录里 `runtime` 写了 `dual_instance: true` 的条目，项目一半是项目启动名单 `apps/local-host/src/project-plugins.ts` 里的一条（[specs/dual-instance-plugins](../../specs/dual-instance-plugins/spec.md)）。配错的宿主启动时已经拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；这个门禁在评审时就说出来，再加一条宿主不查的。入口 `check-health-gates.mjs` 在 `absolute()` 里单独引入它，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。它只新增检查，不放宽任何已有规则。
+双实例插件是一个 `plugin_id`、一份 Manifest，分两半：Home 一半是 Home 目录里 `runtime`（Home 实例的代码）写了 `dual_instance: true` 的条目（运行范围本身是 Manifest 的，PG-011；标记只来自宿主的登记，S-48），项目一半是同一份登记的 `project_runtime`（PG-067），或项目启动名单 `apps/local-host/src/project-plugins.ts` 里手写的一条（工厂要宿主端口的，今天只有 Files）（[specs/dual-instance-plugins](../../specs/dual-instance-plugins/spec.md)）。配错的宿主启动时已经拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；这个门禁在评审时就说出来，再加一条宿主不查的。入口 `check-health-gates.mjs` 在 `absolute()` 里单独引入它，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。它只新增检查，不放宽任何已有规则。
 
 | 项 | 说明 |
 | --- | --- |
-| 怎么判 | 用 TypeScript 语法树读，不执行。插件按包名认：Home 条目取 `runtime.package_name`，项目条目看 `definition: create…(…)` 的工厂从哪个包导入。目录条目由 `catalog-entries.mjs` 给出，和别的看目录的门禁（`home-runtime-entries.mjs`、包边界检查）同一份读法 |
-| D1 标记与两份名单 | 带 `dual_instance` 的 Home 条目，项目启动名单里要有同一个包的条目；同一个包两份名单都在，Home 条目就要带标记。`dual_instance` 只写字面量 `true`（或不写） |
-| D2 两半都随宿主发 | 目录条目都随宿主发，所以项目那一半写 `bundled: true` |
+| 怎么判 | 用 TypeScript 语法树读，不执行。插件按包名认：Home 条目取 `runtime.package_name`，项目一半取 `project_runtime.package_name`，或看启动名单里 `definition: create…(…)` 的工厂从哪个包导入。目录条目由 `catalog-entries.mjs` 给出，和别的看目录的门禁（`home-runtime-entries.mjs`、包边界检查）同一份读法 |
+| D1 标记与两份名单 | 带 `dual_instance` 的 Home 条目要有同一个包的项目一半（`project_runtime` 或启动名单里的条目）；同一个包两半都在，Home 条目就要带标记。`dual_instance` 只写字面量 `true`（或不写） |
+| D2 两半都随宿主发 | 目录条目都随宿主发，所以启动名单里的项目一半写 `trust: HOST_BUILD_TRUST`（`project_runtime` 的由宿主给） |
 | D3 没有可选权限 | 用户 2026-10-20 定（U1）：带标记的插件，Manifest 的每条权限都是对象字面量，写字面量 `required: true`。宿主不查这一条，只有门禁查；不带标记的插件不受影响 |
-| 失败时说什么 | `<目录条目文件>: runtime.dual_instance marks <包> as a dual-instance plugin, but … starts no project half of it`、`…project-plugins.ts: <包> is also a Home catalog entry (…); a plugin on both start lists says runtime.dual_instance: true on its Home entry`、`…: the project half of the dual-instance plugin <包> must say bundled: true…`、`…: the dual-instance plugin <包> has a permission that is not \`required: true\` as a literal (…)`，以及下面「读不到的」几种 |
-| 怎么办 | D1：要么给 Home 条目加标记、在启动名单里加项目那一半，要么两边都不放；D2：项目条目写 `bundled: true`；D3：把可选权限改成必需（双实例插件的两份授权记录不能分叉），或者不做双实例 |
+| 失败时说什么 | `<目录条目文件>: runtime.dual_instance marks <包> as a dual-instance plugin, but … starts no project half of it`、`<项目一半所在的文件>: <包> is also a Home catalog entry (…); a plugin with both halves says runtime.dual_instance: true on its Home entry`、`<目录条目文件>: cannot tell which plugin package project_runtime starts…`、`…: the project half of the dual-instance plugin <包> must say trust: HOST_BUILD_TRUST…`、`…: the dual-instance plugin <包> has a permission that is not \`required: true\` as a literal (…)`，以及下面「读不到的」几种 |
+| 怎么办 | D1：要么给 Home 条目加标记、在登记上写 `project_runtime`，要么两边都不放；D2：项目条目写 `trust: HOST_BUILD_TRUST`；D3：把可选权限改成必需（双实例插件的两份授权记录不能分叉），或者不做双实例 |
 | 读不到的（已知限制） | 读不懂的写法报错，不放过：带标记条目的 Manifest、权限列表或某一条权限不是门禁能跟到的写法（展开、算出来的 `required`、函数调用），以及项目条目的 `definition` 不是导入工厂的调用（`cannot read the Manifest…`、`cannot read the permissions…`、`cannot tell which plugin package the entry … starts`）。跟名字只跟插件自己的相对文件（`import`、`export { … } from`、`export *`、顶层 `const`，去掉 `as`、`satisfies` 和括号）；用函数造的 Manifest 不跟。项目启动名单里写在别的文件、再拼进来的条目读不到 |
 
 验证：`node scripts/run-tests.mjs tests/health-gates-dual-instance.test.ts`。每条规则在内存里的小树上违反一次，必须报出对应的话；仓库自己的树没有问题；入口里的接线在临时仓库里验证，`--base main` 要失败。文件名落在 CI「Health gates reject what they claim to」那一步的 `tests/health-gates-*.test.ts` 里，不用改 `ci.yml`。

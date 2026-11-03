@@ -121,9 +121,10 @@ export interface KnowledgeLocateRequest { question: string; subjects: KnowledgeP
 export interface KnowledgeLocatedSection { subject: ActionSubject; ref: string | null; revision: string; anchor: string; title: string; line: number; reason: string }
 /**
  * `unread`: pieces whose section tree could not be read, with why. `unsummarized`: pieces with no section notes for their current
- * text (not organized yet, or short), chosen from by headings alone.
+ * text (not organized yet, or short), chosen from by headings alone. `omitted`: sections of the trees read that the model was not
+ * shown — past a tree's first 300, or not fitting whole into the data the Host's text model takes; 0 when it saw them all.
  */
-export interface KnowledgeLocateResponse { sections: KnowledgeLocatedSection[]; unread: Array<{ subject: ActionSubject; reason: string }>; unsummarized: ActionSubject[] }
+export interface KnowledgeLocateResponse { sections: KnowledgeLocatedSection[]; unread: Array<{ subject: ActionSubject; reason: string }>; unsummarized: ActionSubject[]; omitted: number }
 export interface KnowledgeSearchResponse {
   /** As for `search.query`: `partial` or `indexing` say some pieces may not be found yet. */
   status: SearchQueryStatus;
@@ -405,17 +406,17 @@ export const knowledgeActions = {
         required: ["subject", "workspace_id", "workspace_name", "path"], additionalProperties: false } }, more: { type: "boolean" },
       unread: { type: "array", items: { type: "object", properties: { workspace_id: text, path: text, reason: text }, required: ["workspace_id", "path", "reason"], additionalProperties: false } } },
       required: ["files", "more", "unread"], additionalProperties: false } } } as ActionDefinition<KnowledgeGlobRequest, KnowledgeGlobResponse>,
-  locate: { capability_id: "knowledge.locate", version: 2, operation: "query", action: { ...metadata,
+  locate: { capability_id: "knowledge.locate", version: 3, operation: "query", action: { ...metadata,
     execution: { cost: "metered" }, permissions: [KNOWLEDGE_READ_PERMISSION, "model:invoke"],
-    title: "按问题选资料分节", description: `给一个问题和至多 ${KNOWLEDGE_LOCATE_MAX_SUBJECTS} 份资料，由项目的文字模型看这几份的分节树（标题和整理时写的每节摘要，不看正文），回最可能有答案的几节：ref、anchor、起始行和理由。subjects 每项写 ref 或 subject 对象。再用 knowledge.read 按 anchor 读原文核对；理由只是猜测，不是资料内容。没整理过的资料只按标题选。`,
+    title: "按问题选资料分节", description: `给一个问题和至多 ${KNOWLEDGE_LOCATE_MAX_SUBJECTS} 份资料，由项目的文字模型看这几份的分节树（标题和整理时写的每节摘要，不看正文），回最可能有答案的几节：ref、anchor、起始行和理由。subjects 每项写 ref 或 subject 对象。再用 knowledge.read 按 anchor 读原文核对；理由只是猜测，不是资料内容。没整理过的资料只按标题选。分节树太长时只把放得下的整节交给模型（每份从头起），omitted 是没给模型看的节数，不为 0 时没选到的节可用 knowledge.outline 自己看。`,
     input_schema: { type: "object", properties: { question: { type: "string", minLength: 1, maxLength: 1000 },
       subjects: { type: "array", minItems: 1, maxItems: KNOWLEDGE_LOCATE_MAX_SUBJECTS, items: pieceName } }, required: ["question", "subjects"], additionalProperties: false },
     output_schema: { type: "object", properties: {
       sections: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, ref: nullableRef, revision: text, anchor: text, title: text, line: { type: "integer", minimum: 1 }, reason: text },
         required: ["subject", "ref", "revision", "anchor", "title", "line", "reason"], additionalProperties: false } },
       unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } },
-      unsummarized: { type: "array", items: ACTION_SUBJECT_SCHEMA } },
-      required: ["sections", "unread", "unsummarized"], additionalProperties: false } } } as ActionDefinition<KnowledgeLocateRequest, KnowledgeLocateResponse>,
+      unsummarized: { type: "array", items: ACTION_SUBJECT_SCHEMA }, omitted: { type: "integer", minimum: 0 } },
+      required: ["sections", "unread", "unsummarized", "omitted"], additionalProperties: false } } } as ActionDefinition<KnowledgeLocateRequest, KnowledgeLocateResponse>,
 };
 
 const cardRecord = { type: "object", properties: { project_id: text, subject: ACTION_SUBJECT_SCHEMA, source_key: text, provider_id: text, plugin_id: text, plugin_title: text,

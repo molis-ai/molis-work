@@ -5,14 +5,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { LocalProjectDatabase, GoalProjectApplication, createProjectGoalReplica, createPersonalGoalRegistration } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { GoalProjectApplication, boardSnapshot } from './fixtures/goal-application.js';
+import { runtimeGoalSync, goalSyncSelection as selection, goalWire } from './fixtures/runtime-goal-sync.js';
 import { PersonalSync, syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
 import { createContextLedger } from '@molis-ai/molis-work-module-context-ledger';
 import { ensureStorageSpace, personalStorageSpace, mapReplicaSequences } from '@molis-ai/molis-work-storage';
 import type { SyncMutation, SyncEvent, ProjectReplicaRows } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type { SpaceSyncPolicy } from '@molis-ai/molis-work-contracts/modules/sync-replication';
 
-const selection = { plugin_id: 'io.molis.work.goals', publisher_id: 'molis', publisher_signature: 'official-goals-binding', collection_id: 'project_goals', schema_version: 1 };
 const sequenceFields = ['journal_seq', 'based_on_cursor', 'support_valid_after_seq', 'observed_event_cursor', 'goal_event_cursor', 'event_list_next_cursor', 'event_cursor', 'next_cursor', 'base_event_cursor'];
 const comparable = (value: unknown) => mapReplicaSequences(value, sequenceFields, () => 0);
 
@@ -22,9 +23,15 @@ async function fixture(t: TestContext) {
   const homes = ['a', 'b'].map(id => join(root, id));
   homes.forEach(home => ensureStorageSpace(home, space));
   const project = await withMolisWorkProjectCatalog({ homeDirectory: homes[0] }, c => c.createProject({ display_name: '跨设备 Goals', actor_id: 'alice' }));
+  const initialStore=new LocalProjectDatabase(project.database_path);try{new GoalProjectApplication(initialStore).initializeBoard({project_id:project.project_id,actor_id:'alice',idempotency_key:'fixture-board'});}finally{initialStore.close();}
   let active = true, online = true, drop = false;
   const check = () => { if (!active) throw new Error('host.test_revoked'); };
-  const registrations = homes.map(home => createPersonalGoalRegistration(home, space.spaceId, 'alice', check, withMolisWorkProjectCatalog, selection));
+  const targetProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
+  const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',check));
+  t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
+  const registrations=runtimes.map(runtime=>runtime.registration);
+  for(const registration of registrations)await registration.refresh();
+  assert.deepEqual(registrations[1]!.withReplica(replica=>replica.counts()),{pending:0,conflicts:0},'automatic empty board initialization is not a local user edit');
   let policy: SpaceSyncPolicy = { spaceId: space.spaceId, revision: 0, selections: [] };
   const events: SyncEvent[] = [];
   const transport: typeof fetch = async (input, init) => {
@@ -60,19 +67,20 @@ async function fixture(t: TestContext) {
     return Response.json({ events: rows.slice(0, 2), more: rows.length > 2 });
   };
   const clients = homes.map((home, i) => new PersonalSync({ home, spaceId: space.spaceId, endpoint: 'http://127.0.0.1:8788', authority: { signal: new AbortController().signal, assertCurrent: check, accessToken: async () => 'test-only' }, registrations: [registrations[i]!], fetch: transport }));
-  const paths = [project.database_path, ''];
+  runtimes.forEach((runtime,index)=>runtime.setPolicy(()=>clients[index]!.policy()));
+  const paths = [project.database_path, targetProject.database_path];
   const edit = <T>(i: number, operation: (app: GoalProjectApplication, store: LocalProjectDatabase) => T): T => {
     const store = new LocalProjectDatabase(paths[i]!);
     try { return operation(new GoalProjectApplication(store), store); } finally { store.close(); }
   };
   const run = async () => {
     await clients[0]!.run(); await clients[1]!.run();
-    for (const c of clients) assert.equal(c.status().error, null);
+    for (const c of clients) assert.equal(c.status().error, null,JSON.stringify(c.status()));
     await withMolisWorkProjectCatalog({ homeDirectory: homes[1] }, c => { paths[1] = c.listProjects().find(p => p.project_id === project.project_id)!.database_path; });
   };
   const enable = async () => { await clients[0]!.save({ ...clients[0]!.policy(), selections: [selection] }); await run(); };
-  const replica = <T>(i: number, fn: (r: ReturnType<typeof createProjectGoalReplica>) => T) => edit(i, (_app, store) => fn(createProjectGoalReplica(store.db, { spaceId: space.spaceId, projectId: project.project_id, title: project.display_name, authorize: check })));
-  t.after(() => { clients.forEach(c => c.close()); rmSync(root, { recursive: true, force: true }); });
+  const replica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => registrations[i]!.withReplica(fn);
+  t.after(() => { clients.forEach(c => c.close()); });
   return { homes, space, project, clients, events, edit, run, enable, replica, offline: () => { online = false; }, online: () => { online = true; }, drop: () => { drop = true; }, revoke: () => { active = false; } };
 }
 
@@ -108,22 +116,27 @@ test('GSYNC-01 GSYNC-02 GSYNC-03 GSYNC-04 restore completed Goals, graph, histor
     db.appendEvent({ eventId: 'local-only-source', projectId: p, actorId: 'alice', type: 'artifact.local_note', objectType: 'artifact', objectId: 'private', reason: 'not Goal', payload: {}, at: new Date().toISOString() });
   });
   assert.equal(f.events.length, 0);
-  await f.enable();
+  await f.clients[0]!.save({...f.clients[0]!.policy(),selections:[selection]});
+  assert.ok(f.replica(0,replica=>replica.counts().pending)>0,'real user facts always create a local upload');
+  await f.run();
   const conflicts = f.clients[1]!.status().collections[0]!.conflicts;
   assert.deepEqual(conflicts, []);
   const source = f.edit(0, app => app.goalEvents.readState(p, 'goal-main'));
   const restored = f.edit(1, (app, db) => {
     assert.equal(app.goalInputs.list(p)[0]!.source_ref, 'feed-item:missing-feed');
-    assert.equal(db.snapshot(p).goals.some(g => g.goal_id === 'proposed'), false, 'receiving a proposal does not execute it');
+    assert.equal(boardSnapshot(db,p).goals.some(g => g.goal_id === 'proposed'), false, 'receiving a proposal does not execute it');
     assert.equal(db.readEventsDescending(p).some(e => e.event_id === 'local-only-source'), false);
     const ledger = createContextLedger(db.db, { authorize: () => true, initializeSchema: false });
     assert.deepEqual(ledger.query.history({ actor_id: 'alice', scope: { kind: 'personal', id: p } }, 'output').map(e => [e.revision, e.state]), [[1, 'active'], [2, 'removed']]);
     return app.goalEvents.readState(p, 'goal-main');
   });
   assert.deepEqual(comparable(restored), comparable(source));
-  const { cursor: targetCursor, ...targetSnapshot } = f.edit(1, (_app, db) => db.snapshot(p));
-  const { cursor: sourceCursor, ...sourceSnapshot } = f.edit(0, (_app, db) => db.snapshot(p));
-  assert.equal(sourceCursor, targetCursor + 1, 'the source-only artifact event is not replicated');
+  const { cursor: targetCursor, ...targetSnapshot } = f.edit(1, (_app, db) => boardSnapshot(db,p));
+  const { cursor: sourceCursor, ...sourceSnapshot } = f.edit(0, (_app, db) => boardSnapshot(db,p));
+  assert.ok(sourceCursor > 0 && targetCursor > 0);
+  const sourceEvents=f.edit(0,(_app,db)=>db.readEventsDescending(p).filter(e=>e.type.startsWith(selection.plugin_id+':')).map(e=>e.event_id).sort());
+  const targetEvents=f.edit(1,(_app,db)=>db.readEventsDescending(p).map(e=>e.event_id).sort());
+  assert.deepEqual(targetEvents,sourceEvents,'all Goal journal events, and no foreign owner history, are restored');
   assert.deepEqual(comparable(targetSnapshot), comparable(sourceSnapshot));
   assert.ok(JSON.stringify(f.events[0]!.value).includes('@event:'));
   const n = f.events.length; await f.run(); assert.equal(f.events.length, n, 'no replication echo');
@@ -147,7 +160,7 @@ test('GSYNC-05 invalid journal anchors, cross-project rows and decisions fail at
   ];
   let revision = f.events[0]!.revision;
   for (const edit of edits) {
-    const value = structuredClone(f.events[0]!.value) as GoalWire; edit(value);
+    const value = structuredClone(f.events[0]!.value) ; edit(goalWire(value) as GoalWire);
     const bad = { ...f.events[0]!, value, revision: ++revision, operationId: `bad-${revision}` };
     f.replica(1, r => r.receive(bad));
     assert.equal(f.replica(1, r => r.conflicts().length), 1);
@@ -171,9 +184,9 @@ test('GSYNC-06 policy is opt-in, disabling retains data, foreign accounts and lo
   await f.run(); assert.equal(f.events.length, n);
   assert.ok(f.edit(1, app => app.goalQueries.getGoal(p, 'goal-main')));
   assert.throws(() => f.edit(1, app => app.goalQueries.getGoal(p, 'offline-only')), { code: 'goals.not_found' });
-  assert.throws(() => createPersonalGoalRegistration(f.homes[0]!, f.space.spaceId, 'bob', () => {}, withMolisWorkProjectCatalog, selection));
+  assert.throws(() => runtimeGoalSync(f.homes[0]!, f.space.spaceId, 'bob', () => {}));
   const local = join(f.homes[0]!, 'local-test'); ensureStorageSpace(local);
-  assert.throws(() => createPersonalGoalRegistration(local, f.space.spaceId, 'alice', () => {}, withMolisWorkProjectCatalog, selection));
+  assert.throws(() => runtimeGoalSync(local, f.space.spaceId, 'alice', () => {}));
 });
 
 test('GSYNC-04 GSYNC-05 offline archive/trash, lost receipts, restart and explicit concurrent resolution', async t => {
@@ -198,12 +211,12 @@ test('GSYNC-05 malformed facts and foreign space roll back all Goal facts; revok
   f.edit(0, app => work(app, p)); await f.enable();
   const original = f.events[0]!;
   const before = f.edit(1, (app, db) => ({ state: app.goalEvents.readState(p, 'goal-main'), events: db.readEventsDescending(p) }));
-  const wire = structuredClone(original.value) as { spaceId: string; facts: { goals: { goals: Array<Record<string, unknown>> } } };
-  wire.facts.goals.goals[0]!.injected = 'unknown field';
+  const wire = structuredClone(original.value);
+  (goalWire(wire) as {facts:{goals:{goals:Array<Record<string,unknown>>}}}).facts.goals.goals[0]!.injected = 'unknown field';
   f.replica(1, r => r.receive({ ...original, operationId: 'malformed', value: wire, revision: original.revision + 1 }));
   assert.match(f.replica(1, r => r.conflicts()[0]!.reason), /replica_columns_invalid/);
   assert.deepEqual(f.edit(1, (app, db) => ({ state: app.goalEvents.readState(p, 'goal-main'), events: db.readEventsDescending(p) })), before);
-  const foreign = structuredClone(original.value) as { spaceId: string }; foreign.spaceId = 'another-account';
+  const foreign = structuredClone(original.value); (goalWire(foreign) as {spaceId:string}).spaceId = 'another-account';
   f.replica(1, r => r.receive({ ...original, operationId: 'foreign', value: foreign, revision: original.revision + 2 }));
   assert.deepEqual(f.edit(1, app => app.goalEvents.readState(p, 'goal-main')), before.state);
   f.revoke(); assert.throws(() => f.replica(0, r => r.next()), /test_revoked/);

@@ -82,5 +82,20 @@ export class ConnectorProtocolStore {
     }
     return { state, origin, createdAt: row.created_at, configuration: JSON.parse(row.configuration_json) as T };
   }
+  /**
+   * Atomic removal by the state alone (W5-11 §3.3): the caller compares the origin afterwards, so a callback that reaches another
+   * local origin still ends the record instead of leaving it to be tried again.
+   */
+  take<T extends ConnectorProtocolConfiguration>(state: string, now = Date.now()): ConnectorAuthorizationSession<T> {
+    if (!/^[A-Za-z0-9_-]{43}$/u.test(state)) throw new Error("授权状态无效，请重新连接");
+    const row = this.db.prepare("DELETE FROM connector_authorization_sessions WHERE state=? RETURNING origin,created_at,configuration_json")
+      .get(state) as { origin: string; created_at: number; configuration_json: string } | undefined;
+    if (!row) throw new Error("授权会话不存在或已使用，请重新连接");
+    if (now < row.created_at || now - row.created_at > CONNECTOR_AUTH_TTL_MS) {
+      this.clearStage(row.configuration_json);
+      throw new Error("授权已过期，请重新连接");
+    }
+    return { state, origin: row.origin, createdAt: row.created_at, configuration: JSON.parse(row.configuration_json) as T };
+  }
 }
 

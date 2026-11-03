@@ -111,11 +111,12 @@ test("W3-10-5-01: only the original transport site is exempt, including in its o
 
 test("W3-10-5-01: typed browser dependencies follow actual package subpaths", () => {
   reset();
-  put("plugins/native/work/package.json", JSON.stringify({name:"@test/work",exports:{"./terminal-client":{import:"./dist/terminal/client.js"}}}));
-  put("plugins/native/work/src/terminal/client.ts", "export const start = () => window.fetch('/terminal');\n");
-  put("apps/workbench/src/terminal-client.ts", "import {start} from '@test/work/terminal-client'; start();\n");
+  put("apps/workbench/package.json", JSON.stringify({name:"@test/workbench",exports:{"./terminal":{import:"./dist/terminal/index.js"}}}));
+  put("apps/workbench/src/terminal/client.ts", "export const start = () => window.fetch('/terminal');\n");
+  put("apps/workbench/src/terminal/index.ts", "export {start} from './client.js';\n");
+  put("apps/workbench/src/terminal-client.ts", "import {start} from '@test/workbench/terminal'; start();\n");
   commit("typed entry"); const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
-  assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/work\/src\/terminal\/client\.ts 0 → 1/);
+  assert.match(result.out, /Workbench raw fetch must be zero: apps\/workbench\/src\/terminal\/client\.ts has 1/);
 });
 
 test("W3-10-5-01: an unexpandable or unparsable recognized program refuses update", () => {

@@ -1,4 +1,4 @@
-import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import { bindingErrors } from "./binding-errors.js";
 import type Database from "better-sqlite3";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
@@ -12,7 +12,7 @@ export class RuntimeContextProjectReferences {
   get(bindingId: string): string {
     const edge = this.ledger.query.get(access(), `work.binding_project:${bindingId}`);
     if (!edge || edge.target.module !== "projects") {
-      throw sessionErrors.invalid_input("Runtime 工作入口的 Project 关系缺失，不能猜测绑定");
+      throw bindingErrors.project_relation_missing("Runtime 工作入口的 Project 关系缺失，不能猜测绑定");
     }
     return edge.target.id;
   }

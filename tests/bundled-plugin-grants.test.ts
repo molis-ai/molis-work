@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/a
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
@@ -39,7 +40,7 @@ function build(version: string, permissions: PluginManifest["permissions"]): Plu
 
 /** A start-list entry for a plugin that ships with the Host, with the release adapter every such entry has, so each start archives its build. */
 function bundled(definition: PluginDefinition, grants?: string[]) {
-  return { definition, bundled: true, ...grants ? { grants } : {}, releaseArtifact: { capture: () => `fixture-${definition.manifest.version}`, restore: () => definition } };
+  return { definition, trust: HOST_BUILD_TRUST, ...grants ? { grants } : {}, releaseArtifact: { capture: () => `fixture-${definition.manifest.version}`, restore: () => definition } };
 }
 
 /** One Host process over the project database in `directory`: the platform the way a start builds it. */
@@ -73,7 +74,7 @@ test("a bundled plugin is installed with every permission its Manifest declares,
   withDirectory(async directory => {
     const bundled = hostProcess(directory);
     try {
-      const report = await bundled.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true }]);
+      const report = await bundled.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), trust: { level: "host" } }]);
       assert.deepEqual(report.running, [PLUGIN_ID]);
       assert.deepEqual(bundled.grants(), [OPTIONAL.permission, REQUIRED.permission]);
       assert.deepEqual(await bundled.availability(), { available: true });
@@ -192,7 +193,7 @@ test("a permission a newer bundled build no longer declares is dropped, and the 
 test("a bundled entry that names fewer grants than its Manifest declares is installed with every declared permission", withDirectory(async directory => {
   const first = hostProcess(directory);
   try {
-    const report = await first.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true, grants: [REQUIRED.permission] }]);
+    const report = await first.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), trust: { level: "host" }, grants: [REQUIRED.permission] }]);
     assert.deepEqual(report.failed, []);
     assert.deepEqual(report.running, [PLUGIN_ID]);
     assert.deepEqual(first.grants(), [OPTIONAL.permission, REQUIRED.permission], "the entry's own list narrows nothing for a plugin that ships with the Host");
@@ -205,7 +206,7 @@ test("a bundled entry that names fewer grants than its Manifest declares starts 
   for (let start = 1; start <= 5; start++) {
     const host = hostProcess(directory);
     try {
-      const report = await host.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true, grants: [REQUIRED.permission] }]);
+      const report = await host.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), trust: { level: "host" }, grants: [REQUIRED.permission] }]);
       outcomes.push({ failed: report.failed.map(failure => failure.code), running: report.running, grants: host.grants() });
     } finally { host.store.close(); }
   }
@@ -213,71 +214,71 @@ test("a bundled entry that names fewer grants than its Manifest declares starts 
   assert.deepEqual(outcomes, [every, every, every, every, every], "a repeated install is not a silent grant change (plugin.state_invalid), whichever start it is");
 }));
 
-test("PluginRuntime.install with bundled records every declared permission whatever grants it is given, and installing again replays; without bundled it records what it is given",
+test("PluginRuntime.install with host trust records every declared permission whatever grants it is given, and installing again replays; without it the install records what it is given",
   () => {
     const declared = [OPTIONAL.permission, REQUIRED.permission];
     for (const given of [undefined, [], [REQUIRED.permission], declared]) {
-      const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+      const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
       const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
       const label = JSON.stringify(given);
-      const installed = runtime.install({ definition, deployment: "local", bundled: true, ...(given ? { grants: given } : {}) });
+      const installed = runtime.install({ definition, deployment: "local", trust: { level: "host" }, ...(given ? { grants: given } : {}) });
       assert.deepEqual(installed.install.grants, declared, `grants ${label}: a plugin that ships with the Host holds what its Manifest declares`);
       for (const again of [undefined, [REQUIRED.permission], declared]) {
-        const repeated = runtime.install({ definition, deployment: "local", bundled: true, ...(again ? { grants: again } : {}) });
+        const repeated = runtime.install({ definition, deployment: "local", trust: { level: "host" }, ...(again ? { grants: again } : {}) });
         assert.equal(repeated.replayed, true, `grants ${label}, then ${JSON.stringify(again)}: the same build again changes nothing`);
         assert.deepEqual(repeated.install.grants, declared);
       }
     }
 
-    const other = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    const other = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
     const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
-    assert.deepEqual(other.install({ definition, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission], "any other plugin gets what it was given");
-    assert.throws(() => other.install({ definition, deployment: "local", grants: declared }),
+    assert.deepEqual(other.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission], "any other plugin gets what it was given");
+    assert.throws(() => other.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: declared }),
       (error: unknown) => (error as { code?: string }).code === "plugin.state_invalid", "and a repeated install that names other grants is still a silent grant change");
   });
 
-test("PluginRuntime.install with bundled keeps a record's switched-off optional permission, and following a build switches on only what the record's own build did not declare",
+test("PluginRuntime.install with host trust keeps a record's switched-off optional permission, and following a build switches on only what the record's own build did not declare",
   () => {
-    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
     const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
-    const installId = runtime.install({ definition, deployment: "local", bundled: true }).install.install_id;
+    const installId = runtime.install({ definition, deployment: "local", trust: { level: "host" } }).install.install_id;
     runtime.grant(installId, [REQUIRED.permission]);
-    const again = runtime.install({ definition, deployment: "local", bundled: true });
+    const again = runtime.install({ definition, deployment: "local", trust: { level: "host" } });
     assert.equal(again.replayed, true, "the same build again is not a silent grant change");
     assert.deepEqual(again.install.grants, [REQUIRED.permission]);
 
-    const followed = runtime.install({ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), deployment: "local", bundled: true,
+    const followed = runtime.install({ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), deployment: "local", trust: { level: "host" },
       declared_before: [REQUIRED.permission, OPTIONAL.permission] });
     assert.equal(followed.install.install_id, installId);
     assert.deepEqual(followed.install.grants, [NEWER.permission, REQUIRED.permission]);
   });
 
-test("PluginRuntime.install with bundled, not told what the record's own build declared, switches on no optional permission when it follows a build", () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
-  const installId = runtime.install({ definition: build("1.0.0", [REQUIRED, OPTIONAL]), deployment: "local", bundled: true }).install.install_id;
+test("PluginRuntime.install with host trust, not told what the record's own build declared, switches on no optional permission when it follows a build", () => {
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const installId = runtime.install({ definition: build("1.0.0", [REQUIRED, OPTIONAL]), deployment: "local", trust: { level: "host" } }).install.install_id;
   runtime.grant(installId, [REQUIRED.permission]);
-  const followed = runtime.install({ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), deployment: "local", bundled: true });
+  const followed = runtime.install({ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), deployment: "local", trust: { level: "host" } });
   assert.deepEqual(followed.install.grants, [REQUIRED.permission], "OPTIONAL may be one the person switched off, so neither it nor NEWER is switched on");
 });
 
 // Every permission without asking is for code the Host ships. Sandboxed code is generated or installed from outside and runs in
 // isolation: what it may do is what the person confirmed, never what its Manifest declares. A start list that marks such a
-// definition `bundled` (a mistake in the Host's own composition) is refused rather than honoured as a grant of everything.
-test("a sandboxed definition is never granted everything because an entry calls it bundled: the install is refused, with grants or without, and the supervisor records nothing",
+// definition `host` (a mistake in the Host's own composition) is refused rather than honoured as a grant of everything.
+test("a sandboxed definition is never granted everything because an entry gives it host trust: the install is refused, with grants or without, and the supervisor records nothing",
   withDirectory(async directory => {
     const sandboxed = { ...build("1.0.0", [REQUIRED, OPTIONAL]), execution: "sandbox" as const };
-    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
     for (const grants of [undefined, [], [REQUIRED.permission], [OPTIONAL.permission, REQUIRED.permission]]) {
-      assert.throws(() => runtime.install({ definition: sandboxed, deployment: "local", bundled: true, ...(grants ? { grants } : {}) }),
+      assert.throws(() => runtime.install({ definition: sandboxed, deployment: "local", trust: { level: "host" }, ...(grants ? { grants } : {}) }),
         (error: unknown) => (error as { code?: string }).code === "plugin.grant_denied", `grants ${JSON.stringify(grants)}`);
     }
     assert.deepEqual(runtime.list(), []);
-    // Not bundled, with the grants the person confirmed: unchanged, and it holds exactly those.
-    assert.deepEqual(runtime.install({ definition: sandboxed, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission]);
+    // Not host trust, with the grants the person confirmed: unchanged, and it holds exactly those.
+    assert.deepEqual(runtime.install({ trust: { level: "unsigned" }, definition: sandboxed, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission]);
 
     const host = hostProcess(directory);
     try {
-      const report = await host.platform.start([{ definition: sandboxed, bundled: true, grants: [REQUIRED.permission] }]);
+      const report = await host.platform.start([{ definition: sandboxed, trust: { level: "host" }, grants: [REQUIRED.permission] }]);
       assert.deepEqual(report.running, []);
       assert.deepEqual(report.failed.map(failure => failure.code), ["plugin.grant_denied"]);
       assert.deepEqual(host.platform.runtime.list(), [], "nothing was installed, so nothing holds a permission");

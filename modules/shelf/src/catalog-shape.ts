@@ -1,4 +1,4 @@
-import type { ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobRecord } from '@molis-ai/molis-work-contracts/modules/shelf';
+import type { ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobRecord } from './contract.js';
 import { defaultShelfDeviceSettings } from './settings.js';
 import { shelfErrors } from './errors.js';
 

@@ -2,11 +2,34 @@
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { EN } from "./i18n/en.js";
 import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
+import { createPluginMessageStore } from "./plugin-messages.js";
 
-const PLUGIN_MESSAGES: Record<string, { readonly zh: string; readonly en: string }> = Object.assign(
-  {}, ...BUILTIN_PLUGIN_CATALOG.map(entry => entry.messages),
-);
+/** The words of the installed Plugins, from their Manifests: the built-in ones at start, the others as the Host installs them. */
+const pluginMessages = createPluginMessageStore();
+for (const entry of BUILTIN_PLUGIN_CATALOG) {
+  const problems = pluginMessages.register(entry.manifest);
+  if (problems.length > 0) throw new Error(`${entry.manifest.plugin_id}: ${problems.join("；")}`);
+}
+export const registerPluginMessages = pluginMessages.register;
+export const unregisterPluginMessages = pluginMessages.unregister;
 
+/** The English a Plugin keys by Chinese text, while the page draws that Plugin's contribution (see `withPluginWords`). */
+let drawingFor: Readonly<Record<string, string>> | null = null;
+
+/**
+ * Runs `draw` with `pluginId`'s own `ui.translations` applied after the Host's English, so what the Plugin's contribution
+ * draws can be shown in English without the same Chinese sentence changing anywhere else on the page. Synchronous on purpose:
+ * the scope ends when `draw` returns, and nothing it awaits would still be inside it.
+ */
+export function withPluginWords<T>(pluginId: string, draw: () => T): T {
+  const outer = drawingFor;
+  drawingFor = pluginMessages.translationsFor(pluginId);
+  try { return draw(); } finally { drawingFor = outer; }
+}
+
+
+/** `translate` for text a Plugin's own code draws: that Plugin's words after the page's, and no one else's. */
+export const inWordsOf = <A extends unknown[], R>(pluginId: string, translate: (...args: A) => R) => (...args: A): R => withPluginWords(pluginId, () => translate(...args));
 
 export { EN } from "./i18n/en.js";
 
@@ -102,7 +125,7 @@ function localeSwitchHref(locale: WebLocale, nextPath: string): string {
 
 function L(key: string, vars?: Record<string, string | number>): string {
   const locale = currentLocale();
-  return fillMessage(PLUGIN_MESSAGES[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? key) : key), vars);
+  return fillMessage(pluginMessages.messages()[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? drawingFor?.[key] ?? key) : key), vars);
 }
 
 function renderLocaleSwitch(nextPath: string): string {
@@ -114,8 +137,14 @@ function renderLocaleSwitch(nextPath: string): string {
 }
 
 function catalogJson(locale: WebLocale): string {
-  const messages = Object.fromEntries(Object.entries(PLUGIN_MESSAGES).map(([key, text]) => [key, text[locale]]));
+  const messages = Object.fromEntries(Object.entries(pluginMessages.messages()).map(([key, text]) => [key, text[locale]]));
   return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages }).replaceAll("<", "\\u003c");
+}
+
+/** Each Plugin's own English by its id, for the frame that draws that Plugin and nothing else (`ui.translations` are not page-wide). */
+function pluginWordsJson(locale: WebLocale): string {
+  const words = locale === "en" ? Object.fromEntries(pluginMessages.translated()) : {};
+  return JSON.stringify(words).replaceAll("<", "\\u003c");
 }
 
 function englishCatalogJson(): string {
@@ -128,7 +157,13 @@ function clientI18nScript(): string {
   const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
   return `globalThis.MOLIS_WORK_MESSAGES = ${catalog};
   globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
-  globalThis.L = (fill => function L(key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? key, vars); })(${fillMessage.toString()});`;
+  globalThis.MOLIS_WORK_PLUGIN_WORDS = ${pluginWordsJson(currentLocale())};
+  (fill => {
+    globalThis.L = function L(key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? key, vars); };
+    // A Plugin's text drawn by the page: its own English after the page's, and nothing it declares reaches anything else.
+    globalThis.LF = function LF(pluginId, key, vars) { return fill(globalThis.MOLIS_WORK_MESSAGES[key] ?? globalThis.MOLIS_WORK_PLUGIN_WORDS[pluginId]?.[key] ?? key, vars); };
+    globalThis.LFor = function LFor(pluginId) { return function (key, vars) { return globalThis.LF(pluginId, key, vars); }; };
+  })(${fillMessage.toString()});`;
 }
 
 

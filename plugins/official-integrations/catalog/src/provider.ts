@@ -1,3 +1,5 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import type {
   IntegrationProviderItem,
   IntegrationProviderPort,
@@ -116,38 +118,47 @@ export function createCatalogProvider(opts: {
   connectorId: string;
   token?: string;
   authExtras?: Record<string, string> | (() => Record<string, string> | undefined);
-  resolveToken?: (forceRefresh?: boolean) => string | null | undefined | Promise<string | null | undefined>;
+  resolveToken?: (forceRefresh: boolean, control: ConnectorCallControl) => string | null | undefined | Promise<string | null | undefined>;
   fetchImpl?: CatalogFetch;
   now?: () => Date;
 }): IntegrationProviderPort {
   const spec = getCatalogSpec(opts.connectorId);
-  const resolveToken = async (forceRefresh = false) => opts.token ?? await opts.resolveToken?.(forceRefresh) ?? undefined;
+  const resolveToken = async (control: ConnectorCallControl, forceRefresh = false) => opts.token ?? await opts.resolveToken?.(forceRefresh, control) ?? undefined;
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);
   const now = opts.now ?? (() => new Date());
   const authExtras = () => typeof opts.authExtras === "function" ? opts.authExtras() : opts.authExtras;
 
-  async function withLiveContext<T>(run: (ctx: CatalogAuthContext, http: CatalogHttp) => Promise<T>): Promise<T> {
-    const token = await resolveToken();
+  async function withLiveContext<T>(control: ConnectorCallControl, run: (ctx: CatalogAuthContext, http: CatalogHttp) => Promise<T>): Promise<T> {
+    control.current();
+    const token = await resolveToken(control);
+    await control.beforeEffect(); control.current();
     if (!token) throw new CatalogLiveError("needs_auth", undefined, `${spec.title} 未绑定凭据`);
     if (!fetchImpl) throw new CatalogLiveError("provider", undefined, `${spec.title} fetch unavailable`);
-    const http = createCatalogHttp(fetchImpl, now);
+    const http = createCatalogHttp(controlledConnectorFetch(fetchImpl, control), now);
     try {
-      return await run(await resolveContext(spec, token, http, authExtras()), http);
+      const result = await run(await resolveContext(spec, token, http, authExtras()), http);
+      await control.beforeEffect(); control.current();
+      return result;
     } catch (error) {
+      await control.beforeEffect(); control.current();
       if ((spec.id !== "notion" && authExtras()?.auth_method !== "oauth") || !opts.resolveToken || !(error instanceof CatalogLiveError) || error.kind !== "needs_auth" || error.status === 403) throw error;
-      const renewed = await resolveToken(true);
+      const renewed = await resolveToken(control, true);
       if (!renewed) throw error;
-      return run(await resolveContext(spec, renewed, http, authExtras()), http);
+      const result = await run(await resolveContext(spec, renewed, http, authExtras()), http);
+      await control.beforeEffect(); control.current();
+      return result;
     }
   }
 
   return {
     type: spec.id,
-    async health() {
+    async health(control) {
+      control.current();
       try {
-        const login = await withLiveContext((ctx, http) => readIdentity(spec, ctx, http));
+        const login = await withLiveContext(control, (ctx, http) => readIdentity(spec, ctx, http));
         return { ok: true, status: "connected", message: `${spec.title} live as ${login}` };
       } catch (error) {
+        await control.beforeEffect(); control.current();
         const failure = classify(error);
         return {
           ok: false,
@@ -157,7 +168,8 @@ export function createCatalogProvider(opts: {
         };
       }
     },
-    async sync({ cursor }) {
+    async sync({ cursor }, control) {
+      control.current();
       if (spec.feed_available === false) return liveFailure("configuration", `${spec.title} 当前未提供 REST Feed；请使用连接的身份检查或 MCP 工具`);
       const previous = catalogCursor(cursor, spec.id);
       const syncAt = now();
@@ -165,7 +177,7 @@ export function createCatalogProvider(opts: {
         return { ok: true, mode: "live", items: [], cursor: previous };
       }
       try {
-        const { login, items } = await withLiveContext(async (ctx, http) => ({
+        const { login, items } = await withLiveContext(control, async (ctx, http) => ({
           login: await readIdentity(spec, ctx, http),
           items: await readFeed(spec, ctx, http),
         }));
@@ -184,6 +196,7 @@ export function createCatalogProvider(opts: {
           },
         };
       } catch (error) {
+        await control.beforeEffect(); control.current();
         return classify(error);
       }
     },

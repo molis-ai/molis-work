@@ -95,3 +95,9 @@ export interface AgentRelease {
   /** Its declared prompts, registered with the Home when it is installed. */
   prompts: PluginPrompt[];
 }
+
+/** The interface.json document in a published release, shared by the publisher and synchronization validator. */
+export function builderReleaseInterface(design: AgentDesign, nodes: AgentBuild['nodes']) {
+  return { parts: design.parts, nodes, acceptance: design.acceptance,
+    ...(design.presentation === undefined ? {} : { presentation: design.presentation }) };
+}

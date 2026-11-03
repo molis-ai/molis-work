@@ -1,3 +1,4 @@
+import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -5,7 +6,7 @@ import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-c
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
@@ -22,9 +23,11 @@ import { codingArtifactPreview } from "./artifact-preview.js";
 import { CODING_PLAN_SCHEMA_VERSION } from "./plans.js";
 import { codingSync } from './session-replication.js';
 import { codingHomeBackgroundTasks } from "./home-background.js";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
+import { CODING_MESSAGES } from "./messages.js";
+import { CODING_EN } from "./en.js";
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const CODING_PROJECT_PLUGIN_ID = "coding";
@@ -32,11 +35,11 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
 /**
  * Coding's declarations.
  *
- * `app`, and that is now true: the Host starts this Plugin through Plugin
- * Runtime and renders its directory from the contribution it returns
- * (`apps/local-host/src/coding-surface.ts`). It was `native` until that path
- * existed, because a Manifest claiming `app` while the shell drew the Plugin
- * itself would have been a lie.
+ * `app`, and that is true: the Host starts this Plugin through Plugin
+ * Runtime and draws its stage from the view it returns (`project-plugin-stages.ts`),
+ * with the companions it embeds filling the slots that view opens. It was
+ * `native` until that path existed, because a Manifest claiming `app` while
+ * the shell drew the Plugin itself would have been a lie.
  *
  * The other six built-ins stay `native`: they are still composed at build time.
  *
@@ -50,11 +53,13 @@ export const codingManifest: PluginManifest = {
   version: "0.3.0",
   name: "Coding",
   sync: codingSync,
+  summary: "和 Agent 一起写代码，留每轮记录。",
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: SEARCH_READ_PERMISSION, required: true, reason: "在问题卡中查找当前有权读取的引用对象" },
     { permission: "goals:read", required: true, reason: "读取已关联目标的当前约定、状态和固定来源" },
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
@@ -77,19 +82,24 @@ export const codingManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [
+      searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
+      "files.state", "files.directory", "files.open", "files.capture", "diff.state", "text-stats.state",
+      "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
       ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
-      ...Object.values(goalPluginActions).map(entry => entry.capability_id),
+      ...Object.values(GOALS_ACTIONS).map(entry => entry.capability_id),
       // The person's published Characters, and whether a version can run now (PG-086).
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
       projectsCapabilities.readWorkspace.capability_id,
       workspaceReadActions.file.capability_id,
+      workspaceReadActions.git.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,
       projectSettingsCapabilities.browsingWorkspace.capability_id,
+      projectSettingsCapabilities.runtime.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],
@@ -125,6 +135,14 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
+  // What runs on after the call that set it off, each stopping with the activation. PG-038: an accepted round is followed until it
+  // settles, and a step's wait, once over, starts the session's next round (start-round.ts, wake-loop.ts). The session state and goal
+  // titles are read and saved apart from the page's read-only queries (observation-job.ts).
+  background: { jobs: [
+    { job_id: "follow", reason: "跟住已经开始的这一轮，直到它结束，把会话记下的状态改对", permissions: [] },
+    { job_id: "wake", reason: "会话等的事有了结果，接着开这个会话的下一轮", permissions: ["artifact:read", "storage:private"] },
+    { job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] },
+  ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
@@ -198,50 +216,29 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
   ui: {
+    messages: CODING_MESSAGES,
+    translations: CODING_EN,
     embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
-    /**
-     * Entries the command menu and content actions offer.
-     *
-     * Each names the object it acts on rather than assuming the current one, so
-     * "open this report" works from anywhere the report is visible instead of
-     * only from inside the session that made it.
-     */
-    commands: [
-      {
-        command_id: "coding.new-session",
-        title: "开一条编码会话",
-        input_kinds: ["current"],
-        opens_view_id: "directory",
-      },
-      {
-        command_id: "coding.open-changeset",
-        title: "查看这一轮的变更",
-        input_kinds: ["agent-session"],
-        opens_view_id: "directory",
-      },
-      {
-        command_id: "coding.open-report",
-        title: "打开报告",
-        input_kinds: ["artifacts"],
-        opens_view_id: "directory",
-      },
-    ],
     views: [
-      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID },
+      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },
       {
         view_id: "directory",
         slot: "navigator",
         title: "Coding",
         contribution_id: CODING_UI_CONTRIBUTION_ID,
         icon: "code",
+        hue: "cyan",
         order: 55,
+        group: "code",
       },
       {
         view_id: "settings",
         slot: "settings",
         title: "Coding",
         contribution_id: CODING_SETTINGS_UI_CONTRIBUTION_ID,
+        settings_runtimes: true,
+        icon: "code",
       },
     ],
   },

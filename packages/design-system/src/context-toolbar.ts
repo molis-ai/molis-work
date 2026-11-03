@@ -30,8 +30,7 @@ export const CONTEXT_TOOLBAR_STYLES = `
 .mw-ctx { z-index: 50; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 8px; box-shadow: var(--shadow-raised); }
 .mw-ctx[hidden] { display: none; }
 .mw-ctx[data-away] { visibility: hidden; pointer-events: none; }
-@media (prefers-reduced-motion: no-preference) { .mw-ctx:not([data-away]) { animation: mw-ctx-rise var(--motion-fast, 130ms) var(--ease-quint); } }
-@keyframes mw-ctx-rise { from { opacity: 0; transform: translateY(2px); } }
+@media (prefers-reduced-motion: no-preference) { .mw-ctx:not([data-away]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); } }
 .mw-ctx .mw-btn { flex: none; min-height: var(--control-h, 32px); height: var(--control-h, 32px); padding: 0 8px; gap: 4px; font-size: 12px; white-space: nowrap; border-radius: 6px; }
 .mw-ctx .mw-btn svg { width: 14px; height: 14px; }
 .mw-ctx .mw-btn[aria-pressed=true] { background: var(--nav-active); }

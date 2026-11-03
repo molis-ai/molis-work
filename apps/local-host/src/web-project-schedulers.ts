@@ -1,28 +1,25 @@
 import fs from "node:fs";
 import { repeatingFailure } from "./host-log.js";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { workspaceRefFor } from "./agent-host-composition.js";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { bindProjectSchedulers } from "./project-schedulers.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
-import type { ResolvedWebBoardOptions, FeedSchedulerRuntime } from "./web-types.js";
-import type { ensureSystemAgentService } from "./system-agent-service.js";
+import type { ResolvedWebBoardOptions, ProjectScheduleRuntime } from "./web-types.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 
 /** One service timer over the Host's current project instances, independent of page visits. */
 export function startWebProjectSchedulers(options: {
   localHost: MolisWorkLocalHost; homeDirectory: string; withCatalog: LocalWebCatalogRunner;
   fixture: ResolvedWebBoardOptions | null;
-  agents: Pick<ReturnType<typeof ensureSystemAgentService>, "agentHost" | "ready">;
   periodic: PeriodicTasks;
   changed(databasePath: string): void;
   onError(error: unknown): void;
 }) {
-  const { localHost, homeDirectory, withCatalog, fixture, agents, changed } = options;
-  const runtimes = new Map<string, FeedSchedulerRuntime>();
-  const unbind = bindProjectSchedulers(localHost, { runtimes, changed, agentHost: agents.agentHost, ready: () => agents.ready,
-    workspaceFor: projectId => withCatalog({ homeDirectory }, catalog => workspaceRefFor(catalog, projectId)) });
+  const { localHost, homeDirectory, withCatalog, fixture, changed } = options;
+  const runtimes = new Map<string, ProjectScheduleRuntime>();
+  const unbind = bindProjectSchedulers(localHost, { runtimes, changed });
   let stopped = false, stopping: Promise<void> | undefined, opening: Promise<void> | undefined;
   // Every project with a database is opened before the first round, not at start: opening one compiles its contracts and starts its
   // plugins, and the first requests of a launch do not wait behind that. Its schedules only run on a round anyway.
@@ -40,7 +37,8 @@ export function startWebProjectSchedulers(options: {
         if (stopped) break;
         if (!fs.existsSync(project.database_path)) continue;
         try {
-          await localHost.withProject(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }), () => undefined);
+          await localHost.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: [] },
+            molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
           failingOpens.delete(project.database_path);
         } catch (error) {
           missed = true;
@@ -61,10 +59,9 @@ export function startWebProjectSchedulers(options: {
   // A round that throws throws again every 30 seconds: written when it starts failing, and again once it has run since.
   const rounds = repeatingFailure("schedule", "round_failed");
   const ran = (key: string) => rounds.worked(key);
-  const failed = (key: string, schedule: "feed" | "tasks") => (error: unknown) => rounds.failed(key, error, { schedule });
+  const failed = (key: string, schedule: "tasks") => (error: unknown) => rounds.failed(key, error, { schedule });
   const round = () => runWithMolisWorkHome(homeDirectory, () => {
     for (const [databasePath, runtime] of runtimes) {
-      void runtime.scheduler.tick().then(result => { ran(`feed:${databasePath}`); if (result.completed || result.failed) changed(databasePath); }).catch(failed(`feed:${databasePath}`, "feed"));
       void withCallId(newCallId(), () => runtime.schedule.tick())
         .then(result => { ran(`tasks:${databasePath}`); if (result.invoked) changed(databasePath); }).catch(failed(`tasks:${databasePath}`, "tasks"));
     }

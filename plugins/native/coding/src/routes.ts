@@ -1,5 +1,5 @@
-import { ACTION_ERROR_CODE, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
-import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import type { ActionHandlerBinding, ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingCharacters, type CodingCharacters } from "./character-source.js";
 import { codingGoalTitles, type CodingGoalTitles } from "./goal-titles.js";
@@ -16,8 +16,8 @@ import { timelineRoutes } from "./routes-timeline.js";
 import { writersRoutes } from "./routes-writers.js";
 import type { CodingSessionStore } from "./store.js";
 import { codingZh } from "./words.js";
+import { startCodingObservation } from "./observation-job.js";
 
-export { stopCodingSurface } from "./route-activation.js";
 export { planContinuesAfterTalk } from "./routes-timeline.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.js";
 
@@ -44,12 +44,11 @@ const problemsOf = (error: unknown) => {
   return Array.isArray(problems) ? { details: { problems, ...(Array.isArray(questions) ? { questions } : {}) } } : {};
 };
 
-// The few codes Coding names keep their status; any other failure with a code of ours answers by its kind (D26), as the
-// SDK's edge does. A plain error (Coding's own checks of what the page sent) stays a caller's mistake.
+// Every code Coding names carries its kind, so a coded failure answers by kind (D26) as the SDK's edge does. A plain error
+// (Coding's own checks of what the page sent) stays a caller's mistake.
 const failure = (error: unknown) => {
   const code = (error as { code?: string }).code;
-  return { status: code === "coding.session_unknown" || code === "actions.missing" ? 404 : code === "agent.session_busy" ? 409
-    : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : code === "actions.unredeemed" ? 503 : ACTION_ERROR_CODE.test(code ?? "") ? actionHttpStatus(error) : 400,
+  return { status: isCodedFailure(error) ? actionHttpStatus(error) : 400,
     body: { error: error instanceof Error ? error.message : codingZh("coding.server.failed"), ...(code ? { code } : {}), ...problemsOf(error) } };
 };
 
@@ -66,5 +65,6 @@ export function codingSurface(context: PluginStartContext, sessions: CodingSessi
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
   // The work-executor roles have no route: they answer through the handlers just made.
   codingExecutor(activation);
+  startCodingObservation(activation);
   return { routes, actions };
 }

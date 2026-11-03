@@ -45,7 +45,9 @@ git ls-tree -r --name-only e4bdeb12 -- .impeccable
 
 ## 根目录
 
-根目录只放仓库本身的入口文件、包目录和配置。下面这些以前在根目录，已经移走：
+根目录只放仓库本身的入口文件、包目录和配置，名字都登记在 `tooling/gates/root-allowlist.json`（门禁 `scripts/gates/root-entries.mjs`，随 `pnpm health:check` 跑）。名单外的根目录条目按被跟踪的文件数计，对照 merge-base 只许减少，所以新东西放不进根目录；确实要在根目录加一个名字，就把它连同理由加进这份名单，并在 PR 里写明为什么不能放在别处。
+
+下面这些以前在根目录，已经移走：
 
 | 材料 | 现在 | 说明 |
 | --- | --- | --- |
@@ -70,7 +72,7 @@ git show e4bdeb12:outputs/molis-work-positioning-2026-09-25/bp.zh-CN.md > bp.zh-
 
 ## vendored Prologue 包
 
-`vendor/prologue-sdk/` 只放当前使用的包（AGENTS.md「硬约束」）。每个 vendored 的 tgz 旁边有 `<tgz>.sha256` 和 `<tgz>.provenance.json`（字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm）；当前 Prologue 包由上游提交 `9fc3b173` 的 `packages/sdk` 无补丁重建，步骤在该目录 README。历史补丁不留正文：25 份补丁的大小、SHA-256、git blob、基线、来源和它们产出的包记在 `vendor/prologue-sdk/patch-history.json`，补丁本身都在提交 `e4bdeb12`（此后到删除它们的合并之前的提交里也有），按 git blob 取回。
+`vendor/prologue-sdk/` 只放当前使用的包（AGENTS.md「硬约束」）。每个 vendored 的 tgz 旁边有 `<tgz>.sha256` 和 `<tgz>.provenance.json`（字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm）；当前 Prologue 包的上游提交、重建步骤以该目录 README 与包旁的 `.provenance.json` 为准（这里不复述，免得换包后过时）。历史补丁不留正文：每份补丁的大小、SHA-256、git blob、基线、来源和它们产出的包记在 `vendor/prologue-sdk/patch-history.json`，补丁本身都在提交 `e4bdeb12`（此后到删除它们的合并之前的提交里也有），按 git blob 取回。
 
 两道门禁：tgz 的份数由 `pnpm health:check` 的 `vendoredPrologueSdk` 限制（`tooling/gates/limits.json`，只许减少）；记录是否与文件相符由 `scripts/gates/vendored-provenance.mjs` 在同一条命令里核对（不靠基线）：tgz 缺 `.sha256` 或 `.provenance.json`、记录与 tgz 的字节数、SHA-256、integrity 不符、`source.commit` 不是完整提交或 `source.dirty` 不为 `false`、包换掉后记录还留着、`alsoBuildableFrom` 点名的补丁不在目录里或字节数、SHA-256 不符、`patch-history.json` 的格式不对或已记为删除的补丁又回到目录里，都会失败。
 

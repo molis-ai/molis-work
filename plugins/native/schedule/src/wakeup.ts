@@ -44,6 +44,7 @@ export async function handleScheduleTaskWakeup(
   runner: ScheduledTaskRunner,
   now = () => new Date(),
   control?: ScheduleWakeupControl,
+  write = async (operation: () => void) => { db.transaction(operation).immediate(); },
 ): Promise<{ detail?: string }> {
   const task = getScheduleConversationTask(db, objectRef);
   if (!task || !task.enabled || task.archived) return { detail: "任务已停" };
@@ -67,7 +68,7 @@ export async function handleScheduleTaskWakeup(
     const parsed = parseScheduledAgentReply(raw.text);
     const text = parsed.text || "这一轮没有写出正文。";
     const important = parsed.marked ? parsed.important : raw.important;
-    db.transaction(() => {
+    await write(() => {
       assertCurrent();
       appendScheduleConversationTurn(db, {
         task_id: task.task_id,
@@ -76,14 +77,14 @@ export async function handleScheduleTaskWakeup(
         important,
         mark_unread: important && task.notify_important,
       }, now);
-    }).immediate();
+    });
     return { detail: important ? "important" : "ok" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // A lost lease writes nothing; it is asked inside the write, so it cannot be lost between the check and the write. A pause
     // or archive writes nothing. A task that is still on, even if its words changed while the round ran, keeps the sentence
     // that the round did not finish.
-    db.transaction(() => {
+    await write(() => {
       try { control?.beforeEffect(); } catch { return; }
       const latest = getScheduleConversationTask(db, objectRef);
       if (!latest?.enabled || latest.archived) return;
@@ -93,19 +94,20 @@ export async function handleScheduleTaskWakeup(
         text: `到点了，但这一轮没跑成：${message}`,
         error: message,
       }, now);
-    }).immediate();
+    });
     throw error;
   }
 }
 
-export async function rescheduleEnabledConversationTasks(
+export function rescheduleEnabledConversationTasks(
   db: ScheduleTaskDatabase,
   schedule: ScheduleJobPort,
   now = () => new Date(),
-): Promise<void> {
+): void {
   for (const task of listScheduleConversationTasks(db)) {
     if (!task.enabled) continue;
     const job = task.job_id ? schedule.get(task.job_id) : null;
+    if (job && "authorization" in job && job.authorization === "needs_confirmation") { setScheduleConversationTaskEnabled(db, task.task_id, false, now); continue; }
     if (job && (job.enabled || schedule.isExecuting?.(job.job_id))) continue;
     const registered = registerConversationJob(schedule, task, now());
     if (job?.job_id !== registered.job_id) bindScheduleConversationJob(db, task.task_id, registered.job_id, now);

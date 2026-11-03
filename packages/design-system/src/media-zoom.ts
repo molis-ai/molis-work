@@ -1,26 +1,3 @@
-/** Media Zoom (specs/visual-ui-experience §media-affine, VUX-32): what `browser/media-zoom.ts` takes and gives, and its rules. */
-export type MediaZoomState = "fit" | "zoomed";
-export type MediaZoomOptions = {
-  /** Called when the view goes between fitting the viewport and zoomed in, so the page's own control can say what it does next. */
-  onChange?: (state: MediaZoomState) => void;
-};
-export type MediaZoom = {
-  /** The whole image in the viewport, centred; never larger than its own pixels. Eased unless `eased` is false (opening). */
-  fit(eased?: boolean): void;
-  /** One image pixel to one CSS pixel, about the viewport's centre. */
-  actual(): void;
-  /** Fit, or zoomed in. */
-  state(): MediaZoomState;
-  /** Whether fitting already shows the image at its own pixels, so "actual size" would change nothing. */
-  fitsAtActual(): boolean;
-  /** Lets go of every listener and the observer; the image keeps its last place. */
-  dispose(): void;
-};
-declare global {
-  /** `window.molisMediaZoom(viewport, image, options)`: zoom about the point looked at, and bounded panning, for one image. */
-  interface Window { molisMediaZoom?: (viewport: HTMLElement, image: HTMLImageElement, options?: MediaZoomOptions) => MediaZoom }
-}
-
 /**
  * Where one axis of the image goes (specs/visual-ui-experience §media-affine): about the point looked at p, from the
  * translation t at scale `from` to `to`, t′ = p − (p − t)·(to / from); then held inside the viewport, an image smaller than

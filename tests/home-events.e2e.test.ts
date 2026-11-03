@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -34,7 +35,7 @@ test("an unknown plugin owns its Home event, context and real action; failure an
         const note = read(); return { source: { surface: "fixture-notes", title: "自有笔记", icon: "inbox" }, events: note.done ? [] : [{ event_id: "own-event", subject,
           occurred_at: new Date().toISOString(), placement: "today", category: "personal", title: "新插件提供的首页事项", summary: "由插件管理的记录", content: note.content, facts: [["版本", String(note.revision)]], needs_attention: true, open: null }] };
       } },
-      { ...context, handle: () => subjectContext({ subject, revision: String(read().revision), title: "新插件提供的首页事项", content: read().content, goal_ids: [], session_id: null }) },
+      { ...context, handle: () => subjectContext({ subject, revision: String(read().revision), title: "新插件提供的首页事项", content: read().content, goal_ids: [] }) },
       { ...offers, handle: (_caller, value) => ({ offers: read().done || (value as SubjectOffersInput).subject.id !== subject.id ? [] : [{ offer_id: "complete", title: "确认记录", action: { capability_id: complete.capability_id, version: 1 }, input: { revision: read().revision, request_id: (value as SubjectOffersInput).request_id } }] }) },
       { ...complete, handle: (caller, input) => {
         assert.equal(caller.project_id, projectId);
@@ -42,8 +43,8 @@ test("an unknown plugin owns its Home event, context and real action; failure an
         writes++; return { done: true };
       } },
     ] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   const selector = '[data-home-subject-kind="fixture-note"][data-home-subject-id="own-note"]';
   const captures = reviewEvidenceUrl("home-plugin-events/");
   const capture = async (name: string) => { await mkdir(captures, { recursive: true }); const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64")); };
@@ -81,10 +82,6 @@ test("an unknown plugin owns its Home event, context and real action; failure an
     await waitFor("document.querySelector('[data-home-detail-body]')?.textContent.includes('刷新后的插件原文')", 12000);
     assert.ok(await evaluate<number>("window.__homeReadCount") >= 2);
     await capture("desktop-plugin-event");
-    await click('[data-home-open-talk]');
-    await waitFor("document.querySelector('[data-home-talk-body]')?.textContent.includes('当前项目还没有可接收消息的会话')");
-    assert.match(await evaluate<string>("document.querySelector('.home-talk-context').textContent"), /刷新后的插件原文/);
-    await click('[data-home-close-talk]');
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 }, sessionId);
     assert.ok(await evaluate<number>("document.querySelector('[data-home-offer]').getBoundingClientRect().height") >= 44);

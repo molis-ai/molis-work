@@ -10,7 +10,7 @@ export interface ModelStandIn {
   /** `http://127.0.0.1:<port>/v1`, what a person pastes into Base URL. */
   readonly baseUrl: string;
   readonly origin: string;
-  /** Foreground requests, excluding answered ending reviews and project-knowledge organization. */
+  /** Foreground requests, excluding the Home's registered ending review and knowledge organization. */
   readonly requests: { model: string; offeredKey: string }[];
   close(): Promise<void>;
 }
@@ -18,14 +18,14 @@ export interface ModelStandIn {
 export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK"): Promise<ModelStandIn> {
   const requests: ModelStandIn["requests"] = [];
   const server: Server = createServer(async (request, response) => {
-    let body = "";
-    for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     const offeredKey = String(request.headers.authorization ?? "").replace(/^Bearer /, "");
     const payload = body ? JSON.parse(body) as { model?: string; stream?: boolean } : {};
-    if (request.method !== "POST" || request.url !== "/v1/chat/completions") { response.writeHead(404).end(); return; }
-    // MERGEFIX-03: background knowledge work can begin as soon as the first model is saved. Answer it with a valid
-    // card, just like the other shared model fixtures, without counting it as another connectivity check.
+    // The Home's registered background calls get their own valid answer, without consuming a foreground request.
     const aside = asideReply(body), content = aside ?? reply;
+    if (request.method !== "POST" || request.url !== "/v1/chat/completions") { response.writeHead(404).end(); return; }
     if (aside === undefined) requests.push({ model: String(payload.model ?? ""), offeredKey });
     if (offeredKey !== acceptedKey) {
       response.writeHead(401, { "content-type": "application/json" });

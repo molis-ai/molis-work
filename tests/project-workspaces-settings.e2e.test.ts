@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -8,6 +9,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("project settings associate and switch real folders; Files/Git follow, Coding stays independent", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
+  const files = await pluginFrameBrowser(t,browser,"files"), git = await pluginFrameBrowser(t,browser,"git");
   const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, click, waitFor, reloadPage } = browser;
   const prefix = `/projects/${projectId}`;
   for (const name of ["alpha", "beta"]) {
@@ -56,12 +58,12 @@ test("project settings associate and switch real folders; Files/Git follow, Codi
   assert.deepEqual((await api('/api/plugins/io.molis.work.coding/state')).body.workspaces.map((w: any) => w.workspace_id).sort(), [...ids].sort());
   t.diagnostic('open files');
   await click('[data-plugin-strip] [data-plugin-id=files]');
-  await waitFor("document.querySelector('[data-companion=files] [data-files-tree]')?.textContent.includes('beta.txt')");
-  await click('[data-companion=files] [data-file-path*="beta.txt"]');
-  await waitFor("document.querySelector('[data-companion=files] [data-files-text]')?.value === 'beta content'");
+  await files.waitFor("document.querySelector('[data-companion=files] [data-files-tree]')?.textContent.includes('beta.txt')");
+  await files.click('[data-companion=files] [data-file-path*="beta.txt"]');
+  await files.waitFor("document.querySelector('[data-companion=files] [data-files-text]')?.value === 'beta content'");
   t.diagnostic('open git');
   await click('[data-plugin-strip] [data-plugin-id=git]');
-  await waitFor("document.querySelector('[data-companion=git]')?.textContent.includes('beta.txt')");
+  await git.waitFor("document.querySelector('[data-companion=git]')?.textContent.includes('beta.txt')");
   t.diagnostic('standalone settings');
   await navigate(() => command('Page.navigate', { url: origin + prefix + '/settings/workspaces' }, sessionId));
   await waitFor(`document.querySelector('[data-browse-workspace="${ids[1]}"]')?.getAttribute('aria-pressed') === 'true'`);

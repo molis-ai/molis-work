@@ -9,8 +9,8 @@ export interface ActionSubjectContext {
   title: string;
   content: string;
   truncated: boolean;
-  goal_ids: string[];
-  session_id: string | null;
+  /** Goals the owner itself attaches the object to (a document's “挂到 Goal”). Left out when it keeps no such relation; placement lists these as kept elsewhere. */
+  goal_ids?: string[];
   /** Where the person opens it: the workbench surface and item. Absent when the object has no page of its own. */
   open?: { surface: string; id: string };
   /**
@@ -32,22 +32,24 @@ const id = { type: "string", minLength: 1 };
 const position = { type: "integer", minimum: 0 };
 export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
 export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id, offset: position }, required: ["subject_id"], additionalProperties: false };
-const properties = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: SUBJECT_CONTEXT_PAGE_CHARS },
-  truncated: { type: "boolean" }, goal_ids: { type: "array", items: id, uniqueItems: true }, session_id: { type: ["string", "null"] } };
+const required = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: SUBJECT_CONTEXT_PAGE_CHARS },
+  truncated: { type: "boolean" } };
+const properties = { ...required, goal_ids: { type: "array", items: id, uniqueItems: true } };
 const paging = { offset: position, length: position };
 const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
 const belongsTo = { type: ["string", "null"], maxLength: 120 };
-export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open, project_id: belongsTo, ...paging }, required: Object.keys(properties), additionalProperties: false };
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open, project_id: belongsTo, ...paging }, required: Object.keys(required), additionalProperties: false };
 /** The v1 output before `project_id` was added: readers declared with it keep working. */
-export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT = { type: "object", properties: { ...properties, open }, required: Object.keys(properties), additionalProperties: false };
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT = { type: "object", properties: { ...properties, open }, required: Object.keys(required), additionalProperties: false };
 /** The v1 output before `open` was added: readers declared with it keep working. */
-export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", properties, required: Object.keys(properties), additionalProperties: false };
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", properties, required: Object.keys(required), additionalProperties: false };
 /**
  * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
- * person's own Home (a calendar, personal notes), so personal work can read them back too.
+ * person's own Home (a calendar, personal notes), so personal work can read them back too. Version 2: `goal_ids` left the required output
+ * (an object that belongs to no Goal gives none), so a reference pinned to the version-1 reader meets this other contract and is refused.
  */
 export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
+  return { capability_id: capabilityId, version: 2, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }
@@ -59,7 +61,7 @@ export function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "
   const offset = Math.min(Math.max(0, Math.floor(request?.offset ?? 0)), input.content.length);
   const content = input.content.slice(offset, offset + SUBJECT_CONTEXT_PAGE_CHARS);
   return { ...input, title: input.title.slice(0, 1000), content, truncated: input.truncated === true || offset + content.length < input.content.length,
-    goal_ids: [...new Set(input.goal_ids)], ...(request ? { offset, length: input.content.length } : {}) };
+    ...(input.goal_ids?.length ? { goal_ids: [...new Set(input.goal_ids)] } : {}), ...(request ? { offset, length: input.content.length } : {}) };
 }
 
 /**

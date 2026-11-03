@@ -8,12 +8,12 @@
 
 ### 现在的状态
 
-P1–P4、A0、A1、A2-1、A2-2 写后检查和 QA-004/005 的用例均在 main，当前包是 #887 换入的 Prologue `753dbae8`。A2-3 设置页由 #805 合入 `b4e36d775`，⑤ 已补完定向测试与真实浏览器验证，必需 CI 和队列检查通过；其余未完成项见 BL-301～309。工程通过、所覆盖的真实操作和本人验收分别记录。
+P1–P4、A0、A1、A2-1、A2-2 写后检查和 QA-004/005 的用例均在 main，当前包是 `retry-waiting` 那次换入的 Prologue `2c7feba5`（#887 换入的 `753dbae8` 的下一份）。A2-3 设置页由 #805 合入 `b4e36d775`，⑤ 已补完定向测试与真实浏览器验证，必需 CI 和队列检查通过；其余未完成项见 BL-301～309。工程通过、所覆盖的真实操作和本人验收分别记录。
 
 ### `vendor/prologue-sdk` 与换包的接续点
 
-- **main 上**：`prologue-sdk-0.0.0-rc.1-attachment-order.tgz`，Prologue `753dbae8`（带 #54～57，含效果来源），由 [#887](https://github.com/molis-ai/molis-work/pull/887) 合入 `96bca9792`。之前 #814 换入 `a51607fb`（`ddab7a2d1`），#822 已按其中 #51 的标记接好执行器，合入 `d4bd81630`。
-- **后续换包**：BL-300 的换包已由 #887 完成，删除该完成行；Molis 对效果来源的接入仍是 BL-162。#53（`ask-user` 回答的键，BL-176）仍 OPEN，#887 明确不含它；BL-173「窗口读带行号」也仍未实现，不把这两项写成已带入。后续步骤照 `vendor/prologue-sdk/README.md` 的重建步骤和 §7.9、§7.10：
+- **main 上**：`prologue-sdk-0.0.0-rc.1-retry-waiting.tgz`，Prologue `2c7feba5`（带 #53 已答的 `ask-user` 结果用 `answered` 带题号、#58 运行时准入与关机边界、#59 收窄内部导出、#60 `retry-waiting` 事件），换入的 Molis PR 合入后在此补号。之前 #887 换入 `753dbae8`（带 #54～57，含效果来源，`96bca9792`），#814 换入 `a51607fb`（`ddab7a2d1`），#822 已按其中 #51 的标记接好执行器，合入 `d4bd81630`。
+- **后续换包**：BL-300 的换包已由 #887 完成，删除该完成行；Molis 对效果来源的接入仍是 BL-162。#53（`ask-user` 回答的键，BL-176）#887 不含，已随 `retry-waiting` 那次换包带入；BL-173「窗口读带行号」仍未实现，不写成已带入。后续步骤照 `vendor/prologue-sdk/README.md` 的重建步骤和 §7.9、§7.10：
   - 先在构建时段跑一次 Prologue 全量，跑之前重建 `packages/sdk/dist`；
   - 用 Node 24.14.0 打包；
   - 锁文件只手改 `@prologue/sdk` 那几行；
@@ -50,7 +50,7 @@ P1–P4、A0、A1、A2-1、A2-2 写后检查和 QA-004/005 的用例均在 main�
 | #442 | `4e426f4ca` | 换入输入回执第二、三刀的包 |
 | #408 | `1a9416ec0` | 与 main 对账，换成过渡包（§6.0a） |
 
-Prologue 一侧每刀一个 PR，合并提交写在各节；Molis 当前已使用 #887 带入的 `753dbae8`（含 #54～57）。
+Prologue 一侧每刀一个 PR，合并提交写在各节；Molis 当前已使用 `retry-waiting` 那次换包带入的 `2c7feba5`（含 #53、#58～60；此前 #887 带入 `753dbae8`，含 #54～57）。
 
 ### 交接 PR 的处理结果（2026-10-20 核对）
 
@@ -78,7 +78,7 @@ Prologue 一侧每刀一个 PR，合并提交写在各节；Molis 当前已使�
 
 - 新写的：BL-301～BL-309；原 BL-300 的换包由 #887 完成后已删行，效果来源的 Molis 接入继续归 BL-162。
 - 原有、负责人原写「采用线」、现在改成「未分配」的：BL-155、BL-160、BL-171、BL-172、BL-173、BL-220、BL-221。
-- PG-054 已由 #844（`0744d7dd3`）完成新会话、方法、MCP、委派与整合的运行时目录接入；项目如何选择运行时和 Character 的剩余写死项在 BL-372，由 ② 定、③ 执行，以防腐登记表为准。
+- PG-054 已由 #844（`0744d7dd3`）完成新会话、方法、MCP、委派与整合的运行时目录接入；Character 相关的写死项已在 BL-372 的第一片去掉（运行时自己声明 `supports_character_limits`，默认运行时取目录的 Home 默认）；项目选运行时也已由 BL-372 做完（项目设置的 `projects.settings.runtime.read/select`，没选就是 Home 默认；选定的运行时不可用时新会话被拒绝并指向项目设置，不换一个，`specs/repository-anti-corruption/slices/bl372-runtime-declarations.md`）。
 
 ### 接续时先读
 

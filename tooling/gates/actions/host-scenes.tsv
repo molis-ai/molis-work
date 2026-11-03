@@ -4,4 +4,4 @@
 # Same columns and reading as scenes.tsv without registered_provider. When a plugin declares one of them in its Manifest, the row moves
 # to scenes.tsv.
 scene_id	version	provider	scope	permissions	configuration_permissions	subjects	input_type	result_type	input	result	event	traits
-home.dock	1	system.home	project	home:read,model:invoke	home:write	-	-	molis.behavior-recommendation.v1	47f5e4b0672c	f0ad3c141e32	df4f7ab146f2	d4c77928ea00
+home.dock	1	system.home	project	home:read,model:invoke	home:write	-	-	molis.behavior-recommendation.v1	47f5e4b0672c	f0ad3c141e32	df4f7ab146f2	4b25f1a97392

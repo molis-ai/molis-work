@@ -1,4 +1,4 @@
-import type { InteractionNextStep } from "@molis-ai/molis-work-design-system";
+import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 /** What a card needs to be a next step, whoever keeps it (the Assistant's works, a Coding session). */

@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "./contract.js";
 import { promoteDataset, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStores } from "./store.js";
 import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
@@ -95,7 +95,7 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const name = (await ports.completeText(instructed(DATASET_NAME_COLUMN, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
-      if (!name || name.length > 80 || /[\r\n]/.test(name)) throw datasetErrors.invalid("模型没有返回有效列名，请调整提示后重试");
+      if (!name || [...name].length > 80 || /[\r\n]/.test(name)) throw datasetErrors.invalid("模型没有返回有效列名，请调整提示后重试");
       await caller.beforeEffect();
       return write(caller, store => ({ dataset: store.generateColumn(input.id, name, project(caller), current.version) }));
     }, () => ports.modelAvailability()),

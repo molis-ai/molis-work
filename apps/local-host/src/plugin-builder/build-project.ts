@@ -1,26 +1,13 @@
 import { constants } from 'node:fs';
-import { mkdir, readdir, realpath, readFile, writeFile, open, lstat } from 'node:fs/promises';
+import { mkdir, readdir, realpath, writeFile, open, lstat } from 'node:fs/promises';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { isDeepStrictEqual } from 'node:util';
-import { assertContract, assertEffects, assertJson } from '@molis-ai/molis-work-plugin-sandbox';
-import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { assertContract, assertEffects, assertJson, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
+import { isDeepStrictEqual } from "node:util";
+import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildProject, DeveloperCapabilities } from './build-types.js';
+import { sdkDeclarations } from './build-sdk-declarations.js';
 
 export const SDK_MODULE = '@molis/plugin-sdk';
-const TEST_TYPES = `
-export interface SandboxTestAssert {
-  same(actual: SandboxJson, expected: SandboxJson): void;
-  includes(actual: SandboxJson, expected: SandboxJson): void;
-  rejectsCode(call: () => Promise<unknown>, code: string): Promise<void>;
-}
-export type SandboxTest = (sdk: SandboxSdk, call: (input: SandboxJson) => Promise<SandboxJson>, assert: SandboxTestAssert) => Promise<void>;
-`;
-export function effectsFromContract(contract: SandboxPluginContract): SandboxEffects {
-  const result: Record<string, string[]> = {};
-  for (const operation of contract.operations) for (const [key, values] of Object.entries(operation.effects)) result[key] = [...new Set([...(result[key] ?? []), ...(values ?? [])])].sort();
-  return result as SandboxEffects;
-}
 export function buildManifest(contract: SandboxPluginContract): BuildManifest {
   return { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: effectsFromContract(contract) };
 }
@@ -28,13 +15,6 @@ export function operationEntry(contract: SandboxPluginContract): string {
   return contract.operations.map((_op, index) => `import operation${index} from './operations/${index}.js';`).join('\n')
     + `\nexport const operations = {\n${contract.operations.map((op, index) => `${JSON.stringify(op.id)}: operation${index}`).join(',\n')}\n};\n`;
 }
-export async function sdkDeclaration(): Promise<string> {
-  const location = fileURLToPath(import.meta.resolve('@molis-ai/molis-work-contracts/platform/plugin-sandbox')).replace(/\.js$/, '.d.ts');
-  const declaration = await readFile(location, 'utf8');
-  if (!declaration.includes('interface SandboxSdk')) throw new Error('Packaged SandboxSdk declaration is unavailable; build contracts first');
-  return declaration.replace(/^\/\/# sourceMappingURL=.*$/m, '') + TEST_TYPES;
-}
-
 /** Never overwrite an existing project. Revisions get their own host-created root. */
 export async function createBuildProject(root: string, contract: SandboxPluginContract, manifest: BuildManifest, developerCapabilities: DeveloperCapabilities): Promise<BuildProject> {
   assertContract(contract); assertEffects(manifest.effects); assertJson(developerCapabilities);
@@ -47,7 +27,10 @@ export async function createBuildProject(root: string, contract: SandboxPluginCo
   await frozen('contract.json', JSON.stringify(contract, null, 2));
   await frozen('manifest.json', JSON.stringify(manifest, null, 2));
   await frozen('src/index.ts', operationEntry(contract));
-  await frozen('developer/sdk.d.ts', await sdkDeclaration());
+  for (const [path, declaration] of await sdkDeclarations()) {
+    await mkdir(dirname(join(root, path)), { recursive: true });
+    await frozen(path, declaration);
+  }
   await frozen('developer/capabilities.json', JSON.stringify(developerCapabilities, null, 2));
   await frozen('developer/README.md', `# Plugin backend
 

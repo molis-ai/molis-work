@@ -1,5 +1,8 @@
-import type { AssistantActivity, AssistantRound, AssistantWork, AssistantWorkSurroundings, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { BOARD_PROJECT, act, boardFinishedWorks, boardView, boardWork, round, type Iso } from "./assistant-board-works.js";
+import type { AssistantActivity, AssistantExecutorOffer, AssistantNotice, AssistantRecovery, AssistantRound, AssistantWork, AssistantWorkSurroundings, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import {
+  BOARD_PROJECT, act, boardAnswered, boardDelegatedWorks, boardFinishedWorks, boardInterruptedWork, boardNotices, boardView, boardWork, round, type Iso,
+} from "./assistant-board-works.js";
+import { boardSampleText, type BoardSampleText } from "./assistant-board-text.js";
 
 /**
  * The fixed works of the component board's Assistant frame (specs/visual-ui-experience VUX-39, VUX-08/09/13): what the Host
@@ -14,8 +17,17 @@ export interface AssistantBoardSamples {
   works: AssistantWork[];
   views: Record<string, AssistantWorkView>;
   surroundings: Record<string, AssistantWorkSurroundings>;
+  /** The plugins that can carry a work in the project (`GET /api/assistant/executors`): the island takes a work's modes and its page's action ids from here. */
+  executors: AssistantExecutorOffer[];
   /** What the board's 「推进一步」 shows next for a running work: its following views, in order. */
   next: Record<string, AssistantWorkView[]>;
+  /** What a work becomes once the person answers its question, or closes its interrupted round after checking it. */
+  answered: Record<string, AssistantWorkView>;
+  closed: Record<string, AssistantWorkView>;
+  /** What an interrupted round really did, as the runtime's receipts show it. */
+  recovery: Record<string, AssistantRecovery>;
+  /** What the bell holds when the frame opens. */
+  notices: AssistantNotice[];
 }
 
 const PLAN_REPLY = "周五上午 10:00 大家都空，我准备好了日程，等你确认后再创建 🗓️。\n\n- 时长 45 分钟，只看首次使用\n- 议程放在「试用复盘议程 v1」里\n\n通讯录没有授权给我，参加的人请你在确认时核对一下。";
@@ -63,6 +75,7 @@ function planWork(at: Iso): { view: AssistantWorkView; surroundings: AssistantWo
       { job_id: "j-dataset", work_id: work.work_id, title: "Dataset · 导入试用问卷", state: "failed", started_at: at(44), ended_at: at(40) },
     ],
     usage: { tokens: 18200, rounds: 2, budget_tokens: null },
+    delegated: [{ work_id: "board-sub-interviews", title: "汇总试用访谈", state: "running", follow_ups: 1 }, { work_id: "board-sub-survey", title: "整理问卷里的首次导入问题", state: "completed", follow_ups: 0 }],
   });
   const surroundings: AssistantWorkSurroundings = {
     environment: { scope: { kind: "project", project_id: BOARD_PROJECT.id, title: BOARD_PROJECT.title } },
@@ -86,12 +99,12 @@ const CODE_ACTIVITY = [
 
 /** About code: Coding carries it, in a repository with a conflict; 「推进一步」 finishes the running command, then the round. */
 function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: AssistantWorkSurroundings } {
-  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "coding", title: "Coding", session_id: "cs-auth", mode: "execute" } });
+  const work = boardWork(at, "board-coding", "登录兼容旧的 session cookie", "running", 1, { executor: { kind: "plugin", plugin_id: "io.molis.work.coding", title: "Coding", session_id: "cs-auth", mode: "execute" } });
   const text = "登录要兼容旧的 session cookie，公开接口别动";
   const reply = "先读了 `auth/session.ts` 和 `auth/cookie.ts`：旧格式的 Cookie 叫 `session`，没有过期时间。改成先读 `sid`、再读旧的 `session`，过期时间按新的七天补上。";
   const step = (state: AssistantActivity["state"]) => act("c-c7", "command", "pnpm test auth", state, { sequence: 7 });
   const stage = (activity: AssistantActivity[], steps: Array<"pending" | "in-progress" | "done">, more: Partial<AssistantRound> = {}) => round(at, "run-code-1", 9, {
-    executor: "coding", text, phase: "running", ended_at: null, activity, steps: CODE_STEPS(steps),
+    executor: "plugin", text, phase: "running", ended_at: null, activity, steps: CODE_STEPS(steps), model: { model_id: "MiniMax-M2", window_tokens: 200000 },
     turns: [{ turn_id: "t-code-1", kind: "assistant", text: reply, at: at(7), sequence: 0 }], ...more,
   });
   const done = "改好了：旧 Cookie 可读，42 个用例通过，`docs/auth.md` 写了兼容说明。";
@@ -103,28 +116,39 @@ function codingWork(at: Iso): { views: AssistantWorkView[]; surroundings: Assist
   ];
   const surroundings: AssistantWorkSurroundings = {
     environment: { scope: { kind: "project", project_id: BOARD_PROJECT.id, title: BOARD_PROJECT.title },
-      coding: { workspace: { name: "molis-auth", path: "~/code/molis-auth" }, git: { repository: "molis-ai/molis-auth", branch: "feature/session-cookie", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
+      executor: { workspace: { name: "molis-auth", path: "~/code/molis-auth" }, git: { repository: "molis-ai/molis-auth", branch: "feature/session-cookie", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
     connections: [
       { connection_id: "github", title: "GitHub", account: "yijunw0212", state: "connected", tools: "callable" },
       { connection_id: "linear", title: "Linear", account: null, state: "needs-authorization", tools: "blocked" },
     ],
-    tools: { executor: "coding", callable: [{ provider: "GitHub MCP", count: 3 }], unavailable: [{ title: "create_issue", provider: "Linear MCP", reason: "服务未连接" }] },
+    tools: { executor: "plugin", callable: [{ provider: "GitHub MCP", count: 3 }], unavailable: [{ title: "create_issue", provider: "Linear MCP", reason: "服务未连接" }] },
     read_at: at(1),
   };
   return { views, surroundings };
 }
 
-/** The samples as the Host would answer them `now`: times are relative, so a finished work is still fresh when the frame opens. */
-export function assistantBoardSamples(now: number): AssistantBoardSamples {
+/**
+ * The samples as the Host would answer them `now`, their words in `text`: times are relative, so a finished work is still fresh
+ * when the frame opens.
+ */
+export function assistantBoardSamples(now: number, text: BoardSampleText = "zh"): AssistantBoardSamples {
   const at: Iso = (minutesAgo) => new Date(now - minutesAgo * 60_000).toISOString();
-  const plan = planWork(at), coding = codingWork(at), rest = boardFinishedWorks(at);
-  const views = [coding.views[0]!, plan.view, ...rest];
-  return {
+  const plan = planWork(at), coding = codingWork(at), rest = boardFinishedWorks(at), cut = boardInterruptedWork(at);
+  const others = [...rest, cut.view, ...boardDelegatedWorks(at, plan.view.work)];
+  const views = [coding.views[0]!, plan.view, ...others];
+  return boardSampleText({
     project: { ...BOARD_PROJECT },
     works: views.map((view) => view.work),
     views: Object.fromEntries(views.map((view) => [view.work.work_id, view])),
     surroundings: { [plan.view.work.work_id]: plan.surroundings, [coding.views[0]!.work.work_id]: coding.surroundings,
-      ...Object.fromEntries(rest.map((view) => [view.work.work_id, { ...plan.surroundings, connections: [], tools: { executor: "assistant" as const, callable: [], unavailable: [] } }])) },
+      ...Object.fromEntries(others.map((view) => [view.work.work_id, { ...plan.surroundings, connections: [], tools: { executor: "assistant" as const, callable: [], unavailable: [] } }])) },
+    executors: [{ plugin_id: "io.molis.work.coding", title: "Coding", default_mode: "execute", session_kind: "coding_session",
+      modes: [{ id: "discuss", title: "讨论" }, { id: "plan", title: "规划" }, { id: "edit", title: "修改" }, { id: "execute", title: "执行" }, { id: "review", title: "评审" }],
+      capability_ids: { "session.update": "coding.executor.session.update", "run.start": "coding.executor.run.start" } }],
     next: { [coding.views[0]!.work.work_id]: coding.views.slice(1) },
-  };
+    answered: { [rest[0]!.work.work_id]: boardAnswered(at, rest[0]!) },
+    closed: { [cut.view.work.work_id]: cut.closed },
+    recovery: { [cut.view.work.work_id]: cut.recovery },
+    notices: boardNotices(at),
+  }, text);
 }

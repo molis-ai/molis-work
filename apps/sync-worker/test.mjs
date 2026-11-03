@@ -5,18 +5,21 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {personalStorageSpace,ensureStorageSpace} from '@molis-ai/molis-work-storage';
-import {openPagesStore} from '@molis-ai/molis-work-plugin-pages';
-import {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
+import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
+import {openPagesStore,openFormStore,openDatasetStore,openPptStore,openLingguangStore} from '../../tests/fixtures/plugin-sync-stores.ts';
+import {runtimePersonalSync,prepareSyncTestHome} from '../../tests/fixtures/runtime-personal-sync.ts';
 import Database from 'better-sqlite3';
 import {ArtifactsModule,createArtifactsSchema,createArtifactReplication} from '@molis-ai/molis-work-module-artifacts';
-import {openFormStore,formManifest} from '@molis-ai/molis-work-plugin-form';
-import {openDatasetStore,datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
-import {openPptStore,pptManifest} from '@molis-ai/molis-work-plugin-ppt';
-import {openLingguangStore,lingguangManifest} from '@molis-ai/molis-work-plugin-lingguang';
+import {formManifest} from '@molis-ai/molis-work-plugin-form';
+import {datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
+import {pptManifest} from '@molis-ai/molis-work-plugin-ppt';
+import {lingguangManifest} from '@molis-ai/molis-work-plugin-lingguang';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {LocalProjectDatabase,GoalProjectApplication,createPersonalGoalRegistration} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {GoalProjectApplication,boardSnapshot} from '../../tests/fixtures/goal-application.ts';
+import {goalSyncSelection} from '../../tests/fixtures/runtime-goal-sync.ts';
 
-test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and isolation',{timeout:120000},async()=>{
+test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and isolation',{timeout:120000},async t=>{
   const {Miniflare,Response:RuntimeResponse,convertV4MiniflareOptions}=await import(process.env.MOLIS_SYNC_MINIFLARE_MODULE||'miniflare');
   const root=mkdtempSync(join(tmpdir(),'molis-rust-sync-'));
   const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,r2Buckets:{FILES:"isolated-blobs"},d1Databases:{DB:'rust-isolated-test'},bindings:{DEPLOYMENT_MODE:'local',AUTH_ORIGIN:'http://127.0.0.1:8787',APPLICATION_ID:'work'},outboundService:async request=>{
@@ -25,7 +28,11 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     if(!['alice','bob','wrong-app'].includes(token))return RuntimeResponse.json({error:'UNAUTHORIZED'},{status:401});
     return RuntimeResponse.json({data:{userId:token,applicationId:token==='wrong-app'?'other':'work'}});
   }}));
-  const clients=[];
+  const clients=[],runtimes=[];
+  const previousLocal=process.env.MOLIS_WORK_SYNC_LOCAL,previousOrigin=process.env.MOLIS_WORK_SYNC_ORIGIN;
+  process.env.MOLIS_WORK_SYNC_LOCAL='1';delete process.env.MOLIS_WORK_SYNC_ORIGIN;
+  t.after(()=>{if(previousLocal===undefined)delete process.env.MOLIS_WORK_SYNC_LOCAL;else process.env.MOLIS_WORK_SYNC_LOCAL=previousLocal;if(previousOrigin===undefined)delete process.env.MOLIS_WORK_SYNC_ORIGIN;else process.env.MOLIS_WORK_SYNC_ORIGIN=previousOrigin;});
+  t.mock.method(globalThis,'fetch',(url,init)=>mf.dispatchFetch('http://local'+new URL(url).pathname+new URL(url).search,init));
   try{
     const db=await mf.getD1Database('DB');
     const sql=readFileSync(new URL('../../server/migrations/sync/0001_sync.sql',import.meta.url),'utf8');
@@ -34,30 +41,39 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     assert.equal((await call('/v1/policy','invalid')).status,401);
     assert.equal((await call('/v1/policy','wrong-app')).status,403);
     const space=personalStorageSpace('http://127.0.0.1:8787','work','alice');
-    const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
+    const selection={plugin_id:pagesManifest.plugin_id,publisher_id:pagesManifest.publisher.publisher_id,publisher_signature:pagesManifest.publisher.signature,collection_id:'documents',schema_version:pagesManifest.sync.collections[0].schema_version};
     assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:0,selections:[],unexpected:true},'PUT')).status,400);
-    assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:0,selections:[selection,{...selection,schema_version:2}]},'PUT')).status,400);
-    const homes=[join(root,'a'),join(root,'b')];homes.forEach(h=>ensureStorageSpace(h,space));
+    assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:0,selections:[selection,{...selection,schema_version:selection.schema_version+1}]},'PUT')).status,400);
+    const homes=[join(root,'a'),join(root,'b')];homes.forEach(h=>{ensureStorageSpace(h,space);prepareSyncTestHome(h);});
     const withStore=(i,run)=>{const s=openPagesStore(homes[i]);try{return run(s);}finally{s.close();}};
     let revoked=false;
     const check=()=>{if(revoked)throw new Error('REVOKED');};
     const authority={assertCurrent:check,signal:new AbortController().signal,accessToken:async()=>'alice'};
-    for(let i=0;i<2;i++)clients.push(new PersonalSync({home:homes[i],spaceId:space.spaceId,endpoint:'http://127.0.0.1:8788',authority,fetch:async(url,init)=>mf.dispatchFetch('http://local'+new URL(url).pathname+new URL(url).search,init),registrations:[{selection,title:'Documents',refresh:async()=>{},prepare:async()=>{},withReplica:run=>withStore(i,s=>run(s.replica({authorize:check,project:()=>({title:'Synthetic',context:{spaceId:space.spaceId,projectId:'project',authorize:check,hasReference:()=>true}})})))}]}));
+    const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},async c=>{
+      const p=await c.createProject({display_name:'Synthetic transport',actor_id:'alice'});
+      for(const plugin_id of ['pages','form','dataset','ppt','lingguang'])c.addProjectPlugin({project_id:p.project_id,plugin_id,actor_id:'alice'});return p;
+    });
+    await withMolisWorkProjectCatalog({homeDirectory:homes[1]},async c=>{
+      await c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});
+      for(const plugin_id of ['pages','form','dataset','ppt','lingguang'])c.addProjectPlugin({project_id:project.project_id,plugin_id,actor_id:'alice'});
+    });
+    for(const home of homes){const runtime=await runtimePersonalSync(home,space,check,{accessToken:async()=>'alice'});runtimes.push(runtime);clients.push(runtime.sync);}
+    await clients[0].run();await clients[1].run();
     await clients[0].save({spaceId:space.spaceId,revision:0,selections:[selection]});await clients[0].run();
-    const page=withStore(0,s=>s.create({project_id:'project',title:'From A'}));
+    const page=withStore(0,s=>s.create({project_id:project.project_id,title:'From A'}));
     await clients[0].run();assert.equal(clients[0].status().error,null);
     await clients[1].run();assert.equal(clients[1].status().error,null);
     assert.equal(withStore(1,s=>s.get(page.id).title),'From A');
     withStore(1,s=>s.update(page.id,{title:'From B'}));await clients[1].run();await clients[0].run();
     assert.equal(withStore(0,s=>s.get(page.id).title),'From B');
-    const namespace=JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,1]);
+    const namespace=JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,selection.schema_version]);
     const forged={spaceId:space.spaceId,revision:0,selections:[selection]};
     assert.equal((await call('/v1/policy','bob',forged,'PUT')).status,403);
     assert.equal((await call('/v1/changes?namespace='+encodeURIComponent(namespace)+'&after=0','bob')).status,403);
-    const mutation={operationId:'stale',key:JSON.stringify(['project','document',page.id]),base:0,value:null};
+    const mutation={operationId:'stale',key:JSON.stringify([null,JSON.stringify([project.project_id,'document',page.id])]),base:0,value:null};
     assert.equal((await call('/v1/changes','alice',{namespace,policyRevision:1,mutation,attachments:[]})).status,409);
     withStore(0,s=>s.delete(page.id));await clients[0].run();await clients[1].run();
-    assert.equal(withStore(1,s=>s.list('project').length),0);
+    assert.equal(withStore(1,s=>s.list(project.project_id).length),0);
     // Actual artifact owner -> WASM/D1 opaque transport -> another owner, not a JSON-only mock.
     const artifactSelection={plugin_id:'io.molis.work.artifacts',publisher_id:'molis',publisher_signature:'official-artifacts-binding',collection_id:'versions',schema_version:1};
     const artifactNamespace=JSON.stringify([artifactSelection.plugin_id,artifactSelection.publisher_id,artifactSelection.publisher_signature,artifactSelection.collection_id,1]);
@@ -82,34 +98,31 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
       assert.equal((await call('/v1/changes?namespace='+encodeURIComponent(artifactNamespace)+'&after=0','bob')).status,403);
     }finally{databases.forEach(d=>d.close());}
     const creative=[[openFormStore,formManifest],[openDatasetStore,datasetManifest],[openPptStore,pptManifest],[openLingguangStore,lingguangManifest]];
-    const selections=creative.map(([,m])=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:m.sync.collections[0].id,schema_version:1}));
-    assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:2,selections:[selection,artifactSelection,...selections]},'PUT')).status,200);
+    const selections=creative.map(([,m])=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:m.sync.collections[0].id,schema_version:m.sync.collections[0].schema_version}));
+    assert.equal((await call('/v1/policy','alice',{spaceId:space.spaceId,revision:2,selections:[selection,...selections]},'PUT')).status,200);
     for(const [index,[open,manifest]] of creative.entries()){
       const a=open(homes[0]),b=open(homes[1]);
       try{
-        const context={spaceId:space.spaceId,authorize:check,canUploadProject:()=>true,project:()=>({title:'Synthetic'}),hasArtifact:()=>true};
-        const record=a.create({project_id:'creative-project',title:manifest.name+' through Rust/D1'}),ra=a.replica(context),rb=b.replica(context),mutation=ra.next();assert.ok(mutation);
-        const s=selections[index],ns=JSON.stringify([s.plugin_id,s.publisher_id,s.publisher_signature,s.collection_id,1]);
-        assert.equal((await call('/v1/changes','alice',{namespace:ns,policyRevision:3,mutation,attachments:[]})).status,200);
-        const response=await call('/v1/changes?namespace='+encodeURIComponent(ns)+'&after=0','alice');assert.equal(response.status,200);
-        for(const e of (await response.json()).events){ra.receive(e);rb.receive(e);}
-        assert.equal(b.get(record.id).title,record.title);assert.equal(ra.next(),null);assert.equal(rb.next(),null);
+        const record=a.create({project_id:project.project_id,title:manifest.name+' through Rust/D1'});
+        await clients[0].run();await clients[1].run();
+        assert.equal(b.get(record.id,project.project_id).title,record.title);
+        const selection=selections[index],ns=JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,selection.schema_version]);
+        for(const client of clients){assert.equal(client.status().error,null);const collection=client.status().collections.find(c=>c.selection.plugin_id===selection.plugin_id);assert.equal(collection.pending,0);assert.deepEqual(collection.conflicts,[]);}
         assert.equal((await call('/v1/changes?namespace='+encodeURIComponent(ns)+'&after=0','bob')).status,403);
       }finally{a.close();b.close();}
     }
-    await verifyGoalsTransport({homes,space,check,authority,mf,clients});
+    const before=(await db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n;await clients[0].run();await clients[1].run();assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n,before,'Runtime receipts prevent feedback uploads');
+    await verifyGoalsTransport({homes,space,check,authority,mf,clients,runtimes});
     revoked=true;assert.throws(()=>clients[0].status(),/REVOKED/);
-  }finally{clients.forEach(c=>c.close());await mf.dispose();rmSync(root,{recursive:true,force:true});}
+  }finally{for(const runtime of runtimes)await runtime.close();await mf.dispose();rmSync(root,{recursive:true,force:true});}
 });
 
 // GSYNC-01/04: real Host project creation and Goal facts through Rust/WASM and D1.
-async function verifyGoalsTransport({homes,space,check,authority,mf,clients}) {
+async function verifyGoalsTransport({homes,check,clients,runtimes}) {
   const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},c=>c.createProject({display_name:'Goals through D1',actor_id:'alice'}));
-  const selection={plugin_id:'io.molis.work.goals',publisher_id:'molis',publisher_signature:'official-goals-binding',collection_id:'project_goals',schema_version:1};
-  const sync=homes.map(home=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'http://127.0.0.1:8788',authority,
-    fetch:(url,init)=>mf.dispatchFetch('http://local'+new URL(url).pathname+new URL(url).search,init),
-    registrations:[createPersonalGoalRegistration(home,space.spaceId,'alice',check,withMolisWorkProjectCatalog,selection)]}));
-  clients.push(...sync);
+  const selection=goalSyncSelection,sync=clients;
+  await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
+  for(const runtime of runtimes)await runtime.openProjects();
   const store=new LocalProjectDatabase(project.database_path);
   try {
     const app=new GoalProjectApplication(store),base={project_id:project.project_id,actor_id:'runtime',actor_kind:'runtime'};
@@ -124,11 +137,11 @@ async function verifyGoalsTransport({homes,space,check,authority,mf,clients}) {
   assert.ok(destination);
   const restored=new LocalProjectDatabase(destination.database_path);
   try {
-    const snapshot=restored.snapshot(project.project_id);
+    const snapshot=boardSnapshot(restored,project.project_id);
     assert.deepEqual(snapshot.goals.map(g=>g.goal_id).sort(),['child','parent']);
     assert.equal(snapshot.relations[0].from_goal_id,'child');assert.equal(snapshot.relations[0].to_goal_id,'parent');
     assert.equal(new GoalProjectApplication(restored).goalQueries.getGoal(project.project_id,'parent')?.goal_id,'parent');
   }finally{restored.close();}
   await sync[0].run();await sync[1].run();
-  for(const client of sync){assert.equal(client.status().error,null);assert.equal(client.status().collections[0].pending,0);}
+  for(const client of sync){assert.equal(client.status().error,null);assert.equal(client.status().collections.find(row=>row.selection.plugin_id===selection.plugin_id&&row.selection.collection_id===selection.collection_id).pending,0);}
 }

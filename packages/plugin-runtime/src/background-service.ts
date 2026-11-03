@@ -1,7 +1,7 @@
 import { ActionError, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginBackgroundClient, PluginExecutionControl, PluginJobControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
-import { currentPluginAction, runInPluginAction } from "./action-scope.js";
+import { currentPluginAction, inPluginInstance, pluginActionBeforeEffect, runInPluginAction, type PluginInstance } from "./action-scope.js";
 import { backgroundErrors as errors, createActivationJobs, type ActivationJobGate } from "./activation-jobs.js";
 
 /**
@@ -10,15 +10,15 @@ import { backgroundErrors as errors, createActivationJobs, type ActivationJobGat
  * before the platform clears what the plugin declared (`stopProject`, PG-038). The activation's jobs (`keep`, `createActivationJobs`)
  * stop there too, and also when their project closes (`stopProjectJobs`).
  */
-export function createPluginBackgroundClient(gate: {
-  install_id: string; assertActive(): void; requireGrant(permission: string): void;
+export function createPluginBackgroundClient(gate: PluginInstance & {
+  assertActive(): void; requireGrant(permission: string): void;
   /** Present when the Manifest declares jobs (`background.jobs`). */
-  jobs?: Omit<ActivationJobGate, "install_id" | "assertActive" | "requireGrant">;
+  jobs?: Omit<ActivationJobGate, keyof PluginInstance | "assertActive" | "requireGrant">;
 }): { client: PluginBackgroundClient; starting<T>(run: () => T): T; stopProject(projectId: string): void; stopProjectJobs(projectId: string): void; close(): void } {
   let closed = false;
   const active = new Map<AbortController, string | null>();
   const jobs = gate.jobs?.declarations.length
-    ? createActivationJobs({ ...gate.jobs, install_id: gate.install_id, assertActive: gate.assertActive, requireGrant: gate.requireGrant }) : undefined;
+    ? createActivationJobs({ ...gate.jobs, install_id: gate.install_id, installation_generation: gate.installation_generation, assertActive: gate.assertActive, requireGrant: gate.requireGrant }) : undefined;
   const assertActive = () => {
     if (closed) throw new ActionError("actions.plugin_unavailable", "插件后台执行已关闭");
     gate.assertActive();
@@ -27,10 +27,12 @@ export function createPluginBackgroundClient(gate: {
     async start<T>(work: (control: PluginExecutionControl) => Promise<T>, options: { signal?: AbortSignal } = {}) {
       assertActive();
       const scope = currentPluginAction();
-      if (!scope || scope.install_id !== gate.install_id || !scope.caller.retainBackgroundAuthority) {
+      if (!scope || !inPluginInstance(scope, gate) || !scope.caller.retainBackgroundAuthority) {
         throw errors.background_action_required("后台执行只能由本插件正在执行的动作受理");
       }
-      const { definition, caller } = scope;
+      // The work shares the call's `checked` record, and with it the model answers the call holds (PG-047); a call without one
+      // passed its last check once its `beforeEffect` below returns.
+      const { definition, caller } = scope, checked = scope.checked ?? { passed: true };
       if (definition.operation !== "command" || definition.action.scheduling !== "concurrent" || !definition.action.background_job) {
         throw errors.background_undeclared("后台执行需要并发 command，并声明 background_job 查询合同");
       }
@@ -51,14 +53,14 @@ export function createPluginBackgroundClient(gate: {
         check(); options.signal?.throwIfAborted();
         lifetime = createExecutionLifetime({ signal: options.signal ? AbortSignal.any([controller.signal, options.signal]) : controller.signal,
           monitor: { intervalMs: 200, check } });
-        control = { ...caller, signal: lifetime.signal, on_progress: undefined,
+        control = { ...caller, signal: lifetime.signal, on_progress: undefined, original_input: undefined,
           retainAuthority: undefined, retainBackgroundAuthority: undefined, retain_background_authority: undefined,
           assert_authority_current: () => { lifetime.assertActive(); check(); },
-          beforeEffect: async () => { lifetime.assertActive(); check(); await authority(); lifetime.assertActive(); check(); } };
+          beforeEffect: pluginActionBeforeEffect(async () => { lifetime.assertActive(); check(); await authority(); lifetime.assertActive(); check(); }, checked) };
       } catch (error) { active.delete(controller); throw error; }
       const pending = Promise.resolve().then(() => {
         control.assert_authority_current!();
-        return runInPluginAction({ ...scope, caller: control }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
+        return runInPluginAction({ ...scope, caller: control, checked }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
           assert_authority_current: control.assert_authority_current, page_context: control.page_context, locale: control.locale, ...(control.project_id ? { project_id: control.project_id } : {}) }));
       }).then(value => { control.assert_authority_current!(); return value; });
       const result = lifetime.wait(pending).finally(() => { running = false; active.delete(controller); lifetime.dispose(); });

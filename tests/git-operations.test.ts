@@ -6,7 +6,7 @@ import { mkdtemp, writeFile, readFile, rm, realpath, chmod, mkdir, rename, symli
 import { constants, promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { readGitSummary, prepareGitOperation, readPullRequestSupport, readConflictFile } from "../apps/local-host/src/git-operations.js";
+import { readGitSummary, prepareGitOperation, readPullRequestSupport, readConflictFile } from "../apps/local-host/src/workspace-git-operations.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 const exec = promisify(execFile);
 

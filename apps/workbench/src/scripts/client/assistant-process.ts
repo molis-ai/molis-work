@@ -13,6 +13,8 @@
  * - The technical part (the capability a step called, what came back from a step that did not finish) opens from the
  *   step itself, by pointer, keyboard or touch, instead of a title only a hovering pointer can read.
  * - Nodes for steps the view no longer has are removed, so a step is never shown twice.
+ * - Memory references keep the same disclosure node and show only the Host's delivery/version facts; omission reasons
+ *   distinguish the length budget from a count limit. Unconfirmed delivery never becomes confirmed use in this view.
  *
  * `put` places a node in order without moving one that already stands in place (`ASSISTANT_PLACER_SCRIPT`).
  */
@@ -46,9 +48,17 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     return L("{what} · {n} 步", { what: capital(what), n: run.length })
       + (unfinished ? " · " + unfinished + " " + L("步没有完成") : "");
   };
-  const facts = (item) => [item.capability_id && [L("调用的能力"), item.capability_id], item.detail && [L("返回的说明"), item.detail]].filter(Boolean);
+  // A refusal the platform classified is said in the person's words (its sort, then each field and the rule it broke); the
+  // owner's own text stays one fold further down, for tracing (user 2026-10-23 ⑤). An unclassified one shows its text as is.
+  const FAILURES = { invalid: "输入不符合能力合同", forbidden: "没有权限这样做", not_found: "要用的对象已不在", conflict: "对象在这期间变了，要重新读取", too_large: "内容太大",
+    rate_limited: "请求太频繁，被限流了", cancelled: "已取消", timeout: "超时了", unavailable: "这项能力现在用不了", upstream: "依赖的服务没有给出完整的回答", internal: "执行时出错了" };
+  const RULES = { required: "缺少必填的内容", additionalProperties: "多了合同里没有的内容", type: "类型不对", enum: "不是允许的取值" };
+  const where = (path) => path === "/" ? L("整个输入") : path.slice(1).split("/").join(" › ");
+  const facts = (item) => [item.capability_id && [L("调用的能力"), item.capability_id], item.failure && [L("原因"), L(FAILURES[item.failure.kind] || "没有完成")],
+    ...(item.failure?.fields || []).map((field) => [where(field.path), L(RULES[field.rule] || "不符合约束")]), !item.failure && item.detail && [L("返回的说明"), item.detail]].filter(Boolean);
+  const raw = (item) => item.failure && item.detail ? item.detail : "";
   const line = (round, item) => {
-    const known = (round.stepLines ||= new Map()), shown = facts(item), tag = shown.length ? "DETAILS" : "P";
+    const known = (round.stepLines ||= new Map()), shown = facts(item), tag = shown.length || raw(item) ? "DETAILS" : "P";
     let node = known.get(item.call_id);
     if (!node || node.tagName !== tag) {
       const fresh = tag === "P" ? el("p", "assistant-activity") : el("details", "assistant-activity-fold");
@@ -60,10 +70,12 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     const head = tag === "P" ? node : node.firstElementChild, words = activityLine(item);
     node.dataset.state = head.dataset.state = item.state;
     if (head.dataset.text !== words || head.dataset.glyph !== item.state) { head.dataset.text = words; head.dataset.glyph = item.state; head.replaceChildren(verbGlyph(item), el("span", "", words)); }
-    const signature = JSON.stringify(shown);
+    const said = raw(item), signature = JSON.stringify([shown, said]);
     if (tag === "DETAILS" && node.dataset.facts !== signature) {
       node.dataset.facts = signature;
-      node.lastElementChild.replaceChildren(...shown.map(([label, value]) => { const row = el("p"); row.append(el("span", "assistant-activity-label", label), el("span", "", value)); return row; }));
+      const rows = shown.map(([label, value]) => { const row = el("p"); row.append(el("span", "assistant-activity-label", label), el("span", "", value)); return row; });
+      if (said) { const fold = el("details", "assistant-activity-raw"); fold.append(el("summary", "", L("原始说明")), el("p", "", said)); rows.push(fold); }
+      node.lastElementChild.replaceChildren(...rows);
     }
     return node;
   };
@@ -73,7 +85,7 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     if (run.length === 1) { const one = line(round, run[0]); keep(one, put); placed.add(one); return; }
     // The steps sit in one body, so the group opens to its natural height like every collapsible (disclosure.ts).
     const box = keyed(round, "data-entry", "g:" + anchor, () => { const box = el("details", "assistant-steps"); box.append(el("summary", "assistant-steps-summary"), el("div", "assistant-steps-body")); return box; });
-    box.dataset.state = run.some((item) => item.state === "started") ? "started" : run.some((item) => item.state === "failed" || item.state === "unknown") ? "failed" : "completed";
+    box.dataset.state = run.some((item) => item.state === "started") ? "started" : run.some((item) => item.state === "failed") ? "failed" : run.some((item) => item.state === "unknown") ? "unknown" : "completed";
     setText(box.firstElementChild, summary(run));
     const body = box.lastElementChild, inBody = placer(body);
     const lines = run.map((item) => line(round, item));
@@ -87,5 +99,59 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     [...round.children].forEach((child) => { if (/^[ag]:/.test(child.getAttribute("data-entry") || "") && !placed.has(child)) child.remove(); });
     for (const [id, node] of round.stepLines || []) if (!node.isConnected) round.stepLines.delete(id);
   };
-  return { activityLine, place, sweep };
+  const memoryScope = (scope) => L(scope === "personal" ? "个人" : scope === "character" ? "角色" : "本项目");
+  const memory = (round, trail, put) => {
+    const { used = [], omitted = [], uncertain = [], unverified, recording_error } = trail || {};
+    if (!(used.length || omitted.length || uncertain.length || unverified || recording_error)) return round.querySelector(':scope > .assistant-memories')?.remove();
+    const box = keyed(round, "data-entry", "memories", () => { const box = el("details", "assistant-steps assistant-memories"); box.append(el("summary", "assistant-steps-summary")); return box; });
+    const signature = JSON.stringify(trail);
+    if (box.dataset.signature === signature) return put(box);
+    box.dataset.signature = signature;
+    setText(box.firstElementChild, L("已提供 {n} 条记忆", { n: used.length }) + (omitted.length ? " · " + L("没带上 {n} 条", { n: omitted.length }) : ""));
+    while (box.children[1]) box.children[1].remove();
+    const note = (text) => box.append(el("p", "assistant-memory-omitted", L(text)));
+    const lines = (items) => items.forEach((item) => {
+      const row = el("p", "assistant-activity assistant-memory");
+      row.append(el("span", "assistant-memory-scope", memoryScope(item.scope)), item.content_changed ? L("记忆已更新，隐藏旧内容") : item.text);
+      row.title = item.origin || "";
+      box.append(row);
+    });
+    lines(used);
+    if (uncertain.length || unverified) note("记忆送达未确认");
+    lines(uncertain);
+    if (recording_error) note("本轮参考记录未保存");
+    if (omitted.length) { note(omitted.every((item) => item.reason === "budget") ? "因为篇幅没带上" : "因为篇幅或条数上限没带上"); lines(omitted); }
+    put(box);
+  };
+  return { activityLine, place, sweep, memory, memoryScope };
+}`;
+
+/**
+ * A round whose model call waits to try again (VUX-20, VUX-43): its status line counts down to the runtime's own retry time,
+ * to the second, in a fixed-width MM:SS, then says it is retrying. The time and the reason are the Host's; the page never
+ * retries on its own. One timer serves every waiting round and stops when none is left.
+ */
+export const ASSISTANT_RETRY_FACTORY_SCRIPT = String.raw`(input) => {
+  let timer = 0;
+  const line = (status) => {
+    const left = Math.max(0, Math.ceil((Date.parse(status.dataset.retryUntil) - Date.now()) / 1000)), L = input.L;
+    if (!left) return L("正在重试…");
+    const time = String(Math.floor(left / 60)).padStart(2, "0") + ":" + String(left % 60).padStart(2, "0"), reason = status.dataset.retryReason;
+    return reason === "rate-limited" ? L("被限流，{time} 后自动重试", { time }) : reason === "not-sent" ? L("请求没有发出，{time} 后自动重试", { time }) : L("模型服务暂时不可用，{time} 后自动重试", { time });
+  };
+  const tick = () => {
+    const waiting = input.root.querySelectorAll("[data-retry-until]");
+    waiting.forEach((status) => input.setText(status, line(status)));
+    if (!waiting.length) { clearInterval(timer); timer = 0; }
+  };
+  return {
+    /** Marks a round's status line as waiting (or not), and starts the count when it is the first. */
+    mark: (status, wait) => {
+      if (!wait) { delete status.dataset.retryUntil; delete status.dataset.retryReason; return; }
+      status.dataset.retryUntil = wait.until; status.dataset.retryReason = wait.reason;
+      if (!timer) timer = setInterval(tick, 1000);
+    },
+    line,
+    stop: () => { clearInterval(timer); timer = 0; },
+  };
 }`;

@@ -36,7 +36,7 @@ function owner(rows: Map<string, Doc>, kind: string, reader: typeof goalReader, 
         const row = rows.get((input as { subject_id: string }).subject_id);
         if (!row) throw new ActionError("actions.subject_unavailable", "已删除");
         if (row.refuse) throw new ActionError(`${kind}s.locked`, "已锁定");
-        return subjectContext({ subject: { kind, id: row.id }, revision: String(row.version), title: row.title, content: row.body, goal_ids: [], session_id: null },
+        return subjectContext({ subject: { kind, id: row.id }, revision: String(row.version), title: row.title, content: row.body, goal_ids: [] },
           paged ? input as { offset?: number } : undefined);
       } },
     ],

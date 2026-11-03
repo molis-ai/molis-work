@@ -7,7 +7,8 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { openJellyStore, runJellyAi, jellySourceHash, scheduleJellyActions, jellyActions, jellyCommandActions, jellyManifest, emptyJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
+import { runJellyAi, jellySourceHash, scheduleJellyActions, jellyActions, jellyCommandActions, jellyManifest, emptyJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
+import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { isMaterialPublicAddress } from "../apps/local-host/dist/material-source-reader.js";
 const day="2026-09-22";
 function fixture(t: { after(fn:()=>void):void }) { const home=mkdtempSync(join(tmpdir(),'jelly-integration-')), store=openJellyStore(home);t.after(()=>{store.close();rmSync(home,{recursive:true,force:true});});return store; }
@@ -65,4 +66,69 @@ test('proposed slots preserve cross-midnight occupancy and report no slot when f
  const state=emptyJellyWorkspace();const action={id:'a',title:'制作',notes:'',category_id:'uncategorized',priority:'none' as const,schedule:null};
  assert.equal(scheduleJellyActions(state,[action],day,1260)[0]?.schedule?.start_date,'2026-09-23');
  assert.equal(scheduleJellyActions(state,[action],day,540)[0]?.schedule?.end_time,570);
+});
+
+// Jelly counts a plan's lengths in whole characters (an emoji is one): a cut never lands between its two halves, and a limit lets through exactly what it names.
+const E='😀',manualPlan=(text:string)=>runJellyAi(emptyJellyWorkspace(),{kind:'decompose',source_type:'text',text,manual:true},{});
+const modelPlan=(question:string,notes:string,title='核对来源')=>runJellyAi(emptyJellyWorkspace(),{kind:'decompose',source_type:'text',text:'准备发布说明'},{completeJson:async()=>({actions:[{title,notes,minutes:30}],clarification_questions:[question]})});
+test('RAC-1897 a manual plan cuts the plan title to 100 and a task title to 200 whole characters',async t=>{
+  for(const c of [
+    {name:'the 100th character is a two-unit one',line:'a'.repeat(99)+E+'尾'.repeat(10),plan:'a'.repeat(99)+E,task:'a'.repeat(99)+E+'尾'.repeat(10)},
+    {name:'the 200th character is a two-unit one',line:'b'.repeat(199)+E+'尾'.repeat(10),plan:'b'.repeat(100),task:'b'.repeat(199)+E},
+    {name:'250 two-unit characters',line:E.repeat(250),plan:E.repeat(100),task:E.repeat(200)},
+    {name:'short',line:'短标题',plan:'短标题',task:'短标题'},
+  ])await t.test(c.name,async()=>{
+    const {plan}=await manualPlan(c.line);
+    assert.equal(plan.title,c.plan);assert.equal(plan.actions[0]!.title,c.task);
+  });
+});
+test('RAC-1897 a model plan cuts a clarification question to 500 and a task note to 10,000 whole characters',async t=>{
+  for(const c of [
+    {name:'the 500th character of the question is a two-unit one',question:'q'.repeat(499)+E+'尾'.repeat(10),notes:'逐条核实',questionOut:'q'.repeat(499)+E,notesOut:'逐条核实'},
+    {name:'600 two-unit characters in the question',question:E.repeat(600),notes:'逐条核实',questionOut:E.repeat(500),notesOut:'逐条核实'},
+    {name:'the 10,000th character of the notes is a two-unit one',question:'范围是什么？',notes:'n'.repeat(9999)+E+'尾'.repeat(10),questionOut:'范围是什么？',notesOut:'n'.repeat(9999)+E},
+    {name:'11,000 two-unit characters in the notes',question:'范围是什么？',notes:E.repeat(11000),questionOut:'范围是什么？',notesOut:E.repeat(10000)},
+    {name:'short',question:'范围是什么？',notes:'逐条核实',questionOut:'范围是什么？',notesOut:'逐条核实'},
+  ])await t.test(c.name,async()=>{
+    const {plan}=await modelPlan(c.question,c.notes);
+    assert.deepEqual(plan.clarification_questions,[c.questionOut]);assert.equal(plan.actions[0]!.notes,c.notesOut);
+  });
+});
+test('RAC-1898 the source text limit is 80,000 characters and a model task title limit is 500, whatever their length in UTF-16 units',async t=>{
+  for(const c of [
+    {name:'80,000 two-unit characters',text:E.repeat(80000),fits:true},
+    {name:'80,000 plain characters',text:'尾'.repeat(80000),fits:true},
+    {name:'79,999 plain characters and one two-unit one',text:'尾'.repeat(79999)+E,fits:true},
+    {name:'80,001 plain characters',text:'尾'.repeat(80001),fits:false},
+    {name:'80,001 two-unit characters',text:E.repeat(80001),fits:false},
+    {name:'40,000 two-unit and 40,001 plain characters',text:E.repeat(40000)+'尾'.repeat(40001),fits:false},
+  ])await t.test('source text: '+c.name,async()=>{
+    if(c.fits)assert.equal((await manualPlan(c.text)).method,'manual');
+    else await assert.rejects(()=>manualPlan(c.text),{code:'jelly.invalid'});
+  });
+  for(const c of [
+    {name:'500 two-unit characters',title:E.repeat(500),fits:true},
+    {name:'499 plain characters and one two-unit one',title:'尾'.repeat(499)+E,fits:true},
+    {name:'500 plain characters',title:'尾'.repeat(500),fits:true},
+    {name:'501 plain characters',title:'尾'.repeat(501),fits:false},
+    {name:'501 two-unit characters',title:E.repeat(501),fits:false},
+    {name:'250 two-unit and 251 plain characters',title:E.repeat(250)+'尾'.repeat(251),fits:false},
+  ])await t.test('task title: '+c.name,async()=>{
+    if(c.fits)assert.equal((await modelPlan('范围是什么？','',c.title)).plan.actions[0]!.title,c.title);
+    else await assert.rejects(()=>modelPlan('范围是什么？','',c.title),{code:'jelly.ai_invalid'});
+  });
+});
+test('RAC-1899 plans that fit are kept as they are',async t=>{
+  await t.test('a short manual plan',async()=>{
+    const {plan}=await manualPlan('写发布说明');
+    assert.equal(plan.title,'写发布说明');assert.deepEqual(plan.actions.map(a=>a.title),['写发布说明']);
+  });
+  await t.test('a manual plan at its limits',async()=>{
+    const {plan}=await manualPlan('尾'.repeat(200));
+    assert.equal(plan.title,'尾'.repeat(100));assert.equal(plan.actions[0]!.title,'尾'.repeat(200));
+  });
+  await t.test('a model plan at its limits',async()=>{
+    const {plan}=await modelPlan('q'.repeat(500),'n'.repeat(10000),'尾'.repeat(500));
+    assert.deepEqual(plan.clarification_questions,['q'.repeat(500)]);assert.equal(plan.actions[0]!.notes,'n'.repeat(10000));assert.equal(plan.actions[0]!.title,'尾'.repeat(500));
+  });
 });

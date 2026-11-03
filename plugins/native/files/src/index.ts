@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-files",
-  packagePath: "plugins/native/files",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["files.artifact-types.v1", "files.ui-contribution.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export {
   FILE_PATH_MAX_SEGMENTS,
   FILE_SEGMENT_MAX_LENGTH,
@@ -98,7 +85,7 @@ export {
   type FilesUiModel,
   type FilesUiPrimitives,
 } from "./ui.js";
-export { createFilesPlugin, type FilesPluginPorts } from "./plugin.js";
+export { createFilesPlugin } from "./plugin.js";
 export { FILES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { FILES_MESSAGES } from "./messages.js";
 export { FILES_STYLES } from "./styles.js";

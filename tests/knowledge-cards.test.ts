@@ -141,6 +141,60 @@ test("PMAT-07 a field the person edited is not overwritten when the text changes
   assert.deepEqual([adopted.title, adopted.edited, adopted.suggestion], ["试用说明 v2（整理）", ["keywords"], { keywords: ["内测通行证", "试用说明 v2"] }]);
 });
 
+for (const change of ["exclude", "remove-source", "summary-only"] as const) {
+  test(`SYS-01 waiting for one draft rechecks the next piece after ${change}`, async t => {
+    const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const sent: string[] = [];
+    const f = await fixture(t, { writer: async input => {
+      sent.push(input.title);
+      if (sent.length === 1) { started.resolve(); await release.promise; }
+      return { title: input.title, brief: "整理" };
+    } });
+    f.goals.clear();
+    f.pages.set("p2", { id: "p2", title: "第二份", body: "第二份私有正文", version: 1 });
+    await f.indexAll();
+    const pass = f.organizer.kick("a");
+    try {
+      await started.promise;
+      const waiting = f.cards.list("a").find(row => row.title !== sent[0])!;
+      if (change === "exclude") f.manage.exclude(owner, { subject: waiting.subject, excluded: true });
+      else {
+        if (change === "remove-source") f.pages.delete(waiting.subject.id);
+        else f.pages.get(waiting.subject.id)!.refuse = true;
+        await f.search.rebuild(f.access(owner), { scope: "project" });
+      }
+      release.resolve();
+      await pass;
+      assert.equal(sent.length, 1, "the queued piece never reaches the model");
+      assert.equal(f.organizer.quota("a").used_pieces, 1);
+    } finally { release.resolve(); await pass; await f.organizer.close(); }
+  });
+}
+
+test("SYS-02 deletion rejects a draft even when the writer ignores cancellation, and no later kick recreates records", async t => {
+  const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let sent = 0;
+  const f = await fixture(t, { writer: async input => {
+    sent++; started.resolve(); await release.promise;
+    return { title: input.title, brief: "迟到结果" };
+  } });
+  await f.indexAll();
+  const pass = f.organizer.kick("a");
+  try {
+    await started.promise;
+    void f.organizer.kick("a");
+    f.organizer.removeProject("a");
+    f.cards.removeProject("a");
+    release.resolve(); await pass;
+    await f.organizer.kick("a");
+    await f.organizer.reconcile("a");
+    assert.equal(f.organizer.queue("a", undefined, true), 0);
+    assert.equal(sent, 1);
+    assert.deepEqual(f.cards.list("a"), []);
+    assert.equal(f.organizer.quota("a").used_pieces, 0);
+  } finally { release.resolve(); await pass; await f.organizer.close(); }
+});
+
 test("PMAT-08 a piece kept back from agents is neither found nor read, and the refusal says why", async t => {
   const f = await fixture(t);
   await f.indexAll();

@@ -1,5 +1,5 @@
 import type {PluginOwnerFilesClient,PluginOwnerFilesReader,PluginOwnerFilesWriter} from '@molis-ai/molis-work-contracts/platform/plugin';
-import {createShelfCatalog,type ShelfSyncOptions} from './catalog.js';
+import {createShelfCatalog,type ShelfSyncOptions} from './sync-catalog.js';
 import {emptyShelfCatalog,readCurrentCatalog,type CatalogFile} from './catalog-shape.js';
 import {shelfErrors} from './errors.js';
 

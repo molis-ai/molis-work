@@ -33,6 +33,8 @@ test("W4-10-01 a project page's attention read carries the board cursor the Goal
   const home = await openTestHome(t);
   const project = await home.createProject("Attention");
   const base = `/projects/${encodeURIComponent(project.project_id)}`;
+  // Wait for the first Goals action's catch-up before comparing two successive reads of a stable cursor.
+  await home.web.get(`${base}/api/board`);
   const attention = await home.web.get<Attention>(`${base}/api/attention?surface=todo`);
   const { observed_event_cursor } = await home.web.get<{ observed_event_cursor: number }>(`${base}/api/board/cursor`);
   assert.equal(attention.board_cursor, observed_event_cursor, "the cursor is the board's own");
@@ -68,7 +70,7 @@ test("W4-10-01 QA-022 a real Todo reminder that came due is in the Home page's a
 // QA-022: a delivery the market holds for the person is counted exactly; a cursor that has caught up is not.
 test("W4-10-01 QA-022 a project page's attention read counts exactly the plugin deliveries waiting on the person", async t => {
   const home = await openTestHome(t);
-  const project = await home.createProject("Attention");
+  const project = await home.createProject("Attention", ["coding", "files"]);
   const base = `/projects/${encodeURIComponent(project.project_id)}`;
   assert.equal((await home.web.get<Attention>(`${base}/api/attention`)).plugin_events_pending, 0, "nothing waits in a new project");
   // As a Host crash leaves it (tests/plugin-event-recovery.e2e.test.ts), through the owner's repository on the project's database:

@@ -1,19 +1,6 @@
 export { openShelfReplica } from './store.js';
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-shelf",
-  packagePath: "modules/shelf",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/shelf",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["shelf.store.v1", "shelf.jobs.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-export { SHELF_DOCUMENT_PATH, type ShelfSyncOptions } from './catalog.js';
+export { SHELF_DOCUMENT_PATH, type ShelfSyncOptions } from './sync-catalog.js';
 export { createShelfSyncContent } from './sync-content.js';
-
 export { shelfErrors, isShelfFailure, type ShelfFailure } from "./errors.js";
 export { markdownFromExtract, resultNameForExtract } from "./extract.js";
 export {
@@ -47,32 +34,22 @@ export type { ShelfRecipeSpec } from "./recipes.js";
 export {
   NO_AGENT_REASON,
   SHELF_ENGINES,
-  canRunJob,
-  clearShelfRuntimeCache,
   detectShelfRuntime,
   emptyShelfRuntime,
-  installedShelfEngines,
   isolationFact,
   shelfRuntimeCatalog,
   missingJobReason,
-  readCliHelp,
-  shelfRuntimeCandidates,
-  shelfSearchDirectories,
-  supportsWorkspaceSandbox,
 } from "./runtimes.js";
-export type { ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
+export type { ShelfEngine, ShelfLocalToolsPort, ShelfRuntimeLookup } from "./runtimes.js";
 export { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 export {
   SHELF_JOB_TIMEOUT_MS,
   CLIPBOARD_LIMIT,
   ShelfStore,
-  clipFingerprint,
-  clipTitleFor,
   hashBytes,
-  isConcealedClipboard,
-  isHttpUrl,
   isEditableShelfItem,
   openShelfStore,
+  initializeShelfFiles,
 } from "./store.js";
 export {
   CARBON_CMD_KEY,
@@ -124,3 +101,5 @@ export {
   shortcutOutputName,
   shortcutSlotId,
 } from "./settings.js";
+
+export { isConcealedClipboard, isHttpUrl, clipFingerprint, clipTitleFor } from "./clipboard.js";

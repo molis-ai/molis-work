@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { createServer } from "node:http";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentRunControl, AgentRunRef, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, type AgentRunControl, type AgentRunRef, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { PrologueAgentAdapter, type PrologueEvent, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createPrologueError } = await import(requireSdk.resolve("@prologue/sdk")) as { createPrologueError(code: string, message: string): Error & { code: string } };
@@ -37,9 +44,10 @@ async function adapterFor(options: { answer?: Answer; stop?: () => void } = {}) 
     modelConfiguration: async () => ({ protocol: "anthropic-messages", endpoint: "https://x.test", model: "m", credential_ref: "c" }),
     ...(options.answer ? { answerPending: options.answer } : {}),
   });
-  await adapter.createSession({ title: "t" });
+  const owner = { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", install_id: "coding-test", actor_id: "web-user" };
+  await adapter.createSession({ ...owner, title: "t", directory: { canonical_path: "/tmp/ws", realpath_verified: true } });
   const handle = await adapter.start({
-    plugin_id: "io.molis.work.coding", session: { session_id: "session-1", runtime_id: "prologue" }, task: "看看这段代码", role_id: "reader",
+    ...owner, session: { session_id: "session-1", runtime_id: "prologue" }, task: "看看这段代码", role_id: "reader",
     directory: { canonical_path: "/tmp/ws", realpath_verified: true },
     role: { role_id: "reader", version: 1, execution: "read-only", prompts: [{ prompt_id: "p", version: 1, body: "b" }], host_tools: [] },
   } as AgentStartRequest);
@@ -75,8 +83,53 @@ test("BL-156: the three refusals of a round parked at a restart reach the caller
     const item = await adapterFor({ answer: async () => { throw sdkError; } });
     const error = await refusal(item.adapter.control(item.ref, answer));
     assert.equal(error.code, "agent.session_busy", code);
+    assert.equal(error.kind, "conflict", `BL305-BUSY-01: ${code} is a state conflict`);
     assert.equal(error.message, message, `${code} is said in the person's words, not the SDK's`);
     assert.equal(error.details?.runtime_code, code);
+  }
+});
+
+test("BL305-BUSY-02 Agent busy reaches the production Coding HTTP failure route as 409", async () => {
+  const root = await mkdtemp(join(tmpdir(), "coding-agent-busy-http-")), dbPath = join(root, "project.db");
+  const sdkError = createPrologueError("SESSION_RECOVERY_BUSY", "SDK recovery is busy");
+  let controls = 0, caught: unknown;
+  const item = await adapterFor({ stop() { controls++; throw sdkError; } });
+  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath), sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "busy", title: "恢复中的任务", runtime_id: "prologue", at: new Date().toISOString() });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "busy", item.ref.session_id, new Date().toISOString());
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const host = withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+      const input = args as [AgentRunRef, AgentRunRef, AgentRunControl];
+      if (definition.capability_id === agent.readSession.capability_id) return await item.adapter.readSession(input[0]) as Output;
+      if (definition.capability_id === agent.readRun.capability_id) return await item.adapter.read(input[1]) as Output;
+      if (definition.capability_id === agent.controlRun.capability_id) {
+        try { return await item.adapter.control(input[1], input[2]) as Output; } catch (error) { caught = error; throw error; }
+      }
+      throw new Error(`Unexpected capability ${definition.capability_id}`);
+    } },
+  });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host)
+    .catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address !== "string");
+    const before = await item.adapter.read(item.ref);
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/busy/control`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ run_id: item.ref.run_id, kind: "stop" }),
+    });
+    const body = await response.json();
+    assert.equal(response.status, 409, JSON.stringify(body));
+    assert.equal(body.code, "agent.session_busy"); assert.equal(body.error, "这个会话正在恢复，请稍后再试");
+    assert.ok(caught instanceof ActionError); assert.equal(caught.kind, "conflict");
+    assert.equal(caught.cause, sdkError); assert.equal(caught.details?.runtime_code, "SESSION_RECOVERY_BUSY");
+    assert.equal(controls, 1, "the route reached the real adapter's control, with no retry or replacement failure");
+    const after = await item.adapter.read(item.ref);
+    assert.equal(after.phase, before.phase); assert.equal(after.ended_at, before.ended_at);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); await item.adapter.close(); store.close(); await rm(root, { recursive: true, force: true });
   }
 });
 

@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, EN, createMolisWorkLocalHost, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 type Catalog = Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
@@ -291,7 +292,7 @@ test("the delete dialog lists what goes with the project, and the web deletion r
 });
 
 test("an English request gets the dialog's sentence and every plugin's data label in English, from the owners' own tables", async t => {
-  const { project, origin } = await webFixture(t);
+  const { homeDirectory, project, origin } = await webFixture(t);
   const scopePath = `/api/settings/projects/${project.project_id}/delete-scope`;
   const english = { headers: { cookie: "molis_work_locale=en" } };
   type Scope = { owners: Array<{ owner_id: string; label: string }> };
@@ -301,9 +302,16 @@ test("an English request gets the dialog's sentence and every plugin's data labe
   // The labels are the owners' Chinese words: the person's language is picked at this route, with the served catalog.
   assert.ok(zh.owners.length >= 9, "the plugins of this Home name the data they keep");
   assert.deepEqual(en.owners.map(owner => owner.owner_id), zh.owners.map(owner => owner.owner_id));
+  // A plugin owner's English is that plugin's own (its Manifest's `ui.translations`, applied while its label is drawn); the Host's table holds only the Host's own owners.
+  const owners = new Map(projectDeletedHooksFor(homeDirectory).owners().map(owner => [owner.id, owner]));
+  const englishOf = (ownerId: string, label: string): string | undefined => {
+    const wordsOf = owners.get(ownerId)?.words_of;
+    return wordsOf ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === wordsOf)?.manifest.ui?.translations?.[label] : EN[label];
+  };
   for (const [index, owner] of zh.owners.entries()) {
-    assert.ok(EN[owner.label], `${owner.label} has an English text`);
-    assert.equal(en.owners[index]!.label, EN[owner.label]);
+    const expected = englishOf(owner.owner_id, owner.label);
+    assert.ok(expected, `${owner.label} has an English text`);
+    assert.equal(en.owners[index]!.label, expected);
     assert.notEqual(en.owners[index]!.label, owner.label, `${owner.owner_id} is shown in English`);
   }
   // Each of the owners' own tables reaches the dialog (not a copy kept by the Host).

@@ -18,7 +18,8 @@ function printUninstallHelp(): void {
   printCliLine(`molis-work uninstall [--home PATH] [--confirm] [--json]
 molis-work uninstall --purge-user-data --confirm --confirm-home PATH --confirm-project-count N [--home PATH] [--json]
 
-普通卸载保留用户项目、catalog、备份和日志。永久清除用户数据是独立操作，必须再次提供精确目录和项目数量。`);
+普通卸载保留用户项目、catalog、备份和日志。永久清除用户数据是独立操作，必须再次提供精确目录和项目数量。
+App 或离线操作占用 Home 时先拒绝；请先关闭 App 并等待操作结束。永久清除成功后只保留互斥锁骨架，Home 文件夹不会删除。`);
 }
 
 function printUninstallPlan(plan: MolisWorkUninstallPlan): void {

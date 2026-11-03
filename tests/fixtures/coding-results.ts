@@ -118,7 +118,7 @@ export function fakePlatform(held: { artifacts?: readonly ArtifactVersionRecord[
 
 /** A start context in the project, with only the services a test hands it. */
 export function startContext(pluginId: string, services: Partial<PluginHostServices>, over: Partial<PluginStartContext> = {}): PluginStartContext {
-  return { install_id: `${pluginId}-install`, plugin_id: pluginId, version: "1.0.0", deployment: "local", grants: ["artifact:read", "storage:private"],
+  return { install_id: `${pluginId}-install`, installation_generation: "1", plugin_id: pluginId, version: "1.0.0", deployment: "local", grants: ["artifact:read", "storage:private"],
     project_id: PROJECT_ID, actor_id: OWNER, requireGrant: () => {}, services: { ui: { register: () => {}, unregister: () => {} }, ...services }, ...over };
 }
 

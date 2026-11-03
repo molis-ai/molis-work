@@ -20,14 +20,17 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const names = {downloads:'下载',documents:'文稿',desktop:'桌面',custom:'其他文件夹',files:'单独选文件',directory:'文件夹资料',browser:'浏览器内容',gmail:'Gmail',chat:'聊天记录'};
   const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message'};
   const grants = {}, uploads = new Map();
-  let preparing = '', readingLocal = '';
+  let preparing = '', readingLocal = '', uploading = null, counting = null, reviewFiles = false, folded = new Set();
   const invoke = (command,args) => globalThis.__TAURI__.core.invoke(command,args);
   const directory = s => directories.includes(s.kind);
-  const size = bytes => bytes < 1000 ? Math.max(1, Math.round(bytes)) + ' B' : bytes < 1000000 ? Math.max(1, Math.round(bytes/1000)) + ' KB' : (bytes/1000000).toFixed(1) + ' MB';
+  const size = bytes => bytes < 1000 ? Math.max(1, Math.round(bytes)) + ' B' : bytes < 1000000 ? Math.max(1, Math.round(bytes/1000)) + ' KB' : bytes < 1e9 ? (bytes/1000000).toFixed(1) + ' MB' : (bytes/1e9).toFixed(1) + ' GB';
+  const amount = bytes => bytes ? size(bytes) : '0 B';
+  // How long the rest of a phase may take, from the calls it has made: said once one has finished, never guessed before.
+  const remaining = (left, timing) => { if (!timing?.calls) return L('正在估算剩余时间'); const minutes = Math.ceil(left * timing.ms / timing.calls / 60000); return minutes <= 1 ? L('还要不到 1 分钟') : minutes < 60 ? L('约还要 {n} 分钟', {n:minutes}) : L('约还要 {h} 小时 {m} 分钟', {h:Math.floor(minutes / 60), m:minutes % 60}); };
   const included = s => (s.metadata?.files||[]).filter(f=>!(s.excluded||[]).some(p=>f.path===p||f.path.startsWith(p+'/')));
   const route = path => desktop && !/[?&]desktop=1(&|$)/.test(path) ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
   let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null;
-  let folderKind = native ? 'documents' : 'directory', blankName = '', goingBack = false;
+  let blankName = '', goingBack = false;
   let saveQueue = Promise.resolve();
   const api = (path, body) => molisWorkRequest(path, {body, fallback:L('请求失败，请重试')});
   const failureText = value => typeof value==='string' ? value : molisWorkRequest.text(value);
@@ -39,29 +42,40 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const ready = s => s.references?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind));
   const readable = () => picked().filter(ready);
   const sourceStatus = s => s.references?.length ? '已暂存' : directory(s) ? (grants[s.kind]?.state==='ready'?'已授权':grants[s.kind]?.state==='unavailable'?'需要重新授权':'待授权') : ready(s)?'已添加':s.kind==='gmail'?(config.gmail_configured?'待连接':'暂不可连接'):'待添加';
-  const startLabel = () => busy ? (preparing?'正在准备…':readingLocal?'正在读取…':'正在保存…') : '确认范围';
+  const startLabel = () => busy ? (counting && !counting.saving ? L('正在清点 {done} / {total}', counting) : preparing?'正在准备…':uploading?L('正在上传第 {k} / {n} 份', uploading):readingLocal?'正在读取…':'正在保存…') : '确认范围';
 
   /* ───────── Markup: the design system's parts, drawn in the browser (same classes as primitives/*.ts) ───────── */
   const attrs = map => Object.keys(map || {}).filter(k => map[k] !== undefined && map[k] !== null && map[k] !== false).map(k => map[k] === true ? ' ' + k : ' ' + k + '="' + esc(map[k]) + '"').join('');
-  const btn = o => '<button type="' + (o.type || 'button') + '" class="mw-btn mw-btn--' + (o.variant || 'secondary') + ' mw-btn--' + (o.size || 'md') + (o.cls ? ' ' + o.cls : '') + '" data-slot="button"' + (o.disabled ? ' disabled' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span>' + (o.key ? '<kbd class="mw-btn__key" aria-hidden="true">' + esc(o.key) + '</kbd>' : '') + '</button>';
-  const linkBtn = o => '<a class="mw-btn mw-btn--' + (o.variant || 'ghost') + ' mw-btn--' + (o.size || 'md') + '" data-slot="button" href="' + esc(o.href) + '"' + (o.blank ? ' target="_blank" rel="noopener"' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span></a>';
-  const choice = o => '<button type="button" class="mw-choice" data-slot="choice" aria-pressed="' + (o.selected ? 'true' : 'false') + '"' + attrs(o.attrs) + '><span class="mw-choice__label">' + (o.icon ? glyph(o.icon) : '') + esc(o.label) + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></button>';
+  // md is the default height, left to the button so it follows the person's density.
+  const btn = o => '<button type="' + (o.type || 'button') + '" class="mw-btn mw-btn--' + (o.variant || 'secondary') + (o.size && o.size !== 'md' ? ' mw-btn--' + o.size : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="button"' + (o.disabled ? ' disabled' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span>' + (o.key ? '<kbd class="mw-btn__key" aria-hidden="true">' + esc(o.key) + '</kbd>' : '') + '</button>';
+  const choice = o => '<button type="button" class="mw-choice" data-slot="choice" aria-pressed="' + (o.selected ? 'true' : 'false') + '"' + attrs(o.attrs) + '><span class="mw-choice__label">' + (o.icon ? glyph(o.icon) : '') + esc(o.label) + (o.note ? '<small>' + esc(o.note) + '</small>' : '') + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></button>';
   const status = (label, tone, icon, state) => '<span class="mw-status mw-status--' + tone + ' mw-status--plain" data-slot="status"' + (state ? ' data-mw-state="' + state + '"' : '') + '>' + (!state && icon ? glyph(icon) : '') + '<span>' + esc(label) + '</span></span>';
   const steps = (total, current) => '<ol class="mw-steps" data-slot="steps" aria-label="' + esc(L('引导进度')) + '">' + Array.from({length: total}, (_, i) => '<li' + (i === current ? ' aria-current="step"' : '') + (i < current ? ' class="is-done"' : '') + '><span></span></li>').join('') + '</ol>';
   const barStatus = o => '<div class="mw-bar-status" data-slot="bar-status" role="status" aria-live="polite"><span class="mw-bar-status__tile" aria-hidden="true">' + (o.spin ? '<span class="mw-spinner" data-slot="spinner" aria-hidden="true"></span>' : glyph(o.glyph || 'info')) + '</span><span class="mw-bar-status__text"><strong>' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span></div>';
-  const dirRow = o => '<button type="button" class="mw-dir-row mw-dir-row--meta directory-list-row' + (o.selected ? ' is-selected' : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="directory-row" title="' + esc(o.title) + '"' + attrs(o.attrs) + '><span class="mw-dir-row__icon">' + glyph(o.icon) + '</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>' + esc(o.title) + '</strong><span class="mw-dir-row__count">' + esc(o.count) + '</span></span><small>' + esc(o.caption) + '</small></span></button>';
+  const dirRow = o => '<button type="button" class="mw-dir-row mw-dir-row--meta directory-list-row' + (o.selected ? ' is-selected' : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="directory-row" title="' + esc(o.title) + '"' + attrs(o.attrs) + '><span class="mw-dir-row__icon">' + glyph(o.icon) + '</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>' + esc(o.title) + '</strong>' + (o.count === undefined ? '' : '<span class="mw-dir-row__count">' + esc(o.count) + '</span>') + '</span><small>' + esc(o.caption) + '</small></span>' + (o.end || '') + '</button>';
   const note = (text, icon, cls) => '<p class="ob-note' + (cls ? ' ' + cls : '') + '">' + glyph(icon || 'shield') + '<span>' + esc(text) + '</span></p>';
   const kindChip = name => { const dot = name.lastIndexOf('.'); const ext = (dot > 0 ? name.slice(dot + 1) : 'txt').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'txt'; return '<span class="mw-file-kind mw-file-kind--' + ext + '" data-slot="file-kind">' + ext.toUpperCase() + '</span>'; };
   const fileRow = o => '<li class="mw-file-row' + (o.cls ? ' ' + o.cls : '') + '" data-slot="file-row">' + (o.check ? '<label class="mw-file-row__label"><input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + attrs(o.check.attrs) + '>' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></label>' : '<span class="mw-file-row__label">' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></span>') + (o.size ? '<span class="mw-file-row__size" title="' + esc(o.size) + '">' + esc(o.size) + '</span>' : '') + (o.state || '') + (o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-row__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + '>' + glyph('x') + '</button>' : '') + '</li>';
-  const fileGroup = o => { const head = (o.check ? '<input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + (o.check.mixed ? ' data-mixed' : '') + attrs(o.check.attrs) + '>' : '') + '<span class="mw-file-group__ic">' + glyph(o.icon) + '</span><span class="mw-file-group__text"><strong>' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span>' + (o.count ? '<span class="mw-file-group__count">' + esc(o.count) + '</span>' : '') + (o.status || '') + (o.tools || '') + (o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-group__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + '>' + glyph('x') + '</button>' : ''); return '<section class="mw-file-group" data-slot="file-group"' + attrs(o.attrs) + '>' + (o.check ? '<label class="mw-file-group__head">' + head + '</label>' : '<div class="mw-file-group__head">' + head + '</div>') + '<ul class="mw-file-list">' + o.rows.join('') + '</ul>' + (o.note ? '<p class="mw-file-group__note">' + esc(o.note) + '</p>' : '') + '</section>'; };
+  // Time range and refresh stay outside the checkbox label: a button inside the label is the checkbox, so it neither changes the range nor folds the list.
+  const fileGroup = o => {
+    const pick = (o.check ? '<input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + (o.check.mixed ? ' data-mixed' : '') + attrs(o.check.attrs) + '>' : '') + '<span class="mw-file-group__ic">' + glyph(o.icon) + '</span><span class="mw-file-group__text"><strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span>' + (o.count ? '<span class="mw-file-group__count">' + esc(o.count) + '</span>' : '') + (o.status || '');
+    const id = o.attrs && o.attrs['data-group'], open = !id || !folded.has(id);
+    const fold = id && (o.rows.length || o.note) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-fold="' + esc(id) + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-label="' + esc(L(open ? '收起这一组' : '展开这一组')) + '" style="flex:none">' + glyph(open ? 'chevron-down' : 'chevron-right') + '</button>' : '';
+    const remove = o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-group__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + ' style="flex:none">' + glyph('x') + '</button>' : '';
+    const identity = (o.check ? '<label class="mw-file-group__pick" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer">' + pick + '</label>' : '<span class="mw-file-group__pick" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">' + pick + '</span>');
+    const tools = o.tools ? '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">' + o.tools + '</div>' : '';
+    return '<section class="mw-file-group" data-slot="file-group"' + attrs(o.attrs) + '><div class="mw-file-group__head" style="display:flex;flex-direction:column;align-items:stretch;gap:8px"><div style="display:flex;align-items:center;gap:12px;min-width:0">' + identity + fold + remove + '</div>' + tools + '</div>' + (open ? '<ul class="mw-file-list">' + o.rows.join('') + '</ul>' + (o.note ? '<p class="mw-file-group__note">' + esc(o.note) + '</p>' : '') : '') + '</section>';
+  };
   const empty = o => '<div class="mw-empty" data-slot="empty"><span class="mw-empty__mark">' + glyph(o.icon) + '</span><h2>' + esc(o.title) + '</h2><p>' + esc(o.body) + '</p>' + (o.action || '') + '</div>';
   const collapsible = (summary, body) => '<details class="mw-collapsible" data-slot="collapsible"><summary>' + esc(summary) + '</summary><div class="mw-collapsible__body">' + body + '</div></details>';
   const progressBar = (value, max, label) => '<div class="mw-progress" data-slot="progress" role="progressbar" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + Math.min(value, max) + '" aria-label="' + esc(label) + '"><span style="width:' + (max ? Math.min(100, value / max * 100) : 0) + '%"></span></div>';
+  const meter = (value, max, label, text) => '<div class="ob-upload">' + progressBar(value, max, label) + '<small>' + esc(text) + '</small></div>';
   const toggles = (label, items) => '<div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="' + esc(label) + '">' + items.map(i => '<button type="button" class="mw-toggle' + (i.current ? ' is-current' : '') + '" aria-pressed="' + (i.current ? 'true' : 'false') + '"' + attrs(i.attrs) + '>' + esc(i.label) + '</button>').join('') + '</div>';
   const title = text => '<h1 id="ob-title" tabindex="-1">' + text + '</h1>';
   const question = (text, sub) => '<header class="ob-q">' + title(esc(text)) + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</header>';
   const errorLine = text => '<p class="cx-error" role="alert">' + esc(failureText(text || '')) + '</p>';
-  const split = (view, left, right, cls) => '<div class="stage-split onboard" data-ob-view="' + view + '"><aside class="stage-side ob-left" data-scroll>' + left + '</aside><section class="stage-sheet ob-right' + (cls ? ' ' + cls : '') + '" data-scroll>' + right + '</section></div>';
+  // Every step of the journey is a Welcome step: the question on the left, what it makes on the right.
+  const split = (view, left, right, cls) => '<div class="stage-single"><div class="stage-sheet welcome onboard" data-ob-view="' + view + '"><section class="welcome-q ob-left" data-scroll>' + left + '</section><div class="welcome-scene"><section class="ob-right' + (cls ? ' ' + cls : '') + '" data-scroll>' + right + '</section></div></div></div>';
   const stageHead = (heading, meta) => '<header class="ob-stage-head"><h2>' + esc(heading) + '</h2><span>' + meta + '</span></header>';
 
   /* ───────── Where in the journey ───────── */
@@ -70,7 +84,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   let introStep = null;
   if (firstRun && readIntro() !== 'done') { let saved = null; try { saved = sessionStorage.getItem(introKey); } catch {} introStep = saved === 'appearance' ? 'appearance' : saved === 'language' ? 'language' : 'opening'; }
   const setIntro = next => { introStep = next; try { if (next) sessionStorage.setItem(introKey, next); else { sessionStorage.removeItem(introKey); localStorage.setItem(introKey, 'done'); } } catch {} };
-  const stepLabels = () => firstRun ? ['语言','外观','来源','确认','整理','开始'] : ['来源','确认','整理','开始'];
+  const stepLabels = () => firstRun ? ['语言','外观','来源','确认','模型','整理','开始'] : ['来源','确认','模型','整理','开始'];
   const stepIndex = step => stepLabels().indexOf(step);
   const stepsBar = step => steps(stepLabels().length, stepIndex(step));
   const exitButton = () => firstRun ? btn({variant:'ghost', size:'lg', label:L('稍后再说'), cls:'arrival-back', attrs:{id:'cx-exit'}}) : btn({variant:'ghost', size:'lg', icon:'back', label:L('返回项目'), cls:'arrival-back', attrs:{id:'cx-exit', 'aria-label':L('返回项目')}});
@@ -91,8 +105,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       html:'<div class="stage-single"><div class="stage-sheet welcome" data-view="welcome" data-step="language"><section class="welcome-q">' + title(L('语言')) + '<p>' + L('用你最熟悉的语言开始。之后可以在设置里随时更改。') + '</p><div class="welcome-options" role="group" aria-label="' + L('界面语言') + '">' + option('zh','简体中文') + option('en','English') + '</div></section><aside class="welcome-scene" aria-hidden="true"><div class="ob-greeting"><strong lang="' + current + '">' + (current === 'en' ? 'Hello.' : '你好。') + '</strong><span>Molis Work</span></div></aside></div></div>',
       bar:{start:exitButton() + stepsBar('语言'), center:'', end:primary('继续','intro-next')}};
   }
+  const miniRow = (g, w, s) => '<div class="ob-mini-row"><i>' + glyph(g) + '</i><span><b style="width:' + w + '%"></b><s style="width:' + s + '%"></s></span></div>';
   function miniWorkbench() {
-    const row = (g, w, s) => '<div class="ob-mini-row"><i>' + glyph(g) + '</i><span><b style="width:' + w + '%"></b><s style="width:' + s + '%"></s></span></div>';
+    const row = miniRow;
     return '<div class="ob-mini"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + row('target',62,40) + row('rss',48,58) + row('note',70,36) + '</div><div class="ob-mini-bar"><span class="ob-mini-dock"><i></i><i class="is-on"></i><i></i></span><span class="ob-mini-composer"><i></i><em></em></span><span class="ob-mini-avatar"></span></div></div>';
   }
   function appearance() {
@@ -105,20 +120,15 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
 
   /* ───────── Sources: add what the project is made from ───────── */
   const sourceRows = () => [
-    {id:'folder', kinds: native ? directories : ['directory'], icon:'folder', name:'文件夹资料', caption:'选择一个工作文件夹中的文本资料'},
+    {id:'folder', kinds: native ? directories : ['directory'], icon:'folder', name:'文件夹资料', caption: native ? '可以同时选下载、文稿、桌面和其他文件夹' : '选择一个工作文件夹中的文本资料'},
     {id:'files', kinds:['files'], icon:'file', name:'单独选文件', caption:'PDF、Word、Markdown 和文本文件'},
     {id:'browser', kinds:['browser'], icon:'globe', name:'浏览器内容', caption:'粘贴网页正文与来源网址'},
-    {id:'gmail', kinds:['gmail'], icon:'mail', name:'Gmail', caption:''},
     {id:'chat', kinds:['chat'], icon:'message', name:'聊天记录', caption:'导入飞书、Slack 等导出的文本记录'},
+    {id:'gmail', kinds:['gmail'], icon:'mail', name:'Gmail', caption:''},
   ];
   const sourcesOf = row => row.kinds.map(kind => source(kind)).filter(Boolean);
   const countOf = s => s.references?.length || (s.kind === 'browser' ? (s.text?.trim() ? 1 : 0) : s.kind === 'gmail' ? (ready(s) ? 1 : 0) : (included(s).length || s.files?.length || 0));
-  function rowCount(row) {
-    const list = sourcesOf(row).filter(s => s.selected && ready(s));
-    if (list.length) return L('已添加 {n}', {n:list.reduce((sum, s) => sum + countOf(s), 0)});
-    if (row.id === 'folder') return L(sourceStatus(source(folderKind)));
-    return L(sourceStatus(sourcesOf(row)[0] || {kind:row.id}));
-  }
+  const rowCount = row => sourcesOf(row).filter(s => s.selected && ready(s)).reduce((sum, s) => sum + countOf(s), 0);
   function gmailCaption() {
     const s = source('gmail');
     if (!ready(s) && connected().length) return L('选择一个已连接的 Google 账号');
@@ -126,34 +136,57 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const c = connected().find(c => c.connection_id === s.connection_id);
     return (c ? c.account_label || c.display_name : L('工作邮箱')) + ' · ' + L('最近 {n} 天，最多 20 封；不含附件', {n:s.days || 30});
   }
-  const fileInput = (kind, accept, label, icon) => '<label class="mw-btn mw-btn--primary mw-btn--md" data-slot="button" for="cx-upload-' + kind + '">' + glyph(icon) + '<span data-slot="button-label">' + L(label) + '</span></label><input id="cx-upload-' + kind + '" class="mw-sr-only" type="file" multiple ' + (kind === 'directory' ? 'webkitdirectory directory' : 'accept="' + accept + '"') + ' data-upload="' + kind + '">';
+  // A row that only chooses files opens the system chooser itself: the inputs stay in the page, out of sight.
+  const picker = kind => '<input id="cx-upload-' + kind + '" class="mw-sr-only" type="file" multiple tabindex="-1" aria-hidden="true" ' + (kind === 'directory' ? 'webkitdirectory directory' : 'accept=".md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx"') + ' data-upload="' + kind + '">';
+  const pickerOf = id => id === 'files' || id === 'chat' ? id : id === 'folder' && !native ? 'directory' : '';
   const RANGES = [[7,'7 天'],[30,'30 天'],[90,'90 天'],[0,'全部']];
+  const folderDays = () => {
+    const chosen = directories.map(kind => source(kind)).filter(s => s?.selected);
+    const rows = chosen.length ? chosen : directories.map(kind => source(kind)).filter(Boolean);
+    const first = rows[0] ? (rows[0].days ?? 30) : 30;
+    return rows.every(s => (s.days ?? 30) === first) ? first : null;
+  };
   function rowConfig(row) {
     if (row.id === 'folder') {
-      if (!native) { const s = source('directory'); return '<div class="ob-cfg-actions">' + fileInput('directory', '', ready(s) ? '重新选择文件夹' : '选择文件夹', 'folder') + '</div>' + note(L('最多 50 份、总大小 6 MB。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。'), 'info'); }
-      const s = source(folderKind), granted = grants[folderKind];
-      return '<div class="ob-cfg-block"><p class="ob-label">' + L('位置') + '</p><div class="mw-choice-group ob-picks" role="group" aria-label="' + L('位置') + '">' + directories.map(kind => choice({label:L(names[kind]), selected:folderKind === kind, attrs:{'data-pick':kind, title:granted && kind === folderKind ? granted.path || '' : ''}})).join('') + '</div></div>'
-        + '<div class="ob-cfg-block"><p class="ob-label">' + L('时间范围') + '</p>' + toggles(L('时间范围'), RANGES.map(([days, label]) => ({label:L(label), current:(s.days ?? 30) === days, attrs:{'data-range-pick':String(days)}}))) + '</div>'
-        + '<div class="ob-cfg-actions">' + btn({variant:'primary', size:'md', icon:'folder', label:L(granted?.state === 'ready' ? '重新选择目录' : '选择并授权'), attrs:{'data-authorize':folderKind}}) + (granted?.state === 'ready' ? btn({variant:'ghost', size:'md', label:L('取消连接'), attrs:{'data-forget':folderKind}}) : '') + '</div>'
-        + note(granted?.message || L('只访问系统选择器中确认的目录。可以重新选择实际位置。'), 'shield') + note(L('先列出文件名和大小，开始整理后才读正文。'), 'info');
+      const days = folderDays();
+      const place = kind => {
+        const s = source(kind), grant = grants[kind], on = Boolean(s?.selected);
+        const path = grant?.state === 'ready' ? (grant.path || '') : '';
+        const hint = path || (grant?.state === 'unavailable' ? L('需要重新授权') : L('尚未选择'));
+        const again = grant?.state === 'ready' ? '<span class="ob-place__actions">' + btn({variant:'ghost', size:'sm', label:L('更换'), attrs:{'data-authorize':kind}}) + btn({variant:'ghost', size:'sm', label:L('取消连接'), attrs:{'data-forget':kind}}) + '</span>' : '';
+        return '<div class="ob-place">' + choice({label:L(names[kind]), note:hint, selected:on, attrs:{'data-pick':kind, title:path || hint}}) + again + '</div>';
+      };
+      return '<div class="ob-cfg-block"><p class="ob-label">' + L('位置') + '</p><div class="ob-picks" role="group" aria-label="' + L('位置') + '">' + directories.map(place).join('') + '</div></div>'
+        + '<div class="ob-cfg-block"><p class="ob-label">' + L('时间范围') + '</p>' + toggles(L('时间范围'), RANGES.map(([d, label]) => ({label:L(label), current:days === d, attrs:{'data-range-pick':String(d)}}))) + '</div>';
     }
-    if (row.id === 'files') return '<div class="ob-cfg-actions">' + fileInput('files', '.md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx', ready(source('files')) ? '再选一些文件' : '选择文件', 'file') + '</div>' + note(L('最多 50 份、总大小 6 MB。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。'), 'info');
     if (row.id === 'browser') { const s = source('browser'); return '<div class="ob-cfg-block"><label class="ob-label" for="cx-browser-text">' + L('网页正文') + '</label><textarea class="mw-textarea" id="cx-browser-text" rows="4" maxlength="100000" data-kind="browser" data-field="text" placeholder="' + esc(L('从网页复制需要整理的内容，粘贴到这里')) + '">' + esc(s.text || '') + '</textarea></div><div class="ob-cfg-block"><label class="ob-label" for="cx-url">' + L('原网页网址（可选）') + '</label><input type="url" class="mw-input" id="cx-url" data-kind="browser" data-field="url" placeholder="https://" value="' + esc(s.url || '') + '"></div>' + note(L('只使用粘贴的内容，不访问其他标签页或浏览记录。'), 'shield'); }
     if (row.id === 'gmail') {
       const s = source('gmail');
       const account = '<div class="ob-cfg-block"><label class="ob-label" for="cx-account">' + L('使用账号') + '</label><select class="mw-select" data-slot="select" id="cx-account" data-field="connection_id" data-kind="gmail"><option value="">' + L(connected().length ? '选择已有账号' : '连接一个 Google 账号') + '</option>' + connected().map(c => '<option value="' + esc(c.connection_id) + '" ' + (c.connection_id === s.connection_id ? 'selected' : '') + '>' + esc(c.account_label || c.display_name) + '</option>').join('') + '</select></div>';
       const days = '<div class="ob-cfg-block"><label class="ob-label" for="cx-days">' + L('读取时间') + '</label><select class="mw-select" data-slot="select" id="cx-days" data-field="days" data-kind="gmail"><option value="7" ' + (s.days === 7 ? 'selected' : '') + '>' + L('最近 7 天') + '</option><option value="30" ' + (s.days !== 7 ? 'selected' : '') + '>' + L('最近 30 天') + '</option></select></div>';
-      return account + days + note(L('只读取最多 20 封邮件正文，不读取附件，不发送邮件。'), 'shield') + (!config.gmail_configured ? note(L('Google 连接尚未由 Molis 配置好。可以先整理其他材料，账号接入准备好后再连接。'), 'alert', 'is-warn') : '<div class="ob-cfg-actions">' + btn({variant:'primary', size:'md', icon:'mail', label:L(connected().length ? '连接其他 Google 账号' : '连接 Google'), attrs:{'data-action':'connect'}}) + '</div>');
+      return account + days + note(L('只读取最多 20 封邮件正文，不读取附件，不发送邮件。'), 'shield') + (!config.gmail_configured ? note(L('Google 连接尚未由 Molis 配置好。可以先整理其他材料，账号接入准备好后再连接。'), 'alert', 'is-warn') : '<div class="ob-cfg-actions">' + btn({variant:'secondary', icon:'mail', label:L(connected().length ? '连接其他 Google 账号' : '连接 Google'), attrs:{'data-action':'connect'}}) + '</div>');
     }
-    return '<div class="ob-cfg-actions">' + fileInput('chat', '.md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx', ready(source('chat')) ? '再选一个导出文件' : '选择聊天导出文件', 'message') + '</div>' + note(L('当前支持导出的文本；飞书 / Slack 会话正文的直接连接还未接入。'), 'info');
+    return '';
+  }
+  // What a row says on its right is what pressing it does, until something is in: then how much.
+  function rowWord(row) {
+    const n = rowCount(row);
+    if (n) return L('已添加 {n}', {n});
+    if (row.id === 'gmail' && !config.gmail_configured && !connected().length) return L('暂不可连接');
+    return row.id === 'folder' && native && directories.some(kind => source(kind)?.selected && grants[kind]?.state === 'unavailable') ? L('需要重新授权') : L('添加');
+  }
+  // What pressing the row does, drawn as the button it acts as (the row is the one control): 添加, or the green count once added.
+  function rowAct(row) {
+    const n = rowCount(row), quiet = row.id === 'gmail' && !config.gmail_configured && !connected().length;
+    return '<span class="ob-source__act' + (n ? ' is-added' : quiet ? ' is-quiet' : ' mw-btn mw-btn--secondary mw-btn--sm') + '">' + (quiet ? '' : glyph(n ? 'check' : 'plus')) + '<span>' + esc(rowWord(row)) + '</span></span>';
   }
   function sourceList() {
     return '<div class="ob-sources" role="list" aria-label="' + L('选择材料来源') + '">' + sourceRows().map(row => {
-      const open = expanded === row.id, count = rowCount(row), has = sourcesOf(row).some(s => s.selected && ready(s));
       const unavailable = row.id === 'gmail' && !config.gmail_configured && !connected().length;
+      const open = expanded === row.id && !pickerOf(row.id), has = rowCount(row) > 0, own = !pickerOf(row.id) && !unavailable;
       const caption = row.id === 'gmail' ? gmailCaption() : row.caption;
-      return '<div class="ob-source' + (open ? ' is-open' : '') + (has ? ' has-items' : '') + '" role="listitem" data-src="' + row.id + '">' + dirRow({title:L(row.name), caption:L(caption), icon:row.icon, count, selected:open, cls:unavailable ? 'is-unavailable' : '', attrs:{'data-open':row.id, 'aria-expanded':String(open), 'aria-controls':'cfgp-' + row.id}}) + (open ? '<div class="ob-source__cfg" id="cfgp-' + row.id + '">' + rowConfig(row) + '</div>' : '') + '</div>';
-    }).join('') + '</div>';
+      return '<div class="ob-source' + (open ? ' is-open' : '') + (has ? ' has-items' : '') + '" role="listitem" data-src="' + row.id + '">' + dirRow({title:L(row.name), caption:L(caption), icon:row.icon, end:rowAct(row), selected:open, cls:unavailable ? 'is-unavailable' : '', attrs:{'data-open':row.id, disabled:unavailable, 'aria-expanded':own ? String(open) : null, 'aria-controls':own ? 'cfgp-' + row.id : null}}) + (open ? '<div class="ob-source__cfg" id="cfgp-' + row.id + '">' + rowConfig(row) + '</div>' : '') + '</div>';
+    }).join('') + '</div>' + (native ? '' : picker('directory')) + picker('files') + picker('chat');
   }
   const fileCount = s => included(s).length || s.files?.length || 0;
   function groupFor(s) {
@@ -163,13 +196,13 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if (kind === 'browser') { const bytes = new TextEncoder().encode(s.text || '').length; return fileGroup({...add, icon:'globe', title:L('网页正文'), caption:(s.url || L('粘贴的正文')), rows:[fileRow({name:L('网页正文 · {n} 字符', {n:(s.text || '').length.toLocaleString()}) + '.txt', size:size(bytes)})]}); }
     const files = (s.metadata?.files || (s.files || []).map(f => ({path:f.path, size:0}))), listed = included(s).length ? included(s) : files;
     const shown = listed.slice(0, 8), more = listed.length - shown.length;
-    const caption = directory(s) ? [grants[kind]?.path || s.path || '', (s.days === 0 ? L('全部时间') : L('最近 {n} 天', {n:s.days ?? 30}))].filter(Boolean).join(' · ') : kind === 'directory' ? L('系统选择器选中的文件夹') : kind === 'chat' ? L('导出的文本记录') : L('系统选择器选中的文件');
+    const caption = directory(s) ? [grants[kind]?.path || s.path || '', (s.days === 0 ? L('全部时间') : L('最近 {n} 天', {n:s.days ?? 30}))].filter(Boolean).join(' · ') : kind === 'directory' ? String(files[0]?.path || '').split('/')[0] : kind === 'chat' ? L('导出的文本记录') : '';
     return fileGroup({...add, icon:sourceIcons[kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[kind]) : L(names[kind]), caption, status:directory(s) ? status(L('已授权'), 'done', 'status-done') : '',
-      rows:shown.map(f => fileRow({name:f.path, size:f.size ? size(f.size) : ''})), note:more > 0 ? L('另有 {n} 份文件，在下一步逐项确认。', {n:more}) : s.metadata?.skipped ? L('{n} 项因时间、类型或访问范围未列入。', {n:s.metadata.skipped}) : ''});
+      rows:shown.map(f => fileRow({name:f.path, size:f.size ? size(f.size) : ''})), note:[more > 0 ? L('另有 {n} 份文件已计入。', {n:more}) : '', s.metadata?.skipped ? L('{n} 项因时间、类型或访问范围未列入。', {n:s.metadata.skipped}) : ''].filter(Boolean).join(' ')});
   }
   function materialsPane() {
     const groups = picked().filter(ready);
-    if (!groups.length) return empty({icon:'folder', title:L('从你正在做的事开始'), body:L('选一种来源，材料会按来源排在这里。添加时只记下文件名和大小。'), action:'<div class="ob-quick">' + btn({variant:'secondary', size:'md', icon:'folder', label:L('添加文件夹'), attrs:{'data-open':'folder'}}) + btn({variant:'secondary', size:'md', icon:'file', label:L('选择文件'), attrs:{'data-open':'files'}}) + btn({variant:'secondary', size:'md', icon:'globe', label:L('粘贴网页正文'), attrs:{'data-open':'browser'}}) + '</div>'});
+    if (!groups.length) return '<div class="ob-mini" aria-hidden="true"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + miniRow('folder',58,40) + miniRow('file',66,34) + miniRow('globe',44,52) + '</div></div><p class="ob-scene-note">' + L('选一种来源，材料会按来源排在这里。') + '</p>';
     const total = selectionTotal();
     return stageHead(L('这次带入'), L('{count} 份 · {groups} 组 · {size} · 正文尚未读取', {count:total.count, groups:groups.length, size:size(total.bytes)})) + groups.map(groupFor).join('');
   }
@@ -181,10 +214,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const left = question(L('带入已有的材料'), L('文件、网页和聊天记录会成为新项目的背景。')) + resumeNotice()
       + (journey.summary ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + L('已保留读入的资料。再次开始整理会替换当前摘要，请确认所选范围。') + '</span></p>' : '')
       + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + L('请在浏览器中完成 Google 授权，完成后会继续。') + '</span>' + btn({variant:'secondary', size:'sm', label:L('跳过 Gmail，继续'), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
-      + errorLine(error) + sourceList() + note(L('添加时只记下文件名和大小，开始整理时才读取正文。'), 'shield');
+      + errorLine(error) + sourceList() + '<div class="ob-notes">' + (counting && !counting.saving ? note(L('正在清点所选文件，完成后才会出现在右侧。'), 'clock') + meter(counting.done, counting.total, L('清点进度'), L('已查看 {done} / {total} 项 · 收录 {kept} 份 · {size}', {done:counting.done, total:counting.total, kept:counting.kept, size:size(counting.bytes)})) : counting && counting.saving ? note(L('清单较大，正在保存。'), 'clock') : '') + note(L('添加时只记下文件名和大小，开始整理时才读取正文。'), 'shield') + note(L('不限份数和大小。文件夹很大时会先逐项清点；PDF 读取文本层，Word 读取正文。'), 'info') + '</div>';
     return {kind:'onboard', view:'sources', step:'来源', left, right:materialsPane(), rightCls:any.length ? '' : 'is-empty',
-      bar:{start:exitButton() + stepsBar('来源'), center:any.length ? barStatus({glyph:'note', title:L('已添加 {n} 份材料', {n:total.count}), caption:L('{groups} 组 · {size} · 正文尚未读取', {groups:any.length, size:size(total.bytes)})}) : barStatus({glyph:'folder', title:L('还没有材料'), caption:L('添加至少一份材料，或空白开始')}),
-        end:secondary('空白开始','blank') + primary(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
+      bar:{start:exitButton() + stepsBar('来源'), center:'', end:secondary('跳过','blank') + primary(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
   }
 
   /* ───────── Scope: the person's last word on what is read ───────── */
@@ -192,15 +224,14 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function selectionTotal() {
     let count=0,bytes=0;
     for(const s of picked()) {
-      if(s.references?.length){count+=s.references.length;bytes+=s.references.reduce((n,r)=>n+(r.original?.data_base64?.length||0)*.75,0);}
+      if(s.references?.length){count+=s.references.length;bytes+=s.references.reduce((n,r)=>n+(r.original?.size_bytes||0),0);}
       else if(s.metadata){const files=included(s);count+=files.length;bytes+=files.reduce((n,f)=>n+f.size,0);}
       else if(s.kind==='browser'&&s.text?.trim()){count++;bytes+=new TextEncoder().encode(s.text).length;}
     }
     return {count,bytes};
   }
-  const LIMIT = {count: 50, bytes: 6000000};
-  const modelLine = () => config.model ? '<div class="ob-model"><span data-mw-state="connected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('文字模型') + ' · ' + esc(config.model) + '</strong><small>' + L('已连接 · 选中的正文会发给它整理') + '</small></span>' + linkBtn({variant:'ghost', size:'sm', label:L('更换'), href:route('/settings/models'), blank:true}) + '</div>'
-    : '<div class="ob-model is-off"><span data-mw-state="disconnected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('尚未连接文字模型') + '</strong><small>' + L('原文先暂存在本机，连接后再生成摘要') + '</small></span>' + linkBtn({variant:'secondary', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + '</div>';
+  // No count or size limit (user 2026-10-22); past this much, the page says the files are read in a queue it may leave.
+  const QUEUED = {count: 50, bytes: 50000000};
   function missingBlock(s) {
     const fix = directory(s) ? btn({variant:'secondary', size:'sm', label:L('选择并授权'), attrs:{'data-authorize':s.kind}}) : s.kind === 'gmail' ? btn({variant:'secondary', size:'sm', label:L(connected().length ? '选择已有账号' : '连接 Google'), attrs:{'data-action':connected().length ? 'choose-account' : 'connect'}}) : btn({variant:'secondary', size:'sm', label:L('添加内容'), attrs:{'data-add':s.kind}});
     return '<section class="mw-file-group"><div class="mw-file-group__head"><span class="mw-file-group__ic">' + glyph(sourceIcons[s.kind]) + '</span><span class="mw-file-group__text"><strong>' + L(names[s.kind]) + '</strong><small>' + esc(s.error || L(directory(s) ? '还没有完成授权。可以再次选择目录，或本次跳过。' : s.kind === 'gmail' ? '连接账号后，在开始时读取所选时间内的邮件。' : '请先添加内容。刷新后，浏览器选择的文件需要重新选择。')) + '</small></span>' + fix + btn({variant:'ghost', size:'sm', label:L('本次跳过'), attrs:{'data-skip':s.kind}}) + '</div></section>';
@@ -214,24 +245,23 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const rows = folders.map(folder => fileRow({name:folder + '/', chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph('folder') + '</span>', size:L('整个子目录'), check:{checked:!(s.excluded||[]).includes(folder), attrs:{id:'cx-d-' + s.kind + '-' + folders.indexOf(folder), 'data-folder':s.kind, 'data-path':folder}}}))
       .concat(items.map((file, i) => fileRow({name:file.path, size:size(file.size), state:'<span class="mw-file-row__state">' + L('未读取') + '</span>', check:{checked:selected.includes(file), attrs:{id:'cx-f-' + s.kind + '-' + i, 'data-file':s.kind, 'data-index':i}}})));
     const tools = directory(s) ? toggles(L(names[s.kind]) + L('时间范围'), RANGES.map(([days, label]) => ({label:L(label), current:(s.days ?? 30) === days, attrs:{'data-range':s.kind, 'data-days':String(days)}}))) + btn({variant:'ghost', size:'sm', icon:'refresh', label:L('刷新预览'), attrs:{'data-refresh':s.kind}}) : '';
-    return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[s.kind]) : L(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : (grants[s.kind]?.path || s.path || ''), count:selected.length + '/' + items.length,
-      check:{checked:selected.length === items.length && items.length > 0, mixed:selected.length > 0 && selected.length < items.length, attrs:{id:'cx-all-' + s.kind, 'data-files-all':s.kind}}, tools, rows,
-      note:!items.length ? L('这个时间范围没有支持的文件。可扩大范围或跳过。') : s.metadata.truncated ? L('仅展示最近 200 份；扫描范围有上限，未列出的文件不会读取。') : s.metadata.skipped ? s.metadata.skipped + ' ' + L('项因时间、类型或访问范围未列入。') : ''});
+    const seen = s.metadata.skipped || 0;
+    return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[s.kind]) : L(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : (grants[s.kind]?.path || s.path || ''), count:items.length ? selected.length + '/' + items.length : (seen ? String(seen) : '0/0'),
+      check:{checked:items.length ? selected.length === items.length : s.selected, mixed:items.length > 0 && selected.length > 0 && selected.length < items.length, attrs:{id:'cx-all-' + s.kind, 'data-files-all':s.kind}}, tools, rows,
+      note:[s.metadata.truncated ? L('文件夹里的条目太多，只扫描了一部分；未列出的文件不会读取，可以选更小的文件夹。') : (!items.length ? L('这个时间范围没有支持的文件。可扩大范围或跳过。') : ''), seen ? seen + ' ' + L('项因时间、类型或访问范围未列入。') : ''].filter(Boolean).join(' ')});
   }
   function scopeView() {
-    const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), over = total.count > LIMIT.count || total.bytes > LIMIT.bytes;
-    const meter = (label, value, max, text) => '<div class="ob-meter"><p><span>' + L(label) + '</span><span>' + text + '</span></p>' + progressBar(value, max, L(label)) + '</div>';
+    const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), queued = total.count > QUEUED.count || total.bytes > QUEUED.bytes;
     const left = question(L('确认这次读取的范围'), L(picked().some(s => s.references?.length) ? '沿用已暂存正文，新选文件只显示信息。' : '取消不需要的文件；开始后才读取正文。')) + errorLine(error)
-      + '<div class="ob-meters' + (over ? ' is-over' : '') + '">' + meter('份数', total.count, LIMIT.count, '<b>' + total.count + '</b> / ' + LIMIT.count) + meter('大小', total.bytes, LIMIT.bytes, '<b>' + (total.bytes / 1e6).toFixed(1) + '</b> / 6 MB')
-      + (over ? '<p class="ob-error">' + glyph('alert') + '<span>' + L('超过 50 份或 6 MB，请取消部分文件。') + '</span></p>' : '') + '</div>'
-      + modelLine() + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
-      + (picked().some(s => s.kind === 'gmail') ? note(L('最多 20 封邮件，也计入本轮上限。'), 'mail') : '')
-      + collapsible(L('读取规则'), '<p>' + L('本轮最多 50 份、6 MB，邮件也计入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
-    const right = stageHead(L('逐项确认'), L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)})) + picked().map(scopeGroup).join('');
-    const canStart = !(busy || missing || over || (!total.count && !picked().some(s => s.kind === 'gmail')));
+      + (uploading ? note(L('正在上传文件；上传完成前请留在此页，之后就可以离开。'), 'clock') + meter(uploading.done, uploading.total, L('上传进度'), L('已上传 {done} / {total}', {done:amount(uploading.done), total:amount(uploading.total)})) : queued ? note(L('材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。'), 'clock') : '')
+      + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
+      + (picked().some(s => s.kind === 'gmail') ? note(L('读取所选时间内最近的 20 封邮件。'), 'mail') : '')
+      + collapsible(L('读取规则'), '<p>' + L('不限份数和大小：文件逐份上传、排队读取，长文全文读入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
+    const listed = journey.sources.filter(s => s.selected || (directory(s) && s.metadata));
+    const right = stageHead(L('逐项确认'), L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)})) + listed.map(scopeGroup).join('');
     return {kind:'onboard', view:'preview', step:'确认', left, right,
-      bar:{start:exitButton() + stepsBar('确认'), center:barStatus({glyph:'shield', title:L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)}), caption:over ? L('超过本轮上限，请取消部分文件') : missing ? L('先补齐上方来源，或跳过本次不需要的内容。') : config.ai_available ? L('开始后读取正文并发给所选模型整理') : L('开始后读取正文，暂存在本机')}),
-        end:secondary('上一步','sources',{icon:'back'}) + primary(busy ? (readingLocal ? L('正在读取 {name}', {name:L(readingLocal)}) : '正在准备…') : config.ai_available ? '开始整理' : '先带入资料', 'start', {disabled:!canStart})}};
+      bar:{start:exitButton() + stepsBar('确认'), center:barStatus({glyph:'shield', title:L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)}), caption:missing ? L('先补齐上方来源，或跳过本次不需要的内容。') : config.ai_available ? L('开始后读取正文并发给所选模型整理') : L('开始后读取正文，暂存在本机')}),
+        end:secondary('上一步','sources',{icon:'back'}) + (uploading || readingLocal ? primary(uploading ? L('正在上传第 {k} / {n} 份', uploading) : L('正在读取 {name}', {name:L(readingLocal)}), 'start', {disabled:true}) : primary('下一步','model'))}};
   }
 
   /* ───────── Reading: the Host reads and sorts; the person may leave and come back ───────── */
@@ -240,7 +270,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function receipts() {
     return '<ul class="mw-file-list is-receipts">' + picked().map(s => {
       const state = docState(s), label = s.error ? '未读取' : s.references ? '已读取' : journey.phase === 'reading' ? '等待中' : sourceStatus(s);
-      const detail = s.error || (s.references ? L('{n} 份正文已保存', {n:s.references.length}) + (s.skipped ? ' · ' + L('{n} 项已跳过', {n:s.skipped}) : '') : '');
+      const detail = s.error || (s.references ? L('{n} 份正文已保存', {n:s.references.length}) + (s.skipped ? ' · ' + L('{n} 项已跳过', {n:s.skipped}) : '') : s.reading ? L('第 {k} / {n} 份', {k:Math.min(s.reading.done + 1, s.reading.total), n:s.reading.total}) : '');
       return fileRow({name:L(names[s.kind]), chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph(sourceIcons[s.kind]) + '</span>', size:detail, state:status(L(label), state === 'done' ? 'done' : state === 'failed' ? 'blocked' : 'idle', null, state === 'done' || state === 'failed' ? state : journey.phase === 'reading' ? 'waiting' : state === 'ready' ? 'ready' : 'idle')});
     }).join('') + '</ul>' + picked().map(issues).join('');
   }
@@ -249,22 +279,30 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const materialsReady = journey.phase==='failed' && journey.needs_model && picked().some(s=>s.references?.length);
     if (materialsReady) {
       return {kind:'onboard', view:'materials', step:'整理',
-        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(config.model ? L('文字模型已连接，可以继续整理出摘要和待办。') : L('连接文字模型后，可以回来继续整理出摘要和待办。'), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : linkBtn({variant:'link', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:L(config.model ? '继续整理' : '已连接，继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
+        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(config.model ? L('文字模型已连接，可以继续整理出摘要和待办。') : L('连接文字模型后，可以回来继续整理出摘要和待办。'), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : btn({variant:'link', size:'sm', label:L('连接文字模型'), attrs:{'data-action':'model'}}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:L(config.model ? '继续整理' : '已连接，继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
         right:stageHead(L('读入的材料'), '') + receipts(),
         bar:{start:exitButton() + stepsBar('整理'), center:barStatus({glyph:'check', title:L('资料已经准备好'), caption:L('原文暂存在本机')}), end:secondary('调整来源','restart') + primary('保存资料，开始工作','materials-only')}};
     }
     const reading = journey.phase==='reading', failed = journey.phase==='failed';
     const heading = reading ? (done===picked().length ? '正在整理工作脉络' : '正在读入你的材料') : '材料已保留';
-    const phases = [['读入材料', L('{done} / {total} 份', {done, total:picked().length}), done >= picked().length ? 'done' : 'progress'], ['整理工作脉络', L('背景、进展与时间线'), done >= picked().length && reading ? 'progress' : 'idle']];
+    // Files, not sources: each source is read file by file, and its checkpoint says how far it has come.
+    const files = picked().reduce((n, s) => ({done:n.done + (s.references ? s.references.length + (s.issues?.length || 0) : s.reading?.done || 0), total:n.total + (s.references ? s.references.length + (s.issues?.length || 0) : s.reading?.total || 0)}), {done:0, total:0});
+    const synthesis = journey.synthesis, todo = journey.todo, bytes = journey.reading_bytes?.total ? journey.reading_bytes : null;
+    // Reading goes by bytes; the summary and the todo drafts by their calls, with what is left timed by the calls done (2026-10-22).
+    const summing = done >= picked().length && reading, calls = synthesis?.batches;
+    const phases = [['读入材料', (files.total ? L('{done} / {total} 份', {done:files.done, total:files.total}) : L('{done} / {total} 份', {done, total:picked().length})) + (bytes ? ' · ' + amount(Math.min(bytes.done, bytes.total)) + ' / ' + amount(bytes.total) : ''), done >= picked().length ? 'done' : 'progress', null],
+      ['整理工作脉络', (synthesis && synthesis.total > 1 ? L('整理分 {n} 批，第 {k} 批', {n:synthesis.total, k:Math.min(synthesis.completed + 1, synthesis.total)}) : L('背景、进展与时间线')) + (summing && calls?.all ? ' · ' + remaining(calls.all - calls.done, synthesis.timing) : ''), summing ? 'progress' : 'idle', calls?.all > 1 ? [calls.done, calls.all, L('整理进度')] : null],
+      ...(todo && todo.total > 1 ? [['待办草稿', (todo.status === 'pending' ? L('待办草稿分 {n} 批整理，第 {k} 批…', {n:todo.total, k:Math.min(todo.batches.length + 1, todo.total)}) : L('{done} / {total} 批', {done:todo.batches.length, total:todo.total})) + (todo.status === 'pending' && reading ? ' · ' + remaining(todo.total - todo.batches.length, todo.timing) : ''), todo.status === 'ready' ? 'done' : todo.status === 'pending' && reading ? 'progress' : 'idle', [todo.batches.length, todo.total, L('待办草稿进度')]]] : [])];
+    const queuedHint = reading && (files.total > 1 || (synthesis && synthesis.total > 1)) ? note(L(files.done < files.total ? '材料较多，排队逐份读取；可以离开此页，回来时从断点继续。' : '可以离开此页，回来时从断点继续。'), 'clock') : '';
     const left = question(L(heading), L(reading ? '可以离开，回来后接着整理。' : '修复连接或模型设置后，可以接着完成。'))
-      + '<ol class="ob-phases" role="list">' + phases.map(([name, sub, tone]) => '<li class="ob-phase is-' + tone + '"><span class="ob-phase__mark" data-mw-state="' + (tone === 'done' ? 'done' : tone === 'progress' ? (reading ? 'running' : failed ? 'failed' : 'doing') : 'idle') + '"></span><span class="ob-phase__text"><strong>' + L(name) + '</strong><small>' + esc(sub) + '</small></span></li>').join('') + '</ol>'
+      + '<ol class="ob-phases" role="list">' + phases.map(([name, sub, tone, bar]) => '<li class="ob-phase is-' + tone + '"><span class="ob-phase__mark" data-mw-state="' + (tone === 'done' ? 'done' : tone === 'progress' ? (reading ? 'running' : failed ? 'failed' : 'doing') : 'idle') + '"></span><span class="ob-phase__text"><strong>' + L(name) + '</strong><small>' + esc(sub) + '</small>' + (bar ? progressBar(bar[0], bar[1], bar[2]) : '') + '</span></li>').join('') + '</ol>'
       + (journey.synthesis ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + L('分批整理') + ' · ' + L('第 {n} 轮',{n:journey.synthesis.stage}) + ' · ' + journey.synthesis.completed + ' / ' + journey.synthesis.total + '</span></p>' : '')
-      + errorLine(journey.error||error)
+      + queuedHint + errorLine(journey.error||error)
       + (failed ? '<div class="ob-cfg-actions">' + btn({variant:'secondary', size:'sm', label:L('返回清单，调整范围'), attrs:{'data-action':'restart'}}) + (picked().some(s=>s.references?.length) ? btn({variant:'secondary', size:'sm', label:L('带入资料，先开始'), attrs:{'data-action':'materials-only'}}) : '') + '</div>' : '') + note(L('只读取刚才选中的范围。'), 'shield');
     return {kind:'onboard', view:'reading', step:'整理', left,
-      right:stageHead(L('读入材料'), L('{done} / {total} 份', {done:'<b>' + done + '</b>', total:picked().length})) + progressBar(done, total, L('读入进度')) + receipts(),
+      right:stageHead(L('读入材料'), files.total ? L('{done} / {total} 份', {done:'<b>' + files.done + '</b>', total:files.total}) : L('{done} / {total} 份', {done:'<b>' + done + '</b>', total:picked().length})) + (bytes ? progressBar(Math.min(bytes.done, bytes.total), bytes.total, L('读入进度')) : files.total ? progressBar(files.done, files.total, L('读入进度')) : progressBar(done, total, L('读入进度'))) + receipts(),
       bar:{start:exitButton() + stepsBar('整理'), center:barStatus({spin:reading, glyph:'alert', title:L(heading), caption:L(reading ? '可以离开，回来后接着整理' : '材料已保留')}),
-        end:failed ? linkBtn({variant:'secondary', size:'lg', label:L('模型设置'), href:route('/settings/models'), blank:true, attrs:{}}) + primary('继续整理','retry',{disabled:busy}) : btn({variant:'primary', size:'lg', icon:'clock', label:L('整理中'), disabled:true})}};
+        end:failed ? btn({variant:'secondary', size:'lg', label:L(config.model ? '更换' : '连接文字模型'), attrs:{'data-action':'model'}}) + primary('继续整理','retry',{disabled:busy}) : btn({variant:'primary', size:'lg', icon:'clock', label:L('整理中'), disabled:true})}};
   }
 
   /* ───────── Naming: what the project is, and what it starts with ───────── */
@@ -280,17 +318,19 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function draftDay(date){return new Intl.DateTimeFormat(document.documentElement.lang||'zh-CN',{month:'long',day:'numeric'}).format(new Date(date+'T00:00:00'));}
   function drafts(){
     const t=journey.todo;if(!t)return '';
-    if(t.status==='pending')return '<p class="mw-brief__quiet" role="status">'+L('正在整理材料里要你推进的事…')+'</p>';
-    if(t.status==='failed'||!t.batch)return '<p class="mw-brief__quiet">'+(t.error?L('待办草稿没整理成：{reason}。项目建好后，可以让助理再整理这些资料。',{reason:esc(t.error)}):L('待办草稿没整理成。项目建好后，可以让助理再整理这些资料。'))+'</p>';
-    const open=t.batch.candidates.filter(c=>!c.decision);
+    // One list to confirm, however many batches the drafts were organized in.
+    const batches=t.batches||[], candidates=batches.flatMap(b=>b.candidates), referenceOnly=batches.reduce((n,b)=>n+b.reference_only.length,0);
+    if(t.status==='pending')return '<p class="mw-brief__quiet" role="status">'+(t.total>1?L('待办草稿分 {n} 批整理，第 {k} 批…',{n:t.total,k:Math.min(batches.length+1,t.total)}):L('正在整理材料里要你推进的事…'))+'</p>';
+    if(t.status==='failed'||!batches.length)return '<p class="mw-brief__quiet">'+(t.error?L('待办草稿没整理成：{reason}。项目建好后，可以让助理再整理这些资料。',{reason:esc(t.error)}):L('待办草稿没整理成。项目建好后，可以让助理再整理这些资料。'))+'</p>';
+    const open=candidates.filter(c=>!c.decision);
     if(!todoPicked)todoPicked=new Set(open.filter(c=>c.selected).map(c=>c.candidate_id));
-    const notes=t.batch.notes.map(n=>'<p class="mw-brief__hint">'+esc(n)+'</p>').join('');
+    const notes=batches.flatMap(b=>b.notes).map(n=>'<p class="mw-brief__hint">'+esc(n)+'</p>').join('');
     if(!open.length)return '<p class="mw-brief__quiet">'+L('材料里没有发现需要你推进的事。')+'</p>'+notes;
     return '<p class="mw-brief__hint">'+L('勾选的会加入新项目的待办；没勾的留在“待办 → 待你确认”，之后再决定。')+' <b>'+L('已选 {n} / {total}',{n:todoPicked.size,total:open.length})+'</b></p><ul class="mw-file-list cx-drafts">'+open.map(c=>{
       const k=KIND[c.kind]||KIND.suggestion;
       const meta=[c.due_date?L('截止 {date}',{date:draftDay(c.due_date)})+(c.due_phrase?L('（原文“{phrase}”）',{phrase:esc(c.due_phrase)}):''):'',c.kind==='waiting'&&c.waiting?L('在等 {who}',{who:esc(c.waiting.who)}):(c.owner.stated?'':L('负责人不确定')),c.existing?L('和已有待办有关'):''].filter(Boolean).join(' · ');
       return '<li class="mw-file-row is-todo cx-draft"><label class="mw-file-row__label"><input type="checkbox" class="mw-check" id="cx-t-'+c.candidate_id+'" data-draft="'+c.candidate_id+'" '+(todoPicked.has(c.candidate_id)?'checked':'')+'><span class="cx-draft-copy"><span class="mw-file-row__name">'+esc(c.title)+'</span>'+(meta?'<small class="cx-draft-meta">'+meta+'</small>':'')+(c.evidence[0]?'<small class="cx-draft-evidence">“'+esc(c.evidence[0].excerpt)+'”</small>':'')+'</span></label>'+status(L(k[0]),k[1],k[2])+'</li>';
-    }).join('')+'</ul>'+notes+(t.batch.reference_only.length?'<p class="mw-brief__hint">'+L('另有 {n} 条仅供参考，未列为待办。',{n:t.batch.reference_only.length})+'</p>':'');
+    }).join('')+'</ul>'+notes+(referenceOnly?'<p class="mw-brief__hint">'+L('另有 {n} 条仅供参考，未列为待办。',{n:referenceOnly})+'</p>':'');
   }
   /** The new project as it will look in the chooser: the same brief, drawn from what is being decided. */
   function briefPreview(name, summary, nextHtml, kicker) {
@@ -304,7 +344,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function review() {
     const s=journey.summary, draftsHtml = drafts(), picks = todoPicked ? todoPicked.size : 0;
     const left = question(L('给新项目起个名字'), L('根据已有材料整理了一份项目建议，名字和摘要都可以改。')) + errorLine(error||journey.error)
-      + '<div class="ob-name"><label class="ob-label" for="cx-project-title">' + L('项目名称') + '</label><input id="cx-project-title" class="mw-input ob-name__input" maxlength="120" data-plain-field value="' + esc(s.title) + '"></div>'
+      + '<div class="ob-name"><label class="ob-label" for="cx-project-title">' + L('项目名称') + '</label><input id="cx-project-title" class="mw-input ob-name__input" data-plain-field value="' + esc(s.title) + '"></div>'
       + '<div class="ob-name"><div class="cx-actions"><span class="ob-label">' + L('工作摘要') + '</span>' + btn({variant:'ghost', size:'sm', label:L(editing ? '完成编辑' : '编辑摘要'), attrs:{'data-action':'edit'}}) + '</div>'
       + (editing ? '<textarea id="cx-summary-editor" class="mw-textarea cx-summary-editor" rows="10" maxlength="100000" aria-label="' + L('编辑摘要') + '">' + esc(s.body) + '</textarea>' : '<div class="cx-summary">' + markdown(s.body) + '</div>') + '</div>'
       + '<p class="ob-note">' + glyph('note') + '<span>' + L('{sources} 个来源 · {n} 份材料', {sources:picked().length, n:s.references.length}) + '</span></p>'
@@ -325,7 +365,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function blankForm() {
     const preview = briefPreview(blankName.trim() || L('新项目'), '', {title:'接下来', body:'<p class="mw-brief__quiet">' + L('各插件有要推进或等你确认的事时，会出现在这里。') + '</p>'}, L('刚刚') + ' · ' + L(materialsOnly ? '带入已读取的资料' : '空白项目'));
     const left = question(L('给新项目一个名字'), L(materialsOnly?'已导入的资料会带入项目，摘要可以稍后整理。':'先建一个空间，资料和下一步可以慢慢补充。'))
-      + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" maxlength="120" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(failureText(error)) + '</p></form>'
+      + '<form id="cx-blank-form" class="ob-name"><label class="ob-label" for="cx-blank-name">' + L('项目名称') + '</label><input class="mw-input ob-name__input" id="cx-blank-name" required autocomplete="off" data-plain-field placeholder="' + esc(L('例如：秋季内容计划')) + '" value="' + esc(blankName) + '"><p class="cx-error ob-error" role="alert">' + esc(failureText(error)) + '</p></form>'
       + (materialsOnly ? '' : '<p class="ob-quiet">' + L('还没想好是什么项目？') + ' ' + btn({variant:'link', size:'sm', label:L('先在个人空间开始'), attrs:{'data-action':'personal', disabled:busy}}) + '</p>');
     return {kind:'onboard', view:'blank', step:'来源', left, right:preview,
       bar:{start:exitButton() + steps(stepLabels().length, -1), center:barStatus({glyph:'plus', title:L(materialsOnly ? '带入已读取的资料' : '空白项目'), caption:blankName.trim() ? L('将创建「{name}」', {name:blankName.trim()}) : L('写下名字就可以开始')}),
@@ -343,6 +383,12 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if (journey.requires_reselection) return {kind:'onboard', view:'reselect', step:'来源', left:question(L('继续你的工作'), journey.error), right:'<div class="ob-preview">' + empty({icon:'folder', title:L('需要重新选择资料'), body:L('上次的资料已经不能直接沿用，请重新选择。')}) + '</div>', bar:{start:exitButton() + stepsBar('来源'), center:'', end:primary('重新选择资料','new-journey')}};
     if (journey.adoption) return savingProject();
     if (blank) return blankForm();
+    const modelApi = globalThis.molisWorkOnboardingModel;
+    const modelHere = journey.phase === 'selecting' || journey.phase === 'failed';
+    if (modelApi && modelHere && !uploading && !readingLocal && (modelApi.active || (journey.phase === 'selecting' && journey.previewed && !reviewFiles))) {
+      if (!modelApi.active) modelApi.ensure();
+      const step = modelApi.view(); if (step) return step;
+    }
     if (journey.phase === 'selecting') return journey.previewed && !blank ? scopeView() : sourcesView();
     return journey.summary ? review() : readingView();
   }
@@ -363,37 +409,56 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     }
     bar.dataset.bar = firstRun && introStep ? 'welcome' : 'onboard';
   }
+  // A journey step leaves by fading back (130ms) and the next one slides in from its direction (420ms). Still mode paints the end.
+  let paintGeneration = 0;
   function render(focus, part) {
+    const token = ++paintGeneration;
     app.setAttribute('aria-busy',String(busy));
     const model = view(), moved = lastView !== null && model.view !== lastView, index = stepIndex(model.step), wasOpening = lastView === 'opening';
     frame.dataset.screen = model.kind;
-    // The opening types itself once; redrawing under it (the journey arriving) must not start it over.
     if (model.view === 'opening' && wasOpening) { paintBar(model.bar, false); return; }
-    const keep = !moved ? [...app.querySelectorAll('[data-scroll]')].map(node => node.scrollTop) : [];
-    const active = document.activeElement && app.contains(document.activeElement) ? document.activeElement.id : '';
-    if (part === 'right' && !moved && model.right !== undefined && app.querySelector('.ob-right')) app.querySelector('.ob-right').innerHTML = model.right;
-    else {
-      app.innerHTML = stageHtml(model);
-      if (keep.length) [...app.querySelectorAll('[data-scroll]')].forEach((node, i) => { if (keep[i]) node.scrollTop = keep[i]; });
-    }
-    if(error && typeof error==='object') app.querySelectorAll('.cx-error').forEach(node=>molisWorkRequest.show(node,error));
-    if(!journey && loadError && typeof loadError==='object') molisWorkRequest.show(app.querySelector('.mw-empty p'),loadError);
-    const right = app.querySelector('.ob-right'); if (right) right.classList.toggle('is-empty', Boolean(model.rightCls));
-    // A pane that scrolls and has nothing to focus inside it (a list of receipts, a preview) takes the keyboard's focus itself.
-    app.querySelectorAll('[data-scroll]').forEach(pane => { if (!pane.querySelector('a[href], button, input, select, textarea, summary, [tabindex]')) { pane.tabIndex = 0; pane.setAttribute('role', 'region'); pane.setAttribute('aria-label', L('详情')); } });
-    paintBar(model.bar, true);
-    app.querySelectorAll('.mw-check[data-mixed]').forEach(box => { box.indeterminate = true; });
-    const content = app.firstElementChild;
-    if (content && moved) {
-      const shift = index >= lastIndex ? 22 : -22;
-      arrival.arrive(content, [{opacity:0, transform:'translateX(' + shift + 'px)'},{opacity:1, transform:'none'}], {duration:420});
-    }
-    lastView = model.view; lastIndex = index;
-    if (focus) document.getElementById(focus)?.focus({preventScroll:true});
-    else if (moved) document.getElementById('ob-title')?.focus({preventScroll:true});
-    else if (active) document.getElementById(active)?.focus({preventScroll:true});
-    if (model.view === 'opening' && !wasOpening) startOpening();
+    const forward = index >= lastIndex;
+    const paint = () => {
+      if (token !== paintGeneration) return;
+      const keep = !moved ? [...app.querySelectorAll('[data-scroll]')].map(node => node.scrollTop) : [];
+      const activeId = document.activeElement && app.contains(document.activeElement) ? document.activeElement.id : '';
+      if (part === 'right' && !moved && model.right !== undefined && app.querySelector('.ob-right')) app.querySelector('.ob-right').innerHTML = model.right;
+      else {
+        app.innerHTML = stageHtml(model);
+        if (keep.length) [...app.querySelectorAll('[data-scroll]')].forEach((node, i) => { if (keep[i]) node.scrollTop = keep[i]; });
+      }
+      if(error && typeof error==='object') app.querySelectorAll('.cx-error').forEach(node=>molisWorkRequest.show(node,error));
+      if(!journey && loadError && typeof loadError==='object') molisWorkRequest.show(app.querySelector('.mw-empty p'),loadError);
+      const right = app.querySelector('.ob-right'); if (right) right.classList.toggle('is-empty', Boolean(model.rightCls));
+      app.querySelectorAll('[data-scroll]').forEach(pane => { if (!pane.querySelector('a[href], button, input, select, textarea, summary, [tabindex]')) { pane.tabIndex = 0; pane.setAttribute('role', 'region'); pane.setAttribute('aria-label', L('详情')); } });
+      paintBar(model.bar, true);
+      app.querySelectorAll('.mw-check[data-mixed]').forEach(box => { box.indeterminate = true; });
+      const content = app.firstElementChild;
+      if (content && moved) arrival.arrive(content, [{opacity:0, transform:'translateX(' + (forward ? 22 : -22) + 'px)'},{opacity:1, transform:'none'}], {duration:420});
+      lastView = model.view; lastIndex = index;
+      if (focus) document.getElementById(focus)?.focus({preventScroll:true});
+      else if (moved) document.getElementById('ob-title')?.focus({preventScroll:true});
+      else if (activeId) document.getElementById(activeId)?.focus({preventScroll:true});
+      if (model.view === 'opening' && !wasOpening) startOpening();
+    };
+    const leaving = moved && part !== 'right' ? app.firstElementChild : null;
+    const leave = leaving && arrival.arrive(leaving, [{opacity:1, transform:'none'},{opacity:0, transform:'translateX(' + (forward ? -22 : 22) + 'px)'}], {duration:130, fill:'forwards'});
+    if (leave) { leave.finished.then(paint).catch(paint); return; }
+    paint();
   }
+  globalThis.molisWorkOnboardingDraw = { L, esc, btn, choice, question, note, stageHead, stepsBar, exitButton, primary, secondary, barStatus };
+  globalThis.molisWorkOnboardingModelHost = {
+    render,
+    reload: async () => { try { config = await api('/api/onboarding/context'); } catch { /* the file step keeps the model line it had */ } },
+    modelLabel: () => config.model || '',
+    reviewFiles: () => { reviewFiles = true; },
+    showModel: () => { reviewFiles = false; },
+    problem: () => error ? failureText(error) : '',
+    startOffer: () => {
+      const total = selectionTotal(), missing = picked().some(s => !previewReady(s));
+      return { label: config.ai_available ? '开始整理' : '先带入资料', disabled: !!(busy || missing || (!total.count && !picked().some(s => s.kind === 'gmail'))) };
+    },
+  };
   const refreshRight = () => render(undefined, 'right');
   function startOpening() {
     const wordmark = app.querySelector('.ob-greeting-wordmark [data-wordmark]'), titleMark = document.querySelector('.arrival-titlebar [data-wordmark]');
@@ -431,10 +496,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function refreshSelection() {
     refreshRight();
     app.querySelectorAll('.ob-source').forEach(node => {
-      const row = sourceRows().find(r => r.id === node.dataset.src), count = node.querySelector('.mw-dir-row__count');
-      if (!row || !count) return;
-      count.textContent = rowCount(row);
-      node.classList.toggle('has-items', sourcesOf(row).some(s => s.selected && ready(s)));
+      const row = sourceRows().find(r => r.id === node.dataset.src), act = node.querySelector('.ob-source__act');
+      if (!row || !act) return;
+      act.outerHTML = rowAct(row);
+      node.classList.toggle('has-items', rowCount(row) > 0);
     });
   }
   function save() {
@@ -461,10 +526,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   async function connect(auto=false) {
     if(!config.gmail_configured) { expanded='gmail';error=L('Google 接入还未准备好，可先使用其他来源。');render();return; }
     source('gmail').selected=true;journey.auto_start=auto;await save();
-    const result=await api('/api/settings/connectors/gmail/oauth/start',{manage_connection:true,onboarding_id:journey.id,desktop});
+    const result=await api('/api/settings/connectors/methods/oauth/start',{service_id:'gmail',display_name:'Gmail',onboarding_id:journey.id,desktop});
     if(globalThis.molisWorkOpenExternalUrl){
-      await globalThis.molisWorkOpenExternalUrl(result.authorizationUrl);journey.oauth_status='pending';render();authTimer=setTimeout(pollAuthorization,1500);
-    }else location.assign(result.authorizationUrl);
+      await globalThis.molisWorkOpenExternalUrl(result.authorization_url);journey.oauth_status='pending';render();authTimer=setTimeout(pollAuthorization,1500);
+    }else location.assign(result.authorization_url);
   }
   async function pollAuthorization() {
     clearTimeout(authTimer);
@@ -499,26 +564,35 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       preparing=names[s.kind];render();
       if(directory(s)&&native){if(grants[s.kind]?.state!=='ready')await authorize(s.kind);if(ready(s))await metadata(s);}
     }
-    preparing='';journey.previewed=true;await save();
+    preparing='';journey.previewed=true;reviewFiles=false;await save();
     const gmail=source('gmail');if(gmail?.selected&&!ready(gmail)&&config.gmail_configured&&!connected().length&&journey.oauth_status!=='pending')await connect(true);
     }finally{preparing='';busy=wasBusy;render();}
   }
   async function start() {
+    globalThis.molisWorkOnboardingModel?.close();
     if(journey.phase==='selecting') {
       if(picked().some(s=>!previewReady(s)))throw new Error(L('请补齐来源或跳过本次不需要的内容。'));
+      // No limits (2026-10-22): each chosen file goes up on its own into the round's staging, and the selection names it by digest.
+      const lists=[];
       for(const s of picked()) {
         if(s.references?.length)continue;
-        readingLocal=names[s.kind];render();
-        if(directory(s)) {const result=await invoke('context_directory_read',{id:s.kind,files:included(s)});s.files=result.files;}
-        else if(uploads.has(s.kind)) {
-          s.files=[];
-          for(const file of uploads.get(s.kind).filter(file=>included(s).some(f=>f.path===(file.webkitRelativePath||file.name)))) {
-            const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
-            s.files.push({path:file.webkitRelativePath||file.name,data:btoa(binary)});
-          }
-        }
+        const chosen=directory(s)?included(s):uploads.has(s.kind)?uploads.get(s.kind).filter(file=>included(s).some(f=>f.path===(file.webkitRelativePath||file.name))):[];
+        if(chosen.length)lists.push([s,chosen]);
       }
-      readingLocal='';await save();
+      // Bytes say how far the upload has come, across every source; the page is drawn again at most four times a second.
+      const files=lists.reduce((n,[,chosen])=>n+chosen.length,0),total=lists.reduce((n,[,chosen])=>n+chosen.reduce((m,f)=>m+(f.size||0),0),0);
+      let k=0,sent=0,drawn=0;
+      try{for(const [s,chosen] of lists) {
+        readingLocal=names[s.kind];s.files=[];
+        for(const item of chosen) {
+          uploading={k:++k,n:files,done:sent,total};if(Date.now()-drawn>=250){drawn=Date.now();render();}
+          // A folder's file goes from the desktop shell straight to the Host, in pieces; the page only gets its digest back.
+          if(directory(s)){const file=await invoke('context_directory_stage',{id:s.kind,journey:journey.id,file:item});s.files.push(file.staged?{path:file.path,staged:file.staged}:{path:file.path,reason:file.reason||L('无法读取文件')});}
+          else{const staged=await molisWorkRequest(endpoint('files')+'?path='+encodeURIComponent(item.webkitRelativePath||item.name),{file:item,fallback:L('上传失败，请重试')});s.files.push({path:staged.path,staged:staged.staged});}
+          sent+=item.size||0;
+        }
+      }}finally{uploading=null;}
+      readingLocal='';uploading=null;await save();
     }
     journey=await api(endpoint('start'),{});render();timer=setTimeout(poll,800);
   }
@@ -543,6 +617,32 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     blank=false;
     if(journey.phase==='complete')location.assign(projectLocation());else{error=journey.error||L('保存尚未完成，请重试');render();}
   }
+  /** A large folder arrives as one FileList. Count it in slices so the page can say how far that has come before it is saved. */
+  async function acceptUpload(el) {
+    const list = el.files, total = list.length, chosen = [];
+    let bytes = 0, index = 0, drawn = 0;
+    const take = file => {
+      const path = file.webkitRelativePath || file.name;
+      if (/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(path) || !/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(file.name)) return;
+      chosen.push(file); bytes += file.size || 0;
+    };
+    if (total > 2500) {
+      busy = true;
+      while (index < total) {
+        const end = Math.min(index + 2500, total);
+        for (; index < end; index++) take(list[index]);
+        counting = { done: index, total, kept: chosen.length, bytes };
+        if (Date.now() - drawn >= 250 || index === total) { drawn = Date.now(); render(); await new Promise(resolve => setTimeout(resolve, 0)); }
+      }
+    } else for (let i = 0; i < total; i++) take(list[i]);
+    if (!chosen.length) throw new Error(L('没有找到支持的文件。'));
+    const added = chosen.length, s = source(el.dataset.upload);
+    if (s.kind !== 'directory' && uploads.has(s.kind)) { const had = uploads.get(s.kind); chosen.unshift(...had.filter(f => !chosen.some(c => c.name === f.name && c.size === f.size))); }
+    invalidateSource(s); uploads.set(s.kind, chosen);
+    s.metadata = { files: chosen.map(f => ({ path: f.webkitRelativePath || f.name, size: f.size, modified_ms: f.lastModified, identity: 'upload' })), skipped: total - added, truncated: false };
+    s.excluded = []; s.selected = true; error = '';
+    if (total > 2500) { counting = { done: total, total, kept: added, bytes, saving: true }; render(); await new Promise(resolve => setTimeout(resolve, 0)); }
+  }
   /** A source taken out of the list: nothing about it stays selected, read or remembered. */
   async function removeSource(kind) {
     const s=source(kind);invalidateSource(s);delete s.metadata;delete s.text;delete s.url;s.excluded=[];s.selected=false;uploads.delete(kind);
@@ -552,6 +652,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   /* ───────── What the person does ───────── */
   const root = frame;
   root.addEventListener('input',e=>{
+    // 项目名称封顶 120 个字（码点）：maxlength 按 UTF-16 单元数，含两单元字的名称只能写到 60 个字。
+    if(e.target.id==='cx-project-title'||e.target.id==='cx-blank-name'){const chars=[...e.target.value];if(chars.length>120)e.target.value=chars.slice(0,120).join('');}
     if(e.target.id==='cx-project-title'||e.target.id==='cx-summary-editor'){preserveEdits();const preview=app.querySelector('.ob-project-name');if(preview&&e.target.id==='cx-project-title')preview.textContent=e.target.value.trim()||L('新项目');return;}
     if(e.target.id==='cx-blank-name'){blankName=e.target.value;const typed=blankName.trim();const preview=app.querySelector('.ob-project-name');if(preview)preview.textContent=typed||L('新项目');const status=bar.querySelector('.mw-bar-status__text small');if(status)status.textContent=typed?L('将创建「{name}」',{name:typed}):L('写下名字就可以开始');return;}
     if(e.target.dataset.field&&e.target.tagName!=='SELECT'){
@@ -567,7 +669,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     try {
       if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);render();return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
-      if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll),all=included(s).length===s.metadata.files.length;invalidateSource(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];changed=true;}
+      if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll);if(!s.metadata.files.length)s.selected=el.checked;else{const all=included(s).length===s.metadata.files.length;invalidateSource(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];}changed=true;}
       else if(el.dataset.field){const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}
       else if(el.dataset.file||el.dataset.folder){
         const s=source(el.dataset.file||el.dataset.folder);invalidateSource(s);const path=el.dataset.folder?el.dataset.path:s.metadata.files[Number(el.dataset.index)].path;
@@ -575,39 +677,69 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         if(el.checked){for(const p of excluded)if(p===path||p.startsWith(path+'/'))excluded.delete(p);if(el.dataset.file){for(const p of [...excluded])if(path.startsWith(p+'/')){excluded.delete(p);for(const f of s.metadata.files)if(f.path.startsWith(p+'/')&&f.path!==path)excluded.add(f.path);}}}
         else excluded.add(path);
         s.excluded=[...excluded];changed=true;
-      } else if(el.dataset.upload){
-        const chosen=[...el.files].filter(f=>!/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(f.webkitRelativePath||f.name)&&/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(f.name));
-        if(chosen.length>200)throw new Error(L('最多预览 200 份文件，请选择更小的文件夹。'));
-        if(!chosen.length)throw new Error(L('没有找到支持的文件。'));
-        const s=source(el.dataset.upload);invalidateSource(s);uploads.set(s.kind,chosen);s.metadata={files:chosen.map(f=>({path:f.webkitRelativePath||f.name,size:f.size,modified_ms:f.lastModified,identity:'upload'})),skipped:el.files.length-chosen.length,truncated:false};s.excluded=[];s.selected=true;error='';changed=true;
-      }
+      } else if(el.dataset.upload){ await acceptUpload(el); changed=true; }
       if(changed)await save();
-    }catch(e){error=keepFailure(e);}finally{busy=false;if(changed||error)render(el.id);}
+    }catch(e){error=keepFailure(e);}finally{busy=false;counting=null;if(changed||error)render(el.id);}
   });
   root.addEventListener('submit',async e=>{if(e.target.id!=='cx-blank-form')return;e.preventDefault();busy=true;try{await adopt(true);}catch(e){error=keepFailure(e);}finally{busy=false;render();}});
   root.addEventListener('click',async e=>{
     const link=e.target.closest('a[href^="/locale"]');
     if(link){return;}
+    // Size and “未读取” sit outside the name's label; the whole row is the choice.
+    const rowHit=e.target.closest('.mw-file-row'); if(rowHit && !e.target.closest('label,button,a,input')){const box=rowHit.querySelector('input.mw-check'); if(box){box.click(); return;}}
     const b=e.target.closest('button');if(!b||b.disabled)return;
+    if(b.dataset.fold){if(folded.has(b.dataset.fold))folded.delete(b.dataset.fold);else folded.add(b.dataset.fold);render();return;}
     if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{}location.assign(route('/'));}catch(err){error=keepFailure(err);render();}return;}
     if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}render();return;}
-    if(b.dataset.open){expanded=expanded===b.dataset.open&&!b.closest('.ob-quick')?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
-    if(b.dataset.pick){folderKind=b.dataset.pick;render();return;}
-    if(b.dataset.rangePick!==undefined){const s=source(folderKind);s.days=Number(b.dataset.rangePick);invalidateSource(s);delete s.metadata;s.excluded=[];busy=true;error='';render();try{if(grants[folderKind]?.state==='ready'){await metadata(s);s.selected=Boolean(s.metadata);}await save();}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
+    if(b.dataset.open&&pickerOf(b.dataset.open)){document.getElementById('cx-upload-'+pickerOf(b.dataset.open))?.click();return;}
+    if(b.dataset.open){expanded=expanded===b.dataset.open?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
+    if(b.dataset.pick){
+      const kind=b.dataset.pick, s=source(kind);
+      busy=true; error=''; render();
+      try {
+        if(s.selected) s.selected=false;
+        else if(grants[kind]?.state==='ready'){ await metadata(s); s.selected=Boolean(s.metadata); }
+        else { await authorize(kind); if(grants[kind]?.state==='ready'){ await metadata(s); s.selected=Boolean(s.metadata); } }
+        await save();
+      } catch(err){ error=keepFailure(err); }
+      finally { busy=false; render(); }
+      return;
+    }
+    if(b.dataset.rangePick!==undefined){
+      const days=Number(b.dataset.rangePick);
+      busy=true; error=''; render();
+      try {
+        for(const kind of directories){
+          const s=source(kind); if(!s) continue;
+          const changed=(s.days??30)!==days; s.days=days;
+          if(!changed||!s.selected||grants[kind]?.state!=='ready') continue;
+          invalidateSource(s); delete s.metadata; s.excluded=[];
+          await metadata(s); s.selected=Boolean(s.metadata);
+        }
+        await save();
+      } catch(err){ error=keepFailure(err); }
+      finally { busy=false; render(); }
+      return;
+    }
     if(b.dataset.remove){busy=true;render();try{await removeSource(b.dataset.remove);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
-    if(b.dataset.cite){const ref=journey.summary.references.find(r=>r.label===b.dataset.cite);if(!ref)return;opener=b;dialog.innerHTML='<h2 id="cx-dialog-title">'+esc(ref.title)+'</h2><div class="cx-source-meta">'+esc(L('{path} · 版本 {version}',{path:ref.path,version:ref.version}))+'</div><div class="cx-source-body">'+esc(ref.body)+'</div><div class="cx-actions">'+btn({variant:'secondary',size:'md',label:L('关闭'),attrs:{'data-close':true}})+'</div>';dialog.showModal();return;}
+    if(b.dataset.cite){const ref=journey.summary.references.find(r=>r.label===b.dataset.cite);if(!ref)return;opener=b;
+      // The text is staged on the Host, not in the journey; a long one shows its beginning here and is whole in Pages after adoption.
+      let read;try{read=await api(endpoint('text/'+ref.text.sha256));}catch(err){error=keepFailure(err);render();return;}
+      const shown=esc(read.text)+(read.chars>read.text.length?'<p class="cx-source-meta">'+esc(L('只显示开头 {shown} 字，全文 {chars} 字；采用后在 Pages 里读全文。',{shown:read.text.length,chars:read.chars}))+'</p>':'');
+      dialog.innerHTML='<h2 id="cx-dialog-title">'+esc(ref.title)+'</h2><div class="cx-source-meta">'+esc(L('{path} · 版本 {version}',{path:ref.path,version:ref.version}))+'</div><div class="cx-source-body">'+shown+'</div><div class="cx-actions">'+btn({variant:'secondary',size:'md',label:L('关闭'),attrs:{'data-close':true}})+'</div>';dialog.showModal();return;}
     if(b.dataset.authorize||b.dataset.forget||b.dataset.refresh||b.dataset.skip||b.dataset.range||b.dataset.add){
       busy=true;error='';render();
       try{
         if(b.dataset.authorize){const kind=b.dataset.authorize;await authorize(kind);const s=source(kind);if(ready(s)){await metadata(s);s.selected=Boolean(s.metadata);}}
         else if(b.dataset.forget){const kind=b.dataset.forget;grants[kind]=await invoke('context_directory_forget',{id:kind});const s=source(kind);invalidateSource(s);delete s.metadata;delete s.path;s.selected=false;}
-        else if(b.dataset.refresh){const s=source(b.dataset.refresh);invalidateSource(s);await metadata(s);}
-        else if(b.dataset.range){const s=source(b.dataset.range);invalidateSource(s);s.days=Number(b.dataset.days);s.excluded=[];await metadata(s);}
+        else if(b.dataset.refresh){const s=source(b.dataset.refresh);folded.delete(s.kind);invalidateSource(s);await metadata(s);}
+        else if(b.dataset.range){const s=source(b.dataset.range);folded.delete(s.kind);invalidateSource(s);s.days=Number(b.dataset.days);s.excluded=[];await metadata(s);}
         else if(b.dataset.skip)source(b.dataset.skip).selected=false;
         else if(b.dataset.add){journey.previewed=false;expanded=b.dataset.add==='directory'?'folder':b.dataset.add;}
         await save();
       }catch(err){error=keepFailure(err);}finally{busy=false;render();}return;
     }
+    if(b.dataset.obTemplate){await globalThis.molisWorkOnboardingModel?.pick(b.dataset.obTemplate);return;}
     const action=b.dataset.action;if(!action)return;
     if (action === 'intro-next' || action === 'intro-back') {
       if (introStep === 'opening') { await leaveOpening('language'); return; }
@@ -621,6 +753,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if(action==='back'){blank=false;materialsOnly=false;error='';render();return;}
     if(action==='personal'){busy=true;render();try{await saveQueue;const result=await api('/api/onboarding/personal',{});location.assign(route(result.path));}catch(err){error=keepFailure(err);busy=false;render();}return;}
     if(action==='reload'){location.reload();return;}
+    if(action==='model'||action==='model-back'||action==='model-save'){await globalThis.molisWorkOnboardingModel?.act(action);return;}
     busy=true;error='';b.disabled=true;
     try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){clearTimeout(authTimer);source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
     catch(err){error=keepFailure(err);}finally{busy=false;render();}
@@ -640,11 +773,11 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   document.addEventListener('keydown', e => { if (introStep === 'opening' && e.key !== 'Enter' && e.key !== 'Tab') endOpeningTyping(); });
   app.addEventListener('click', e => { if (introStep === 'opening' && !e.target.closest('button')) endOpeningTyping(); });
 
-  /* ───────── A model connected in another tab (the settings link opens one): read it again, redraw what shows it ───────── */
+  /* ───────── A model connected while this journey is open: read it again when the stage is showing the step. ───────── */
   let otherTabs = null;
   try { otherTabs = new BroadcastChannel('molis-work:model-ready'); } catch (unavailable) { otherTabs = null; }
   if (otherTabs) otherTabs.onmessage = () => {
-    api('/api/onboarding/context').then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials') render(); }).catch(() => undefined);
+    api('/api/onboarding/context').then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
   };
 
   /* ───────── Start ───────── */

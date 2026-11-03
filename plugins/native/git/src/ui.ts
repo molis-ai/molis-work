@@ -1,12 +1,13 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
-import type { AcceptanceView } from "./acceptance.js";
+import { renderCompanionBrowserStage, type CompanionStageModel } from "./companion-stage.js";
 import type { GitListItem, GitView } from "./projection.js";
+import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 
 export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
@@ -83,30 +84,44 @@ export interface GitUiPrimitives {
 export interface GitUiModel {
   readonly route_prefix: string;
   readonly view: GitView;
-  /** Present only while a Run's change set is bound and waiting on a decision. */
-  readonly acceptance: AcceptanceView | null;
   readonly commit_message: string;
   readonly primitives: GitUiPrimitives;
 }
 
-export const gitUiDescriptor: UiContributionDescriptor = {
+export const gitUiDescriptor: UiContributionDeclaration = {
   contribution_id: GIT_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.git",
   kind: "primary-page",
   navigation_id: "git",
   label: "Git",
   surfaces: [
     { surface_id: "changes", target_slot_id: "workbench.directory", format: "declarative-html" },
+    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+    // The browser the Coding page embeds (`ui.embedded_plugins`): the slots are the ones that page opens, by their ids.
+    { surface_id: "browser-directory", target_slot_id: "coding.companion-directory", format: "declarative-html" },
+    { surface_id: "browser-result", target_slot_id: "coding.companion-result", format: "declarative-html" },
   ],
   slots: [],
 };
 
-export const gitUiContribution: UiContribution<GitUiModel> = {
+export const gitUiContribution: UiContribution<GitUiModel | CompanionStageModel> = {
   descriptor: gitUiDescriptor,
-  render(request: UiRenderRequest<GitUiModel>): string {
-    return renderGitChanges(request.model);
+  render(request: UiRenderRequest<GitUiModel | CompanionStageModel>): string {
+    const model = request.model as CompanionStageModel;
+    switch (request.surface) {
+      case "workbench": return renderGitStage(model);
+      case "browser-directory": return renderGitBrowserDirectory(model.primitives.text);
+      case "browser-result": return renderGitBrowserResult(model.primitives.text);
+      default: return renderGitChanges(request.model as GitUiModel);
+    }
   },
 };
+
+/** Git's stage in the project page: its browser beside a note while no change is open. */
+export function renderGitStage(model: CompanionStageModel): string {
+  const { text } = model.primitives;
+  return renderCompanionBrowserStage({ surface: "git", label: "Git", icon: "git-branch", route_prefix: model.route_prefix, manage: text("git.stage.manage"),
+    empty: { title: text("git.stage.empty-title"), body: text("git.stage.empty-body") }, directory: renderGitBrowserDirectory(text), result: renderGitBrowserResult(text) });
+}
 
 export function renderGitChanges(model: GitUiModel): string {
   const { escape, icon } = model.primitives, p = model.primitives;
@@ -119,8 +134,8 @@ export function renderGitChanges(model: GitUiModel): string {
       + `<p class="git-notice">${escape(p.text(view.message))}${recovery}</p></section>`;
   }
   const header = `<header class="git-head">${icon("git-branch")}`
-    + `<span class="git-branch">${escape(view.head)}</span>`
-    + (view.tracking === "" ? "" : `<span class="git-tracking">${escape(view.tracking)}</span>`)
+    + `<span class="git-branch">${escape(sayHostSentence(p.text, GIT_SENTENCE_TABLE, view.head))}</span>`
+    + (view.upstream === null ? "" : `<span class="git-tracking">${escape(sayUpstream(p.text, view.upstream))}</span>`)
     + `</header>`;
   const body = view.message !== ""
     ? `<p class="git-clean">${escape(p.text(view.message))}</p>`
@@ -131,7 +146,7 @@ export function renderGitChanges(model: GitUiModel): string {
     ? `<p class="git-truncated">${escape(p.text("git.group.truncated"))}</p>`
     : "";
   return `<section class="git" data-phase="ready" data-route="${escape(model.route_prefix)}">`
-    + `${header}${renderAcceptance(model)}${body}${truncated}${renderCommit(model)}</section>`;
+    + `${header}${body}${truncated}${renderCommit(model)}</section>`;
 }
 
 function renderList(title: string, items: readonly GitListItem[], model: GitUiModel): string {
@@ -145,27 +160,6 @@ function renderList(title: string, items: readonly GitListItem[], model: GitUiMo
         + `<button type="button" data-action="git.open-change" data-path="${escape(label)}">`
         + `${escape(item.label)}</button></li>`;
     }).join("")}</ul></section>`;
-}
-
-/**
- * The Run's proposal.
- *
- * When it cannot be taken, the button is absent and the reason is shown — not a
- * disabled button with a tooltip. The reasons here (the file changed since, a
- * conflict is open, it already landed) are things the user must act on, and a
- * greyed-out control invites clicking rather than reading.
- */
-function renderAcceptance(model: GitUiModel): string {
-  const acceptance = model.acceptance;
-  if (acceptance === null) return "";
-  const { escape } = model.primitives;
-  if (!acceptance.offerable) {
-    return `<section class="git-acceptance" data-blocked="${escape(acceptance.blocked?.kind ?? "unknown")}">`
-      + `<p>${escape(model.primitives.text(acceptance.message))}</p></section>`;
-  }
-  const p = model.primitives;
-  return `<section class="git-acceptance" data-offerable="true"><p>${escape(p.text(acceptance.message))}</p>`
-    + `<button type="button" data-action="git.accept-run-changes">${escape(p.text("git.accept.apply"))}</button></section>`;
 }
 
 function renderCommit(model: GitUiModel): string {

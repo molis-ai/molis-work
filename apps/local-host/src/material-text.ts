@@ -1,5 +1,6 @@
 import { defineErrorCodes, type ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialExtraction, MaterialLimits } from "@molis-ai/molis-work-contracts/services/materials";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * The text extractor's error codes, every one `material.<reason>`. The kind is the sort of failure; the Host's edges turn it into the status
@@ -58,8 +59,7 @@ export function materialFailure(reason: string, message: string, details?: Reado
 
 /** Truncate on a code point boundary under both independent output budgets. */
 export function boundedMaterialText(text: string, limits: Pick<MaterialLimits, "maxCharacters" | "maxTextBytes">): string {
-  let end = Math.min(text.length, limits.maxCharacters);
-  if (end < text.length && end > 0 && /[\uD800-\uDBFF]/u.test(text[end - 1]!)) end--;
+  const end = cutHead(text, limits.maxCharacters).length;
   let result = text.slice(0, end);
   if (Buffer.byteLength(result) > limits.maxTextBytes) {
     const bytes = Buffer.from(result), decoder = new TextDecoder("utf-8", { fatal: true });
@@ -119,7 +119,8 @@ export function extractMaterialText(bytes: Uint8Array, extension: string, markdo
   if (html) issues.push("仅提取 HTML 可见文字；未读取图片、样式、脚本或外部资源");
   if (!text) issues.push("未提取到可读文字");
   const extractor = html ? markdown ? "html-markdown" : "html-text" : "utf8-text";
-  return { text, ...(parsed.title ? { title: parsed.title.slice(0, 500) } : {}), extractor,
+  // Whole characters, not UTF-16 units: unit 500 can fall inside a two-unit character. The first slice bounds what is spread.
+  return { text, ...(parsed.title ? { title: [...parsed.title.slice(0, 1000)].slice(0, 500).join("") } : {}), extractor,
     pages: [{ number: 1, text, method: extractor, confidence: null }],
     coverage: { status: !text ? "insufficient" : truncated || html ? "partial" : "sufficient", truncated, processed_pages: 1, total_pages: 1, issues } };
 }

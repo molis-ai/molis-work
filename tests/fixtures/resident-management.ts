@@ -3,10 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import type { TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, type MolisWorkLocalHostOptions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { startProjectPlugins } from "./plugin-callers.js";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 
 export const MANAGEMENT_ROUTE = "/api/internal/management-action";
@@ -19,6 +22,11 @@ export async function residentManagement(t: TestContext, options: MolisWorkLocal
   const opened: string[] = [];
   const host = createMolisWorkLocalHost({ ...options, homeDirectory: home, onRuntimeOpen: ref => { opened.push(ref.storage_key); options.onRuntimeOpen?.(ref); } });
   await host.withProject(reference, () => undefined);
+  // The project is the way the app has it once opened: Goals has started and made the project's board, so "no business write" below means
+  // nothing after that.
+  await startProjectPlugins(host, reference);
+  for (let attempt = 0; attempt < 200 && !(await host.withProject(reference, runtime => runtime.store.readEventsDescending(project.project_id)
+    .some(event => event.type === `${GOALS_PLUGIN_ID}:board.created`))); attempt++) await delay(25);
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host });
   await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
   const address = server.address(); assert.ok(address && typeof address === "object");

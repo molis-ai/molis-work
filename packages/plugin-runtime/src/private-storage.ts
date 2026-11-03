@@ -46,7 +46,7 @@ export class SqlitePluginPrivateStorage {
       }
     };
     // A write inside an action also asks that action's original caller, in the same turn as the statement.
-    const authorizeWrite = (key: string) => { authorize(key); assertPluginActionCurrent(installId); };
+    const authorizeWrite = (key: string) => { authorize(key); assertPluginActionCurrent(context); };
     return {
       get: key => {
         authorize(key);

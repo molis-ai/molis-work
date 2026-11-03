@@ -3,7 +3,7 @@ import test from "node:test";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-plugin-lingguang/contract";
 import { lingguangActions as actions, LINGGUANG_ACTION_PERMISSIONS, createLingguangActionHandlers } from "@molis-ai/molis-work-plugin-lingguang";
 import { jellyContentActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 
@@ -53,4 +53,27 @@ test("Jelly receives a handed-over spark as one note, once; it reads back as a J
   assert.equal(read.title, "发布会预热"); assert.match(read.body, /倒计时海报提前一周放出/); assert.match(read.body, /来自：灵光 · 发布会预热/);
   assert.deepEqual(jellyContentActions.receive.action.subject_kinds, ["jelly_note"], "the station's content is Jelly notes");
   assert.deepEqual((await jelly.invoke(jellyContentActions.list, {})).map(item => item.item_id), [first.item_id]);
+});
+
+test("RAC-1685 a reading is kept to a spark's room in whole Unicode characters: exactly the room is whole and not said to be cut, one character more loses one whole character and says so, and a title keeps 200 whole characters", async () => {
+  // keptMaterial leaves 2000 of the body's LINGGUANG_BODY_LIMIT characters free, so the room is LINGGUANG_BODY_LIMIT - 2000 characters. One 🟢 is one character but two
+  // UTF-16 units; these texts are about 400000 units, so seen() says what a text is where a failing assert.equal would print all of it.
+  const wide = (count: number) => "🟢".repeat(count);
+  const room = LINGGUANG_BODY_LIMIT - 2000;
+  const seen = (text: string, expected: string) => { const characters = [...text]; return { characters: characters.length, first: characters[0], last: characters.at(-1), same: text === expected }; };
+  const read = async (text: string, title: string) => {
+    const handlers = createLingguangActionHandlers({ read: () => { throw new Error("not used"); }, write: async () => { throw new Error("not used"); }, modelAvailability: () => ({ available: false, code: "x", reason: "x" }),
+      readFile: async () => ({ text, title, coverage: "sufficient" }) });
+    const handler = handlers.find(binding => binding.capability_id === actions.readFile.capability_id)!;
+    return await handler.handle({ actor_id: "owner", project_id: "a", audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS } as never, { file_name: "长.txt", data_base64: "AA==" }) as { text: string; title?: string; partial?: boolean; issues?: string[] };
+  };
+  const whole = await read(wide(room), wide(200));
+  assert.deepEqual(seen(whole.text, wide(room)), { characters: room, first: "🟢", last: "🟢", same: true }, "a reading of exactly the room is kept whole");
+  assert.deepEqual(Object.keys(whole), ["text", "title"], "and it is not said to be cut: no partial, no issues");
+  assert.equal(whole.title, wide(200), "a 200-character title is kept whole");
+  const cut = await read("读" + wide(room), "题" + wide(200));
+  assert.deepEqual(seen(cut.text, "读" + wide(room - 1)), { characters: room, first: "读", last: "🟢", same: true }, "one character past the room is cut to the room in whole characters");
+  assert.equal(cut.title, "题" + wide(199), "a 201-character title is cut to 200 whole characters");
+  assert.equal(cut.partial, true, "a cut reading is partial");
+  assert.deepEqual(cut.issues, [`内容较长，只保留了前 ${room} 字`], "and says how much was kept");
 });

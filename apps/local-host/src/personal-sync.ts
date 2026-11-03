@@ -1,3 +1,4 @@
+import { personalRuntimeSyncAuthority } from './personal-runtime-sync-authority.js';
 import type {ProjectDeletionService} from './project-deletion-service.js';
 import {assertProjectSyncChildren} from './project-sync-children.js';
 import { PersonalSync, resolveSyncEndpoint, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
@@ -6,27 +7,32 @@ import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/stora
 import type { PersonalAccountLease } from './personal-auth.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import {createPersonalFixedVersionBindings} from './personal-artifact-sync.js';
-import {createPersonalPluginRegistrations} from './personal-plugin-sync.js';
-import {createPersonalGoalRegistration,createPersonalProjectRegistrations} from './personal-project-sync.js';
-import {createPersonalWorkRegistration} from './personal-work-sync.js';
+import {createPersonalPluginRegistrations,createPersonalCharacterRegistration} from './personal-plugin-sync.js';
+import {createPersonalProjectRegistrations} from './personal-project-sync.js';
 import {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 
 /** Built-in binding only; coordinator and Rust transport never import plugin owners. */
-export async function createPersonalSync(home:string,space:StorageSpace,lease:PersonalAccountLease,withCatalog:LocalWebCatalogRunner,assertActive:()=>void,discover?: (authorize:()=>void)=>Promise<readonly SyncRegistration[]>,lifecycleService?:ProjectDeletionService) {
+export async function createPersonalSync(home:string,space:StorageSpace,lease:PersonalAccountLease,withCatalog:LocalWebCatalogRunner,assertActive:()=>void,discover?: (authorize:()=>void)=>Promise<readonly SyncRegistration[]>,lifecycleService?:ProjectDeletionService,readCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader) {
   const endpoint=resolveSyncEndpoint({origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL==='1'});
   if(!endpoint)return null;
   const check=()=>{lease.assertCurrent();assertActive();};
-  const {artifacts,registrations:versions}=createPersonalFixedVersionBindings(home,space.spaceId,lease.userId,check,withCatalog);
-  const plugins=createPersonalPluginRegistrations(home,space.spaceId,lease.userId,check,withCatalog,(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),(projectId,reference)=>artifacts.hasReference(projectId,reference));
-  for(const plugin of plugins)await plugin.refresh();
   const goalsManifest=manifestFor('goals')!;
   let children:readonly SyncRegistration[]=[],discovered:readonly SyncRegistration[]=[];
+  const hasGoal=(projectId:string,goalId:string)=>{
+    check();const collection=goalsManifest.sync!.collections.find(row=>row.id==='project_goals')!;
+    const owner=discovered.find(row=>row.selection.plugin_id===goalsManifest.plugin_id&&row.selection.publisher_id===goalsManifest.publisher.publisher_id&&row.selection.publisher_signature===goalsManifest.publisher.signature&&row.selection.collection_id===collection.id&&row.selection.schema_version===collection.schema_version);
+    const result=owner?.hasReference?.(projectId,goalId)??false;check();return result;
+  };
+  const {artifacts,registrations:versions}=createPersonalFixedVersionBindings(home,space.spaceId,lease.userId,check,withCatalog,hasGoal);
+  const plugins=createPersonalPluginRegistrations(home,space.spaceId,lease.userId,check,withCatalog,(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),(projectId,reference)=>artifacts.hasReference(projectId,reference));
+  plugins.push(createPersonalCharacterRegistration(home,space.spaceId,lease.userId,check));
+  for(const plugin of plugins)await plugin.refresh();
   const catalog=createPersonalCatalogRegistration(home,space.spaceId,lease.userId,check,withCatalog,goalsManifest.publisher.publisher_id,lifecycleService?{service:lifecycleService,refreshChildren:async()=>{for(const child of [...children,...discovered]){await child.refresh();check();}},assertChildrenSettled:projectId=>assertProjectSyncChildren([...children,...discovered],projectId,check)}:undefined);await catalog.refresh();
-  const work=createPersonalWorkRegistration(home,space,lease.userId,check,goalsManifest.publisher);await work.refresh();
-  const goals=createPersonalGoalRegistration(home,space.spaceId,lease.userId,check,withCatalog,{plugin_id:goalsManifest.plugin_id,publisher_id:goalsManifest.publisher.publisher_id,publisher_signature:goalsManifest.publisher.signature,collection_id:'project_goals',schema_version:1});
-  await goals.refresh();
-  const projectPlugins=createPersonalProjectRegistrations(home,space.spaceId,lease.userId,check,withCatalog);
+  const projectPlugins=createPersonalProjectRegistrations(home,space.spaceId,lease.userId,check,withCatalog,readCatalog);
   for(const plugin of projectPlugins)await plugin.refresh();
-  children=[goals,...projectPlugins,...versions,...plugins,work];
-  return new PersonalSync({home,spaceId:space.spaceId,endpoint,authority:{...lease,assertCurrent:check},registrations:[catalog,goals,...projectPlugins,...versions,...plugins,work],...(discover?{discover:async()=>{discovered=await discover(check);return discovered;}}:{})});
+  children=[...projectPlugins,...versions,...plugins];
+  let service: PersonalSync;
+  const runtimeAuthority=personalRuntimeSyncAuthority({home,spaceId:space.spaceId,authorize:check,policy:()=>service.policy(),withCatalog,readCatalog,hasArtifact:(projectId,id,version)=>artifacts.hasReference(projectId,{owner:'artifacts',assetId:id,version}),hasReference:(projectId,reference)=>artifacts.hasReference(projectId,reference)});
+  service=new PersonalSync({home,spaceId:space.spaceId,endpoint,authority:{...lease,assertCurrent:check},registrations:[catalog,...projectPlugins,...versions,...plugins],...(discover?{discover:async()=>{await runtimeAuthority.refresh();discovered=(await discover(check)).map(runtimeAuthority.bind);return discovered;}}:{})});
+  return service;
 }

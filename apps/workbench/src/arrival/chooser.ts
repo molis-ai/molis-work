@@ -1,13 +1,9 @@
+import { renderButton, renderDirectoryHeading, renderDirectoryRow, renderEmpty, renderKbd } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
   INPUT_RECEIPTS_CLIENT_SCRIPT,
   INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
   renderBarContext,
-  renderDirectoryHeading,
-  renderDirectoryRow,
-  renderEmpty,
-  renderButton,
-  renderKbd,
   renderProjectMonogram,
 } from "@molis-ai/molis-work-design-system";
 import { renderAssistantDock } from "../assistant-dock.js";
@@ -18,6 +14,7 @@ import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
 import { CHOOSER_CLIENT_SCRIPT } from "./chooser-client.js";
 import type { WebProjectNavigation } from "../settings-navigation.js";
+import type { HomePluginNavigationEntry } from "../home-plugin-navigation.js";
 
 /** What the chooser remembers about this Home's projects. Presentation only; the Host reads it from `config/project-arrival.json`. */
 export interface ChooserArrival {
@@ -28,6 +25,8 @@ export interface ChooserArrival {
   opened: Readonly<Record<string, string>>;
   /** The project list could not be read: the chooser says so where the list would be, and the personal space still opens. */
   load_error?: boolean;
+  /** The signed packages installed in the Home, offered on the tool bar beside its built-in tools. */
+  home_plugins?: readonly HomePluginNavigationEntry[];
 }
 
 const PERSONAL = "personal";
@@ -128,8 +127,8 @@ globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ transl
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
       title: L("选择项目 · Molis Work"), screen: "chooser", desktopShell, controlToken,
-      titlebar: shell.titlebar(desktopShell, { caption: true, account: true }), stage, bar,
-      after: `${templates}<script type="application/json" id="arrival-data">${data}</script><div class="arrival-toasts" id="toasts" aria-live="polite"></div>`,
+      titlebar: shell.titlebar(desktopShell, { caption: true, account: true, ...arrival.home_plugins ? { home_plugins: arrival.home_plugins } : {} }), stage, bar,
+      after: `${templates}<script type="application/json" id="arrival-data">${data}</script>`,
       scripts,
     });
   }

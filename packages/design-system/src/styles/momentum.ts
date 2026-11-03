@@ -35,7 +35,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .tree-resizer::after, .tui-resizer::after { background: var(--line); }
   .document-pane { background: var(--paper); }
   /* Like .mw-loading (primitives.ts): a switch that answers within 250ms keeps the old view and shows no mark. */
-  .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goal"] > [data-goal-view] {
+  .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goals"] > [data-goal-view] {
     --busy-dim: 0; pointer-events: none; animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
   .goal-document-loading {
@@ -358,7 +358,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       border-radius: 0;
       color: var(--muted);
       background: transparent;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 400;
     }
   }
@@ -589,10 +589,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     body[data-desktop-shell="true"] .companion-runtime-state.is-active { color: var(--green); }
     body[data-desktop-shell="true"] .companion-runtime-state.is-active i { background: var(--green); }
     body[data-desktop-shell="true"] .companion-runtime > p { margin: 0; color: var(--ink-soft); font-size: 11px; }
-    body[data-desktop-shell="true"] .companion-runtime-progress { display: flex; align-items: center; gap: 8px; }
-    body[data-desktop-shell="true"] .companion-runtime-progress > i { height: 5px; min-width: 0; flex: 1; border-radius: 3px; background: var(--line); overflow: hidden; }
-    body[data-desktop-shell="true"] .companion-runtime-progress b { width: var(--companion-progress); height: 100%; border-radius: inherit; background: var(--blue); display: block; }
-    body[data-desktop-shell="true"] .companion-runtime-progress span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
     body[data-desktop-shell="true"] .companion-runtime dl { margin: 0; padding-top: 8px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; }
     body[data-desktop-shell="true"] .companion-runtime dl div { display: grid; gap: 4px; }
     body[data-desktop-shell="true"] .companion-runtime dt { color: var(--muted); font-size: 11px; }
@@ -631,7 +627,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     html[data-density="compact"] body[data-board-view] .tree-scroll {
       padding: 4px 8px 8px;
     }
-    /* doubled class: keeps specificity 0,4,2 so the compact indent beats goal-canvas.ts's flat stage list (BL-121) */ html[data-density="compact"] body[data-board-view] .tree-children.tree-children {
+    /* compact keeps the subgoal indent: explicit 0,4,2 beats goal-canvas.ts's 0,4,1, no doubled class (BL-121 ③, T-337) */ html[data-density="compact"] body[data-board-view] .tree-children:not(:empty) {
       margin-left: 8px;
       padding-left: 4px;
     }
@@ -675,7 +671,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
       border-color: transparent;
       border-radius: 0;
       background: transparent;
-      font-size: 11px;
+      font-size: 12px;
     }
     html[data-density="compact"] body[data-board-view] .tree-relations {
       margin: 0 0 1px 12px;

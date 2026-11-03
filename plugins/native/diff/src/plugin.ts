@@ -18,10 +18,6 @@ import { diffActions, diffActionHandlers } from "./actions.js";
  * whichever port happens to hold a value.
  */
 export interface DiffPluginPorts {
-  /** Whether a complete comparison is currently bound. */
-  hasComparison?(): boolean;
-  /** Stable id for the comparison being shown, for the fixed object it opens. */
-  comparisonId?(): string | null;
   onGroupSelected?(group: string | undefined): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
@@ -42,19 +38,6 @@ export function createDiffPlugin(ports: DiffPluginPorts = {}): PluginDefinition 
           ...(request.query.artifact_id === undefined ? {} : { reference: { artifact_id: request.query.artifact_id, version: Number(request.query.version) } }),
           ...(request.query.change_index === undefined ? {} : { change_index: Number(request.query.change_index) }),
         }))],
-        commandAvailability: (commandId) => {
-          if (commandId !== "diff.open-comparison") {
-            return { available: false, reason: `未知命令：${commandId}` };
-          }
-          return ports.hasComparison?.() === true
-            ? { available: true }
-            : { available: false, reason: "先选一组完整的对比输入" };
-        },
-        executeCommand: () => {
-          const id = ports.comparisonId?.() ?? null;
-          if (id === null) throw new Error("没有可固定的对比");
-          return { ref: { view_id: "comparison", object_id: id }, title: "对比" };
-        },
         onUpstreamReady: () => {},
         onUpstreamUnavailable: () => {},
       };

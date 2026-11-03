@@ -1,8 +1,8 @@
 // Security invariant S-14 (docs/system/SECURITY-INVARIANTS.md; spec F15/D9): what a page can ask the desktop shell to do.
 //
-// The Tauri shell loads the workbench from the local web host and gives that origin native commands: it can spawn a process in a
-// pseudo-terminal (`pty_spawn` runs any command it is given), read and write the shelf's files, open a link in the system browser.
-// The only thing between a page and those commands is the capability files in apps/desktop/src-tauri/capabilities: which origins
+// The Tauri shell loads the workbench from the local web host and gives that origin commands to handle
+// Shelf files or open a link. Unused native PTY commands have been removed (SYS-14).
+// Host identity is checked before custom commands; the capability files also restrict which origins
 // (`remote.urls`), which windows, which permissions. This test pins all three, so widening any of them (a wildcard host or port,
 // a new window, a new permission such as a shell, filesystem, HTTP or updater plugin) fails here and has to be argued for in the
 // review that changes this file.
@@ -26,7 +26,7 @@ const capabilities: Capability[] = readdirSync(join(SHELL, "capabilities")).filt
 /** The web host the shell loads, by its two loopback names. A port other than 4173, a scheme other than http, another host or a wildcard host is a different promise. */
 const ORIGIN_PATTERN = /^http:\/\/(?:127\.0\.0\.1|localhost):4173\/(?:[A-Za-z0-9_\-/]*\*)?$/;
 const PERMISSIONS = new Map<string, string[]>([
-  ["default", ["allow-capsule-window", "allow-pty-kill", "allow-pty-resize", "allow-pty-spawn", "allow-pty-write", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
+  ["default", ["allow-capsule-window", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
   ["context-directories", ["allow-context-directories"]],
   // Personal login was added by this branch: fixed loopback account routes only, not a general HTTP bridge.
   ["main-external-links", ["allow-open-external-url", "allow-personal-account-request"]],
@@ -64,15 +64,44 @@ test("S-14 each permission is defined in the shell, allows only commands the she
     }
   }
   const registered = new Set([...(/generate_handler!\[([\s\S]*?)\]/.exec(readFileSync(MAIN_RS, "utf8"))?.[1] ?? "").matchAll(/(?:[A-Za-z_]+::)?([a-z_][a-z0-9_]*)\s*,?/g)].map(match => match[1]!));
-  assert.ok(registered.has("pty_spawn") && registered.has("shelf_open_path"), "the command list was read");
+  assert.ok(registered.has("capsule_hide") && registered.has("files_open"), "the command list was read");
   for (const [identifier, commands] of definitions) for (const command of commands) assert.ok(registered.has(command), `${identifier} allows ${command}, which the shell does not register`);
   for (const capability of capabilities) for (const permission of capability.permissions as string[]) {
     if (permission.startsWith("core:")) continue;
     assert.ok(definitions.has(permission), `${capability.identifier}: ${permission} is defined nowhere`);
   }
-  // The terminal commands are the powerful ones: they are granted to the default capability's windows and to nothing narrower or wider.
+  // SYS-14: process spawning is only the authenticated WebSocket service, never a second native entry.
   const spawning = capabilities.filter(capability => (capability.permissions as string[]).some(permission => (definitions.get(permission) ?? []).includes("pty_spawn")));
-  assert.deepEqual(spawning.map(capability => capability.identifier), ["default"]);
+  assert.deepEqual(spawning, []);
+  for (const command of ["pty_spawn", "pty_write", "pty_resize", "pty_kill"]) assert.equal(registered.has(command), false);
+});
+
+// PG-113, RAC-738: a page's files reach the shell as relative paths plus the Host route and the page's id. The shell asks the Host
+// which files those are and checks the answer before it opens, copies or drags anything (the Rust cases `rac_737_…` in
+// page_files.rs), so nothing in the main window can name a path of its own. The old commands took absolute paths.
+test("S-14 the shell's file commands take a page's relative paths and ask the Host for the files, and the old path-taking command names are gone", () => {
+  const main = readFileSync(MAIN_RS, "utf8");
+  const permission = readFileSync(join(SHELL, "permissions", "shelf.toml"), "utf8");
+  const client = readFileSync(new URL("../apps/workbench/src/browser/plugin-frame/native-files.ts", import.meta.url), "utf8");
+  for (const old of ["shelf_open_path", "shelf_copy_files", "shelf_drag_out"]) {
+    for (const [where, text] of [["main.rs", main], ["permissions/shelf.toml", permission], ["native-files.ts", client]] as const) assert.equal(text.includes(old), false, `${where} still names ${old}`);
+  }
+  const allowed = [...(/commands\.allow\s*=\s*\[([^\]]*)\]/.exec(permission)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map(match => match[1]!);
+  const registered = /generate_handler!\[([\s\S]*?)\]/.exec(main)?.[1] ?? "";
+  for (const command of ["files_open", "files_copy", "files_drag_out"]) {
+    assert.ok(allowed.includes(command), `${command} has no permission`);
+    assert.match(registered, new RegExp(`\\b${command}\\b`), `${command} is not registered`);
+    const signature = new RegExp(`async fn ${command}\\(([^)]*)\\)`).exec(main)?.[1] ?? "";
+    assert.match(signature, /endpoint: String,\s*page_id: String,\s*paths: Vec<String>/, `${command} must take the route, the page and relative paths`);
+    assert.doesNotMatch(signature, /\bpath: |PathBuf/, `${command} takes a path of its own`);
+    const blocking = new RegExp(`fn ${command}_blocking\\(([^)]*)\\)[^{]*\\{([\\s\\S]*?)\\n\\}\\n`).exec(main);
+    assert.ok(blocking, `${command}_blocking was read`);
+    assert.match(blocking[2]!, /page_files::plugin_page_files\(endpoint, page_id, paths\)\?/, `${command} must ask the Host before it acts`);
+  }
+  // The window sends the route and the page's id, and no longer asks the Host itself or passes the answer on.
+  assert.match(client, /invoke\("files_open"/); assert.match(client, /"files_copy"/); assert.match(client, /"files_drag_out"/);
+  assert.match(client, /endpoint: route\("\/api\/host\/plugin-page-files"\)/);
+  assert.doesNotMatch(client, /molisWorkRequest|files\.paths|\.paths\[0\]/, "the window must not hold the absolute paths");
 });
 
 test("S-14 the shell's own configuration does not turn on remote IPC for every domain or load anything but the local placeholder first", () => {

@@ -1,4 +1,4 @@
-import type { GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
+import type { GeneratedImage } from "./contract.js";
 import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesErrors, isImagesFailure } from "./error.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";

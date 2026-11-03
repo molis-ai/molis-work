@@ -198,3 +198,58 @@ test("--bail: a file that still fails after its retry stops the run, so the file
   assert.match(output, /failed \(1\):\n\s+fail\s+\S*broken\.test\.mjs/);
   assert.deepEqual(readFileSync(seen, "utf8").trim().split("\n"), ["flaky.test.mjs", "flaky.test.mjs", "broken.test.mjs", "broken.test.mjs"], "nothing after the failure started");
 });
+
+// A fixture file that logs `<name>-attempt-<n>` (n counting the runs of this file) and then fails the first `failures` attempts.
+const attemptFixture = (made: string, name: string, failures: number, extra = "") => {
+  const file = path.join(made, `${name}.test.mjs`);
+  const counter = path.join(made, `${name}.attempts`);
+  writeFileSync(file, `import test from "node:test";
+import { appendFileSync, readFileSync, existsSync } from "node:fs";
+test(${JSON.stringify(name)}, async () => {
+  appendFileSync(${JSON.stringify(counter)}, "x");
+  const attempt = readFileSync(${JSON.stringify(counter)}, "utf8").length;
+  console.log(${JSON.stringify(`${name}-attempt-`)} + attempt);
+  ${extra}
+  if (attempt <= ${failures}) throw new Error("failing on purpose");
+});
+`);
+  return file;
+};
+const occurrences = (text: string, needle: string) => text.split(needle).length - 1;
+
+test("RAC-2450 --bail: a file that fails and then passes on its retry still shows the output of the failed attempt, before its retry line, and is listed as flaky", () => {
+  const made = directory();
+  const flaky = attemptFixture(made, "flaky", 1);
+  const steady = attemptFixture(made, "steady", 0);
+  const run = spawnSync(process.execPath, [runner, "--retries", "1", "--bail", "--jobs", "1", flaky, steady], { encoding: "utf8", timeout: 120_000 });
+  const output = `${run.stdout}${run.stderr}`;
+  assert.equal(run.status, 0, output);
+  assert.equal(occurrences(output, "flaky-attempt-1"), 1, `the failed first attempt is shown once\n${output}`);
+  assert.equal(occurrences(output, "flaky-attempt-2"), 0, "the passing retry prints nothing of its own, as before");
+  assert.ok(output.indexOf("flaky-attempt-1") < output.search(/\[retry 1\] ok\s+\S*flaky\.test\.mjs/), "the failed output comes before the retry line");
+  assert.match(output, /flaky, failed and then passed on a retry \(1\):\n\s+\S*flaky\.test\.mjs/);
+});
+
+test("RAC-2451 --bail: every failed attempt of a file that keeps failing shows its output exactly once", () => {
+  const made = directory();
+  const broken = attemptFixture(made, "broken", 3);
+  const other = attemptFixture(made, "other", 0);
+  const run = spawnSync(process.execPath, [runner, "--retries", "2", "--bail", "--jobs", "1", broken, other], { encoding: "utf8", timeout: 120_000 });
+  const output = `${run.stdout}${run.stderr}`;
+  assert.equal(run.status, 1, output);
+  for (const attempt of [1, 2, 3]) assert.equal(occurrences(output, `broken-attempt-${attempt}`), 1, `attempt ${attempt} is shown once\n${output}`);
+  assert.match(output, /\[retry 1\] FAIL\s+\S*broken\.test\.mjs/);
+  assert.match(output, /\[retry 2\] FAIL\s+\S*broken\.test\.mjs/);
+  assert.equal(occurrences(output, "other-attempt"), 0, "nothing after the failing file started");
+});
+
+test("RAC-2452 --bail: the timeout note belongs to the attempt that was killed and appears once", () => {
+  const made = directory();
+  const slow = attemptFixture(made, "slow", 0, "if (attempt === 1) await new Promise((resolve) => setTimeout(resolve, 60_000));");
+  const steady = attemptFixture(made, "steady", 0);
+  const run = spawnSync(process.execPath, [runner, "--retries", "1", "--bail", "--jobs", "1", "--timeout-seconds", "10", slow, steady], { encoding: "utf8", timeout: 120_000 });
+  const output = `${run.stdout}${run.stderr}`;
+  assert.equal(run.status, 0, output);
+  assert.equal(occurrences(output, "(killed after 10 s)"), 1, output);
+  assert.ok(output.indexOf("(killed after 10 s)") < output.search(/\[retry 1\] ok\s+\S*slow\.test\.mjs/), "the note comes before the retry line");
+});

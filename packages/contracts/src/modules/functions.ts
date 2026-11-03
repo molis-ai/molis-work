@@ -9,22 +9,29 @@ export const modulesFunctionsContract = {
 } as const satisfies ContractDescriptor;
 
 export const FUNCTIONS_EVALUATE_CAPABILITY_ID = "functions.evaluate";
+/** The provider every published rule is registered under, and the prefix of its capability id: the one place a rule's key is read from a reference. */
+export const FUNCTIONS_PROVIDER_ID = "system.functions";
+export const PUBLISHED_FUNCTION_PREFIX = "functions.published.";
+/** The Functions rule a judgment reference names, if it names one; scene judgments are filed under that rule's key. */
+export function publishedFunctionKey(reference: { readonly provider_id?: string; readonly capability_id: string }): string | null {
+  return reference.provider_id === FUNCTIONS_PROVIDER_ID && reference.capability_id.startsWith(PUBLISHED_FUNCTION_PREFIX)
+    ? reference.capability_id.slice(PUBLISHED_FUNCTION_PREFIX.length) : null;
+}
 export const HOME_DOCK_SCENE_ID = "home.dock";
 export const FEED_CAPTURE_SCENE_ID = "feed.capture";
 export const INBOX_NEXT_SCENE_ID = "inbox.next";
-export const HOME_TALK_BEHAVIOR_ID = "home.talk";
-export const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
-export const HOME_ASK_BEHAVIOR_ID = "home.ask";
-export const INBOX_DONE_BEHAVIOR_ID = "inbox.done";
-export const INBOX_DISMISS_BEHAVIOR_ID = "inbox.dismiss";
-export const INBOX_COMPOSE_BEHAVIOR_ID = "inbox.compose";
-export const INBOX_VERIFY_BEHAVIOR_ID = "inbox.verify";
-export const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
-export const FEED_REAUTH_BEHAVIOR_ID = "feed.reauth";
-export const FEED_OPEN_BEHAVIOR_ID = "feed.open";
-export const FEED_SAVE_BEHAVIOR_ID = "feed.save";
-export const FEED_PROMOTE_BEHAVIOR_ID = "feed.promote";
-export const FEED_ARCHIVE_BEHAVIOR_ID = "feed.archive";
+export const HOME_CONTINUE_OPTION_ID = "home.continue";
+export const HOME_ASK_OPTION_ID = "home.ask";
+export const INBOX_DONE_OPTION_ID = "inbox.done";
+export const INBOX_DISMISS_OPTION_ID = "inbox.dismiss";
+export const INBOX_COMPOSE_OPTION_ID = "inbox.compose";
+export const INBOX_VERIFY_OPTION_ID = "inbox.verify";
+export const INBOX_ADMIT_OPTION_ID = "inbox.admit";
+export const FEED_REAUTH_OPTION_ID = "feed.reauth";
+export const FEED_OPEN_OPTION_ID = "feed.open";
+export const FEED_SAVE_OPTION_ID = "feed.save";
+export const FEED_PROMOTE_OPTION_ID = "feed.promote";
+export const FEED_ARCHIVE_OPTION_ID = "feed.archive";
 export const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 export const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
 export const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
@@ -38,10 +45,10 @@ export const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
 export const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 export const FUNCTIONS_MAX_SAMPLES = 8;
 
-export type FunctionsPrimitive = "noul" | "choice" | "score";
-export type FunctionStatus = "draft" | "published";
-export type FunctionsCredentialSource = "ui" | "env" | "none";
-export type FunctionsOutcome = "ok" | "needs_review";
+export type JudgmentRulePrimitive = "noul" | "choice" | "score";
+export type JudgmentRuleStatus = "draft" | "published";
+export type JudgmentRuleCredentialSource = "ui" | "env" | "none";
+export type JudgmentRuleOutcome = "ok" | "needs_review";
 
 export interface ChoiceCriterion {
   readonly key: string;
@@ -55,20 +62,20 @@ export interface NoulCriteria {
 
 export type ScoreCriteria = readonly string[];
 
-export type FunctionCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
+export type JudgmentRuleCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
 
-export type FunctionSceneMap = Readonly<Record<string, string>>;
+export type JudgmentRuleSceneMap = Readonly<Record<string, string>>;
 
-export interface FunctionSample {
+export interface JudgmentRuleSample {
   readonly id: string;
   readonly label: string;
   readonly input: string;
 }
 
-export interface FunctionsPreviewRecord {
+export interface JudgmentRulePreviewRecord {
   readonly input: string;
-  readonly outcome: FunctionsOutcome;
-  readonly primitive: FunctionsPrimitive;
+  readonly outcome: JudgmentRuleOutcome;
+  readonly primitive: JudgmentRulePrimitive;
   readonly choice: string | null;
   readonly noul: number | null;
   readonly score: number | null;
@@ -80,11 +87,11 @@ export interface FunctionsPreviewRecord {
   readonly at: string;
 }
 
-interface FunctionRecordBase {
+interface JudgmentRuleRecordBase {
   readonly id: string;
   readonly name: string;
   readonly function_key: string;
-  readonly status: FunctionStatus;
+  readonly status: JudgmentRuleStatus;
   readonly version: number | null;
   readonly model: string;
   readonly instructions: string;
@@ -92,46 +99,46 @@ interface FunctionRecordBase {
   readonly scene_version?: number | null;
   readonly scene_provider_id?: string | null;
   readonly subject_kinds: readonly string[];
-  readonly scene_map: FunctionSceneMap;
-  readonly action_map?: FunctionActionMap;
+  readonly scene_map: JudgmentRuleSceneMap;
+  readonly action_map?: JudgmentRuleActionMap;
   readonly config_hash: string;
-  readonly last_preview: FunctionsPreviewRecord | null;
-  readonly samples: readonly FunctionSample[];
+  readonly last_preview: JudgmentRulePreviewRecord | null;
+  readonly samples: readonly JudgmentRuleSample[];
   readonly published_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
 
-export type FunctionRecord =
-  | (FunctionRecordBase & { readonly primitive: "choice"; readonly criteria: readonly ChoiceCriterion[] })
-  | (FunctionRecordBase & { readonly primitive: "noul"; readonly criteria: NoulCriteria })
-  | (FunctionRecordBase & { readonly primitive: "score"; readonly criteria: ScoreCriteria });
+export type JudgmentRuleRecord =
+  | (JudgmentRuleRecordBase & { readonly primitive: "choice"; readonly criteria: readonly ChoiceCriterion[] })
+  | (JudgmentRuleRecordBase & { readonly primitive: "noul"; readonly criteria: NoulCriteria })
+  | (JudgmentRuleRecordBase & { readonly primitive: "score"; readonly criteria: ScoreCriteria });
 
-export interface FunctionDraftPatch {
+export interface JudgmentRuleDraftPatch {
   readonly name?: string;
   readonly function_key?: string;
   readonly instructions?: string;
-  readonly criteria?: FunctionCriteria;
+  readonly criteria?: JudgmentRuleCriteria;
   readonly scene_id?: string | null;
   readonly scene_version?: number | null;
   readonly scene_provider_id?: string | null;
   readonly subject_kinds?: readonly string[];
-  readonly scene_map?: FunctionSceneMap;
-  readonly action_map?: FunctionActionMap;
+  readonly scene_map?: JudgmentRuleSceneMap;
+  readonly action_map?: JudgmentRuleActionMap;
 }
 
-export type FunctionActionMap = Readonly<Record<string, import("../platform/actions.js").ActionReference & { readonly provider_id: string }>>;
+export type JudgmentRuleActionMap = Readonly<Record<string, import("../platform/actions.js").ActionReference & { readonly provider_id: string }>>;
 
-export type FunctionAuthoringDestinationKind = "event" | "mcp";
+export type JudgmentRuleAuthoringDestinationKind = "event" | "mcp";
 
-export interface FunctionAuthoringSubject {
+export interface JudgmentRuleAuthoringSubject {
   readonly subject_kind: string;
   readonly title: string;
 }
 
-export interface FunctionAuthoringDestination {
+export interface JudgmentRuleAuthoringDestination {
   readonly destination_id: string;
-  readonly kind: FunctionAuthoringDestinationKind;
+  readonly kind: JudgmentRuleAuthoringDestinationKind;
   readonly title: string;
   readonly when: string;
   readonly configure_at: string;
@@ -143,7 +150,7 @@ export interface FunctionAuthoringDestination {
   readonly availability?: import("../platform/actions.js").ActionAvailability;
 }
 
-export interface FunctionAuthoringBehavior {
+export interface JudgmentRuleAuthoringOption {
   readonly behavior_id: string;
   readonly title: string;
   readonly hint?: string;
@@ -162,36 +169,36 @@ export interface FunctionAuthoringBehavior {
   readonly action_ref?: import("../platform/actions.js").ActionReference & { readonly provider_id: string };
 }
 
-export interface FunctionAuthoringCatalog {
-  readonly subjects: readonly FunctionAuthoringSubject[];
-  readonly destinations: readonly FunctionAuthoringDestination[];
-  readonly behaviors: readonly FunctionAuthoringBehavior[];
+export interface JudgmentRuleAuthoringCatalog {
+  readonly subjects: readonly JudgmentRuleAuthoringSubject[];
+  readonly destinations: readonly JudgmentRuleAuthoringDestination[];
+  readonly behaviors: readonly JudgmentRuleAuthoringOption[];
 }
 
 
-export interface FunctionSummary {
+export interface JudgmentRuleSummary {
   readonly function_key: string;
   readonly name: string;
-  readonly primitive: FunctionsPrimitive;
+  readonly primitive: JudgmentRulePrimitive;
   readonly version: number;
   readonly model: string;
 }
 
-export interface FunctionDescribe extends FunctionSummary {
+export interface JudgmentRuleDescribe extends JudgmentRuleSummary {
   readonly instructions: string;
   readonly input: { readonly content: "string" };
-  readonly criteria: FunctionCriteria;
+  readonly criteria: JudgmentRuleCriteria;
 }
 
-export interface FunctionInvokeResult {
+export interface JudgmentRuleInvokeResult {
   readonly recommended_actions?: readonly (import("../platform/actions.js").ActionReference & { readonly provider_id: string })[];
   readonly suggested_behavior_ids?: readonly string[];
-  readonly status: FunctionsOutcome;
+  readonly status: JudgmentRuleOutcome;
   readonly function_key: string;
   readonly version: number;
   readonly model: string;
   readonly config_hash: string;
-  readonly primitive: FunctionsPrimitive;
+  readonly primitive: JudgmentRulePrimitive;
   readonly data: {
     readonly choice?: string | null;
     readonly noul?: number;
@@ -202,9 +209,9 @@ export interface FunctionInvokeResult {
   readonly confidence: number | null;
 }
 
-export interface FunctionsSettingsStatus {
+export interface JudgmentRuleSettingsStatus {
   readonly has_credential: boolean;
-  readonly source: FunctionsCredentialSource;
+  readonly source: JudgmentRuleCredentialSource;
 }
 
 /** Plugin-owned subject kinds are open; access is resolved through registered context readers. */
@@ -217,13 +224,13 @@ export interface JudgmentSubject {
 }
 
 export interface JudgmentRecord {
-  readonly recommended_actions?: FunctionInvokeResult["recommended_actions"];
+  readonly recommended_actions?: JudgmentRuleInvokeResult["recommended_actions"];
   readonly judgment_id: string;
   readonly function_key: string;
   readonly function_version: number;
   readonly subject: JudgmentSubject;
   readonly scene_id: string | null;
-  readonly outcome: FunctionsOutcome;
+  readonly outcome: JudgmentRuleOutcome;
   readonly suggested_behavior_ids: readonly string[];
   readonly error_code: string | null;
   readonly created_at: string;
@@ -240,7 +247,7 @@ export interface JudgmentRecord {
 }
 
 export interface TypeSafeEvaluateResult {
-  readonly primitive: FunctionsPrimitive;
+  readonly primitive: JudgmentRulePrimitive;
   readonly choice: string | null;
   readonly noul: number | null;
   readonly score: number | null;
@@ -251,7 +258,7 @@ export interface TypeSafeEvaluateResult {
 }
 
 export interface TypeSafeProvider {
-  evaluate(apiKey: string, record: FunctionRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
+  evaluate(apiKey: string, record: JudgmentRuleRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
 export function filterSuggestedBehaviorIds(
@@ -261,25 +268,25 @@ export function filterSuggestedBehaviorIds(
 ): string[] {
   const offeredSet = new Set(offered);
   const allowedSet = new Set(allowed);
-  if (!choice || !offeredSet.has(choice) || !allowedSet.has(choice) || choice === HOME_TALK_BEHAVIOR_ID) {
+  if (!choice || !offeredSet.has(choice) || !allowedSet.has(choice)) {
     return [];
   }
   return [choice];
 }
 
 export function defaultInboxNextBehaviorIds(active: boolean): string[] {
-  return active ? [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID] : [];
+  return active ? [INBOX_DONE_OPTION_ID, INBOX_DISMISS_OPTION_ID] : [];
 }
 
 export const FEED_CAPTURE_DISPOSITION_IDS: readonly string[] = [
-  INBOX_ADMIT_BEHAVIOR_ID,
-  FEED_SAVE_BEHAVIOR_ID,
-  FEED_PROMOTE_BEHAVIOR_ID,
-  FEED_ARCHIVE_BEHAVIOR_ID,
+  INBOX_ADMIT_OPTION_ID,
+  FEED_SAVE_OPTION_ID,
+  FEED_PROMOTE_OPTION_ID,
+  FEED_ARCHIVE_OPTION_ID,
 ];
 
 export function defaultFeedCaptureBehaviorIds(canAdmit: boolean): string[] {
-  return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_BEHAVIOR_ID] : [];
+  return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_OPTION_ID] : [];
 }
 
 /** Footer dispositions on a Feed item. `feed.open` maps to "stay in Feed" and is not a footer button. */
@@ -292,24 +299,23 @@ export function visibleFeedDispositionIds(
   const suggestedIds = suggested ?? [];
   const picked = offered.filter((id) => suggestedIds.includes(id));
   if (picked.length > 0) return picked;
-  if (suggestedIds.includes(FEED_OPEN_BEHAVIOR_ID)) {
-    return offered.filter((id) => id !== INBOX_ADMIT_BEHAVIOR_ID);
+  if (suggestedIds.includes(FEED_OPEN_OPTION_ID)) {
+    return offered.filter((id) => id !== INBOX_ADMIT_OPTION_ID);
   }
   return offered;
 }
 
-export function isFunctionDestinationId(value: string): boolean {
+export function isJudgmentRuleDestinationId(value: string): boolean {
   // Registration and live compatibility belong to the scene service. Drafts
   // retain valid identities even if their original provider is currently absent.
   return /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(value);
 }
 
-export const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[] = [
+export const JUDGMENT_RULE_AUTHORING_SUBJECTS: readonly JudgmentRuleAuthoringSubject[] = [
   { subject_kind: "feed_item", title: "Feed 消息" },
   { subject_kind: "inbox_entry", title: "Inbox" },
   { subject_kind: "source", title: "来源出错" },
   { subject_kind: "home_event", title: "首页事件" },
-  { subject_kind: "session", title: "Session" },
   { subject_kind: "mcp_invoke", title: "Agent" },
 ];
 
@@ -324,8 +330,8 @@ export function choiceCriteriaFollowContext(
 }
 
 export function functionOutputKeys(record: {
-  readonly primitive: FunctionsPrimitive;
-  readonly criteria: FunctionCriteria;
+  readonly primitive: JudgmentRulePrimitive;
+  readonly criteria: JudgmentRuleCriteria;
 }): string[] {
   if (record.primitive === "noul") return [NOUL_TRUE_MAP_KEY, NOUL_FALSE_MAP_KEY];
   if (record.primitive !== "choice" || !Array.isArray(record.criteria)) return [];
@@ -339,9 +345,9 @@ export function functionOutputKeys(record: {
 
 export function mapJudgmentChoice(
   record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
-    readonly scene_map?: FunctionSceneMap | null;
+    readonly primitive: JudgmentRulePrimitive;
+    readonly criteria: JudgmentRuleCriteria;
+    readonly scene_map?: JudgmentRuleSceneMap | null;
   },
   result: { readonly choice?: string | null; readonly noul?: number | null },
 ): string | null {

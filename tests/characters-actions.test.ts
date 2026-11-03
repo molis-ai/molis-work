@@ -4,11 +4,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { CHARACTERS_ACTIONS, charactersActions as c } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTERS_ACTIONS, charactersActions as c } from "@molis-ai/molis-work-module-characters";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
-// RAC-63: the Module's handlers, bound by the plugin, are what the project Runtime redeems; RAC-64: other people are refused.
+// RAC-63: the Module's handlers, bound by the Host's provider (CHR-1), are what the project's directory redeems; RAC-64: other people are refused.
+// RAC-70: no plugin answers for Characters: the Host registers the provider io.molis.work.characters with every Characters action.
 test("Character management is redeemed by the project Runtime and bound to the person who owns the drafts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "characters-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -20,9 +21,11 @@ test("Character management is redeemed by the project Runtime and bound to the p
   const client = host.actionClient(ref), bound = bindActionClient(client, () => owner);
   try {
     const directory = (await client.discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.characters");
-    // The person's directory lists every Characters action offered to the person; `characters.runnable` answers plugins only.
+    // The person's directory lists every Characters action offered to the person; `characters.runnable` answers the person and plugins (RAC-458), `characters.execution` the person only.
     assert.deepEqual(directory.map(row => row.capability_id).sort(), CHARACTERS_ACTIONS.filter(row => row.action.audiences.includes("user")).map(row => row.capability_id).sort());
-    assert.ok(!directory.some(row => row.capability_id === c.runnable.capability_id), "the plugin-only runnable answer is not in the person's directory");
+    assert.ok(directory.some(row => row.capability_id === c.runnable.capability_id), "the person asks whether a version can run, as the Assistant's picker does");
+    assert.deepEqual(c.runnable.action.audiences, ["user", "plugin"]);
+    assert.ok(!c.execution.action.audiences.includes("plugin"), "the launch details stay the person's");
     assert.ok(directory.every(row => row.availability.available));
 
     const { draft } = await bound.invoke(c.create, {});
@@ -36,6 +39,10 @@ test("Character management is redeemed by the project Runtime and bound to the p
     assert.equal((await bound.invoke(c.publish, { id: draft.character_id, expected_revision: 2 })).replayed, true);
     const listed = await bound.invoke(c.list, {});
     assert.equal(listed.drafts.length, 1); assert.equal(listed.publications.length, 1);
+    // RAC-458: the person gets the answer a plugin gets: yes for the current version, Characters' own reason for one that is not published here.
+    assert.deepEqual(await bound.invoke(c.runnable, { reference: published.reference }), { available: true });
+    const unpublished = await bound.invoke(c.runnable, { reference: { artifact_id: published.reference.artifact_id, version: published.reference.version + 1 } });
+    assert.equal(unpublished.available, false); assert.ok(unpublished.available === false && unpublished.reason.length > 0);
 
     // Another identity sees the directory rows but cannot use them: the drafts and publications are this person's.
     const agent: ActionCallContext = { ...owner, actor_id: "agent:runtime", audience: "agent" };

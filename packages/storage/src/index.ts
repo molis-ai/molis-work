@@ -1,17 +1,4 @@
 /** Local SQLite technical owner. */
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-storage",
-  packagePath: "packages/storage",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/storage",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ap2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
@@ -20,15 +7,20 @@ export { LocalCatalogMetadata,inspectCatalogFile } from "./catalog-metadata.js";
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 export { createAtomicFileDocument } from './adapters/file-document.js';
 export { ensureStorageSpace, readStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
+export { snapshotFileStat, isSnapshotSqlite, readSnapshotFile, copySnapshotFile, snapshotFileDigest } from "./snapshot-files.js";
+export { backupSnapshotSqlite, type SqliteSnapshotOptions, type SqliteSnapshotInfo } from "./snapshot-sqlite.js";
+export { acquireStorageOwner, assertStorageOwner, borrowStorageOwner, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, type StorageOwner, type StorageOwnerBorrow } from "./adapters/storage-owner.js";
 
 export {
   homeSqlitePartitionDirectory,
   homeSqlitePath,
   openHomeSqliteDatabase,
+  openHomeSqliteFile,
   openReadOnlyHomeSqlite,
 } from "./home-sqlite.js";
 export { homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "./home-stores.js";
 export {
+  isSqliteSchemaStructureMismatch,
   SqliteSchemaVersionError,
   applySqliteBaseline,
   clearInExistingHomeSqlite,
@@ -45,7 +37,8 @@ export {
 export {
   runWithMolisWorkHome,
   resolveMolisWorkHome,
-  resolveFeedSecurityDirectory,
+  resolveHomeDirectory,
+  resolveHomeSecurityDirectory,
   readProductEnv,
   resolveProjectDatabaseFile,
   DEFAULT_HOME_DIRNAME,
@@ -53,10 +46,12 @@ export {
 } from "./adapters/local-security-paths.js";
 
 export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
+export { inspectSealedSecretsSnapshot, readSealedSecretSnapshotEntry, readExistingSecret, type SealedSecretsSnapshotInspection } from "./adapters/file-secret-store.js";
+export { sealExistingHomePayload, openExistingHomePayload, type SealedHomePayload } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
 
-export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
+export { createEvidenceContentStore, evidenceContentRef, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { createLocalPayloadProtection } from './adapters/local-payload-protection.js';
 export { replicaSerialization as createSyncBodySerialization } from './replica-serialization.js';
 export { installReplicaTrigger, replicaTriggerDefinitions, shareReplicaTriggerDefinitions } from './replica-triggers.js';
@@ -77,3 +72,10 @@ export {createAggregateCopy} from './aggregate-copy.js';
 export type {AggregateCopyContext} from './aggregate-copy.js';
 
 export {openAggregateCopyOwner,openOwnerCopyStore} from './aggregate-copy-store.js';
+export { compileSyncTrackingSql, syncTrackingSeedSql } from './sync-tracking.js';
+
+export { compileAggregateTrackingSql, aggregateTrackingSeedSql } from './aggregate-tracking.js';
+export { createCollectionCopy } from './collection-copy.js';
+
+export { nativeSqliteOwnerBoundary, type PluginSqlExecution } from './sqlite-owner-boundary.js';
+export { sqliteBaselineTriggers, assertSqliteBaselineTriggers } from './sqlite-baseline-inspection.js';

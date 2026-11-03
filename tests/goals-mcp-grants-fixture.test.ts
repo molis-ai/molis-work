@@ -5,9 +5,9 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_PLUGIN_ID, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { grantMcpAction, readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -38,7 +38,12 @@ test("a project that is not in the catalog gets no grant, as on the access page"
 test("an action the project cannot use is refused until its plugin is installed there", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t);
   const bare = await home.createProject("没有 Feed");
-  await assert.rejects(grantGoalsMcp(home, bare, CLIENT, [feedItemActions.promote]), { status: 400, code: "actions.plugin_disabled" });
+  // Feed runs in a project's Runtime only where it is installed: a project without it has no Feed action to offer, and the Host refuses
+  // a grant that names one anyway.
+  await assert.rejects(grantGoalsMcp(home, bare, CLIENT, [feedItemActions.promote]), (error: Error) => error.message.startsWith(`${feedItemActions.promote.capability_id} is not offered`));
+  await assert.rejects(grantMcpAction(home.web, { clientId: CLIENT, projectId: bare.project_id,
+    action: { capability_id: feedItemActions.promote.capability_id, version: feedItemActions.promote.version, provider_id: FEED_PLUGIN_ID } }), { status: 404, code: "actions.missing" });
+  assert.deepEqual((await readMcpActionAccess(home.web, { clientId: CLIENT, projectId: bare.project_id })).grants, [], "a refused grant leaves no record");
   const withFeed = await home.createProject("有 Feed", ["feed"]);
   const rows = await grantGoalsMcp(home, withFeed, CLIENT, [feedItemActions.promote]);
   const ids = rows.map(row => row.capability_id);

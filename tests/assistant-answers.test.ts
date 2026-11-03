@@ -58,22 +58,22 @@ test("an answer continues its own question; a rejection stays a rejection; a lat
     const sent = await service.send({ text: "帮我写一条笔记", request_id: "req-answers-1" }, { project_ref: project });
     const asking = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "waiting-input" ? view : undefined; }, "question");
     const round = asking.rounds[0]!, question = round.awaiting_input[0]!;
-    await service.answer(sent.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, ...(question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}), text: "两段" });
+    await service.outcomes.answer(sent.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, ...(question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}), text: "两段" });
     const reviewing = await until(async () => { const view = await service.read(sent.work.work_id); return view.reviews.length ? view : undefined; }, "review");
     const review = reviewing.reviews[0]!;
-    await service.decide(sent.work.work_id, { review_id: review.review_id, decision: "reject" });
+    await service.outcomes.decide(sent.work.work_id, { review_id: review.review_id, decision: "reject" });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "completion");
     assert.deepEqual(written, [], "a rejection is not an approval: nothing was written");
 
     const before = requests.length;
-    await assert.rejects(service.answer(sent.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "三段" }),
+    await assert.rejects(service.outcomes.answer(sent.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "三段" }),
       (error: unknown) => error instanceof ActionError && error.code === "assistant.stale" && error.kind === "conflict");
-    await assert.rejects(service.decide(sent.work.work_id, { review_id: review.review_id, decision: "approve" }));
+    await assert.rejects(service.outcomes.decide(sent.work.work_id, { review_id: review.review_id, decision: "approve" }));
     assert.equal(requests.length, before, "a late answer or approval starts no model call");
     assert.deepEqual(written, [], "and revives no old action");
 
     const other = await service.send({ text: "另一件事", request_id: "req-answers-2" }, { project_ref: project });
-    await assert.rejects(service.answer(other.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "两段" }),
+    await assert.rejects(service.outcomes.answer(other.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "两段" }),
       (error: unknown) => error instanceof ActionError && error.code === "assistant.scope" && error.kind === "forbidden", "an answer from another work is refused");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

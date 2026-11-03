@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 // A Goal's inputs have one entry (artifact-positioning 五.1, 「合成一种入口」): 「加输入…」 lists what the project holds, and
 // the person chooses whether the Goal follows the original or fixes this version.
@@ -51,14 +52,14 @@ test("「加输入…」 on a Goal takes a document either following the origina
   // A fixed input can be taken off the Goal from the same list; the version stays in the 成果库.
   await click("[data-goal-inputs] [data-goal-input-fixed] [data-goal-input-remove]");
   await waitFor("!document.querySelector('[data-goal-inputs] [data-goal-input-fixed]')", 10_000);
-  const left = await evaluate<{ inputs: unknown[] }>(`fetch('/projects/${projectId}/api/goals/V1/artifact-inputs').then(r => r.json())`);
+  const left = await evaluate<{ inputs: unknown[] }>(`fetch('/projects/${projectId}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs').then(r => r.json())`);
   assert.deepEqual(left.inputs, []);
 });
 
 // An input an Agent only proposed reads 「待确认」 on the Goal, and the person decides it right there (specs/repository-anti-corruption §1, 2026-10-10).
 test("a proposed input on a Goal reads 待确认 and is accepted or removed from the same list", { timeout: 120_000 }, async t => {
-  const seed = (databasePath: string, projectId?: string) => {
-    seedDemoBoard(databasePath, projectId);
+  const seed = async (databasePath: string, projectId?: string) => {
+    await seedDemoGoals(databasePath, projectId);
     const store = new LocalProjectDatabase(databasePath);
     try {
       for (const item of ["item-accept", "item-remove"]) new GoalProjectApplication(store).goalInputs.register({ binding_id: `binding-${item}`, project_id: projectId ?? DEMO_PROJECT_ID,

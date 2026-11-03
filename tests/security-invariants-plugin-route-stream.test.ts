@@ -38,12 +38,15 @@ for (const scope of ["home", "project"] as const) {
   });
 }
 
-test("W5-01-STREAM-02 manifest accepts only POST ndjson and a bounded explicit body size", () => {
+test("W5-01-STREAM-02 SYS-15 manifest accepts only POST ndjson and a bounded explicit body size", () => {
   const { manifest } = streamProbe().definition;
   assert.equal(parsePluginManifest(manifest).routes?.at(-1)?.max_body_bytes, 36_000_000);
+  // SYS-15 permits a declared 64 MiB folder encoded as JSON/base64, within the 96 MiB transport bound.
+  assert.equal(parsePluginManifest({ ...manifest, routes: [{ route_id: "upload", method: "POST", path: "/upload",
+    max_body_bytes: 96 * 1024 * 1024 }] }).routes?.[0]?.max_body_bytes, 96 * 1024 * 1024);
   for (const route of [
     { stream: "sse" }, { stream: true }, { stream: "ndjson", method: "GET" },
-    { max_body_bytes: 45_000_001 }, { max_body_bytes: 0 }, { max_body_bytes: 1.5 },
+    { max_body_bytes: 96 * 1024 * 1024 + 1 }, { max_body_bytes: 0 }, { max_body_bytes: 1.5 },
   ]) assert.throws(() => parsePluginManifest({ ...manifest, routes: [{ route_id: "bad", method: "POST", path: "/bad", ...route }] }));
 });
 

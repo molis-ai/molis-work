@@ -1,7 +1,8 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -22,7 +23,7 @@ const refused = (code: string) => (error: unknown) => { assert.equal((error as {
 
 async function seed(home: TestHome, project: TestProject) {
   await home.host.withProject(project.reference, owner => {
-    owner.coordinator.artifacts.commands.registerVersion({ ...pinnedArtifact("已固定的原报告"), project_id: project.project_id, actor_id: OWNER, ...REPORT,
+    owner.artifacts.commands.registerVersion({ ...pinnedArtifact("已固定的原报告"), project_id: project.project_id, actor_id: OWNER, ...REPORT,
       artifact_type_id: "coding.report.v1", schema_version: 1,
       producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.20.0", binding_signature: "official-coding-binding" },
       content: { kind: "inline", payload: { title: "已固定的原报告", run_id: "run-1", source: { session_id: "session-a" }, body_markdown: BODY } } });
@@ -35,13 +36,13 @@ async function consumer(t: Parameters<typeof openTestHome>[0], home: TestHome, p
   let client: PluginActionClient | undefined;
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference), project_id: project.project_id };
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({ actions,
-    project_id: project.project_id, actor_id: OWNER, artifacts: owner.coordinator.artifacts, processItems: owner.coordinator.processItems,
-    ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions }));
+    project_id: project.project_id, actor_id: OWNER, artifacts: owner.artifacts, processItems: owner.processItems,
+    ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, actions }));
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.fixture.${declared.name}`, version: "1.0.0", name: declared.name, kind: "app",
     publisher: { publisher_id: "fixture", signature: declared.name }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [...declared.permissions], capabilities: { provides: [], consumes: [...declared.consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
     async start(context) { client = context.services?.actions; return { kind: "app" }; } };
-  const install = runtime.install({ definition, deployment: "local", grants: [...declared.grants] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [...declared.grants] }).install;
   t.after(() => runtime.stop(install.install_id));
   await runtime.start(install.install_id);
   assert.ok(client, "the real executor bound the declared action client");
@@ -70,7 +71,7 @@ test("W5-01-CODING-14 without the declaration, without the grant, without Coding
   const ungranted = await consumer(t, home, project, { name: "ungranted", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission.map(row => ({ ...row, required: false })), grants: [] });
   await assert.rejects(ungranted.invoke(codingResultDocument, input), refused("plugin.grant_denied"));
   const elsewhere = await consumer(t, home, without, { name: "elsewhere", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission, grants: ["artifact:read"] });
-  await assert.rejects(elsewhere.invoke(codingResultDocument, input), refused("actions.plugin_disabled"), "a project that has not installed Coding does not offer its text");
+  await assert.rejects(elsewhere.invoke(codingResultDocument, input), refused("actions.dependency_missing"), "a project that has not installed Coding does not offer its text");
   // Not an action a person, an Agent, a workflow or an MCP client can pick.
   const views = await home.inspect("runtime:coding-text", project.project_id);
   assert.ok(views.some(view => view.capability_id.startsWith("coding.")), "the same directory does list Coding's actions open to an MCP client");

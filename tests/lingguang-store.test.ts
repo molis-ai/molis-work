@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createLingguangActionHandlers, ownLingguangStores, openLingguangStore, type LingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { createLingguangActionHandlers, ownLingguangStores, type LingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 
 function fixture(t: test.TestContext): LingguangStore {
   const home = mkdtempSync(join(tmpdir(), "lingguang-store-"));

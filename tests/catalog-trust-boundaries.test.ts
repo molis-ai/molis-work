@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCatalogConnector, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -22,8 +23,8 @@ test("W2-18-CATALOG-01 + W2-18-CATALOG-02: Host-managed token connections reject
         const connection = withConnectorConnections(home.directory, store => store.createToken({ serviceId: service, displayName: "Fixture", token: value }));
         const fetchImpl = async () => { dispatched++; return json({ displayName: "Should not dispatch", preferred_username: "fixture" }); };
         const port = createCatalogConnector({ connectorId: service, connectionId: connection.connection_id, fetchImpl });
-        assert.equal((await port.health()).ok, false, `${service}: ${origin}`);
-        const sync = await port.sync({ cursor: {} }); assert.equal(sync.ok, false, `${service}: ${origin}`);
+        assert.equal((await port.health(connectorControl())).ok, false, `${service}: ${origin}`);
+        const sync = await port.sync({ cursor: {} }, connectorControl()); assert.equal(sync.ok, false, `${service}: ${origin}`);
         const whoami = await catalogWhoami({ connectorId: service, token: value, fetchImpl }); assert.equal(whoami.ok, false);
         assert.equal(dispatched, 0, `${service}: rejected destination must receive neither a request nor its credential`);
         for (const result of [sync, whoami]) assert.equal(JSON.stringify(result).includes(FIXTURE), false);
@@ -43,7 +44,7 @@ test("W2-18-CATALOG-02: valid Cloud sites and the Host's current Atlassian OAuth
           : service === "jira" ? { issues: [{ id: "one", key: "F-1", fields: { summary: "Literal issue", updated: AT } }] }
             : service === "confluence" ? { results: [{ id: "one", title: "Literal page", _links: { webui: "/one" } }] }
               : { records: [{ Id: "one", Subject: "Literal task", LastModifiedDate: AT }] });
-      } }).sync({ cursor: {} });
+      } }).sync({ cursor: {} }, connectorControl());
       assert.equal(result.ok, true, `${service}: ${supplied}`); if (result.ok) assert.equal(result.items.length, 1);
       assert.equal(urls.length, 2);
     }
@@ -54,14 +55,14 @@ test("W2-18-CATALOG-02: valid Cloud sites and the Host's current Atlassian OAuth
     const result = await createCatalogProvider({ connectorId: service, token: FIXTURE,
       authExtras: { auth_method: "oauth", site_url: "https://fixture.atlassian.net", cloud_id: cloudId, base },
       fetchImpl: async url => { urls.push(url); return json(url.includes("myself") || url.includes("user/current") ? { displayName: "Fixture" } : { issues: [], results: [] }); },
-    }).sync({ cursor: {} });
+    }).sync({ cursor: {} }, connectorControl());
     assert.equal(result.ok, true); assert.equal(urls.every(url => url.startsWith(base + "/")), true);
     for (const invalidBase of ["https://evil.example/ex/" + service + "/" + cloudId, base + "/extra", base.replace(service, service === "jira" ? "confluence" : "jira")]) {
       let dispatched = 0;
       const invalid = await createCatalogProvider({ connectorId: service, token: FIXTURE,
         authExtras: { auth_method: "oauth", site_url: "https://fixture.atlassian.net", cloud_id: cloudId, base: invalidBase },
         fetchImpl: async () => { dispatched++; return json({ displayName: "Fixture" }); },
-      }).sync({ cursor: {} });
+      }).sync({ cursor: {} }, connectorControl());
       assert.equal(invalid.ok, false); assert.equal(dispatched, 0);
     }
   }
@@ -82,18 +83,18 @@ test("W2-18-CATALOG-ERROR-01: every business-error family produces a closed fail
     for (const [index, fixture] of failures.entries()) {
       const connection = withConnectorConnections(home.directory, store => store.createToken({ serviceId: fixture.service, displayName: "Fixture", token: fixture.token }));
       const port = createCatalogConnector({ connectorId: fixture.service, connectionId: connection.connection_id, now: () => new Date(AT), fetchImpl: async () => json(fixture.body) });
-      const chain = home.chain(port), source = chain.feed.upsertSource({ ...chain.source("github"), source_id: `catalog-${index}`, kind: fixture.service,
+      const chain = home.chain(port), source = chain.feed.sources.upsert({ ...chain.source("github"), source_id: `catalog-${index}`, kind: fixture.service,
         definition_id: fixture.service, sync_kind: "connector", name: fixture.service, credential_ref: connection.credential_ref, config: { connection_id: connection.connection_id } });
       const before = source.cursor;
       let publicFailure: unknown;
       await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: `catalog-closed-${index}` }), error => { publicFailure = error; return true; });
-      const durable = chain.feed.getSource(DEMO_PROJECT_ID, source.source_id), snapshot = chain.feed.snapshot(DEMO_PROJECT_ID);
+      const durable = chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id), snapshot = chain.feed.snapshot(DEMO_PROJECT_ID);
       assert.deepEqual(durable.cursor, before); assert.equal(durable.last_error_code, fixture.auth ? "connector.needs_auth" : "connector.provider");
       assert.equal(snapshot.feed_items.some(item => item.source_id === source.source_id), false);
       assert.ok(snapshot.runs.some(run => run.source_id === source.source_id && run.outcome === "failed"));
       assert.equal(snapshot.inbox_entries.some(entry => entry.subject_type === "source_fault" && entry.subject_id === source.source_id), fixture.auth === true);
       const error = publicFailure as { message: string; details?: unknown };
-      const publicViews = JSON.stringify([error.message, error.details, await port.health(), await catalogWhoami({ connectorId: fixture.service, token: fixture.token, fetchImpl: async () => json(fixture.body) }), snapshot, withConnectorConnections(home.directory, store => store.list())]);
+      const publicViews = JSON.stringify([error.message, error.details, await port.health(connectorControl()), await catalogWhoami({ connectorId: fixture.service, token: fixture.token, fetchImpl: async () => json(fixture.body) }), snapshot, withConnectorConnections(home.directory, store => store.list())]);
       // Read every stored cell in this temporary project, including receipt/checkpoint error text, rather than assuming its table name.
       const tables = home.store().db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
       const stored = tables.map(({ name }) => home.store().db.prepare('SELECT * FROM "' + name.replaceAll('"', '""') + '"').all());
@@ -107,13 +108,13 @@ test("W2-18-CATALOG-ERROR-01: every business-error family produces a closed fail
 
 test("W2-18-CATALOG-ERROR-01: known authentication codes and HTTP 429 keep actionable classification without remote error text", async () => {
   for (const body of [{ ok: false, error: "invalid_auth" }, { errcode: 40014, errmsg: FIXTURE }, { code: 99991663, msg: FIXTURE }]) {
-    const result = await createCatalogProvider({ connectorId: "slack", token: FIXTURE, fetchImpl: async () => json(body) }).sync({ cursor: {} });
+    const result = await createCatalogProvider({ connectorId: "slack", token: FIXTURE, fetchImpl: async () => json(body) }).sync({ cursor: {} }, connectorControl());
     assert.equal(result.ok, false); if (!result.ok) assert.equal(result.failure, "needs_auth");
     assert.equal(JSON.stringify(result).includes(FIXTURE), false);
   }
   const result = await createCatalogProvider({ connectorId: "slack", token: FIXTURE, now: () => new Date(AT),
     fetchImpl: async () => json({ message: FIXTURE }, { status: 429, headers: { "retry-after": "120" } }),
-  }).sync({ cursor: {} });
+  }).sync({ cursor: {} }, connectorControl());
   assert.equal(result.ok, false); if (!result.ok) { assert.equal(result.failure, "rate_limited"); assert.equal(result.retryAfterAt, "2026-08-30T10:02:00.000Z"); }
   assert.equal(JSON.stringify(result).includes(FIXTURE), false);
 });

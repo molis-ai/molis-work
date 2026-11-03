@@ -1,11 +1,11 @@
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workspaceReadActions, type GitOperation, type GitOperationRecord, type GitReviewedResult, type WorkspaceGitResult, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { object, id, text, path, workspace, reference, nullable, boolean, fileMode } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
+import { object, id, text, integer, path, workspace, reference, nullable, boolean, fileMode, gitOperation as operation, gitOperationRecord as operationRecord, gitReviewedResult as result } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import type { GitView } from "./projection.js";
 const define = <Input, Output>(capability_id: string, title: string, description: string, kind: "query" | "operation", permissions: string[], input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => ({
   capability_id, version: 1, operation: kind === "query" ? "query" : "command", action: { title, description, kind, scope: "project",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["workspace", "git"], input_schema, output_schema },
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: ["workspace", "git"], input_schema, output_schema },
 });
 const read = ["artifact:read", "storage:private"], write = [...read, "artifact:write"];
 /**
@@ -16,17 +16,13 @@ const readingRepository = <Input, Output>(definition: ActionDefinition<Input, Ou
   permissions: [...definition.action.permissions, "workspace:read"],
   required_actions: [{ capability_id: workspaceReadActions.git.capability_id, version: workspaceReadActions.git.version }] } });
 const listItem = object({ kind: { enum: ["staged", "changes", "conflicts"] }, path, orig_path: path, label: text, code: text }, ["kind", "path", "label", "code"]);
-const view = object({ phase: { enum: ["waiting", "loading", "ready", "not-a-repository", "unavailable", "error"] }, head: text, tracking: text,
+const view = object({ phase: { enum: ["waiting", "loading", "ready", "not-a-repository", "unavailable", "error"] }, head: text, upstream: nullable(object({ name: text, ahead: integer, behind: integer })),
   staged: { type: "array", items: listItem }, changes: { type: "array", items: listItem }, conflicts: { type: "array", items: listItem }, message: text,
-  recovery: text, truncated: boolean, committable: boolean, selected: listItem }, ["phase", "head", "tracking", "staged", "changes", "conflicts", "message", "truncated", "committable"]);
+  recovery: text, truncated: boolean, committable: boolean, selected: listItem }, ["phase", "head", "upstream", "staged", "changes", "conflicts", "message", "truncated", "committable"]);
 const selected = object({ workspace_id: id, path, side: { enum: ["index", "worktree"] }, previous_path: path, revision: id, reference }, ["workspace_id", "path", "side", "revision", "reference"]);
 const diffResult = object({ outcome: { const: "diff" }, path, previous_path: path, side: { enum: ["index", "worktree"] }, before_exists: boolean, after_exists: boolean,
   before: text, after: text, before_mode: nullable(fileMode), after_mode: nullable(fileMode), revision: id }, ["outcome", "path", "side", "before_exists", "after_exists", "before", "after", "before_mode", "after_mode", "revision"]);
 const failureResult = object({ outcome: { enum: ["denied", "not-a-repository", "unavailable", "changed", "unsupported", "binary", "too-large", "conflict", "missing", "error"] }, message: text });
-const review = object({ review_id: id, action: { enum: ["stage", "unstage"] }, paths: { type: "array", items: text }, requested_at: text,
-  decided_by: nullable(text), decided_at: nullable(text), failure_reason: text, reconciliation_reason: text,
-  reconciliation: object({ actor_id: id, at: text, reason: text }) }, ["review_id", "action", "paths", "requested_at", "decided_by", "decided_at"]);
-const result = object({ workspace_id: id, operation_id: id, outcome: { enum: ["succeeded", "failed", "denied", "cancelled", "expired", "reconcile", "conflict"] }, summary: text, review });
 const saved = object({ reference, result, saved_at: text });
 // Source control: where the repository stands, the operations asked for, and one operation to put under Host review.
 const count = { type: "integer", minimum: 0 }, limited = (max: number) => ({ type: "string", maxLength: max });
@@ -35,25 +31,12 @@ const summary = object({ outcome: { const: "summary" }, branch: nullable(text), 
   staged: { type: "array", items: object({ path: text, status: text }) }, unstaged: count, conflicted: { type: "array", items: text }, merging: boolean, revision: id });
 const conflictFile = object({ outcome: { const: "conflict-file" }, path: text, text: { type: "string" }, conflicts: count, ours: text, theirs: text, revision: id });
 const prSupport = object({ outcome: { const: "pr-support" }, tool: { enum: ["ready", "missing", "unauthenticated", "unsupported"] }, host: nullable(text), message: text });
-const operationRecord = object({ operation_id: id, review_id: id, tool: text, summary: text,
-  outcome: { enum: ["pending", "running", "succeeded", "failed", "denied", "cancelled", "expired", "unknown"] }, detail: text, failure_reason: text,
-  requested_at: text, decided_by: nullable(text), decided_at: nullable(text) }, ["operation_id", "review_id", "tool", "summary", "outcome", "requested_at", "decided_by", "decided_at"]);
-const operation = { oneOf: [
-  object({ action: { const: "commit" }, message: limited(5_000) }),
-  object({ action: { const: "branch-create" }, name: limited(200), checkout: boolean }),
-  object({ action: { const: "branch-switch" }, name: limited(200) }),
-  object({ action: { const: "push" }, remote: limited(200), set_upstream: boolean }),
-  object({ action: { const: "pr-create" }, base: limited(200), title: limited(256), body: limited(20_000), draft: boolean }),
-  object({ action: { const: "merge" }, branch: limited(200) }),
-  object({ action: { const: "pull" } }),
-  object({ action: { const: "resolve" }, path: limited(1000), content: limited(1024 * 1024) }),
-  object({ action: { const: "merge-abort" } }),
-] };
 interface Workspace { workspace_id: string; name: string; handle: string }
 export interface GitSelected { workspace_id: string; path: readonly string[]; side: "index" | "worktree"; previous_path?: readonly string[]; revision: string; reference: ArtifactReference }
 interface GitSaved { reference: ArtifactReference; result: GitReviewedResult; saved_at: string }
 export const gitActions = {
-  state: readingRepository(define<Record<string, never>, { workspace: Workspace; view: GitView; selected: GitSelected | null }>("git.state", "读取 Git 状态", "读取当前授权仓库与原固定差异选择，不修改暂存区", "query", read, object({}), object({ workspace, view, selected: nullable(selected) }))),
+  // Version 2: the view gives the upstream as fields (name, ahead, behind) instead of one sentence (user 2026-10-23 ⑧).
+  state: readingRepository({ ...define<Record<string, never>, { workspace: Workspace; view: GitView; selected: GitSelected | null }>("git.state", "读取 Git 状态", "读取当前授权仓库与原固定差异选择，不修改暂存区", "query", read, object({}), object({ workspace, view, selected: nullable(selected) })), version: 2 }),
   selectDiff: readingRepository(define<{ workspace_id: string; path: readonly string[]; side: "index" | "worktree" }, { result: WorkspaceGitResult; selected?: GitSelected }>("git.select-diff", "固定 Git 差异", "保存当前暂存区或工作树的固定差异并选中它；不修改仓库", "operation", write, object({ workspace_id: id, path, side: { enum: ["index", "worktree"] } }), { oneOf: [object({ result: diffResult, selected }), object({ result: failureResult })] })),
   prepareIndex: define<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>("git.prepare-index", "准备暂存审阅", "按已查看的修订生成暂存/取消暂存审阅；返回审阅身份，实际写入仍需用户审批", "operation", write, object({ workspace_id: id, path, action: { enum: ["stage", "unstage"] }, revision: id, operation_id: id }), object({ review_id: id })),
   results: define<Record<string, never>, { workspace: Workspace; results: { result: GitReviewedResult; saved: GitSaved | null; unavailable?: string }[] }>("git.results", "读取 Git 操作结果", "读取当前工作区已确定的原始审阅结果与固定归档，不把等待或未知执行当作成功", "query", read, object({}), object({ workspace, results: { type: "array", items: object({ result, saved: nullable(saved), unavailable: text }, ["result", "saved"]) } })),

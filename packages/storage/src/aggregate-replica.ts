@@ -1,26 +1,12 @@
+import { compileAggregateTrackingSql, aggregateTrackingSeedSql } from './aggregate-tracking.js';
 import {readDatabaseSpace} from './space.js';
 import { syncError } from './project-replica-sync-errors.js';
-import type {ProjectCopyIdentity,ProjectCopyReference} from '@molis-ai/molis-work-contracts/services/placement';
 import type { SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { createSqliteReplica, initializeReplica, replicaMarkSql, replicaTransaction, type ReplicaDatabase } from './replica.js';
+import { createSqliteReplica, initializeReplica, replicaTransaction, type ReplicaDatabase } from './replica.js';
 
-export type PortableRow = Record<string, string | number | null>;
-export interface AggregateRecords { record: PortableRow; children: Record<string, PortableRow[]> }
+import type { SyncPortableRow as PortableRow, SyncAggregateRecords as AggregateRecords, SyncAggregateDefinition as AggregateDefinition } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
+export type { SyncPortableRow as PortableRow, SyncAggregateRecords as AggregateRecords, SyncAggregateDefinition as AggregateDefinition } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 export const AGGREGATE_REPLICA_SCHEMA_SQL='CREATE TABLE IF NOT EXISTS aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);';
-export interface AggregateDefinition {
-  /** All SQL identifiers are trusted owner constants, never wire data. */
-  kind: string;
-  table: string;
-  columns: readonly string[];
-  children: readonly { table: string; parent: string; columns: readonly string[]; orderBy: string; identityColumns?:readonly string[] }[];
-  versionColumn?: string;
-  timestampVersionColumn?: string;
-  busyColumn?: string;
-  validate(value: AggregateRecords): void;
-  dependencies?(value: AggregateRecords, context: AggregateReplicaContext, projectId: string): void;
-  /** Explicit copy identity and typed references; free text and opaque user JSON are never searched for IDs. */
-  copy?:{kind:string;references?(value:AggregateRecords,projectId:string):readonly ProjectCopyReference[];rebase?(value:AggregateRecords,identity:ProjectCopyIdentity):void};
-}
 export type {AggregateReplicaContext} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import type {AggregateReplicaContext} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 
@@ -31,26 +17,10 @@ export function initializeAggregateReplication(db: ReplicaDatabase, definitions:
   replicaTransaction(db, () => {
     initializeReplica(db);
     db.prepare('SELECT key,version FROM aggregate_editor_versions LIMIT 0').all();
-    for (const d of definitions) {
-      for (const id of [d.kind, d.table, ...d.columns, ...d.children.flatMap(c => [c.table,c.parent,...c.columns])]) {
-        if (!/^[a-z][a-z0-9_]*$/.test(id)) throw new Error('INVALID_AGGREGATE_IDENTIFIER');
-      }
-      const marker = `${d.table}_aggregate_insert`;
-      if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(marker)) continue;
-      const key = (row:string) => `json_array(${row}.project_id,'${d.kind}',${row}.id)`;
-      if(d.versionColumn)db.exec(`INSERT INTO aggregate_editor_versions(key,version) SELECT json_array(project_id,'${d.kind}',id),${d.versionColumn} FROM ${d.table} WHERE 1 ON CONFLICT(key) DO UPDATE SET version=MAX(version,excluded.version)`);
-      db.exec(`INSERT INTO replica_changes(key) SELECT json_array(project_id,'${d.kind}',id) FROM ${d.table} ORDER BY id`);
-      for (const [event,row] of [['INSERT','NEW'],['DELETE','OLD'],['UPDATE','NEW']]) {
-        db.exec(`CREATE TRIGGER ${d.table}_aggregate_${event.toLowerCase()} AFTER ${event} ON ${d.table} BEGIN ${replicaMarkSql(key(row))}
-          ${d.versionColumn?`INSERT INTO aggregate_editor_versions VALUES (${key(row)},${row}.${d.versionColumn}) ON CONFLICT(key) DO UPDATE SET version=MAX(version,excluded.version);`:''}
-          ${event==='UPDATE'?`INSERT INTO replica_changes(key) SELECT ${key('OLD')} WHERE OLD.project_id<>NEW.project_id AND (SELECT applying FROM replica_state WHERE id=1)=0;`:''} END`);
-      }
-      for (const child of d.children) {
-        const mark = (row:string) => `INSERT INTO replica_changes(key) SELECT json_array(project_id,'${d.kind}',id) FROM ${d.table} WHERE id=${row}.${child.parent} AND (SELECT applying FROM replica_state WHERE id=1)=0;`;
-        for (const [event,row] of [['INSERT','NEW'],['DELETE','OLD'],['UPDATE','NEW']]) {
-          db.exec(`CREATE TRIGGER ${child.table}_aggregate_${event.toLowerCase()} AFTER ${event} ON ${child.table} BEGIN ${mark(row)} ${event==='UPDATE'?mark('OLD'):''} END`);
-        }
-      }
+    const missing = definitions.filter(d => !db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(`${d.table}_aggregate_insert`));
+    if (missing.length) {
+      db.exec(aggregateTrackingSeedSql(missing));
+      db.exec(compileAggregateTrackingSql(missing));
     }
   });
 }
@@ -78,6 +48,7 @@ export function createAggregatePortableOwner(db:ReplicaDatabase,definitions:read
   };
   return {
     authorize:context.authorize,
+    authorizeKey(key:string){context.authorize();context.project(decode(key).projectId);context.authorize();},
     belongsToProject:(key:string,projectId:string)=>decode(key).projectId===projectId,
     conflictState:context.conflictState,
     canUpload:(key:string)=>context.canUploadProject(decode(key).projectId),

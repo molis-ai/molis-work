@@ -56,6 +56,47 @@ function splitPath(pathname: string): string[] | null {
     .map((segment) => decodeURIComponent(segment));
 }
 
+/** Matching for a page capability and actual dispatch uses the same compiled Manifest routes. */
+export function pluginRouteMatcher(manifest: PluginManifest): (method: string, pathname: string) => PluginRouteMatch | null {
+  const routes = compile(manifest);
+  return (method, pathname) => matchRoute(routes, method, pathname);
+}
+
+function matchRoute(routes: readonly CompiledRoute[], method: string, pathname: string): PluginRouteMatch | null {
+  const parts = splitPath(pathname);
+  if (parts === null || parts.length === 0) return null;
+  const [pluginId, ...rest] = parts;
+  for (const route of routes) {
+    if (route.plugin_id !== pluginId || route.method !== method) continue;
+    if (route.segments.length !== rest.length) continue;
+    const params: Record<string, string> = {};
+    let matched = true;
+    for (let index = 0; index < route.segments.length; index += 1) {
+      const segment = route.segments[index]!;
+      const value = rest[index]!;
+      if (segment.startsWith(":")) {
+        params[segment.slice(1)] = value;
+        continue;
+      }
+      if (segment !== value) {
+        matched = false;
+        break;
+      }
+    }
+    if (!matched) continue;
+    return {
+      plugin_id: route.plugin_id,
+      route_id: route.route_id,
+      method: route.method,
+      params,
+      permission: route.permission,
+      max_body_bytes: route.max_body_bytes,
+      stream: route.stream,
+    };
+  }
+  return null;
+}
+
 /** Progress from an instance that is no longer active is refused there and then, not left to the watch that ends the stream. */
 function liveEmit(instance: { active(): boolean }, emit: NonNullable<PluginRouteRequest["emit"]>): NonNullable<PluginRouteRequest["emit"]> {
   return (event) => {
@@ -103,38 +144,7 @@ export class PluginRouteRouter {
   }
 
   match(method: string, pathname: string): PluginRouteMatch | null {
-    const parts = splitPath(pathname);
-    if (parts === null || parts.length === 0) return null;
-    const [pluginId, ...rest] = parts;
-    for (const route of this.#routes) {
-      if (route.plugin_id !== pluginId || route.method !== method) continue;
-      if (route.segments.length !== rest.length) continue;
-      const params: Record<string, string> = {};
-      let matched = true;
-      for (let index = 0; index < route.segments.length; index += 1) {
-        const segment = route.segments[index]!;
-        const value = rest[index]!;
-        if (segment.startsWith(":")) {
-          params[segment.slice(1)] = value;
-          continue;
-        }
-        if (segment !== value) {
-          matched = false;
-          break;
-        }
-      }
-      if (!matched) continue;
-      return {
-        plugin_id: route.plugin_id,
-        route_id: route.route_id,
-        method: route.method,
-        params,
-        permission: route.permission,
-        max_body_bytes: route.max_body_bytes,
-        stream: route.stream,
-      };
-    }
-    return null;
+    return matchRoute(this.#routes, method, pathname);
   }
 
   /** Returns null when no Plugin declares this path, so the Host can fall through. */

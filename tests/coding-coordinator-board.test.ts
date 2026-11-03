@@ -163,8 +163,8 @@ test("PA-09: 协作 started with a confirmed plan is not refused; its session ho
     const nodes = done.step_board!.nodes;
     assert.deepEqual(nodes.map(node => [node.id, node.state, node.owner?.kind]), [["step-1", "succeeded", "session"], ["step-2", "succeeded", "session"]]);
     assert.deepEqual(nodes.map(node => node.reports.map(entry => [entry.by, entry.note])), [
-      [["本会话", "开始改 a"], ["本会话", "a 的测试通过"]],
-      [["本会话", "开始改 b"], ["本会话", "b 的测试通过"]],
+      [[{ kind: "session", label: "本会话" }, "开始改 a"], [{ kind: "session", label: "本会话" }, "a 的测试通过"]],
+      [[{ kind: "session", label: "本会话" }, "开始改 b"], [{ kind: "session", label: "本会话" }, "b 的测试通过"]],
     ]);
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

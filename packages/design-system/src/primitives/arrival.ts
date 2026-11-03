@@ -1,6 +1,4 @@
-import { icon, type MolisWorkIcon } from "../icons.js";
-import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
-import { renderSpinner, renderStatusMark, type MwStatusTone } from "./feedback.js";
+import { cx, escapeHtml, icon, renderAttrs, renderSpinner, renderStatusMark, type AttrValue, type MwStatusTone, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /*
  * The arrival components: what the opening, the Welcome questions, the project chooser and the new-project journey
@@ -54,7 +52,7 @@ export function renderBarContext(options: { mark: string; title: string; caption
 }
 
 /** The bar's middle block while a step is under way or waiting: what is happening, in one line and a quieter one. */
-export function renderBarStatus(options: { glyph?: MolisWorkIcon; spin?: boolean; title: string; caption?: string; className?: string }): string {
+export function renderBarStatus(options: { glyph?: PluginIconName; spin?: boolean; title: string; caption?: string; className?: string }): string {
   return `<div class="${cx("mw-bar-status", options.className)}" data-slot="bar-status" role="status" aria-live="polite"><span class="mw-bar-status__tile" aria-hidden="true">${options.spin ? renderSpinner() : icon(options.glyph ?? "info")}</span><span class="mw-bar-status__text"><strong>${escapeHtml(options.title)}</strong>${options.caption ? `<small>${escapeHtml(options.caption)}</small>` : ""}</span></div>`;
 }
 
@@ -87,7 +85,7 @@ export function renderFileRow(options: MwFileRowOptions): string {
 }
 
 export interface MwFileGroupOptions {
-  glyph: MolisWorkIcon;
+  glyph: PluginIconName;
   title: string;
   caption?: string;
   count?: string;
@@ -153,6 +151,6 @@ export function renderBriefRecent(rows: ReadonlyArray<{ when: string; text: stri
   return `<ul class="mw-brief__recent">${rows.map((row) => `<li><time>${escapeHtml(row.when)}</time><span>${escapeHtml(row.text)}</span></li>`).join("")}</ul>`;
 }
 
-export function renderBriefStatus(options: { label: string; tone: MwStatusTone; glyph: MolisWorkIcon }): string {
+export function renderBriefStatus(options: { label: string; tone: MwStatusTone; glyph: PluginIconName }): string {
   return renderStatusMark({ label: options.label, tone: options.tone, icon: options.glyph, plain: true });
 }

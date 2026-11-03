@@ -2,27 +2,27 @@
  * `filterQuery` must be the filter that produced `visibleRows`, not a newer query. */
 
 export interface DatasetDraftRow {
-  id: string;
-  cells?: Record<string, string>;
+  readonly id: string;
+  readonly cells?: Readonly<Record<string, string>>;
 }
 
 export interface DatasetDraftColumn {
-  id: string;
+  readonly id: string;
 }
 
-export function mergeDatasetDraftRows(
-  selectedRows: DatasetDraftRow[] | undefined,
-  visibleRows: DatasetDraftRow[] | undefined,
-  columns: DatasetDraftColumn[] | undefined,
+export function mergeDatasetDraftRows<Row extends DatasetDraftRow>(
+  selectedRows: readonly Row[] | undefined,
+  visibleRows: readonly Row[] | undefined,
+  columns: readonly DatasetDraftColumn[] | undefined,
   filterQuery: string | undefined,
-): DatasetDraftRow[] {
+): Row[] {
   const needle = String(filterQuery || "").trim().toLowerCase();
-  const matches = (row: DatasetDraftRow) => {
+  const matches = (row: Row) => {
     if (!needle) return true;
     return (columns || []).some((column) => String(row.cells?.[column.id] ?? "").toLowerCase().includes(needle));
   };
   const visible = new Map((visibleRows || []).map((row) => [row.id, row]));
-  const rows: DatasetDraftRow[] = [];
+  const rows: Row[] = [];
   const seen = new Set<string>();
   (selectedRows || []).forEach((row) => {
     seen.add(row.id);

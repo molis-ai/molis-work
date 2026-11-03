@@ -1,17 +1,25 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { PluginDatabase, PluginSqlRow, PluginSqlValue } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginProjectStatements } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson, SandboxSqlRow, SandboxSqlStatement, SandboxSqlValue } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SandboxServiceContext } from './broker.js';
 import { SandboxError } from './schema.js';
 
-// A plugin's own tables, across the channel (`sdk.projectDatabase`). The sandbox sends statements and gets rows back as JSON; the
-// Host's client (`services.project_database`) checks each statement, the grants and the original caller exactly as it does for a
-// plugin in the Host's process. This side only bounds what crosses and adds the operation's signal and invocation check.
+// A plugin's own tables, across the channel (`sdk.projectDatabase`). The sandbox sends statements and gets rows back as JSON. The
+// statements do not run on the Host's thread: the Host hands them to a runner that executes them in a process it can kill
+// (`services.project_statements`; BL-395, specs/repository-anti-corruption/slices/sandbox-project-database-limits.md), and the runner
+// makes the checks the Host's client makes for a plugin in the Host's process (the statement check of S-46, the grants, the
+// original caller). This side bounds what crosses and adds the operation's signal and invocation check.
 
 /** What one request carries at most. */
 const SQL_LENGTH = 16_384, PARAMETERS = 256, STATEMENTS = 64, MESSAGE = 2048;
+/**
+ * What one read hands back at most: rows (`all`), and the bytes of their text and numbers (the channel's message is 1 MiB at the most, and
+ * the broker refuses a response over half of it). The runner stops reading at the first row past either, so the rows are bounded
+ * where they are read, not after.
+ */
+const RESULT_ROWS = 1000, RESULT_BYTES = 512 * 1024;
 
-type SandboxStatement = Required<SandboxSqlStatement>;
+export type SandboxStatement = Required<SandboxSqlStatement>;
 
 /** The Host's side of `sdk.projectDatabase`. The broker has checked the effect, the grant and the statements' shape. */
 export interface SandboxDatabaseService {
@@ -21,7 +29,9 @@ export interface SandboxDatabaseService {
   transaction(context: SandboxServiceContext, statements: readonly SandboxStatement[]): Promise<Array<{ changes: number }>>;
 }
 
+const RESULT_TOO_LARGE = 'plugin.project_database.result_too_large';
 const invalid = (message: string) => new SandboxError('sandbox.invalid_request', message);
+const tooLarge = (message: string) => new SandboxError('sandbox.database_result_too_large', message);
 const sqlValue = (value: SandboxJson): value is SandboxSqlValue => value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value));
 
 /** One statement as the worker sent it: its text, then its parameters. */
@@ -41,24 +51,23 @@ export function sandboxStatements(value: SandboxJson | undefined): SandboxStatem
 }
 
 /**
- * `sdk.projectDatabase` over the client the Host gave the plugin. A row crosses as JSON: a BLOB, an infinity or an integer past
+ * `sdk.projectDatabase` over the runner the Host gave the plugin. A row crosses as JSON: a BLOB, an infinity or an integer past
  * 2^53 is refused, not changed. A refusal of the Host's keeps its code and reason, so the plugin can tell a refused statement from
- * a broken one; anything else crosses as `sandbox.database_error` with SQLite's message.
+ * a broken one or a killed one; anything else crosses as `sandbox.database_error` with SQLite's message. `all` returns at most
+ * `RESULT_ROWS` rows; both `get` and `all` return at most `RESULT_BYTES` bytes; more is `sandbox.database_result_too_large`.
  */
-export function sandboxDatabase(database: PluginDatabase): SandboxDatabaseService {
+export function sandboxDatabase(runner: PluginProjectStatements): SandboxDatabaseService {
   return {
-    get: (context, statement) => run(context, () => {
-      const row = database.get(statement.sql, statement.parameters);
-      return row === null ? null : jsonRow(row);
+    get: (context, statement) => run(context, () => runner.get(statement.sql, statement.parameters, { bytes: RESULT_BYTES }, context.signal)),
+    all: (context, statement) => run(context, async () => {
+      const rows = await runner.all(statement.sql, statement.parameters, { rows: RESULT_ROWS, bytes: RESULT_BYTES }, context.signal);
+      if (rows.length > RESULT_ROWS) throw tooLarge(`A read returns at most ${RESULT_ROWS} rows; page it with LIMIT and OFFSET`);
+      return rows;
     }),
-    all: (context, statement) => run(context, () => database.all(statement.sql, statement.parameters).map(jsonRow)),
-    transaction: (context, statements) => run(context, () => database.transaction(async () => {
+    transaction: (context, statements) => run(context, () => runner.transaction(async () => {
       await context.beforeEffect?.();
       context.signal.throwIfAborted();
-    }, transaction => {
-      context.signal.throwIfAborted();
-      return statements.map(statement => ({ changes: Number(transaction.run(statement.sql, statement.parameters).changes) }));
-    })),
+    }, statements, context.signal)),
   };
 }
 
@@ -70,15 +79,6 @@ async function run<T>(context: SandboxServiceContext, call: () => T | Promise<T>
 function crossing(error: unknown): SandboxError {
   if (error instanceof SandboxError) return error;
   const message = (error instanceof Error ? error.message : String(error)).slice(0, MESSAGE);
+  if (error instanceof ActionError && error.code === RESULT_TOO_LARGE) return tooLarge(message);
   return new SandboxError(error instanceof ActionError ? error.code : 'sandbox.database_error', message);
-}
-
-function jsonRow(row: PluginSqlRow): SandboxSqlRow {
-  return Object.fromEntries(Object.entries(row).map(([column, value]) => [column, jsonValue(column, value)]));
-}
-
-function jsonValue(column: string, value: PluginSqlValue): SandboxSqlValue {
-  if (value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) return value;
-  if (typeof value === 'bigint' && Number.isSafeInteger(Number(value))) return Number(value);
-  throw new SandboxError('sandbox.database_error', `Column ${column.slice(0, 128)} holds a value the channel cannot carry (a BLOB, an infinity or an integer past 2^53)`);
 }

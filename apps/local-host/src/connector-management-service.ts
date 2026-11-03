@@ -3,7 +3,7 @@ import type { LocalMcpConfiguration } from "./connector-local-mcp.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import { cancelConnectorAuthorizationsForConnection } from "./connector-authorization-status.js";
-import { refreshFeedConnectionState } from "./connector-source-state.js";
+import { connectionChanged } from "./connection-change-events.js";
 
 /** Shared by the protected settings routes and authorized management actions. No service-side logout is implied. */
 export function controlConnectorConnection(home: string, id: string, action: "enable" | "disable" | "remove" | "disconnect") {
@@ -19,6 +19,6 @@ export function controlConnectorConnection(home: string, id: string, action: "en
   });
   if (action === "remove") withConnectorProtocols(home, store => store.remove(id));
   const cleanup = cleanupConnectorInstallation(home, installation);
-  refreshFeedConnectionState(home, id);
+  connectionChanged(home, id);
   return { connection_id: id, connection, removed: action === "remove", service_authorization_revoked: false, ...(cleanup ? { cleanup } : {}) };
 }

@@ -50,8 +50,8 @@ const MOLIS_WORK_TRUSTED_CALLER_CONTEXT = Object.freeze({
  * SEL (0.4.1) has no call that forgets one operation, but its records sit in the operation store this host provides.
  * Under `search-evidence-layer/<app>/<key namespace>/data/operation/v1` a pull is one sealed record, at
  * `intent-run/<scope>/<sha256 of the operation id>`; it names the content refs of the pull's materials.
- * tests/feed-local-history-delete.test.ts runs real pulls and checks that deleting a source leaves no operation
- * record behind, so an SDK that lays its keys out differently fails there instead of leaving records unnoticed.
+ * tests/feed-runtime-plugin.test.ts (RAC-518, deleting a source with its history) runs a real pull and checks that the deletion
+ * leaves no operation record behind, so an SDK that lays its keys out differently fails there instead of leaving records unnoticed.
  */
 const OPERATION_NAMESPACE = `search-evidence-layer/${APP_ID}/${KEY_NAMESPACE}/data/operation/v1`;
 

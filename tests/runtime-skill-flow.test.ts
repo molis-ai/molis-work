@@ -7,7 +7,8 @@ import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Runtime public JSON-RPC binds, records current events, and replays the same keys after restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-runtime-skill-"));
@@ -84,7 +85,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
       assert.ok(project, "created project must resolve through the returned connection/catalog");
       const store = new LocalProjectDatabase(project.database_path);
       try {
-        const snapshot = store.snapshot(project.project_id);
+        const snapshot = boardSnapshot(store, project.project_id);
         assert.equal(snapshot.goals.filter((item) => item.goal_id === created.goal.goal_id).length, 1);
         assert.equal("claims" in snapshot || "runs" in snapshot, false, "the retired claim/run protocol has no state");
         const notes = new GoalProjectApplication(store).goalEvents.listEvents(project.project_id, created.goal.goal_id).events.filter(

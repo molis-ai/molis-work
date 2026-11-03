@@ -8,6 +8,7 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assistantConnectionCheckers, AssistantStore, ASSISTANT_STORE_NAME, withConnectorConnections, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome } from "./fixtures/test-home.js";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { scriptedModelServer, untilSetup } from "./fixtures/connector-assistant-model.js";
@@ -108,6 +109,26 @@ async function connectionFixture(t: TestContext) {
   const checker = assistantConnectionCheckers(home.home, home.host).find(value => value.id === "molis.connection-ready")!;
   return { home, store, work, row, scope, params, checker, read: () => checker.read(scope, params, new AbortController().signal) };
 }
+
+// W5-11 slice 4 §2.2「检查连接和读账号」(RAC-1080): the check of an OAuth connection of the generic flow reads its account by the declaration
+// (`verified_account.account_id` is the one saved with the connection). A wait recorded from an older check's account stays pending, with
+// no compatibility read; one recorded from the current check is satisfied.
+test("S-27 RAC-1080 a wait recorded from an older check of an OAuth connection stays pending, and one from the current check is satisfied", async t => {
+  const f = await connectionFixture(t);
+  oauthNetwork(t, url => url.includes("oauth_token") ? Response.json({ access_token: "fixture-oauth-ready", refresh_token: "fixture-oauth-ready-refresh", expires_in: 3600 })
+    : Response.json({ data: { gid: "account-1", name: "Account", email: "account@example.test" } }));
+  const begun = await f.home.web.post<{ authorization_url: string; connection_id: string }>("/api/settings/connectors/methods/oauth/start",
+    { service_id: "asana", display_name: "Work", client_id: "fixture-app", client_secret: "fixture-only" });
+  const returned = new URL("/api/settings/connectors/methods/oauth/callback", f.home.origin);
+  returned.searchParams.set("state", new URL(begun.authorization_url).searchParams.get("state")!); returned.searchParams.set("code", "fixture-code");
+  await f.home.web.post("/api/settings/connectors/methods/oauth/complete", { returned_url: returned.href });
+  const checked = await f.home.web.post<{ verified_account: { login: string; account_id: string } }>(`/api/settings/connectors/connections/${begun.connection_id}/verify`, {});
+  assert.deepEqual(checked.verified_account, { login: "Account", account_id: ":account-1" }, "the account the declaration computes");
+  const read = (expected_account: { login: string; account_id: string }) =>
+    f.checker.read(f.scope, { ...f.params, connection_id: begun.connection_id, expected_account }, new AbortController().signal);
+  assert.equal((await read({ login: checked.verified_account.login, account_id: "account-1" })).status, "pending", "the account as an older check recorded it");
+  assert.equal((await read(checked.verified_account)).status, "satisfied");
+});
 
 test("S-27 ASC-10 ASC-33: settings repair satisfies only the selected identity and currently granted capabilities without background network calls", async t => {
   const f = await connectionFixture(t), originalFetch = globalThis.fetch;

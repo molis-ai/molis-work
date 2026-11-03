@@ -16,7 +16,8 @@
  *
  * A page's suggestion (`molis:assistant-message`, purpose `suggest`, or a hand-over the page did not start from a press)
  * is one more step here: pressing it puts its words and materials in the input, nothing is sent. With the panel closed it
- * is the only step shown, since the rest point into the conversation.
+ * is the only step shown, since the rest point into the conversation. A suggestion that names a comment thread and the plugin
+ * the shell read from its frame is 「让助理回复」 instead: this press starts the reply, as the person (PG-057); nothing else does.
  */
 export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
   const { row, thread, L, el } = input;
@@ -40,9 +41,10 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
   };
   const offerStep = () => {
     const step = el("button", "mw-ix-step"); step.type = "button"; step.dataset.stepOffer = ""; step.dataset.secondary = "";
-    step.title = offer.message.text + (offer.unconfirmed ? "\n" + L("没有确认是你刚才在那里发起的：放进输入框后，请你确认再发送。") : "");
-    step.append(el("span", "", (offer.unconfirmed ? L("{source}想交给助理") : L("{source}的建议")).replace("{source}", offer.message.source.title)));
-    step.addEventListener("click", () => { const taken = offer.message; offer = offerNode = null; step.remove(); paint(); input.take(taken); });
+    const reply = Boolean(offer.message.thread && offer.message.source.plugin_id && offer.message.object);
+    step.title = reply ? L("助理读这篇内容和这条评论线程，回复写回原评论。") : offer.message.text + (offer.unconfirmed ? "\n" + L("没有确认是你刚才在那里发起的：放进输入框后，请你确认再发送。") : "");
+    step.append(el("span", "", (reply ? L("让助理回复{source}的评论") : offer.unconfirmed ? L("{source}想交给助理") : L("{source}的建议")).replace("{source}", offer.message.source.title)));
+    step.addEventListener("click", () => { const taken = offer.message; offer = offerNode = null; step.remove(); paint(); if (reply) input.reply(taken); else input.take(taken); });
     return step;
   };
   const paint = () => {
@@ -66,3 +68,27 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
   });
   return { paint, offer(message, unconfirmed) { offerNode = offerNode?.remove(); offer = { message, unconfirmed }; paint(); } };
 }`;
+
+/**
+ * Fragment of the Assistant island's script (it shares that closure: api, loadWorks, switchTo, setPanel, showError). A plugin
+ * page's suggestion that names a comment thread (`thread`, PG-057) keeps it, checked: a draft is kept whole within the Host's
+ * limits or the thread is dropped, never cut. `replyToThread` runs only from the step's
+ * press: the reply starts as the person (`/api/assistant/threads/start`, `assistant.threads.start@1`) for the plugin the shell
+ * read from the frame (`source.plugin_id`), and the panel opens on the work that carries it, where it is followed, retried or stopped.
+ */
+export const ASSISTANT_THREAD_REPLY_SCRIPT = String.raw`
+  const tidyThread = (raw) => raw && typeof raw === "object" && typeof raw.thread_id === "string" && raw.thread_id && raw.thread_id.length <= 160
+    && typeof raw.message_id === "string" && raw.message_id && raw.message_id.length <= 160
+    && (raw.draft === undefined || raw.draft && typeof raw.draft.text === "string" && raw.draft.text.length <= 100000
+      && typeof raw.draft.revision === "string" && raw.draft.revision && raw.draft.revision.length <= 160)
+    ? { thread_id: raw.thread_id, message_id: raw.message_id, draft: raw.draft && { text: raw.draft.text, revision: raw.draft.revision } } : null;
+  const replyToThread = async (message) => {
+    try {
+      const status = await api("/threads/start", "POST", { target: { provider_id: message.source.plugin_id, subject_kind: message.object.kind, subject_id: message.object.id,
+        thread_id: message.thread.thread_id }, message_id: message.thread.message_id, draft: message.thread.draft });
+      await loadWorks();
+      if (status && status.work_id) await switchTo(status.work_id);
+      setPanel(true);
+    } catch (error) { setPanel(true); showError(error); }
+  };
+`;

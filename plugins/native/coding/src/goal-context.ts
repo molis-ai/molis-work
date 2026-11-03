@@ -1,9 +1,8 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { GOALS_ACTIONS, type GoalContextSnapshot } from "./goals-actions.js";
 import { codingArtifacts } from "./artifacts.js";
 import { createHash } from "node:crypto";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { GoalContextSnapshot } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentTextMaterial, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -30,13 +29,13 @@ function material(snapshot: GoalContextSnapshot, reference: ArtifactReference): 
 }
 /** Coding's current goal directory retains the original Host bridge's page size. */
 export async function currentGoalDirectory(context: PluginStartContext, afterCursor: string | undefined, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
-  return context.services!.actions!.invoke(goalPluginActions.list, { limit: 100, ...(afterCursor ? { after_cursor: afterCursor } : {}) }, control);
+  return context.services!.actions!.invoke(GOALS_ACTIONS.list, { limit: 100, ...(afterCursor ? { after_cursor: afterCursor } : {}) }, control);
 }
 export async function readCurrentGoalSnapshot(context: PluginStartContext, goalId: string, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   const actions = context.services!.actions!;
-  const { goal } = await actions.invoke(goalPluginActions.contract, { goal_id: goalId }, control);
+  const { goal } = await actions.invoke(GOALS_ACTIONS.contract, { goal_id: goalId }, control);
   if (!goal || goal.trashed_at || goal.archived_at) throw new Error("这个目标已归档、删除或不属于当前项目，请重新选择");
-  const { observed_event_cursor: _cursor, ...state } = await actions.invoke(goalPluginActions.state, { goal_id: goalId }, control);
+  const { observed_event_cursor: _cursor, ...state } = await actions.invoke(GOALS_ACTIONS.state, { goal_id: goalId }, control);
   const snapshot: GoalContextSnapshot = { goal, state };
   if (snapshot.goal.project_id !== context.project_id || snapshot.goal.goal_id !== goalId
     || snapshot.state.goal_id !== goalId || snapshot.state.project_id !== context.project_id) throw new Error("目标上下文归属不一致");

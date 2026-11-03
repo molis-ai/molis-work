@@ -6,12 +6,14 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { bindActionClient, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
+import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
 import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 
 async function setup(t: test.TestContext, completeText: HostCompleteText | null = null, generated?: () => void) {
   const home = await mkdtemp(join(tmpdir(), "workflow-stop-effects-")), databasePath = join(home, "project.db");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });

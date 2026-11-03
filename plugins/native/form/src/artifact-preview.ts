@@ -1,5 +1,5 @@
 import { bindArtifactPreview, defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FORM_ARTIFACT_TYPE_ID, type FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { FORM_ARTIFACT_TYPE_ID, type FormRecord } from "./contract.js";
 import { formMarkdown } from "./content-actions.js";
 
 /** A pinned version of a form as its questions in Markdown (specs/artifact-positioning A4); answers are never part of it. */

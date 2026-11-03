@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
-import {
-  ArtifactsModule, createArtifactsSchema, createProcessItemsSchema, ProcessItemsModule, type ArtifactsSqliteDatabase,
-} from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, createArtifactsSchema, createProcessItemsSchema, ProcessItemsModule, type ArtifactsSqliteDatabase, ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { artifactsActions, artifactsManifest, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-plugin-artifacts";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { artifactsActions, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
+import { installProducers } from "./fixtures/installed-producers.js";
+import { LocalProjectDatabase, openProjectVersionStores, type ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 // Who a personal 成果 belongs to (specs/artifact-positioning, 2026-10-07): in a Home it is the person, whoever produced it.
 // The producing workflow, Agent or MCP client is provenance in `created_by`.
@@ -99,7 +99,7 @@ test("the team-shared rule is unchanged: a shared 成果 stays with the actor th
 });
 
 // Re-importing a document: the same source is one line of snapshots, so the person's re-import goes on after a workflow's.
-const importPorts = (artifacts: ArtifactsModule | GoalProjectApplication["artifacts"], actorId: string, content: () => string) => ({
+const importPorts = (artifacts: ArtifactsModule | ProjectVersionStores["artifacts"], actorId: string, content: () => string) => ({
   projectId: "p", actorId, ownerActorId: person, routePrefix: "/projects/p", artifacts: artifacts as ArtifactsModule,
   readHtml: () => ({ title: "", content: "" }),
   readExternal: async () => ({ source: "notion" as const, source_id: "notion-page-1", source_url: "https://notion.so/x", title: "Roadmap", content: content(), format: "markdown" as const, warnings: [], connection_id: "c1" }) });
@@ -134,15 +134,16 @@ test("a document imported before the Home named its owner is re-imported by the 
 });
 
 test("a real Home's coordinator reads the person as the owner of every personal 成果", async () => {
-  const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage);
+  const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage), library = openProjectVersionStores(storage);
+  installProducers(storage.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report"] });
   project.initializeBoard({ project_id: "p", actor_id: person, idempotency_key: "p" });
   try {
     const registration = (actor: string, version: number): RegisterArtifactVersionInput => ({ project_id: "p", actor_id: actor, artifact_id: "report", version,
       artifact_type_id: "io.example.report", schema_version: 1, producer, content: { kind: "inline", payload: { version } }, ...pinnedArtifact("Report") });
-    project.artifacts.commands.registerVersion(registration("workflow-events", 1));
-    project.artifacts.commands.registerVersion(registration("claude-code", 2));
-    project.artifacts.commands.registerVersion(registration(person, 3));
-    assert.deepEqual(project.artifacts.query.listArtifactVersions("p", "report").map(version => [version.owner_actor_id, version.created_by]),
+    library.artifacts.commands.registerVersion(registration("workflow-events", 1));
+    library.artifacts.commands.registerVersion(registration("claude-code", 2));
+    library.artifacts.commands.registerVersion(registration(person, 3));
+    assert.deepEqual(library.artifacts.query.listArtifactVersions("p", "report").map(version => [version.owner_actor_id, version.created_by]),
       [[person, "workflow-events"], [person, "claude-code"], [person, person]]);
   } finally { storage.close(); }
 });
@@ -157,8 +158,8 @@ test("subject.read, read and export answer the same for every actor of the Home:
   note("workflow-events", "workflow-import", "imported by a workflow");
   const ledger = createContextLedger(h.db as unknown as Parameters<typeof createContextLedger>[0], { authorize: access => access.scope.kind === "personal" && access.scope.id === "p" });
   const actions = new ActionService();
-  actions.registerProvider({ provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: "成果", kind: "plugin", project_id: "p" },
-    definitions: artifactsManifest.actions!,
+  actions.registerProvider({ provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: "成果", kind: "plugin", project_id: "p" },
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({ projectId: "p", artifacts, ledger: ledger.query, importSources: () => ({}),
       importDocument: async () => { throw new Error("read-only fixture"); }, openProjectReference: async () => { throw new Error("must not fetch a file") } }) });
   const caller = (actor_id: string, audience: "user" | "mcp" | "workflow") => ({ actor_id, audience, project_id: "p", permissions: ["artifacts:read"] });

@@ -45,8 +45,8 @@ async function handleLensJob(
   let input: ResearchLensJobInput | undefined;
   try {
     input = lensInputSchema.parse(job.input);
-    const run = dependencies.repository.getRun(input.lensRunId);
-    const plan = dependencies.repository.getPlan(input.planId);
+    const run = dependencies.repository.runs.getRun(input.lensRunId);
+    const plan = dependencies.repository.plans.getPlan(input.planId);
     if (!run || !plan || run.planId !== plan.id) throw new Error("alchemist.lens_run_input_invalid");
     const ideaVersion = dependencies.ideas.getVersion(plan.key.ideaId, plan.key.ideaVersion);
     if (!ideaVersion) throw new Error("alchemist.idea_version_not_found");
@@ -55,13 +55,13 @@ async function handleLensJob(
     const progress = readLensProgress(job, plan, control.events());
     let callsUsed = progress.callsUsed;
     let checkpoint = progress.checkpoint;
-    await control.commit(() => dependencies.repository.updateRun(run.id, {
+    await control.commit(() => dependencies.repository.runs.updateRun(run.id, {
       status: "running", stage: run.stage, now: dependencies.clock.now(),
     }));
     if (!checkpoint) {
       checkpoint = { stage: "planning_complete" };
       await saveStage(control, checkpoint, "planning");
-      await control.commit(() => dependencies.repository.updateRun(run.id, { stage: "collecting", now: dependencies.clock.now() }));
+      await control.commit(() => dependencies.repository.runs.updateRun(run.id, { stage: "collecting", now: dependencies.clock.now() }));
     }
     if (checkpoint.stage === "planning_complete") {
       await beginCall(control, "collecting", ++callsUsed, plan.budget.limit, checkpoint);
@@ -69,7 +69,7 @@ async function handleLensJob(
       if (control.isCancelled()) return;
       checkpoint = { stage: "collecting_complete", evidence };
       await saveStage(control, checkpoint, "collecting");
-      await control.commit(() => dependencies.repository.updateRun(run.id, { stage: "cross_checking", now: dependencies.clock.now() }));
+      await control.commit(() => dependencies.repository.runs.updateRun(run.id, { stage: "cross_checking", now: dependencies.clock.now() }));
     }
     if (checkpoint.stage === "collecting_complete") {
       if (plan.budget.limit === 1) {
@@ -100,7 +100,7 @@ async function handleLensJob(
         await control.commit(() => dependencies.workReuse?.recordConsumed(plan, run.id));
         checkpoint = { stage: "cross_checking_complete", evidence: checkpoint.evidence, claims };
         await saveStage(control, checkpoint, "cross_checking");
-        await control.commit(() => dependencies.repository.updateRun(run.id, {
+        await control.commit(() => dependencies.repository.runs.updateRun(run.id, {
           stage: "synthesizing",
           now: dependencies.clock.now(),
         }));
@@ -131,7 +131,7 @@ async function handleLensJob(
       if (control.isCancelled()) return;
       await dependencies.workReuse?.validate(plan, control.signal);
       const result = checkpoint;
-      await control.commit(() => dependencies.repository.saveReport({
+      await control.commit(() => dependencies.repository.reports.saveReport({
         report: lensReportSchema.parse(result.report),
         evidence: result.evidence.map((item) => evidenceSchema.parse(item)),
       }));
@@ -146,9 +146,9 @@ async function handleLensJob(
     if (control.isCancelled()) return;
     const code = error instanceof ZodError ? "alchemist.research_output_invalid" : classifyError(error);
     if (input) {
-      const current = dependencies.repository.getRun(input.lensRunId);
+      const current = dependencies.repository.runs.getRun(input.lensRunId);
       if (current) {
-        await control.commit(() => dependencies.repository.updateRun(current.id, {
+        await control.commit(() => dependencies.repository.runs.updateRun(current.id, {
           status: "failed",
           errorCode: code,
           now: dependencies.clock.now(),
@@ -180,6 +180,10 @@ async function saveStage(
 function classifyError(error: unknown): string {
   if (error instanceof Error) {
     const hostCode = (error as Error & { code?: unknown }).code;
+    // The Host port refuses a prompt over its data position with this code; keep that reason apart from a generic runtime failure so the
+    // page can say the material is too long (the character excess itself stays at the port for now; carrying it to the page needs a
+    // dedicated error-detail field, a separate change).
+    if (hostCode === "alchemist.prompt_too_long") return "alchemist.prompt_too_long";
     if (typeof hostCode === "string" && hostCode.startsWith("alchemist.reuse_")) return hostCode;
     if (typeof hostCode === "string" && (hostCode === "alchemist.research_no_sources" || /^alchemist\.research_search_[a-z0-9_]{1,80}$/u.test(hostCode))) return hostCode;
     if (["alchemist.lens_run_input_invalid", "alchemist.idea_version_not_found", "alchemist.ai_output_invalid", "alchemist.research_call_interrupted", "alchemist.research_no_sources", "alchemist.research_budget_invalid", "alchemist.research_budget_exhausted", "alchemist.research_budget_history_invalid", "alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured", "alchemist.runtime_shutdown"].includes(error.message)) {

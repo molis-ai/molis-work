@@ -99,5 +99,9 @@ test("会话按 Goal 分组渲染，未关联目标是一个真实分组", () =>
   const html = renderCodingDirectory(model({ sessions }));
   assert.match(html, /data-coding-goal="g1"/);
   assert.match(html, /让首次使用不再卡住/);
-  assert.match(html, /未关联目标/);
+  // The group with no Goal is named as the page's live list names it (VUX-39: the first paint read 未关联目标, untranslated).
+  assert.match(html, /<h2 class="mw-dir__heading" data-slot="directory-heading">未关联 Goal<\/h2>/);
+  // Each row carries its state in words and its state ring, as the live list draws it (VUX-39: the first paint had no ring).
+  assert.match(html, /<small class="coding-session-state" data-state="running" data-mw-state="running">执行中<\/small>/);
+  assert.match(html, /<small class="coding-session-state" data-state="done" data-mw-state="idle">/);
 });

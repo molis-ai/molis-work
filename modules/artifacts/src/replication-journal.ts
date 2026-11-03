@@ -12,15 +12,28 @@ function installVersionJournal(db: ArtifactsSqliteDatabase, tables: VersionStore
   db.transaction(() => {
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(namespace + '_sync_identity_insert')) return;
     for (const row of db.prepare('SELECT project_id,artifact_id FROM ' + tables.identities + ' ORDER BY artifact_id').all() as { project_id: string; artifact_id: string }[]) seed(row.project_id, row.artifact_id);
+    db.exec(versionJournalSql(tables, namespace, kind, mark));
+  }).immediate();
+}
+
+/** The current complete platform baseline uses the owner projection shared with journal construction. */
+export function artifactReplicationJournalSql(mark: (keyExpression: string) => string): string {
+  return versionJournalSql(ARTIFACT_TABLES, 'artifacts', 'artifact', mark);
+}
+export function processItemReplicationJournalSql(mark: (keyExpression: string) => string): string {
+  return versionJournalSql(PROCESS_ITEM_TABLES, 'process_items', 'process_item', mark);
+}
+function versionJournalSql(tables: VersionStoreTables, namespace: string, kind: string, mark: (keyExpression: string) => string): string {
+  const statements: string[] = [];
     for (const [table, label] of [[tables.identities, 'identity'], [tables.versions, 'version']]) {
       for (const operation of ['INSERT', 'UPDATE', 'DELETE']) {
         const row = operation === 'DELETE' ? 'OLD' : 'NEW';
         const project = table === tables.identities ? row + '.project_id' : '(SELECT project_id FROM ' + tables.identities + ' WHERE artifact_id=' + row + '.artifact_id)';
         // Cascading parent deletion is represented by the identity tombstone, not a child with a missing project.
         const when = table === tables.identities ? '' : ' WHEN ' + project + ' IS NOT NULL';
-        db.exec('CREATE TRIGGER ' + namespace + '_sync_' + label + '_' + operation.toLowerCase()
+        statements.push('CREATE TRIGGER ' + namespace + '_sync_' + label + '_' + operation.toLowerCase()
           + ' AFTER ' + operation + ' ON ' + table + when + ' BEGIN ' + mark("json_array(" + project + ",'" + kind + "'," + row + '.artifact_id)') + ' END;');
       }
     }
-  }).immediate();
+  return statements.join('\n');
 }

@@ -1,29 +1,16 @@
-import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DatabaseSync } from "node:sqlite";
-import { bindDatabaseSpace, personalStorageSpace } from "@molis-ai/molis-work-storage";
-import { createFeedRuleReplica, installFeedReplication, FeedOutRuleStore, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-feed";
+import { personalStorageSpace } from "@molis-ai/molis-work-storage";
+import { FeedOutRuleStore, feedManifest, createFeedSyncBindings } from "@molis-ai/molis-work-plugin-feed";
+import { fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
+import { openPluginProjectLibrary, pluginSyncNamespace } from "@molis-ai/molis-work-app-local-host";
+import { projectPluginSyncFixture } from "./fixtures/project-plugin-sync.js";
 
 const space = personalStorageSpace("http://127.0.0.1:8787", "work", "alice");
 const projectId = "project-one";
-const context = { spaceId: space.spaceId, projectId, title: "项目", authorize: () => {} };
-
-function database() {
-  const db = new DatabaseSync(":memory:");
-  db.exec("PRAGMA foreign_keys=ON; CREATE TABLE project_root(project_id TEXT PRIMARY KEY)");
-  db.prepare("INSERT INTO project_root(project_id) VALUES (?)").run(projectId);
-  db.exec(FEED_PROJECT_DATABASE.schema);
-  db.exec(replicaSchemaSql('feed'));bindDatabaseSpace(db, space);
-  return db;
-}
-
 function fixture() {
-  const db = database();
-  installFeedReplication(db, projectId);
-  const rules = new FeedOutRuleStore(db);
-  const replica = createFeedRuleReplica(db, context);
-  return { db, rules, replica, close: () => db.close() };
+  const owner = projectPluginSyncFixture({space, projectId, manifest:feedManifest, bindings:createFeedSyncBindings, collectionId:'capture_rules'});
+  return {...owner, rules:new FeedOutRuleStore(fromBetterSqlite(owner.db))};
 }
 
 test("Feed capture rule transfers per project but is disabled until locally enabled", () => {
@@ -95,12 +82,15 @@ test("Feed rule edits and deletion produce independent deltas", () => {
   } finally { a.close(); b.close(); }
 });
 
-test("first Feed sync installation seeds rules created before the journal existed", () => {
-  const db = database();
+test("Feed refuses a library whose declared synchronization baseline was removed without repairing data", () => {
+  const owner = fixture();
   try {
-    const rule = new FeedOutRuleStore(db).create(projectId, { name: "旧设备上的规则", match: { contains: "消息" } });
-    installFeedReplication(db, projectId);
-    const replica = createFeedRuleReplica(db, context);
-    assert.equal(replica.next()?.key, JSON.stringify([projectId, "feed_rule", rule.rule_id]));
-  } finally { db.close(); }
+    const rule = owner.rules.create(projectId, {name:'旧设备上的规则', match:{contains:'消息'}});
+    const namespace = pluginSyncNamespace(feedManifest, 'capture_rules');
+    owner.db.exec(`DROP TABLE "${namespace}_replica_changes"`);
+    const before = owner.db.prepare("SELECT sql FROM sqlite_master ORDER BY name").all();
+    assert.throws(()=>openPluginProjectLibrary({db:owner.db,path:owner.db.name},feedManifest,()=>{}, {install_id:'refused',installation_generation:'two'}, {},owner.home));
+    assert.deepEqual(owner.db.prepare("SELECT sql FROM sqlite_master ORDER BY name").all(),before);
+    assert.equal(owner.rules.get(projectId,rule.rule_id).name,'旧设备上的规则');
+  } finally {owner.close();}
 });

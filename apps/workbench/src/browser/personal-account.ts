@@ -6,14 +6,11 @@ interface AccountStatus {
   browserSessionTicket?: string; loginCompleted?: boolean; offline?: boolean;
 }
 interface AccountActionResult { loginUrl?: string; loginAttempt?: string; signedOut?: boolean }
+import type {} from "@molis-ai/molis-work-plugin-sdk";
 declare global {
-  var L: ((text: string) => string) | undefined;
   var molisWorkOpenExternalUrl: ((url: string) => Promise<void>) | undefined;
-  var molisWorkRequest: {
-    <T = unknown>(url: string, options?: { method?: string; body?: object; fallback?: string }): Promise<T>;
-    toast(target: Element, error?: unknown, fallback?: string, options?: { ms: number }): void;
-  };
 }
+
 function requiredElement(root: ParentNode, selector: string): HTMLElement {
   const element = root.querySelector<HTMLElement>(selector);
   if (!element) throw new Error('Missing account element: ' + selector);

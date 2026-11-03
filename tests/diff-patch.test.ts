@@ -4,7 +4,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { compareRunChangeSet, parseUnifiedDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-diff";
+import { compareRunChangeSet } from "@molis-ai/molis-work-plugin-diff";
+import { parseUnifiedDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 
 // specs/visual-ui-experience §code-diff「复制代码/补丁内容明确且等真实结果」(VUX-33): what 复制补丁 copies is a patch git takes,
 // and applying it to the text before gives exactly the text after.

@@ -1,4 +1,4 @@
-import type { PagesBody, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesRecord } from "./contract.js";
 import { pagesErrors } from "./error.js";
 import { isDeepStrictEqual } from "node:util";
 import { LOCAL_PERSON_ACTOR_ID, nextPinnedVersion, type ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";

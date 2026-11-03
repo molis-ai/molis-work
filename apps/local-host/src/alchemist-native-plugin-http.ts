@@ -1,3 +1,4 @@
+import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { once } from "node:events";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,7 +21,8 @@ export async function handleAlchemistNativePluginHttp(
     const requestedProject = url.searchParams.get("project_id");
     if (requestedProject && requestedProject !== ports.projectId) throw new ActionError("actions.scope_mismatch", "请求与当前项目不一致。");
     const base = "/api/alchemist/studio";
-    const abort = new AbortController();
+    const abort = new AbortController(), page = pluginPageRequest(request);
+    const signal = page ? AbortSignal.any([abort.signal, page.signal]) : abort.signal;
     response.once("close", () => abort.abort());
     if (url.pathname.startsWith(base + "/api/")) {
       const method = request.method ?? "GET";
@@ -28,14 +30,14 @@ export async function handleAlchemistNativePluginHttp(
       if (body?.project_id !== undefined && body.project_id !== ports.projectId) throw new ActionError("actions.scope_mismatch", "请求与当前项目不一致。");
       const innerUrl = new URL(url.pathname.slice(base.length) + url.search, "http://alchemist.local");
       const result = await createAlchemistHttpApp(undefined, ports.actions).fetch(new Request(innerUrl, { method,
-        headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}), signal: abort.signal }));
+        headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}), signal }));
       response.writeHead(result.status, { ...Object.fromEntries(result.headers.entries()), "cache-control": "no-store" });
       if (result.body) {
         const reader = result.body.getReader();
         try {
           while (!response.destroyed) {
             const next = await reader.read(); if (next.done) break;
-            if (!response.write(next.value)) await once(response, "drain", { signal: abort.signal });
+            if (!response.write(next.value)) await once(response, "drain", { signal });
           }
         // Releasing the upstream stream after the page went away or the reply ended; a stream that already closed has nothing to release.
         } finally { await reader.cancel().catch(() => undefined); }

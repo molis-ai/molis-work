@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
-import { openPagesStore, ownPagesStores, PAGES_DATABASE, PAGES_HOME_STORE, type PreparedPagesImport } from "@molis-ai/molis-work-plugin-pages";
+import type { PagesBody } from "@molis-ai/molis-work-plugin-pages/contract";
+import { ownPagesStores, PAGES_DATABASE, PAGES_HOME_STORE, type PreparedPagesImport } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { servePages } from "./fixtures/pages-runtime.js";
 

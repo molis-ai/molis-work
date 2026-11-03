@@ -29,13 +29,14 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const path = `/projects/${project.project_id}/api/plugins/${entry.manifest.plugin_id}/read`;
   if (mode === "allowed" || mode === "source-missing" || mode === "pages-hidden" || mode === "controlled owner unavailable") {
     const response = await request(path, { item_id: page.document.id });
-    if (mode === "allowed" || mode === "pages-hidden") {
+    if (mode === "allowed") {
       assert.equal(response.status, 200, await response.clone().text()); assert.match(await response.text(), /Native Pages through Home/);
       assert.equal(probe.seen.at(-1)!.project_id, project.project_id); assert.equal(probe.seen.at(-1)!.actor_id, LOCAL_PERSON_ACTOR_ID);
     } else {
       if (mode === "source-missing") assert.equal(probe.contexts.at(-1)!.grants.includes("pages:read"), false);
       assert.notEqual(response.status, 200);
-      if (mode === "controlled owner unavailable") assert.equal((await response.json()).code, "actions.plugin_disabled");
+      // A hidden Pages refuses the delegated read too: a dependency does not keep a hidden plugin available (platform-authority-audience §9.1).
+      if (mode === "controlled owner unavailable" || mode === "pages-hidden") assert.equal((await response.json()).code, "actions.plugin_disabled");
       assert.equal(probe.contexts.at(-1)!.services!.storage!.get("delivered"), null);
     }
     if (mode !== "allowed") {
@@ -47,7 +48,8 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const target = { ...pagesContentActions.read, capability_id: "query.target" };
   await client.discover({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user", permissions: ["pages:read"] });
-  s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "home-held-query", title: "Held query", kind: "system", project_id: project.project_id },
+  // Under the Host's own provider the person holds `pages:read` (PG-007 stage 4); a made-up host provider would give the route nothing.
+  s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "platform", title: "Held query", kind: "system", project_id: project.project_id },
     definitions: [target], handlers: [{ ...target, handle: async () => { entered.resolve(); await release.promise; return { title: "Held", body: "Late content" }; } }] });
   probe.target.current = target;
   const pending = request(path, { item_id: page.document.id });

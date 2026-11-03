@@ -1,16 +1,9 @@
+import { sourceSectionsDeclaration, sourceSectionsTracking, messageSectionsDeclaration, messageSectionsTracking } from "./sync-sections.js";
 import { syncError } from './sync-errors.js';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import {
-  createSqliteReplica, initializeReplica, namespacedReplicaDatabase, readDatabaseSpace,
-  installReplicaTrigger, replicaMarkSql, replicaTransaction, queueReplicaChange, type ReplicaDatabase,
-} from "@molis-ai/molis-work-storage";
-import { FEED_OUT_RULES_SCHEMA_SQL } from "./out-rules.js";
+import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 
-export const feedSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "capture_rules", title: "消息捕捉规则", schema_version: 1, requires: [] },{id:'source_descriptions',title:'来源描述与历史',schema_version:1,requires:[]},{id:'messages',title:'消息、材料与固定历史',schema_version:1,requires:['source_descriptions']}],
-};
+
 
 const COLUMNS = ["project_id", "rule_id", "name", "enabled", "match_json", "created_at", "updated_at", "admission", "judgment_json", "revision"] as const;
 type Row = Record<string, unknown>;
@@ -55,55 +48,38 @@ function validateRule(value: unknown, projectId: string, ruleId: string): Row {
   return row;
 }
 
-/** Project-local owner journal: capture rules only, not connector credentials or source poll leases. */
-export function installFeedReplication(db: ReplicaDatabase, projectId: string): void {
-  if (!/^[a-zA-Z0-9_-]{1,80}$/u.test(projectId)) invalid();
-  db.exec(FEED_OUT_RULES_SCHEMA_SQL);
-  const ledger = namespacedReplicaDatabase(db, "feed");
-  const mark = (expression: string) => replicaMarkSql(expression).replace(/\breplica_/gu, "feed_replica_");
-  replicaTransaction(db, () => {
-    initializeReplica(ledger);
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feed_rule_sync_insert'").get()) {
-    for(const row of db.prepare('SELECT rule_id FROM feed_out_rules WHERE project_id=? ORDER BY rule_id').all(projectId))queueReplicaChange(ledger,JSON.stringify([projectId,'feed_rule',row.rule_id]));
-    }
-    for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
-      installReplicaTrigger(db, `feed_rule_sync_${event.toLowerCase()}`, `CREATE TRIGGER feed_rule_sync_${event.toLowerCase()} AFTER ${event} ON feed_out_rules
-        WHEN ${row}.project_id='${projectId}' BEGIN ${mark(`json_array('${projectId}','feed_rule',${row}.rule_id)`)} END`);
-    }
-  });
-}
-
-export function createFeedRuleReplica(db: ReplicaDatabase, context: {
-  spaceId: string; projectId: string; title: string; authorize(): void; conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
-}): SyncReplicaAdapter {
-  const binding = readDatabaseSpace(db);
-  if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) invalid("只允许同步当前个人空间的捕捉规则", "scope");
+export const feedRuleTracking: PluginSyncCollectionDefinition["tracking"] = [
+ {table:"feed_out_rules",key:[{column:"project_id"},{literal:"feed_rule"},{column:"rule_id"}]},
+];
+export function feedRuleCollection(projectId: string): PluginSyncCollectionDefinition {
+ return {tracking:feedRuleTracking,create(db,context) {
   const keyId = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
-    if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== context.projectId || parts[1] !== "feed_rule" ||
+    if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== projectId || parts[1] !== "feed_rule" ||
       typeof parts[2] !== "string" || !parts[2] || parts[2].length > 100) invalid();
     return parts[2] as string;
   };
-  return createSqliteReplica(namespacedReplicaDatabase(db, "feed"), {
-    authorize: context.authorize,
-    conflictState: context.conflictState,
+  return {
+    authorizeKey(key){keyId(key);context.project(projectId);},
+    canUpload(key){keyId(key);return context.canUploadProject(projectId);},
+    belongsToProject(key,target) { keyId(key); return target === projectId; },
     read(key) {
       const id = keyId(key);
-      const row = db.prepare("SELECT * FROM feed_out_rules WHERE project_id=? AND rule_id=?").get(context.projectId, id);
+      const row = db.prepare("SELECT * FROM feed_out_rules WHERE project_id=? AND rule_id=?").get(projectId, id);
       if (!row) return null;
-      validateRule(row, context.projectId, id);
-      const value = { format: 1, spaceId: context.spaceId, project: { id: context.projectId, title: context.title }, rule: row };
+      validateRule(row, projectId, id);
+      const value = { format: 1, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, rule: row };
       size(value);
       return value;
     },
     apply(key, value) {
       const id = keyId(key);
       const active = db.prepare("SELECT enabled FROM feed_out_rules WHERE project_id=? AND rule_id=?")
-        .get(context.projectId, id) as { enabled: number } | undefined;
+        .get(projectId, id) as { enabled: number } | undefined;
       if (active?.enabled === 1) throw syncError("busy", "本机捕捉规则正在启用，不能被远端记录覆盖");
       if (value === null) {
-        db.prepare("DELETE FROM feed_out_rules WHERE project_id=? AND rule_id=?").run(context.projectId, id);
+        db.prepare("DELETE FROM feed_out_rules WHERE project_id=? AND rule_id=?").run(projectId, id);
         return;
       }
       size(value);
@@ -111,9 +87,9 @@ export function createFeedRuleReplica(db: ReplicaDatabase, context: {
       exact(wire, ["format", "spaceId", "project", "rule"]);
       const project = object(wire.project);
       exact(project, ["id", "title"]);
-      if (wire.format !== 1 || wire.spaceId !== context.spaceId || project.id !== context.projectId ||
+      if (wire.format !== 1 || wire.spaceId !== context.spaceId || project.id !== projectId ||
         typeof project.title !== "string" || !project.title.trim() || project.title.length > 120) invalid();
-      const rule = validateRule(wire.rule, context.projectId, id);
+      const rule = validateRule(wire.rule, projectId, id);
       // Restored rules are intentionally disabled until explicitly enabled on this device.
       const values = COLUMNS.map(column => column === "enabled" ? 0 : rule[column] as string|number|null);
       db.prepare(`INSERT INTO feed_out_rules (${COLUMNS.join(",")}) VALUES (${COLUMNS.map(() => "?").join(",")})
@@ -121,5 +97,11 @@ export function createFeedRuleReplica(db: ReplicaDatabase, context: {
         .run(...values);
       context.authorize();
     },
-  });
+  };
+ }};
 }
+
+export const feedSync: PluginSyncDeclaration = {
+  protocol_version: 1,
+  collections: [{ id: "capture_rules", database: "project", tracking: feedRuleTracking, title: "消息捕捉规则", schema_version: 1, requires: [] },{id:'source_descriptions',database:'project',title:'来源描述与历史',schema_version:2,requires:[],sections:sourceSectionsDeclaration,tracking:sourceSectionsTracking},{id:'messages',database:'project',title:'消息、材料与固定历史',schema_version:2,requires:['source_descriptions'],sections:messageSectionsDeclaration,tracking:messageSectionsTracking}],
+};

@@ -1,9 +1,12 @@
+import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createTodoActionHandlers, todoActions } from "./actions.js";
 import { todoManifest } from "./manifest.js";
 import { todoOrganizeActions } from "./organize-actions.js";
+import { todoSkills, todoPrompts } from "./roles.js";
+import { TODO_INSTRUCTIONS } from "./prompts.js";
 import { TodoStore, type TodoStores } from "./store.js";
 import { todoUiContribution } from "./ui.js";
 
@@ -13,7 +16,7 @@ import { todoUiContribution } from "./ui.js";
  * Runtime's services. Inside a project the page calls its routes under that project's path, so the actions see the project (S-31).
  */
 export function createTodoPlugin(): PluginDefinition {
-  return { manifest: todoManifest, async start(context) {
+  return { manifest: todoManifest, agent_prompts: todoPrompts, instructions: TODO_INSTRUCTIONS, methods: todoSkills, async start(context) {
     for (const permission of todoManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供待办库");
@@ -23,7 +26,7 @@ export function createTodoPlugin(): PluginDefinition {
       write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new TodoStore(transaction))),
     };
     const model = context.services?.model;
-    return { kind: "app", views: [todoUiContribution], routes: todoRoutes(context),
+    return { kind: "app", sync: syncBindings(context), views: [todoUiContribution], routes: todoRoutes(context),
       actions: createTodoActionHandlers({ ...stores,
         modelAvailability: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
         ...(model ? { completeText: async (prompt, options) => (await model.complete(prompt, { signal: options.signal })).text } : {}) }) };

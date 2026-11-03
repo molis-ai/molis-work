@@ -94,9 +94,11 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
       + (round.usage.cached_input ? " · " + L("缓存读取") + " " + round.usage.cached_input.toLocaleString() : "")));
     if (round.failures.length) {
       const failures = el("ul", "prompt-diagnostics-issues");
-      // The runtime's summary often opens with the tool's name again: shown once.
+      // The runtime's summary often opens with the tool's name again: shown once. Its own words follow when the summary
+      // alone only names a generic code: the developer needs which rule refused the call, not just its error kind.
       round.failures.forEach((failure) => failures.append(issue(failure.tool + (failure.target ? " · " + failure.target : "") + (failure.state === "unknown" ? " · " + L("结果未知") : "") + "："
-        + (failure.summary.startsWith(failure.tool + " · ") ? failure.summary.slice(failure.tool.length + 3) : failure.summary))));
+        + (failure.summary.startsWith(failure.tool + " · ") ? failure.summary.slice(failure.tool.length + 3) : failure.summary)
+        + (failure.detail && !failure.summary.includes(failure.detail) ? " · " + failure.detail : ""))));
       item.append(failures);
     }
     return item;

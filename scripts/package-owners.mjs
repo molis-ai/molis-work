@@ -137,6 +137,46 @@ function expectedCell(firstCell, packages) {
   return item ? ownerCell(ownerOf(item)) : NO_OWNER;
 }
 
+/** The only words the 包成熟度 column carries (docs/SSOT-MATRIX.md §2, W5-15); `absent` is for target paths not built yet. */
+export const MATURITY_WORDS = ["production", "experimental", "slice", "absent"];
+export const MATURITY_COLUMN = "包成熟度";
+
+/**
+ * Errors for the 包成熟度 column (W5-15): a row that belongs to a workspace package carries that package's maturity; a
+ * target path without a workspace package yet must say `absent`; the registry is the only writer of the real values, so a
+ * changed word or a hand-edited row fails here. Pure, so tests can feed altered SSOT copies.
+ */
+export function maturityErrors({ ssot, packages }) {
+  const errors = [];
+  const lines = ssot.split("\n");
+  let header = null;
+  eachTableLine(lines, (line, index, kind) => {
+    const where = `${SSOT_FILE}:${index + 1}`;
+    const cells = splitCells(line);
+    if (kind === "header") {
+      header = cells;
+      if (!cells.includes(MATURITY_COLUMN)) errors.push(`${where}: package table has no "${MATURITY_COLUMN}" column`);
+      return;
+    }
+    if (kind === "separator" || cells.length !== 6) return;
+    const named = pathsNamedIn(cells[0])[0];
+    const maturityIndex = header ? header.indexOf(MATURITY_COLUMN) : -1;
+    if (!named || maturityIndex < 0) return;
+    const owning = owningPackage(named, packages);
+    const expected = owning ? owning.maturity : "absent";
+    const word = pathsNamedIn(cells[maturityIndex])[0];
+    if (word === undefined) {
+      errors.push(`${where}: ${MATURITY_COLUMN} of ${cells[0]} names no word in backticks, expected "${expected}"`);
+    } else if (!MATURITY_WORDS.includes(word)) {
+      // A retired migration word is still a named word: say which one was written, not that the cell is blank.
+      errors.push(`${where}: ${MATURITY_COLUMN} of ${named} is "${word}" (not one of ${MATURITY_WORDS.join("/")}), the registry says "${expected}"`);
+    } else if (word !== expected) {
+      errors.push(`${where}: ${MATURITY_COLUMN} of ${named} is "${word}", the registry says "${expected}"`);
+    }
+  });
+  return errors;
+}
+
 /** Calls `visit(line, index, kind)` for the header, separator and rows of every package table; kind is "header", "separator" or "row". */
 function eachTableLine(lines, visit) {
   let inTable = false;
@@ -213,7 +253,7 @@ export function checkPackageOwners(repositoryRoot, packages) {
   const codeowners = read(CODEOWNERS_FILE);
   const ssot = read(SSOT_FILE);
   if (codeowners === undefined || ssot === undefined) return errors;
-  errors.push(...ownerErrors({ codeowners, ssot, packages }));
+  errors.push(...ownerErrors({ codeowners, ssot, packages }), ...maturityErrors({ ssot, packages }));
   for (const gatePath of GATE_PATHS) {
     if (!fs.existsSync(path.join(repositoryRoot, gatePath))) errors.push(`${CODEOWNERS_FILE}: gate path ${gatePath} does not exist`);
   }

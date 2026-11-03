@@ -4,6 +4,7 @@ import { platformErrorKind } from '@molis-ai/molis-work-contracts/platform/actio
 import { syncError } from './sync-errors.js';
 import { canonicalDocumentValue, documentKey, newDocumentState, parseDocumentState, type DocumentState } from './sync-document-state.js';
 import { documentReplica } from './sync-document-replica.js';
+import { authorizeDocumentKey } from './sync-document-authority.js';
 
 /** One conditional replacement must include business content and its journal, never get + unconditional set. */
 export type {SyncDocumentStorage} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
@@ -12,6 +13,8 @@ export interface SyncDocumentOwner<T> {
   spaceId: string;
   storage: SyncDocumentStorage;
   authorize(): void;
+  /** Pure key/current and retained value scope check. Home-only owners explicitly validate their key and account. No snapshot/file reads or mutations. */
+  authorizeKey(data:T,key:string,value?:unknown):void;
   initial(): T;
   validate(value: unknown): T;
   /** Stable object keys and content revision tokens, not previews or device paths. */
@@ -41,6 +44,7 @@ export interface DocumentAccess<T> {
 export function createSyncDocument<T>(owner: SyncDocumentOwner<T>): SyncDocument<T> {
   documentKey(owner.spaceId);
   if (typeof owner.storage.compareAndSet !== 'function') throw syncError('unsupported', '当前存储没有原子条件写入，未启用同步');
+  if (typeof owner.authorizeKey !== 'function') throw syncError('unsupported', '同步文档主人尚未声明标识授权');
   const load = () => {
     owner.authorize(); const source = owner.storage.read();
     const state = source === null ? newDocumentState(owner.spaceId, owner.validate(owner.initial())) : parseDocumentState(source, owner.spaceId, owner.validate);
@@ -92,11 +96,12 @@ function observed(values: ReadonlyMap<string, string>): Map<string, string> {
   return result;
 }
 export function documentRead<T>(access: DocumentAccess<T>, state: DocumentState<T>, key: string): unknown | null {
-  try { const value = access.owner.read(state.data, key); canonicalDocumentValue(value); return structuredClone(value); }
+  try { authorizeDocumentKey(access,state,key);const value = access.owner.read(state.data, key); canonicalDocumentValue(value);authorizeDocumentKey(access,state,key,value);return structuredClone(value); }
   catch (error) {
     access.owner.authorize();
     const kind=error&&typeof error==='object'?(('kind' in error?error.kind:undefined)??('code' in error&&typeof error.code==='string'?platformErrorKind(error.code):undefined)):undefined;
     if(kind==='unavailable')throw syncError('unavailable','完整同步内容暂时不可用，原内容已保留',{sync_key:key});
+    if(kind==='forbidden')throw syncError('scope','当前无权读取此同步内容，原内容已保留',{sync_key:key});
     throw syncError('invalid', error instanceof SyntaxError ? '同步内容格式无效，原内容已保留' : '无法读取完整同步内容，原内容已保留', { sync_key: key });
   }
 }

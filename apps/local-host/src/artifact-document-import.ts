@@ -1,17 +1,19 @@
 import type { IncomingMessage } from "node:http";
+import { readFile, stat } from "node:fs/promises";
 import { readOriginalText } from "./artifact-original-text.js";
 import { readMaterialHtml } from "./material-extraction.js";
-import { ActionError, defineErrorCodes, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import {
-  ARTIFACTS_PLUGIN_ID, DOCUMENT_IMPORT_MAX_BYTES, artifactsActions, documentErrors, importArtifactDocument,
-  type ArtifactDocumentImportPorts, type ArtifactFileImport, type ArtifactImportResult, type ExternalDocumentSource,
-} from "@molis-ai/molis-work-plugin-artifacts";
+  DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
+  type ArtifactDocumentImportPorts, type OfferedOriginal,
+} from "@molis-ai/molis-work-module-artifacts";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+import { homeIntegrationRegistry } from "./builtin-integrations.js";
 
 /**
  * What the Host's side of the document import refuses: reading the request, the HTML file and the connected service. Every code is
@@ -27,25 +29,36 @@ const artifactImportErrors = defineErrorCodes("artifacts.document", {
   credentials_unavailable: "invalid",
 });
 
-const CONNECTOR_IDS: Record<ExternalDocumentSource, string> = {
-  notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive",
-};
-
-/** A file saved into the project's 成果库 through its own import action, as `caller`; refused where the 成果库 is off. */
-export async function importThroughArtifacts(client: ActionClient, caller: ActionCallContext, input: ArtifactFileImport): Promise<ArtifactImportResult> {
-  return await client.invoke(caller, { ...artifactsActions.importFile, provider_id: ARTIFACTS_PLUGIN_ID }, input) as ArtifactImportResult;
+/**
+ * Each document source's import, from the integrations of kind `document_import` this Home's registry declares now: a built-in plugin's
+ * and a package installed in the Home alike (the Host build's snapshot would see only the former). It is read on each call, so a package
+ * attached or detached is seen at once, and a registry that cannot be built fails the call rather than reading as no sources.
+ */
+async function documentImports(home: string): Promise<Record<string, { service: string; methods: readonly string[] }>> {
+  const registry = await homeIntegrationRegistry(home);
+  return Object.fromEntries(registry.listIntegrations("document_import").map(entry => [entry.declaration.document_source!,
+    { service: entry.declaration.service_id, methods: entry.declaration.connection_methods ?? [] }]));
 }
 
-export function documentImportConnections(home = resolveMolisWorkHome()) {
-  return listConnectorConnectionViews(home).filter(row => Object.values(CONNECTOR_IDS).includes(row.service_id)
-    && !["mcp", "none"].includes(row.auth_method) && (row.auth_method !== "cli" || row.service_id === "feishu"));
+type ConnectionView = ReturnType<typeof listConnectorConnectionViews>[number];
+const readsWith = (row: ConnectionView, entry: { service: string; methods: readonly string[] }) =>
+  row.service_id === entry.service && entry.methods.includes(row.auth_method);
+
+export async function documentImportConnections(home = resolveMolisWorkHome()) {
+  const imports = Object.values(await documentImports(home));
+  return listConnectorConnectionViews(home).filter(row => imports.some(entry => readsWith(row, entry)));
 }
-export function documentImportConnectionStatus(): Record<string, boolean> {
-  const connections = documentImportConnections();
-  return Object.fromEntries(Object.entries(CONNECTOR_IDS).map(([source, connector]) => [source, connections.some(row => row.service_id === connector && row.state === "connected")]));
+export async function documentImportConnectionStatus(home = resolveMolisWorkHome()): Promise<Record<string, boolean>> {
+  const [imports, connections] = await Promise.all([documentImports(home), documentImportConnections(home)]);
+  return Object.fromEntries(Object.entries(imports).map(([source, entry]) => [source, connections.some(row => readsWith(row, entry) && row.state === "connected")]));
 }
 
-export function importLocalArtifactDocument(input: Record<string, unknown>, ports: Omit<ArtifactDocumentImportPorts, "readExternal" | "readHtml"> & {
+export async function importLocalArtifactDocument(input: Record<string, unknown>, ports: Omit<ArtifactDocumentImportPorts, "readExternal" | "readHtml" | "offered"> & {
+  /**
+   * The file the person gave the Host for this import (`ActionCallContext.original_file`, checked by the caller: the person's own call,
+   * offered to the 成果库), read here and, over the inline size, kept in the 成果库's store. Never read from the input.
+   */
+  offeredPath?: string;
   beforeDispatch?(): void | Promise<void>;
   /** Decided by the Host from the caller (a person's explicit yes, S-39), never read from the input here (PMAT-48). */
   allowModelDownload?: boolean;
@@ -59,8 +72,10 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
     const active = withConnectorConnections(home, store => { const row = store.require(usedConnection!); return store.state(row) === "connected" && row.updated_at === usedRevision; });
     if (!active) throw artifactImportErrors.connection_revoked("读取期间连接已断开或改变，请重新授权后导入");
   };
+  const offered = ports.offeredPath ? await offeredOriginal(home, ports.projectId, ports.offeredPath, ports.signal) : undefined;
   return importArtifactDocument(input, {
     ...ports,
+    ...offered ? { offered } : {},
     async beforeSave() {
       await ports.beforeSave?.();
       ports.signal?.throwIfAborted();
@@ -73,15 +88,16 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
     readFileText: file => readOriginalText(file, home, { ...ports.signal ? { signal: ports.signal } : {},
       ...ports.allowModelDownload ? { allowModelDownload: true } : {}, ...ports.onProgress ? { onProgress: ports.onProgress } : {} }),
     async readExternal(document) {
-      const service = CONNECTOR_IDS[document.source];
-      const candidates = documentImportConnections(home).filter(row => row.service_id === service && row.state === "connected");
+      const imports = await documentImports(home), entry = imports[document.source], service = entry?.service;
+      const candidates = entry ? (await documentImportConnections(home)).filter(row => readsWith(row, entry) && row.state === "connected") : [];
       const id = document.connection_id || (candidates.length === 1 ? candidates[0]!.connection_id : undefined);
       if (!id) throw artifactImportErrors.connection_required(candidates.length ? "该来源有多个账号，请选择要使用的连接" : "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
       try { return await withConnectorRequest(home, id, ports.signal, async signal => {
         const beforeDispatch = async () => { await ports.beforeDispatch?.(); signal.throwIfAborted(); assertConnection(); };
         await beforeDispatch();
+        const control = { signal, beforeEffect: beforeDispatch, current: () => { signal.throwIfAborted(); assertConnection(); } };
         let access: Awaited<ReturnType<typeof resolveApiConnection>>;
-        try { access = await resolveApiConnection(home, id, service); }
+        try { access = await resolveApiConnection(home, id, control, service); }
         catch { signal.throwIfAborted(); throw artifactImportErrors.credentials_unavailable("所选连接不可用，请在连接器设置中重新授权"); }
         usedConnection = id;
         usedRevision = access.connection.updated_at;
@@ -93,7 +109,7 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
           assertConnection();
           if (access.connection.auth_method !== "oauth" || !(error instanceof ActionError) || error.code !== "catalog_integration.needs_auth") throw error;
           await beforeDispatch();
-          access = await resolveApiConnection(home, id, service, true);
+          access = await resolveApiConnection(home, id, control, service, true);
           return { ...await read(), connection_id: id };
         }
       }); }
@@ -104,6 +120,13 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
       }
     },
   });
+}
+
+/** The offered file as the import reads it: its size now, its bytes or a copy in the 成果库's store when asked. */
+async function offeredOriginal(home: string, projectId: string, path: string, signal?: AbortSignal): Promise<OfferedOriginal> {
+  const info = await stat(path).catch(() => undefined);
+  if (!info?.isFile()) throw documentErrors.original_not_offered("交给宿主的原文件已经不在了，请重新选择");
+  return { size_bytes: info.size, read: () => readFile(path, signal ? { signal } : {}), store: () => storeArtifactOriginal(home, projectId, path, signal) };
 }
 
 /** JSON escaping can expand a 2 MB text file six-fold; the decoded file is separately bounded. */

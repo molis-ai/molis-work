@@ -5,28 +5,16 @@ export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
 export { codingResultDocumentHandler } from "./results-document.js";
 export { codingOutputReferences, codingOutputs } from "./outputs.js";
 export { codingFollowUps, CODING_NEXT_STEP, type CodingFollowUpRun } from "./next-steps.js";
+export { codingInteractionHtml } from "./interaction-html.js";
 export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";
-export { codeTokens, codeLanguage, diffRowTokens, growCodeTokens, type CodeColouring } from "./highlight.js";
 export { createCodingCodePaint } from "./code-paint-client.js";
 export { commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
-export { planTask } from "./plans.js";
+export { planMaterial, planTask } from "./plans.js";
+export { executionSteps, parseCodingPlan } from "./plan-content.js";
 export { mentionedPaths, attachMentions, workspaceFileIndex, symbolsIn, symbolBlock } from "./mentions.js";
 export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, MODEL_DIGEST_HEAD } from "./history-digest.js";
 export { MAX_DELEGATION_HOPS, DELEGATION_STATE_KEY, type DelegationState } from "./cooperation.js";
 export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-coding",
-  packagePath: "plugins/native/coding",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["coding.artifact-types.v1", "coding.ui-contribution.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export {
   CODING_PLUGIN_ID,
@@ -43,6 +31,8 @@ export { CODING_MESSAGES } from "./messages.js";
 export {
   CODING_DIRECTORY_FACES,
   CODING_SETTINGS_UI_CONTRIBUTION_ID,
+  CODING_COMPANION_DIRECTORY_SLOT,
+  CODING_COMPANION_RESULT_SLOT,
   CODING_UI_CONTRIBUTION_ID,
   codingUiContribution,
   codingUiView,
@@ -183,9 +173,7 @@ export {
   type WriterAssignment,
   type WriterChangesView,
   type WriterFileChange,
-  type WriterFileTarget,
   type WriterSlot,
-  type WriterWorktree,
   type WritersProjectionInput,
 } from "./writers.js";
 export { createCodingTimeline, type TimelineActivity, type TimelineRun } from "./timeline.js";
@@ -194,16 +182,16 @@ export { createCodingTurnChanges } from "./turn-changes-client.js";
 export { codingQuestionAnswered } from "./question-answered-client.js";
 
 export { CODING_STYLES } from "./styles.js";
-export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./workbench-client.js";
 export { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 export { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 export { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
 export { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
-export type { CodingCharacterChoice, CodingCharacterPorts } from "./characters.js";
+export type { CodingCharacterChoice } from "./characters.js";
 
-export { codingMethods } from "./methods.js";
+export { codingSkills } from "./skills.js";
 
 export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 
 export { CODING_PROJECT_DATABASE } from "./database.js";
+export { syncBindings as createCodingSyncBindings } from "./sync-binding.js";

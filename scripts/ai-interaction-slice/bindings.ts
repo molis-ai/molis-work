@@ -2,7 +2,8 @@ import { references, type DemoState } from "./model.ts";
 import { appendDraft, edit, editWhen, setDraft } from "./state.ts";
 import { adoptSteps, setInteraction, stepLive, type RecommendationState } from "./recommendation.ts";
 import { atEnd, find } from "./dom.ts";
-import { createInteractionClient, type InteractionClient, type InteractionClientHost } from "../../packages/design-system/src/interaction-client.ts";
+import type { InteractionClient, InteractionClientHost } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { createInteractionClient } from "../../packages/design-system/src/interaction-client.ts";
 
 type TextField = "notes" | "minutes" | "date";
 const textFields = new Set<string>(["notes", "minutes", "date"]);

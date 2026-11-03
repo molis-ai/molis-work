@@ -1,13 +1,69 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, symlinkSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { parsePluginPackage, verifyPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginManifest, PluginPackageBundle, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginPackage, signPluginPackage, verifyPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+
+function packageFixture() {
+  const keys = generateKeyPairSync("ed25519");
+  const spki = keys.publicKey.export({ type: "spki", format: "der" });
+  const identity = `ed25519:sha256:${createHash("sha256").update(spki).digest("hex")}`;
+  const manifest: PluginManifest = {
+    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.package-trust", version: "1.0.0", name: "Package trust fixture", kind: "app",
+    publisher: { publisher_id: "developer", signature: identity }, entrypoints: [{ deployment: "local", entrypoint: "./index.mjs" }],
+    permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+  };
+  const bundle: PluginPackageBundle = {
+    payload: { schema_version: 1, manifest, files: [
+      { path: "index.mjs", content_base64: Buffer.from("export default {};").toString("base64") },
+      { path: "manifest.json", content_base64: Buffer.from(JSON.stringify(manifest)).toString("base64") },
+    ] }, signature: null, publisher_key: null,
+  };
+  const signer: PluginPackageSigner = { publisher_identity: identity, public_key_spki_base64: spki.toString("base64"), sign: bytes => sign(null, bytes, keys.privateKey) };
+  return { bundle, signer, publicKey: keys.publicKey };
+}
+
+const invalidPackage = (expected: string) => (error: unknown) => error instanceof ActionError && error.kind === "invalid" && error.code === expected;
+
+test("RAC-382-T1 parsePluginPackage refuses a publisher key on an unsigned envelope", () => {
+  const { bundle, signer } = packageFixture();
+  assert.deepEqual(parsePluginPackage(bundle), bundle, "a legal unsigned envelope still parses");
+  assert.throws(() => parsePluginPackage({ ...bundle, publisher_key: { algorithm: "ed25519", spki_base64: signer.public_key_spki_base64 } }),
+    invalidPackage("plugin.package_invalid"));
+});
+
+test("RAC-382-T1 parsePluginPackage refuses a signed envelope with a missing or invalid Ed25519 SPKI", () => {
+  const { bundle, signer, publicKey } = packageFixture(), signed = signPluginPackage(bundle, signer);
+  assert.deepEqual(verifyPluginPackage(signed, publicKey), signed, "a real Ed25519 signature with its own SPKI verifies");
+  const missing: Record<string, unknown> = { ...signed }; delete missing.publisher_key;
+  assert.throws(() => parsePluginPackage(missing), invalidPackage("plugin.package_invalid"));
+  const otherAlgorithm = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).publicKey.export({ type: "spki", format: "der" }).toString("base64");
+  for (const publisher_key of [null, { algorithm: "ed25519", spki_base64: "not-base64!" },
+    { algorithm: "ed25519", spki_base64: Buffer.from("not an SPKI").toString("base64") }, { algorithm: "ed25519", spki_base64: otherAlgorithm }]) {
+    assert.throws(() => parsePluginPackage({ ...signed, publisher_key }), invalidPackage("plugin.package_invalid"));
+  }
+});
+
+test("RAC-382-T1 parsePluginPackage refuses an envelope whose real public key fingerprint differs from its Manifest publisher", () => {
+  const { bundle, signer, publicKey } = packageFixture(), signed = signPluginPackage(bundle, signer), other = packageFixture();
+  assert.deepEqual(parsePluginPackage(signed), signed);
+  assert.deepEqual(verifyPluginPackage(signed, publicKey), signed);
+  assert.throws(() => parsePluginPackage({ ...signed, publisher_key: { algorithm: "ed25519", spki_base64: other.signer.public_key_spki_base64 } }),
+    invalidPackage("plugin.signer_mismatch"));
+});
+
+test("RAC-382-T1 signPluginPackage refuses a signer identity that does not name the public key it supplies", () => {
+  const { bundle, signer, publicKey } = packageFixture(), other = packageFixture();
+  assert.deepEqual(verifyPluginPackage(signPluginPackage(bundle, signer), publicKey).payload, bundle.payload);
+  assert.throws(() => signPluginPackage(bundle, { ...signer, public_key_spki_base64: other.signer.public_key_spki_base64 }),
+    invalidPackage("plugin.signer_mismatch"));
+});
 
 test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampering, wrong identity and unsafe files", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-package-"));

@@ -1,3 +1,4 @@
+import {openIssuesSyncStore} from "./fixtures/plugin-sync-stores.js";
 import assert from "node:assert/strict";
 // Exercise the public owner and shared discovery without a plugin-specific Host assembly path.
 import test, { type TestContext } from "node:test";
@@ -6,25 +7,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureStorageSpace, personalStorageSpace, type AggregateReplicaContext } from "@molis-ai/molis-work-storage";
 import type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
-import { ISSUES_DATABASE, IssueStore, issuesManifest, openIssuesSyncStore } from "@molis-ai/molis-work-plugin-issues";
-import { BUILTIN_PLUGIN_CATALOG, builtinSyncBindings } from "@molis-ai/molis-work-app-workbench";
+import {issuesManifest} from "@molis-ai/molis-work-plugin-issues";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 const caller = {
   actor_id: "alice", project_id: null, audience: "user" as const,
   permissions: ["issues:read", "issues:write"], beforeEffect: async () => {},
 };
 
-test("Issue owns its sync factory in the built-in plugin declaration", () => {
-  const entry = BUILTIN_PLUGIN_CATALOG.find(row => row.manifest.plugin_id === issuesManifest.plugin_id);
-  assert.equal(entry?.sync?.issues?.scope, "home");
-  const binding = entry?.sync?.issues;
-  assert.ok(binding && binding.scope === "home");
-  assert.equal(binding.open, openIssuesSyncStore);
-  const discovered = builtinSyncBindings().filter(row => row.entry.manifest.plugin_id === issuesManifest.plugin_id);
-  assert.equal(discovered.length, 1);
-  assert.equal(discovered[0]!.collection.id, "issues");
-  assert.equal(discovered[0]!.binding, binding);
+test("Issue declares its owner projection and Runtime collection instead of a private database opener", () => {
+ const entry=BUILTIN_PLUGIN_CATALOG.find(row=>row.manifest.plugin_id===issuesManifest.plugin_id);
+ assert.ok(entry);assert.equal(entry.sync,undefined);
+ const collection=entry.manifest.sync!.collections.find(row=>row.id==='issues')!;
+ assert.equal(collection.schema_version,2);assert.deepEqual(collection.tracking?.[0]?.where,[{column:'submitter_id',op:'eq',value:{actorId:true}}]);
 });
 
 function fixture(t: TestContext) {
@@ -32,9 +27,8 @@ function fixture(t: TestContext) {
   const homes = [join(root, "a"), join(root, "b")];
   const space = personalStorageSpace("http://127.0.0.1:8787", "work", "alice");
   homes.forEach(home => ensureStorageSpace(home, space));
-  const connections = homes.map(home => openPluginDatabase(home, ISSUES_DATABASE, () => {}));
   const syncStores = homes.map(home => openIssuesSyncStore(home, "alice"));
-  const stores = connections.map(connection => new IssueStore(connection.client, "alice"));
+  const stores = syncStores.map(owner => owner.store);
   const context: AggregateReplicaContext = {
     spaceId: space.spaceId, authorize() {}, canUploadProject: () => false,
     project: () => { throw new Error("Issue must not need a project"); }, hasArtifact: () => false,
@@ -49,7 +43,6 @@ function fixture(t: TestContext) {
     return event;
   };
   t.after(() => {
-    connections.forEach(connection => connection.close());
     syncStores.forEach(store => store.close());
     rmSync(root, { recursive: true, force: true });
   });

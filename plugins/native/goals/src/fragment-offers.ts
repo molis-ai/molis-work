@@ -18,7 +18,11 @@ const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
 export const goalsFragmentOffersAction = defineFragmentOffersAction("goals.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以推进的目标", ["goals:read"], GOALS_FRAGMENT_CHOICES);
 
 const MAX_STEPS = 6;
-const clip = (text: string, max: number) => text.length > max ? text.slice(0, max - 1) + "…" : text;
+// Whole characters, not UTF-16 units: an emoji is one, as the action schemas count it, and a cut inside one leaves half of it.
+const clip = (text: string, max: number) => {
+  const chars = [...text];
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : text;
+};
 
 /** The steps a passage names: one per selected part, or one per clause of a single part. */
 export function planSteps(input: FragmentOffersInput): string[] {

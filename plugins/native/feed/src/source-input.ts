@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 export function normalizeIdempotencyKey(value: string): string {
   const key = value.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/u.test(key)) {

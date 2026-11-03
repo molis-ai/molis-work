@@ -39,6 +39,7 @@ export function createPersonalNotesSample(version = '1.0.0') {
       const authorize = () => { scope.assertActive(); context.requireGrant('storage:private'); };
       const current = createSyncDocument<Data>({ spaceId: scope.spaceId,
         belongsToProject(){return false;},
+        authorizeKey(_data,key){authorize();noteKey(key);},
         storage: { read: () => storage.get('notes:v1'), compareAndSet: (expected, value) => storage.compareAndSet!('notes:v1', expected, value) },
         authorize, initial: () => ({ notes: {} }),
         validate(value) {

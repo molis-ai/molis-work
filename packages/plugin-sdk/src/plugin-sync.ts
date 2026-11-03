@@ -1,3 +1,5 @@
+import { parseSyncSections } from "./sync-sections.js";
+import { parseSyncTracking, parseSyncAggregates } from './sync-schema.js';
 import type { PluginSyncDeclaration, PluginSyncCollection } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { syncError } from "./sync-errors.js";
 
@@ -9,7 +11,7 @@ export function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaratio
   const ids = new Set<string>();
   const collections = object.collections.map((item): PluginSyncCollection => {
     const row = syncRecord(item);
-    exactKeys(row, ["id", "title", "schema_version", "requires"]);
+    exactKeys(row, ["id", "title", "schema_version", "requires", "tracking", "aggregates", "sections", "database"]);
     if (typeof row.id !== "string" || !/^[a-z][a-z0-9._-]{0,79}$/.test(row.id)
       || ids.has(row.id) || typeof row.title !== "string" || !row.title.trim() || row.title.length > 100
       || !Number.isSafeInteger(row.schema_version) || Number(row.schema_version) < 1
@@ -17,8 +19,9 @@ export function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaratio
       || row.requires.some(id => typeof id !== "string") || new Set(row.requires).size !== row.requires.length) {
       fail("同步集合的身份、版本或依赖不合法");
     }
+    if (row.database !== undefined && row.database !== "home" && row.database !== "project") fail("同步集合的数据库归属无效");
     ids.add(row.id);
-    return Object.freeze({ id: row.id, title: row.title, schema_version: Number(row.schema_version), requires: Object.freeze([...row.requires]) as readonly string[] });
+    return Object.freeze({ ...(row.database !== undefined ? {database: row.database as "home" | "project"} : {}), id: row.id, title: row.title, schema_version: Number(row.schema_version), requires: Object.freeze([...row.requires]) as readonly string[], ...(row.sections !== undefined ? {sections: parseSyncSections(row.sections)} : {}), ...(row.tracking !== undefined ? {tracking: parseSyncTracking(row.tracking)} : {}), ...(row.aggregates !== undefined ? {aggregates: parseSyncAggregates(row.aggregates)} : {}) });
   });
   const result = Object.freeze({ protocol_version: 1 as const, collections: Object.freeze(collections) });
   // Validate every node, including currently unselected collections.

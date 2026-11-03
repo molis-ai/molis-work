@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -6,9 +7,9 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { sceneConfigurationActions, ActionError, bindActionClient, type ActionDefinition, type ActionSceneDefinition, type ActionSceneBinding, type ActionSceneHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalActionGatewayClient, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { grantMcpActions, revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -19,7 +20,7 @@ test("unknown registered scenes can be authored in the real editor, retain missi
     async evaluate(_key, record, input) { inputs.push(input); return { primitive: "noul", noul: 0.9, choice: null,
       score: null, legend: null, probabilities: {}, confidence: null, model: record.model }; },
   } };
-  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, functions); if (!browser) return;
+  const browser = await openGoalBrowser(t, "seeded", undefined, null, functions); if (!browser) return;
   const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
@@ -72,8 +73,8 @@ test("unknown registered scenes can be authored in the real editor, retain missi
     async start() { return { kind: "app", actions: [{ ...read, handle: () => note() }, { ...write, handle: (_caller, value) => {
       store.db.prepare("UPDATE fixture_review_notes SET state = ? WHERE id = 'note-1'").run((value as { state: string }).state); return note();
     } }], action_scenes: [handler(scene), handler(nextVersion), handler(other)] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   const draft = withFunctionsService(homeDirectory, service => service.create({ primitive: "noul", name: "审核新笔记", function_key: "review_note" }), functions);
   const record = () => withFunctionsService(homeDirectory, service => service.get(draft.id), functions);

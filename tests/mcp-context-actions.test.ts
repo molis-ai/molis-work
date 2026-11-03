@@ -95,12 +95,16 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await contextCall("molis_work_v1_context_bind", { project_id: project.project_id,
       user_confirmed: true, rebind_confirmed: true });
     await grant(goalsActions.guidanceRead.capability_id, true);
+    const offlineBindings = await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
     await served.close();
-    result = await resolve();
-    assert.equal(result.status, "bound"); assert.equal(result.connection.project_id, project.project_id);
-    assert.equal(result.resume, null); assert.equal(result.project_guidance, null);
-    assert.equal(result.resume_error.code, "actions.service_unavailable"); assert.equal(result.project_guidance_error.code, "actions.service_unavailable");
-    assert.doesNotMatch(JSON.stringify(result), /Authorized goal content|Authorized project instruction/);
+    const offline = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
+    assert.equal(offline.isError, true, JSON.stringify(offline));
+    // RAC-105-A-GW-03: production context stays on the resident-only path when that Host is unavailable.
+    // C5 (w5-16 step 5) first tries this Home's installed launcher; a test Home has none, so the answer is that install error, never a local read.
+    assert.match(JSON.stringify(offline), /mcp\.startup_entry_missing/);
+    assert.doesNotMatch(JSON.stringify(offline), /Authorized goal content|Authorized project instruction/);
+    assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), offlineBindings,
+      "RAC-105-A-09: the offline call does not resolve or rewrite a local binding");
   } finally {
     await sdk.close(); await served.close();
     await host.close(); await rm(home, { recursive: true, force: true });
@@ -113,11 +117,10 @@ for (const changed of ["project", "client"]) test(`context presentation rejects 
   const host = { homeDirectory: "/test-home", runtimeContext: { runtime_id: "fixture", stable_work_context_id: "session", host_declares_stable: true } };
   let resumeRead = false;
   const present = createMcpContextPresenter({ connection, contextSignal: () => lifetime.signal, createError: (code, message) => new ActionError(code, message),
-    readGuidance: async () => { throw new ActionError("actions.forbidden", "Not granted"); },
-    readSession: async () => {
+    readGuidance: async () => {
       if (changed === "project") connection.accept({ projectId: "other", databasePath: "/other.db", webBaseUrl: "http://127.0.0.1:4173" }, host.runtimeContext);
       else lifetime.abort();
-      return { sessionRegistry: { status: "unavailable", message: "No Session", session: null }, sessionGoalId: null };
+      throw new ActionError("actions.forbidden", "Not granted");
     }, readResumeFacts: async () => { resumeRead = true; return { goals: [] }; } });
   // The Catalog shape is irrelevant to this race; presentation reads only its resolved connection.
   await assert.rejects(present({ connection: { project_id: "first", database_path: "/first.db" } } as never, host), { code: "mcp.context_changed" });

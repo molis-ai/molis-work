@@ -295,7 +295,9 @@ impl Drop for IoJob {
 }
 
 /// Only AppKit/foreground snapshots happen here; blocking work never runs in Carbon's main-thread handler.
-fn start_io(work: impl FnOnce(&AppHandle) -> Result<(), String> + Send + 'static) {
+fn start_io(
+    work: impl FnOnce(&AppHandle) -> Result<Option<&'static str>, String> + Send + 'static,
+) {
     let Some(host) = host() else { return };
     if IO_RUNNING.swap(true, Ordering::AcqRel) {
         notice("正在收取，请稍候再试");
@@ -306,7 +308,8 @@ fn start_io(work: impl FnOnce(&AppHandle) -> Result<(), String> + Send + 'static
         let _job = IoJob;
         let result = work(&app);
         let _ = app.run_on_main_thread(move || match result {
-            Ok(()) => show_shelf_refresh(),
+            Ok(None) => show_shelf_refresh(),
+            Ok(Some(message)) => show_notice(message, true),
             Err(error) => notice(&error),
         });
     });
@@ -340,7 +343,7 @@ fn on_capture() {
             let (message, _) = capture_failure(Some(kind), ax, !denied);
             capture_hotkey_message(&message)
         })?;
-        admit_page(&url, &title)
+        admit_page(&url, &title).map(|_| None)
     });
 }
 
@@ -365,7 +368,7 @@ fn on_files() {
                 failure.message(&capture_label)
             })?,
             FrontFileKind::Other => copy_file_urls(app, pid)?,
-            FrontFileKind::Itself | FrontFileKind::Browser => return Ok(()),
+            FrontFileKind::Itself | FrontFileKind::Browser => return Ok(None),
         };
         if paths.is_empty() {
             let failure = if kind == FrontFileKind::Finder {
@@ -375,21 +378,7 @@ fn on_files() {
             };
             return Err(failure.message(&capture_label));
         }
-        let mut admitted = 0usize;
-        let mut last_error = None;
-        for path in paths {
-            match shelf_http::admit_file(&path) {
-                Ok(_) => admitted += 1,
-                Err(error) => last_error = Some(error),
-            }
-        }
-        if admitted == 0 {
-            Err(last_error.unwrap_or_else(|| shelf_hotkeys::FILES_EMPTY.to_string()))
-        } else if let Some(error) = last_error {
-            Err(format!("已收下 {admitted} 项，另有文件未收下：{error}"))
-        } else {
-            Ok(())
-        }
+        shelf_http::collect_admissions(paths.iter().map(|path| shelf_http::admit_file(path))).1
     });
 }
 
@@ -654,19 +643,16 @@ fn show_shelf_refresh() {
 }
 
 fn notice(message: &str) {
+    show_notice(message, false);
+}
+
+fn show_notice(message: &str, partial: bool) {
     let Some(host) = host() else { return };
     let Some(window) = host.app.get_webview_window("main") else {
         return;
     };
     show_shelf(&window);
-    let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
-    let script = format!(
-        r#"(() => {{
-          const notice = globalThis.molisWorkShelfNotice;
-          if (typeof notice === "function") setTimeout(() => notice({encoded}), 80);
-        }})();"#
-    );
-    let _ = window.eval(&script);
+    crate::shelf_notice(&host.app, message, partial, 80);
 }
 
 #[allow(dead_code)]

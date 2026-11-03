@@ -11,6 +11,7 @@ export function syncContributionProblems(manifest: PluginManifest, contribution:
       problems.push('同步集合未声明或重复'); continue;
     }
     seen.add(binding.collection_id);
+    if(binding.hasReference!==undefined&&typeof binding.hasReference!=='function')problems.push('同步引用检查须为函数');
     const replica = binding.replica;
     if (!replica || typeof replica !== 'object' || ['next', 'acknowledge', 'receive', 'cursor', 'counts', 'conflicts', 'resolve'].some(name =>
       typeof Reflect.get(replica, name) !== 'function')) problems.push('同步集合缺少增量实现');

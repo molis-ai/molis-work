@@ -15,8 +15,11 @@ test("S-18 RAC-50 RAC-51 accepted authority outlives its transport, while the or
   let execution!: ActionExecutionContext, retained!: RetainedActionAuthority, allowed = true, captures = 0;
   const check = () => { if (!allowed) throw new ActionError("actions.forbidden", "revoked"); };
   const dispose = service.registerProvider({ provider: { provider_id: "probe", title: "Probe", kind: "system" }, definitions: [action],
-    handlers: [{ ...action, handle: context => { execution = context; retained = context.retainBackgroundAuthority!(); return null; } }] });
-  await service.invoke({ ...caller, signal: abort.signal, retain_background_authority: () => { captures++; return Object.assign(async () => check(), { assertCurrent: check }); } }, action, {});
+    handlers: [{ ...action, availability: context => { context.assert_authority_current?.(); return { available: true }; },
+      handle: context => { execution = context; retained = context.retainBackgroundAuthority!(); return null; } }] });
+  // SYS-15-B1: availability reads use the accepted background authority after the HTTP request has ended.
+  await service.invoke({ ...caller, signal: abort.signal, assert_authority_current: () => { abort.signal.throwIfAborted(); check(); },
+    retain_background_authority: () => { captures++; return Object.assign(async () => check(), { assertCurrent: check }); } }, action, {});
   abort.abort(); await retained();
   await assert.rejects(execution.beforeEffect(), { code: "actions.expired" });
   assert.throws(() => execution.retainBackgroundAuthority!(), { code: "actions.expired" }); assert.equal(captures, 1);

@@ -6,25 +6,25 @@ import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import { createSqliteReplica, namespacedReplicaDatabase, ensureStorageSpace, readDatabaseSpace } from '@molis-ai/molis-work-storage';
 import { partitionedReplica, type SyncRegistration, syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
-import { availableProjectPluginIds, builtinSyncBindings } from '@molis-ai/molis-work-app-workbench';
+import { PLATFORM_SYNC_COLLECTIONS } from './platform-sync-catalog.js';
 import { LocalProjectDatabase } from './project-database.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 
 const errors = defineErrorCodes('host', { version_sync_scope: 'forbidden', version_sync_invalid: 'invalid', version_sync_unavailable: 'unavailable' });
-const fixedVersionBindings = () => builtinSyncBindings().flatMap(row => row.binding.scope === 'project-fixed-versions' ? [{ ...row, binding: row.binding }] : []);
+const fixedVersionBindings = () => PLATFORM_SYNC_COLLECTIONS.filter(row => row.owner === 'artifacts');
 type FixedVersionBinding = ReturnType<typeof fixedVersionBindings>[number];
 function libraryBinding(): FixedVersionBinding {
-  const matches = fixedVersionBindings().filter(row => row.binding.store === 'library');
+  const matches = fixedVersionBindings().filter(row => row.store === 'library');
   if (matches.length !== 1) throw errors.version_sync_invalid('成果固定版本同步目录必须只有一个 owner');
   return matches[0]!;
 }
 export const artifactSyncSelection = libraryBinding().selection;
 
 /** Both fixed stores come from the same plugin catalog, with different journals and explicit opt-in collections. */
-export function createPersonalFixedVersionBindings(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner) {
+export function createPersonalFixedVersionBindings(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, hasGoal?: (projectId:string,goalId:string)=>boolean) {
   const bindings = fixedVersionBindings().map(binding => ({
-    store: binding.binding.store,
-    ...createVersionRegistration(home, spaceId, userId, check, withCatalog, binding),
+    store: binding.store,
+    ...createVersionRegistration(home, spaceId, userId, check, withCatalog, binding, hasGoal),
   }));
   const artifacts = bindings.find(binding => binding.store === 'library');
   if (!artifacts) throw errors.version_sync_invalid('成果同步 owner 未登记');
@@ -35,9 +35,9 @@ export function createPersonalArtifactRegistration(home: string, spaceId: string
   return createVersionRegistration(home, spaceId, userId, check, withCatalog, libraryBinding());
 }
 
-function createVersionRegistration(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, declared: FixedVersionBinding) {
+function createVersionRegistration(home: string, spaceId: string, userId: string, check: () => void, withCatalog: LocalWebCatalogRunner, declared: FixedVersionBinding, hasGoal?: (projectId:string,goalId:string)=>boolean) {
   check();
-  const space = ensureStorageSpace(home), library = declared.binding.store === 'library';
+  const space = ensureStorageSpace(home), library = declared.store === 'library';
   if (space.kind !== 'personal' || space.spaceId !== spaceId || space.ownerUserId !== userId) throw errors.version_sync_scope('固定版本同步空间不匹配');
   const kind = library ? 'artifact' : 'process_item', namespace = library ? 'artifacts' : 'process_items';
   let projects = new Map<string, { title: string; path: string; enabled: boolean }>();
@@ -57,12 +57,12 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
     } finally { store.close(); }
   };
   const registration: SyncRegistration = {
-    locate:key=>'/projects/'+encodeURIComponent(decode(key)[0])+'/?openPlugin='+encodeURIComponent(declared.entry.project_plugin_id)+'&openItem='+encodeURIComponent(decode(key)[2]),selection: declared.selection, dependencies: declared.dependencies, title: declared.collection.title,
+    locate:key=>'/projects/'+encodeURIComponent(decode(key)[0])+'/?openPlugin='+'artifacts'+'&openItem='+encodeURIComponent(decode(key)[2]),selection: declared.selection, dependencies: [], title: declared.title,
     content: library ? createArtifactSyncContent(spaceId) : createSyncJsonContent({ spaceId, authorize: check }),
     async refresh() {
       check();
       projects = await withCatalog({ homeDirectory: home }, catalog => new Map(projectSyncCatalog(catalog).map(project => [
-        project.project_id, { title: project.display_name, path: project.database_path, enabled: !project.recycled && (!library||availableProjectPluginIds(catalog.listProjectPlugins(project.project_id)).has(declared.entry.project_plugin_id)) },
+        project.project_id, { title: project.display_name, path: project.database_path, enabled: !project.recycled },
       ])));
       check();
     },
@@ -100,8 +100,8 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
       if (validated.identity.artifact_id !== decode(event.key)[2]) throw errors.version_sync_invalid('固定版本身份不匹配');
       await withCatalog({ homeDirectory: home }, async catalog => {
         check(); if (catalog.listProjects().some(project => project.project_id === id)) return;
-        const project = await catalog.ensureSyncedProject({ project_id: id, display_name: value.project!.title as string, actor_id: userId }, check);
-        check(); if (library) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: declared.entry.project_plugin_id, actor_id: userId });
+        await catalog.ensureSyncedProject({ project_id: id, display_name: value.project!.title as string, actor_id: userId }, check);
+        check();
       }); check();
     },
   };
@@ -110,9 +110,8 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
     hasReference(projectId: string, reference: { owner: 'goals' | 'artifacts'; assetId: string; version?: number }): boolean {
       check(); const project = projects.get(projectId);
       if (!project || reference.owner === 'artifacts' && !project.enabled) return false;
-      return withProject(projectId, store => reference.owner === 'goals'
-        ? store.goalsQuery.listGoals(projectId).some(goal => goal.goal_id === reference.assetId)
-        : reference.version !== undefined && !!new ArtifactsModule({db:store.db,appendEvent:event=>store.appendEvent(event),eventCursor:id=>store.eventCursor(id)}).query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}), reference.owner === 'artifacts');
+      if(reference.owner==='goals'){const found=hasGoal?.(projectId,reference.assetId)??false;check();return found;}
+      return withProject(projectId, store => reference.version !== undefined && !!new ArtifactsModule({db:store.db,appendEvent:event=>store.appendEvent(event),eventCursor:id=>store.eventCursor(id)}).query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}), reference.owner === 'artifacts');
     },
   };
 }

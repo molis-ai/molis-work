@@ -1,3 +1,5 @@
+import {createStaticPersonalSync as createPersonalSync} from './fixtures/static-personal-sync.js';
+import { projectPluginSyncFixture } from './fixtures/project-plugin-sync.js';
 import {codingSessions,noEffect} from './fixtures/coding-sessions.js';
 import {createPrologueNodeAdapter,readSavedAgentHistory,savedAgentHistoryView} from '@molis-ai/molis-work-service-agent-host';
 import {refreshCodingSavedHistory} from '@molis-ai/molis-work-plugin-coding';
@@ -8,10 +10,10 @@ import test,{type TestContext} from 'node:test';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {LocalProjectDatabase,createPersonalSync} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {codingManifest,codingContentReplicationDefinition,CODING_CONTENT_REPLICA_ID} from '@molis-ai/molis-work-plugin-coding';
-import {createProjectContentReplicaFactory,ensureStorageSpace,personalStorageSpace,validateProjectContentReplication} from '@molis-ai/molis-work-storage';
+import {createCodingSyncBindings,codingManifest,codingContentReplicationDefinition,CODING_CONTENT_REPLICA_ID} from '@molis-ai/molis-work-plugin-coding';
+import {ensureStorageSpace,personalStorageSpace,validateProjectContentReplication} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 import type {ProjectReplicaRows,SyncEvent} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
@@ -20,20 +22,23 @@ async function fixture(t:TestContext){
  const homes=[join(root,'a'),join(root,'b')],space=personalStorageSpace('https://auth.example.test','work','alice');homes.forEach(home=>ensureStorageSpace(home,space));
  const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},catalog=>catalog.createProject({display_name:'Coding facts',actor_id:'alice'}));
  const other=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:'Coding facts',actor_id:'alice'},()=>{}));
- const databases=[project,other].map(p=>new LocalProjectDatabase(p.database_path));t.after(()=>databases.forEach(db=>db.close()));
- const stores=databases.map(db=>codingSessions(db));let active=true;
- const definition=codingContentReplicationDefinition(readSavedAgentHistory),factory=createProjectContentReplicaFactory([definition],'coding',CODING_CONTENT_REPLICA_ID);
- const contexts=databases.map(()=>({spaceId:space.spaceId,projectId:project.project_id,title:'Coding facts',authorize(){if(!active)throw new Error('REVOKED');},conflictState:createSyncConflictState}));
- const replicas=databases.map((db,index)=>factory(db.replicationDatabase,contexts[index]!));
+ let active=true;
+ const authorize=()=>{if(!active)throw new Error('REVOKED');};
+ const owners=homes.map(home=>projectPluginSyncFixture({home,space,projectId:project.project_id,manifest:codingManifest,bindings:createCodingSyncBindings,collectionId:'sessions',authorize,
+   services:{savedHistory:{read:async()=>{throw new Error('NO_LIVE_HISTORY');},validate:readSavedAgentHistory,view:savedAgentHistoryView}}}));
+ t.after(()=>owners.forEach(owner=>owner.close()));
+ const databases=owners.map(owner=>owner.store),stores=databases.map(db=>codingSessions(db)),replicas=owners.map(owner=>owner.replica);
+ const definition=codingContentReplicationDefinition(readSavedAgentHistory);
+ const contexts=databases.map(()=>({spaceId:space.spaceId,projectId:project.project_id,title:'Coding facts',authorize,conflictState:createSyncConflictState}));
  const create=async (index:number,id='session')=>(await stores[index]!.create(noEffect,{project_id:project.project_id,session_id:id,title:'Saved session',runtime_id:'source-runtime',at:'2026-10-19T00:00:00Z',goal_id:'unresolved-goal'}));
  const plan=async (index:number,id='session',expected=stores[index]!.planRevision(project.project_id,id))=>(await stores[index]!.savePlan(noEffect,project.project_id,id,expected,{revision:expected+1,
   content:{title:'Saved plan',steps:[{title:'Inspect source',acceptance:'Report evidence'}],blockers:'',change_reason:''},
   source:{session_id:id,run_id:'planning-run',task:'Original complete request',workspace_path:'/source-only-native-directory'},confirmed:null}));
  const send=(revision=1)=>{const mutation=replicas[0]!.next();assert.ok(mutation);const event={...mutation,revision};replicas[1]!.receive(event);replicas[0]!.acknowledge(mutation.key,mutation.operationId,revision);return event;};
- return {root,homes,space,project,databases,stores,replicas,definition,contexts,create,plan,send,revoke(){active=false;},allow(){active=true;}};
+ return {root,homes,space,project,owners,databases,stores,replicas,definition,contexts,create,plan,send,revoke(){active=false;},allow(){active=true;}};
 }
 
-test('S-64 PCSYNC-22/23 Coding saved metadata and complete plans travel through their real owner without runtime authority or echo',async t=>{
+test('S-116 PCSYNC-22/23 Coding saved metadata and complete plans travel through their real owner without runtime authority or echo',async t=>{
  const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));
  (await f.stores[0]!.inputs.write(noEffect,p,'session',0,{draft:'Complete unsent input',question_drafts:{question:'An unsent answer'}}));
  (await f.stores[0]!.setRuntimeSession(noEffect,p,'session','source-only-sdk-session','2026-10-19T00:01:00Z'));
@@ -51,7 +56,7 @@ test('S-64 PCSYNC-22/23 Coding saved metadata and complete plans travel through 
  assert.throws(()=>f.replicas[0]!.next(),{code:'storage.sync_busy'},'a terminal SDK transition stays pending until its complete history is captured; private cache polling alone adds no portable body');
 });
 
-test('S-64 PCSYNC-12/22 saved input clocks reject old editors after adoption and accepted runs never clear newer typing',async t=>{
+test('S-116 PCSYNC-12/22 saved input clocks reject old editors after adoption and accepted runs never clear newer typing',async t=>{
  const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.stores[0]!.inputs.write(noEffect,p,'session',0,{draft:'First input'}));f.send();
  (await f.stores[1]!.inputs.write(noEffect,p,'session',1,{draft:'My concurrent typing'}));(await f.stores[0]!.inputs.write(noEffect,p,'session',1,{draft:'Other device input',question_drafts:{q:'All answer text'}}));const event=f.send(2);
  f.replicas[1]!.resolve(event.key,'remote',2);assert.deepEqual(f.stores[1]!.inputs.read(p,'session'),{draft:'Other device input',question_drafts:{q:'All answer text'},revision:3});
@@ -61,7 +66,7 @@ test('S-64 PCSYNC-12/22 saved input clocks reject old editors after adoption and
  assert.equal((await f.stores[1]!.inputs.clearIfUnchanged(noEffect,p,'session',4)),true);assert.deepEqual(f.stores[1]!.inputs.read(p,'session'),{draft:'',question_drafts:{q:'All answer text'},revision:5});
 });
 
-test('S-64 PCSYNC-23 active or uncertain local execution blocks remote overwrite and explicit adoption, then preserves its local binding',async t=>{
+test('S-116 PCSYNC-23 active or uncertain local execution blocks remote overwrite and explicit adoption, then preserves its local binding',async t=>{
  const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));f.send();
  (await f.stores[1]!.setRuntimeSession(noEffect,p,'session','target-only-sdk','2026-10-19T00:01:00Z'));(await f.stores[1]!.setState(noEffect,p,'session','running','2026-10-19T00:02:00Z'));
  (await f.stores[0]!.rename(noEffect,p,'session','Remote title','2026-10-19T00:03:00Z'));const event=f.send(2);
@@ -74,7 +79,7 @@ test('S-64 PCSYNC-23 active or uncertain local execution blocks remote overwrite
  assert.equal(f.stores[1]!.get(p,'session').state,'idle');assert.equal(f.stores[1]!.plan(p,'session')!.revision,2);assert.equal(f.replicas[1]!.next(),null);
 });
 
-test('S-64 PCSYNC-12/23 a tombstone cannot bypass execution guards and editor high-water marks survive deletion and recreation',async t=>{
+test('S-116 PCSYNC-12/23 a tombstone cannot bypass execution guards and editor high-water marks survive deletion and recreation',async t=>{
  const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));const first=f.send();
  (await f.stores[1]!.setState(noEffect,p,'session','paused','2026-10-19T00:01:00Z'));
  const removed:SyncEvent={...first,operationId:'remote-delete',base:1,revision:2,value:null};f.replicas[1]!.receive(removed);
@@ -85,7 +90,7 @@ test('S-64 PCSYNC-12/23 a tombstone cannot bypass execution guards and editor hi
  assert.equal((await f.plan(1)).revision,3);assert.equal(f.stores[1]!.planRevision(p,'session'),3);
 });
 
-test('S-64 PCSYNC-23 explicit conflict adoption still checks local execution and background commands before clearing rows',async t=>{
+test('S-116 PCSYNC-23 explicit conflict adoption still checks local execution and background commands before clearing rows',async t=>{
  const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));f.send();
  (await f.stores[1]!.rename(noEffect,p,'session','My pending edit','2026-10-19T00:01:00Z'));(await f.stores[1]!.setState(noEffect,p,'session','waiting-approval','2026-10-19T00:02:00Z'));
  (await f.stores[0]!.rename(noEffect,p,'session','Remote edit','2026-10-19T00:03:00Z'));const event=f.send(2);
@@ -97,7 +102,7 @@ test('S-64 PCSYNC-23 explicit conflict adoption still checks local execution and
  assert.equal(f.stores[1]!.get(p,'session').title,'Remote edit');assert.equal(f.stores[1]!.planRevision(p,'session'),2);assert.deepEqual(f.replicas[1]!.conflicts(),[]);
 });
 
-test('S-64 PCSYNC-01/14 malformed Coding owner content cannot create a project, leak native fields or lower local counters',async t=>{
+test('S-116 PCSYNC-01/14 malformed Coding owner content cannot create a project, leak native fields or lower local counters',async t=>{
  const f=await fixture(t);(await f.create(0));(await f.plan(0));(await f.stores[0]!.inputs.write(noEffect,f.project.project_id,'session',0,{draft:'Complete saved input'}));const event={...f.replicas[0]!.next()!,revision:1};
  const previous=process.env.MOLIS_WORK_SYNC_ORIGIN;process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';
  t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_ORIGIN;else process.env.MOLIS_WORK_SYNC_ORIGIN=previous;});
@@ -121,6 +126,7 @@ test('S-64 PCSYNC-01/14 malformed Coding owner content cannot create a project, 
   unit=>{unit.facts[CODING_CONTENT_REPLICA_ID]!.coding_inputs![0]!.questions_json='{"q":1e400}';},
  ];
  for(const [index,edit] of edits.entries()){const value=structuredClone(event.value) as Unit;edit(value);incoming={...event,value};
+  f.replicas[1]!.receive({...event,value,operationId:'malformed-'+index,revision:index+1});assert.equal(f.stores[1]!.list(f.project.project_id).length,0);assert.ok(f.replicas[1]!.conflicts().length,'current owner rejects malformed content');
   const home=join(f.root,'uninitialized-target-'+index);ensureStorageSpace(home,f.space);
   const client=(await createPersonalSync(home,f.space,lease,withMolisWorkProjectCatalog,check))!;
   try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);}finally{client.close();}
@@ -128,7 +134,7 @@ test('S-64 PCSYNC-01/14 malformed Coding owner content cannot create a project, 
  assert.throws(()=>validateProjectContentReplication(event.value,[f.definition],{...f.contexts[0]!,spaceId:'foreign'}));
 });
 
-test('S-64 PCSYNC-06 late revocation rolls back imported rows and high-water marks together',async t=>{
+test('S-116 PCSYNC-06 late revocation rolls back imported rows and high-water marks together',async t=>{
  const f=await fixture(t),p=f.project.project_id;(await f.create(0));(await f.plan(0));(await f.stores[0]!.inputs.write(noEffect,p,'session',0,{draft:'Keep this input'}));f.send();const before=f.stores[1]!.plan(p,'session');
  (await f.stores[0]!.rename(noEffect,p,'session','Must roll back','2026-10-19T00:01:00Z'));const event={...f.replicas[0]!.next()!,revision:2};
  f.databases[1]!.db.function('revoke_coding_sync',()=>{f.revoke();return 1;});
@@ -150,10 +156,12 @@ test('canonical saved SDK conversations round-trip through the Coding owner with
  const role={role_id:'reader',version:1,workspace:'business' as const,execution:'read-only' as const,prompts:[],host_tools:[]};
  for(const [index,task] of ['Original first request','Follow-up request — 后续问题'].entries()){
   const handle=await adapter.start({...identity,workspace:'business',session:runtime,role_id:'reader',role,task}),deadline=Date.now()+15000;
+  // Match the production start-round receipt (start-round.ts): acknowledge each accepted SDK run through its owner before observing termination.
+  await f.stores[0]!.roundStarted(noEffect,p,'conversation',new Date().toISOString(),null);
   for(;;){const run=await adapter.read(handle.ref);if(['completed','failed','stopped','cancelled'].includes(run.phase)){assert.equal(run.phase,'completed');break;}assert.ok(Date.now()<deadline);await new Promise(resolve=>setTimeout(resolve,5));}
-  if(index===0){await refreshCodingSavedHistory(f.databases[0]!.db,p,id=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);f.send(++revision);assert.equal(f.replicas[0]!.counts().pending,0);}else{(await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:02:00Z'));assert.ok(f.replicas[0]!.counts().pending>0,'a newly completed SDK round protects the project until exported and acknowledged');}
+  if(index===0){await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:01:00Z');await refreshCodingSavedHistory(f.owners[0]!.client,p,id=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);f.send(++revision);assert.equal(f.replicas[0]!.counts().pending,0);}else{(await f.stores[0]!.setState(noEffect,p,'conversation','done','2026-10-19T00:02:00Z'));assert.ok(f.replicas[0]!.counts().pending>0,'a newly completed SDK round protects the project until exported and acknowledged');}
  }
- await refreshCodingSavedHistory(f.databases[0]!.db,p,id=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);
+ await refreshCodingSavedHistory(f.owners[0]!.client,p,id=>adapter.savedHistory.read(id,owner,authorize),authorize,readSavedAgentHistory);
  assert.equal(calls,2,'exporting saved history must not call the model');
  const event=f.send(++revision),wire=JSON.stringify(event.value);assert.match(wire,/Original first request/);assert.match(wire,/后续问题/);assert.match(wire,/Actual SDK reply 2/);
  const target=f.stores[1]!.get(p,'conversation');assert.equal(target.runtime_session_id,null);assert.equal(target.state,'idle');

@@ -1,18 +1,15 @@
-import { redactFeedContextSecrets } from "./context.js";
+import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 import type { FeedUiPreset } from "./ui.js";
-import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial } from "@molis-ai/molis-work-contracts/modules/feed";
-import type { SourceRecord, SourceSchedule, SourceSyncKind, SourceStatus } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { FeedItemRecord as CanonicalFeedItem, FeedMaterialRecord as CanonicalFeedMaterial } from "./contract/feed.js";
+import type { SourceRecord, SourceSchedule } from "./contract/sources.js";
 import type { AttentionEntryRecord, AttentionReason, AttentionStatus, AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
-export type { FeedItemDisposition } from "@molis-ai/molis-work-contracts/modules/feed";
-export type { SourceHistoryDecision } from "@molis-ai/molis-work-contracts/modules/sources";
+import type { ListenerRunRecord } from "./contract/listener.js";
+export type { FeedItemDisposition } from "./contract/feed.js";
+export type { SourceHistoryDecision } from "./contract/sources.js";
 
 /** Existing local read projection. These are owner-derived views, never a second store. */
 export type FeedItemType = FeedUiPreset;
-export type FeedSourceSyncKind = SourceSyncKind;
-export type FeedSourceStatus = SourceStatus;
 export type FeedSourceSchedule = SourceSchedule;
-export type FeedSourceRunPhase = ListenerRunRecord["phase"];
 export type InboxEntrySubjectType = AttentionSubjectType;
 export type InboxEntryReason = AttentionReason;
 export type InboxEntryStatus = AttentionStatus;
@@ -100,7 +97,7 @@ export function feedItemContext(item: FeedItemRecord): string {
       return `${index + 1}. ${material.title || material.source_name}${location}${preview}${content}`;
     })
     .join("\n");
-  return redactFeedContextSecrets([
+  return redactSecrets([
     "来源类型：Feed",
     `来源：${item.source_label || item.source_kind}`,
     item.author ? `作者/发送者：${item.author}` : "",

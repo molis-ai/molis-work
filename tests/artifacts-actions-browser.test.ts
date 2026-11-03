@@ -3,13 +3,12 @@ import test from "node:test";
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
-test("actual Artifact import, fixed version, Goal embed and disabled reader survive the shared action path", { timeout: 90_000 }, async t => {
+test("RAC-2345 actual platform Artifact import, exact Goal input, English navigation and handoff work without Plugin membership", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, store, projectId } = b;
+  const { command, sessionId, evaluate, waitFor, navigate, click, projectId } = b;
   const prefix = `/projects/${projectId}`;
   const visit = (path: string) => navigate(() => command("Page.navigate", { url: b.origin + prefix + path }, sessionId));
   const file = join(b.homeDirectory, "动作导入.md"), content = "# 浏览器原始文档\n通过同一能力保存与读取。";
@@ -48,23 +47,56 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(`${REVIEW_EVIDENCE}/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
   }
-  const board = store.goalsQuery.listProjectIds()[0]!, scope = { kind: "personal" as const, id: board };
-  const ledger = createContextLedger(store.db, { authorize: () => true });
-  ledger.commands.put({ actor_id: "browser-owner", scope }, { key: "artifact-action-input", type: "goal.input", cause: "Explicit browser fixture",
-    source: { module: "goals", id: "V1", version: null, scope }, target: { module: "artifacts", id: exact!.artifact_id, version: exact!.version, scope } });
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await click("[data-artifact-goal-input] summary");
+  await waitFor("Boolean(document.querySelector('[data-artifact-goal-input] select option[value=V1]'))");
+  await evaluate("document.querySelector('[data-artifact-goal-input] select').value='V1'");
+  await click("[data-artifact-goal-input-form] button[type=submit]");
+  await waitFor("Boolean(document.querySelector('[data-artifact-links] [data-artifact-linked-plugin] a[data-workbench-item-plugin=\"goals\"][data-workbench-item-id=\"V1\"]'))");
   // A fixed input is listed with the Goal's other inputs (artifact-positioning 五.1, one entry), opening its exact version.
   const fixedInput = `Boolean(document.querySelector('[data-goal-inputs] [data-goal-input-fixed] [data-workbench-item-id="/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/1"]'))`;
   await visit("/goals/V1");
   assert.equal(await evaluate(fixedInput), true);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
+  const artifactEntry = '.plugin-rail-items button.plugin-rail-item[data-plugin-id="artifacts"][data-work-surface-open]';
   try {
-    catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });
-    await visit("/goals/V1");
-    assert.match(await evaluate<string>("document.querySelector('[data-artifact-unavailable]').textContent"), /未启用/);
-    const denied = await fetch(b.origin + prefix + "/artifacts");
-    assert.equal(denied.status, 403); await denied.text();
-    catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });
+    assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), true, "the platform has a real navigation entry");
+    assert.throws(() => catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
+    assert.equal(catalog.listProjectPlugins(projectId!).includes("artifacts"), false);
     await visit("/goals/V1");
     assert.equal(await evaluate(fixedInput), true);
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-artifact-unavailable]'))"), false);
+    assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), true, "the platform entry remains after an invalid removal attempt");
+    const exactPath = `/artifacts/${encodeURIComponent(exact!.artifact_id)}/versions/${exact!.version}`;
+    const readable = await fetch(b.origin + prefix + exactPath, { headers: { "x-molis-work-fragment": "artifact-workbench" } });
+    assert.equal(readable.status, 200);
+    const html = await readable.text();
+    assert.match(html, /浏览器原始文档/);
+    assert.match(html, /通过同一能力保存与读取/);
+    const exported = await fetch(b.origin + prefix + `/api${exactPath}/export`);
+    assert.equal(exported.status, 200);
+    const exportedVersion = await exported.json();
+    assert.deepEqual({ content: exportedVersion.payload.content, version: exportedVersion.version }, { content, version: exact!.version });
+    assert.throws(() => catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
+    await visit("/goals/V1");
+    assert.equal(await evaluate(fixedInput), true);
+    assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), true);
+    await evaluate("document.cookie='molis_work_locale=en; path=/'");
+    await visit("/");
+    await waitFor("document.documentElement.lang === 'en'");
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(artifactEntry)}).textContent.includes('Artifacts')`), true);
+    await click(artifactEntry);
+    await waitFor("document.body.dataset.desktopSurface === 'artifacts' && Boolean(document.querySelector('[data-artifact-directory] [data-frame-asset=artifact]'))");
+    await click(`[data-artifact-directory] [data-frame-asset-id="${exact!.artifact_id}#${exact!.version}"]`);
+    await waitFor("Boolean(document.querySelector('[data-artifact-detail] [data-artifact-hand=assistant]'))");
+    assert.equal(await evaluate("document.querySelector('[data-artifact-hand=assistant]').textContent"), "Hand to the Assistant");
+    await evaluate("window.__maintenanceHandoff=null;window.addEventListener('molis:assistant-message',event=>{window.__maintenanceHandoff=event.detail},{once:true})");
+    await click("[data-artifact-hand=assistant]");
+    await waitFor("Boolean(window.__maintenanceHandoff)");
+    const handoff = await evaluate<{ object: { id: string; version: number }; source: { surface: string }; materials: { text: string }[] }>("window.__maintenanceHandoff");
+    assert.deepEqual(JSON.parse(handoff.object.id), [exact!.artifact_id, exact!.version]);
+    assert.equal(handoff.object.version, exact!.version);
+    assert.equal(handoff.source.surface, "artifacts");
+    assert.match(handoff.materials[0]!.text, /浏览器原始文档/);
   } finally { catalog.close(); }
 });

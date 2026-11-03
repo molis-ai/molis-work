@@ -60,7 +60,7 @@ export function createResearchPlanService(dependencies: Dependencies) {
       throw new ResearchPlanError("alchemist.research_budget_invalid");
     }
     const now = dependencies.clock.now();
-    const reportId = input.lens === "market_space" ? dependencies.research.getLatestReport(marketLensCompatibilityKey(input.ideaId, input.ideaVersion))?.id : undefined;
+    const reportId = input.lens === "market_space" ? dependencies.research.reports.getLatestReport(marketLensCompatibilityKey(input.ideaId, input.ideaVersion))?.id : undefined;
     const reuse = await dependencies.workReuse?.prepare(input.reuse, { directionId: idea.directionId, reportId, lens: input.lens }, signal);
     signal?.throwIfAborted();
     await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
@@ -70,7 +70,7 @@ export function createResearchPlanService(dependencies: Dependencies) {
         : buildLensCompatibilityKey(
             input.ideaId,
             input.ideaVersion,
-            dependencies.research.ensureMvpScope({
+            dependencies.research.plans.ensureMvpScope({
               id: dependencies.idFactory.next("mvp_scope"),
               ideaId: input.ideaId,
               ideaVersion: input.ideaVersion,
@@ -101,14 +101,14 @@ export function createResearchPlanService(dependencies: Dependencies) {
           ? dependencies.memory
               .listApplicablePlaybookRules({
                 workspaceId: dependencies.workspaceId,
-                reportId: dependencies.research.getLatestReport(key)?.id,
+                reportId: dependencies.research.reports.getLatestReport(key)?.id,
                 directionId: idea.directionId,
               })
               .map((rule) => rule.id)
           : [],
       createdAt: now,
     };
-    const created = dependencies.research.createPlan(plan);
+    const created = dependencies.research.plans.createPlan(plan);
     return created;
   };
 }

@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type BoundActionClient, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
-import { parseSceneFunctionKey } from "./functions-host.js";
+import { parseSceneFunctionKey } from "./judgment-rules-host.js";
 import { homeActions } from "./home-actions.js";
 import type { HomeOfferExecutionInput } from "./home-offer-actions.js";
 import type { HomeEventOpenInput } from "./home-event-actions.js";
@@ -32,16 +32,6 @@ export async function handleHomeDockJudgmentHttp(request: IncomingMessage, respo
         : await options.actions.invoke(homeActions.offers, body as SubjectOffersInput);
       if (url.pathname.endsWith("/execute")) options.invalidateWebView();
       sendJson(response, 200, result);
-    } catch (error) {
-      const failure = actionErrorResponse(error);
-      sendJson(response, failure.status, failure.body);
-    }
-    return true;
-  }
-  if (url.pathname === "/api/home/talk/prepare" && request.method === "POST") {
-    try {
-      const body = await readBody(request);
-      sendJson(response, 200, await options.actions.invoke(homeActions.prepareTalk, body as { subject: { kind: string; id: string } }));
     } catch (error) {
       const failure = actionErrorResponse(error);
       sendJson(response, failure.status, failure.body);

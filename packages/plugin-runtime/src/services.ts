@@ -1,15 +1,12 @@
-import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   ArtifactReference,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   PluginWiringError,
   requiredPorts,
   type PluginArtifactClient,
   type PluginProcessItemClient,
-  type PluginCapabilityClient,
   type PluginInputsClient,
   type PluginInputStatus,
   type PluginManifest,
@@ -35,8 +32,9 @@ export function portArtifactId(pluginId: string, port: string): string {
 
 export interface PluginWiringServicesInput {
   manifest: PluginManifest;
-  /** The installation these clients write for; inside an action the action's original caller is asked before each write. */
+  /** The instance these clients write for; inside an action the action's original caller is asked before each write. */
   install_id: string;
+  installation_generation: string;
   graph: PluginInputGraph;
   artifacts: PluginArtifactClient;
   /** Where port publications go: process items, kept out of the 成果库 (specs/artifact-positioning A2). */
@@ -141,7 +139,7 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput, asse
       const reference = { artifact_id: artifact.artifact_id, version: artifact.version };
       if (same(current, reference)) return reference;
       if (!same(current, request.expected_reference)) throw new PluginWiringError("plugin.port_binding_invalid", "当前输出已变化，请重新查看后选择");
-      assertPluginActionCurrent(input.install_id);
+      assertPluginActionCurrent(input);
       graph.publish({ plugin_id: pluginId, port: request.port, reference, scope_key: input.scopeKey ?? null });
       graph.evaluateAll();
       return reference;
@@ -150,65 +148,18 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput, asse
       if (!outputs.some((declared) => declared.port === port)) {
         throw new PluginWiringError("plugin.port_unknown", `${pluginId} 没有输出端口 ${port}`);
       }
-      assertPluginActionCurrent(input.install_id);
+      assertPluginActionCurrent(input);
       assertActive();
       graph.invalidate(pluginId, port, safeReason);
       graph.evaluateAll();
     },
     retain(reference: ArtifactReference) {
-      assertPluginActionCurrent(input.install_id);
+      assertPluginActionCurrent(input);
       assertActive();
       graph.retain(pluginId, reference);
     },
     read(reference: ArtifactReference) {
       return artifacts.read(reference);
-    },
-  };
-}
-
-export interface PluginCapabilityPort {
-  availability?(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference,
-    options?: Pick<import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions, "consumer">): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
-  invoke<Input, Output>(
-    capability: HostCapabilityDefinition<Input, Output>,
-    input: Input,
-    options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions,
-  ): Promise<Output>;
-}
-
-
-
-/**
- * A Plugin may invoke exactly the Capabilities its Manifest lists under
- * `capabilities.consumes`. Anything else is refused before the Host is asked,
- * so the Manifest stays a complete account of what this Plugin can reach.
- */
-export function createPluginCapabilityClient(
-  manifest: PluginManifest,
-  port: PluginCapabilityPort,
-  isActive: () => boolean = () => true,
-): PluginCapabilityClient {
-  const allowed = new Set(manifest.capabilities.consumes);
-  return {
-    availability(capability) {
-      if (!isActive()) return { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" };
-      if (!allowed.has(capability.capability_id)) return { available: false, code: "plugin.capability_denied", reason: "插件未声明消费此宿主能力" };
-      return port.availability?.(capability, { consumer: "plugin" }) ?? { available: false, code: "actions.dependency_unknown", reason: "宿主未提供依赖状态检查" };
-    },
-    async invoke<Input, Output>(
-      capability: HostCapabilityDefinition<Input, Output>,
-      input: Input,
-      options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions,
-    ): Promise<Output> {
-      if (!isActive()) throw pluginErrors.capability_denied("此插件实例已停止");
-      if (!allowed.has(capability.capability_id)) {
-        throw pluginErrors.capability_denied(`${manifest.plugin_id} 没有声明消费 Capability ${capability.capability_id}`);
-      }
-      // Caller authority is added by the trusted executor around this port.
-      // A plugin may supply a stricter effect check, never its own identity.
-      return await port.invoke(capability, input, { ...(options?.before_effect ? { before_effect: options.before_effect } : {}),
-        ...(options?.assert_authority_current ? { assert_authority_current: options.assert_authority_current } : {}),
-        ...(options?.signal ? { signal: options.signal } : {}), consumer: "plugin" });
     },
   };
 }

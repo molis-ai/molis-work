@@ -99,7 +99,7 @@ const GOALS_TREE_FILTER_TRIGGER_SCRIPT = `    treeFilterTrigger?.addEventListene
     });
 `;
 
-const GOALS_TREE_DISCLOSURE_SCRIPT = `      if (!treeFilter?.hidden && !target.closest("[data-tree-filter], [data-tree-filter-trigger]")) setTreeFilterOpen(false);
+const GOALS_TREE_DISCLOSURE_SCRIPT = `      if (treeFilter?.hidden === false && !target.closest("[data-tree-filter], [data-tree-filter-trigger]")) setTreeFilterOpen(false);
       if (target.closest("[data-clear-status-filter]")) {
         setSelectedStatuses([]);
         filterTree("");
@@ -123,7 +123,7 @@ const GOALS_TREE_DISCLOSURE_SCRIPT = `      if (!treeFilter?.hidden && !target.c
       return false;
 `;
 
-const GOALS_TREE_KEYBOARD_SCRIPT = `      if (event.key === "Escape" && !treeFilter?.hidden) {
+const GOALS_TREE_KEYBOARD_SCRIPT = `      if (event.key === "Escape" && treeFilter?.hidden === false) {
         event.preventDefault();
         setTreeFilterOpen(false);
         treeFilterTrigger?.focus();

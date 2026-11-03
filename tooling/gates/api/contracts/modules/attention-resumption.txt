@@ -4,6 +4,8 @@
 
 export declare const ATTENTION_CONTENT_REPLICA_ID = "attention_content";
 
+export declare const ATTENTION_SUBJECT_TYPES: readonly ["feed_item", "goal_decision", "source_fault"];
+
 export interface AttentionApi {
     readonly query: AttentionQuery;
     readonly commands: AttentionCommands;
@@ -20,12 +22,13 @@ export interface AttentionCommands {
         created: boolean;
     };
     setStatus(projectId: string, entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
-    deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): number;
+    deleteSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): number;
 }
 
 export interface AttentionEntryRecord {
     project_id: string;
     entry_id: string;
+    owner_plugin_id: string | null;
     subject_type: AttentionSubjectType;
     subject_id: string;
     reason: AttentionReason;
@@ -41,6 +44,7 @@ export interface AttentionEvent {
     event_id: string;
     project_id: string;
     entry_id: string;
+    owner_plugin_id: string | null;
     type: `inbox_entry.${"created" | AttentionStatus | "deleted"}`;
     subject_type: AttentionSubjectType;
     subject_id: string;
@@ -51,11 +55,15 @@ export interface AttentionEvents {
     list(projectId: string, entryId?: string): AttentionEvent[];
 }
 
+export type AttentionInboxDeclarations = ReadonlyMap<string, ReadonlySet<AttentionSubjectType>>;
+
 export interface AttentionQuery {
     list(projectId: string): AttentionEntryRecord[];
     get(projectId: string, entryId: string): AttentionEntryRecord;
-    findActiveForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord | null;
-    findForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string): AttentionEntryRecord[];
+    listInbox(projectId: string, declared: AttentionInboxDeclarations): AttentionEntryRecord[];
+    getInbox(projectId: string, entryId: string, declared: AttentionInboxDeclarations): AttentionEntryRecord;
+    findActiveForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): AttentionEntryRecord | null;
+    findForSubject(projectId: string, subjectType: AttentionSubjectType, subjectId: string, ownerPluginId?: string | null): AttentionEntryRecord[];
 }
 
 export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
@@ -66,10 +74,11 @@ export interface AttentionSubjectResolver {
     exists(projectId: string, subjectType: AttentionSubjectType, subjectId: string): boolean;
 }
 
-export type AttentionSubjectType = "feed_item" | "goal_decision" | "source_fault";
+export type AttentionSubjectType = typeof ATTENTION_SUBJECT_TYPES[number];
 
 export interface CreateAttentionEntryInput {
     project_id: string;
+    owner_plugin_id?: string | null;
     subject_type: AttentionSubjectType;
     subject_id: string;
     reason: AttentionReason;
@@ -88,6 +97,7 @@ export declare const attentionErrors: import("platform/action-errors").ErrorCode
 export declare const inboxErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly entry_not_found: "not_found";
     readonly invalid: "invalid";
+    readonly revision_conflict: "conflict";
 }>;
 
 export declare const modulesAttentionResumptionContract: {

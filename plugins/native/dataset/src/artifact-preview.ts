@@ -1,5 +1,5 @@
 import { bindArtifactPreview, defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DATASET_ARTIFACT_TYPE_ID, type DatasetRecord } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { DATASET_ARTIFACT_TYPE_ID, type DatasetRecord } from "./contract.js";
 import { datasetCsv } from "./search.js";
 
 /** A pinned version of a table as CSV (specs/artifact-positioning A4), read as a table wherever it is shown. */

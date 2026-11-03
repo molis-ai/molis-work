@@ -1,0 +1,21 @@
+/** English for the names and summaries Coding's manifest declares (roles, methods): the data stays Chinese for the Agent, pages word them here. Keyed by the Chinese text, declared in the Manifest's `ui.translations` (PG-071). */
+export const CODING_EN: Record<string, string> = {
+  "规划者": "Planner",
+  "阅读者": "Reader",
+  "评审者": "Reviewer",
+  "协作": "Collaboration",
+  "并行写入": "Parallel writing",
+  "构建者": "Builder",
+  "改写者": "Editor",
+  "代码调查": "Code investigation",
+  "独立评审": "Independent review",
+  "独立实现": "Independent implementation",
+  "审查改动": "Review changes",
+  "根据实际代码与需求查找问题，区分已证实风险和待核实项。": "Find problems against the actual code and requirements, separating confirmed risks from items still to verify.",
+  "定位并修复问题": "Find and fix a problem",
+  "先找到可复现原因，再做最小修复并检查失败与恢复。": "Find a reproducible cause first, then make the smallest fix and check both failure and recovery.",
+  "实现需求": "Implement a requirement",
+  "沿现有结构接通完整用户路径，核对差异与完成条件。": "Connect the whole user path along the existing structure, checking the differences and when it is done.",
+  "整理交付": "Prepare delivery",
+  "核对分支、改动和检查证据，按已有授权准备提交与交付。": "Check the branch, changes and evidence from checks, and prepare the commit and delivery within the access already granted.",
+};

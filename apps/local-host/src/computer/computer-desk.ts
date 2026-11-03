@@ -8,6 +8,7 @@ import type { ComputerRecords } from "./computer-records.js";
 import type { ComputerSettings } from "./computer-settings.js";
 import { type HelperConnection, type HelperEvent, type HelperStatus } from "./helper-connection.js";
 import { desktopRoundOutcome } from "./task-outcome.js";
+import { eachListener } from "../host-log.js";
 
 /** The helper methods the desk calls. A real connection satisfies this, and a test can stand in without starting one. */
 type ComputerHelper = Pick<HelperConnection, "on" | "ensure" | "call" | "status" | "unsupported" | "problem" | "ready">;
@@ -66,7 +67,7 @@ export class ComputerDesk implements DeskContext {
   setTarget = (target: Target | null): void => { this.targetApp = target; };
   takeovers = (): number => this.takeoverCount;
   activity = (): ComputerActivity | null => this.activityNow;
-  emitFrame = (png: Buffer): void => { for (const listener of this.frameListeners) { try { listener(png); } catch { /* one listener's failure does not stop the others */ } } };
+  emitFrame = (png: Buffer): void => { eachListener("computer", "desk_frames", this.frameListeners, listener => listener(png)); };
   rememberProduced = (png: Buffer): void => { this.produced.push(createHash("sha256").update(png).digest("hex")); if (this.produced.length > 32) this.produced.shift(); };
   masked = (bytes: Uint8Array): boolean => this.produced.includes(createHash("sha256").update(bytes).digest("hex"));
   pendingPersonMove = (): boolean => Date.now() - this.lastPersonMove < ComputerDriver.settleMs;
@@ -126,7 +127,7 @@ export class ComputerDesk implements DeskContext {
 
   changed(): void {
     const state = this.state();
-    for (const listener of this.listeners) { try { listener(state); } catch { /* a listener's failure does not stop the others */ } }
+    eachListener("computer", "desk_state", this.listeners, listener => listener(state));
   }
 
   // ── the person's controls ────────────────────────────────────────────────

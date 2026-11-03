@@ -3,16 +3,18 @@ import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("refreshing create choices preserves the unsaved draft, selected relations and text cursor without creating a Goal", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList, projectId } = browser;
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/RELEASE" }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId));
   await waitFor("document.querySelector('[data-goal-canvas-shell]')");
   await showGoalStageList();
   await click("[data-goal-stage-chrome] [data-open-create]");
@@ -26,7 +28,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
     form.elements.parent_goal_id.dispatchEvent(new Event('change', {bubbles:true}));
     form.elements.title.focus(); form.elements.title.setSelectionRange(2, 7);
   })()`);
-  const response = await fetch(origin + "/api/goals", {
+  const response = await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/goals", {
     method: "POST", headers: { "content-type": "application/json", origin,
       "x-molis-work-control-token": "goals-risk-test-control-token-0123456789",
       "x-molis-work-idempotency-key": "refresh-dialog-external-goal" },
@@ -35,7 +37,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
       acceptance_criteria: ["Available as a new choice"] }),
   });
   assert.equal(response.status, 201, await response.text());
-  const baseline = store.snapshot(DEMO_PROJECT_ID);
+  const baseline = boardSnapshot(store, DEMO_PROJECT_ID);
   // Use the application's visible-page refresh listener, not a private refresh function.
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await waitFor("document.querySelector('[data-create-form] [name=parent_goal_id] option[value=NEW-CHOICE]')");
@@ -48,7 +50,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
   })()`), { open: true, title: "Unsaved draft", outcome: "Keep my input", parent: "V1",
     dependencies: ["INTERFACES"], focus: "title", start: 2, end: 7 });
   await click('[data-create-dialog] [data-close-create]');
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, baseline.goals);
   assert.deepEqual(after.relations, baseline.relations);
   assert.deepEqual(after.claims, baseline.claims);
@@ -56,17 +58,19 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
 });
 
 test("Goal dialogs create once after retry, cancel without writes, and trash/restore the same Goal with history", { timeout: 60_000 }, async t => {
-  const browser = await openGoalBrowser(t);
+  const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { store, origin, before, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, showGoalStageList } = browser;
+  const { store, origin, before, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, showGoalStageList, projectId } = browser;
+  // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
+  const prefix = `/projects/${projectId}`;
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
   const goalId = "DIALOG-BROWSER";
-  const current = () => store.snapshot(DEMO_PROJECT_ID);
+  const current = () => boardSnapshot(store, DEMO_PROJECT_ID);
   const goal = () => current().goals.find(item => item.goal_id === goalId)!;
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/RELEASE" }, sessionId));
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId));
   await waitFor(dom("[data-open-create]"));
   await showGoalStageList();
   await evaluate("document.querySelector('[data-goal-stage-chrome] [data-open-create]')?.click()");
@@ -80,7 +84,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   const dependencyTitle = before.goals.find(item => item.goal_id === "INTERFACES")!.title;
   assert.equal(await evaluate(dom("[data-parent-preview]") + ".textContent"), "关系预览：新 Goal → 属于 → 「" + parentTitle + "」。这是目录层级，不需要等待它完成。");
   assert.equal(await evaluate(dom("[data-dependency-preview]") + ".textContent"), "关系预览：新 Goal → 依赖 → 「" + dependencyTitle + "」；这些 Goal 完成前，新 Goal 还不能收尾。普通笔记和准备仍可先做。");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/goals"] }, sessionId);
   const createSubmit = '[data-create-form] button[type="submit"]';
   await click(createSubmit);
   await waitFor("!" + dom("[data-create-error]") + ".hidden && !" + dom(createSubmit) + ".disabled");
@@ -128,7 +132,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.equal(await evaluate(dom(reason) + ".validity.valueMissing"), true);
   assert.deepEqual(goal(), saved);
   await evaluate(dom(reason) + ".value='Package migration browser test'");
-  await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/" + goalId + "/trash"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/goals/" + goalId + "/trash"] }, sessionId);
   await click(trashSubmit);
   await waitFor("!" + dom("[data-goal-trash-error]") + ".hidden && !" + dom(trashSubmit) + ".disabled");
   assert.equal(await evaluate(dom(reason) + ".value"), "Package migration browser test");
@@ -193,4 +197,81 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   assert.deepEqual(current().relations.filter(item => item.from_goal_id !== goalId), before.relations);
   assert.deepEqual(newRelations(), expectedRelations);
   assert.deepEqual(current().runs, before.runs);
+});
+
+// T-285: an HTML maxlength counts UTF-16 units, so a title of two-unit characters was stopped at 60 while the route counts 120
+// characters; the box caps by characters now, and the person's 120 characters reach the Goal whole.
+test("RAC-2700 the new-Goal title box caps at 120 characters, not 120 UTF-16 units, and a 121st character is stopped", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, showGoalStageList, projectId } = browser;
+  const prefix = `/projects/${projectId}`;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId));
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')");
+  await showGoalStageList();
+  const openCreate = async () => {
+    await click("[data-goal-stage-chrome] [data-open-create]");
+    await waitFor("document.activeElement.name === 'title'");
+  };
+  const titleState = () => evaluate<{ chars: number; units: number; value: string }>(
+    "(() => { const v = document.querySelector('[data-create-form]').elements.title.value; return { chars: [...v].length, units: v.length, value: v }; })()");
+  // RAC-2808: persistence precedes the create response's own navigation. Finish that page before returning to RELEASE.
+  const assertGoalPage = async (goalId: string, title: string) => {
+    const url = origin + prefix + "/goals/" + encodeURIComponent(goalId);
+    const titleSelector = `[data-frame-goal="${goalId}"] [data-frame-goal-title]`;
+    await waitFor(`location.href === ${JSON.stringify(url)} && (() => {
+      const title = document.querySelector(${JSON.stringify(titleSelector)});
+      return title?.getClientRects().length > 0 && getComputedStyle(title).visibility === 'visible';
+    })()`);
+    const { frameTree } = await command<{ frameTree: { frame: { url: string; parentId?: string } } }>("Page.getFrameTree", {}, sessionId);
+    assert.equal(frameTree.frame.parentId, undefined, "the selected Goal is in the main frame");
+    assert.equal(frameTree.frame.url, url);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(titleSelector)}).textContent`), title);
+    assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('[role="alert"], [data-create-error]'))
+      .filter(node => node.getClientRects().length && getComputedStyle(node).visibility === 'visible' && node.textContent.trim())
+      .map(node => node.textContent.trim())`), [], "the created or returned Goal page has no visible error");
+  };
+  const submitGoal = async (title: string) => {
+    // Register the existing navigation wait before the real submit, including the third title case.
+    await navigate(() => click("[data-create-submit]"));
+    const goal = boardSnapshot(store, DEMO_PROJECT_ID).goals.find((item: { title: string }) => item.title === title);
+    assert.ok(goal, "the submitted title is persisted by the Goal owner");
+    assert.equal(goal.title, title);
+    await assertGoalPage(goal.goal_id, title);
+  };
+  const releaseTitle = boardSnapshot(store, DEMO_PROJECT_ID).goals.find((goal: { goal_id: string }) => goal.goal_id === "RELEASE")!.title;
+  const backToBoard = async () => {
+    let reply: { errorText?: string } | undefined;
+    await navigate(async () => { reply = await command<{ errorText?: string }>("Page.navigate", { url: origin + prefix + "/goals/RELEASE" }, sessionId); });
+    assert.equal(reply?.errorText, undefined, "return navigation has no protocol error");
+    await assertGoalPage("RELEASE", releaseTitle);
+    await waitFor("document.querySelector('[data-goal-canvas-shell]')");
+    await showGoalStageList();
+    await waitFor(`(() => { const button = document.querySelector('[data-goal-stage-chrome] [data-open-create]');
+      return button?.getClientRects().length > 0 && !button.disabled && !button.closest('[inert]'); })()`);
+  };
+  await openCreate();
+  await command("Input.insertText", { text: "😀".repeat(120) }, sessionId);
+  assert.deepEqual(await titleState(), { chars: 120, units: 240, value: "😀".repeat(120) }, "120 two-unit characters fit whole");
+  await command("Input.insertText", { text: "😀" }, sessionId);
+  assert.equal((await titleState()).chars, 120, "a 121st character is stopped");
+  await submitGoal("😀".repeat(120));
+  await backToBoard();
+  await openCreate();
+  await command("Input.insertText", { text: "a".repeat(120) }, sessionId);
+  assert.deepEqual(await titleState(), { chars: 120, units: 120, value: "a".repeat(120) }, "120 plain characters fit");
+  await command("Input.insertText", { text: "a" }, sessionId);
+  assert.equal((await titleState()).chars, 120, "a 121st plain character is stopped");
+  await submitGoal("a".repeat(120));
+  await backToBoard();
+  // The mixed case: neither a units slice nor a plain code-point slice leaves half of a two-unit character behind.
+  await openCreate();
+  await command("Input.insertText", { text: "😀".repeat(119) + "a" }, sessionId);
+  assert.deepEqual(await titleState(), { chars: 120, units: 239, value: "😀".repeat(119) + "a" }, "119 two-unit characters and one plain character fit");
+  await command("Input.insertText", { text: "😀" }, sessionId);
+  const mixed = await titleState();
+  assert.deepEqual({ chars: mixed.chars, units: mixed.units, value: mixed.value }, { chars: 120, units: 239, value: "😀".repeat(119) + "a" }, "the extra two-unit character is cut whole, not by units");
+  assert.ok([...mixed.value].every((character) => { const point = character.codePointAt(0)!; return point < 0xD800 || point > 0xDFFF; }), "no lone surrogate is left in the value");
+  await submitGoal("😀".repeat(119) + "a");
 });

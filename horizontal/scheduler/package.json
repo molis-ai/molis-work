@@ -27,18 +27,5 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
-  },
-  "molis-work": {
-    "path": "horizontal/scheduler",
-    "kind": "horizontal",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/services/scheduler",
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "scheduler.wakeup.v1"
-    ]
   }
 }

@@ -1,4 +1,4 @@
-import { renderStateRing } from "@molis-ai/molis-work-design-system";
+import { renderStateRing } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalsContextItem, GoalsContextView, GoalsContextUiPrimitives } from "./context-ui-model.js";
 import { findGoalTreeItem as findGoalView, goalWorkSatisfied, partOfChildViews } from "./tree-presentation.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";

@@ -1,5 +1,5 @@
 import {
-  eventTypeKey, isReservedEventType, isValidEventTypeId, isValidEventTypeVersion, ownsEventType,
+  eventTypeKey, hostEventType, isReservedEventType, isValidEventTypeId, isValidEventTypeVersion, ownsEventType,
   type PluginEventsDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { isValidPortName, type PluginPortsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
@@ -93,6 +93,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
 export function inspectEventDeclarations(
   pluginId: string,
   events: PluginEventsDeclaration | undefined,
+  declaredPermissions: ReadonlySet<string>,
 ): string[] {
   if (!events) return [];
   const problems: string[] = [];
@@ -129,13 +130,31 @@ export function inspectEventDeclarations(
       problems.push(`订阅事件 ${item.event_type_id} 的版本无效`);
       continue;
     }
-    if (!Array.isArray(item.from_plugin_ids) || item.from_plugin_ids.length === 0) {
+    // A host event (X-6) has one source, the Host, so its subscription names none; a reserved type the Host does not publish
+    // is no subscription at all.
+    const host = isReservedEventType(item.event_type_id);
+    if (host && item.from_plugin_ids !== undefined) {
+      problems.push(`订阅宿主事件 ${item.event_type_id} 不写来源插件：它只由宿主发出`);
+      continue;
+    }
+    const hostType = host ? hostEventType(item.event_type_id, item.type_version) : undefined;
+    if (host && !hostType) {
+      problems.push(`宿主没有事件 ${eventTypeKey(item.event_type_id, item.type_version)}`);
+      continue;
+    }
+    // A broadcast goes to every subscriber that holds its permission (S-54), so the author declares it up front; the Host still
+    // checks the grant at delivery.
+    if (hostType?.permission && !declaredPermissions.has(hostType.permission)) {
+      problems.push(`订阅宿主事件 ${eventTypeKey(item.event_type_id, item.type_version)} 要声明权限 ${hostType.permission}`);
+      continue;
+    }
+    if (!host && (!Array.isArray(item.from_plugin_ids) || item.from_plugin_ids.length === 0)) {
       problems.push(`订阅 ${item.event_type_id} 必须显式限定来源插件`);
       continue;
     }
     const sources = new Set<string>();
     let ok = true;
-    for (const source of item.from_plugin_ids) {
+    for (const source of item.from_plugin_ids ?? []) {
       if (typeof source !== "string" || source.trim() === "" || source.includes("*")) {
         problems.push(`订阅 ${item.event_type_id} 的来源声明无效`);
         ok = false;

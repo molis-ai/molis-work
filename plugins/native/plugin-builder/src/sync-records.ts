@@ -1,3 +1,4 @@
+import {builderReleaseInterface,type AgentRelease} from './agent-model.js';
 import {isDeepStrictEqual} from 'node:util';
 import {builderSyncInvalid,object} from './sync-shape.js';
 import type {BuilderPortableDirectory} from './sync-files.js';
@@ -23,8 +24,8 @@ export function validateBuilderSelection(input:unknown):void{
   ||s.confidence!==undefined&&s.confidence!==null&&(typeof s.confidence!=='number'||!Number.isFinite(s.confidence)||s.confidence<0||s.confidence>1))builderSyncInvalid();
 }
 /** The exact published bytes must describe the same release, not merely have valid independent hashes. */
-export function validateBuilderReleaseFiles(release:Record<string,unknown>,directory:BuilderPortableDirectory):void{
- const design=object(release.design),iface={nodes:release.nodes,acceptance:design.acceptance,...(design.presentation===undefined?{}:{presentation:design.presentation})};
+export function validateBuilderReleaseFiles(release:Record<string,unknown>&Pick<AgentRelease,'design'|'nodes'>,directory:BuilderPortableDirectory):void{
+ const design=release.design,iface=builderReleaseInterface(design,release.nodes);
  for(const [path,expected] of Object.entries({'manifest.json':release.manifest,'contract.json':design.contract,'interface.json':iface,'prompts.json':release.prompts})){
   const file=directory.files.find(f=>f.path===path);if(!file)builderSyncInvalid();
   const value:unknown=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.from(file!.bytes,'base64')));

@@ -1,4 +1,5 @@
 import { browserErrors, isBrowserError } from "./errors.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -10,6 +11,7 @@ import type {
 import { CdpConnection, type CdpParams } from "./cdp.js";
 import { locateBrowser, type LocatedBrowser } from "./locate.js";
 import { trackHostChildEndpoint } from "../host-endpoints.js";
+import { hostLog } from "../host-log.js";
 
 /**
  * The side panel's browser (specs/archive/side-panel D03/D04): one Chrome-family process per Home, started on first use with
@@ -41,6 +43,11 @@ interface Running {
 const MAX_CAPTURE_CHARS = 20_000;
 const DEFAULT_VIEWPORT: BrowserViewport = { width: 1024, height: 720, dpr: 1 };
 const SEARCH_URL = "https://www.bing.com/search?q=";
+
+function inputFailure(error: unknown, method: string): never {
+  hostLog.warn("browser", "input_dispatch_failed", error, { method });
+  throw browserErrors.load_failed("无法确认这次输入是否完成，请检查页面。");
+}
 
 /** What the person typed into the address bar → where to go. Only web addresses load; other schemes are refused. */
 export function browserAddress(input: string): { url: string } | { blocked: string } {
@@ -587,7 +594,7 @@ export class BrowserPage {
   async input(message: Extract<BrowserClientMessage, { type: "mouse" | "key" | "text" | "compose" }>): Promise<void> {
     const top = this.top;
     if (!top || !this.connection) return;
-    const send = (method: string, params: CdpParams) => this.connection!.send(method, params, top.sessionId).catch(() => undefined);
+    const send = (method: string, params: CdpParams) => this.connection!.send(method, params, top.sessionId).catch((error: unknown) => inputFailure(error, method));
     if (message.type === "mouse") {
       const type = { down: "mousePressed", up: "mouseReleased", move: "mouseMoved", wheel: "mouseWheel" }[message.event];
       await send("Input.dispatchMouseEvent", {
@@ -752,8 +759,15 @@ function loadFailure(errorText: string): string {
   return `页面没有打开（${errorText}）。可以刷新重试。`;
 }
 
-function safeFilename(name: string): string {
-  return name.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").slice(0, 200) || "download";
+/** A download's file name: what the file system forbids is replaced, and a name over 200 UTF-16 units is cut in whole characters,
+ * keeping its extension (a cut between the halves of a character would leave a lone half, which a header cannot carry). */
+export function safeFilename(name: string): string {
+  const cleaned = name.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_");
+  const extension = /\.([A-Za-z0-9]{1,10})$/u.exec(cleaned)?.[0] ?? "";
+  const room = 200 - extension.length;
+  const base = cleaned.slice(0, cleaned.length - extension.length);
+  const kept = cutHead(base, room);
+  return kept + extension || "download";
 }
 
 /** A browser host started on first use, forbidding the loopback origin of the server that owns it. Its getter also

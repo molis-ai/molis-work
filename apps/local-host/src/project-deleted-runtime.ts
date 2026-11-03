@@ -14,7 +14,7 @@ export function registerProjectRuntimeOwner(host: MolisWorkLocalHost, home: stri
     priority: -10,
     alive: () => host.lifecycle() === "running",
     async clear(projectId) {
-      for (const runtime of host.status().projects.filter(row => row.project_id === projectId)) await host.closeProject(runtime.storage_key);
+      for (const runtime of host.projects().filter(row => row.project_id === projectId)) await host.closeProject(runtime.storage_key);
     },
   });
 }

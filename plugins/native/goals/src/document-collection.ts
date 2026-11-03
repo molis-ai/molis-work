@@ -8,7 +8,7 @@ import { projectGoalDocument } from "./document-projection.js";
 export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, projectId: string) {
   const snapshot = ports.snapshot(projectId);
   const inputBindings = ports.inputs.list(projectId)
-    .map(({ project_id: _boardId, ...binding }): GoalsInputBinding => binding);
+    .map(({ project_id: _projectId, ...binding }): GoalsInputBinding => binding);
   const policyBindings: GoalsPolicyBinding[] = ports.goals.listPolicyHistory(projectId);
   const events = ports.events(projectId);
   const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listWorkEventGoalLinks(projectId));
@@ -37,3 +37,18 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, proj
 }
 
 export type GoalsDocumentCollectionView = ReturnType<typeof buildGoalsDocumentCollection>;
+
+/**
+ * What a project reads as when it has no Goals (the agreement that keeps Goals in every project was taken back, RAC-400): no board
+ * activity, no Goals, nothing to count. The Host draws the project's page from it rather than refusing the page.
+ */
+export function emptyGoalsDocumentCollection(projectId: string): GoalsDocumentCollectionView {
+  const at = new Date(0).toISOString();
+  return {
+    snapshot: { cursor: 0, board: { project_id: projectId, active_goal_id: null, created_at: at, updated_at: at }, goals: [], relations: [],
+      planning_method_packs: [], project_guidance: [], goal_tree_proposals: [] },
+    active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
+    counts: Object.fromEntries(GOALS_PRESENTATION_STATES.map(status => [status, 0])) as Record<GoalPresentationState, number>,
+    input_bindings: [], policy_bindings: [], events: [],
+  };
+}

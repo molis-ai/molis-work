@@ -7,16 +7,13 @@ export {SYNC_HOME_STORE,SYNC_STORE_BASELINE} from './database.js';
 export {hasProtectedSyncPayloads} from './local-protection.js';
 import {pinSyncProtection} from './local-protection.js';
 
-export const packageDescriptor = {
-  packageName:'@molis-ai/molis-work-module-sync-replication',packagePath:'modules/sync-replication',kind:'module',maturity: "partial",
-  contract:'@molis-ai/molis-work-contracts/modules/sync-replication',migrationGoals:['goal-reorg-f2'],ssot:'docs/SSOT-MATRIX.md',capabilities:[],
-} as const;
-
 export type SyncSelection = SpaceSyncPolicy['selections'][number];
 export {syncNamespace} from './namespace.js';
 import {syncNamespace} from './namespace.js';
 export interface SyncRegistration {
   selection:SyncSelection; title:string;
+  /** Passive current owner reference check; separate from cloud selection. */
+  hasReference?(projectId:string,assetId:string,version?:number):boolean;
   /** Synchronous lifecycle projection only; false is unavailable, never a successful empty replica. */
   available?():boolean;
   /** Trusted exact identities from the same declaration; never inferred from network payloads. */
@@ -218,7 +215,10 @@ export class PersonalSync {
   }
   status(){
     const policy=this.policy();
-    const collections=this.registry.current().map(r=>({selection:r.selection,title:r.title,...r.withReplica(a=>a.counts()),conflicts:r.withReplica(a=>a.conflicts()),failures:syncItemFailures(this.options.home,()=>this.assert()).list(syncNamespace(r.selection))}));
+    const selected = new Set(policy.selections.map(syncNamespace));
+    const collections=this.registry.current().map(r=> selected.has(syncNamespace(r.selection))
+      ? {selection:r.selection,title:r.title,...r.withReplica(a=>a.counts()),conflicts:r.withReplica(a=>a.conflicts()),failures:syncItemFailures(this.options.home,()=>this.assert()).list(syncNamespace(r.selection))}
+      : {selection:r.selection,title:r.title,pending:0,conflicts:[],failures:[]});
     const running=!!this.running,progress=syncProgress({policy,collections,running,error:this.error,lastSuccess:this.lastSuccess});
     return {policy,device:this.device.read(),quota:this.quota,running,error:this.error,lastSuccess:this.lastSuccess,collections,progress,unavailable:policy.selections.filter(s=>!this.registry.current().some(r=>syncNamespace(r.selection)===syncNamespace(s)))};
   }
@@ -241,13 +241,24 @@ export class PersonalSync {
     const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
     await registration.refresh();check();
     const inspection=await retainConflict({home:this.options.home,namespace,key,choice,revision,state,policyRevision,registration,channel:{assert:check,json:(route,body)=>this.request(route,body,body===undefined?'GET':'POST',check),binary:async(route,body)=>{const response=await this.send(route,body===undefined?undefined:Buffer.from(body),body===undefined?'GET':'PUT','application/octet-stream',check);if(!response.ok)throw syncError('invalid','同步附件传输失败');const bytes=new Uint8Array(await response.arrayBuffer());check();return bytes;}}});
+    if(choice==='remote')await registration.content?.prepare?.(key,inspection.remote);
     check();await withSyncMutation(registration,{kind:'resolve',key,choice,revision:inspection.revision,state:inspection.state},check,r=>r.resolve(key,choice,inspection.revision,inspection.state));await this.run();
   }
   private selected(namespace:string){this.assert();const registration=this.registry.current().find(r=>syncNamespace(r.selection)===namespace);if(!registration||!this.policy().selections.some(s=>syncNamespace(s)===namespace))throw syncError('scope','此同步集合已关闭或不存在');return registration;}
   inspectConflict(namespace:string,key:string){const registration=this.selected(namespace),view=registration.withReplica(r=>r.inspectConflict?.(key)??null);return view?{...view,location:registration.locate?.(key)??registration.withReplica(r=>r.locate?.(key)??null)}:null;}
   recoveries(namespace:string){return this.selected(namespace).withReplica(r=>r.recoveries?.()??[]);}
   inspectRecovery(namespace:string,id:string){const registration=this.selected(namespace),view=registration.withReplica(r=>r.inspectRecovery?.(id)??null);return view?{...view,location:registration.locate?.(view.key)??registration.withReplica(r=>r.locate?.(view.key)??null)}:null;}
-  async restoreRecovery(namespace:string,id:string,choice:'local'|'remote',revision:number){if(this.running)await this.running;const registration=this.selected(namespace);await registration.refresh();assertSyncRegistration(registration,()=>this.assert());await withSyncMutation(registration,{kind:'restore-recovery',id,choice,revision},()=>assertSyncRegistration(registration,()=>this.assert()),r=>{if(!r.restoreRecovery)throw syncError('unsupported','此集合未提供版本恢复');r.restoreRecovery(id,choice,revision);});await this.run();}
+  async restoreRecovery(namespace:string,id:string,choice:'local'|'remote',revision:number){
+    if(this.running)await this.running;
+    const registration=this.selected(namespace),policyRevision=this.policy().revision;
+    const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
+    await registration.refresh();check();
+    const inspection=registration.withReplica(r=>r.inspectRecovery?.(id)??null);
+    if(!inspection||inspection.revision!==revision)throw syncError('conflict','保留版本已变化，请重新查看');
+    await registration.content?.prepare?.(inspection.key,choice==='local'?inspection.local:inspection.remote);check();
+    await withSyncMutation(registration,{kind:'restore-recovery',id,choice,revision},check,r=>{if(!r.restoreRecovery)throw syncError('unsupported','此集合未提供版本恢复');r.restoreRecovery(id,choice,revision);});await this.run();
+  }
+
   async trash(before?:number){this.assert();return this.request('/v1/trash'+(before===undefined?'':'?before='+encodeURIComponent(String(before))));}
   async restoreTrash(namespace:string,key:string,revision:number,operationId:string){const registration=this.selected(namespace);await this.request('/v1/trash/restore',{namespace,key,revision,operationId,policyRevision:this.policy().revision},'POST',()=>assertSyncRegistration(registration,()=>this.assert()));await this.run();}
   async purgeTrash(namespace:string,key:string,revision:number,confirm:boolean){const registration=this.selected(namespace);await this.request('/v1/trash/purge',{namespace,key,revision,confirm},'POST',()=>assertSyncRegistration(registration,()=>this.assert()));await this.run();}

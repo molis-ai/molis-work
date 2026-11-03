@@ -22,6 +22,7 @@ import {
   renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
+  renderMolisWorkWorkbenchWithPluginStylesheets,
 } from "./workbench-renderer-fixture.js";
 
 // Soft Workbench (specs/archive/soft-workbench-rollout): every layer takes its base tokens from one helper.
@@ -53,11 +54,12 @@ test("visual foundation enhances visible selects onto mw-menu", () => {
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /className = "mw-menu mw-select-picker__menu"/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /dataset\.mwSelectSkip === "true"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-select-picker__menu/);
-  const workbench = renderMolisWorkWorkbenchStylesheet();
+  const workbench = renderMolisWorkWorkbenchWithPluginStylesheets();
   assert.match(workbench, /\.mw-select-picker \{/);
   assert.match(workbench, /\.dataset-toolbar \.mw-select, \.dataset-toolbar \.mw-select-picker/);
-  assert.match(workbench, /\[data-work-surface="feed"\]/);
-  assert.match(workbench, /@keyframes creative-arrive/);
+  // RAC-705 (PG-075): every work surface gets the one neutral tint; no selector is written for a plugin.
+  assert.match(workbench, /\[data-work-surface\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
+  assert.match(workbench, /@keyframes craft-rise \{/);
   assert.match(VISUAL_FOUNDATION_CLIENT_SCRIPT, /--seg-tint/);
 });
 
@@ -141,8 +143,9 @@ test("visual foundation keeps Standard and Compact as local presentation choices
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-row \{/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /data-board-view="decisions"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-row \{\s*min-height: 27px;/);
-  // BL-121 3: the compact child indent stays. The doubled class keeps the specificity that beats goal-canvas.ts's flat stage list; if the indent is dropped on purpose, change both.
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-children\.tree-children \{\s*margin-left: 8px;\s*padding-left: 4px;/);
+  // BL-121 3 (T-337): the compact child indent stays, as an intentional behaviour. `:not(:empty)` is the explicit
+  // specificity that still beats goal-canvas.ts's flat stage list (0,4,2 against 0,4,1); if the indent is dropped on purpose, change both.
+  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-density="compact"\] body\[data-board-view\] \.tree-children:not\(:empty\) \{\s*margin-left: 8px;\s*padding-left: 4px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node \{\s*min-height: 25px;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-document \{\s*width: min\(100%, 1120px\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-desktop-shell="true"[^}]+\.goal-document \{\s*padding: 12px 16px 32px;/); // spec → 第三轮 · 视觉精修: spacing scale
@@ -164,7 +167,9 @@ test("visual foundation keeps terminal appearance separate and local", () => {
 });
 
 test("live xterm sessions receive the selected terminal palette", () => {
-  const ptyClientSource = readFileSync(new URL("../plugins/native/work/src/terminal/screens.ts", import.meta.url), "utf8");
+  // The screens take the palette the Character terminal also uses (apps/workbench/src/terminal-theme.ts).
+  const ptyClientSource = ["../apps/workbench/src/terminal/screens.ts", "../apps/workbench/src/terminal-theme.ts"]
+    .map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   assert.match(ptyClientSource, /theme: terminalPalette\(\)/);
   assert.match(ptyClientSource, /molis-work:terminal-theme-change/);
   assert.match(ptyClientSource, /term\.options\.theme = palette/);
@@ -272,7 +277,7 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   // The Goal-era Inbox/decision page has no producer any more; its skin rules are gone with it.
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.inbox-workspace|\.inbox-item\b|\.decision-(?:empty|summary|groups|owner|stack)\b|\.feed-decision-work\b/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.desktop-titlebar-drag \{ -webkit-app-region: drag; user-select: none; \}/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\[data-desktop-surface\]:not\(\[data-desktop-surface="goal"\]\)[\s\S]*\.tui-pane \{ display: none !important; \}/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /\[data-desktop-surface\]:not\(\[data-desktop-surface="goals"\]\) :is\(\.tui-resizer, \.tui-pane\) \{ display: none !important; \}/);
   // The Goal document left the old skin; the trash page keeps its desktop workspace height in its own sheet.
   assert.match(renderMolisWorkWorkbenchStylesheet(), /\.trash-goal-document \.trash-goal-workspace \{ min-height: max\(420px, calc\(100dvh - 340px\)\); \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-title-kicker \.goal-status \{[\s\S]*min-height: 26px;[\s\S]*padding: 4px 8px;[\s\S]*gap: 8px;[\s\S]*border-radius: 8px;/); // padding and glyph gap on the 4/8 scale
@@ -446,6 +451,8 @@ test("plugin list titles yield at the squeeze edge", () => {
   // A kind is not a state, so kind labels are neutral (spec → 第三轮 · 颜色: status colours only for status).
   assert.match(workbench, /\.plugin-stage-kind\[data-kind\] \{ --status-tone: var\(--ink-soft\); \}/);
   assert.doesNotMatch(workbench, /\.plugin-stage-kind\[data-kind="(?:choice|score|noul)"\] \{ --status-tone: var\(--hue-/);
+  // RAC-700: the stage's kind chip has no row per plugin (they all resolved to --ink-soft); one neutral rule covers every kind.
+  assert.deepEqual(workbench.match(/\.plugin-stage-kind\[data-kind[^\]]*\]/gu), [".plugin-stage-kind[data-kind]"]);
   assert.match(workbench, /\.feed-stage-entry \.feed-entry-status \{[\s\S]*overflow: visible/);
   assert.match(workbench, /\.feed-stage-leading strong \{ flex: 1;/);
   assert.match(workbench, /goal-board-switch, \.settings-segmented, \.locale-switch, \.mw-toggle-group/);

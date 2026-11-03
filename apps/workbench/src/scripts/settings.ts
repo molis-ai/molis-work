@@ -1,6 +1,7 @@
 import { PROMPT_SETTINGS_CLIENT_SCRIPT } from "../settings-prompts.js";
 import { SYNC_SETTINGS_CLIENT_SCRIPT } from '../settings-sync.js';
 import { ASSISTANT_SETTINGS_CLIENT_SCRIPT } from "../settings-assistant.js";
+import { LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT } from "../settings-local-directories.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT } from "../settings-memory.js";
 import { AGENT_DIAGNOSTICS_CLIENT_SCRIPT } from "../settings-agent-diagnostics.js";
 import { MCP_ACCESS_CLIENT_SCRIPT } from "./mcp-access.js";
@@ -9,7 +10,7 @@ import { MODEL_SETTINGS_CLIENT_SCRIPT } from "./settings-models.js";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./project-settings.js";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "./settings-web-service.js";
 import { SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
-import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../functions/settings-client.js";
+import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../judgment-rules/settings-client.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 export const RUNTIME_PLAN_CLIENT_SCRIPT = `
@@ -111,7 +112,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   })();
 `;
 
-export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
+export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
 ` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + SYNC_SETTINGS_CLIENT_SCRIPT;
 
 
@@ -127,6 +128,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
     const routePrefix = (scope.closest && scope.closest("[data-route-prefix]"))?.dataset.routePrefix
       || scope.dataset?.routePrefix
       || document.body.dataset.routePrefix || "";
+    const goalsPluginApi = "/api/plugins/io.molis.work.goals";
     const state = JSON.parse(dataNode.textContent || "{}");
     const entries = [...(state.entries || []), ...(state.inactive_entries || [])];
     const fields = form.querySelector("[data-guidance-editor-fields]");
@@ -252,7 +254,7 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
       submit.textContent = L("正在保存…");
       try {
         const isAdd = mode === "add";
-        await molisWorkRequest(isAdd ? routePrefix + "/api/project-guidance" : routePrefix + "/api/project-guidance/" + encodeURIComponent(guidanceId), {
+        await molisWorkRequest(routePrefix + goalsPluginApi + "/project-guidance" + (isAdd ? "" : "/" + encodeURIComponent(guidanceId)), {
           method: isAdd ? "POST" : "PATCH",
           body: {
             action: isAdd ? undefined : mode,

@@ -13,7 +13,7 @@ function fixture(t) {
   const root = mkdtempSync(path.join(tmpdir(), "molis-context-boundary-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const file of ["modules/private-work-context/src", "packages/contracts/src/modules/private-work-context.ts",
-    "tests/private-work-context-module.test.ts", catalog]) {
+    "tests/runtime-binding-ledger.test.ts", catalog]) {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     cpSync(path.join(repository, file), path.join(root, file), { recursive: true });
   }

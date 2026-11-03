@@ -83,7 +83,7 @@ test("a change that can be undone runs when asked without a confirmation, and th
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output),
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.outcomes.recordResult(work, view, input, output),
       undefined, undefined, undefined, () => store.confirmAlways("web-user")),
     // The person's own actions, for taking a change back by their click.
     scopeActions: async () => ({ discover: async () => local.actionClient(project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }),
@@ -103,10 +103,10 @@ test("a change that can be undone runs when asked without a confirmation, and th
     assert.equal(done.undoable![0]!.capability_id, "fixture.notes.remove");
 
     // Taken back once, by the person's click; the owner's own undo runs, and a second click is refused.
-    const undone = await service.undo(sent.work.work_id, done.undoable![0]!.undo_id);
+    const undone = await service.outcomes.undo(sent.work.work_id, done.undoable![0]!.undo_id);
     assert.equal(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
     assert.equal(undone.undoable![0]!.state, "undone");
-    await assert.rejects(service.undo(sent.work.work_id, done.undoable![0]!.undo_id), /已经撤销过了/);
+    await assert.rejects(service.outcomes.undo(sent.work.work_id, done.undoable![0]!.undo_id), /已经撤销过了/);
     // The next round of the work hears it was taken back, once.
     await service.send({ text: "好", request_id: "undo-send-1b", work_id: sent.work.work_id }, {});
     await until(async () => { const v = await service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
@@ -127,13 +127,13 @@ test("a round that makes exactly an offered undo's change spends that undo: the 
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
   const work = store.create({ actor_id: "web-user", title: "今日要闻", scope: { kind: "personal" }, origin: null });
   const view = (definition: ActionDefinition) => ({ ...definition, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } }) as never;
-  service.recordResult(work, view(add), { text: "周三前交方案" }, { note: { id: "note-1" } });
+  service.outcomes.recordResult(work, view(add), { text: "周三前交方案" }, { note: { id: "note-1" } });
   assert.deepEqual(store.undos("web-user", work.work_id).map(undo => undo.state), ["available"]);
   // Another note removed: the offered undo stands.
-  service.recordResult(work, view(remove), { note_id: "note-9" }, { removed: true });
+  service.outcomes.recordResult(work, view(remove), { note_id: "note-9" }, { removed: true });
   assert.deepEqual(store.undos("web-user", work.work_id).map(undo => undo.state), ["available"]);
   // The round removed that very note itself (seen: asked to drop a document it made, it discarded the document).
-  service.recordResult(work, view(remove), { note_id: "note-1" }, { removed: true });
+  service.outcomes.recordResult(work, view(remove), { note_id: "note-1" }, { removed: true });
   assert.deepEqual(store.undos("web-user", work.work_id).map(undo => undo.state), ["undone"]);
 });
 
@@ -168,7 +168,7 @@ async function undoFixture(t: import("node:test").TestContext, script: Array<(bo
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output),
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.outcomes.recordResult(work, view, input, output),
       undefined, undefined, undefined, () => store.confirmAlways("web-user")),
     scopeActions: async () => ({ discover: async () => local.actionClient(project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }),
       invoke: async (action, input) => local.actionClient(project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }, action, input) }),
@@ -184,7 +184,7 @@ test("W2-18-JOB-03: a round that could not start has told the next one nothing: 
     const sent = await f.service.send({ text: "记一下：周三前交方案", request_id: "undo-told-1" }, { project_ref: f.project });
     const workId = sent.work.work_id;
     const done = await until(async () => { const v = await f.service.read(workId); return v.work.state === "completed" ? v : undefined; }, "round");
-    await f.service.undo(workId, done.undoable![0]!.undo_id);
+    await f.service.outcomes.undo(workId, done.undoable![0]!.undo_id);
     // Background work that ended (its step on the work's graph, §6.0o) and a change that settled after a stop: both for the next round to hear once.
     const at = new Date().toISOString(), works = f.host.adapter("prologue").collaboration!.works!, graph_id = f.store.get("web-user", workId).graph_id!;
     const { node_id } = await works.follow({ graph_id, key: `${workId}.research`, job_id: "job-1", title: "Research · Start research", deadline_ms: 3_600_000, every: { first_ms: 60_000, max_ms: 60_000 },
@@ -226,7 +226,7 @@ test("two undo requests at once run the owner's undo once and agree on the outco
     const workId = sent.work.work_id;
     const done = await until(async () => { const v = await f.service.read(workId); return v.work.state === "completed" ? v : undefined; }, "round");
     const undoId = done.undoable![0]!.undo_id;
-    const results = await Promise.allSettled([f.service.undo(workId, undoId), f.service.undo(workId, undoId)]);
+    const results = await Promise.allSettled([f.service.outcomes.undo(workId, undoId), f.service.outcomes.undo(workId, undoId)]);
     assert.deepEqual(results.map(result => result.status), ["fulfilled", "fulfilled"], JSON.stringify(results.map(result => result.status === "rejected" ? String(result.reason) : "ok")));
     assert.equal(f.removes.length, 1, "the owner's undo ran once");
     assert.deepEqual(f.store.undos("web-user", workId).map(undo => [undo.state, undo.detail ?? null]), [["undone", null]]);
@@ -238,19 +238,19 @@ test("two undo requests at once run the owner's undo once and agree on the outco
     await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
     const work = f.store.get("web-user", workId);
     const view = { ...remove, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never;
-    f.service.recordResult(work, { ...add, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never, { text: "x" }, { note: { id: "note-gone" } });
+    f.service.outcomes.recordResult(work, { ...add, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never, { text: "x" }, { note: { id: "note-gone" } });
     const fresh = f.store.undos("web-user", workId).find(undo => undo.state === "available")!;
-    const running = f.service.undo(workId, fresh.undo_id);
-    f.service.recordResult(work, view, { note_id: "note-gone" }, { removed: true });
+    const running = f.service.outcomes.undo(workId, fresh.undo_id);
+    f.service.outcomes.recordResult(work, view, { note_id: "note-gone" }, { removed: true });
     const settled = await running;
     assert.deepEqual(settled.undoable!.find(undo => undo.undo_id === fresh.undo_id)!.state, "undone", "the owner's later 'not found' did not turn a spent undo into a failed one");
     // A genuine failure is still a failure, and can be tried again.
-    f.service.recordResult(work, { ...add, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never, { text: "y" }, { note: { id: "note-gone-2" } });
+    f.service.outcomes.recordResult(work, { ...add, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } } as never, { text: "y" }, { note: { id: "note-gone-2" } });
     const failing = f.store.undos("web-user", workId).find(undo => undo.state === "available")!;
-    await assert.rejects(f.service.undo(workId, failing.undo_id), /没能撤销/);
+    await assert.rejects(f.service.outcomes.undo(workId, failing.undo_id), /没能撤销/);
     assert.equal(f.store.undos("web-user", workId).find(undo => undo.undo_id === failing.undo_id)!.state, "failed");
     f.notes.prepare("INSERT INTO notes VALUES ('note-gone-2', 'back')").run();
-    await f.service.undo(workId, failing.undo_id);
+    await f.service.outcomes.undo(workId, failing.undo_id);
     assert.equal(f.store.undos("web-user", workId).find(undo => undo.undo_id === failing.undo_id)!.state, "undone", "a failed undo can be tried again");
   } finally { await f.close(); }
 });

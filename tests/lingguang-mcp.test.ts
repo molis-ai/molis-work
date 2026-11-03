@@ -8,7 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 
 // RAC-32: three official stdio clients share the single resident Host; restarting that Host preserves the original library.
 test("official stdio MCP clients share Lingguang Runtime, scoped grants and persisted results across a Host restart", { timeout: 120_000 }, async () => {

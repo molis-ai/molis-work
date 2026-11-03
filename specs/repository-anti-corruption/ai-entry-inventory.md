@@ -103,7 +103,7 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 | TX-9 | `cognia.knowledge.synthesize`、`cognia.knowledge.query` | 同上 | 不可用，页面顶部写「当前没有可用的文字模型……导入、搜索和阅读仍可使用」并给「打开模型设置」（U，截图 07） | `cognia-prologue.ts` 固定模型并注入 `hostCompleteText`；检索用关键词子串打分选 1–5 份材料，再让模型带引用作答（`plugins/native/cognia/src/ai.ts`）。[已确认] |
 | TX-10 | `jelly.plan.generate`（把原文或笔记选区拆成待采纳的行动计划） | 同上 | 不可用；另有「手工拆解」路径不要模型（`plugins/native/jelly/src/ai.ts` 的 `manual`） | `jelly-actions.ts`：`completeJson` 在派出前后各 `beforeEffect()`，SDK `decodeJsonOutput` 解码，坏结构报 `jelly.ai_invalid` 不改原文。Jelly 只有这一条登记指令（`JELLY_DECOMPOSE`），没有摘要类调用；`docs/platform/PROLOGUE-AI.md:57` 写的「每次分段摘要或合并」已经不是现状（§7 第 9 项）。Jelly 自带模型选择（`jelly.model.configure`）。[已确认] |
 | TX-11 | `workflows.instances.continue`（AI 交接一站） | 用户、助理、MCP（不含工作流） | **目录里可用**，调用时才报 `workflows.not_ready` | `workflows-actions.ts` 的 `aiAvailable` 只给界面；流程编辑页在对应衔接处写「Inbox → Pages（还没有可用的文字模型）」（U，截图 19）。[已确认] |
-| TX-12 | `shelf.jobs.generate`（用 AI 处理材料，含看图） | 同上 | 不可用，`shelf.no_model` | `shelf-ai.ts`：先 `beforeEffect`、逐文件核路径、材料总量上限 175,000 字符、可带原图（只给声明支持图片的模型，否则拒绝并说「原图未发送」）、10 分钟上限。[已确认] |
+| TX-12 | `shelf.jobs.generate`（用 AI 处理材料，含看图） | 同上 | 不可用，`shelf.no_model` | `plugins/native/shelf/src/ai.ts`（S2 起经 `services.model`）：先 `beforeEffect`、逐文件核路径、材料总量上限 175,000 字符、可带原图（只给声明支持图片的模型，否则拒绝并说「原图未发送」）、10 分钟上限。[已确认] |
 | TX-13 | `information.plan`（信息助手：起草筛选或写作方案） | 仅用户 | 不可用 | `information-actions.ts`，只读方案，不执行。[已确认] |
 | TX-14 | `alchemist.conversation.send`、`alchemist.reuse.assess` | 同上 | **目录里可用**，调用时才拒绝（`actions.connection_required`）；2026-10-09 起对助理、MCP、工作流和插件在目录里就是不可用，用户自己的页面不变 | `alchemist-prologue.ts`：三分钟生命周期、指令必须登记在本插件下、固定模型不可用就拒绝、不切供应商。[已确认] |
 | TX-15 | `alchemist.explorations.start`、`alchemist.research.start`（后台 worker） | 同上 | **目录里可用**，任务失败；2026-10-09 起对助理、MCP、工作流和插件在目录里就是不可用，用户自己的页面不变 | 立即返回、由 worker 持有生命周期；没有模型时任务终态是「失败」，卡片里露出原码 `RUNTIME_NOT_CONFIGURED`（U，截图 18）。研究阶段还会走 AnySearch 检索（§3.7）。同属后台 worker 的 `alchemist.pulse.start` **不调模型**，所以不是本清单的入口、没有「无模型时」一栏：市场脉搏用 `RuleBasedPulseSynthesizer` 规则综合（`bootstrap/local-runtime.ts` 的 `synthesizer`），只向 §3.10 第 7 类的三个公开来源取数；它声明了 `cost: "metered"`，门禁测试因此把它和这里的两个、图片的 `images.jobs.start` 一起登记在 `SERIAL_BY_DESIGN`。[已确认] |
@@ -164,8 +164,8 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 | ID | 入口 | 调用链 | 说明 |
 | --- | --- | --- | --- |
 | EX-3 | Shelf「对话」里的外部终端 Agent | `modules/shelf/src/runtimes.ts` 的 `SHELF_ENGINES`（grok、claude、gemini、opencode、cursor-agent、codex、kimi、codebuddy、qwen）与自定义运行时，只用 `spawnSync` 探测本机有哪些（`--help` 只在显式作业时探）；对话本身是 `plugins/native/shelf/src/terminal-client.ts` 接 `/pty` 的终端，用户和所选 Agent 在终端里说话 | 暂缓；模块里的注释写明「Manual terminal discovery. Automatic recipes use the independent AI port」，自动配方走 TX-12（Prologue），两者互相独立。[已确认] |
-| EX-4 | 角色的「用本机 Agent 运行」 | `plugins/native/characters`：`characters.launch` + 角色导入读 `~/.codex`、`~/.claude`、`~/.cursor`、`~/.grok` 等（只读扫描） | 暂缓。[已确认] |
-| EX-5 | Sessions 的终端与外部 Runtime 会话 | `plugins/native/work/src/terminal`、`horizontal/runtime-host/src/adapters/terminal-pty.ts` | 暂缓；用户在终端里自己运行的 Agent。[已确认] |
+| EX-4 | 角色的「用本机 Agent 运行」 | `modules/characters`（CHR-1，2026-10-22 前是 `plugins/native/characters`）：`characters.launch` + 角色导入读 `~/.codex`、`~/.claude`、`~/.cursor`、`~/.grok` 等（只读扫描） | 暂缓。[已确认] |
+| EX-5 | Sessions 的终端与外部 Runtime 会话 | `apps/workbench/src/terminal`（SC-3 从 Work 搬来）、`horizontal/runtime-host/src/adapters/terminal-pty.ts` | 暂缓；用户在终端里自己运行的 Agent。[已确认] |
 | EX-6 | agent-host 的 `CliAgentAdapter`（`claude`） | 已删（原 `agent-host-composition.ts:87`、`:101`） | **已删（2026-10-10，W2-18 决定 1，#364）**：原先默认注册、没有内置调用方；编号保留不重排。见 §1 第 5 项与 §7 第 1 项。[已确认] |
 
 ### 3.9 开发用环境钥匙
@@ -195,7 +195,7 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 
 2026-10-10 补记：第 6 类（Casebook 参考客户端）随 Casebook 一起删除（用户决定，防腐整理 §1），不再是出站网络的一类；本清单其余部分仍是 2026-10-09 的记录，类别编号不改。
 
-**不算在内的**（是用户的动作或外部 Agent 自己的联网，不是 Molis Work 向外发请求）：用户在终端面板里运行的东西与 Shelf「对话」里的外部 Agent（EX-3、EX-5）；经审查队列批准后宿主运行的命令（Coding 的写入与命令）和 Git 插件批准后的 `git push`、`git pull`、`gh pr create`（`git-operations.ts:165-212`）；用户点击的外部链接（桌面壳 `external_links.rs` 交给系统浏览器）。
+**不算在内的**（是用户的动作或外部 Agent 自己的联网，不是 Molis Work 向外发请求）：用户在终端面板里运行的东西与 Shelf「对话」里的外部 Agent（EX-3、EX-5）；经审查队列批准后宿主运行的命令（Coding 的写入与命令）和 Git 插件批准后的 `git push`、`git pull`、`gh pr create`（`workspace-git-operations.ts:165-212`，G5 前叫 `git-operations.ts`）；用户点击的外部链接（桌面壳 `external_links.rs` 交给系统浏览器）。
 
 **vendored 包内部**（三个包各自解开 tgz 扫 `dist`；三个 tgz 的 sha256 都与同目录的 `.sha256` 一致）。**Prologue SDK**：宿主默认全拒出站（`host/plugin/node.js` 里 `allowance = DENY_ALL`），上面说的三条是 Molis Work 声明的全部。解开 vendored 的包（`vendor/prologue-sdk/…tgz`）后扫 `dist`，含联网代码的文件只有五个：节点宿主 `host/plugin/node.js`（模型请求，上面说的两个钩子就挂在它上面）；技能安装 `skill/core/install.js`、插件安装 `plugin/core/install.js`、来源摄取 `source/core/ingest.js` 都只调用调用方给的 `fetch` 端口，Molis Work 唯一给的端口是 `prologue-methods.ts:91` 读本地目录，不联网；MCP 授权 `mcp/plugin/oauth-node.js` 自带回调端口与令牌请求，agent-host 里没有任何一处引用 OAuth（外部 MCP 的授权走 Host 自己的 `connector-mcp.ts`，第 1 类）。[已确认，只扫了调用点，没有逐文件读语义]
 
@@ -209,7 +209,7 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 
 | 项 | 分类 | 消费者 | 合同 | 依赖方向 | 迁移顺序 | 验证 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `hostCompleteText`/`hostTextGeneration`（模型目录选择、凭据快照、派出前复查、配置变化拒绝、错误翻译） | **共享**，不下沉：它依赖 Molis Work 自己的模型目录与密钥存储 | 约 17 个宿主绑定文件、Coding 起草、记忆、上手、信息助手、Alchemist、Shelf、生成插件 | `HostCompleteText`、`HostTextGeneration`（`apps/local-host/src/index.ts` 导出）；`PrologueTextResult`（agent-host） | 宿主 → agent-host → SDK；插件只拿函数 | 已有 `services.model`（W3-06 E/F，Home 与项目执行器复用同一 Runtime 插件服务，由 agent-host 支撑，登记指令、并发调度、`beforeEffect`，不是 typed capability；Home 不新增推理进程，实例停用即撤服务与指令）；W5-11 收宿主里按插件写的 AI 绑定文件（今天有 13 个，其中 `alchemist-prologue`、`cognia-prologue`、`jelly-model`、`shelf-ai`、`typesafe-prologue` 是按插件写的适配）（`alchemist-prologue`、`cognia-prologue`、`jelly-model`、`shelf-ai`、`typesafe-prologue`） | `tests/host-inference-completion.test.ts`、`tests/prologue-inference-native.test.ts`、`tests/action-model-scheduling.test.ts`、`tests/plugin-model-service.test.ts`、`tests/home-plugin-model-lifecycle.test.ts` |
+| `hostCompleteText`/`hostTextGeneration`（模型目录选择、凭据快照、派出前复查、配置变化拒绝、错误翻译） | **共享**，不下沉：它依赖 Molis Work 自己的模型目录与密钥存储 | 宿主里 13 个文件（2026-10-26 核：共用绑定 1、平台服务 11、按插件写的 1 个即 Alchemist）、Coding 起草、记忆、上手、信息助手、Alchemist、Shelf、生成插件 | `HostCompleteText`、`HostTextGeneration`（`apps/local-host/src/index.ts` 导出）；`PrologueTextResult`（agent-host） | 宿主 → agent-host → SDK；插件只拿函数 | 已有 `services.model`（W3-06 E/F，Home 与项目执行器复用同一 Runtime 插件服务，由 agent-host 支撑，登记指令、并发调度、`beforeEffect`，不是 typed capability；Home 不新增推理进程，实例停用即撤服务与指令）；W5-11 的 A 半（宿主里按插件写的 AI 绑定文件）已收完（2026-10-26 核）：`cognia-prologue`、`jelly-model`、`shelf-ai` 已删，插件和模块代码里没有人调 `hostTextGeneration`/`hostCompleteText`；只剩 `alchemist-prologue` 登记为例外（删除条件：Alchemist 重做并进 Plugin Runtime，统筹 2026-10-26 定），`typesafe-prologue` 是判断服务的 TypeSafe 推理适配、不是文本模型调用，留着 | `tests/host-inference-completion.test.ts`、`tests/prologue-inference-native.test.ts`、`tests/action-model-scheduling.test.ts`、`tests/plugin-model-service.test.ts`、`tests/home-plugin-model-lifecycle.test.ts` |
 | 推理端口 `PrologueInferenceClient`（文字、图片、判断） | **已下沉**到 SDK，端口在 agent-host | 上一行的全部消费者 | `horizontal/agent-host/src/inference.ts` | agent-host → SDK | 已完成 | 同上，加 `tests/prologue-inference-images.test.ts` |
 | JSON 输出解码 | **已下沉**：SDK 的 `decodeJsonOutput`，agent-host 只再导出 | Jelly、Shelf、Alchemist | `decodePrologueJsonOutput` | 业务 → agent-host → SDK | 已完成 | `tests/alchemist-structured-output.test.ts`、`tests/jelly-model.test.ts` |
 | Agent 工具循环、审批队列、检查点、压缩、子代理 | **已下沉**：SDK；角色与提示词是业务 | 助理、Coding、Schedule、创作台 | `services/agent-host` 合同 | 宿主 → agent-host → SDK | 已完成；助理就地拆分后搬包是路线 W4/W5 的事（决定 #3） | `tests/agent-host*.test.ts`、`tests/prologue-*.test.ts` |
@@ -228,7 +228,7 @@ Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件
 | --- | --- | --- |
 | 供应商直连 | 没有（§1 第 1 项）；模型之外的出站网络 13 类，逐类见 §3.10 | 全仓源码搜索与子进程扫描，命令见 §8 |
 | 旧执行器 | 无。`CliAgentAdapter` 是清点时唯一的一个（默认注册、没有内置调用方），已于 2026-10-10 删除（#364）；Agent Host 只注册 Prologue 适配器 | §3.8 EX-6、§7 第 1 项 |
-| 带绕过的 fallback | 没有「模型失败就换别家」；固定模型不可用时明确拒绝、不切供应商（Alchemist、Cognia、Shelf、生成插件都一样）；`actions.configuration_changed` 把「生成期间模型或连接变了」当失败，结果不提交 | `host-complete-text.ts`、`alchemist-prologue.ts`、`shelf-ai.ts` |
+| 带绕过的 fallback | 没有「模型失败就换别家」；固定模型不可用时明确拒绝、不切供应商（Alchemist、Cognia、Shelf、生成插件都一样）；`actions.configuration_changed` 把「生成期间模型或连接变了」当失败，结果不提交 | `host-complete-text.ts`、`alchemist-prologue.ts`、`plugins/native/shelf/src/ai.ts` |
 | 撤权、取消、配置变化后的副作用 | 有界调用：派出前后各复查，返回后再核一次快照，被取消、撤权、停用的不再写任何记录（W3-01 B 后只管业务记录，见 AGENTS.md）；宿主作业（HJ-1 至 HJ-3）没有按次授权，靠「项目还在」和写入门 | `tests/action-before-effect.test.ts`、`tests/action-model-scheduling.test.ts`、`memory-learning.ts` 的 `stillWanted` |
 | 旧的假数据路径 | 无。清点时 Pages 的 `stub` 是死字段：处理器只返回 `stub: false`，目录输出合同写死 `{ const: false }`（`plugins/native/pages/src/actions.ts:107`），编辑器里还有「未接模型」标签分支（`editor-browser.ts:3333`）和 `actionItemsFromText` 里剥除 `【未接模型…】` 行的正则（`ai.ts:85-86`）；这些已在 #368 删除（§7 第 3 项），`plugins/native/pages/src` 里不再有 `stub` 与「未接模型」 | 读码（清点时）；`git grep -n "stub" -- plugins/native/pages/src` 没有命中（2026-10-10） |
 | 自动触发 | 只有用户启用的场景（Feed 捕捉、Inbox 下一步、首页下一步）会在事件到达时调判断；没启用就不调；定时的 Agent 任务只在用户创建后按钟点跑 | `scenes.enable:*`，`schedule-task-runner.ts` |

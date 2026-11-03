@@ -4,8 +4,9 @@ import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-con
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantBackgroundJob } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
+import { hostLog } from "../host-log.js";
 
 const RUNTIME = "prologue";
 /** How long a job is followed: one not done by then is no longer followed, and its step fails as not done in time. */
@@ -60,8 +61,8 @@ export class AssistantJobs {
     const declared = view.action.background_job, jobId = declared ? pathValue(output, declared.id) : undefined;
     if (!declared || typeof jobId !== "string" && typeof jobId !== "number") return null;
     // The work as stored now: a new work's graph is opened after its first round's authority captured it.
-    let work: StoredWork;
-    try { work = this.ports.store.get(this.ports.actorId, given.work_id); } catch { return null; }
+    const work = whenThere(() => this.ports.store.get(this.ports.actorId, given.work_id));
+    if (!work) return null;
     const graph_id = AssistantJobs.graphOf(work);
     if (!graph_id) return null;
     const action = { capability_id: declared.status.capability_id, version: declared.status.version, provider_id: view.provider.provider_id };
@@ -147,7 +148,7 @@ export class AssistantJobs {
       try {
         this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: "后台已完成" }
           : step.job.ended === "failed" ? { status: "failed", outcome: "后台没有完成" } : { status: "unknown", outcome: step.job.ended === "expired" ? "过了 6 小时仍没有结束，请到原处查看" : "不能再查看它的状态，请到原处查看" });
-      } catch { /* The card changed meanwhile: the notice still says how the job ended. */ }
+      } catch (error) { if (!(error instanceof ActionError && error.code === "assistant.conflict")) hostLog.warn("assistant", "job_card_unsettled", error); } // Changed meanwhile is expected (the notice still says how the job ended); anything else is written.
     }
   }
 
@@ -157,12 +158,9 @@ export class AssistantJobs {
    */
   #follower(graphId: string, nodeId: string): StoredWork | undefined {
     const workId = /^job\.(.+)\.[0-9a-f]{16}$/.exec(nodeId)?.[1];
-    let work: StoredWork;
-    try { work = this.ports.store.get(this.ports.actorId, workId ?? ""); } catch (error) {
-      if (error instanceof ActionError && error.code === "assistant.not_found") return undefined;
-      throw error; // An unreadable work is unknown to the checker, which can look again after storage recovers.
-    }
-    return AssistantJobs.graphOf(work) === graphId ? work : undefined;
+    // An unreadable work is thrown: unknown to the checker, which can look again after storage recovers.
+    const work = whenThere(() => this.ports.store.get(this.ports.actorId, workId ?? ""));
+    return work && AssistantJobs.graphOf(work) === graphId ? work : undefined;
   }
 
   async #own(work: StoredWork): Promise<JobStep[]> {

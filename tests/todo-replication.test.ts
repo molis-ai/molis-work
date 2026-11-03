@@ -1,3 +1,4 @@
+import {openTodoStore, openTodoSyncStore} from "./fixtures/plugin-sync-stores.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -7,12 +8,9 @@ import { ensureStorageSpace, personalStorageSpace, type AggregateReplicaContext 
 import type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import {
-  openTodoStore, openTodoSyncStore, type TodoAccess, createTodoActionHandlers, ownTodoStores,
-  todoActions, todoManifest, TODO_ACTION_PERMISSIONS,
-} from "@molis-ai/molis-work-plugin-todo";
+import {type TodoAccess, createTodoActionHandlers, ownTodoStores, todoActions, todoManifest, TODO_ACTION_PERMISSIONS, } from "@molis-ai/molis-work-plugin-todo";
 
-const access: TodoAccess = { projectId: null, everything: true, actor: "user", actorId: "alice" };
+const access: TodoAccess = { projectId: null, projectIds:["project"], actor: "user", actorId: "alice" };
 const projectAccess: TodoAccess = { ...access, projectId: "project" };
 
 function fixture(t: TestContext) {
@@ -85,6 +83,7 @@ test("PCSYNC-TODO-UNDO-01: undoing creation on another device replicates deletio
   f.replicas[1]!.receive(f.take());
   assert.deepEqual(b!.revert({ change_id: created.change_id }, access).removed_ids, [created.item.id]);
   f.replicas[0]!.receive(f.take(1));
+  assert.deepEqual(f.replicas[0]!.conflicts(), []);
   for (const store of [a!, b!]) assert.throws(() => store.get(created.item.id, access), { code: "todo.not_found" });
 });
 
@@ -131,7 +130,7 @@ test("PCSYNC-TODO-UNDO-02: synced history does not bypass action permissions or 
   const created = a!.create({ title: "项目私有" , placement: "project" }, projectAccess);
   f.replicas[1]!.receive(f.take());
   await assert.rejects(actionsFor(b!, []).invoke(todoActions.revert, { change_id: created.change_id }), { code: "actions.forbidden" });
-  assert.throws(() => b!.revert({ change_id: created.change_id }, { ...access, everything: false, projectId: "other" }), { code: "todo.not_found" });
+  assert.throws(() => b!.revert({ change_id: created.change_id }, { ...access, projectIds:[], projectId: "other" }), { code: "todo.not_found" });
   assert.equal(b!.get(created.item.id, projectAccess).title, "项目私有");
 });
 
@@ -171,6 +170,7 @@ test("project Todo identity and deletion replicate without touching another item
   assert.equal(b!.get(personal.id, access).project_id, null);
   a!.delete(project.id, project.revision, projectAccess);
   f.replicas[1]!.receive(f.take());
+  assert.deepEqual(f.replicas[1]!.conflicts(), []);
   assert.throws(() => b!.get(project.id, projectAccess), /找不到/);
   assert.equal(b!.get(personal.id, access).title, "个人待办");
 });

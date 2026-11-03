@@ -6,8 +6,8 @@ import {
   PLACEMENT_COPY_INPUT_TYPE, PLACEMENT_COPY_INPUT_SCHEMA, PLACEMENT_COPY_OUTPUT_TYPE, PLACEMENT_MOVE_INPUT_SCHEMA,
   PLACEMENT_MOVE_INPUT_TYPE, PLACEMENT_MOVE_OUTPUT_TYPE, PLACEMENT_RESULT_SCHEMA,
   SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_INPUT_TYPE, SEARCH_ENTRIES_OUTPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_TYPE,
-  isFileContentSource, isFileEntriesSource, isObjectCopier, isObjectMover, isSearchEntriesSource,
-  type FileSourceKind, type FragmentOfferChoice, type SearchSourceKind,
+  PLACEMENT_RELATION_ROLES, isFileContentSource, isFileEntriesSource, isObjectCopier, isObjectMover, isSearchEntriesSource,
+  type FileSourceKind, type FragmentOfferChoice, type PlacementRelationRole, type SearchSourceKind,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // The checks a Manifest's action declarations get for the four protocols the system reads a plugin's actions through: search
@@ -116,4 +116,45 @@ export function placementDeclarationProblems(key: string, action: Record<string,
     return [`能力 ${key} 没有兑现放置协议 v1：需要规范输入输出、项目作用域（移动也可以是 Home 作用域）、只对本机用户开放的操作，以及对象种类`];
   }
   return [];
+}
+
+// ---- the relations placement keeps for the person (PG-032) -------------------------------------------------------------------
+
+const RELATION_NAME = /^[a-z][a-z0-9_]{1,30}$/;
+/** What each part of a relation does to the world: reading parts are queries, the others commands. */
+const RELATION_OPERATION: Record<PlacementRelationRole, "query" | "command"> = { list: "query", candidates: "query", bind: "command", release: "command", create: "command" };
+const isRecordValue = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const hasText = (value: unknown): boolean => typeof value === "string" && value.trim().length > 0 && value.length <= 120;
+
+export function placementRelationProblems(key: string, action: Record<string, unknown>, operation: unknown): string[] {
+  const declared = action.placement_relation;
+  if (declared === undefined) return [];
+  const role = isRecordValue(declared) ? declared.role : undefined;
+  const known = (PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(role);
+  const target = isRecordValue(declared) ? declared.target : undefined;
+  const targetOk = role === "list" ? isRecordValue(target) && hasText(target.kind) && hasText(target.noun) && Object.keys(target).length === 2 : target === undefined;
+  const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
+  if (!isRecordValue(declared) || !RELATION_NAME.test(String(declared.relation)) || !known || !targetOk
+    || Object.keys(declared).some(field => !["relation", "role", "target"].includes(field))
+    || operation !== RELATION_OPERATION[role as PlacementRelationRole] || action.scope !== "project" || !audiences.includes("user")) {
+    return [`能力 ${key} 的放置关联声明无效：需要小写的关联名、角色（${PLACEMENT_RELATION_ROLES.join("、")}）、项目范围、对本机用户开放、与角色一致的查询/命令；只有 list 角色写 target（对方的对象种类和显示名词）`];
+  }
+  return [];
+}
+
+/** Across one Manifest: a relation's part is played by one action, and every relation has its `list` part, which names what the other end is. */
+export function placementRelationListProblems(definitions: readonly unknown[]): string[] {
+  const parts = new Map<string, Set<string>>();
+  const problems: string[] = [];
+  for (const definition of definitions) {
+    const action = isRecordValue(definition) && isRecordValue(definition.action) ? definition.action : undefined;
+    const declared = action?.placement_relation;
+    if (!isRecordValue(declared) || !RELATION_NAME.test(String(declared.relation)) || !(PLACEMENT_RELATION_ROLES as readonly unknown[]).includes(declared.role)) continue;
+    const roles = parts.get(String(declared.relation)) ?? new Set<string>();
+    if (roles.has(String(declared.role))) problems.push(`放置关联 ${String(declared.relation)} 的 ${String(declared.role)} 角色被两个能力声明`);
+    roles.add(String(declared.role));
+    parts.set(String(declared.relation), roles);
+  }
+  for (const [relation, roles] of parts) if (!roles.has("list")) problems.push(`放置关联 ${relation} 缺少 list 角色：它写明对方是什么对象`);
+  return problems;
 }

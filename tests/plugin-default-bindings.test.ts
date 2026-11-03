@@ -7,6 +7,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import type { PluginInputGroupDeclaration, PluginInputPortDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, bindDeclaredDefaults, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
@@ -20,8 +21,9 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 /**
  * W4-03 (BL-087, D-04 A): an input port's default source is declared in its own plugin's Manifest (`default_source`, and a
  * default input group), and the Host binds what the running plugins declare. There is no list of names in the Host: a plugin the
- * old table never named gets its default the same way as Coding's family, and only where nothing was chosen. For now defaults
- * apply only between plugins that ship with the Host, as the table did: another plugin's declaration is read as absent.
+ * old table never named gets its default the same way as Coding's family, and only where nothing was chosen. A default applies
+ * on a standing agreement in the consent ledger (the Host agrees for the plugins it ships): a plugin nobody agreed for is read as
+ * if it declared none (tests/security-invariants-default-consent.test.ts holds the agreement rules).
  */
 
 const FILES = "io.molis.work.files";
@@ -47,7 +49,7 @@ function project(run: (platform: ReturnType<typeof createPluginPlatform>) => Pro
     const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db,
       artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
       processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-      ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
+      ui: new UiHost(), home: null, consents: new MemoryPluginConsentLedger(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
     try { await run(platform); } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
   };
 }
@@ -59,8 +61,8 @@ const defaults = (platform: ReturnType<typeof createPluginPlatform>) => platform
 
 test("W4-03-01 Coding's family is wired from its own Manifests, and Diff's snapshots group is its declared default", project(async platform => {
   // As the Host's start list gives them (`project-plugins.ts`): every one ships with the Host.
-  await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createShelfPlugin(), bundled: true }, { definition: createFilesPlugin(), bundled: true },
-    { definition: createGitPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
+  await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: createFilesPlugin(), trust: { level: "host" } },
+    { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   // The rows of the table this replaced (apps/local-host/src/workspace-plugin-bindings.ts before W4-03), less Coding's six inputs:
   // what the person brings into a round is now picked from project knowledge (specs/project-knowledge PMAT-18), not wired.
@@ -72,8 +74,8 @@ test("W4-03-01 Coding's family is wired from its own Manifests, and Diff's snaps
 }));
 
 test("W4-03-01 a plugin that ships with the Host but was never in the table gets the default its own Manifest declares, and its default group, with nothing added to the Host", project(async platform => {
-  await platform.start([{ definition: createFilesPlugin(), bundled: true }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" }), snapshotPort("other")],
-    [{ group_id: "one", title: "一份", ports: ["text"], default: true }, { group_id: "two", title: "两份", ports: ["text", "other"] }]), bundled: true }]);
+  await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }, { definition: probe([snapshotPort("text", { plugin_id: FILES, port: "before" }), snapshotPort("other")],
+    [{ group_id: "one", title: "一份", ports: ["text"], default: true }, { group_id: "two", title: "两份", ports: ["text", "other"] }]), trust: { level: "host" } }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   assert.deepEqual(port(platform, PROBE, "text")?.source, { source_plugin_id: FILES, source_port: "before" });
   assert.equal(port(platform, PROBE, "text")?.origin, "default");
@@ -82,12 +84,12 @@ test("W4-03-01 a plugin that ships with the Host but was never in the table gets
 }));
 
 test("W4-03-02 a default is not bound over the person's choice, nor when its source is not running, has no such port, or offers another type", project(async platform => {
-  await platform.start([{ definition: createFilesPlugin(), bundled: true }, { definition: probe([
+  await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }, { definition: probe([
     snapshotPort("chosen", { plugin_id: FILES, port: "before" }),
     snapshotPort("absent", { plugin_id: "io.molis.work.git", port: "changeset" }),
     snapshotPort("unknown", { plugin_id: FILES, port: "nothing-here" }),
     snapshotPort("mistyped", { plugin_id: FILES, port: "selection" }),
-  ], [{ group_id: "one", title: "一份", ports: ["chosen"], default: true }, { group_id: "two", title: "两份", ports: ["chosen", "absent"] }]), bundled: true }]);
+  ], [{ group_id: "one", title: "一份", ports: ["chosen"], default: true }, { group_id: "two", title: "两份", ports: ["chosen", "absent"] }]), trust: { level: "host" } }]);
   platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: PROBE, target_port: "chosen", source_plugin_id: FILES, source_port: "after", origin: "user" });
   platform.wiring.selectInputGroup(PROBE, "two");
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
@@ -97,7 +99,7 @@ test("W4-03-02 a default is not bound over the person's choice, nor when its sou
   assert.equal(platform.wiring.selectedGroup(PROBE), "two", "the person's group stays");
 }));
 
-test("W4-03-04 a plugin that does not ship with the Host gets no default (not Coding's changesets, not its default group, not under a built-in's id), and no built-in reads it by default", project(async platform => {
+test("W4-03-04 a plugin nobody agreed for gets no default (not Coding's changesets, not its default group, not under a built-in's id), and no built-in reads it by default", project(async platform => {
   const installed = "io.molis.work.example.collector";
   const changesetPort = (port: string, plugin_id: string, source: string): PluginInputPortDeclaration =>
     ({ port, artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true, default_source: { plugin_id, port: source } });
@@ -110,8 +112,8 @@ test("W4-03-04 a plugin that does not ship with the Host gets no default (not Co
   // The same Manifest under a built-in's own id, given by something other than the Host's start list (a developed or generated
   // plugin can name any plugin_id): still not the Host's.
   const impostor = probe([snapshotPort("text", { plugin_id: FILES, port: "before" })], [{ group_id: "one", title: "一份", ports: ["text"], default: true }], "io.molis.work.text-stats");
-  await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createShelfPlugin(), bundled: true }, { definition: createFilesPlugin(), bundled: true },
-    { definition: createDiffPlugin(), bundled: true }, { definition: collector }, { definition: impostor }, { definition: reader, bundled: true }]);
+  await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: createFilesPlugin(), trust: { level: "host" } },
+    { definition: createDiffPlugin(), trust: { level: "host" } }, { definition: collector }, { definition: impostor }, { definition: reader, trust: { level: "host" } }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
   for (const [pluginId, name] of [[installed, "changes"], [installed, "text"], ["io.molis.work.text-stats", "text"], [PROBE, "text"]] as const) {
     assert.equal(port(platform, pluginId, name)?.source, undefined, `${pluginId}.${name} reads nothing nobody chose to give it`);

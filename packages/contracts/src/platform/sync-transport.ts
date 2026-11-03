@@ -13,6 +13,8 @@ export interface SyncBlobReference { digest:string; size:number }
 export interface SyncBlobSource extends SyncBlobReference { bytes:Uint8Array }
 /** Owner-defined projection only; the common transport never inspects plugin payload fields. */
 export interface SyncContentCodec {
+  /** Materialize immutable owner assets before applying an already decoded retained value. SQL remains synchronous. */
+  prepare?(key:string,value:unknown):Promise<void>;
   encode(key:string,value:unknown):{value:unknown;blobs:SyncBlobSource[]};
   decode(key:string,value:unknown,read:(reference:SyncBlobReference)=>Promise<Uint8Array>):Promise<unknown>;
 }
@@ -20,6 +22,8 @@ export interface SyncConflictInspection {key:string;revision:number;state:string
 export interface SyncRecoveryRecord {id:string;key:string;choice:string;revision:number}
 export interface SyncRecoveryInspection extends SyncRecoveryRecord {local:unknown;remote:unknown}
 export interface SyncReplicaAdapter {
+  /** Pure owner key/scope check; no snapshot, external files or mutation. Runtime content requires this port. */
+  authorizeKey?(key:string,value?:unknown):void;
   /** Under a full account, keep positive uploads queued but allow independent tombstones. */
   next(options?:{deletionsOnly?:boolean;excludeKeys?:readonly string[]}): SyncMutation | null;
   /** A verified server receipt settles only its frozen prefix; it never advances the download cursor. */

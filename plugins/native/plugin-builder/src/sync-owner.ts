@@ -10,7 +10,7 @@ import {assertBuilderIdle,builderSyncInvalid,portableBuilderBuild,portableBuilde
 import {captureBuilderDirectory,stageBuilderDirectories,copyEditableBuilderDirectories,type BuilderPortableDirectory} from './sync-files.js';
 
 export const BUILDER_CONTENT_REPLICA_ID='builder_content';
-export const builderSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'authoring',title:'插件创作与发布内容',schema_version:1,requires:[]}]};
+export const builderSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'authoring',title:'插件创作与发布内容',schema_version:2,requires:[]}]};
 const errors=defineErrorCodes('plugin_builder',{sync_unavailable:'unavailable'});
 const unavailable=():never=>{throw errors.sync_unavailable('完整创作内容暂不可用，原内容已保留');};
 export interface BuilderReplicationOptions {home?:string;authorize?():void;assertIdle?(projectId:string,itemId:string):void}

@@ -1,9 +1,9 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const FIRST = "联系阿杰确认秋季发布计划。附上本周方案和预算说明。";
 const SECOND = "联系小王确认周末徒步路线。附上集合时间。";
@@ -13,21 +13,24 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 // selection (rules alone recommend one destination), and since Todo declares how a todo is undone, one click makes it and the
 // completion card offers 「打开」 and 「撤销」. Clicking again for the same selection makes nothing more; 撤销 after an edit elsewhere is
 // refused by Todo and changes nothing.
-test("S1 W4-1 contextual Todo: real selection → made at once from what was selected → once per request → owner readback → undo only while unchanged", { timeout: 120_000 }, async t => {
+test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what was selected → once per request → owner readback → undo only while unchanged", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
+  const child=await pluginFrameBrowser(t,browser,"pages");
+  const todoFrame=await pluginFrameBrowser(t,browser,"todo");
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number) => evaluate(`(() => {
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");
+  const select = async (index: number) => { await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
-  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, everything: true };
+  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
+  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, projectIds: [] };
   const todos = () => { const owner = openTodoStore(homeDirectory); try { return owner.list(access); } finally { owner.close(); } };
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const TODO = `[...document.querySelectorAll('${BAR} button')].find(button => !button.disabled && button.textContent.startsWith('记成待办'))`;
@@ -52,7 +55,7 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   await waitFor("typeof window.releaseCreate === 'function'", 10_000);
   assert.equal((await evaluate<{ focus: { targets: { text: string }[] } }>("window.createAsked")).focus.targets[0]?.text, FIRST);
   await select(1);
-  assert.equal(await evaluate("getSelection().toString()"), SECOND);
+  assert.equal(await child.evaluate("getSelection().toString()"), SECOND);
   await evaluate("window.releaseCreate()");
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   assert.equal(await evaluate("window.created.length"), 1, "one request while the first was being made");
@@ -107,7 +110,7 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   await evaluate(`[...${CARD("已记成待办")}.querySelectorAll('button')].find(button => button.textContent === '撤销').click()`);
   await waitFor(`Boolean(${CARD("已撤销")})`, 10_000);
   assert.deepEqual(todos().map(todo => todo.title), ["改过的待办"]);
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is not written");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is not written");
 
   // 打开: the todo it made opens in Todo.
   await select(1);
@@ -118,6 +121,13 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   await evaluate(`[...${CARD("已记成待办")}.querySelectorAll('button')].find(button => button.textContent === '打开').click()`);
   await waitFor(`JSON.parse([...document.querySelectorAll('[data-assistant-context]')].map(node => node.getAttribute('data-assistant-context')).find(value => value && value.includes(${JSON.stringify(opened)})) || 'null')?.object?.id === ${JSON.stringify(opened)}`, 15_000)
     .catch(async error => { throw new Error(`${(error as Error).message}\n${await evaluate<string>("location.href + ' | ' + [...document.querySelectorAll('[data-assistant-context]')].map(node => node.getAttribute('data-assistant-context')).join(' || ')")}`); });
+
+  // The source names the Pages page only as an object; the workbench says from the running declarations which surface opens it, so the
+  // source is a link and it opens the page it was selected in (统筹 10-24: no fragment input v2, no kind table in the workbench).
+  const sourceLink = `[data-todo-sources] [data-workbench-item-plugin=pages][data-workbench-item-id="${page.id}"]`;
+  await todoFrame.waitFor(`document.querySelector(${JSON.stringify(sourceLink)})`);
+  await todoFrame.click(sourceLink);
+  await waitFor("document.body.dataset.desktopSurface === 'pages'", 15_000);
 });
 
 // W4-1 kept from S1 (统筹 10-18): an action without an undo still goes through a card, and a refused run of that card writes
@@ -129,17 +139,19 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
 test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goals 拆成目标步骤 from a real selection, which moves while it is prepared", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
-  const select = (index: number) => evaluate(`(() => {
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await evaluate("document.addEventListener('molis:surface-focus',event=>window.todoTestFocus=event.detail)");
+  const select = async (index: number) => { await child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
-  })()`);
+  })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
   await select(0);
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const WRITE = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;
@@ -166,7 +178,7 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
   const asked = await evaluate<{ focus: { targets: { text: string }[]; object: { id: string } } }>("window.draftAsked");
   assert.equal(asked.focus.targets[0]?.text, FIRST); assert.equal(asked.focus.object.id, page.id);
   await select(1);
-  assert.equal(await evaluate("getSelection().toString()"), SECOND);
+  assert.equal(await child.evaluate("getSelection().toString()"), SECOND);
   await evaluate("window.releaseDraft()");
   await waitFor("window.placedCard?.status === 200 && !document.querySelector('[data-assistant-panel]').hidden", 20_000);
   const placed = await evaluate<{ work_id: string; asked: { card: { materials: { text: string }[] } } }>("window.placedCard");
@@ -195,6 +207,6 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
   await waitFor(`document.querySelector('[data-card="${card.card_id}"]')?.dataset.status === 'done'`, 20_000);
   assert.equal(proposals(), 1, "run again, it is written once");
   assert.ok(JSON.stringify(listed()).includes("联系阿杰确认秋季发布计划")); assert.equal(JSON.stringify(listed()).includes("小王"), false);
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND);
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND);
   await evaluate("window.fetch = window.cardFetch");
 });

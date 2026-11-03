@@ -39,13 +39,13 @@ const helper = (name: string, lines: number) => `export function ${name}() {\n${
 const manifest = (name: string) => JSON.stringify({ name }, null, 2) + "\n";
 
 // The fixture mimics the parts of the repository the gates read. Plugins: one (build-time, Host files named for it), two
-// (started by the Runtime), artifacts (the Host files say "artifact"). Everything it contains is the baseline.
+// (started by the Runtime), images (a plural directory name, kept literally). Everything it contains is the baseline.
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-structure-gates-"));
   git("init", "-q", "-b", "main");
   git("commit", "-q", "--allow-empty", "-m", "init"); // `--table` reads the log
   put("tooling/gates/limits.json", JSON.stringify({ file: 2000, classLines: 2000, classMethods: 200, functionLines: 2000, vendoredPrologueSdk: 2 }, null, 2) + "\n");
-  for (const name of ["one", "two", "artifacts"]) {
+  for (const name of ["one", "two", "images"]) {
     put(`plugins/native/${name}/package.json`, manifest(`@fx/plugin-${name}`));
     put(`plugins/native/${name}/src/index.ts`, `export const ${name} = 1;\n`);
   }
@@ -398,8 +398,8 @@ const violations: Scenario[] = [
     expect: [/new Host file named for a plugin: apps\/local-host\/src\/two-actions\.ts/] },
   { name: "a new <plugin>-native-plugin-http.ts file in the Host", mutate: () => put("apps/local-host/src/two-native-plugin-http.ts", "export const handleTwo = () => 1;\n"),
     expect: [/new Host file named for a plugin: apps\/local-host\/src\/two-native-plugin-http\.ts/] },
-  { name: "a Host file for a plugin directory under its singular name", mutate: () => put("apps/local-host/src/artifact-actions.ts", "export const artifactActionProvider = () => ({});\n"),
-    expect: [/new Host file named for a plugin: apps\/local-host\/src\/artifact-actions\.ts/] },
+  { name: "a Host file for a plugin with a plural directory name", mutate: () => put("apps/local-host/src/images-actions.ts", "export const imagesActionProvider = () => ({});\n"),
+    expect: [/new Host file named for a plugin: apps\/local-host\/src\/images-actions\.ts/] },
   { name: "another registerProvider line in project-host.ts", mutate: () => put("apps/local-host/src/project-host.ts", read("apps/local-host/src/project-host.ts").replace("  registry.registerProvider(searchProvider());\n", "  registry.registerProvider(searchProvider());\n  registry.registerProvider(searchProvider());\n")),
     expect: [/registerProvider calls in apps\/local-host\/src\/project-host\.ts 2 → 3/] },
   { name: "registerProvider in a new Host file", launder: true, mutate: () => put("apps/local-host/src/wiring.ts", "export const wire = (registry: { registerProvider(p: unknown): void }) => registry.registerProvider({});\n"),
@@ -412,11 +412,17 @@ const violations: Scenario[] = [
     expect: [/plugin one is named in 4 files outside its package \(was 3\)/] },
   { name: "a plugin package name is added to a script", mutate: () => put("scripts/other.mjs", 'export const n = "@fx/plugin-two";\n'),
     expect: [/plugin two is named in 4 files outside its package \(was 3\)/] },
-  { name: "a new plugin named in more files than the smallest existing plugin", mutate: () => {
+  // RAC-575: the allowance for a new plugin is 0 (W5-02 PR-C), so one file outside its package that names it fails.
+  { name: "RAC-575 a new plugin named in one file outside its package", mutate: () => {
     put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
     put("plugins/native/three/src/index.ts", "export const three = 1;\n");
-    for (let index = 0; index < 8; index++) put(`apps/local-host/src/uses-${index}.ts`, `export const t${index} = "@fx/plugin-three";\n`);
-  }, expect: [/plugin three is named in 8 files outside its package \(a new plugin may be named in at most 7\)/] },
+    put("apps/local-host/src/uses-three.ts", 'export const t = "@fx/plugin-three";\n');
+  }, expect: [/plugin three is named in 1 files outside its package \(a new plugin may be named in none\)/] },
+  { name: "RAC-575 a new plugin named in a script", mutate: () => {
+    put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
+    put("plugins/native/three/src/index.ts", "export const three = 1;\n");
+    put("scripts/other.mjs", 'export const n = "@fx/plugin-three";\n');
+  }, expect: [/plugin three is named in 1 files outside its package \(a new plugin may be named in none\)/] },
 ];
 
 for (const scenario of violations) {
@@ -459,6 +465,7 @@ test("things the structure gates do not count", () => {
     put("apps/local-host/src/index.ts", read("apps/local-host/src/index.ts") + 'export { more } from "./more.js";\nexport type { Extra } from "./extra.js";\n'); // named re-exports are not `export *`
     put("apps/local-host/src/search-actions.ts", read("apps/local-host/src/search-actions.ts") + "export const more = 1;\n"); // not named for a plugin
     put("apps/local-host/src/twofold-helper.ts", "export const helper = 1;\n"); // starts with "two" but is not "two-…"
+    put("apps/local-host/src/artifact-actions.ts", "export const artifactActionProvider = () => ({});\n"); // RAC-2341: Artifact is a platform Module, not a remaining Plugin alias.
     put("modules/alpha/src/api.ts", read("modules/alpha/src/api.ts") + "export class Safe { private repository = 1; protected store = 2; }\n"); // private member
     // The typed-capability rule does not count: an extractor that only reads a definition's type, an action reference or an
     // action definition (they carry no `operation`, or carry `action`), and `.register(…)` on receivers that register nothing typed.
@@ -534,11 +541,10 @@ test("changes that shrink or only move things pass against the merge-base", () =
   assert.equal(gate("--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
 });
 
-test("a new plugin that stays within the allowance passes", () => {
+test("RAC-575 a new plugin named nowhere outside its package passes", () => {
   branch("small-plugin", () => {
     put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
     put("plugins/native/three/src/index.ts", "export const three = 1;\n");
-    for (let index = 0; index < 7; index++) put(`apps/local-host/src/uses-${index}.ts`, `export const t${index} = "@fx/plugin-three";\n`);
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
@@ -565,39 +571,31 @@ test("the change that introduces the layer lists passes against a merge-base tha
   git("clean", "-fdq");
 });
 
-// The fixture proves the rules; this proves they read this repository: the alias and the registrars are found by scanning, so
-// they have to be found where they are today (a rename of LocalHost or HostMethodCapability is then a visible change to the gate).
-test("on this repository the typed capability rule finds the alias and the registrars it is meant to follow", async () => {
+// The fixture proves the rules; this proves they read this repository. R8 deleted the typed channel: the definition type, its
+// alias and every Host registrar are gone, so the scan finds no alias, no registrar and nothing to count, and none may come back.
+test("on this repository the typed capability rule finds no alias, no registrar and nothing to count", async () => {
   const { createTypedCapabilityIndex } = await import("../scripts/gates/typed-capabilities.mjs");
   const root = fileURLToPath(new URL("..", import.meta.url));
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 30 }).split("\0")
     .filter((file) => /^(apps|horizontal|modules|packages|plugins|server|tooling)\//.test(file) && /\.(ts|mts)$/.test(file) && !file.endsWith(".d.ts") && !/(^|\/)(tests?|dist|node_modules|fixtures)\//.test(file));
   const index = createTypedCapabilityIndex({ files, read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } }, files);
-  assert.ok(index.typeNames.has("HostCapabilityDefinition"));
-  if (/export type HostMethodCapability\b/.test(readFileSync(path.join(root, "packages/contracts/src/platform/app-host.ts"), "utf8"))) {
-    assert.ok(index.typeNames.has("HostMethodCapability"), "the alias that wraps the definition is followed");
+  assert.deepEqual([...index.typeNames], ["HostCapabilityDefinition"], "only the rule's own name: no alias wraps a definition that no longer exists");
+  assert.ok(!index.typeNames.has("ActionDefinition"), "the action definition is the path that stays, not an alias");
+  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "ScheduleCapabilityRegistrar", "AgentCapabilityRegistrar"]) {
+    assert.equal(index.registrarTypes.has(registrar), false, `${registrar} registers actions only; a typed registrar must not come back`);
   }
-  assert.ok(!index.typeNames.has("HostCapabilityInput"), "a type that only reads a definition is not an alias");
-  assert.ok(!index.typeNames.has("ActionDefinition"), "an interface that extends the definition is the action path, not an alias");
-  for (const registrar of ["LocalHost", "MolisWorkLocalHost", "CapabilityRegistry", "AgentCapabilityRegistrar", "ScheduleCapabilityRegistrar"]) assert.ok(index.registrarTypes.has(registrar), `${registrar} registers typed capabilities`);
-  assert.ok(index.registrarFunctions.has("createMolisWorkLocalHost"), "an exported function that returns the Host is followed (`createMolisWorkLocalHost().register(…)`)");
-  // The composition root still hands the typed Git and writer entries to `registerCapability` (PG-035 left them to G3, G4);
-  // the Host's own workspace reads went to `registerAction`, the action seam, which is not a typed registration.
-  assert.ok(index.countsOf("apps/local-host/src/agent-host-composition.ts")["register-calls"] > 0, "the Host's own registrations through `localHost.registerCapability(…)` are counted");
-  assert.equal(index.countsOf("apps/local-host/src/project-capabilities.ts")["register-calls"] ?? 0, 0, "`registerAction` is not counted as a typed registration");
-  // The Agent Host registers about 40 typed capabilities through a local helper whose first parameter is the definition.
-  const agent = index.countsOf("horizontal/agent-host/src/capability-registration.ts");
-  assert.ok(agent["register-calls"] >= 30, `the local \`register\` helper of the Agent Host is followed (${agent["register-calls"]} register-calls)`);
-  assert.ok(agent["without-action"] >= 0 && agent["type-refs"] > 0);
+  assert.equal(index.registrarFunctions.size, 0, "no function returns a typed registrar");
+  const counted = files.flatMap(file => Object.entries(index.countsOf(file)).filter(([, count]) => (count as number) > 0).map(([kind]) => `${file}#${kind}`));
+  assert.deepEqual(counted, [], "no typed reference, descriptor without an action, or typed registration remains");
 });
 
-test("the report flags hybrid plugins (Characters with its decision) and prints the new numbers", () => {
+test("the report flags hybrid plugins and prints the new numbers", () => {
   git("checkout", "-q", "-f", "main");
   git("clean", "-fdq");
   const base = JSON.parse(gate("--report", "--json", "--base", "main").out);
   assert.deepEqual(base.head, base.base, "the head is the merge-base here");
   assert.deepEqual(base.head.hostEntryExports, { "apps/local-host/src/index.ts#export-star": 3 });
-  assert.deepEqual(base.head.pluginOutsideMentions, { "artifacts#outside-files": 0, "one#outside-files": 3, "two#outside-files": 3 });
+  assert.deepEqual(base.head.pluginOutsideMentions, { "images#outside-files": 0, "one#outside-files": 3, "two#outside-files": 3 });
   assert.deepEqual(Object.keys(base.head.hostPluginFiles).sort(), ["apps/local-host/src/one-actions.ts#actions", "apps/local-host/src/one-native-plugin-http.ts#native-plugin-http"]);
   assert.deepEqual(base.head.registerProviderSites, { "apps/local-host/src/project-host.ts#register-provider": 2 });
   assert.deepEqual(base.head.hybridPlugins, {});
@@ -612,16 +610,16 @@ test("the report flags hybrid plugins (Characters with its decision) and prints 
   assert.deepEqual(base.head.contractsPurity, { "packages/contracts/src/platform/lifetime.ts#effects": 1, "packages/contracts/src/platform/validator.ts#long-fn:inspectThing": 22 });
   assert.deepEqual(base.head.moduleRepositoryExports, { "modules/alpha#export:AlphaRepository": 1, "modules/alpha#member:AlphaService.repository": 1 }, "a private parameter property is not public");
 
-  // Characters is the second hybrid and carries the decision that it stops being a Runtime plugin.
-  put("plugins/native/characters/package.json", manifest("@fx/plugin-characters"));
-  put("plugins/native/characters/src/index.ts", "export const characters = 1;\n");
-  put("apps/local-host/src/project-plugins.ts", read("apps/local-host/src/project-plugins.ts") + 'export const more = [["@fx/plugin-characters", "createCharactersPlugin"]];\n');
-  put("apps/local-host/src/characters-host.ts", "export const host = 1;\n");
-  put("apps/local-host/src/character-import.ts", "export const imported = 1;\n");
+  // A second Runtime plugin with two Host files of its own is a second hybrid.
+  put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
+  put("plugins/native/three/src/index.ts", "export const three = 1;\n");
+  put("apps/local-host/src/project-plugins.ts", read("apps/local-host/src/project-plugins.ts") + 'export const more = [["@fx/plugin-three", "createThreePlugin"]];\n');
+  put("apps/local-host/src/three-host.ts", "export const host = 1;\n");
+  put("apps/local-host/src/three-import.ts", "export const imported = 1;\n");
   put("apps/local-host/src/two-surface.ts", "export const surface = 1;\n");
   git("add", "-A"); // the working tree is what git tracks
   const text = gate("--report").out;
-  assert.match(text, /Hybrid plugins: .*: 3 in 2 entries\n.*count.*\n\s+2\s+characters#host-files\n\s+1\s+two#host-files\n\s+flagged as hybrid: characters, two\n\s+characters: decision 26/);
+  assert.match(text, /Hybrid plugins: .*: 3 in 2 entries\n.*count.*\n\s+2\s+three#host-files\n\s+1\s+two#host-files\n\s+flagged as hybrid: three, two\n/);
   assert.match(text, /Contracts purity .*: 2 in 2 entries/);
   assert.match(text, /Host entry `export \*` declarations: 3 in 1 entries/);
   assert.match(text, /Files outside a built-in plugin's package that name its package: \d+ in 4 entries/);

@@ -1,8 +1,10 @@
+import { PLATFORM_SYNC_COLLECTIONS } from "./platform-sync-catalog.js";
 import type { AggregateReplicaContext } from '@molis-ai/molis-work-storage';
-import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
+import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
 import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
 import type { SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
-import { availableProjectPluginIds, builtinSyncBindings } from '@molis-ai/molis-work-app-workbench';
+import { builtinSyncBindings } from './builtin-sync.js';
+import { availableProjectPluginIds } from './plugin-registry.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import { personalDocumentOptions } from './personal-document-options.js';
 import { homeStores } from './home-stores.js';
@@ -43,4 +45,18 @@ export function createPersonalPluginRegistrations(home:string,spaceId:string,use
       },
     };
   });
+}
+
+/** Characters is a platform service after main's migration; its personal draft store keeps the existing consent identity. */
+export function createPersonalCharacterRegistration(home:string,spaceId:string,userId:string,check:()=>void):SyncRegistration {
+  const space=ensureStorageSpace(home);
+  if(space.kind!=='personal'||space.spaceId!==spaceId||space.ownerUserId!==userId)throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
+  const declaration=PLATFORM_SYNC_COLLECTIONS.find(row=>row.owner==='characters')!;
+  const store=homeStores().get('characters');
+  if(store?.owner!=='modules/characters'||!store.replication)throw new Error('同步存储主人未注册');
+  return {selection:declaration.selection,dependencies:[],title:declaration.title,
+    content:createSyncJsonContent({spaceId,authorize:check}),locate:()=>'/settings/characters/',
+    async refresh(){check();},async prepare(){check();},
+    withReplica(run){check();const opened=store.replication!(home,userId);try{return run(opened.replica({spaceId,authorize:check,conflictState:createSyncConflictState,canUploadProject:()=>false,project(){throw new Error('角色草稿不属于项目');},hasArtifact:()=>false}));}finally{opened.close();}}
+  };
 }

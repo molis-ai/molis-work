@@ -5,10 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService,
-  listFeedSourceCatalog, seedDemoBoard, type FeedSourceRuntime,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, listFeedSourceCatalog, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, type SourcePullRuntime,
 } from "@molis-ai/molis-work-app-local-host";
+import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 
 type FeedApp = ReturnType<typeof createLocalFeedApplication>;
 type SourceRecord = Parameters<FeedApp["ingestItem"]>[0]["source"];
@@ -18,7 +22,7 @@ async function withProject(prefix: string, run: (store: LocalProjectDatabase) =>
   const directory = mkdtempSync(join(tmpdir(), prefix));
   try {
     const databasePath = join(directory, "molis-work.sqlite");
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try { await run(store); } finally { store.close(); }
   } finally {
@@ -28,7 +32,7 @@ async function withProject(prefix: string, run: (store: LocalProjectDatabase) =>
 
 function workflowSource(feed: FeedApp, sourceId: string, kind = "workflow", extra: Partial<SourceRecord> = {}): SourceRecord {
   const now = new Date().toISOString();
-  return feed.upsertSource({
+  return feed.sources.upsert({
     project_id: DEMO_PROJECT_ID, source_id: sourceId, kind, definition_id: null, sync_kind: "manual", name: "S", description: "",
     status: "active", enabled: true, origin: "molis_work", config: {}, schedule: { mode: "manual" }, credential_ref: null,
     account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now,
@@ -44,19 +48,20 @@ async function itemWithTwoActiveEntries(feed: FeedApp, externalId = "x1") {
   const source = feed.snapshot(DEMO_PROJECT_ID).sources.find(row => row.source_id === "src-1") ?? workflowSource(feed, "src-1");
   const { item } = feed.ingestItem({ source, externalId, title: `Quarterly budget ${externalId}`, summary: "s", occurredAt: new Date().toISOString(), attention: false });
   feed.addToInbox(DEMO_PROJECT_ID, item.item_id, item.revision);
-  if (feed.listOutRules(DEMO_PROJECT_ID).length === 0) feed.createOutRule(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
+  if (feed.outRules.list(DEMO_PROJECT_ID).length === 0) feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
   await feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]);
   assert.deepEqual(entriesOf(feed, item.item_id), ["manual:open", "source_rule:open"]);
   return item;
 }
 
+// RAC-1212 BL-801: a failed pull that never committed still spends its slot and reports its own failure.
 test("a failed scheduled pull still moves the schedule on, so the source is not pulled again on every tick", async () => {
   await withProject("molis-work-feed-sched-fail-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z"), pulls = 0;
-    const runtimeFactory = (): FeedSourceRuntime => ({
+    const runtimeFactory = (): SourcePullRuntime => ({
       intelligenceCollect: { async executeExact() { pulls++; throw Object.assign(new Error("down"), { code: "feed_unavailable" }); } },
       content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
-    }) as unknown as FeedSourceRuntime;
+    }) as unknown as SourcePullRuntime;
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
     const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
@@ -65,7 +70,7 @@ test("a failed scheduled pull still moves the schedule on, so the source is not 
       await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now)
         .sync(candidate.source_id, { idempotencyKey: key, beforeEffect: authority.beforeEffect }), () => now);
     const nextPull = () => {
-      const schedule = service.feed.getSource(DEMO_PROJECT_ID, source.source_id).schedule;
+      const schedule = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).schedule;
       return schedule.mode === "interval" ? schedule.next_pull_at : null;
     };
     now = new Date("2026-08-30T09:15:00.000Z");
@@ -87,14 +92,14 @@ test("a failed scheduled pull still moves the schedule on, so the source is not 
 test("a person's edit during a failing scheduled pull still refuses the bookkeeping and keeps the slot", async () => {
   await withProject("molis-work-feed-sched-edit-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z");
-    const runtimeFactory = (): FeedSourceRuntime => ({
+    const runtimeFactory = (): SourcePullRuntime => ({
       intelligenceCollect: { async executeExact() {
         // The person renames the source while the provider call is in flight, then the provider fails.
         createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now).update(source.source_id, { name: "Renamed while pulling" });
         throw Object.assign(new Error("down"), { code: "feed_unavailable" });
       } },
       content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
-    }) as unknown as FeedSourceRuntime;
+    }) as unknown as SourcePullRuntime;
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
     const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
@@ -103,7 +108,7 @@ test("a person's edit during a failing scheduled pull still refuses the bookkeep
         .sync(candidate.source_id, { idempotencyKey: key, beforeEffect: authority.beforeEffect }), () => now);
     now = new Date("2026-08-30T09:15:00.000Z");
     await assert.rejects(() => scheduler.tick(now), (error: { code?: string }) => error.code === "feed.source_changed");
-    const schedule = service.feed.getSource(DEMO_PROJECT_ID, source.source_id).schedule;
+    const schedule = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).schedule;
     assert.equal(schedule.mode === "interval" ? schedule.next_pull_at : null, "2026-08-30T09:15:00.000Z", "the slot stays due for the new settings");
   });
 });
@@ -120,14 +125,14 @@ test("archiving a Feed item settles every active Inbox entry of that item and re
   });
 });
 
-test("starting work on and then promoting a Feed item moves every active Inbox entry of that item along", async () => {
+test("promoting a Feed item settles every active Inbox entry of that item and keeps it settled on repeats", async () => {
   await withProject("molis-work-feed-two-promoted-", async store => {
     const feed = createLocalFeedApplication(store.db);
     const item = await itemWithTwoActiveEntries(feed);
-    assert.equal(feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "processing").disposition, "processing");
-    assert.deepEqual(entriesOf(feed, item.item_id), ["manual:in_progress", "source_rule:in_progress"]);
     assert.equal(feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted").disposition, "promoted");
     assert.deepEqual(entriesOf(feed, item.item_id), ["manual:done", "source_rule:done"]);
+    assert.equal(feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted").disposition, "promoted");
+    assert.deepEqual(entriesOf(feed, item.item_id), ["manual:done", "source_rule:done"], "a repeat promotion leaves the settled entries settled");
   });
 });
 
@@ -165,7 +170,7 @@ test("an archived Feed item cannot be admitted to the Inbox by the person, a wor
     assert.throws(() => feed.setDisposition(DEMO_PROJECT_ID, item.item_id, "inbox", archived.revision), /已忽略的 Feed Item/);
     assert.throws(() => feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, item.item_id, "manual"), /已忽略的 Feed Item/);
     // Running a capture rule over the item (or ingesting it again with a rule match) is not the person's decision to bring it back.
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
     await feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]);
     feed.ingestItem({ source, externalId: "x1", title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } });
     assert.deepEqual(entriesOf(feed, item.item_id), [], "no entry was created for the ignored item");
@@ -175,13 +180,14 @@ test("an archived Feed item cannot be admitted to the Inbox by the person, a wor
 
 test("an ignored Feed item that a source sees again with a failing capture-out gets no Inbox entry", async () => {
   await withProject("molis-work-feed-archived-capture-out-", async store => {
-    const failing = { registerVersion() { throw Object.assign(new Error("down"), { code: "artifact_store_down" }); }, latestVersion: () => null };
+    const failing = { capture: (_projectId: string, write: (writer: object) => unknown) =>
+      write({ head: () => null, publish() { throw Object.assign(new Error("down"), { code: "artifact_store_down" }); } }) };
     const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
     const source = workflowSource(feed, "src-1");
     const signal = (revision: number) => ({ signal_id: "sig-1", revision });
     const first = feed.ingestItem({ source, externalId: "x1", signal: signal(1), title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false });
     feed.setDisposition(DEMO_PROJECT_ID, first.item.item_id, "archived", first.item.revision);
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
     // A newer Signal revision updates the item and runs the capture rules over it; the capture-out fails.
     const again = feed.ingestItem({ source, externalId: "x1", signal: signal(2), title: "Quarterly budget v2", summary: "s", occurredAt: new Date().toISOString(), attention: false });
     assert.equal(again.updated, true);
@@ -219,10 +225,10 @@ test("retiring a source keeps its history but closes its source-fault Inbox entr
   await withProject("molis-work-feed-retire-fault-", async store => {
     const feed = createLocalFeedApplication(store.db);
     workflowSource(feed, "src-f", "rss", { sync_kind: "public_source", status: "error", last_error_code: "feed_parse_failed" } as Partial<SourceRecord>);
-    const kept = feed.ingestItem({ source: feed.getSource(DEMO_PROJECT_ID, "src-f"), externalId: "a1", title: "Kept", summary: "s", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } });
+    const kept = feed.ingestItem({ source: feed.sources.get(DEMO_PROJECT_ID, "src-f"), externalId: "a1", title: "Kept", summary: "s", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } });
     feed.createInboxEntry({ projectId: DEMO_PROJECT_ID, subjectType: "source_fault", subjectId: "src-f", reason: "source_fault",
       detail: { error_code: "feed_parse_failed", user_action: "fix_configuration" } });
-    feed.retireSource(DEMO_PROJECT_ID, "src-f", "retain_history");
+    feed.sources.retire(DEMO_PROJECT_ID, "src-f", "retain_history");
     const faults = feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => entry.subject_type === "source_fault");
     assert.deepEqual(faults.map(entry => `${entry.subject_id}:${entry.status}`), ["src-f:dismissed"], "a retired source can never sync, so its fault is no longer pending");
     assert.deepEqual(entriesOf(feed, kept.item.item_id), ["source_rule:open"], "retained items keep their own Inbox references");
@@ -235,7 +241,7 @@ test("retiring a source with its local history removes the source-fault entry to
     workflowSource(feed, "src-f", "rss", { sync_kind: "public_source", status: "error", last_error_code: "feed_parse_failed" } as Partial<SourceRecord>);
     feed.createInboxEntry({ projectId: DEMO_PROJECT_ID, subjectType: "source_fault", subjectId: "src-f", reason: "source_fault",
       detail: { error_code: "feed_parse_failed", user_action: "fix_configuration" } });
-    feed.retireSource(DEMO_PROJECT_ID, "src-f", "delete_local_history");
+    feed.sources.retire(DEMO_PROJECT_ID, "src-f", "delete_local_history");
     assert.deepEqual(feed.listInboxEntries(DEMO_PROJECT_ID).filter(entry => entry.subject_type === "source_fault"), []);
   });
 });
@@ -281,7 +287,7 @@ function researchTree(claim: string): Map<string, string> {
     [`${path}/manifest.json`, manifest], [`${path}/research.json`, research], [`${path}/report.md`, report]]);
 }
 
-test("syncing a research library again after a package was republished under the same id refreshes its Feed item", async () => {
+test("syncing a research library again after a package was republished under the same id refreshes its Feed item", { timeout: 30_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-research-republish-"));
   const bin = join(home, "bin"), tree = join(home, "tree"), previousEnvironment = { PATH: process.env.PATH, tree: process.env.FAKE_GIT_TREE };
   const publish = (claim: string) => {
@@ -289,7 +295,7 @@ test("syncing a research library again after a package was republished under the
     for (const [name, text] of researchTree(claim)) { mkdirSync(join(tree, name, ".."), { recursive: true }); writeFileSync(join(tree, name), text); }
   };
   try {
-    // The Host reads the library through git; this stands in for it with the files of the currently published tree.
+    // The platform reads the library through git (`services.sourcePull.repository.read`); this stands in for it with the files of the currently published tree.
     mkdirSync(bin, { recursive: true });
     writeFileSync(join(bin, "git"), `#!/bin/sh
 dir="$2"; command="$3"
@@ -302,15 +308,25 @@ esac
 `);
     chmodSync(join(bin, "git"), 0o755);
     process.env.PATH = `${bin}:${process.env.PATH}`; process.env.FAKE_GIT_TREE = tree;
-    await withProject("molis-work-research-republish-db-", async store => {
-      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, home);
+    // Syncing a research library is the Runtime Feed's (FI-6): the sync is its action, run by a real Host, and the library is read by the platform.
+    // The Host takes a Home of its own: it refuses a directory that already holds other files.
+    const hostHome = join(home, "home");
+    await new MolisWorkLocalHost({ homeDirectory: hostHome, completeText: null }).close();
+    const database = join(hostHome, "project.sqlite");
+    seedDemoBoard(database);
+    const store = new LocalProjectDatabase(database), host = new MolisWorkLocalHost({ homeDirectory: hostHome, completeText: null });
+    try {
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, hostHome);
       const source = service.register({ kind: "research_library", repository: "fixture/research", research_source: "obs" }).source;
+      const owner: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS] };
+      const client = host.actionClient(molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID }));
+      const sync = (key: string) => client.invoke(owner, feedSourceActions.sync, { source_id: source.source_id, idempotency_key: key });
       const items = () => service.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id);
       publish("第一版结论");
-      assert.equal((await service.sync(source.source_id, { idempotencyKey: "research-sync-one" })).created, 1);
+      assert.equal((await sync("research-sync-one")).created, 1);
       assert.equal(items()[0]!.title, "第一版结论");
       publish("第二版结论");
-      const second = await service.sync(source.source_id, { idempotencyKey: "research-sync-two" });
+      const second = await sync("research-sync-two");
       assert.equal(second.created, 0);
       assert.equal(items().length, 1);
       assert.equal(items()[0]!.title, "第二版结论", "the item follows the republished package");
@@ -318,12 +334,146 @@ esac
       assert.match(items()[0]!.materials[0]!.preview, /第二版结论/);
       // The next sync of the same version leaves the item alone.
       const revision = items()[0]!.revision;
-      await service.sync(source.source_id, { idempotencyKey: "research-sync-three" });
+      await sync("research-sync-three");
       assert.equal(items()[0]!.revision, revision);
-    });
+    } finally { await host.close(); store.close(); }
   } finally {
     process.env.PATH = previousEnvironment.PATH;
     if (previousEnvironment.tree === undefined) delete process.env.FAKE_GIT_TREE; else process.env.FAKE_GIT_TREE = previousEnvironment.tree;
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+/** The one material a provider pull that completes brings in; the judgments on it run after the commit. */
+const COMMITTED_MATERIAL = {
+  id: "material:scheduled-committed-then-failed",
+  candidateId: "candidate:scheduled-committed-then-failed",
+  canonicalUrl: "https://example.com/scheduled-committed-then-failed",
+  title: "定时拉取已提交的材料",
+  sourceName: "Example",
+  preview: "定时拉取提交之后判断才失败的正文",
+  contentRef: `molis-work-feed/sha256/${"e".repeat(64)}`,
+  contentHash: `sha256:${"e".repeat(64)}`,
+  contentHashProfile: "search-markdown-v1",
+  contentType: "text/markdown",
+  characterCount: 12,
+  capturedAt: "2026-08-30T09:10:00.000Z",
+  provenance: {
+    operationId: "feed-operation", providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,
+    retrievedAt: "2026-08-30T09:10:00.000Z", matchedLaneIds: ["intent:exact"], rankProfile: "feed-v1",
+    transportProfileFingerprint: `sha256:${"f".repeat(64)}`,
+  },
+  extractorRef: { providerId: "rss", providerVersion: "1.0.0" },
+  truncated: false,
+  availability: "available",
+};
+
+// RAC-1214 BL-801: a scheduled pull that committed and then failed in its judgments spends its slot and reports the failure as a result, not a refusal.
+test("RAC-1214 a scheduled pull that fails judging after it committed spends its slot and raises no source fault", { timeout: 15_000 }, async () => {
+  await withProject("molis-work-feed-sched-judged-", async store => {
+    let now = new Date("2026-08-30T09:00:00.000Z"), renaming = "";
+    const runtimeFactory = (): SourcePullRuntime => ({
+      intelligenceCollect: {
+        async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
+          // A person may rename the source while the pull is in flight, which must still be a refusal.
+          if (renaming) createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).update(renaming, { name: "Renamed while pulling" });
+          return { ...createCompletedIntentResultFixtureV1(request), materials: [COMMITTED_MATERIAL] } as IntelligenceCollectResult;
+        },
+        async shutdown() {},
+      },
+      content: {
+        write() { return { contentRef: COMMITTED_MATERIAL.contentRef }; },
+        read() { return COMMITTED_MATERIAL.preview; },
+        has() { return true; },
+        inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
+      },
+      async shutdown() {},
+    });
+    const feedOptions = { captureJudgment: async () => { throw new ActionError("actions.execution_failed", "判断失败"); } };
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions);
+    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
+    const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (candidate, key, authority) =>
+      await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions)
+        .sync(candidate.source_id, { idempotencyKey: key, beforeEffect: authority.beforeEffect }), () => now);
+    const nextPull = () => {
+      const schedule = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id).schedule;
+      return schedule.mode === "interval" ? schedule.next_pull_at : null;
+    };
+    const sourceFaults = () => service.feed.listInboxEntries(DEMO_PROJECT_ID)
+      .filter(entry => entry.subject_type === "source_fault" && entry.subject_id === source.source_id)
+      .map(entry => entry.entry_id);
+    const faultsBefore = sourceFaults();
+    now = new Date("2026-08-30T09:15:00.000Z");
+    const first = await scheduler.tick(now);
+    assert.equal(first.failed, 1, "the failure is a result of the tick, not a refusal of the whole tick");
+    assert.deepEqual(sourceFaults(), faultsBefore, "a judgment failure is not an actionable source fault, so no inbox entry is raised");
+    assert.equal(nextPull(), "2026-08-30T09:30:00.000Z", "the slot is spent");
+    const runs = service.feed.snapshot(DEMO_PROJECT_ID).runs.filter(run => run.source_id === source.source_id);
+    assert.deepEqual(runs.map(run => run.phase), ["terminal"], "the pull's own result is the only run");
+    assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
+    // A person's edit during the pull is still a refusal, and still keeps the slot.
+    renaming = source.source_id;
+    now = new Date("2026-08-30T09:30:00.000Z");
+    await assert.rejects(() => scheduler.tick(now), (error: { code?: string }) => error.code === "feed.source_changed");
+    assert.equal(nextPull(), "2026-08-30T09:30:00.000Z", "the slot stays due for the new settings");
+  });
+});
+
+// RAC-2711 (T-339): a call refused by a revoked grant (T-400 made these kinds forbidden) is a refusal of the call itself. The capture
+// is thrown again and the whole write rolls back. The rule is an inbox admission, so the source_rule entry is written BEFORE the
+// artefacts call that refuses: the item, its entry and its disposition all go back to what they were before the call.
+test("a capture whose call is refused by a revoked grant is thrown again and its whole write rolls back", async () => {
+  for (const refused of ["mcp.action_revoked", "mcp.permission_revoked", "assistant.action_revoked"]) {
+    await withProject(`molis-work-feed-revoked-${refused.split(".").join("-")}-`, async store => {
+      let itemId = "", writtenBeforeRefusal = false;
+      let feed: FeedApp;
+      const failing = { capture: (_projectId: string, write: (writer: object) => unknown) => {
+        // The inbox admission already wrote its source_rule entry in this same transaction; the publish is what refuses the call.
+        writtenBeforeRefusal = feed.listInboxEntries(DEMO_PROJECT_ID).some(entry => entry.subject_id === itemId && entry.reason === "source_rule");
+        write({ head: () => null, publish() { throw new ActionError(refused, "调用已被撤权", { kind: "forbidden" }); } });
+      } };
+      feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
+      const source = workflowSource(feed, "src-1");
+      const item = feed.ingestItem({ source, externalId: `x-${refused}`, title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false }).item;
+      itemId = item.item_id;
+      feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "inbox" });
+      const before = { entries: entriesOf(feed, item.item_id), item: feed.getFeedItem(DEMO_PROJECT_ID, item.item_id) };
+      // The one write boundary a Runtime commits a step with: the synchronous capture step runs inside this transaction.
+      const run = () => store.db.transaction(() => feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id])).immediate();
+      assert.throws(run, (error: { code?: string }) => error.code === refused, `${refused} is thrown again`);
+      assert.equal(writtenBeforeRefusal, true, "the source_rule entry was written before the refusal, so there was a write to roll back");
+      assert.deepEqual(entriesOf(feed, item.item_id), before.entries, "the whole write rolled back: the source_rule entry is gone again");
+      assert.deepEqual(feed.getFeedItem(DEMO_PROJECT_ID, item.item_id), before.item, "the item keeps the state it had before the refused call");
+      assert.equal(entriesOf(feed, item.item_id).some(entry => entry.startsWith("artifact_out_failed")), false, "a refused call writes no artifact_out_failed entry");
+    });
+  }
+});
+
+// RAC-2712 (T-339): every code the refusal table carried before is still a refusal of the call itself (regression pin), and so is an AbortError.
+test("every code that was a refusal of the call before is still thrown again, AbortError included", async () => {
+  const before = ["actions.cancelled", "actions.forbidden", "actions.plugin_unavailable", "actions.expired", "plugin.grant_denied",
+    "actions.plugin_permission", "actions.provider_changed"];
+  for (const code of before) {
+    await withProject(`molis-work-feed-refusal-${code.split(".").join("-")}-`, async store => {
+      const failing = { capture: (_projectId: string, write: (writer: object) => unknown) =>
+        write({ head: () => null, publish() { throw Object.assign(new Error("refused"), { code }); } }) };
+      const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
+      const source = workflowSource(feed, "src-1");
+      const { item } = feed.ingestItem({ source, externalId: `x-${code}`, title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+      feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
+      await assert.rejects(async () => feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]), { code }, `${code} is still thrown again`);
+      assert.deepEqual(entriesOf(feed, item.item_id), [], `${code} writes no artifact_out_failed entry`);
+    });
+  }
+  await withProject("molis-work-feed-refusal-abort-", async store => {
+    const failing = { capture: (_projectId: string, write: (writer: object) => unknown) =>
+      write({ head: () => null, publish() { throw Object.assign(new Error("aborted"), { name: "AbortError" }); } }) };
+    const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
+    const source = workflowSource(feed, "src-1");
+    const { item } = feed.ingestItem({ source, externalId: "x-abort", title: "Quarterly budget", summary: "s", occurredAt: new Date().toISOString(), attention: false });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "budget", match: { contains: "budget" }, admission: "suggest" });
+    await assert.rejects(async () => feed.evaluateItems(DEMO_PROJECT_ID, [item.item_id]), (error: { name?: string }) => error.name === "AbortError", "an AbortError is still thrown again");
+    assert.deepEqual(entriesOf(feed, item.item_id), [], "an AbortError writes no artifact_out_failed entry");
+  });
 });

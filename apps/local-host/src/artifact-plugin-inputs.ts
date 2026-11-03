@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { PluginWiringError, portTypeKey } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { ArtifactPluginInput } from "@molis-ai/molis-work-plugin-artifacts";
+import type { ArtifactPluginInput } from "@molis-ai/molis-work-module-artifacts";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 

@@ -1,12 +1,14 @@
+import { syncSection, syncSectionsDeclaration } from "@molis-ai/molis-work-plugin-sdk";
+import type { SyncSectionsDefinition, SyncTrackedTable } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { ProjectReplicaDefinition, ProjectReplicaRow, ProjectReplicaRows } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { parseCodingPlan, type CodingPlanDraft } from './plans.js';
+import type { CodingPlanDraft } from './plans.js';
+import { parseCodingPlan } from './plan-content.js';
 import { CODING_ACTIVE_STATES } from './store.js';
 import {validateCodingInputs} from './inputs.js';
 
 export const CODING_CONTENT_REPLICA_ID='coding_content';
-export const codingSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'sessions',title:'编码会话与草稿',schema_version:1,requires:[]}]};
 const errors=defineErrorCodes('coding',{sync_invalid:'invalid',sync_active:'unavailable'});
 const sessionColumns=['project_id','session_id','title','state','archived','goal_id','runtime_id','runtime_session_id','created_at','updated_at','steps_json','background_json'];
 const privateColumns=['state','runtime_id','runtime_session_id','steps_json','background_json'] as const;
@@ -76,3 +78,12 @@ function restoreDrafts(rows:ProjectReplicaRows,local:ProjectReplicaRows,projectI
  const drafts=rows[table]!.map(row=>{const id=String(row.session_id),revision=prior.has(id)?versions.get(id)!:nextRevision(versions.get(id)??0);versions.set(id,revision);return project(row,revision);});
  return {drafts,versions:[...versions].map(([session_id,revision]):ProjectReplicaRow=>({project_id:projectId,session_id,revision}))};
 }
+
+export function codingSections(validateHistory?:(json:string)=>{sessionId:string}):SyncSectionsDefinition {
+ return {kind:CODING_CONTENT_REPLICA_ID,business:[syncSection(codingContentReplicationDefinition(validateHistory))],platform:[],journal:false};
+}
+export const codingTracking:readonly SyncTrackedTable[] = ['coding_sessions','coding_plan_drafts','coding_saved_history','coding_inputs'].map(table=>({
+ table,key:[{column:'project_id'},{literal:CODING_CONTENT_REPLICA_ID},{column:'project_id'}],
+ ...(table==='coding_sessions'?{updateAny:[{changed:['title','archived','goal_id']},{changed:['state'],where:[{column:'state',op:'in' as const,values:['done','failed','stopped','cancelled']},{column:'runtime_session_id',op:'not-null' as const}]}]}:{}),
+}));
+export const codingSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'sessions',title:'编码会话与草稿',schema_version: 2,requires:[],tracking:codingTracking,sections:syncSectionsDeclaration(codingSections()),database:'project'}]};

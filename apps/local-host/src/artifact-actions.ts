@@ -1,8 +1,8 @@
-import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
-import { logPreviewFailure } from "./host-log.js";
-import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
+import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ArtifactLinkSubjectsResult, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { logLinkSubjectsFailure, logPreviewFailure } from "./host-log.js";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference, type ArtifactActionPorts } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { artifactLinkKinds, artifactLinkSubjectActions, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
@@ -10,16 +10,35 @@ import { artifactPluginInputs, bindArtifactPluginInput } from "./artifact-plugin
 import { runningProjectPlatform } from "./project-plugins.js";
 import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./project-host.js";
 
+/**
+ * 「被谁引用」's names (BL-646): the declaring plugin names its own linking objects, asked as the caller and pinned to that plugin as
+ * provider; only the ids asked are kept. A plugin that cannot answer leaves its objects shown by id: a refusal (the caller may not read
+ * them) is that answer, anything else is written to the Host log first.
+ */
+export function artifactLinkSubjectsPort(client: ActionClient | undefined, declarers: () => ReadonlyMap<string, Pick<ActionDefinition, "capability_id" | "version">> = artifactLinkSubjectActions): NonNullable<ArtifactActionPorts["linkSubjects"]> {
+  return async (pluginId, ids, caller) => {
+    const action = declarers().get(pluginId);
+    if (!client || !action) return new Map();
+    try {
+      const answer = await client.invoke(caller, { capability_id: action.capability_id, version: action.version, provider_id: pluginId }, { ids: [...ids] }) as ArtifactLinkSubjectsResult;
+      const asked = new Set(ids);
+      return new Map(answer.objects.filter(item => asked.has(item.id)).map(item => [item.id, { title: item.title, open: item.open }]));
+    } catch (error) { logLinkSubjectsFailure(error, pluginId); return new Map(); }
+  };
+}
+
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
-  const provider: ActionProviderRegistration["provider"] = { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: runtime.project_id };
+  // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
+  const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id };
   return {
     provider,
-    definitions: artifactsManifest.actions!,
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({
-      projectId: runtime.project_id, artifacts: runtime.coordinator.artifacts,
+      projectId: runtime.project_id, artifacts: runtime.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
-      goalTitle: goalId => runtime.coordinator.goalQueries.getGoal(runtime.project_id, goalId)?.title ?? null,
+      linkKinds: artifactLinkKinds(),
+      linkSubjects: artifactLinkSubjectsPort(client),
       typeTitle: typeId => artifactTypeDeclarations().get(typeId)?.title ?? null,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.
       previewText: async (artifact, caller) => {
@@ -41,7 +60,9 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       importConnections: () => documentImportConnections(home),
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
         projectId: runtime.project_id, actorId: caller.actor_id, ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
-        artifacts: runtime.coordinator.artifacts, signal: caller.signal,
+        artifacts: runtime.artifacts, signal: caller.signal,
+        // A file the Host was given for this import: only on the person's own call, and only one offered to the 成果库 itself.
+        ...input.source === "file" && caller.audience === "user" && caller.original_file?.install_id === ARTIFACTS_PLUGIN_ID ? { offeredPath: caller.original_file.path } : {},
         // Downloading the speech model is the person's own yes: an Agent, MCP client, workflow or plugin passing true downloads nothing (S-39, PMAT-48).
         allowModelDownload: caller.audience === "user" && input.source === "file" && input.allow_model_download === true,
         ...caller.on_progress ? { onProgress: caller.on_progress } : {},

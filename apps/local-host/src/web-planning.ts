@@ -1,8 +1,11 @@
+import { shownProjectPlugins } from "./plugin-registry.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalsActions, personalPlanningActions, matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
-import { renderWorkbenchPlanningRequest, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { goalsActions, personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
+import { matchPageRoute } from "./page-routes.js";
+import { type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
+import { renderPlanningRequest } from "@molis-ai/molis-work-plugin-goals/page";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
@@ -30,16 +33,19 @@ export function createLocalPlanningHttp(ports: {
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null : null;
     const planningDocument = request.method === "GET" && url.pathname.startsWith("/settings/planning");
+    // The settings navigation lists the plugins the context shows, as the Host works it out (W5-02 B1).
     const enabledPlugins = planningDocument && contextProject && homeDirectory
-      ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjectPlugins(contextProject.project_id))
-      : [];
-    const route = request.method === "GET" ? matchGoalsPlanningRoute(url.pathname, "personal") : null;
-    let methods: PlanningMethodPack[] = [];
-    if (route && !(route.kind === "method" && route.method_id === "new")) {
-      try { methods = (await homeActions.invoke(personalPlanningActions.list, {})).methods; }
-      catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
-    }
-    const globalPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "personal", () => {
+      ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => {
+        const { plugins, hidden } = catalog.projectPluginMembership(contextProject.project_id);
+        return shownProjectPlugins(plugins, hidden);
+      })
+      : shownProjectPlugins([]);
+    const globalPlanningPage = await renderPlanningRequest(request.method, matchPageRoute(url), "personal", async route => {
+      let methods: PlanningMethodPack[] = [];
+      if (!(route.kind === "method" && route.method_id === "new")) {
+        try { methods = (await homeActions.invoke(personalPlanningActions.list, {})).methods; }
+        catch (error) { return { status: 400, error: error instanceof Error ? error.message : String(error) }; }
+      }
       return {
         methods,
         library: () => renderMolisWorkPlanningLibrary(methods, contextProject, controlToken, isDesktopShellRequest(request, url), projects, enabledPlugins),
@@ -83,16 +89,13 @@ export function createLocalPlanningHttp(ports: {
   async function project(request: IncomingMessage, response: ServerResponse, url: URL,
     controlToken: string, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, actions: BoundActionClient, homeActions: BoundActionClient,
   ): Promise<boolean> {
-    const route = request.method === "GET" ? matchGoalsPlanningRoute(url.pathname, "project") : null;
-    let pageMethods: PlanningMethodPack[] = [];
-    if (route && !(route.kind === "method" && route.method_id === "new")) {
-      try { pageMethods = (await actions.invoke(goalsActions.planningRead, {})).methods; }
-      catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
-    }
-    const pageView = route ? await readWebView() : null;
-    const projectPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "project", () => {
-      const view = pageView!;
-      const methods = pageMethods;
+    const projectPlanningPage = await renderPlanningRequest(request.method, matchPageRoute(url), "project", async route => {
+      let methods: PlanningMethodPack[] = [];
+      if (!(route.kind === "method" && route.method_id === "new")) {
+        try { methods = (await actions.invoke(goalsActions.planningRead, {})).methods; }
+        catch (error) { return { status: 400, error: error instanceof Error ? error.message : String(error) }; }
+      }
+      const view = await readWebView();
       return {
         methods,
         library: () => renderMolisWorkPlanningSettings(view, methods, controlToken, isDesktopShellRequest(request, url)),

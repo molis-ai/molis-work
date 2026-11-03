@@ -9,7 +9,7 @@ import { createDesktopWebHost, withMolisWorkProjectCatalog as withCatalog } from
 import { AssistantStore, MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { asideReply } from "./fixtures/ending-review.js";
 import { isKnowledgeOrganize, organizedCard } from "./fixtures/knowledge-organize.js";
 

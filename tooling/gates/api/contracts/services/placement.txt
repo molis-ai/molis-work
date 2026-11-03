@@ -74,6 +74,10 @@ export interface PlacementAssociation {
         title: string;
         state: PlacementObjectState;
         location: PlacementLocation | null;
+        plugin: {
+            plugin_id: string;
+            title: string;
+        } | null;
     };
     since: string | null;
     removable: boolean;
@@ -199,6 +203,7 @@ export interface ProjectCopyIdentity {
 }
 
 export interface ProjectCopyOwner {
+    prepare?(asset: ProjectCopyAsset): Promise<void>;
     readonly kinds: readonly string[];
     read(reference: ProjectCopyReference): ProjectCopyAsset | null;
     snapshot(projectId: string): readonly ProjectCopyAsset[];

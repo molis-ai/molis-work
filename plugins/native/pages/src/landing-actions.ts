@@ -1,5 +1,5 @@
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema, type ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesRecord } from "./contract.js";
 import { pagesErrors } from "./error.js";
 import { landPagesText, type PagesLandingMode, type PagesLandingWrite } from "./landing.js";
 import type { PagesStores } from "./store.js";

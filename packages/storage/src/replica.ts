@@ -1,3 +1,4 @@
+import {authorizeReplicaValue,replicaKeyVisible} from './replica-authorization.js';
 import type {SQLInputValue,SQLOutputValue} from "node:sqlite";
 export type ReplicaInputValue=SQLInputValue;
 export type ReplicaOutputValue=SQLOutputValue;
@@ -45,13 +46,17 @@ export function initializeReplica(db: ReplicaDatabase,initialize=true): void {
 }
 
 /** Owner supplies an SQL key expression; identifiers/expressions must never come from user input. */
-export function replicaMarkSql(keyExpression: string, condition = '1=1'): string {
-  return `INSERT INTO replica_changes(key) SELECT ${keyExpression} WHERE (SELECT applying FROM replica_state WHERE id=1)=0 AND (${condition});`;
+export function replicaMarkSql(keyExpression: string, condition = '1=1', namespace?: string): string {
+  if (namespace !== undefined && !/^[a-z][a-z0-9_]{0,40}$/.test(namespace)) throw new Error('INVALID_REPLICA_NAMESPACE');
+  const prefix = namespace ? namespace + '_' : '';
+  return `INSERT INTO ${prefix}replica_changes(key) SELECT ${keyExpression} WHERE (SELECT applying FROM ${prefix}replica_state WHERE id=1)=0 AND (${condition});`;
 }
 
 /** Trusted owner SELECT returns a column named key. Enqueue all affected keys in the business transaction. */
-export function replicaMarkRowsSql(selectKeys: string): string {
-  return `INSERT INTO replica_changes(key) SELECT key FROM (${selectKeys}) WHERE (SELECT applying FROM replica_state WHERE id=1)=0;`;
+export function replicaMarkRowsSql(selectKeys: string, namespace?: string): string {
+  if (namespace !== undefined && !/^[a-z][a-z0-9_]{0,40}$/.test(namespace)) throw new Error('INVALID_REPLICA_NAMESPACE');
+  const prefix = namespace ? namespace + '_' : '';
+  return `INSERT INTO ${prefix}replica_changes(key) SELECT key FROM (${selectKeys}) WHERE (SELECT applying FROM ${prefix}replica_state WHERE id=1)=0;`;
 }
 
 /** Seed or enqueue a known owner key through Storage rather than its journal table. */
@@ -121,6 +126,7 @@ function projectChanges(db: ReplicaDatabase, projectId: string, authorize: () =>
 
 export function createSqliteReplica(db: ReplicaDatabase, owner: {
   authorize(): void;
+  authorizeKey?(key:string,value?:unknown):void;
   maintain?():void;
   conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
   protection?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncLocalProtection;
@@ -141,14 +147,15 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
   const cursor=()=>Number(db.prepare('SELECT cursor FROM replica_state WHERE id=1').get()!.cursor);
   const setHead=(event:SyncEvent)=>db.prepare('INSERT INTO replica_heads VALUES (?,?) ON CONFLICT(key) DO UPDATE SET revision=excluded.revision').run(event.key,event.revision);
   const apply=(event:Pick<SyncEvent,'key'|'value'>)=>{
+    owner.authorize();owner.authorizeKey?.(event.key,event.value);
     db.exec('UPDATE replica_state SET applying=1 WHERE id=1');
     owner.apply(event.key,event.value);
     db.exec('UPDATE replica_state SET applying=0 WHERE id=1');
   };
   const missingDependency=(error:unknown)=>!!error&&typeof error==='object'&&'details' in error&&!!error.details&&typeof error.details==='object'&&'sync_waiting' in error.details&&error.details.sync_waiting===true;
   const conflict=(event:SyncEvent,reason:string,waiting=false)=>db.prepare('INSERT INTO replica_conflicts(key,event,reason,waiting) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET event=excluded.event,reason=excluded.reason,waiting=excluded.waiting').run(event.key,serial.write(event,event.key,'conflict'),reason,waiting?1:0);
-  const read=(key:string)=>{
-    try{return owner.read(key);}catch(error){owner.authorize();
+  const read=(key:string,load:()=>unknown=()=>owner.read(key))=>{
+    try{authorizeReplicaValue(owner,key);const value=load();authorizeReplicaValue(owner,key,value);return value;}catch(error){owner.authorize();
       const kind=error&&typeof error==='object'?(('kind' in error?error.kind:undefined)??('code' in error&&typeof error.code==='string'?platformErrorKind(error.code):undefined)):undefined;
       const reason=kind==='too_large'?'limit':kind==='forbidden'?'scope':kind&&kind!=='invalid'?'busy':'invalid';
       throw syncError(reason,replicaFailureMessage(error),{sync_key:key});}
@@ -156,17 +163,18 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
   return {
     ...replicaRecovery(db,owner,head,(key,value)=>apply({key,value}),run=>replicaTransaction(db,run),key=>queueReplicaChange(db,key),comparison,serial),
     cursor,
+    authorizeKey(key,value){owner.authorize();if(!owner.authorizeKey)throw syncError('unsupported','复制主人尚未提供独立标识授权');owner.authorizeKey(key,value);owner.authorize();},
     ...(owner.maintain?{maintain(){owner.authorize();owner.maintain!();owner.authorize();}}:{}),
     ...(owner.locate?{locate(key:string){owner.authorize();const target=owner.locate!(key);owner.authorize();return target;}}:{}),
     hasProjectChanges:projectId=>projectChanges(db,projectId,owner.authorize,owner.belongsToProject,serial),
     inspectReceive(event,options){return replicaTransaction(db,()=>{
-      owner.authorize();const decision=receiveDecision(db,serial,event,options);owner.authorize();return decision.kind;
+      authorizeReplicaValue(owner,event.key,event.value);const decision=receiveDecision(db,serial,event,options);owner.authorize();return decision.kind;
     });},
     acknowledge(key,operationId,revision){replicaTransaction(db,()=>{
-      owner.authorize();if(!Number.isSafeInteger(revision)||revision<1)throw syncError('invalid','同步回执版本无效');
+      authorizeReplicaValue(owner,key);if(!Number.isSafeInteger(revision)||revision<1)throw syncError('invalid','同步回执版本无效');
       const out=db.prepare('SELECT through_seq,operation FROM replica_outbox WHERE key=?').get(key);
       if(!out){if(head(key)>=revision)return;throw syncError('conflict','同步回执已不属于当前待提交内容');}
-      const mutation=serial.read(out.operation,key,'outbox') as SyncMutation;
+      const mutation=serial.read(out.operation,key,'outbox') as SyncMutation;authorizeReplicaValue(owner,key,mutation.value);
       if(mutation.operationId!==operationId||mutation.key!==key||revision<=mutation.base)throw syncError('invalid','同步回执与待提交内容不一致');
       db.prepare('DELETE FROM replica_changes WHERE key=? AND seq<=?').run(key,Number(out.through_seq));
       db.prepare('DELETE FROM replica_outbox WHERE key=?').run(key);
@@ -176,7 +184,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       owner.authorize();
       const eligible=(row:Record<string,SQLOutputValue>)=>!options?.excludeKeys?.includes(String(row.key))&&owner.canUpload?.(String(row.key))!==false;
       const frozen=db.prepare('SELECT key,operation FROM replica_outbox WHERE key NOT IN (SELECT key FROM replica_conflicts) ORDER BY through_seq').all().find(row=>eligible(row)&&(!options?.deletionsOnly||(serial.read(row.operation,String(row.key),'outbox') as SyncMutation).value===null));
-      if(frozen)return serial.read(frozen.operation,String(frozen.key),'outbox') as SyncMutation;
+      if(frozen){const mutation=serial.read(frozen.operation,String(frozen.key),'outbox') as SyncMutation;read(mutation.key,()=>mutation.value);return mutation;}
       const row=db.prepare(`SELECT key,MAX(seq) AS seq FROM replica_changes WHERE key NOT IN (SELECT key FROM replica_conflicts) AND key NOT IN (SELECT key FROM replica_outbox) GROUP BY key ORDER BY MIN(seq)`).all().find(row=>eligible(row)&&(!options?.deletionsOnly||read(String(row.key))===null));
       if(!row)return null;
       const key=String(row.key),seq=Number(row.seq);
@@ -187,7 +195,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       return operation;
     }); },
     receive(event,options) { replicaTransaction(db,()=>{
-      owner.authorize();
+      authorizeReplicaValue(owner,event.key,event.value);
       const decision=receiveDecision(db,serial,event,options);
       if(decision.kind==='ignore')return;
       if(decision.kind==='cursor'){db.prepare('UPDATE replica_state SET cursor=MAX(cursor,?) WHERE id=1').run(event.revision);owner.authorize();return;}
@@ -205,11 +213,12 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       db.prepare('UPDATE replica_state SET cursor=MAX(cursor,?) WHERE id=1').run(event.revision);
     }); },
     counts(){return {pending:Number(db.prepare('SELECT COUNT(*) AS n FROM (SELECT key FROM replica_changes UNION SELECT key FROM replica_outbox)').get()!.n),conflicts:Number(db.prepare('SELECT COUNT(*) AS n FROM replica_conflicts').get()!.n)};},
-    conflicts(){return db.prepare('SELECT key,reason,waiting FROM replica_conflicts ORDER BY key LIMIT 100').all().map(row=>({key:String(row.key),reason:String(row.reason),waiting:!!row.waiting}));},
+    conflicts(){owner.authorize();return db.prepare('SELECT key,event,reason,waiting FROM replica_conflicts ORDER BY key LIMIT 100').all().filter(row=>replicaKeyVisible(owner,String(row.key))&&replicaKeyVisible(owner,String(row.key),(serial.read(row.event,String(row.key),'conflict') as SyncEvent).value)).map(row=>({key:String(row.key),reason:String(row.reason),waiting:!!row.waiting}));},
     retryWaiting(){replicaTransaction(db,()=>{
       owner.authorize();
       for(const row of db.prepare('SELECT key,event FROM replica_conflicts WHERE waiting=1 ORDER BY key').all()){
         const event=serial.read(row.event,String(row.key),'conflict') as SyncEvent;
+        if(!replicaKeyVisible(owner,event.key,event.value))continue;
         if(db.prepare('SELECT 1 FROM replica_changes WHERE key=?').get(event.key)||db.prepare('SELECT 1 FROM replica_outbox WHERE key=?').get(event.key)){
           conflict(event,'两台设备修改了同一项，双方内容均已保留');continue;
         }
@@ -223,11 +232,11 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
       const row=db.prepare('SELECT key,event,waiting FROM replica_conflicts WHERE key=?').get(key);
       if(!row)throw new Error('SYNC_CONFLICT_MISSING');
       if(row.waiting)throw new Error('关联资产尚未到达，请稍后重试同步');
-      const event=serial.read(row.event,String(row.key),'conflict') as SyncEvent;
+      const event=serial.read(row.event,String(row.key),'conflict') as SyncEvent;authorizeReplicaValue(owner,key,event.value);
       if(expectedRevision!==undefined&&event.revision!==expectedRevision)throw syncError('conflict','冲突版本已变化，请重新查看');
       if(expectedState!==undefined&&comparison(key,event,read(key))!==expectedState)throw syncError('conflict','比较内容已变化，请重新查看');
       if(choice!=='local'&&choice!=='remote')throw new Error('SYNC_INVALID_CHOICE');
-      db.prepare('INSERT INTO replica_resolutions(key,choice,local_json,remote_json) VALUES (?,?,?,?)').run(key,choice,serial.write(owner.read(key),key,'recovery_local'),serial.write(event,key,'recovery_remote'));
+      db.prepare('INSERT INTO replica_resolutions(key,choice,local_json,remote_json) VALUES (?,?,?,?)').run(key,choice,serial.write(read(key),key,'recovery_local'),serial.write(event,key,'recovery_remote'));
       if(choice==='remote')apply(event);
       db.prepare('DELETE FROM replica_changes WHERE key=?').run(key);
       db.prepare('DELETE FROM replica_outbox WHERE key=?').run(key);

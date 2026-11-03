@@ -99,7 +99,7 @@ test("sub-tasks that finish after their delegating work's round ended hand back 
   // nothing, and the work's next round is not told again.
   const taken = await root();
   assert.equal(taken.continuation?.state, "started");
-  await service.attachSchedule();
+  await service.notices.attachSchedule();
   await pause(500);
   assert.equal(rounds().length, 2, "no second hand-back round");
   await service.send({ work_id: parentId, text: "谢谢", request_id: "req-once-thanks" }, {});
@@ -125,7 +125,7 @@ test("PA-08: two sub-task results and the person's own round arriving together s
   await service.send({ work_id: parentId, text: "两段都交回了吧？我来接着核对", request_id: "req-together-person" }, {});
   await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 2, "the person's round");
   held.resolve();
-  await until(() => service.notices(null).find(item => item.work_id === parentId && /没有自动接着做/.test(item.text)), "the held hand-back refused");
+  await until(() => service.notices.notices(null).find(item => item.work_id === parentId && /没有自动接着做/.test(item.text)), "the held hand-back refused");
   assert.equal(await runs(), 2, "the parent Session gained one Run: the person's");
   assert.equal(rounds().length, 2);
   assert.equal(rounds()[1]!.written_by, undefined, "the person's round, not one the Host wrote");
@@ -136,7 +136,7 @@ test("PA-08: two sub-task results and the person's own round arriving together s
   assert.equal((await root()).continuation?.state, "started", "taken up by the person's round");
   // The Host comes back (a new service on the same store): nothing is started again.
   const reopened = open();
-  await reopened.attachSchedule();
+  await reopened.notices.attachSchedule();
   await pause(500);
   assert.equal(await runs(), 2, "no Run after the Host comes back");
   assert.equal(rounds().length, 2);
@@ -193,18 +193,18 @@ test("a refused hand-back tells the person why; after a restart it is taken up o
   refusing = "这个项目的授权已撤回";
   release("开头");
   await until(async () => (await service.read(children[0]!.work_id)).work.state === "completed", "sub-task done");
-  const notice = await until(() => service.notices(null).find(item => item.work_id === parentId && /子任务都已交回，但没有自动接着做：这个项目的授权已撤回/.test(item.text)), "the notice");
+  const notice = await until(() => service.notices.notices(null).find(item => item.work_id === parentId && /子任务都已交回，但没有自动接着做：这个项目的授权已撤回/.test(item.text)), "the notice");
   assert.equal(notice.kind, "needs-decision");
   assert.equal(rounds().length, 1, "nothing started");
   assert.equal((await root()).continuation?.state, "eligible", "a refused start leaves the continuation where it was");
   // The Host comes back.
   refusing = undefined;
   const restarted = open();
-  assert.equal(await restarted.attachSchedule(), true);
+  assert.equal(await restarted.notices.attachSchedule(), true);
   await until(async () => (await restarted.read(parentId)).work.state === "completed" && rounds().length === 2, "the hand-back round after the restart");
   assert.match(later[0]!, /「开头」的草稿：三句话/);
   assert.equal((await root()).continuation?.state, "started");
-  await restarted.attachSchedule();
+  await restarted.notices.attachSchedule();
   await pause(500);
   assert.equal(rounds().length, 2, "taken up once");
 });
@@ -213,7 +213,7 @@ test("a refused hand-back tells the person why; after a restart it is taken up o
 // the graph has it (its work still waits) until the Host's next start ends it (W2-18-HANDBACK-RESTART-01).
 test("W2-18-HANDBACK-STEP-END-01: a part's step end that could not be written shows in the diagnostics", { timeout: 90_000 }, async t => {
   const { service, release, root, nodes, store, parentId } = await fixture(t, "unwritten", ["开头"]);
-  const rename = fs.renameSync, failures = async () => (await service.diagnostics()).runtime?.ledger_failures ?? [];
+  const rename = fs.renameSync, failures = async () => (await service.reads.diagnostics()).runtime?.ledger_failures ?? [];
   let failing = true;
   // The SDK writes a graph as a temporary file renamed into place: from the part's answer on, no graph write lands.
   fs.renameSync = (from, to) => {
@@ -257,14 +257,14 @@ test("W2-18-HANDBACK-RESTART-01: a part's round that ended just before the Host 
   const part = await until(async () => (await graph()).find(node => node.parent === "work" && node.state === "succeeded"), "the part's step ended after the restart");
   assert.ok(part.ended_at);
   assert.equal(store.rounds(parent.work_id).length, 1);
-  assert.equal(await service.attachSchedule(), true);
+  assert.equal(await service.notices.attachSchedule(), true);
   await until(async () => (await service.read(parent.work_id)).work.state === "completed" && store.rounds(parent.work_id).length === 2, "the hand-back round after the restart");
   assert.equal(store.rounds(parent.work_id)[1]!.written_by, "host");
   assert.match(roundParts(later[0]!).data, /子任务交回/);
   assert.match(later[0]!, /「开头」：已完成/);
   assert.match(later[0]!, /「开头」的草稿：三句话/);
   assert.equal((await graph()).find(node => node.node_id === "work")?.continuation?.state, "started");
-  await service.attachSchedule();
+  await service.notices.attachSchedule();
   await pause(500);
   assert.equal(store.rounds(parent.work_id).length, 2, "taken up once");
 });

@@ -33,20 +33,5 @@
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1"
-  },
-  "molis-work": {
-    "path": "packages/kernel",
-    "kind": "foundation",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/kernel",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-f3",
-      "goal-reorg-ap2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "kernel.capability-registry.v1"
-    ]
   }
 }

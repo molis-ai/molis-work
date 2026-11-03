@@ -5,6 +5,7 @@ import { type ActionExecutionContext, type ActionDefinition, type ActionHandlerB
 import type { FeedApplication } from "./application.js";
 import type { ConnectorAuthStatus } from "./connector-auth-status.js";
 import type { FeedItemRecord, FeedSnapshot } from "./projection.js";
+import type { FeedHydrate } from "./item-hydration.js";
 
 const empty = { type: "object", properties: {}, additionalProperties: false };
 const item = { type: "object", required: ["item_id", "revision", "materials", "title"] };
@@ -43,13 +44,13 @@ export const feedQueryActions = {
 } as const;
 
 export function createFeedQueryHandlers(feed: FeedApplication, projectId: string, ports: {
-  hydrate(item: FeedItemRecord): FeedItemRecord;
-  authStatus(): ConnectorAuthStatus;
+  hydrate: FeedHydrate;
+  authStatus(): ConnectorAuthStatus | Promise<ConnectorAuthStatus>;
   linkedContext(input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext): Promise<{ source_context: string } | null>;
 }): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
-    handle: async (caller, input) => await run(input as I, caller),
+    handle: (caller, input) => run(input as I, caller),
   });
   return [
     bind(feedQueryActions.connectionUsages, input => ({ usages: feed.snapshot(projectId).sources.filter(source => source.config.connection_id === input.connection_id).map(source => ({
@@ -57,12 +58,12 @@ export function createFeedQueryHandlers(feed: FeedApplication, projectId: string
       actions: [{ action: { capability_id: feedSourceActions.sync.capability_id, version: feedSourceActions.sync.version, provider_id: FEED_PLUGIN_ID }, input: { source_id: source.source_id } }],
     })) })),
     bind(feedQueryActions.linkedContext, (input, caller) => ports.linkedContext(input, caller)),
-    bind(feedQueryActions.snapshot, input => {
+    bind(feedQueryActions.snapshot, async input => {
       const { inbox_entries: _inbox, ...snapshot } = feed.snapshot(projectId);
-      return { ...snapshot, feed_items: snapshot.feed_items.map(item => ({ ...(input.include_contents ? ports.hydrate(item)
-        : { ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) }), suggested_behavior_ids: [] })) };
+      return { ...snapshot, feed_items: await Promise.all(snapshot.feed_items.map(async item => ({ ...(input.include_contents ? await ports.hydrate(item)
+        : { ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) }), suggested_behavior_ids: [] }))) };
     }),
-    bind(feedQueryActions.item, input => ({ item: ports.hydrate(feed.getFeedItem(projectId, input.item_id)) })),
+    bind(feedQueryActions.item, async input => ({ item: await ports.hydrate(feed.getFeedItem(projectId, input.item_id)) })),
     bind(feedQueryActions.connections, () => ports.authStatus()),
   ];
 }

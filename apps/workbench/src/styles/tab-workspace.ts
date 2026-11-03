@@ -23,14 +23,14 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-group:not([data-tab-group="home"]) { padding-left: 8px; border-left: 1px solid var(--line); }
   body.immersive-workbench .tab-group-label { appearance: none; display: inline-flex; align-items: center; gap: 4px; height: 28px; margin: 0; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; font-weight: var(--weight-control, 500); white-space: nowrap; cursor: pointer; }
   body.immersive-workbench .tab-group-label::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
-  body.immersive-workbench .tab-group-label svg { width: 12px; height: 12px; transition: transform var(--motion-normal) var(--ease-quint); }
+  body.immersive-workbench .tab-group-label svg { width: 12px; height: 12px; transition: transform var(--dur-move) var(--ease-quint); }
   body.immersive-workbench .tab-group[data-collapsed="true"] .tab-group-label svg { transform: rotate(-90deg); }
   body.immersive-workbench .tab-group-label:hover { color: var(--ink); background: var(--nav-hover); }
   body.immersive-workbench .tab-group[data-active="true"] .tab-group-label { color: var(--ink); }
   body.immersive-workbench .tab-group[data-collapsed="true"] .tab-item { display: none; }
   body.immersive-workbench .tab-group[data-collapsed="true"][data-active="true"] .tab-group-label { background: var(--nav-active); }
   body.immersive-workbench .tab-group-pages { display: flex; align-items: center; gap: 4px; min-width: 0; }
-  body.immersive-workbench .tab-item { appearance: none; position: relative; flex: none; max-width: 208px; min-width: 72px; height: 26px; margin: 0; display: inline-flex; align-items: center; gap: 8px; padding: 0 8px 0 12px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 400; cursor: pointer; user-select: none; transition: background-color var(--motion-fast), color var(--motion-fast), box-shadow var(--motion-fast); }
+  body.immersive-workbench .tab-item { appearance: none; position: relative; flex: none; max-width: 208px; min-width: 72px; height: 26px; margin: 0; display: inline-flex; align-items: center; gap: 8px; padding: 0 8px 0 12px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 400; cursor: pointer; user-select: none; transition: background-color var(--dur-hover), color var(--dur-hover), box-shadow var(--dur-hover); }
   body.immersive-workbench .tab-item:hover { color: var(--ink); background: var(--nav-hover); }
   body.immersive-workbench .tab-item.is-active { background: var(--nav-raised); color: var(--ink); font-weight: 400; border-color: var(--control-border); box-shadow: var(--surface-shadow); }
   body.immersive-workbench .tab-item:focus-visible, body.immersive-workbench .tab-group-label:focus-visible { outline-offset: var(--focus-stroke-inset); }
@@ -55,10 +55,6 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-pane-body > .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   body.immersive-workbench .tab-pane-body > .desktop-work-surface:not(.immersive-home) { background: var(--paper); padding: 0; }
   body.immersive-workbench .tab-pane-body > .feed-workbench { background: var(--canvas); }
-  body.immersive-workbench .tab-pane-body > .project-operation-surface { overflow: hidden; padding: 0; }
-  body.immersive-workbench .tab-pane-body > .project-operation-surface .session-stage { height: 100%; max-width: none; margin: 0; }
-  body.immersive-workbench .tab-pane-body > .project-operation-surface-empty,
-  body.immersive-workbench .tab-pane-body > .project-operation-surface > .project-operation-surface-empty { height: 100%; display: grid; place-content: center; }
   body.immersive-workbench .tab-pane-body > .immersive-artifact-surface { padding: 8px 24px 32px; }
   body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty { display: grid; place-items: center; align-content: center; width: 100%; min-height: 100%; margin: 0; padding: 48px 24px; border-radius: 0; background: transparent; box-shadow: none; color: var(--muted); text-align: center; }
   body.immersive-workbench .tab-pane-body [data-work-surface="inbox"] .feed-detail-empty svg { width: 20px; height: 20px; color: var(--faint); stroke-width: 1.6; }
@@ -131,9 +127,9 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-sash:focus-visible { outline: none; }
   body.immersive-workbench .tab-content-frame { display: block; width: 100%; height: 100%; border: 0; }
   body.immersive-workbench .tab-workspace:is(.is-tab-dragging, .is-resizing) iframe { pointer-events: none; }
-  body.immersive-workbench .tab-workspace-panes[data-split-drop-preview]::after { content: ""; position: fixed; left: var(--split-preview-left); top: var(--split-preview-top); width: var(--split-preview-width); height: var(--split-preview-height); box-sizing: border-box; pointer-events: none; z-index: 2147483646; border: 2px solid var(--blue); border-radius: 8px; background: color-mix(in srgb, var(--blue) 14%, transparent); animation: feedback-reveal 130ms var(--ease-quint); }
+  body.immersive-workbench .tab-workspace-panes[data-split-drop-preview]::after { content: ""; position: fixed; left: var(--split-preview-left); top: var(--split-preview-top); width: var(--split-preview-width); height: var(--split-preview-height); box-sizing: border-box; pointer-events: none; z-index: 2147483646; border: 2px solid var(--blue); border-radius: 8px; background: color-mix(in srgb, var(--blue) 14%, transparent); animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   body.immersive-workbench[data-pane-embedded] .immersive-workspace { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; height: 100%; }
-  body.immersive-workbench[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .assistant-island, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim),
+  body.immersive-workbench[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim),
   body.immersive-workbench[data-pane-embedded] .tab-pane > .tab-strip { display: none !important; }
   body.immersive-workbench[data-pane-embedded] .immersive-plugin-stage { grid-column: 1 !important; grid-row: 1 / -1 !important; position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; display: block !important; }
   @media (max-width: 760px) {
@@ -175,7 +171,7 @@ export const TAB_WORKSPACE_STYLES = `
     display: grid; place-items: center; pointer-events: none;
     box-sizing: border-box; background: var(--paper); color: var(--ink-soft);
     box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--control-border);
-    opacity: 1; transition: opacity var(--motion-fast) var(--ease-quint);
+    opacity: 1; transition: opacity var(--dur-hover) var(--ease-quint);
   }
   body.immersive-workbench .tab-split[data-direction="row"] > .tab-sash > .tab-sash-handle {
     width: 22px; height: 40px; border-radius: 999px;

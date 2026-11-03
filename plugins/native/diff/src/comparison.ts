@@ -5,78 +5,41 @@ import {
   type ChangeSet,
   type CodingChangeSet,
   type FileSnapshot,
-  type TextDiffRow,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
-import { unifiedErrors, hunkRows, parseUnifiedDiff } from "./unified.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import {
+  compareChange,
+  compareHunks,
+  emptyDiffView,
+  unifiedErrors,
+  type DiffFileEntry,
+  type DiffPhase,
+  type DiffSide,
+  type DiffView as DiffViewOf,
+} from "@molis-ai/molis-work-plugin-sdk/diff-view";
+
+export type { DiffFileEntry, DiffMode, DiffPhase, DiffSide } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 
 /**
  * One bounded projection behind every comparison surface.
  *
  * The dynamic view and each fixed, opened comparison go through this same
  * function, so a comparison cannot look different depending on how it was
- * reached.
+ * reached. The view, the comparison and its drawing are the SDK's
+ * (`/diff-view`); what each input group means is Diff's.
  */
-
-export type DiffPhase = "waiting" | "unavailable" | "ready";
-export type DiffMode = "unified" | "split";
 
 /** Which interchangeable set of inputs is selected. */
 export type DiffInputGroup = "snapshots" | "change-set" | "git-change-set";
 
-export interface DiffSide {
-  workspace_id: string;
-  workspace_name: string;
-  path: string;
-  /** Which Plugin produced this side. */
-  source_plugin_id: string;
-  /** The exact Artifact version compared, so the view can be reproduced. */
-  content_version: number;
-}
-
-/** One file inside a multi-file change set. */
-export interface DiffFileEntry {
-  path: string;
-  kind: "added" | "modified" | "deleted";
-  added_lines: number;
-  removed_lines: number;
-}
-
-export interface DiffView {
-  phase: DiffPhase;
-  mode: DiffMode;
-  /**
-   * Null when the user has not chosen a group yet.
-   *
-   * A real state, not a placeholder: the Host deliberately never picks the
-   * first group on somebody's behalf, so "nothing selected" has to be
-   * something this view can say.
-   */
-  group: DiffInputGroup | null;
-  message: string;
-  /** What to do about it. Present exactly when there is nothing to show. */
-  recovery?: string;
-  /** The LCS budget was exceeded, so the middle is a whole delete plus insert. */
-  coarse: boolean;
-  identical: boolean;
-  metadata_changes?: readonly string[];
-  empty: boolean;
-  created: boolean;
-  removed: boolean;
-  /** The two inputs belong to different workspaces and cannot be compared. */
-  mismatch: boolean;
-  /**
-   * The rows are the hunks a producer already computed, not the whole file.
-   * True for a Run's change set, which never carries the untouched lines.
-   */
-  partial: boolean;
-  before?: DiffSide;
-  after?: DiffSide;
-  rows: readonly TextDiffRow[];
-  /** Present when the change set covers more than the file being shown. */
-  files: readonly DiffFileEntry[];
-}
+/**
+ * Null `group` when the user has not chosen a group yet.
+ *
+ * A real state, not a placeholder: the Host deliberately never picks the
+ * first group on somebody's behalf, so "nothing selected" has to be
+ * something this view can say.
+ */
+export type DiffView = DiffViewOf<DiffInputGroup>;
 
 /** An input as the Host delivered it: the content plus where it came from. */
 export interface DiffInputSnapshot {
@@ -105,22 +68,7 @@ export function emptyDiff(
   phase: DiffPhase = "waiting",
   recovery?: string,
 ): DiffView {
-  return {
-    phase,
-    mode: "unified",
-    group,
-    message,
-    ...(recovery === undefined ? {} : { recovery }),
-    coarse: false,
-    identical: false,
-    empty: false,
-    created: false,
-    removed: false,
-    mismatch: false,
-    partial: false,
-    rows: [],
-    files: [],
-  };
+  return emptyDiffView(group, message, phase, recovery);
 }
 
 /** Two captured snapshots, compared line by line. */
@@ -150,7 +98,7 @@ export function compareSnapshots(inputs: readonly DiffInputSnapshot[]): DiffView
       after,
     };
   }
-  return renderComparison(group, before, after, first.text, second.text, false, false);
+  return compareChange(group, { before, after }, { before: first.text, after: second.text });
 }
 
 /** A single-file prepared change, from Git or any producer of this type. */
@@ -168,15 +116,10 @@ export function compareChangeSet(input: DiffInputSnapshot, group: DiffInputGroup
     source_plugin_id: input.source_plugin_id,
     content_version: input.content_version,
   };
-  const view = renderComparison(
-    group,
-    change.git?.previous_path ? { ...side, path: pathLabel(change.git.previous_path) } : side,
-    { ...side },
-    change.before,
-    change.after,
-    !change.before_exists,
-    !change.after_exists,
-  );
+  const view = compareChange(group, {
+    before: change.git?.previous_path ? { ...side, path: pathLabel(change.git.previous_path) } : side,
+    after: { ...side },
+  }, { before: change.before, after: change.after, created: !change.before_exists, removed: !change.after_exists });
   const metadata: string[] = [];
   if (change.git?.previous_path && pathLabel(change.git.previous_path) !== pathLabel(change.path)) metadata.push(`重命名：${pathLabel(change.git.previous_path)} → ${pathLabel(change.path)}`);
   if (change.git?.before_mode && change.git.after_mode && change.git.before_mode !== change.git.after_mode) {
@@ -218,16 +161,8 @@ export function compareRunChangeSet(
   if (chosen.review) {
     const side: DiffSide = { workspace_id: change.origin?.workspace_id ?? change.run_id, workspace_name: change.origin?.workspace_name ?? change.run_id,
       path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
-    return { ...renderComparison(group, side, { ...side }, chosen.review.before_text ?? "", chosen.review.after_text,
-      chosen.review.before_text === null, false), files };
-  }
-  let rows: readonly TextDiffRow[];
-  try {
-    rows = hunkRows(parseUnifiedDiff(chosen.diff));
-  } catch (error) {
-    const message = error instanceof ActionError && error.code.startsWith("diff.unified.")
-      && Object.hasOwn(unifiedErrors, error.code.slice("diff.unified.".length)) ? error.message : "读不了这一轮的 diff";
-    return { ...emptyDiff(group, message, "unavailable", recoveryMessage(group)), files };
+    return { ...compareChange(group, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,
+      created: chosen.review.before_text === null }), files };
   }
   const side: DiffSide = {
     workspace_id: change.run_id,
@@ -236,45 +171,13 @@ export function compareRunChangeSet(
     source_plugin_id: input.source_plugin_id,
     content_version: input.content_version,
   };
-  return {
-    ...emptyDiff(group),
-    phase: "ready",
-    message: "",
-    // The rows are hunks, so "identical" and "empty" are questions this input
-    // cannot answer: an unchanged file simply has no hunks to send.
-    partial: true,
-    created: chosen.kind === "added",
-    removed: chosen.kind === "deleted",
-    before: side,
-    after: { ...side },
-    rows,
-    files,
-  };
-}
-
-function renderComparison(
-  group: DiffInputGroup,
-  before: DiffSide,
-  after: DiffSide,
-  left: string,
-  right: string,
-  created: boolean,
-  removed: boolean,
-): DiffView {
-  const diff = compareTexts(left, right);
-  return {
-    ...emptyDiff(group),
-    phase: "ready",
-    message: "",
-    before,
-    after,
-    created,
-    removed,
-    coarse: diff.coarse,
-    identical: diff.identical,
-    empty: diff.empty,
-    rows: diff.ops.map(textDiffRow),
-  };
+  try {
+    return { ...compareHunks(group, { before: side, after: { ...side } }, chosen.diff, { created: chosen.kind === "added", removed: chosen.kind === "deleted" }), files };
+  } catch (error) {
+    const message = error instanceof ActionError && error.code.startsWith("diff.unified.")
+      && Object.hasOwn(unifiedErrors, error.code.slice("diff.unified.".length)) ? error.message : "读不了这一轮的 diff";
+    return { ...emptyDiff(group, message, "unavailable", recoveryMessage(group)), files };
+  }
 }
 
 function sideOf(snapshot: FileSnapshot, input: DiffInputSnapshot): DiffSide {

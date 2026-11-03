@@ -2,7 +2,7 @@ import type { ModelSettingsModel } from "./settings-models.js";
 import type { ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { ConnectorConnectionStatus } from "@molis-ai/molis-work-contracts/services/connector-host";
 
-export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: ConnectorConnectionStatus; project_id?: string; revision?: string };
+export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: ConnectorConnectionStatus; project_id?: string; revision?: string; reauth_note?: string };
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 import type { CallRowView } from "./call-row.js";
@@ -41,18 +41,25 @@ export interface WebPeriodicTask {
 export interface MolisWorkSettingsView {
   section: WebSettingsSection | string;
   capabilities?: import("./capabilities.js").CapabilitiesView;
-  functions_settings?: Omit<import("./functions/settings-ui.js").FunctionsSettingsUiModel, "primitives">;
+  functions_settings?: Omit<import("./judgment-rules/settings-ui.js").FunctionsSettingsUiModel, "primitives">;
   plugin_settings_html?: string;
   model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
   /** Project plugins enabled for the settings context. Personal plugins are listed unless hidden. */
   enabled_plugins?: readonly string[];
   hidden_plugins?: readonly string[];
+  /** The plugins the settings context shows, as the Host works it out (W5-02 B1); their settings pages are listed. */
+  shown_plugins?: readonly string[];
   runtimes: RuntimeIntegrationDetection[];
   mcp_access?: import("./mcp-access.js").McpAccessModel;
   connectors?: readonly ConnectorSettingsCardView[];
   connector_connections?: readonly ConnectorSettingsConnection[];
   connector_setup?: import("./settings-connector-request.js").ConnectorSetupView | null;
+  /**
+   * 服务连接 › 插件用的账号: the installation slots of the Home's plugins and the context project's, with the account bound to each (BL-350).
+   * `tenant`: a service on each tenant's own origin (BL-595), which sends nothing without an account whose site is pinned.
+   */
+  plugin_slots?: ReadonlyArray<{ install_id: string; plugin_id: string; plugin_name: string; slot_id: string; service_id: string; reason: string; connection_id: string | null; tenant: boolean }>;
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;
@@ -80,8 +87,9 @@ export interface ConnectorSettingsCardView {
   readonly auth_help?: string;
   readonly setup_links?: readonly ConnectorSetupLink[];
   readonly method_options?: readonly ConnectorMethodOption[];
+  /** The plugin that declared the card (its id and the name its Manifest gives it); null when the platform declares the service. */
+  readonly declared_by?: { readonly plugin_id: string; readonly title: string } | null;
   github_client_id_configured?: boolean;
-  gmail_oauth_configured?: boolean;
   notion_oauth_configured?: boolean;
 }
 

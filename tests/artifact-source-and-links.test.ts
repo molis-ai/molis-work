@@ -1,37 +1,37 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, LocalProjectDatabase, seedDemoGoals, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openTestHome } from "./fixtures/test-home.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const controlToken = "artifact-source-links-control-token-0123456789";
 
 // specs/artifact-positioning A4b: a pinned version says whether its work object changed since, and who refers to it.
 test("a pinned document shows when the original changed or was deleted, and which Goals and documents use it", async t => {
-  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-source-"));
-  const databasePath = join(directory, "fixture.db");
-  seedDemoBoard(databasePath);
-  const store = new LocalProjectDatabase(databasePath);
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-source", actor_id: "test" }));
+  const DEMO_PROJECT_ID = project.project_id;
+  await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
+  const store = new LocalProjectDatabase(project.database_path);
   const coordinator = new GoalProjectApplication(store);
-  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
-  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); await rm(directory, { recursive: true, force: true }); });
-  await (await fetch(origin + "/health")).text();
+  const origin = served.origin;
+  const controlToken = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
+  t.after(async () => { store.close(); });
+  await (await fetchProject(origin + "/health")).text();
   const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   const post = async (path: string, body: unknown) => {
-    const response = await fetch(origin + path, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+    const response = await fetchProject(origin + path, { method: "POST", headers: headers(), body: JSON.stringify(body) });
     assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
     return await response.json() as Record<string, any>;
   };
-  const detail = async (artifactId: string, version: number) => await (await fetch(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
+  const detail = async (artifactId: string, version: number) => await (await fetchProject(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
     { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
 
   const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
@@ -41,30 +41,34 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(fresh, /在 Pages 打开原对象/);
   assert.ok(fresh.includes("openPlugin=pages") && fresh.includes(`openItem=${created.id}`), "the way back opens the pinned document in Pages");
   // No Goal uses it yet.
-  assert.match(fresh, /被谁引用[\s\S]*还没有目标引用这一版/);
+  assert.match(fresh, /被谁引用[\s\S]*还没有引用这一版的对象/);
 
   // Starring changes the document's revision but not its content: still the same.
-  let current = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
+  let current = (await (await fetchProject(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
   await post("/api/plugins/io.molis.work.pages/pages/" + created.id, { starred: true, expected_version: current.version });
   assert.doesNotMatch(await detail(pinned.artifact_id, pinned.version), /原文已改/);
 
   // Editing the content is a change; the pinned version itself stays as it was.
-  current = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
+  current = (await (await fetchProject(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
   await post("/api/plugins/io.molis.work.pages/pages/" + created.id, { markdown: "第二稿", expected_version: current.version });
   const changed = await detail(pinned.artifact_id, pinned.version);
   assert.match(changed, /原文已改，这里仍是第 1 版/);
   assert.match(changed, /第一稿/);
 
-  // Goals that take it as input or hand it in are listed under 「被谁引用」, each opening the Goal.
-  await post("/api/goals/V1/deliverables", { reference: pinned, delivered: true });
+  // Goals that take it as input or hand it in are listed under 「被谁引用」 in Goals' group, named by Goals' own link-subjects
+  // action asked as the caller (RAC-2084), each opening the Goal as a workbench item (RAC-2085).
+  await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
   const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
   createContextLedger(store.db, { authorize: () => true }).commands.put({ actor_id: "fixture", scope }, { key: "input-fixture", type: "goal.input", cause: "fixture",
     source: { module: "goals", id: "PLATFORM", version: null, scope }, target: { module: "artifacts", id: pinned.artifact_id, version: pinned.version, scope } });
   const linked = await detail(pinned.artifact_id, pinned.version);
   const v1 = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "V1")!.title, platform = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "PLATFORM")!.title;
   const html = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  assert.ok(linked.includes(`href="/goals/V1">${html(v1)}</a><span>交付物</span>`), "the Goal that hands it in");
-  assert.ok(linked.includes(`href="/goals/PLATFORM">${html(platform)}</a><span>输入</span>`), "the Goal that takes it as input");
+  const goalLink = (id: string, title: string) => `<a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="${id}" data-workbench-item-title="${html(title)}">${html(title)}</a>`;
+  assert.ok(linked.includes(`<h3 class="artifact-links-heading">Goals</h3><ul data-artifact-linked-plugin="io.molis.work.goals">`), "listed under Goals");
+  assert.ok(linked.includes(`${goalLink("V1", v1)}<span>交付物</span>`), "the Goal that hands it in");
+  assert.ok(linked.includes(`${goalLink("PLATFORM", platform)}<span>输入</span>`), "the Goal that takes it as input");
+  assert.ok(!linked.includes(`/projects/${DEMO_PROJECT_ID}/goals/`), "no row is a Goals address");
 
   // A document whose text links to this version is listed too (五.1), and opens in Pages; links to another version are not.
   const path = `/artifacts/${encodeURIComponent(pinned.artifact_id)}/versions/${pinned.version}`;
@@ -84,31 +88,69 @@ test("a pinned document shows when the original changed or was deleted, and whic
 });
 
 test("a pinned document that moved to another place says so, instead of saying it was deleted", async t => {
-  const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-moved-"));
-  const databasePath = join(directory, "fixture.db");
-  seedDemoBoard(databasePath);
-  const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
-  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true }); });
-  await (await fetch(origin + "/health")).text();
+  const served = await openTestHome(t);
+  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-moved", actor_id: "test" }));
+  const DEMO_PROJECT_ID = project.project_id;
+  await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
+  const origin = served.origin;
+  const controlToken = served.controlToken;
+  // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
+  const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
+  const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
+  await (await fetchProject(origin + "/health")).text();
   const post = async (path: string, body: unknown) => {
-    const response = await fetch(origin + path, { method: "POST", headers: { "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+    const response = await fetchProject(origin + path, { method: "POST", headers: { "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
     assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
     return await response.json() as Record<string, any>;
   };
-  const detail = async (artifactId: string, version: number) => await (await fetch(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
+  const detail = async (artifactId: string, version: number) => await (await fetchProject(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
     { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
 
   const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
   const pinned = (await post("/api/plugins/io.molis.work.pages/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
-  const store = openPagesStore(directory);
+  const store = openPagesStore(served.home);
   try { store.relocate(created.id, DEMO_PROJECT_ID, "personal"); } finally { store.close(); }
   const moved = await detail(pinned.artifact_id, pinned.version);
   assert.match(moved, /原对象已移到别处，这里仍保留第 1 版/);
   assert.doesNotMatch(moved, /原对象已经删除/, "a move is not a deletion");
   assert.doesNotMatch(moved, /在 Pages 打开原对象/, "it is not in this project to open");
   assert.match(moved, /第一稿/);
+});
+
+// RAC-2088 RAC-2495: an MCP client granted 「被谁引用」 and Goals' naming action reads the Goal titles, as it did when they came from Goals'
+// directory; with the naming action taken away it sees the ids. RAC-2084: Goals names only the Goals that are there.
+// RAC-2495: not being granted the naming action is told as a refusal by the kind the grant check gives it, not by its code.
+test("RAC-2088 RAC-2495 an MCP client reads the Goal titles under 「被谁引用」 when granted Goals' naming action, and ids without it", async t => {
+  const served = await openTestHome(t);
+  const project = await served.createProject("artifact-links-mcp");
+  await seedDemoGoals(project.database_path, project.project_id);
+  const store = new LocalProjectDatabase(project.database_path);
+  t.after(() => store.close());
+  const projectOrigin = `${served.origin}/projects/${encodeURIComponent(project.project_id)}`;
+  const post = async (path: string, body: unknown) => {
+    const response = await globalThis.fetch(projectOrigin + path, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", origin: served.origin,
+      "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`);
+    return await response.json() as Record<string, unknown>;
+  };
+  const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinned = (await post(`/api/plugins/io.molis.work.pages/pages/${created.id}/promote`, { expected_version: created.version })).artifact as { artifact_id: string; version: number };
+  await post("/api/plugins/io.molis.work.goals/goals/V1/deliverables", { reference: pinned, delivered: true });
+  const v1 = new GoalProjectApplication(store).goalQueries.getGoal(project.project_id, "V1")!.title;
+
+  const linksAction = { capability_id: "artifacts.links", version: 1 }, namesAction = { capability_id: "goals.artifacts.link_subjects", version: 1 };
+  await served.grant("links-mcp", project.project_id, [linksAction, namesAction]);
+  const mcp = await served.mcp("links-mcp", project.project_id);
+  type Linked = { plugins: Array<{ plugin_id: string; objects: Array<{ id: string; title: string }> }> };
+  const seen = async () => (await mcp.client.invoke(mcp.caller, linksAction, { reference: pinned }) as Linked).plugins
+    .map(group => [group.plugin_id, group.objects.map(item => `${item.id}=${item.title}`)]);
+  assert.deepEqual(await seen(), [["io.molis.work.goals", [`V1=${v1}`]]]);
+  assert.deepEqual((await mcp.client.invoke(mcp.caller, namesAction, { ids: ["V1", "NO-SUCH-GOAL"] }) as { objects: Array<{ id: string }> }).objects.map(item => item.id), ["V1"]);
+  await served.revoke("links-mcp", project.project_id, [namesAction]);
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    assert.deepEqual(await seen(), [["io.molis.work.goals", ["V1=V1"]]], "not granted the naming action: the id, and no failure");
+  } finally { restore(); }
+  assert.deepEqual(entries.filter(entry => entry.event === "link_subjects_failed"), [], "not being granted it is an answer, not a failure to log (RAC-2089, RAC-2495)");
 });

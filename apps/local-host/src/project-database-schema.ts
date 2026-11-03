@@ -1,16 +1,14 @@
-import { replicaSchemaSql, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
+import { PROJECT_REPLICATION_SCHEMA_SQL } from './project-replication-schema.js';
+import { STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
-import { SOURCES_SCHEMA_SQL } from "@molis-ai/molis-work-module-sources";
-import { SIGNALS_SCHEMA_SQL } from "@molis-ai/molis-work-module-signals";
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
-import { FEED_SCHEMA_SQL } from "@molis-ai/molis-work-module-feed";
-import { LISTENER_HOST_SCHEMA_SQL } from "@molis-ai/molis-work-service-listener-host";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,
+  PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
   PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,
   PLUGIN_PROJECT_DATABASES_SCHEMA_SQL,
   PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL,
@@ -28,10 +26,11 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * No plugin's table is here (PLIB-01): a plugin declares its own in its Manifest (`databases.project`), and the platform makes
  * them the first time the library opens with that plugin and records them in `plugin_project_databases`
  * (`project-plugin-databases.ts`). The project's root row comes first; every project table points its foreign key at it.
- * Goals' and Governance's tables are not here either: Goals declares them (S8).
+ * Goals' and Governance's tables are not here either: Goals declares them (S8), and Feed declares the Feed items, Sources, Signals and
+ * Listener Host tables along with its out rules.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 16,
+  version: 17,
   schema: ([
     STORAGE_SPACE_SCHEMA_SQL,
     PROJECT_ROOT_SCHEMA_SQL,
@@ -39,19 +38,17 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
     PROCESS_ITEMS_SCHEMA_SQL,
     LOCAL_JOURNAL_SCHEMA_SQL,
     CONTEXT_LEDGER_SCHEMA,
-    SOURCES_SCHEMA_SQL,
-    SIGNALS_SCHEMA_SQL,
-    LISTENER_HOST_SCHEMA_SQL,
     ATTENTION_SCHEMA_SQL,
-    FEED_SCHEMA_SQL,
     LOCAL_OPAQUE_BLOB_SCHEMA_SQL,
     PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL,
     PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL,
     PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,
     PLUGIN_EVENTS_SCHEMA_SQL,
+    PLUGIN_NOTIFICATIONS_SCHEMA_SQL,
     PLUGIN_WIRING_SCHEMA_SQL,
     PLUGIN_PROJECT_DATABASES_SCHEMA_SQL,
     SCHEDULER_SCHEMA_SQL,
     PROJECT_BROWSING_SETTINGS_SCHEMA_SQL,
-  ].join("\n"))+replicaSchemaSql('goals')+replicaSchemaSql('artifacts')+replicaSchemaSql('process_items')+replicaSchemaSql('schedule')+replicaSchemaSql('feed')+replicaSchemaSql('sources')+replicaSchemaSql('attention')+replicaSchemaSql('messages')+replicaSchemaSql('coding')+replicaSchemaSql('builder'),
+    PROJECT_REPLICATION_SCHEMA_SQL,
+  ].join("\n")),
 };

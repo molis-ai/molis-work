@@ -1,23 +1,33 @@
 import { codingUsageSummary } from "./usage.js";
+import { CODING_SESSION_MARKS } from "./session-marks.js";
 import type {
+  SettingsPageModel,
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
+  UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { renderButton, renderDirectoryRow, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
+import { icon, renderButton, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
+import { codingAgentManifest } from "./roles.js";
 import {
   filterSessions,
   groupByGoal,
   type CodingDirectoryFilter,
   type CodingSessionEntry,
-  type CodingSessionState,
   type CodingToolAvailability,
 } from "./projection.js";
 
 export const CODING_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.ui.v1";
 export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.settings.v1";
+
+/**
+ * The two places Coding's page opens for the plugins it embeds (`ui.embedded_plugins`): their browsers' lists go in the directory
+ * column, their readers beside the conversation. An embedded plugin fills one by declaring a surface that targets its id.
+ */
+export const CODING_COMPANION_DIRECTORY_SLOT = "coding.companion-directory";
+export const CODING_COMPANION_RESULT_SLOT = "coding.companion-result";
 
 export type CodingUiSurface = "directory" | "workbench";
 
@@ -43,7 +53,7 @@ export interface CodingUiPrimitives {
   formatDate(value: string): string;
 }
 
-export interface CodingUiModel {
+export interface CodingUiModel extends UiNestedContentModel {
   readonly route_prefix: string;
   readonly face: CodingDirectoryFace;
   readonly filter: CodingDirectoryFilter;
@@ -51,15 +61,11 @@ export interface CodingUiModel {
   readonly tools: readonly CodingToolAvailability[];
   /** Host-authorized workspace, or null when this project has none bound. */
   readonly workspace_path: string | null;
-  /** Trusted HTML contributed by companion plugins through the Host. */
-  readonly companion_directory?: string;
-  readonly companion_result?: string;
   readonly primitives: CodingUiPrimitives;
 }
 
-export const codingUiDescriptor: UiContributionDescriptor = {
+export const codingUiDescriptor: UiContributionDeclaration = {
   contribution_id: CODING_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.coding",
   kind: "primary-page",
   navigation_id: "coding",
   label: "Coding",
@@ -67,23 +73,12 @@ export const codingUiDescriptor: UiContributionDescriptor = {
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
-  slots: [],
+  slots: [
+    { slot_id: CODING_COMPANION_DIRECTORY_SLOT, version: 1, accepts: ["declarative-html"] },
+    { slot_id: CODING_COMPANION_RESULT_SLOT, version: 1, accepts: ["declarative-html"] },
+  ],
 };
 
-/** How a session's state reads. Status is an icon plus family-coloured text, never a pill. */
-const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label: string }> = {
-  "idle": { icon: "message", tone: "idle", label: "coding.state.idle" },
-  "running": { icon: "activity", tone: "progress", label: "coding.state.running" },
-  "paused": { icon: "pause", tone: "attention", label: "coding.state.paused" },
-  "waiting-answer": { icon: "question", tone: "attention", label: "coding.state.waiting-answer" },
-  "waiting-approval": { icon: "circle-alert", tone: "attention", label: "coding.state.waiting-approval" },
-  "failed": { icon: "alert", tone: "blocked", label: "coding.state.failed" },
-  "stopped": { icon: "blocked", tone: "idle", label: "coding.state.stopped" },
-  "cancelled": { icon: "x", tone: "idle", label: "coding.state.cancelled" },
-  "reconcile-required": { icon: "circle-alert", tone: "attention", label: "coding.state.reconcile-required" },
-  "queued": { icon: "clock", tone: "attention", label: "coding.state.queued" },
-  "done": { icon: "check", tone: "done", label: "coding.state.done" },
-};
 
 export const codingUiContribution: UiContribution<CodingUiModel> = {
   descriptor: codingUiDescriptor,
@@ -99,17 +94,31 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
   },
 };
 
-/** What the Host hands Coding's page when it renders: everything but the session directory, which Coding reads from its own tables. */
-export type CodingUiHostModel = Omit<CodingUiModel, "sessions">;
+/**
+ * What the platform hands any plugin's stage when it renders: the route prefix, the shared primitives and what the plugins this one
+ * embeds drew in its slots. The rest of Coding's page is Coding's own: its face, the session directory and the primitives it brings.
+ */
+export interface CodingUiHostModel extends UiNestedContentModel {
+  readonly route_prefix: string;
+  readonly primitives: Pick<CodingUiPrimitives, "escape" | "text"> & Partial<CodingUiPrimitives>;
+}
+
+const codingIcon = (name: string): string => icon(name as Parameters<typeof icon>[0]);
+const codingDate = (value: string): string => value.slice(0, 10);
 
 /**
  * Coding's page as one started plugin gives it: the session directory is read from the plugin's own store (`directory`) each time
- * the page renders, so the Host never reads Coding's tables to draw it (PG-091, V-14).
+ * the page renders, so the Host never reads Coding's tables to draw it (PG-091, V-14). The page opens on the sessions face with every
+ * session listed; the tool tabs and the workspace path are drawn by Coding's own client.
  */
 export function codingUiView(directory: () => readonly CodingSessionEntry[]): UiContribution<CodingUiHostModel> {
   return {
     descriptor: codingUiDescriptor,
-    render: request => codingUiContribution.render({ ...request, model: { ...request.model, sessions: directory() } }),
+    render: request => codingUiContribution.render({ ...request, model: {
+      route_prefix: request.model.route_prefix, face: "sessions", filter: "all", tools: [], workspace_path: null,
+      ...(request.model.nested ? { nested: request.model.nested } : {}), sessions: directory(),
+      primitives: { icon: codingIcon, formatDate: codingDate, ...request.model.primitives },
+    } }),
   };
 }
 
@@ -118,7 +127,7 @@ export function renderCodingDirectory(model: CodingUiModel): string {
   const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(p.text(face.label))}" aria-label="${p.escape(p.text(face.label))}">${p.icon(face.icon)}</button>`).join("");
   const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}" aria-pressed="${filter === model.filter}">${p.escape(filterLabel(filter, p))}</button>`).join("");
   const groups = groupByGoal(filterSessions(model.sessions, model.filter))
-    .map((group) => renderGroup(group.goal_id, group.title, group.entries, p))
+    .map((group) => renderCodingSessionGroup(group.goal_id, group.goal_id === null ? p.text("coding.directory.no-goal") : group.title, group.entries, p))
     .join("");
   return renderSidebar({className:"coding-directory",attrs:{"data-coding-directory":"","data-coding-current-face":model.face},
     body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face, p),listLabel:p.text("coding.directory.list"),listRole:"none",
@@ -142,26 +151,28 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       <p class="coding-face-note" data-coding-artifact-status role="status"></p><div class="coding-outline" data-coding-artifact-list></div>
       ${renderButton({label:p.text("coding.artifacts.refresh"),icon:"refresh",variant:"ghost",attrs:{"data-coding-artifact-refresh":""}})}
     </section>
-    ${model.companion_directory ?? ""}`,
+    ${model.nested?.[CODING_COMPANION_DIRECTORY_SLOT] ?? ""}`,
       add:{label:p.text("coding.directory.new"),attrs:{"data-coding-new":""}}
     })});
 }
 
-function renderGroup(
-  goalId: string | null,
-  title: string,
-  entries: readonly CodingSessionEntry[],
-  p: CodingUiPrimitives,
-): string {
-  const rows = entries.map((entry) => {
-    const mark = STATE_MARK[entry.state];
-    return renderDirectoryRow({ title: entry.title, caption: p.text(mark.label), count: p.formatDate(entry.updated_at),
-      density: "meta", icon: "message", className: "coding-session-row", href: `#session-${entry.session_id}`,
-      attrs: { "data-coding-session": entry.session_id } });
-  }).join("");
+/**
+ * One session's row, the same row the page's live list draws over it (client.ts `renderDirectory`): its title and time, then its
+ * state in words with the state ring, so the first paint already has the ring and nothing moves when the list takes over.
+ */
+export function renderCodingSessionRow(entry: CodingSessionEntry, p: CodingUiPrimitives): string {
+  const mark = CODING_SESSION_MARKS[entry.state], id = p.escape(entry.session_id);
+  return `<a class="mw-dir-row mw-dir-row--meta coding-session-row" href="#session-${p.escape(encodeURIComponent(entry.session_id))}" data-coding-session="${id}" aria-current="false">`
+    + `<span class="mw-dir-row__icon">${p.icon(CODING_DIRECTORY_FACES[0].icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">`
+    + `<strong class="coding-session-title" title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><time class="mw-dir-row__count coding-session-time" datetime="${p.escape(entry.updated_at)}">${p.escape(p.formatDate(entry.updated_at))}</time></span>`
+    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}">${p.escape(p.text(mark.label))}</small></span></a>`;
+}
+
+/** A Goal's sessions under its heading (or the real group of sessions with no Goal). */
+export function renderCodingSessionGroup(goalId: string | null, title: string, entries: readonly CodingSessionEntry[], p: CodingUiPrimitives): string {
   return `<section class="coding-session-group"${goalId === null ? "" : ` data-coding-goal="${p.escape(goalId)}"`}>
     ${renderDirectoryHeading(title)}
-    ${rows}
+    ${entries.map((entry) => renderCodingSessionRow(entry, p)).join("")}
   </section>`;
 }
 
@@ -335,7 +346,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape(p.text("coding.results.tools"))}"><h3 class="coding-tools-title">${p.escape(p.text("coding.results.title"))}</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="${p.escape(p.text("coding.results.back"))}" title="${p.escape(p.text("coding.results.back"))}">${p.icon("x")}</button></nav>
         <nav class="coding-results-index" data-coding-results-index aria-label="${p.escape(p.text("coding.results.index"))}" hidden></nav>
-        ${model.companion_result ?? ""}
+        ${model.nested?.[CODING_COMPANION_RESULT_SLOT] ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="${p.escape(p.text("coding.results.subagents"))}" hidden></section>
         <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="${p.escape(p.text("coding.results.cooperation"))}" hidden></section>
         <section class="coding-result coding-background" data-coding-background aria-label="${p.escape(p.text("coding.results.background"))}" hidden></section>
@@ -430,12 +441,11 @@ export interface CodingSettingsModel {
   readonly project_href?: string | null;
   readonly project_name?: string;
   readonly projects?: ReadonlyArray<{ project_id: string; name: string }>;
-  readonly primitives: CodingUiPrimitives;
+  readonly primitives: Pick<CodingUiPrimitives, "escape" | "text">;
 }
 
-export const codingSettingsDescriptor: UiContributionDescriptor = {
+export const codingSettingsDescriptor: UiContributionDeclaration = {
   contribution_id: CODING_SETTINGS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.coding",
   kind: "settings-page",
   navigation_id: "coding-settings",
   label: "Coding",
@@ -517,15 +527,35 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
   </section>`;
 }
 
-function executionLabel(execution: string, p: CodingUiPrimitives): string {
+function executionLabel(execution: string, p: Pick<CodingUiPrimitives, "text">): string {
   if (execution === "read-only") return p.text("coding.settings.execution.read-only");
   if (execution === "text-edit") return p.text("coding.settings.execution.text-edit");
   return p.text("coding.settings.execution.command");
 }
 
-export const codingSettingsContribution: UiContribution<CodingSettingsModel> = {
+/**
+ * The page is drawn from the platform's settings context alone (its view declares no `settings_data`): the roles and the methods are
+ * this plugin's own, from its Agent Manifest, and the runtimes, projects and the project the page was opened from are the Host's.
+ */
+export function codingSettingsModel({ context, primitives }: SettingsPageModel): CodingSettingsModel {
+  return {
+    roles: codingAgentManifest.roles.map(role => ({ ...role, execution: role.execution ?? "read-only" })),
+    runtimes: context.runtimes.map(runtime => ({ ...runtime,
+      can_write: runtime.capabilities["text-edit"] !== "unsupported",
+      can_command: runtime.capabilities.command !== "unsupported",
+      methods: runtime.capabilities.skills,
+    })),
+    methods: codingAgentManifest.skills ?? [],
+    projects: context.projects.map(project => ({ project_id: project.project_id, name: project.name })),
+    project_name: context.project?.name,
+    project_href: context.project?.href ?? null,
+    primitives,
+  };
+}
+
+export const codingSettingsContribution: UiContribution<SettingsPageModel> = {
   descriptor: codingSettingsDescriptor,
-  render: (request) => renderCodingSettings(request.model),
+  render: (request) => renderCodingSettings(codingSettingsModel(request.model)),
 };
 
 export interface CodingPendingReview {

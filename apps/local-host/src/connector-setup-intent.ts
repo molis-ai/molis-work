@@ -27,7 +27,7 @@ export function connectorSetupIntentHandler(home: string, remember: ConnectorMcp
     if (request?.intent_revision !== choice.intent_revision || !["prepared", "pending"].includes(request.status)) throw errors.changed("接入要求已变化或请求已结束，请重新读取");
     if (choice.decision === "cancel") return cancelConnectorAuthorization(home, choice.authorization_id)!;
     releaseConnectorAuthorizationIntent(home, choice.authorization_id, choice.intent_revision);
-    const result = commitRetainedConnectorAuthorization(home, choice.authorization_id)!;
+    const result = (await commitRetainedConnectorAuthorization(home, choice.authorization_id))!;
     return result.status === "connected" ? { ...result, verification: await verifyEnabledConnection(home, result.connection_id, remember, caller) } : result;
   } };
 }

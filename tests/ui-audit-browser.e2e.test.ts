@@ -3,8 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
 const TOKEN = "goals-risk-test-control-token-0123456789";
@@ -13,6 +15,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId, reloadPage } = browser;
+  const pages = await pluginFrameBrowser(t, browser, "pages");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory });
   catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "ui-audit" });
   catalog.close();
@@ -31,7 +34,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     "content-type": "application/json",
     "x-molis-work-control-token": TOKEN,
   };
-  const inbox = await fetch(`${origin}/projects/${projectId}/api/feed/items/${item.item_id}/inbox`, {
+  const inbox = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`, {
     method: "POST",
     headers: { ...headers, "x-molis-work-idempotency-key": "ui-audit-inbox" },
     body: JSON.stringify({ expected_revision: item.revision }),
@@ -71,7 +74,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const stylesheet = await (await fetch(`${origin}/assets/molis-work-workbench.css`)).text();
   assert.match(stylesheet, /\[data-inbox-workbench\]\s*\.inbox-reference-detail\s*>\s*\.feed-detail-header h1\s*\{\s*width:\s*100%;\s*max-width:\s*none;?\s*\}/);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click("[data-tab-split]");
   await click('[data-layout-split="right"]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 15_000);
@@ -85,17 +88,17 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
       embedded: frame.contentDocument?.body?.dataset.paneEmbedded || ''
     })))`);
     const panes = JSON.parse(paneState) as { surface: string }[];
-    if (panes.length === 2 && panes.every((pane) => pane.surface === "goal")) break;
+    if (panes.length === 2 && panes.every((pane) => pane.surface === "goals")) break;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  assert.match(paneState, /"surface":"goal".*"surface":"goal"/, paneState);
+  assert.match(paneState, /"surface":"goals".*"surface":"goals"/, paneState);
   const panes = await evaluate<{ plugin: string | null; surface: string | undefined; homeHidden: boolean | undefined }[]>(`[...document.querySelectorAll('iframe.tab-content-frame')].map(frame => ({
     plugin: new URL(frame.src).searchParams.get('panePlugin'),
     surface: frame.contentDocument?.body?.dataset.desktopSurface,
     homeHidden: frame.contentDocument?.querySelector('[data-work-surface=home]')?.hidden,
   }))`);
   assert.deepEqual(panes.map((pane) => pane.plugin), ["goals", "goals"]);
-  assert.deepEqual(panes.map((pane) => pane.surface), ["goal", "goal"]);
+  assert.deepEqual(panes.map((pane) => pane.surface), ["goals", "goals"]);
   assert.ok(panes.every((pane) => pane.homeHidden !== false));
   await shot("01-goals-split-1280x800.png");
   await click("[data-tab-split]");
@@ -105,8 +108,8 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     surface: document.body.dataset.desktopSurface,
     frameSurfaces: [...document.querySelectorAll('iframe.tab-content-frame')].filter(frame => !frame.hidden).map(frame => frame.contentDocument?.body?.dataset.desktopSurface || '')
   })`);
-  assert.equal(afterClose.surface, "goal");
-  assert.ok(afterClose.frameSurfaces.every((surface) => surface === "goal"), JSON.stringify(afterClose));
+  assert.equal(afterClose.surface, "goals");
+  assert.ok(afterClose.frameSurfaces.every((surface) => surface === "goals"), JSON.stringify(afterClose));
 
   const splitPlugin = async (plugin: string, surface: string, file: string) => {
     await click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);
@@ -197,7 +200,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await titleAt(640, 800, "05-inbox-title-640x800.png");
 
   await click('[data-plugin-strip] [data-plugin-id="pages"]');
-  await waitFor("document.querySelectorAll('button.feed-stage-entry[data-page-id]').length >= 2");
+  await pages.waitFor("document.querySelectorAll('button.feed-stage-entry[data-page-id]').length >= 2");
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open");
   await evaluate(`(() => { const input = document.querySelector('[data-global-search]'); input.value = 'Jev 的三个待验证问题'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -207,13 +210,13 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   assert.equal(hits.filter((id) => id === first.document.id || id === second.document.id).length, 2);
   await shot("04-pages-search.png");
   await evaluate("document.querySelector('[data-global-search-dialog]').close()");
-  await evaluate(`document.querySelector('button.feed-stage-entry[data-page-id="${first.document.id}"]').click()`);
-  await waitFor("document.querySelector('[data-pages-more]')");
-  await click("[data-pages-more]");
-  await waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'true'");
-  await evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))");
-  await waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'false'");
-  assert.equal(await evaluate("document.querySelector('[data-pages-more-menu]').hidden"), true);
-  assert.equal(await evaluate("document.activeElement === document.querySelector('[data-pages-more]')"), true);
+  await pages.evaluate(`document.querySelector('button.feed-stage-entry[data-page-id="${first.document.id}"]').click()`);
+  await pages.waitFor("document.querySelector('[data-pages-more]')");
+  await pages.click("[data-pages-more]");
+  await pages.waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'true'");
+  await pages.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))");
+  await pages.waitFor("document.querySelector('[data-pages-more]').getAttribute('aria-expanded') === 'false'");
+  assert.equal(await pages.evaluate("document.querySelector('[data-pages-more-menu]').hidden"), true);
+  assert.equal(await pages.evaluate("document.activeElement === document.querySelector('[data-pages-more]')"), true);
   await shot("06-pages-more-after-escape.png");
 });

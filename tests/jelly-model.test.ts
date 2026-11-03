@@ -1,10 +1,12 @@
 import test from "node:test";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import fs, { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { syncBuiltinESMExports } from "node:module";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { HOST_BUILD_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { ModelProviderStore, createModelProviderTables, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
@@ -125,7 +127,8 @@ test("Jelly model actions reuse the original provider and preference owners and 
   const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const { jellyActions, jellyServiceActions } = await import("@molis-ai/molis-work-plugin-jelly");
   const { bindActionClient } = await import("@molis-ai/molis-work-contracts/platform/actions");
-  const home = homeFor(t);
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
   const shared = modelConnection(home, "已有模型", "fixture-key", "https://shared.example.com/v1");
   providerStore(home, store => {
     store.upsert({ credential_ref: shared.credential_ref!, provider_id: "shared", display_name: "已有模型", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "model", enabled: true }] });
@@ -158,7 +161,9 @@ test("Jelly model actions reuse the original provider and preference owners and 
 test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and settings-only repair without network", async t => {
   const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
   const { jellyActions, jellyServiceActions, JELLY_ACTIONS, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
-  const home = homeFor(t), { host, request } = await serveHomeRuntime(t, { homeDirectory: home });
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const { host, request } = await serveHomeRuntime(t, { homeDirectory: home });
   try {
   const connection = modelConnection(home, "配置账号", "runtime-config-fixture");
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
@@ -185,7 +190,9 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
 test("W5-01-JMC-02 revoked private storage prevents preference, provider and connector-origin writes", async t => {
   const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
   const { jellyServiceActions, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
-  const home = homeFor(t), { host } = await serveHomeRuntime(t, { homeDirectory: home });
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const { host } = await serveHomeRuntime(t, { homeDirectory: home });
   try {
   const connection = modelConnection(home, "尚未绑定地址", "no-late-effects-fixture");
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
@@ -219,19 +226,20 @@ test("W5-01-JMC-03 a preference write failure rolls back the provider but retain
 async function trustedJelly(t: test.TestContext) {
   const { HomePluginHost } = await import("@molis-ai/molis-work-app-local-host");
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
-  const { createJellyPlugin, jellyManifest, JELLY_DATABASE } = await import("@molis-ai/molis-work-plugin-jelly");
+  const { createJellyPlugin, jellyManifest } = await import("@molis-ai/molis-work-plugin-jelly");
   const home = homeFor(t), service = new ActionService();
   const definitions: import("@molis-ai/molis-work-contracts/platform/plugin").PluginDefinition[] = [];
   const contexts: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext[] = [];
   const registrations: import("@molis-ai/molis-work-contracts/platform/actions").ActionProviderRegistration[] = [];
-  const declaration = structuredClone(JELLY_MODEL_CONFIGURATION);
+  // The plugin's own Manifest carries the declaration; this copy is the one the startup caller keeps hold of.
+  const declaration = structuredClone(JELLY_MODEL_CONFIGURATION), manifest = { ...jellyManifest, model_configuration: declaration };
   const host = new HomePluginHost({ home, actorId: "person", client: service, registry: {
     registerProvider(registration) { registrations.push(registration); return service.registerProvider(registration); },
-  }, entries: [{ scope: "home", manifest: jellyManifest, create() {
+  }, entries: [{ scope: "home", manifest, create() {
     const plugin = createJellyPlugin();
-    const definition = { ...plugin, async start(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext) { contexts.push(context); return plugin.start(context); } };
+    const definition = { ...plugin, manifest, async start(context: import("@molis-ai/molis-work-contracts/platform/plugin").PluginStartContext) { contexts.push(context); return plugin.start(context); } };
     definitions.push(definition); return definition;
-  }, database: JELLY_DATABASE, model_configuration: declaration,
+  },
   package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" }] });
   const platform = await host.ready(), install = host.installation(jellyManifest.plugin_id)!;
   return { home, host, service, platform, install, contexts, registrations, declaration, definitions };
@@ -244,7 +252,7 @@ test("W5-01-JMC-02 real configuration rejects stopped, revoked and replaced inst
     const f = await trustedJelly(t), connection = modelConnection(f.home, "未绑定连接", "lifecycle-config-fixture");
     try {
       const entered = deferred(), release = deferred();
-      const handler = f.registrations.at(-1)!.handlers.find(action => action.capability_id === jellyServiceActions.saveModelSettings.capability_id)!;
+      const handler = f.registrations.flatMap(registration => registration.handlers).find(action => action.capability_id === jellyServiceActions.saveModelSettings.capability_id)!;
       const pending = Promise.resolve(handler.handle({ actor_id: "person", audience: "user", project_id: null, permissions: ["jelly:settings"],
         beforeEffect: async () => { entered.resolve(); await release.promise; } },
       { base_url: "https://late-save.example/v1", model_id: "late", connection_id: connection.connection_id }));
@@ -254,7 +262,7 @@ test("W5-01-JMC-02 real configuration rejects stopped, revoked and replaced inst
       if (change === "revoke") f.platform.runtime.grant(f.install.install_id, f.install.grants.filter(grant => grant !== "storage:private"));
       if (change === "reinstall") {
         await f.platform.runtime.uninstall(f.install.install_id);
-        const replacement = f.platform.runtime.install({ definition: f.definitions[0]!, deployment: "local", grants: f.install.grants }).install;
+        const replacement = f.platform.runtime.install({ trust: HOST_BUILD_TRUST, definition: f.definitions[0]!, deployment: "local", grants: f.install.grants }).install;
         assert.notEqual(replacement.installation_generation, f.install.installation_generation);
         await f.platform.runtime.start(replacement.install_id);
       }
@@ -262,16 +270,18 @@ test("W5-01-JMC-02 real configuration rejects stopped, revoked and replaced inst
       assert.equal(existsSync(join(f.home, "jelly", "preferences.json")), false);
       providerStore(f.home, store => assert.equal(store.get("jelly-text"), null));
       withConnectorConnections(f.home, store => store.assertTarget(connection.connection_id, "model-api", "https://first-save.example/v1"));
-      assert.throws(() => f.contexts[0]!.services!.model!.configuration!.selection());
+      assert.equal(f.contexts[0]!.services!.model!.configuration!.selection(), undefined, `${change}: the stopped activation's handle answers nothing (BL-411)`);
     } finally { await f.host.close(); }
   }
 });
 
-test("W5-01-JMC-02 a fixture cannot self-declare configuration and trusted declarations are copied before plugin code runs", async t => {
+test("W5-01-JMC-02 a property stuck on a definition declares nothing, and the Manifest's declaration is copied before plugin code runs", async t => {
   const { MolisWorkLocalHost } = await import("@molis-ai/molis-work-app-local-host");
   const { homeProbe } = await import("./fixtures/home-runtime.js");
   const probe = homeProbe("forgedconfiguration"), forged = Object.assign(probe.definition, { model_configuration: JELLY_MODEL_CONFIGURATION });
-  const home = homeFor(t), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [forged] } });
+  const home = homeFor(t, false);
+  await withMolisWorkProjectCatalog({ homeDirectory: home }, () => undefined);
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [forged] } });
   try {
     await host.homePlugins!.ready();
     assert.equal(probe.contexts.at(-1)!.services!.model!.configuration, undefined);

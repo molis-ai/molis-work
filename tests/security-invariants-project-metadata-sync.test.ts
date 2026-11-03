@@ -1,3 +1,6 @@
+import {createStaticPersonalSync as createPersonalSync} from './fixtures/static-personal-sync.js';
+import {defaultPrefs} from '@molis-ai/molis-work-service-memory';
+import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/actions';
 import {syncRoundResponse} from './fixtures/sync-round.js';
 import {syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
 import type {SyncEvent} from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -6,14 +9,14 @@ import {once} from 'node:events';
 import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import test,{type TestContext} from 'node:test';
-import {mkdtempSync,readFileSync,readdirSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,realpathSync,readFileSync,readdirSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import Database from 'better-sqlite3';
 import {createProjectsSchema,ProjectsModule,projectReplicationOwner,validatePortableProject,projectPluginRequirements,installProjectReplicationJournal} from '@molis-ai/molis-work-module-projects';
-import {replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile} from '@molis-ai/molis-work-storage';
+import {replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
-import {createPersonalCatalogRegistration,CATALOG_SCHEMA_VERSION,ProjectDeletionService,handleProjectRecycleHttp,createPersonalSync} from '@molis-ai/molis-work-app-local-host';
+import {createPersonalCatalogRegistration,CATALOG_SCHEMA_VERSION,ProjectDeletionService,handleProjectRecycleHttp} from '@molis-ai/molis-work-app-local-host';
 import {withMolisWorkProjectCatalog,openMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 
 const spaceId='personal:alice',at='2026-10-19T00:00:00.000Z';
@@ -21,9 +24,9 @@ function moduleFixture(t:TestContext){
   const db=new Database(':memory:');t.after(()=>db.close());db.pragma('foreign_keys = ON');createProjectsSchema(db);db.exec(replicaSchemaSql());
   const ledger=borrowedReplicaDatabase({exec:sql=>db.exec(sql),prepare:sql=>db.prepare(sql)});initializeReplica(ledger);installProjectReplicationJournal(db,replicaMarkSql);
   let current=true;const authorize=()=>{if(!current)throw new Error('revoked');},options={spaceId,authorize,excludedProjectIds:['personal-root']};
-  const projects=new ProjectsModule({db,spaceId,now:()=>at,plugins:{has:id=>['goals','pages'].includes(id),companions:()=>[]}});
+  const projects=new ProjectsModule({db,spaceId,projects_directory:'/source/private-only',now:()=>at,plugins:{has:id=>['goals','pages'].includes(id),initial:()=>['goals'],companions:()=>[]}});
   const owner=projectReplicationOwner(db,options),replica=createSqliteReplica(ledger,{...owner,conflictState:createSyncConflictState});
-  const create=(id:string,synced=false)=>{const p=projects.lifecycle.prepareRecord({project_id:id,display_name:'项目',projects_directory:'/source/private-only',data_class:'user'});projects.lifecycle.register(p,synced?'project.sync_prepared':'project.created','alice');return p;};
+  const create=(id:string,synced=false)=>{const p=projects.lifecycle.prepareRecord({project_id:id,display_name:'项目',data_class:'user'});projects.lifecycle.register(p,synced?'project.sync_prepared':'project.created','alice');return p;};
   return {db,projects,replica,owner,options,create,revoke:()=>{current=false;}};
 }
 const value=(key:string,plugins=['goals'])=>({format:1,spaceId,project:{id:key,title:'新名称',created_at:at,updated_at:at},plugins});
@@ -134,7 +137,7 @@ function homes(t:TestContext){const root=mkdtempSync(join(tmpdir(),'project-meta
 
 test('PCSYNC-01 local-space Project edits remain local and cannot register for personal sync',async t=>{
   const f=homes(t),home=join(f.root,'local');
-  await withMolisWorkProjectCatalog({homeDirectory:home},async c=>{const p=await c.createProject({display_name:'本机项目',actor_id:'local'});c.addProjectPlugin({project_id:p.project_id,plugin_id:'artifacts',actor_id:'local'});c.renameProject(p.project_id,'本机改名','local','本机项目');});
+  await withMolisWorkProjectCatalog({homeDirectory:home},async c=>{const p=await c.createProject({display_name:'本机项目',actor_id:'local'});c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'local'});c.renameProject(p.project_id,'本机改名','local','本机项目');});
   const db=new Database(join(home,'projects','catalog.db'),{readonly:true});try{assert.equal(db.prepare('SELECT COUNT(*) AS n FROM project_catalog_replica_changes').get()!.n,0);}finally{db.close();}
   assert.throws(()=>createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},withMolisWorkProjectCatalog,'molis'),/不属于当前个人空间/);
 });
@@ -191,22 +194,28 @@ test('PCSYNC-MCP-RECONNECT-02 readonly inspection cannot release another connect
 
 test('PCSYNC-20 actual Host passive creation and fresh catalog journal round-trip rename without source paths or automatic activation',async t=>{
   const f=homes(t),a=f.make('a'),b=f.make('b');
-  const project=await withMolisWorkProjectCatalog({homeDirectory:a},async c=>{const p=await c.createProject({display_name:'源项目',actor_id:'alice'});c.addProjectPlugin({project_id:p.project_id,plugin_id:'artifacts',actor_id:'alice'});return p;});
+  const project=await withMolisWorkProjectCatalog({homeDirectory:a},async c=>{const p=await c.createProject({display_name:'源项目',actor_id:'alice'});c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'alice'});return p;});
   const registration=(home:string)=>createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},withMolisWorkProjectCatalog,'molis');
   const ar=registration(a),br=registration(b);await ar.refresh();await br.refresh();
   const mutation=ar.withReplica(r=>r.next())!;assert.equal(mutation.key,project.project_id);const event={...mutation,revision:1};
   await br.prepare(event);br.withReplica(r=>r.receive(event));ar.withReplica(r=>r.acknowledge(mutation.key,mutation.operationId,1));
   assert.deepEqual(br.withReplica(r=>r.counts()),{pending:0,conflicts:0});
-  await withMolisWorkProjectCatalog({homeDirectory:b},c=>{const p=c.getProject(project.project_id);assert.notEqual(p.database_path,project.database_path);assert.ok(p.database_path.startsWith(b));assert.equal(p.display_name,'源项目');assert.ok(c.projectPluginRequirements(p.project_id).some(p=>p.plugin_id==='artifacts'&&p.installed&&!p.active));c.renameProject(p.project_id,'目标改名','alice','源项目');});
+  await withMolisWorkProjectCatalog({homeDirectory:b},c=>{const p=c.getProject(project.project_id);assert.notEqual(p.database_path,project.database_path);assert.ok(p.database_path.startsWith(realpathSync(b)));assert.equal(p.display_name,'源项目');assert.ok(c.projectPluginRequirements(p.project_id).some(p=>p.plugin_id==='feed'&&p.installed&&!p.active));c.renameProject(p.project_id,'目标改名','alice','源项目');});
   const rename=br.withReplica(r=>r.next())!;await ar.prepare({...rename,revision:2});ar.withReplica(r=>r.receive({...rename,revision:2}));
   await withMolisWorkProjectCatalog({homeDirectory:a},c=>assert.equal(c.getProject(project.project_id).display_name,'目标改名'));
   assert.equal(ar.withReplica(r=>r.counts()).pending,0);
 });
 
 for(const mode of ['DELETE','WAL'])test(`PCSYNC-20 frozen v22 ${mode} catalog is rejected byte-for-byte before writable PRAGMAs or new sidecars`,async t=>{
-  const f=homes(t),home=f.make('old'),directory=join(home,'projects');mkdirSync(directory,{recursive:true});const file=join(directory,'catalog.db');
+  const f=homes(t),home=f.make('old'),directory=join(home,'projects');
+  const memory=openMemoryLedger({homeDirectory:home});
+  try{memory.transaction(()=>{
+    memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'personal',defaultPrefs('personal','reviewed'));
+    memory.savePrefs(LOCAL_PERSON_ACTOR_ID,'project-default',defaultPrefs('project','reviewed'));
+  });}finally{memory.close();}
+  mkdirSync(directory,{recursive:true});const file=join(directory,'catalog.db');
   const db=new Database(file);db.pragma('journal_mode='+mode);db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22'); CREATE TABLE original_fact(value TEXT); INSERT INTO original_fact VALUES('retain');");db.close();
-  const bytes=readFileSync(file),files=readdirSync(directory);assert.equal(CATALOG_SCHEMA_VERSION,25);
+  const bytes=readFileSync(file),files=readdirSync(directory);assert.equal(CATALOG_SCHEMA_VERSION,26);
   await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'catalog.unsupported_schema'});assert.deepEqual(readFileSync(file),bytes);assert.deepEqual(readdirSync(directory),files);
 });
 

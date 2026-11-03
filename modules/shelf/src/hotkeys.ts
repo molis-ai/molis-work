@@ -2,7 +2,7 @@ import type {
   ShelfHotKeyChord,
   ShelfHotKeys,
   ShelfHotKeySlot,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "./contract.js";
 
 export const CARBON_CMD_KEY = 1 << 8;
 export const CARBON_SHIFT_KEY = 1 << 9;

@@ -9,19 +9,19 @@ export interface ChoiceCriterion {
     readonly description: string;
 }
 
-export declare const FEED_ARCHIVE_BEHAVIOR_ID = "feed.archive";
+export declare const FEED_ARCHIVE_OPTION_ID = "feed.archive";
 
 export declare const FEED_CAPTURE_DISPOSITION_IDS: readonly string[];
 
 export declare const FEED_CAPTURE_SCENE_ID = "feed.capture";
 
-export declare const FEED_OPEN_BEHAVIOR_ID = "feed.open";
+export declare const FEED_OPEN_OPTION_ID = "feed.open";
 
-export declare const FEED_PROMOTE_BEHAVIOR_ID = "feed.promote";
+export declare const FEED_PROMOTE_OPTION_ID = "feed.promote";
 
-export declare const FEED_REAUTH_BEHAVIOR_ID = "feed.reauth";
+export declare const FEED_REAUTH_OPTION_ID = "feed.reauth";
 
-export declare const FEED_SAVE_BEHAVIOR_ID = "feed.save";
+export declare const FEED_SAVE_OPTION_ID = "feed.save";
 
 export declare const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 
@@ -33,13 +33,76 @@ export declare const FUNCTIONS_PLUGIN_ID = "io.molis.work.functions";
 
 export declare const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
 
-export declare const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[];
+export declare const FUNCTIONS_PROVIDER_ID = "system.functions";
 
-export type FunctionActionMap = Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & {
+export declare const HOME_ASK_OPTION_ID = "home.ask";
+
+export declare const HOME_CONTINUE_OPTION_ID = "home.continue";
+
+export declare const HOME_DOCK_SCENE_ID = "home.dock";
+
+export declare const INBOX_ADMIT_OPTION_ID = "inbox.admit";
+
+export declare const INBOX_COMPOSE_OPTION_ID = "inbox.compose";
+
+export declare const INBOX_DISMISS_OPTION_ID = "inbox.dismiss";
+
+export declare const INBOX_DONE_OPTION_ID = "inbox.done";
+
+export declare const INBOX_NEXT_SCENE_ID = "inbox.next";
+
+export declare const INBOX_VERIFY_OPTION_ID = "inbox.verify";
+
+export declare const JUDGMENT_RULE_AUTHORING_SUBJECTS: readonly JudgmentRuleAuthoringSubject[];
+
+export interface JudgmentRecord {
+    readonly recommended_actions?: JudgmentRuleInvokeResult["recommended_actions"];
+    readonly judgment_id: string;
+    readonly function_key: string;
+    readonly function_version: number;
+    readonly subject: JudgmentSubject;
+    readonly scene_id: string | null;
+    readonly outcome: JudgmentRuleOutcome;
+    readonly suggested_behavior_ids: readonly string[];
+    readonly error_code: string | null;
+    readonly created_at: string;
+    readonly scene_provenance?: {
+        readonly binding_id: string;
+        readonly binding_revision: string;
+        readonly function: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference;
+        readonly subject_revision: string;
+        readonly offer_request_id?: string;
+        readonly offer_revision?: string;
+    };
+}
+
+export type JudgmentRuleActionMap = Readonly<Record<string, import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & {
     readonly provider_id: string;
 }>>;
 
-export interface FunctionAuthoringBehavior {
+export interface JudgmentRuleAuthoringCatalog {
+    readonly subjects: readonly JudgmentRuleAuthoringSubject[];
+    readonly destinations: readonly JudgmentRuleAuthoringDestination[];
+    readonly behaviors: readonly JudgmentRuleAuthoringOption[];
+}
+
+export interface JudgmentRuleAuthoringDestination {
+    readonly destination_id: string;
+    readonly kind: JudgmentRuleAuthoringDestinationKind;
+    readonly title: string;
+    readonly when: string;
+    readonly configure_at: string;
+    readonly effect: string;
+    readonly subject_kinds: readonly string[];
+    readonly behavior_ids: readonly string[];
+    readonly scene_version?: number;
+    readonly provider_id?: string;
+    readonly availability?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
+}
+
+export type JudgmentRuleAuthoringDestinationKind = "event" | "mcp";
+
+export interface JudgmentRuleAuthoringOption {
     readonly behavior_id: string;
     readonly title: string;
     readonly hint?: string;
@@ -58,67 +121,47 @@ export interface FunctionAuthoringBehavior {
     };
 }
 
-export interface FunctionAuthoringCatalog {
-    readonly subjects: readonly FunctionAuthoringSubject[];
-    readonly destinations: readonly FunctionAuthoringDestination[];
-    readonly behaviors: readonly FunctionAuthoringBehavior[];
-}
-
-export interface FunctionAuthoringDestination {
-    readonly destination_id: string;
-    readonly kind: FunctionAuthoringDestinationKind;
-    readonly title: string;
-    readonly when: string;
-    readonly configure_at: string;
-    readonly effect: string;
-    readonly subject_kinds: readonly string[];
-    readonly behavior_ids: readonly string[];
-    readonly scene_version?: number;
-    readonly provider_id?: string;
-    readonly availability?: import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
-}
-
-export type FunctionAuthoringDestinationKind = "event" | "mcp";
-
-export interface FunctionAuthoringSubject {
+export interface JudgmentRuleAuthoringSubject {
     readonly subject_kind: string;
     readonly title: string;
 }
 
-export type FunctionCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
+export type JudgmentRuleCredentialSource = "ui" | "env" | "none";
 
-export interface FunctionDescribe extends FunctionSummary {
+export type JudgmentRuleCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
+
+export interface JudgmentRuleDescribe extends JudgmentRuleSummary {
     readonly instructions: string;
     readonly input: {
         readonly content: "string";
     };
-    readonly criteria: FunctionCriteria;
+    readonly criteria: JudgmentRuleCriteria;
 }
 
-export interface FunctionDraftPatch {
+export interface JudgmentRuleDraftPatch {
     readonly name?: string;
     readonly function_key?: string;
     readonly instructions?: string;
-    readonly criteria?: FunctionCriteria;
+    readonly criteria?: JudgmentRuleCriteria;
     readonly scene_id?: string | null;
     readonly scene_version?: number | null;
     readonly scene_provider_id?: string | null;
     readonly subject_kinds?: readonly string[];
-    readonly scene_map?: FunctionSceneMap;
-    readonly action_map?: FunctionActionMap;
+    readonly scene_map?: JudgmentRuleSceneMap;
+    readonly action_map?: JudgmentRuleActionMap;
 }
 
-export interface FunctionInvokeResult {
+export interface JudgmentRuleInvokeResult {
     readonly recommended_actions?: readonly (import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & {
         readonly provider_id: string;
     })[];
     readonly suggested_behavior_ids?: readonly string[];
-    readonly status: FunctionsOutcome;
+    readonly status: JudgmentRuleOutcome;
     readonly function_key: string;
     readonly version: number;
     readonly model: string;
     readonly config_hash: string;
-    readonly primitive: FunctionsPrimitive;
+    readonly primitive: JudgmentRulePrimitive;
     readonly data: {
         readonly choice?: string | null;
         readonly noul?: number;
@@ -129,43 +172,12 @@ export interface FunctionInvokeResult {
     readonly confidence: number | null;
 }
 
-export type FunctionRecord = (FunctionRecordBase & {
-    readonly primitive: "choice";
-    readonly criteria: readonly ChoiceCriterion[];
-}) | (FunctionRecordBase & {
-    readonly primitive: "noul";
-    readonly criteria: NoulCriteria;
-}) | (FunctionRecordBase & {
-    readonly primitive: "score";
-    readonly criteria: ScoreCriteria;
-});
+export type JudgmentRuleOutcome = "ok" | "needs_review";
 
-export interface FunctionSample {
-    readonly id: string;
-    readonly label: string;
+export interface JudgmentRulePreviewRecord {
     readonly input: string;
-}
-
-export type FunctionSceneMap = Readonly<Record<string, string>>;
-
-export type FunctionStatus = "draft" | "published";
-
-export interface FunctionSummary {
-    readonly function_key: string;
-    readonly name: string;
-    readonly primitive: FunctionsPrimitive;
-    readonly version: number;
-    readonly model: string;
-}
-
-export type FunctionsCredentialSource = "ui" | "env" | "none";
-
-export type FunctionsOutcome = "ok" | "needs_review";
-
-export interface FunctionsPreviewRecord {
-    readonly input: string;
-    readonly outcome: FunctionsOutcome;
-    readonly primitive: FunctionsPrimitive;
+    readonly outcome: JudgmentRuleOutcome;
+    readonly primitive: JudgmentRulePrimitive;
     readonly choice: string | null;
     readonly noul: number | null;
     readonly score: number | null;
@@ -177,52 +189,40 @@ export interface FunctionsPreviewRecord {
     readonly at: string;
 }
 
-export type FunctionsPrimitive = "noul" | "choice" | "score";
+export type JudgmentRulePrimitive = "noul" | "choice" | "score";
 
-export interface FunctionsSettingsStatus {
-    readonly has_credential: boolean;
-    readonly source: FunctionsCredentialSource;
+export type JudgmentRuleRecord = (JudgmentRuleRecordBase & {
+    readonly primitive: "choice";
+    readonly criteria: readonly ChoiceCriterion[];
+}) | (JudgmentRuleRecordBase & {
+    readonly primitive: "noul";
+    readonly criteria: NoulCriteria;
+}) | (JudgmentRuleRecordBase & {
+    readonly primitive: "score";
+    readonly criteria: ScoreCriteria;
+});
+
+export interface JudgmentRuleSample {
+    readonly id: string;
+    readonly label: string;
+    readonly input: string;
 }
 
-export declare const HOME_ASK_BEHAVIOR_ID = "home.ask";
+export type JudgmentRuleSceneMap = Readonly<Record<string, string>>;
 
-export declare const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
+export interface JudgmentRuleSettingsStatus {
+    readonly has_credential: boolean;
+    readonly source: JudgmentRuleCredentialSource;
+}
 
-export declare const HOME_DOCK_SCENE_ID = "home.dock";
+export type JudgmentRuleStatus = "draft" | "published";
 
-export declare const HOME_TALK_BEHAVIOR_ID = "home.talk";
-
-export declare const INBOX_ADMIT_BEHAVIOR_ID = "inbox.admit";
-
-export declare const INBOX_COMPOSE_BEHAVIOR_ID = "inbox.compose";
-
-export declare const INBOX_DISMISS_BEHAVIOR_ID = "inbox.dismiss";
-
-export declare const INBOX_DONE_BEHAVIOR_ID = "inbox.done";
-
-export declare const INBOX_NEXT_SCENE_ID = "inbox.next";
-
-export declare const INBOX_VERIFY_BEHAVIOR_ID = "inbox.verify";
-
-export interface JudgmentRecord {
-    readonly recommended_actions?: FunctionInvokeResult["recommended_actions"];
-    readonly judgment_id: string;
+export interface JudgmentRuleSummary {
     readonly function_key: string;
-    readonly function_version: number;
-    readonly subject: JudgmentSubject;
-    readonly scene_id: string | null;
-    readonly outcome: FunctionsOutcome;
-    readonly suggested_behavior_ids: readonly string[];
-    readonly error_code: string | null;
-    readonly created_at: string;
-    readonly scene_provenance?: {
-        readonly binding_id: string;
-        readonly binding_revision: string;
-        readonly function: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference;
-        readonly subject_revision: string;
-        readonly offer_request_id?: string;
-        readonly offer_revision?: string;
-    };
+    readonly name: string;
+    readonly primitive: JudgmentRulePrimitive;
+    readonly version: number;
+    readonly model: string;
 }
 
 export interface JudgmentSubject {
@@ -244,6 +244,8 @@ export interface NoulCriteria {
     readonly false_description: string;
 }
 
+export declare const PUBLISHED_FUNCTION_PREFIX = "functions.published.";
+
 export declare const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 
 export declare const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
@@ -253,7 +255,7 @@ export declare const SYSTEM_INBOX_NEXT_FUNCTION_KEY = "system_pick_inbox_next";
 export type ScoreCriteria = readonly string[];
 
 export interface TypeSafeEvaluateResult {
-    readonly primitive: FunctionsPrimitive;
+    readonly primitive: JudgmentRulePrimitive;
     readonly choice: string | null;
     readonly noul: number | null;
     readonly score: number | null;
@@ -264,7 +266,7 @@ export interface TypeSafeEvaluateResult {
 }
 
 export interface TypeSafeProvider {
-    evaluate(apiKey: string, record: FunctionRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
+    evaluate(apiKey: string, record: JudgmentRuleRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
 export declare function choiceCriteriaFollowContext(keys: readonly string[], catalogBehaviorIds: readonly string[]): boolean;
@@ -276,16 +278,16 @@ export declare function defaultInboxNextBehaviorIds(active: boolean): string[];
 export declare function filterSuggestedBehaviorIds(offered: readonly string[], allowed: readonly string[], choice: string | null | undefined): string[];
 
 export declare function functionOutputKeys(record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
+    readonly primitive: JudgmentRulePrimitive;
+    readonly criteria: JudgmentRuleCriteria;
 }): string[];
 
-export declare function isFunctionDestinationId(value: string): boolean;
+export declare function isJudgmentRuleDestinationId(value: string): boolean;
 
 export declare function mapJudgmentChoice(record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
-    readonly scene_map?: FunctionSceneMap | null;
+    readonly primitive: JudgmentRulePrimitive;
+    readonly criteria: JudgmentRuleCriteria;
+    readonly scene_map?: JudgmentRuleSceneMap | null;
 }, result: {
     readonly choice?: string | null;
     readonly noul?: number | null;
@@ -299,15 +301,20 @@ export declare const modulesFunctionsContract: {
     readonly ssot: "specs/archive/functions-independent-authoring/spec.md";
 };
 
+export declare function publishedFunctionKey(reference: {
+    readonly provider_id?: string;
+    readonly capability_id: string;
+}): string | null;
+
 export declare function visibleFeedDispositionIds(suggested: readonly string[] | null | undefined, canAdmit: boolean): string[];
 
 // Declarations the exports above refer to, which no entry exports itself:
 
-interface FunctionRecordBase {
+interface JudgmentRuleRecordBase {
     readonly id: string;
     readonly name: string;
     readonly function_key: string;
-    readonly status: FunctionStatus;
+    readonly status: JudgmentRuleStatus;
     readonly version: number | null;
     readonly model: string;
     readonly instructions: string;
@@ -315,11 +322,11 @@ interface FunctionRecordBase {
     readonly scene_version?: number | null;
     readonly scene_provider_id?: string | null;
     readonly subject_kinds: readonly string[];
-    readonly scene_map: FunctionSceneMap;
-    readonly action_map?: FunctionActionMap;
+    readonly scene_map: JudgmentRuleSceneMap;
+    readonly action_map?: JudgmentRuleActionMap;
     readonly config_hash: string;
-    readonly last_preview: FunctionsPreviewRecord | null;
-    readonly samples: readonly FunctionSample[];
+    readonly last_preview: JudgmentRulePreviewRecord | null;
+    readonly samples: readonly JudgmentRuleSample[];
     readonly published_at: string | null;
     readonly created_at: string;
     readonly updated_at: string;

@@ -6,7 +6,7 @@
 
 - [平台合同](../../packages/contracts/src/platform/actions.ts)：稳定能力引用、输入输出、调用者上下文、消费场景和绑定。
 - [Kernel](../../packages/kernel/src/action-service.ts)：注册、合同校验、发现、依赖检查、执行及场景消费。
-- [Local Host](../../apps/local-host/src/local-host.ts)：项目隔离、生命周期、队列和实时可用性。原 typed capability 与动作使用同一注册表。
+- [Local Host](../../apps/local-host/src/local-host.ts)：项目隔离、生命周期、队列和实时可用性。注册表里只有动作（R8 删掉了原 typed capability）。
 - [SDK](../../packages/plugin-sdk/README.md#动作与判断消费场景)：插件贡献定义和实际处理器；声明不会自动产生授权。
 - [MCP 适配](../../apps/mcp/src/action-tools.ts)：从共同目录生成工具，传输层绑定可信身份，业务参数不携带授权。
 

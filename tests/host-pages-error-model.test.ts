@@ -1,3 +1,4 @@
+// RAC-2812: complete Artifact HTTP error-model regression after the platform route rename.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -11,9 +12,9 @@ import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import * as functionsModule from "@molis-ai/molis-work-module-functions";
+import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
+import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
-import * as artifactsPlugin from "@molis-ai/molis-work-plugin-artifacts";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import Database from "better-sqlite3";
@@ -76,6 +77,8 @@ const FUNCTIONS_STATUS: Readonly<Record<string, number>> = {
   invalid: 400, stale_preview: 400, published_immutable: 400, key_conflict: 400, preview_required: 400,
   not_found: 404,
   conflict: 409, version_conflict: 409, provider_not_configured: 409,
+  // FI-2 (#1283): a plugin declaring a default rule whose key another plugin holds; it came after the mapper, as a conflict.
+  rule_key_taken: 409,
   provider_unauthorized: 502, provider_failed: 502,
   provider_timeout: 504,
 };
@@ -154,7 +157,8 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   expect(capture(() => catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: "entry-1", host_declares_stable: true }, project_id: project.project_id, actor_id: "runtime", user_confirmed: false })),
     "work.context.user_confirmation_required", 400);
   // A live terminal is a conflict the person can resolve.
-  const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "user", user_confirmed: true });
+  const panel = await catalog.commit(() => catalog.terminalPanels.insert({ panel_id: "plugin-error-model-terminal", install_id: "fixture-install", project_id: project.project_id,
+    actor_id: "user", key: "terminal", subject: "goal-1", runtime: "command", launch_command: "/bin/cat", launch_args: [], title: "cat" }, directory));
   const service = new hostModule.ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: id => id === panel.panel_id, releaseProject: async () => undefined });
   await assert.rejects(service.deleteProject(home, { project_id: project.project_id, actor_id: "user", delete_confirmed: true, idempotency_key: "delete-with-terminal" }),
     (error: unknown) => { expect(error, "catalog.project_terminal_live", 409); return true; });
@@ -204,7 +208,12 @@ for (const leavesRow of [false, true]) {
     const failure = new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
-    const mcp = new hostModule.LocalMcpServer(async () => {
+    // Only the MCP's own catalog read fails. The server also gives this runner to the Home it shares, and Todo's `get` reads the catalog
+    // through it for the person's project list (PG-014): that nested read goes to the real catalog, or the failing read would call itself.
+    let entered = false;
+    const mcp = new hostModule.LocalMcpServer(async (options, operation) => {
+      if (entered) return withMolisWorkProjectCatalog(options, operation);
+      entered = true;
       if (leavesRow) await assert.rejects(host.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", audience: "user",
         project_id: null, permissions: ["todo:read"] }, todoActions.get, { id: "no-such-todo" }), { code: "todo.not_found" });
       throw failure;
@@ -298,10 +307,14 @@ test("the 成果 browser's route failures carry a code and the status of their k
   assert.deepEqual([badVersion.status, badVersion.body], [400, { error: "成果版本必须是正整数", code: "artifacts.reference_invalid" }]);
   const badId = await edge.send("GET", "/artifacts/%E0%A4%A/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.deepEqual([badId.status, badId.body], [400, { error: "成果 ID 编码无效", code: "artifacts.reference_invalid" }]);
-  const artifactsErrors = declared(artifactsPlugin, "artifactsErrors");
-  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "plugin_denied", "plugin_incompatible", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
+  const artifactsErrors = declared(artifactsModule, "artifactsErrors");
+  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
   const status = (reason: string) => actionHttpStatus(artifactsErrors[reason]!("x"));
-  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed", "plugin_denied", "plugin_incompatible"].map(status), [400, 404, 404, 400, 409, 403, 400]);
+  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed"].map(status), [400, 404, 404, 400, 409]);
+  // The plugin-facing client's two codes moved to the Artifacts module with the client (ac-artifacts A2).
+  const clientErrors = declared(artifactsModule, "pluginArtifactErrors");
+  assert.deepEqual(Object.keys(clientErrors).sort(), ["plugin_denied", "plugin_incompatible"]);
+  assert.deepEqual(["plugin_denied", "plugin_incompatible"].map(reason => actionHttpStatus(clientErrors[reason]!("x"))), [403, 400]);
 });
 
 /**
@@ -310,12 +323,12 @@ test("the 成果 browser's route failures carry a code and the status of their k
  * connection_revoked, connection_required, credentials_unavailable) declares the other six, all `invalid`, in artifact-document-import.ts.
  */
 const DOCUMENT_STATUS: Readonly<Record<string, number>> = {
-  source_invalid: 400, content_invalid: 400, filename_invalid: 400, input_invalid: 400, original_invalid: 400, empty: 400, binary: 400,
+  source_invalid: 400, content_invalid: 400, filename_invalid: 400, input_invalid: 400, original_invalid: 400, original_not_offered: 400, empty: 400, binary: 400,
   too_large: 413,
 };
 
 test("the import's failures are declared, each with the status of its kind: 415 and 422 are 400, too large is 413", async t => {
-  const documentErrors = declared(artifactsPlugin, "documentErrors");
+  const documentErrors = declared(artifactsModule, "documentErrors");
   assert.deepEqual(Object.keys(documentErrors).sort(), Object.keys(DOCUMENT_STATUS).sort(), "documentErrors declares exactly the codes the import itself raises");
   for (const [reason, status] of Object.entries(DOCUMENT_STATUS)) {
     const error = documentErrors[reason]!(`document ${reason}`);
@@ -413,7 +426,7 @@ test("a project reference that cannot be opened is a coded failure of the Host's
   refused("project://docs/missing.md", "host.project_reference_not_found", 404);
   const noRoot = capture(() => hostModule.readProjectReference(join(base, "no-such-root"), "project://docs/plan.md"));
   assert.ok(noRoot instanceof ActionError && noRoot.code === "host.project_reference_not_found");
-  const noWorkspace = capture(() => artifactsPlugin.openArtifactProjectReference({ readProjectReference: () => assert.fail("nothing is read without a workspace") }, { reference: "project://result.txt" }));
+  const noWorkspace = capture(() => artifactsModule.openArtifactProjectReference({ readProjectReference: () => assert.fail("nothing is read without a workspace") }, { reference: "project://result.txt" }));
   assert.ok(noWorkspace instanceof ActionError);
   assert.deepEqual([noWorkspace.code, actionHttpStatus(noWorkspace)], ["artifacts.workspace_unconfirmed", 409]);
 });
@@ -445,9 +458,9 @@ test("the mapper, the catalog class, the artifact classes and the Functions clas
   const found = spawnSync("git", ["grep", "-n", "-E", `\\b(${OLD.join("|")})\\b`, "--", "apps", "packages", "modules", "plugins", "horizontal", "scripts", "tests", `:!${here}`],
     { cwd: REPOSITORY, encoding: "utf8" });
   assert.deepEqual([found.status, found.stdout.trim()], [1, ""], "no source names the removed classes or the mapper");
-  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/functions-http/route-error.ts")), false);
-  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/functions-http.ts", "apps/local-host/src/web-project-reference.ts",
-    "apps/local-host/src/artifact-native-plugin-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/functions/src"],
+  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/judgment-rules-http/route-error.ts")), false);
+  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/judgment-rules-http.ts", "apps/local-host/src/web-project-reference.ts",
+    "apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/judgment-rules/src"],
   { cwd: REPOSITORY, encoding: "utf8" });
   const bare = scan.stdout.trim().split("\n").filter(line => line && !/\/\/ .*new Error\(|object required/.test(line));
   assert.deepEqual(bare, [], "a caller's mistake on these edges has a code (a bare Error would answer 500)");

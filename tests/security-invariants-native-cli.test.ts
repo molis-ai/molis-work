@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { connectorCliActions, connectorManagementActions, installManagedConnectorTool, removeManagedConnectorTool, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const execute = promisify(execFile), control = { beforeEffect() {} };
@@ -86,4 +86,82 @@ test("S-36 ASC-07 ASC-14: native CLI preparation fixes official version, asset a
   assert.equal(existsSync(join(home.home, "runtime/connectors/installs")), false);
   await actions.invoke(caller, connectorManagementActions.cancel, { authorization_id: prepared.authorization_id });
   valid = false; await assert.rejects(actions.invoke(caller, connectorCliActions.prepare, input), /元数据/);
+});
+
+// T-056: the official release endpoints can hand back a login page, an empty body or a truncated document. Each of those used to reach
+// the caller as a raw JSON.parse failure; now the prepare action refuses it with the owner's declared install code and a Chinese sentence.
+const REFUSED_AS_UNREADABLE = { code: "connector.install.failed", kind: "unavailable", message: "官方发布元数据读不出来，请检查网络后重试" } as const;
+const UNREADABLE_BODIES = ["<!DOCTYPE html><html><body>Sign in</body></html>", "", "{\"tag_name\":\"v1.2.3\",\"assets\":["];
+
+test("RAC-1515 release metadata that is not JSON is a declared install refusal for the GitHub client, and reads the release once", { timeout: 30_000 }, async t => {
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
+  const fetch = globalThis.fetch; t.after(() => { globalThis.fetch = fetch; });
+  const address = "https://api.github.com/repos/cli/cli/releases/tags/v1.2.3";
+  let body = "", reads = 0;
+  globalThis.fetch = async input => { reads += 1; assert.equal(String(input), address); return new Response(body, { status: 200 }); };
+  const input = { service_id: "github", display_name: "GitHub managed", version: "1.2.3" };
+  for (const [index, text] of UNREADABLE_BODIES.entries()) {
+    body = text;
+    const before = reads;
+    await assert.rejects(actions.invoke(caller, connectorCliActions.prepare, input), (error: unknown) => {
+      assert.ok(error instanceof ActionError, String(error));
+      assert.equal(error.code, "connector.install.failed", `body ${index}`);
+      assert.equal(error.kind, "unavailable", `body ${index}`);
+      assert.equal(error.message, "官方发布元数据读不出来，请检查网络后重试", `body ${index}`);
+      return true;
+    });
+    assert.equal(reads, before + 1, "one release read per attempt");
+    assert.equal(existsSync(join(home.home, "runtime/connectors/installs")), false);
+    assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
+  }
+});
+
+test("RAC-1516 the same unreadable release metadata is refused for the GitLab client, without asking for its checksum file", { timeout: 30_000 }, async t => {
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
+  const fetch = globalThis.fetch; t.after(() => { globalThis.fetch = fetch; });
+  const address = "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases/v1.2.3";
+  let body = "", reads = 0;
+  globalThis.fetch = async input => { reads += 1; assert.equal(String(input), address); assert.doesNotMatch(String(input), /checksums/); return new Response(body, { status: 200 }); };
+  const input = { service_id: "gitlab", display_name: "GitLab managed", version: "1.2.3" };
+  for (const [index, text] of UNREADABLE_BODIES.entries()) {
+    body = text;
+    const before = reads;
+    await assert.rejects(actions.invoke(caller, connectorCliActions.prepare, input), (error: unknown) => {
+      assert.ok(error instanceof ActionError, String(error));
+      assert.equal(error.code, "connector.install.failed", `body ${index}`);
+      assert.equal(error.kind, "unavailable", `body ${index}`);
+      assert.equal(error.message, "官方发布元数据读不出来，请检查网络后重试", `body ${index}`);
+      return true;
+    });
+    assert.equal(reads, before + 1, "only the release endpoint is read");
+    assert.equal(existsSync(join(home.home, "runtime/connectors/installs")), false);
+    assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
+  }
+});
+
+test("RAC-1517 legal JSON that is not an object, and an unavailable release source, keep their own declared refusals", { timeout: 30_000 }, async t => {
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
+  const fetch = globalThis.fetch; t.after(() => { globalThis.fetch = fetch; });
+  const address = "https://api.github.com/repos/cli/cli/releases/tags/v1.2.3";
+  let body = "", status = 200;
+  globalThis.fetch = async input => { assert.equal(String(input), address); return new Response(status === 200 ? body : null, { status }); };
+  const input = { service_id: "github", display_name: "GitHub managed", version: "1.2.3" };
+  for (const text of ["[]", "null", "\"text\"", "42"]) {
+    body = text; status = 200;
+    await assert.rejects(actions.invoke(caller, connectorCliActions.prepare, input), (error: unknown) => {
+      assert.ok(error instanceof ActionError, String(error));
+      assert.equal(error.code, "connector.install.failed");
+      assert.equal(error.kind, "unavailable");
+      assert.equal(error.message, "官方发布元数据格式无效");
+      return true;
+    });
+  }
+  status = 503;
+  await assert.rejects(actions.invoke(caller, connectorCliActions.prepare, input), (error: unknown) => {
+    assert.ok(error instanceof ActionError, String(error));
+    assert.equal(error.code, "connector.install.failed");
+    assert.equal(error.kind, "unavailable");
+    assert.equal(error.message, "运行时下载失败，请检查官方发布源与网络");
+    return true;
+  });
 });

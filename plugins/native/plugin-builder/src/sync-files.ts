@@ -1,3 +1,4 @@
+import {SANDBOX_SDK_CONTRACT_DECLARATIONS} from '@molis-ai/molis-work-plugin-sandbox';
 import {constants,existsSync,lstatSync,mkdirSync,openSync,closeSync,readFileSync,writeFileSync,readdirSync,realpathSync,fstatSync} from 'node:fs';
 import {createHash,randomUUID} from 'node:crypto';
 import {isAbsolute,join,relative,resolve,dirname,sep} from 'node:path';
@@ -10,8 +11,9 @@ function invalid():never{throw errors.sync_files_invalid('创作文件内容或�
 const missing=():never=>{throw errors.sync_files_missing('完整创作文件暂不可用，原内容已保留');};
 export const builderBytesDigest=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 const slotPattern=/^(?:(?:current|history-[0-9]+)(?:-settled)?|release-[1-9][0-9]*)$/;
+const sdkFiles=['developer/sdk.d.ts',...SANDBOX_SDK_CONTRACT_DECLARATIONS.map(path=>'developer/contracts/'+path)];
 const included=(name:string,release:boolean)=>release?['plugin.mjs','manifest.json','contract.json','interface.json','prompts.json'].includes(name)
- :/^(?:src|tests)\//.test(name)||['contract.json','manifest.json','package.json','package-lock.json','dependency-lock.json','tsconfig.json','developer/sdk.d.ts'].includes(name);
+ :/^(?:src|tests)\//.test(name)||['contract.json','manifest.json','package.json','package-lock.json','dependency-lock.json','tsconfig.json'].includes(name)||sdkFiles.includes(name);
 function pathParts(path:string):string[]{
  if(typeof path!=='string'||path.length>500||path.includes('\\')||path.includes('\0')||isAbsolute(path))return invalid();
  const parts=path.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||/[\u0000-\u001f\u007f\\:*?"<>|]/.test(p)))return invalid();return parts;
@@ -42,7 +44,7 @@ export function captureBuilderDirectory(root:string,path:string,slot:string,rele
   for(const entry of readdirSync(directory,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){
    const full=join(directory,entry.name),name=relative(base,full).split('\\').join('/');
    if(entry.isSymbolicLink())invalid();
-   if(entry.isDirectory()){if(!release&&(name==='src'||name==='tests'||name==='developer'||/^(?:src|tests)\//.test(name)))walk(full);continue;}
+   if(entry.isDirectory()){if(!release&&(name==='src'||name==='tests'||sdkFiles.some(file=>file.startsWith(name+'/'))||/^(?:src|tests)\//.test(name)))walk(full);continue;}
    if(!included(name,release))continue;if(!entry.isFile())invalid();pathParts(name);
    const bytes=fileBytes(root,full);files.push({path:name,size:bytes.length,digest:builderBytesDigest(bytes),bytes:bytes.toString('base64')});
    if(files.length>2000||files.reduce((n,f)=>n+f.size,0)>100000000)invalid();
@@ -87,7 +89,7 @@ export function stageBuilderDirectories(root:string,input:readonly BuilderPortab
 /** Explicit local editing forks portable inputs; it never mutates an immutable received directory. */
 export function copyEditableBuilderDirectories(root:string,buildId:string,input:readonly BuilderPortableDirectory[],authorize:()=>void):string{
  if(!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,199}$/.test(buildId))invalid();authorize();const entries=validateBuilderDirectories(input),path=join(root,'builds',buildId,'local-'+randomUUID());directory(root,path);
- const frozen=new Set(['contract.json','manifest.json','src/index.ts','developer/sdk.d.ts']);
+ const frozen=new Set(['contract.json','manifest.json','src/index.ts',...sdkFiles]);
  for(const entry of entries){if(!['current','current-settled'].includes(entry.slot))invalid();const destination=entry.slot==='current'?path:path+'.settled';directory(root,destination);
   for(const file of entry.files){authorize();const target=join(destination,...pathParts(file.path));directory(root,dirname(target));writeFileSync(target,Buffer.from(file.bytes,'base64'),{flag:'wx',mode:entry.slot==='current'&&frozen.has(file.path)?0o444:0o600});}
  }

@@ -70,7 +70,7 @@ function release(value:unknown){
  const r=object(value);keys(r,releaseFields,releaseFields);if(!id(r.buildId)||!id(r.pluginId)||!Number.isSafeInteger(r.version)||Number(r.version)<1||!stamp(r.publishedAt))builderSyncInvalid();
  const d=design(r.design),c=object(d.contract),m=object(r.manifest);keys(m,['version','pluginId','revision','effects'],['version','pluginId','revision','effects']);
  if(m.version!==1||m.pluginId!==r.pluginId||c.pluginId!==r.pluginId||r.pluginId!=='io.molis.work.generated.'+r.buildId||m.revision!==c.revision||!isDeepStrictEqual(m.effects,r.permissions)||!isDeepStrictEqual(m.effects,contractEffects(r.design as AgentDesign)))builderSyncInvalid();validateBuilderNodeDomain(d,r.nodes,[],true);
- const ids=new Set<string>();for(const prompt of list(r.prompts)){const p=object(prompt);keys(p,['id','title','purpose','body'],['id','title','purpose','body']);if(!id(p.id)||ids.has(p.id)||['title','purpose','body'].some(k=>typeof p[k]!=='string'))builderSyncInvalid();ids.add(p.id);}return r;
+ const ids=new Set<string>();for(const prompt of list(r.prompts)){const p=object(prompt);keys(p,['id','title','purpose','body'],['id','title','purpose','body']);if(!id(p.id)||ids.has(p.id)||['title','purpose','body'].some(k=>typeof p[k]!=='string'))builderSyncInvalid();ids.add(p.id);}return r as Record<string,unknown>&Pick<AgentRelease,'design'|'nodes'>;
 }
 /** Validate the entire owner unit before project creation or staging any target bytes. */
 export function validateBuilderPortable(input:unknown):BuilderPortableState{

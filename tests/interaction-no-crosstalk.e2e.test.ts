@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createServer } from "node:http";
@@ -5,11 +6,11 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { GoalProjectApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { asideReply } from "./fixtures/ending-review.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes into a question, and what they answer, stays with the session,
 // project and object it was asked in. Each test asserts the refusal: the other session, project or object never gets it.
@@ -42,8 +43,8 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   /** For every model call: whose round it is, and which other rounds' tasks its request mentions. */
   const prompts: Array<{ task: string; others: string[] }> = [];
   const model = createServer(async (req, res) => {
-    let raw = "";
-    for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     res.writeHead(200, { "content-type": "text/event-stream" });
@@ -63,13 +64,15 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const b = await openGoalBrowser(t, "seeded"); if (!b) return null;
-  const { click, evaluate, waitFor, command, sessionId, homeDirectory } = b;
+  const { command, sessionId, homeDirectory } = b;
+  const child = await pluginFrameBrowser(t,b,"coding");
+  const { click, evaluate, waitFor } = child;
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
     const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
       models: [{ model_id: "fixture-plain", enabled: true }] });
   }));
-  const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const fill = (selector: string, value: string) => (selector.includes("data-project-workspaces") ? b.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const coding = "[data-coding-workbench]";
   const prepared = new Set<string>();
@@ -80,21 +83,43 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
       const workspace = join(homeDirectory, `no-crosstalk-${prepared.size}`);
       await mkdir(workspace, { recursive: true });
       await writeFile(join(workspace, "note.txt"), "release notes go in CHANGELOG.md\n");
-      await click('.navigator-project-settings');
-      await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
-      await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-      await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+      await b.click('.navigator-project-settings');
+      await b.waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+      await b.click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
+      await b.waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
       await fill('[data-project-workspaces-add] [name=path]', workspace);
-      await click('[data-project-workspaces-add] [type=submit]');
-      await waitFor(`document.querySelector('[data-project-workspaces-list]').textContent.includes(${JSON.stringify(`no-crosstalk-${prepared.size}`)})`);
+      await b.click('[data-project-workspaces-add] [type=submit]');
+      await b.waitFor(`document.querySelector('[data-project-workspaces-list]').textContent.includes(${JSON.stringify(`no-crosstalk-${prepared.size}`)})`);
       prepared.add(project);
     }
-    await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
-    await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+    await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
+    await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
+    // T-338: the child frame's bootstrap sets globalThis.fetch to its bridge first (plugin-frame/child.ts:43), then defines the
+    // molisWorkRequest entry (:53) and body.dataset.routePrefix (:57). Waiting for those public marks before installing the request
+    // observer therefore means the child's own fetch assignment is already behind us; the same 10 s readiness wait carries them.
+    await waitFor("Boolean(window.molisWorkRequest) && Boolean(document.body.dataset.routePrefix) && Boolean(document.querySelector('[data-coding-task]'))", 10_000);
     // What the page sends: each request's path and body, to tell which session a draft or an answer went to.
     await evaluate(`(() => { if (window.__sent) return; window.__sent = []; const original = window.fetch; window.fetch = async (...args) => {
       const sent = args[1] && typeof args[1].body === 'string' ? { url: String(args[0]), method: args[1].method || 'GET', body: args[1].body } : null; if (sent) window.__sent.push(sent);
       const response = await original(...args); if (sent && sent.method === 'POST') response.clone().text().then(text => { sent.status = response.status; sent.reply = text.slice(0, 300); }, () => {}); return response; }; })()`);
+    // RAC-2710: the observer is the page's fetch now, so what the page sends is recorded; the child bootstrap marks awaited above
+    // are what makes that ordering safe (installing before them lets the child's own assignment take the observer off the page).
+    assert.equal(await evaluate<boolean>("String(window.fetch).includes('__sent')"), true, "the request observer is the page's fetch");
+  };
+  /** Waits for one observed request shape; on timeout reports only what the test can see (sending status stays UNKNOWN). */
+  const waitObserved = async (predicate: string, expected: string, what: string) => {
+    const started = Date.now();
+    try { await waitFor(predicate, 10_000); return; }
+    catch (original) {
+      const waitError = original instanceof Error ? original.message : String(original);
+      let sampleError: string | undefined, recorded: Array<{ url: string; method: string; body: string }> = [], apiResources: number | null = null;
+      try {
+        const raw = await evaluate<string>(`JSON.stringify({ sent: (window.__sent || []).map(one => ({ url: String(one.url), method: String(one.method), body: String(one.body) })), api: performance.getEntriesByType('resource').filter(one => String(one.name).includes('/api/')).length })`);
+        try { const sample = JSON.parse(raw) as { sent: typeof recorded; api: number }; recorded = sample.sent; apiResources = sample.api; }
+        catch (error) { sampleError = "unreadable sample: " + (error instanceof Error ? error.message : String(error)); }
+      } catch (error) { sampleError = error instanceof Error ? error.message : String(error); }
+      assert.fail(`${what} did not reach the request observer: ${observationDiagnostics({ recorded, apiResources, expected, elapsedMs: Date.now() - started, waitError, ...(sampleError === undefined ? {} : { sampleError }) })}`);
+    }
   };
   /** Starts a new session and sends `task` in it; resolves to the session's id once its question card is shown. */
   const ask = async (task: string) => {
@@ -111,13 +136,13 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   };
   /** Shows a session of `project` again through its tab, the way a person switches. */
   const show = async (session: string, project = b.projectId!) => {
-    const state = await evaluate<{ panes: Array<{ tabs: Array<{ id: string; itemId: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${project}'))`);
+    const state = await b.evaluate<{ panes: Array<{ tabs: Array<{ id: string; itemId: string }> }> }>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${project}'))`);
     const tab = state.panes.flatMap(pane => pane.tabs).find(one => one.itemId === session);
     assert.ok(tab, "the session has a tab");
-    await click(`[data-tab-id="${tab.id}"]`);
+    await b.click(`[data-tab-id="${tab.id}"]`);
     await waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && Boolean(document.querySelector('${coding} [data-coding-question][data-ix-question]'))`, 15_000);
   };
-  return { ...b, coding, fill, heard, prompts, enter, ask, show };
+  return { ...b, ...child, ownerEvaluate: b.evaluate, coding, fill, heard, prompts, enter, ask, show, waitObserved };
 }
 
 /** The tool results a model request carries: what the round heard back from its questions. */
@@ -143,19 +168,68 @@ const picked = (coding: string) => `[...document.querySelectorAll(${JSON.stringi
 const savedDraftKeys = (session: string) => `window.__sent.filter(one => one.method === 'PATCH' && one.url.endsWith('/sessions/' + ${JSON.stringify(session)}) && one.body.includes('question_drafts'))
   .flatMap(one => Object.keys(JSON.parse(one.body).question_drafts || {}))`;
 
+/**
+ * T-338 (加固与诊断，根因未定): what a first failure of an observation wait reports. Only facts the page exposes: how many calls the
+ * page's fetch wrapper recorded (if sampling worked), their method/URL shapes, the shape that was expected, whether sampling itself
+ * failed, and how long it waited. Whether a request reached the transport is UNKNOWN: the wrapper being out of the page's request
+ * path is exactly what these waits check, so an empty record cannot prove "not sent", and a recorded call cannot prove "sent".
+ * A failed sample is reported as unavailable, never as zero.
+ */
+function observationDiagnostics(state: { readonly recorded: ReadonlyArray<{ url: string; method: string; body: string }>;
+  readonly apiResources: number | null; readonly expected: string; readonly elapsedMs: number; readonly waitError: string; readonly sampleError?: string }): string {
+  const shape = (one: { url: string; method: string; body: string }) => one.method + " " + one.url.replace(/[0-9a-f-]{8,}/gu, "<id>").slice(0, 120);
+  const recorded = state.sampleError === undefined
+    ? `page fetch wrapper recorded ${state.recorded.length} request(s)${state.recorded.length ? `: ${state.recorded.map(shape).join(" | ")}` : ""}`
+    : `page fetch wrapper sample unavailable (${state.sampleError}); sampled records are not evidence either way`;
+  const resources = state.apiResources === null ? "" : `; ${state.apiResources} /api/ resource entries (bridge-transported, not proof of sending)`;
+  return [
+    recorded + resources,
+    "sending: UNKNOWN (an empty record does not prove nothing was sent; a recorded call does not prove the transport sent it)",
+    `expected: ${state.expected}`,
+    `waited: ${state.elapsedMs} ms`,
+    `the wait itself failed: ${state.waitError}`,
+  ].join("; ");
+}
+
 const LOGIN: Asked = { task: "甲会话：登录和导出都坏了", done: "甲：好的，先修导出。",
   ask: { why: "甲：先确认要修哪一处。", questions: [{ prompt: "先修哪一个？", options: [{ label: "登录" }, { label: "导出" }] }] } };
 const REPORT: Asked = { task: "乙会话：报表要改版", done: "乙：好的，先改日报。",
   ask: { why: "乙：先确认改哪张表。", questions: [{ prompt: "先改哪张？", options: [{ label: "日报" }, { label: "周报" }] }] } };
 
+test("RAC-2710 an observation-timeout diagnostic reports facts, keeps sending UNKNOWN, and reports a failed sample as unavailable", () => {
+  const filled = observationDiagnostics({ recorded: [{ url: "http://127.0.0.1/api/projects/p1/sessions/s1", method: "PATCH", body: JSON.stringify({ question_drafts: {} }) }],
+    apiResources: 3, expected: "PATCH .../sessions/s1 carrying question_drafts", elapsedMs: 10_001, waitError: "waitFor timed out after 10000 ms" });
+  assert.match(filled, /recorded 1 request\(s\): PATCH http:\/\/127\.0\.0\.1\/api\/projects\/p1\/sessions\/s1/u);
+  assert.match(filled, /sending: UNKNOWN/u);
+  assert.match(filled, /3 \/api\/ resource entries/u);
+  assert.match(filled, /expected: PATCH \.\.\.\/sessions\/s1 carrying question_drafts/u);
+  assert.match(filled, /waited: 10001 ms/u);
+  assert.match(filled, /the wait itself failed: waitFor timed out/u);
+  // An empty record is not "not sent": it is the state under investigation.
+  const empty = observationDiagnostics({ recorded: [], apiResources: 0, expected: "any request whose URL contains /sessions/s1", elapsedMs: 10_000, waitError: "timed out" });
+  assert.match(empty, /recorded 0 request\(s\)/u);
+  assert.match(empty, /sending: UNKNOWN/u, "an empty record does not prove the request was not sent");
+  assert.doesNotMatch(empty, /sending: no/u);
+  // Resources recorded without a page call is a mismatch, still UNKNOWN, and says so.
+  const mismatch = observationDiagnostics({ recorded: [], apiResources: 2, expected: "any request whose URL contains /sessions/s1", elapsedMs: 10_000, waitError: "timed out" });
+  assert.match(mismatch, /2 \/api\/ resource entries/u);
+  assert.match(mismatch, /sending: UNKNOWN/u);
+  // A failed sample is reported as unavailable, never as zero records.
+  const unreadable = observationDiagnostics({ recorded: [], apiResources: null, expected: "any request whose URL contains /sessions/s1", elapsedMs: 10_000, waitError: "timed out", sampleError: "Runtime.evaluate timed out" });
+  assert.match(unreadable, /sample unavailable \(Runtime\.evaluate timed out\); sampled records are not evidence either way/u);
+  assert.doesNotMatch(unreadable, /recorded 0 request/u, "a failed sample must not be reported as a successful zero-record sample");
+});
+
 test("AC-05: a question's draft and answer stay in the session it was asked in; switching sessions carries none to the other", { timeout: 240_000 }, async t => {
   const opened = await openCoding(t, [LOGIN, REPORT]); if (!opened) return;
-  const { click, evaluate, waitFor, coding, heard, prompts, enter, ask, show, projectId } = opened;
+  const { click, evaluate, waitFor, coding, heard, prompts, enter, ask, show, projectId, waitObserved } = opened;
   await enter(projectId!);
 
   const first = await ask(LOGIN.task);
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
-  await waitFor(`${savedDraftKeys(first)}.length > 0`, 10_000);
+  // RAC-2710 (T-338): after the pick, this session's draft save must reach the observer installed over the child's fetch bridge; a
+  // missed record here is what the ordering in enter() exists to prevent.
+  await waitObserved(`${savedDraftKeys(first)}.length > 0`, `PATCH .../sessions/${first} carrying question_drafts`, "the first session's draft save");
   const firstKey = (await evaluate<string[]>(savedDraftKeys(first)))[0]!;
 
   const second = await ask(REPORT.task);
@@ -164,7 +238,7 @@ test("AC-05: a question's draft and answer stay in the session it was asked in; 
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(card(coding))}).querySelector('h3').textContent`), /乙/, "the card shown is the second session's own question");
   assert.deepEqual(await evaluate<string[]>(picked(coding)), [], "the first session's pick is not on the second session's card");
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`);
-  await waitFor(`${savedDraftKeys(second)}.length > 0`, 10_000);
+  await waitObserved(`${savedDraftKeys(second)}.length > 0`, `PATCH .../sessions/${second} carrying question_drafts`, "the second session's draft save");
   assert.ok(!(await evaluate<string[]>(savedDraftKeys(second))).includes(firstKey), "no draft of the first session's question is saved with the second session");
 
   await show(first);
@@ -219,28 +293,33 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   };
+  const otherPage=await pluginFrameBrowser(t,{command,on:opened.on,evaluate:other,sessionId:tab},"coding");
   // The second tab picks the same session from Coding's list, the way a person would.
   assert.equal(await other("document.visibilityState"), "visible");
   await otherWaits(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]')`);
   await other(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]').click()`);
-  // The list is drawn by the server first; the row is clicked once Coding's page script has loaded and listens.
-  await otherWaits(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
-  await other(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
-  await otherWaits(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
+  // SYS-53: the server renders links before their handlers load; the readiness marker belongs to the trusted owner.
+  await otherWaits(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready' && !document.querySelector('[data-work-surface="coding"]').inert`);
+  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]')`);
+  await otherPage.evaluate(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
+  await otherPage.waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
   // Its request to answer waits in its page until released; the reply is kept for the assertions. Every read of the session that
   // starts after the reply waits until `__rereads()`, and is counted once the page has drawn from it: its JSON taken, and the page's own
   // code after that run.
-  await other(`(() => { const original = window.fetch; let release, reread; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
+  await otherPage.evaluate(`(() => { const original = window.fetch; let release, reread; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
     window.__readsAfter = 0; const rereads = new Promise(resolve => { reread = resolve; }); window.__rereads = () => reread();
     window.fetch = async (...args) => { const answering = args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"');
       const rereading = Boolean(window.__reply) && !(args[1] && args[1].body) && /\\/sessions\\//.test(String(args[0]));
       if (answering) { window.__sent = true; await window.__held; }
-      if (rereading) { await rereads; const response = await original(...args), json = response.json.bind(response);
-        response.json = async () => { const value = await json(); setTimeout(() => { window.__readsAfter++; }); return value; }; return response; }
+      // A read counts once its body is read, whichever reader the page's request client uses.
+      if (rereading) { await rereads; const response = await original(...args);
+        for (const reader of ['json', 'text']) { const read = response[reader].bind(response);
+          response[reader] = async () => { const value = await read(); setTimeout(() => { window.__readsAfter++; }); return value; }; }
+        return response; }
       const response = await original(...args); if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
-  await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
-  await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
-  await otherWaits("window.__sent === true");
+  await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
+  await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
+  await otherPage.waitFor("window.__sent === true");
 
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
   await click(`${card(coding)} [data-ix-action="answer"]`);
@@ -256,23 +335,23 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
 
   // The second tab follows the round too: it sees the question answered and the round end while its own answer is still on the
   // way. The card it was sent from stays, so the answer's outcome has a place to show.
-  await otherWaits(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`);
-  assert.equal(await other(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "the card whose answer is on its way is not taken down");
-  await other("window.__release()");
-  await otherWaits("window.__reply");
-  const reply = await other<{ status: number; body: { code?: string; error?: string } }>("window.__reply");
+  await otherPage.waitFor(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`);
+  assert.equal(await otherPage.evaluate(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "the card whose answer is on its way is not taken down");
+  await otherPage.evaluate("window.__release()");
+  await otherPage.waitFor("window.__reply");
+  const reply = await otherPage.evaluate<{ status: number; body: { code?: string; error?: string } }>("window.__reply");
   // The first answer was taken and the round has ended: what the Host knows is that, not who answered.
   assert.deepEqual([reply.status, reply.body.code], [409, "coding.round_ended"], "the other is refused with a code: the round has ended");
   const refusedCard = `(() => { const node = document.querySelector(${JSON.stringify(card(coding))}); return node && { refused: node.dataset.refused, note: node.querySelector('[data-ix-note]').textContent,
     open: [...node.querySelectorAll('fieldset,button')].filter(one => !one.disabled).length, picked: node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-checked') ?? node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-pressed') }; })()`;
   const kept = { refused: "true", note: reply.body.error, open: 0, picked: "true" };
   // Refused, before the page has read the session again: the card is closed with its reason.
-  await otherWaits(`JSON.stringify(${refusedCard}) === ${JSON.stringify(JSON.stringify(kept))}`);
+  await otherPage.waitFor(`JSON.stringify(${refusedCard}) === ${JSON.stringify(JSON.stringify(kept))}`);
   // The page reads the session again after the refusal; the question is gone from the round, and the refused card stays, closed,
   // with its reason and what was picked, so the person sees why it was not sent.
-  await other("window.__rereads()");
-  await otherWaits("window.__readsAfter >= 1");
-  assert.deepEqual(await other(refusedCard), kept, "after the session is read again, the refused card still says why, closed");
+  await otherPage.evaluate("window.__rereads()");
+  await otherPage.waitFor("window.__readsAfter >= 1");
+  assert.deepEqual(await otherPage.evaluate(refusedCard), kept, "after the session is read again, the refused card still says why, closed");
   await new Promise(resolve => setTimeout(resolve, 800));
   assert.equal(heard.length, 1, "the round heard the answer once");
   const answer = answersIn(heard[0]!.body);
@@ -288,7 +367,7 @@ const OUR_GOAL = "甲项目的发布清单", THEIR_GOAL = "乙项目的发布清
 
 test("AC-05: a reference question in one project finds and keeps only that project's objects; switching projects carries no pick or answer across", { timeout: 300_000 }, async t => {
   const opened = await openCoding(t, [OURS, THEIRS]); if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding, heard, enter, ask, show, projectId, homeDirectory } = opened;
+  const { click, evaluate, waitFor, command, sessionId, coding, heard, enter, ask, show, projectId, homeDirectory, waitObserved } = opened;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const other = await (async () => {
     try {
@@ -298,7 +377,7 @@ test("AC-05: a reference question in one project finds and keeps only that proje
     } finally { catalog.close(); }
   })();
   /** A Goal created through the project's own Goals route, from the page, in the project the page is in. */
-  const goal = (goalId: string, title: string) => evaluate(`fetch(document.body.dataset.routePrefix + '/api/goals', { method: 'POST',
+  const goal = (goalId: string, title: string) => opened.ownerEvaluate(`fetch(document.body.dataset.routePrefix + '/api/plugins/io.molis.work.goals/goals', { method: 'POST',
     headers: { ...molisWorkControlHeaders(), 'content-type': 'application/json', 'x-molis-work-idempotency-key': crypto.randomUUID() },
     body: JSON.stringify({ goal_id: ${JSON.stringify(goalId)}, title: ${JSON.stringify(title)}, outcome: '', why: '', business_logic: '' }) })
     .then(async r => { if (!r.ok) throw new Error(await r.text()); })`);
@@ -338,7 +417,7 @@ test("AC-05: a reference question in one project finds and keeps only that proje
   // S-26 at Coding's door: the first project's Goal, named in an answer sent to this session as the page sends one, is refused
   // by the Host (it cannot be read in this project) and nothing of it is written; the question still takes the real answer.
   const path = encodeURIComponent(theirs);
-  await waitFor(`window.__sent.some(one => one.url.includes('/sessions/${path}'))`, 10_000);
+  await waitObserved(`window.__sent.some(one => one.url.includes('/sessions/${path}'))`, `any request whose URL contains /sessions/${theirs}`, "the answer about to be sent for the other project's Goal");
   const run = await evaluate<{ run_id: string; pending_id: string; pending_revision: number }>(`(() => {
     const [run_id, pending_id, pending_revision] = JSON.parse(document.querySelector('${card}').dataset.questionKey); return { run_id, pending_id, pending_revision }; })()`);
   const before = await runtimeFiles(homeDirectory);
@@ -379,17 +458,18 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
+  const child=await pluginFrameBrowser(t,browser,"pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
   const selectScript = (index: number) => `(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`;
-  const select = (index: number) => evaluate(selectScript(index));
+  const select = (index: number) => child.evaluate(selectScript(index));
   const bar = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   // A write that still goes as a card (记成待办 is made at once since W4-1): a plan broken into Goal steps, a proposal.
   const writeButton = `[...document.querySelectorAll('${bar} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;
@@ -408,7 +488,7 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
     if (await evaluate<boolean>("Boolean(document.querySelector('[data-assistant-panel-close]')?.getClientRects().length)")) await click("[data-assistant-panel-close]");
     await select(index);
     await waitFor(`document.querySelector('${bar} [data-more]')`, 8000).catch(async error => { throw new Error(`${(error as Error).message}\nbars: ${await evaluate<string>(
-      `[...document.querySelectorAll('.mw-ctx'), ...[...document.querySelectorAll('iframe')].flatMap(frame => { try { return [...frame.contentDocument.querySelectorAll('.mw-ctx')]; } catch { return []; } })].map(node => node.outerHTML.slice(0, 400)).join(' || ')`)}\nselection: ${await evaluate<string>("getSelection().toString()")}\nassistant open: ${await evaluate<boolean>("!document.querySelector('[data-assistant-panel]')?.hidden")}`); });
+      `[...document.querySelectorAll('.mw-ctx'), ...[...document.querySelectorAll('iframe')].flatMap(frame => { try { return [...frame.contentDocument.querySelectorAll('.mw-ctx')]; } catch { return []; } })].map(node => node.outerHTML.slice(0, 400)).join(' || ')`)}\nselection: ${await child.evaluate<string>("getSelection().toString()")}\nassistant open: ${await evaluate<boolean>("!document.querySelector('[data-assistant-panel]')?.hidden")}`); });
     await click(`${bar} [data-more]`);
     await waitFor(`Boolean(${writeButton})`);
     await evaluate(`${writeButton}.click()`);
@@ -429,7 +509,7 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   // 1. After the card is shown, the person selects the other paragraph; the bar follows the new selection, the card does not.
   const first = await offer(0);
   await select(1);
-  assert.equal(await evaluate("getSelection().toString()"), SECOND);
+  assert.equal(await child.evaluate("getSelection().toString()"), SECOND);
   assert.equal(await evaluate<boolean>(`document.querySelector(${JSON.stringify(first)}).textContent.includes(${JSON.stringify(SECOND)})`), false,
     "the shown card does not take up the new selection");
   await click(`${first} [data-ix-action="run"]`);
@@ -438,13 +518,15 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
 
   // 2. In the moment its button is pressed: the pointer going down on it selects the other paragraph first.
   const second = await offer(1);
-  await evaluate(`document.querySelector(${JSON.stringify(`${second} [data-ix-action="run"]`)}).addEventListener('pointerdown', () => ${selectScript(0)}, { capture: true, once: true })`);
-  await click(`${second} [data-ix-action="run"]`);
+  const pressAt = await evaluate<{x:number;y:number}>(`(() => {const button=document.querySelector(${JSON.stringify(`${second} [data-ix-action="run"]`)});button.scrollIntoView({block:"center"});const box=button.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2};})()`);
+  await command("Input.dispatchMouseEvent",{type:"mousePressed",...pressAt,button:"left",clickCount:1},sessionId);
+  await select(0);
+  await command("Input.dispatchMouseEvent",{type:"mouseReleased",...pressAt,button:"left",clickCount:1},sessionId);
   await waitFor(`document.querySelector(${JSON.stringify(second)})?.dataset.status === 'done'`, 20_000);
-  assert.equal(await evaluate("getSelection().toString()"), FIRST, "the selection did change as the button was pressed");
+  assert.equal(await child.evaluate("getSelection().toString()"), FIRST, "the selection did change as the button was pressed");
   const runs = await evaluate<unknown[]>("window.__runs");
   assert.equal(runs.length, 2);
   assert.equal(JSON.stringify(runs[1]).includes(FIRST), false, "what the press sent carries nothing of the selection made at that moment");
   assert.deepEqual(proposals().sort(), [FIRST, SECOND].sort(), "each card made its own proposal once; the selection at the press made none");
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is unchanged");
+  assert.equal(await child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is unchanged");
 });

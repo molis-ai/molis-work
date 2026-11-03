@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
 // specs/repository-anti-corruption §4.8/§4.13 (W1-07, decision #17): the page assets the host sends are frozen at their
 // current size and may only fall. Each rule is mutation-verified here on a small scratch repository: one violation added
@@ -237,7 +237,7 @@ test("a sizes file that is not valid is exit 2", () => {
 // The fake dist has the same entry points as the real build (the host's createLocalWebAssets, the workbench's page assets
 // and registered plugin packs); the gate reads the routes from the fake host source, asks the fake host for each path and
 // takes the length of the body in bytes.
-const SOURCE_ROUTES = (routes: string[]) => `${routes.map(route => `if (pathname === "${route}") { /* */ }`).join("\n")}\nconst packs = /^\\/assets\\/molis-work-plugins\\/([a-z0-9-]+)\\.js$/;\n`;
+const SOURCE_ROUTES = (routes: string[]) => `${routes.map(route => `if (pathname === "${route}") { /* */ }`).join("\n")}\nconst packs = /^\\/assets\\/molis-work-plugins\\/([a-z0-9-]+)\\.(js|css)$/;\n`;
 const fakeHost = (root: string, { routes, packs, unserved = [] as string[] }: { routes: string[]; packs: Array<{ project_plugin_id: string; clientFactory?: string }>; unserved?: string[] }) => {
   put("package.json", '{ "type": "module" }\n', root);
   put("apps/local-host/src/web-assets.ts", SOURCE_ROUTES(routes), root);
@@ -271,7 +271,7 @@ export const renderMolisWorkWorkbenchClientScript = () => text("workbench.js");
 export const renderMolisWorkArrivalStylesheet = () => text("arrival.css");
 export const renderMolisWorkSettingsStylesheet = () => text("settings.css");
 `, root);
-  put("apps/workbench/dist/plugin-workbench.js", `export const BUILTIN_PLUGIN_WORKBENCH = ${JSON.stringify(packs)};\n`, root);
+  put("apps/workbench/dist/plugin-workbench.js", `export const BUILTIN_PLUGIN_WORKBENCH = ${JSON.stringify(packs)};\nexport const pluginOnDemandStylesheet = () => null;\n`, root);
   for (const [name, text] of Object.entries({ "workbench.css": "a".repeat(100), "workbench.js": "b".repeat(200), "arrival.css": "c".repeat(300), "settings.css": "d".repeat(400) })) put(name, text, root);
   writeFileSync(path.join(root, "font.woff2"), Buffer.alloc(77, 1));
 };
@@ -523,7 +523,7 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2 
   // count nor the comparison check, and a route spelled that way (say a per-plugin stylesheet family) was never measured.
   const root = hostRepo("discovery-regex");
   const original = read(HOST_SOURCE, root);
-  const known = String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/;`;
+  const known = String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/;`;
   assert.ok(original.includes(known), "the fixture spells the plugin pack route like the real host");
   for (const [name, text] of [
     ["a stylesheet family as a regex literal", String.raw`const sheet = pathname.match(/^\/assets\/molis-work-plugin-styles\/([a-z0-9-]+)\.css$/);`],
@@ -532,7 +532,7 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2 
     ["a regex with the slashes escaped inside character classes", String.raw`const sheet = pathname.match(/^[\/]assets[\/]molis-work-plugin-styles[\/]([a-z0-9-]+)\.css$/);`],
     ["a regex with the word in a group", String.raw`const sheet = pathname.match(/^\/(assets)\/molis-work-plugin-styles\/([a-z0-9-]+)\.css$/);`],
     ["a regex with the word in a group and no escaped slash next to it", String.raw`const sheet = pathname.match(/^[/](assets)[/]styles\.css$/);`],
-    ["the pack pattern widened to another extension", String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/;`],
+    ["the pack pattern widened to another extension", String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css|map)$/;`],
     ["the pack pattern pointed at another folder", String.raw`const packs = /^\/assets\/molis-work-styles\/([a-z0-9-]+)\.js$/;`],
     ["a plain string with escaped slashes", String.raw`const font = "\/assets\/inter.woff2";`],
     ["a string with only the closing slash escaped", String.raw`const sheet = "/assets\/styles.css";`],
@@ -572,8 +572,10 @@ test("this repository's build is within the committed page asset budget, which h
     assert.ok(report.measured[asset] > 0, `${asset} is measured`);
   }
   // Exactly the client bundles the workbench serves: one per plugin with its own client, none for a surface that borrows
-  // another's (W4-03: Files, Git, Diff and Text Stats load Coding's).
-  const bundles = [...new Set(pluginSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`))].sort();
+  // another's (W4-03: Files, Git, Diff and Text Stats load Coding's), and the Host's own surfaces' (RAC-73: 角色 since CHR-1).
+  // PG-070: and the sheet a framed plugin brings (its namespace's rules), for each plugin that has one.
+  const bundles = [...new Set([...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`),
+    ...pluginSurfaceClients().filter(client => pluginOnDemandStylesheet(client.id)).map(client => `/assets/molis-work-plugins/${client.id}.css`)])].sort();
   assert.ok(bundles.length > 0);
   assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles, "the plugin client packs are measured");
 });
@@ -781,23 +783,23 @@ test("VUX the current one-time allowance is bounded and spent once; other assets
   }
 });
 
-// The user approved one new asset on 2026-10-19, the 项目资料 browser code, at its measured size. No other asset may be added,
+// The user approved one new asset on 2026-10-22, the isolated plugin frame client, at its measured size. No other asset may be added,
 // it may not come in a byte larger, and once budgeted it only falls.
-test("PMAT the approved knowledge asset may be added once at its measured size; no other new asset, no growth after", () => {
-  const asset = "/assets/molis-work-knowledge.js";
-  branch("knowledge-base", () => { putBudget(sizes); });
-  git("checkout", "-q", "-B", "knowledge-change");
-  (sizes as Record<string, number>)[asset] = 26362;
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 1, "a byte over the approved size");
-  (sizes as Record<string, number>)[asset] = 26361;
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
-  assert.equal(gate("--base", "knowledge-base").code, 0);
+test("SYS-15 the approved plugin frame asset may be added once at its measured size; no other new asset, no growth after", () => {
+  const asset = "/assets/molis-work-plugin-frame.js";
+  branch("plugin-frame-base", () => { putBudget(sizes); });
+  git("checkout", "-q", "-B", "plugin-frame-change");
+  (sizes as Record<string, number>)[asset] = 187121;
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 1, "a byte over the approved size");
+  (sizes as Record<string, number>)[asset] = 187120;
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
+  assert.equal(gate("--base", "plugin-frame-base").code, 0);
   (sizes as Record<string, number>)["/assets/molis-work-other.js"] = 10;
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 1, "no other asset may be added");
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 1, "no other asset may be added");
   delete (sizes as Record<string, number>)["/assets/molis-work-other.js"];
-  assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
-  commit("budget the approved knowledge asset"); git("branch", "-f", "knowledge-frozen");
-  (sizes as Record<string, number>)[asset] = 26361 + 1; putBudget(sizes);
-  assert.equal(gate("--base", "knowledge-frozen").code, 1, "once budgeted it only falls");
-  assert.equal(gate("--update", "--base", "knowledge-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "plugin-frame-base").code, 0);
+  commit("budget the approved plugin frame asset"); git("branch", "-f", "plugin-frame-frozen");
+  (sizes as Record<string, number>)[asset] = 187120 + 1; putBudget(sizes);
+  assert.equal(gate("--base", "plugin-frame-frozen").code, 1, "once budgeted it only falls");
+  assert.equal(gate("--update", "--base", "plugin-frame-frozen").code, 1);
 });

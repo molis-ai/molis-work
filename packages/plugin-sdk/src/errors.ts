@@ -49,7 +49,10 @@ function codedFailure(error: unknown): CodedFailure | undefined {
   return isModelCode(code) && typeof message === "string" ? error as CodedFailure : undefined;
 }
 
-/** Whether a failure carries a code of ours, read by shape. The SDK's own edges use it (`index.ts` does not export it). */
+/**
+ * Whether a failure carries a code of ours, read by shape: what an exit answers by its kind (`actionErrorResponse`) rather than with
+ * its generic sentence. The SDK's route binder and the Plugin Runtime's route dispatch (BL-404) ask it.
+ */
 export function isCodedFailure(error: unknown): boolean {
   return codedFailure(error) !== undefined;
 }

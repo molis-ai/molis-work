@@ -1,3 +1,4 @@
+import { openTestShelfFiles } from './shelf-direct-actions.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, utimesSync, mkdirSync, symlinkSync } from 'node:fs';
@@ -5,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { createAtomicFileDocument,ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-storage';
-import {createPersonalPluginRegistrations,openHostShelfFiles} from '@molis-ai/molis-work-app-local-host';
+import {createPersonalPluginRegistrations} from '@molis-ai/molis-work-app-local-host';
 import { openShelfStore, SHELF_DOCUMENT_PATH, hashBytes } from '@molis-ai/molis-work-module-shelf';
 import { shelfTestAi,shelfTestReceipt } from './shelf-test-ai.js';
 
@@ -14,7 +15,7 @@ function fixture(t:import('node:test').TestContext,bound=false){
   let active=true;const authorize=()=>{if(!active)throw new Error('REVOKED');};
   const spaceId=bound?ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice')).spaceId:'personal:alice';
   const options={spaceId,authorize,storage:createAtomicFileDocument(join(home,SHELF_DOCUMENT_PATH),authorize)};
-  const open=()=>openShelfStore(join(home,'shelf'),openHostShelfFiles(home),{disabled:true},{},undefined,options);
+  const open=()=>openShelfStore(join(home,'shelf'),openTestShelfFiles(home),{disabled:true},{},undefined,options);
   return {home,options,open,revoke(){active=false;},filename:join(home,SHELF_DOCUMENT_PATH)};
 }
 function transfer(source:ReturnType<typeof fixture>,target:ReturnType<typeof fixture>,start=0){
@@ -24,14 +25,14 @@ function transfer(source:ReturnType<typeof fixture>,target:ReturnType<typeof fix
   }throw new Error('Unexpected unbounded queue');
 }
 
-test('S-55 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders and terminal records without local paths or execution',async t=>{
+test('S-107 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders and terminal records without local paths or execution',async t=>{
   const a=fixture(t),b=fixture(t),source=a.open(),target=b.open();
   assert.equal(source.replica().hasProjectChanges!('unrelated-project'),false,'Home copies remain independent even with provenance');
   (await source.saveSettings({drop_wheel_enabled:false}));(await target.saveSettings({engine:'auto'}));(await source.addClipboard('private clipboard'));(await target.addClipboard('target clipboard'));
   const bytes=Buffer.from('beyond preview\n'.repeat(15000)),text=(await source.admit({filename:'long.md',bytes,origin_realpath:join(a.home,'original.md')})),binary=(await source.admit({filename:'raw.bin',bytes:Buffer.from([255,0,254,128])}));
   const folder=(await source.admitFolder({name:'directory',entries:[{relative:'z.txt',bytes:Buffer.from('last')},{relative:'nested/a.bin',bytes:Buffer.from([0,255])}]}));
   const origin=join(a.home,'original.md');writeFileSync(origin,bytes);
-  const jobStore=openShelfStore(join(a.home,'shelf'),openHostShelfFiles(a.home),{disabled:true},{},shelfTestAi(),a.options),job=await jobStore.runJob({recipe:'summarize',item_id:text.item_id});
+  const jobStore=openShelfStore(join(a.home,'shelf'),openTestShelfFiles(a.home),{disabled:true},{},shelfTestAi(),a.options),job=await jobStore.runJob({recipe:'summarize',item_id:text.item_id});
   assert.equal(job.job.status,'succeeded');let rev=transfer(a,b);
   assert.deepEqual(target.readFile(text.item_id).bytes,bytes);assert.deepEqual(target.readFile(binary.item_id).bytes,Buffer.from([255,0,254,128]));
   assert.deepEqual(target.readChild(folder.item_id,'nested/a.bin').bytes,Buffer.from([0,255]));assert.ok(job.result);assert.equal(target.readFile(job.result.item_id).bytes.toString(),source.readFile(job.result.item_id).bytes.toString());
@@ -47,12 +48,12 @@ test('S-55 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders and
   assert.equal(target.replica().next(),null);assert.equal(received.jobs.length,1);assert.ok(rev>5);
 });
 
-test('S-55 PCSYNC-11/15 an explicitly emptied text copy remains a file, not a deletion or missing original',async t=>{
+test('S-107 PCSYNC-11/15 an explicitly emptied text copy remains a file, not a deletion or missing original',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'empty.md',bytes:Buffer.from('before empty')}));let rev=transfer(a,b);
   (await s.writeCopy(item.item_id,'',hashBytes(s.readFile(item.item_id).bytes)));rev=transfer(a,b,rev);assert.equal(d.readFile(item.item_id).bytes.byteLength,0);assert.equal((await d.snapshot()).materials.length,1);assert.ok(rev>1);
 });
 
-test('S-55 PCSYNC-05/12 Shelf frozen bytes survive edits/deletion and conflict confirmation refuses later local content',async t=>{
+test('S-107 PCSYNC-05/12 Shelf frozen bytes survive edits/deletion and conflict confirmation refuses later local content',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('base')}));let rev=transfer(a,b);
   (await s.writeCopy(item.item_id,'remote branch',hashBytes(s.readFile(item.item_id).bytes)));(await d.writeCopy(item.item_id,'local branch',hashBytes(d.readFile(item.item_id).bytes)));
   const op=s.replica().next()!;d.replica().receive({...op,revision:++rev});s.replica().acknowledge(op.key,op.operationId,rev);
@@ -64,39 +65,39 @@ test('S-55 PCSYNC-05/12 Shelf frozen bytes survive edits/deletion and conflict c
   s.replica().acknowledge(frozen.key,frozen.operationId,++rev);assert.equal(s.replica().next()!.value,null);
 });
 
-test('S-55 PCSYNC-06/15 Shelf rejects bad scope, body, paths, format and revoked writes without replacing unique files',async t=>{
+test('S-107 PCSYNC-06/15 Shelf rejects bad scope, body, paths, format and revoked writes without replacing unique files',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('unique original')})),op=s.replica().next()!;
   const values:unknown[]=[{...op.value as object,spaceId:'other'},JSON.parse(JSON.stringify(op.value)),JSON.parse(JSON.stringify(op.value))];
   (values[1] as {items:{files:{data:string}[]}[]}).items[0]!.files[0]!.data=Buffer.from('fake').toString('base64');
   (values[2] as {items:{record:{name:string}}[]}).items[0]!.record.name='../escape';
   values.forEach((value,index)=>{d.replica().receive({...op,operationId:'invalid-'+index,value,revision:index+1});assert.equal(d.replica().conflicts().length,1);assert.throws(()=>d.readFile(item.item_id));});
   assert.equal(existsSync(join(b.home,'escape')),false);assert.equal(s.readFile(item.item_id).bytes.toString(),'unique original');
-  const prior=readFileSync(a.filename);assert.throws(()=>openShelfStore(join(a.home,'shelf'),openHostShelfFiles(a.home),{disabled:true}).settings(),{code:'shelf.invalid_file'});assert.deepEqual(readFileSync(a.filename),prior);
+  const prior=readFileSync(a.filename);assert.throws(()=>openShelfStore(join(a.home,'shelf'),openTestShelfFiles(a.home),{disabled:true}).settings(),{code:'shelf.invalid_file'});assert.deepEqual(readFileSync(a.filename),prior);
   a.revoke();(await assert.rejects(async ()=>(await s.hide(item.item_id)),/REVOKED/));assert.deepEqual(readFileSync(a.filename),prior);
 });
 
-test('S-55 PCSYNC-05/15 Shelf atomic CAS failure leaves the prior bytes reachable; stale text edits cannot overwrite them',async t=>{
+test('S-107 PCSYNC-05/15 Shelf atomic CAS failure leaves the prior bytes reachable; stale text edits cannot overwrite them',async t=>{
   const f=fixture(t),s=f.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('initial')})),port=f.options.storage;
   const stale=hashBytes(s.readFile(item.item_id).bytes);(await s.writeCopy(item.item_id,'latest',stale));const before=readFileSync(f.filename);
   (await assert.rejects(async ()=>(await s.writeCopy(item.item_id,'old edit',stale)),{code:'shelf.conflict'}));assert.deepEqual(readFileSync(f.filename),before);
-  const loser=openShelfStore(join(f.home,'shelf'),openHostShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{read:port.read,compareAndSet:()=>false}});
+  const loser=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{read:port.read,compareAndSet:()=>false}});
   (await assert.rejects(async ()=>(await loser.writeCopy(item.item_id,'CAS lost',hashBytes(s.readFile(item.item_id).bytes))),{code:'plugin.sync_conflict'}));
   assert.deepEqual(readFileSync(f.filename),before);assert.equal(s.readFile(item.item_id).bytes.toString(),'latest');
 });
 
-test('S-55 PCSYNC-12/15 Shelf unavailable original keeps its queue and identifies only that key, without freezing a partial upload',async t=>{
+test('S-107 PCSYNC-12/15 Shelf unavailable original keeps its queue and identifies only that key, without freezing a partial upload',async t=>{
   const f=fixture(t),s=f.open(),bad=(await s.admit({filename:'missing.md',bytes:Buffer.from('not discarded')})),good=(await s.admit({filename:'ok.md',bytes:Buffer.from('keep moving')}));
   const filename=join(s.root,bad.relative_path),bytes=readFileSync(filename);rmSync(filename);
   const key=JSON.stringify(['item',bad.item_id]);assert.throws(()=>s.replica().next(),{code:'plugin.sync_unavailable',kind:'unavailable',details:{sync_key:key,sync_waiting:false}});
   const healthy=s.replica().next({excludeKeys:[key]})!;assert.equal(healthy.key,JSON.stringify(['item',good.item_id]));s.replica().acknowledge(healthy.key,healthy.operationId,1);
   writeFileSync(filename,bytes);assert.equal(s.replica().next()!.key,key);assert.equal(s.replica().counts().pending,1);
-  const prior=readFileSync(f.filename);const other=openShelfStore(join(f.home,'shelf'),openHostShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,spaceId:'personal:bob'});assert.throws(()=>other.replica().cursor());assert.deepEqual(readFileSync(f.filename),prior);
+  const prior=readFileSync(f.filename);const other=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,spaceId:'personal:bob'});assert.throws(()=>other.replica().cursor());assert.deepEqual(readFileSync(f.filename),prior);
 });
 
-test('S-55 PCSYNC-12/15 Shelf live work waits on its own asset, while healthy items continue; receive never starts a job',async t=>{
+test('S-107 PCSYNC-12/15 Shelf live work waits on its own asset, while healthy items continue; receive never starts a job',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('working')})),healthy=(await s.admit({filename:'other.md',bytes:Buffer.from('healthy')}));let rev=transfer(a,b);
   let finish:((value:Awaited<ReturnType<ReturnType<typeof shelfTestAi>['generate']>>)=>void)|undefined;
-  const ai=shelfTestAi(()=>new Promise(resolve=>{finish=resolve;})),active=openShelfStore(join(b.home,'shelf'),openHostShelfFiles(b.home),{disabled:true},{},ai,b.options),running=active.runJob({recipe:'summarize',item_id:item.item_id});
+  const ai=shelfTestAi(()=>new Promise(resolve=>{finish=resolve;})),active=openShelfStore(join(b.home,'shelf'),openTestShelfFiles(b.home),{disabled:true},{},ai,b.options),running=active.runJob({recipe:'summarize',item_id:item.item_id});
   for(let i=0;i<100&&!finish;i++)await setImmediate();assert.ok(finish);
   (await s.hide(item.item_id));(await s.hide(healthy.item_id));rev=transfer(a,b,rev);
   assert.equal((await d.snapshot()).materials.some(row=>row.item_id===item.item_id),true);assert.equal((await d.snapshot()).materials.some(row=>row.item_id===healthy.item_id),false);
@@ -112,7 +113,7 @@ test('Shelf keeps complete never-uploaded binary and folder children in the dele
  const records=s.replica().recoveries!().filter(row=>row.choice==='local_delete');assert.equal(records.length,2);assert.equal(s.replica().cursor(),0);
  for(const row of records){assert.equal(row.revision,0);s.replica().restoreRecovery!(row.id,'local',0);}
  assert.deepEqual(s.readFile(binary.item_id).bytes,Buffer.from([255,0,17,128]));assert.deepEqual(s.readChild(folder.item_id,'nested/a.bin').bytes,Buffer.from([1,2,255]));assert.equal(s.replica().cursor(),0);
- const original=(await s.admit({filename:'reject.bin',bytes:Buffer.from([254,22])})),port=f.options.storage,loser=openShelfStore(join(f.home,'shelf'),openHostShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{read:port.read,compareAndSet:()=>false}});
+ const original=(await s.admit({filename:'reject.bin',bytes:Buffer.from([254,22])})),port=f.options.storage,loser=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{read:port.read,compareAndSet:()=>false}});
  (await assert.rejects(async ()=>(await loser.deleteCopy(original.item_id)),{code:'plugin.sync_conflict'}));assert.deepEqual(s.readFile(original.item_id).bytes,Buffer.from([254,22]),'CAS failure must not remove the only original file');
 });
 
@@ -123,7 +124,7 @@ test('Shelf bounded collection keeps current/shared paths, and checked CAS refus
  const aged=new Date(Date.now()-172800000);utimesSync(oldPath,aged,aged);const filename=join(s.root,'files','unknown-partition');mkdirSync(filename);writeFileSync(join(filename,'must-stay'),'unknown');utimesSync(join(filename,'must-stay'),aged,aged);
  const external=join(f.home,'external.txt');writeFileSync(external,'outside owner');symlinkSync(external,join(s.root,'files','external-link'));
  const port=f.options.storage;let competed=false;
- const racer=openShelfStore(join(f.home,'shelf'),openHostShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{...port,compareAndSetChecked(expected,next,verify){competed=true;s.replica().maintain!();return port.compareAndSetChecked!(expected,next,verify);}}});
+ const racer=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,storage:{...port,compareAndSetChecked(expected,next,verify){competed=true;s.replica().maintain!();return port.compareAndSetChecked!(expected,next,verify);}}});
  (await assert.rejects(async ()=>(await racer.writeCopy(item.item_id,'reusable old body',hashBytes(current))),{code:'shelf.sync_unavailable'}));assert.equal(competed,true);assert.equal(existsSync(oldPath),false);assert.deepEqual(s.readFile(item.item_id).bytes,current);
  assert.equal(readFileSync(join(filename,'must-stay'),'utf8'),'unknown');assert.equal(readFileSync(external,'utf8'),'outside owner');
  const lost=(await s.admit({filename:'old-delete.bin',bytes:Buffer.from([255,23])})),deletedPath=join(s.root,lost.relative_path);utimesSync(deletedPath,aged,aged);(await s.deleteCopy(lost.item_id));assert.equal(existsSync(deletedPath),false);

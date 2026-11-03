@@ -47,3 +47,43 @@ test("a successful desktop action reads as operating an app, and the same browse
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"computer-act": \["操作应用", "正在操作应用", "已操作应用"\]/);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /"browser-act": \["操作网页", "正在操作网页", "已操作网页"\]/);
 });
+
+// User 2026-10-23 ⑤: a refused step carries what sort of failure it was and which fields broke which rule, never values.
+test("a refused step is classified from the platform code its text carries, with the fields a contract refusal named", () => {
+  const failed = (output: string) => presentActivity([{ call_id: "c", name: "change-reversible", target: "", state: "failed", summary: "", output, at: null }], undefined)[0];
+  assert.deepEqual(failed('Hook "molis-action-gateway-pages" blocked "change-reversible": actions.input_invalid: 输入不符合能力合同：/ additionalProperties, /title type')?.failure,
+    { kind: "invalid", fields: [{ path: "/", rule: "additionalProperties" }, { path: "/title", rule: "type" }] });
+  assert.deepEqual(failed("actions.forbidden: 不能这样做")?.failure, { kind: "forbidden" });
+  assert.deepEqual(failed("TOOL_ARGUMENTS_INVALID: 输入不符合能力合同。The input must be a JSON value matching this schema: {\"type\":\"object\"}")?.failure, { kind: "invalid" });
+  assert.equal(failed("todo.item_locked: 这条待办正被别人改")?.failure, undefined, "an owner's own code is shown as its text");
+  assert.equal(failed('Hook "molis-action-gateway-pages" blocked "change-reversible": actions.input_invalid: 输入不符合能力合同：/ additionalProperties')?.detail?.includes("Hook"), true, "the text itself is kept for the fold");
+});
+
+test("a professional Agent's own steps read as file and command work, never as business capabilities", () => {
+  assert.deepEqual(presentActivity([
+    { call_id: "a", name: "list", target: ".", state: "completed", summary: "list", at: null },
+    { call_id: "b", name: "edit", target: "calc.js", state: "completed", summary: "edit", at: null },
+    { call_id: "c", name: "run-command", target: "npm test", state: "started", summary: "run-command", at: null },
+  ], undefined), [
+    { call_id: "a", verb: "file-list", target: ".", state: "completed" },
+    { call_id: "b", verb: "file-change", target: "calc.js", state: "completed" },
+    { call_id: "c", verb: "command", target: "npm test", state: "started" },
+  ]);
+  // Stopped while an edit waited for approval: the one never closed has no recorded outcome; the cancelled one did not run.
+  assert.deepEqual(presentActivity([
+    { call_id: "d", name: "write", target: "calc.js", state: "started", summary: "write", at: null },
+    { call_id: "e", name: "write", target: "README.md", state: "failed", summary: "write · TOOL_INTERRUPTED", output: "TOOL_INTERRUPTED: this run was cancelled before the tool ran.", at: null },
+  ], undefined, true), [
+    { call_id: "d", verb: "file-change", target: "calc.js", state: "unknown" },
+    { call_id: "e", verb: "file-change", target: "README.md", state: "failed", reason: "interrupted", detail: "this run was cancelled before the tool ran." },
+  ]);
+});
+
+// BL-100: a write still waiting for an approval when the round ended was never dispatched, so it reads as not executed.
+test("a call whose approval never came when the round ended reads as not executed", () => {
+  assert.deepEqual(presentActivity([
+    { call_id: "c", name: "edit", target: "report.md", state: "failed", summary: "edit · 等待批准时这一轮结束，没有执行", at: null },
+  ], undefined, true), [
+    { call_id: "c", verb: "file-change", target: "report.md", state: "failed", reason: "interrupted" },
+  ]);
+});

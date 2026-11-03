@@ -1,9 +1,10 @@
+import { syncAggregateDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 import { syncError } from './sync-errors.js';
-import type { AggregateDefinition } from '@molis-ai/molis-work-storage';
+import type { SyncAggregateDefinition } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export const formSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'forms',title:'问卷与答卷',schema_version:1,requires:[]}]};
-export const formAggregates:readonly AggregateDefinition[]=[{
+
+export const formAggregates:readonly SyncAggregateDefinition[]=[{
   kind:'form',copy:{kind:'io.molis.work.form:form',references(value,projectId){return value.record.artifact_id?[{kind:'io.molis.work.artifacts:artifact',id:String(value.record.artifact_id),projectId}]:[];},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('io.molis.work.artifacts:artifact',String(value.record.artifact_id));value.record.share_id=null;}},table:'forms',columns:['id','project_id','title','description','status','share_id','questions_json','created_at','updated_at','artifact_id','artifact_version'],
   children:[{table:'submissions',parent:'form_id',columns:['id','form_id','answers_json','submitted_at','form_version','questions_json','request_id','source'],orderBy:'submitted_at,id'}],versionColumn:'version',busyColumn:'publication_pending_json',
   validate({record:r,children}){
@@ -52,3 +53,5 @@ function questions(value:unknown):string[]{
   });return [...ids];
 }
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'问卷同步数据不合法');}
+
+export const formSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'forms',title:'问卷与答卷',schema_version: 2,requires:[],aggregates:syncAggregateDeclaration(formAggregates)}]};

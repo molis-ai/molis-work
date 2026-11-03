@@ -112,10 +112,9 @@ test("workbench, settings, and the way in keep the Coss control layer after late
 
 test("settings secondary buttons leave the 4px blue-outline contract", () => {
   const settings = renderMolisWorkSettingsStylesheet();
-  assert.match(
-    PRIMITIVE_STYLES,
-    /\.mw-btn--secondary \{[\s\S]*?border-radius: var\(--radius-control\);[\s\S]*?background: var\(--control-fill\);[\s\S]*?color: var\(--ink\);/,
-  );
+  // The secondary button takes its corner and size from .mw-btn (and --sm/--lg); it adds only its colours.
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn \{[^}]*border: 1px solid transparent;[^}]*border-radius: var\(--radius-control, 8px\);/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn--secondary \{ background: var\(--control-fill\); color: var\(--ink\); \}/);
   assert.ok(settings.includes(".mw-btn--secondary {"));
   assert.doesNotMatch(
     settings,
@@ -145,7 +144,6 @@ test("product stylesheets stop painting mw-btn fills through descendant button r
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const arrival = renderMolisWorkArrivalStylesheet();
   assert.doesNotMatch(workbench, /\.feed-list-empty button \{[^}]*background: transparent;[^}]*color: var\(--blue-dark\)/);
-  assert.doesNotMatch(workbench, /\.project-operation-surface-empty button\[data-open-session-add\] \{[^}]*background: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.goal-canvas-empty button,[^{]*\{[^}]*background: var\(--paper\)/);
   assert.match(arrival, /\.mw-btn--primary/);
   assert.doesNotMatch(arrival, /\.onboarding-actions button \{[^}]*background: transparent;/);

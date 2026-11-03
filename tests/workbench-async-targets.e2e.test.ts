@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
@@ -124,8 +125,8 @@ async function installFileSource(browser: AuditBrowser, key: string, openId: str
   });
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId: browser.projectId! });
   const repository = await browser.localHost.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: browser.localHost.actionRegistry(reference), project_id: reference.project_id } });
-  const installed = runtime.install({ definition, deployment: "local", grants: ["audit:read"] }).install.install_id;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: browser.localHost.actionRegistry(reference), project_id: reference.project_id } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["audit:read"] }).install.install_id;
   await runtime.start(installed);
   const sources = (await (await fetch(browser.origin + "/projects/" + browser.projectId + "/api/side/files/sources")).json()).sources as Array<{ id: string; kinds: Array<{ kind: string }> }>;
   const source = sources.find(row => row.kinds.some(kind => kind.kind === subject.kind)); assert.ok(source);

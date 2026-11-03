@@ -24,7 +24,7 @@ Session/Project/workspace 关联也通过同库 Ledger API 保存；本地应用
 
 Goal 输入确认中的可解析 Feed 来源保存为 `goal.input` 边，Goals 只保存 edge key、确认状态和摘要，公开读取再还原 locator；原始来源不随 Feed 当前关联变更而改变。URL 与不可解析 locator 保留，不凭空转换成 Artifact。写入与 Goals 共用原子事务。
 
-`ContextMaterializationApi.rebuild` 已用于 Runtime advance-prompt 的 Feed 上下文：从 Goal incoming `feed.goal` 边取引用，经 owner Query 获取内容，Native Feed 选择原来排序下的 Item 并格式化、脱敏。Ledger 不拥有其正文。遍历支持缺失/拒绝/暂不可用/版本过期状态，循环去重、范围拒绝和对象数预算；失败不会留一份可被误用的部分缓存，下次调用从 owner 重新读取。返回值只是临时 projection，长期结果仍必须进 Artifact。
+`ContextMaterializationApi.rebuild` 曾用于桌面推进提示的 Feed 上下文：从 Goal incoming `feed.goal` 边取引用，经 owner Query 获取内容，Native Feed 选择原来排序下的 Item 并格式化、脱敏。推进提示改由 Goals 给出（`goals.terminal.prompt`，T-137）后暂不带 Feed 原文：Goals 以人的身份委托的调用算 `workflow` 受众，读不到只给 `user` 的 `feed.goals.context`（BL-911）。Ledger 不拥有其正文。遍历支持缺失/拒绝/暂不可用/版本过期状态，循环去重、范围拒绝和对象数预算；失败不会留一份可被误用的部分缓存，下次调用从 owner 重新读取。返回值只是临时 projection，长期结果仍必须进 Artifact。
 
 Handoff 的来源 Goal 与目标 Project / workspace 已迁入 Ledger；新 prepare 记录实际 Goal revision，历史版本不猜测。加密正文、来源/目标 Session、发送与重试状态仍是 Work 内部事实；持久化私人恢复包不等于自动发布 Artifact（总 spec §20.11 / §20.13）。
 
@@ -36,4 +36,4 @@ Runtime 工作入口到 Project 的当前绑定保存为 `work.binding_project` 
 
 Agent 运行里的对象（2026-10-19，`specs/ai-input-receipts` S3）：`ObjectRef` 新增命名空间 `agent-host`，指 Agent 运行持有、Molis 不持有的对象。`object_type: "agent_input"` 是运行会话里的一条输入，`id` 为 `<session>/<input_id>`；`object_type: "runtime_session"` 是一个运行会话。Ledger 只保存引用，不读取、不核对这个对象存在，也没有它的对象上下文读取；Molis 不知道运行里的版本，所以 `version` 一律写 `null`（身份引用）。Ledger 比较引用时连 `version` 一起比，填了数字就成了另一个对象。第一个使用者是 Goals 的「来自对话的输入」：边由 Goals 作为语义所有者写在自己的分区，引用是 AI 的说法，页面标「AI 转述」。
 
-AR2 的现有职责迁移、caller 与基线审计已通过，Molis Work 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 partial；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/molis-work-architecture-reorganization/ar2-validation.md)。
+AR2 的现有职责迁移、caller 与基线审计已通过，Molis Work 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 `slice`（[`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md) §2）；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/molis-work-architecture-reorganization/ar2-validation.md)。

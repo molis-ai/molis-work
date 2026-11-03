@@ -1,10 +1,12 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import {mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
-import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import test, { type TestContext } from "node:test";
+import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   HOTKEY_MODIFIER_REQUIRED,
   chordFromKeyboardEvent,
@@ -13,7 +15,7 @@ import {
   defaultShelfHotKeys,
   parseSettingsWriteBody,
 } from "@molis-ai/molis-work-module-shelf";
-import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_SETTINGS_CLIENT_SCRIPT,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
@@ -38,6 +40,7 @@ import { renderAppearanceSettingsDocument } from "../apps/workbench/dist/setting
 import { renderSettingsDirectorySection } from "../apps/workbench/dist/settings-directory.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { renderMolisWorkSettings } from "./workbench-renderer-fixture.js";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")
@@ -90,10 +93,85 @@ const diagnostics = {
   launchers: [],
 };
 
-function settingsPage(overrides: Partial<UiContributionDescriptor> = {}): UiContributionDescriptor {
+const settingsRuntime: AgentRuntimeDescriptor = {
+  runtime_id: "settings-runtime-probe", display_name: "Controlled settings runtime", provider_version: "1",
+  capabilities: Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(name => [name, "supported"])) as AgentRuntimeDescriptor["capabilities"],
+};
+
+/** The real Web route, with only the Agent service's existing lazy-ready port controlled; Shelf still reads its real Home action. */
+async function runtimeSettingsServer(t: TestContext, ready: () => Promise<void>) {
+  const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-settings-runtime-"));
+  const host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
+  const server = createMolisWorkWebServer({ homeDirectory, localHost: host });
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    await rm(homeDirectory, { recursive: true, force: true });
+  });
+  const agents = host.ensureAgentService(homeDirectory, () => { throw new Error("the served Host already owns its Agent service"); });
+  const readyQuery = t.mock.getter(agents, "ready", ready);
+  const runtimeQuery = t.mock.method(agents.agentHost, "descriptors", () => [settingsRuntime]);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return { host, readyQuery, runtimeQuery, get: (section: string) => fetch(`http://127.0.0.1:${address.port}/settings/${section}`, { signal: t.signal }) };
+}
+
+for (const [name, ready] of [
+  ["rejects", async () => { throw new ActionError("actions.execution_failed", "runtime directory unavailable"); }],
+  ["never settles", () => new Promise<void>(() => {})],
+] as const) {
+  test(`FIX-4 Shelf's real data page returns without calling a runtime provider that ${name}`, { timeout: 20_000 }, async t => {
+    const fixture = await runtimeSettingsServer(t, ready);
+    const response = await fixture.get("shelf");
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /data-shelf-settings/);
+    assert.match(html, /name="drop_wheel_enabled"[^>]*checked/);
+    assert.equal(fixture.readyQuery.mock.callCount(), 0);
+    assert.equal(fixture.runtimeQuery.mock.callCount(), 0);
+  });
+}
+
+test("FIX-4 a page that declares runtimes queries once and renders the returned runtime", { timeout: 20_000 }, async t => {
+  const fixture = await runtimeSettingsServer(t, async () => {});
+  const response = await fixture.get("coding-settings");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /data-coding-settings/);
+  assert.ok(html.includes(settingsRuntime.display_name));
+  assert.equal(fixture.readyQuery.mock.callCount(), 1);
+  assert.equal(fixture.runtimeQuery.mock.callCount(), 1);
+});
+
+test("FIX-4 runtime failure on a dependent page remains a visible HTTP action error", { timeout: 20_000 }, async t => {
+  const fixture = await runtimeSettingsServer(t, async () => { throw new ActionError("actions.execution_failed", "runtime directory unavailable"); });
+  const response = await fixture.get("coding-settings");
+  assert.equal(response.status, 500);
+  const body = await response.json() as { error: string; code: string; diagnostic_id: string };
+  assert.deepEqual({ error: body.error, code: body.code }, { error: "runtime directory unavailable", code: "actions.execution_failed" });
+  assert.ok(body.diagnostic_id, "the existing HTTP error chain supplies a diagnostic id");
+  assert.equal(fixture.readyQuery.mock.callCount(), 1);
+  assert.equal(fixture.runtimeQuery.mock.callCount(), 0);
+});
+
+test("FIX-4 a settings data action's own failure is still visible without a runtime dependency", { timeout: 20_000 }, async t => {
+  const fixture = await runtimeSettingsServer(t, async () => { throw new Error("unrequested runtime provider"); });
+  const client = fixture.host.homeActionClient();
+  t.mock.method(client, "invoke", async () => { throw new ActionError("actions.execution_failed", "settings data unavailable"); });
+  t.mock.method(fixture.host, "homeActionClient", () => client);
+  const response = await fixture.get("shelf");
+  assert.equal(response.status, 500);
+  const body = await response.json() as { error: string; code: string; diagnostic_id: string };
+  assert.deepEqual({ error: body.error, code: body.code }, { error: "settings data unavailable", code: "actions.execution_failed" });
+  assert.ok(body.diagnostic_id, "data-action failures keep the existing diagnostic id too");
+  assert.equal(fixture.readyQuery.mock.callCount(), 0);
+  assert.equal(fixture.runtimeQuery.mock.callCount(), 0);
+});
+
+function settingsPage(overrides: Partial<UiContributionDeclaration> = {}): UiContributionDeclaration {
   return {
     contribution_id: "io.molis.work.native.example.settings.v1",
-    plugin_id: "io.molis.work.native.example",
     kind: "settings-page",
     navigation_id: "example",
     label: "Example",
@@ -120,9 +198,9 @@ test("INTEGRATION-FIX72-02: Shelf refuses old missing settings without rewriting
       current_clip_id: null,
     });
     await writeFile(filename, original);
-    assert.throws(() => openHostShelfStore(homeDirectory).settings(), { code: "shelf.invalid_file", kind: "invalid" });
+    assert.throws(() => openTestShelfStore(homeDirectory).settings(), { code: "shelf.invalid_file", kind: "invalid" });
     assert.equal(await readFile(filename, "utf8"), original);
-    const current = openHostShelfStore(join(homeDirectory, "current"));
+    const current = openTestShelfStore(join(homeDirectory, "current"));
     assert.equal(current.settings().drop_wheel_enabled, true);
     assert.deepEqual(current.settings().hotkeys, defaultShelfHotKeys());
   } finally {
@@ -175,23 +253,21 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
     settingsPage(),
   ]);
   assert.deepEqual(listed.map((item) => item.section_id), ["shelf", "example"]);
-  const live = listPluginSettingsNavItems();
+  // The plugins a page shows are the Host's to work out (W5-02 B1); a new project shows its personal plugins.
+  const live = listPluginSettingsNavItems(shownProjectPlugins([]));
   assert.equal(findPluginSettingsNavItem("coding-settings")?.plugin_id, "io.molis.work.coding");
   assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
   assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
   // The judgment service connection lives under Capabilities → Connections, not a plugin settings page.
-  // Characters' page lives in settings as 角色 (specs/archive/page-interaction-flow), placed by its Manifest order.
-  assert.deepEqual(live.map((item) => item.section_id), ["characters", "shelf"]);
+  // RAC-73: Characters' page, Settings › 角色 (specs/archive/page-interaction-flow), is the Host's own section since CHR-1, not a plugin's.
+  assert.deepEqual(live.map((item) => item.section_id), ["shelf"]);
+  assert.equal(isHostGlobalSettingsSection("characters"), true);
   const shelf = live.find((item) => item.section_id === "shelf");
   assert.equal(shelf?.plugin_id, "io.molis.work.shelf");
   assert.equal(shelf?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(shelf?.label, "Shelf");
-  const characters = live.find((item) => item.section_id === "characters");
-  assert.equal(characters?.label, "角色");
-  assert.equal(characters?.icon, "user");
-  assert.equal(characters?.order, 35);
-  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["characters", "shelf", "planning"]);
-  assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
+  assert.deepEqual(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).map((item) => item.section_id), ["shelf", "planning"]);
+  assert.equal(listPluginSettingsNavItems(shownProjectPlugins(["goals"])).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
   assert.equal(live.some((item) => item.section_id === "functions"), false);
 });
@@ -264,8 +340,10 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
     localeSwitchHref: (locale, nextPath) => `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`,
   }, "/settings/appearance");
   assert.doesNotMatch(appearance, /拖放轮盘|drop_wheel|data-shelf-drop-wheel/);
+  // The page is drawn from the answer of the read action its Manifest view declares (`settings_data`) and the platform's context.
   const mounted = renderPluginSettingsContribution(SHELF_SETTINGS_UI_CONTRIBUTION_ID, {
-    settings: shelfSettings(),
+    context: { projects: [], project: null, runtimes: [] },
+    data: { settings: shelfSettings() },
     primitives,
   });
   assert.match(mounted, /data-shelf-settings/);
@@ -284,8 +362,63 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
   );
 });
 
+// RAC-2743/2744: each child injects a parsed Manifest before the first catalog consumer, then follows the real rendering path.
+for (const declared of [true, false]) {
+  test(`T-362 RAC-2743 RAC-2744 a ${declared ? "declared" : "plain"} Shelf Manifest reaches the catalog, settings rows and address filter`, () => {
+    execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", String.raw`
+      import assert from "node:assert/strict";
+      import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+      import { registration } from "@molis-ai/molis-work-plugin-shelf/registration";
+      const manifest = structuredClone(registration.manifest);
+      const view = manifest.ui.views.find(item => item.slot === "settings");
+      assert.ok(view, "the existing Shelf settings view is the input");
+      if (${declared}) view.settings_address = { query: ["tab", "filter"], hash: ["#section"] };
+      else delete view.settings_address;
+      const parsed = parsePluginManifest(manifest);
+      registration.manifest = parsed;
+      const { BUILTIN_PLUGIN_CATALOG, listPluginSettingsNavItems } = await import("@molis-ai/molis-work-app-workbench");
+      const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.project_plugin_id === "shelf");
+      assert.equal(entry, registration, "the catalog consumes the original registration object");
+      assert.equal(entry.manifest, parsed, "the catalog consumes the parsed Manifest");
+      const nav = listPluginSettingsNavItems(["shelf"]).find(item => item.section_id === "shelf");
+      assert.ok(nav);
+      assert.deepEqual(nav.address, ${declared} ? { query: "tab filter", hash: "#section" } : { query: "", hash: "" },
+        "Manifest declaration reaches the real nav item");
+      const { renderMolisWorkWeb } = await import("./tests/workbench-renderer-fixture.ts");
+      const html = renderMolisWorkWeb({
+        snapshot: { board: { project_id: "p1", title: "Settings", active_goal_id: null,
+          created_at: "2026-10-31T00:00:00.000Z", updated_at: "2026-10-31T00:00:00.000Z" },
+          cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
+        project: { project_id: "p1", display_name: "Settings" }, projects: [{ project_id: "p1", display_name: "Settings" }],
+        route_prefix: "/projects/p1", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {},
+        input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
+        enabled_plugins: ["shelf"],
+      });
+      const tags = html.match(/<[^>]*data-settings-section="[^"]+"[^>]*>/g) ?? [];
+      const row = tags.find(tag => /data-settings-section="shelf"/.test(tag));
+      assert.ok(row, "the real workbench renders the Shelf settings row");
+      if (${declared}) {
+        assert.match(row, /data-settings-address-query="tab filter"/, "sections forwards query to the real row");
+        assert.match(row, /data-settings-address-hash="#section"/, "sections forwards hash to the real row");
+      } else assert.doesNotMatch(row, /data-settings-address-(?:query|hash)=/, "plain Manifest renders no address attributes");
+      const rows = tags.map(tag => ({
+        id: /data-settings-section="([^"]+)"/.exec(tag)[1],
+        query: /data-settings-address-query="([^"]*)"/.exec(tag)?.[1],
+        hash: /data-settings-address-hash="([^"]*)"/.exec(tag)?.[1],
+      }));
+      const { createSettingsAddressHarness } = await import("./tests/fixtures/settings-address.ts");
+      const shell = createSettingsAddressHarness(rows);
+      assert.equal(shell.open("/settings/shelf?project=p1&desktop=1&tab=members&filter=active&evil=1#section"),
+        ${declared} ? "/settings/shelf?project=p1&desktop=1&tab=members&filter=active#section" : "/settings/shelf?project=p1&desktop=1",
+        "real rendered declarations govern the complete forwarded address");
+      assert.equal(shell.open("/settings/shelf?tab=members&evil=1#other"),
+        ${declared} ? "/settings/shelf?tab=members" : "/settings/shelf", "undeclared query and hash are dropped");
+    `], { cwd: new URL("..", import.meta.url), encoding: "utf8", timeout: 60_000, stdio: "pipe" });
+  });
+}
+
 test("workbench settings directory and standalone settings list the same grouped categories", () => {
-  const directory = renderSettingsDirectorySection(directoryPrimitives);
+  const directory = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins([]));
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
   assert.doesNotMatch(directory, /data-settings-section="mcp"/);
@@ -294,12 +427,13 @@ test("workbench settings directory and standalone settings list the same grouped
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
   assert.doesNotMatch(directory, /data-settings-section="functions"/);
-  const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
+  const withGoals = renderSettingsDirectorySection(directoryPrimitives, shownProjectPlugins(["goals"]));
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
-  // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 after 助理
-  // by its Manifest order, other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
+  // One list for the cover and the independent page (specs/archive/page-interaction-flow): host pages by group, 角色 (a Host page since CHR-1) after 助理,
+  // other plugin pages last; 能力 is four of the categories (specs/artifact-positioning S6b). 记忆 is the
   // person's own (specs/archive/memory-system §10.1).
-  assert.deepEqual(sectionOrder, ["appearance", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
+  // 本机目录 (PG-049) is the platform's page of local-folder permissions, under 本机.
+  assert.deepEqual(sectionOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics", "shelf", "planning"]);
   assert.doesNotMatch(withGoals, /data-settings-cover/);
   assert.deepEqual([...withGoals.matchAll(/class="settings-directory-group"[^>]*>([^<]+)</g)].map((match) => match[1]), ["本机", "个人", "AI", "工具与接入", "系统", "插件"]);
   assert.match(withGoals, />Goals</);
@@ -314,6 +448,7 @@ test("workbench settings directory and standalone settings list the same grouped
     projects: [],
     web_service: webService,
     diagnostics,
+    shown_plugins: shownProjectPlugins([]),
   });
   assert.match(html, /data-settings-section="shelf"/);
   assert.match(html, /href="\/settings\/shelf"/);
@@ -326,11 +461,12 @@ test("workbench settings directory and standalone settings list the same grouped
     projects: [],
     web_service: webService,
     diagnostics,
+    shown_plugins: shownProjectPlugins([]),
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
   assert.match(appearance, /href="\/capabilities\/library"/);
   const standaloneOrder = [...appearance.matchAll(/href="\/settings\/([a-z-]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(standaloneOrder, ["appearance", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "diagnostics", "shelf"]);
+  assert.deepEqual(standaloneOrder, ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "diagnostics", "shelf"]);
   assert.doesNotMatch(appearance, /href="\/settings\/connectors"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
@@ -383,10 +519,11 @@ test("Connectors settings page is a Host global section, not a plugin settings-p
 
 test("Shelf drop-wheel preference persists through the store and HTTP settings page", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-settings-http-"));
-  const store = openHostShelfStore(homeDirectory);
+  await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
+  const store = openTestShelfStore(homeDirectory);
   assert.equal(store.settings().drop_wheel_enabled, true);
   assert.equal((await store.saveSettings({ drop_wheel_enabled: false })).drop_wheel_enabled, false);
-  assert.equal(openHostShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
+  assert.equal(openTestShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
   await store.saveSettings({ drop_wheel_enabled: true });
 
   const token = "plugin-settings-http-token-012345678901";
@@ -420,40 +557,40 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   assert.match(appearancePage, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearancePage, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
 
-  const read = await (await fetch(`${origin}/api/shelf/settings`)).json() as { drop_wheel_enabled: boolean };
+  const read = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`)).json() as { drop_wheel_enabled: boolean };
   assert.equal(read.drop_wheel_enabled, true);
 
-  const rejected = await fetch(`${origin}/api/shelf/settings`, {
+  const rejected = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ drop_wheel_enabled: "no" }),
   });
   assert.equal(rejected.status, 400);
 
-  const written = await fetch(`${origin}/api/shelf/settings`, {
+  const written = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ drop_wheel_enabled: false }),
   });
   assert.equal(written.status, 200);
   assert.equal((await written.json() as { drop_wheel_enabled: boolean }).drop_wheel_enabled, false);
-  assert.equal(openHostShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
-  const reread = await (await fetch(`${origin}/api/shelf/settings`)).json() as { drop_wheel_enabled: boolean };
+  assert.equal(openTestShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
+  const reread = await (await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`)).json() as { drop_wheel_enabled: boolean };
   assert.equal(reread.drop_wheel_enabled, false);
   const after = await (await fetch(`${origin}/settings/shelf`)).text();
   assert.doesNotMatch(after, /name="drop_wheel_enabled"[^>]*checked/);
 
   const remappedChord = { key_code: 14, carbon_modifiers: 6144 };
-  const bare = await fetch(`${origin}/api/shelf/settings`, {
+  const bare = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ hotkeys: { toggle: { key_code: 2, carbon_modifiers: 0 } } }),
   });
   assert.equal(bare.status, 400);
   assert.equal(((await bare.json()) as { error: string }).error, HOTKEY_MODIFIER_REQUIRED);
-  assert.equal(openHostShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 2);
+  assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 2);
 
-  const remapped = await fetch(`${origin}/api/shelf/settings`, {
+  const remapped = await fetch(`${origin}/api/plugins/io.molis.work.shelf/settings`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ hotkeys: { toggle: remappedChord } }),
@@ -465,8 +602,8 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   };
   assert.equal(remappedBody.drop_wheel_enabled, false);
   assert.equal(remappedBody.hotkeys.toggle.key_code, 14);
-  assert.equal(openHostShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 14);
-  assert.equal(openHostShelfStore(homeDirectory).settings().hotkeys.capture.key_code, 13);
+  assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 14);
+  assert.equal(openTestShelfStore(homeDirectory).settings().hotkeys.capture.key_code, 13);
   const remappedPage = await (await fetch(`${origin}/settings/shelf`)).text();
   assert.match(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset>/);
   assert.doesNotMatch(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset hidden/);
@@ -512,8 +649,8 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
   const parsed = parseSettingsWriteBody({ hotkeys: { toggle: { key_code: 14, carbon_modifiers: 6144 } } });
   assert.equal("ok" in parsed ? parsed.ok.hotkeys?.toggle?.key_code : null, 14);
   assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf_apply_hotkeys/);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /按下…/);
-  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /这个组合被占用。/);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-recording/);
+  assert.match(SHELF_SETTINGS_CLIENT_SCRIPT, /shelf\.settings\.hotkey-occupied/);
   assert.doesNotMatch(SHELF_SETTINGS_CLIENT_SCRIPT, /data-shelf-settings-tab/);
   const remapped = renderShelfSettings({
     settings: shelfSettings({
@@ -532,7 +669,7 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
 test("Shelf store keeps the wheel when only a hotkey is patched and repairs a bare chord", async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-settings-hotkeys-"));
   try {
-    const store = openHostShelfStore(homeDirectory);
+    const store = openTestShelfStore(homeDirectory);
     await store.saveSettings({ drop_wheel_enabled: false });
     const saved = await store.saveSettings({
       hotkeys: { toggle: { key_code: 14, carbon_modifiers: 6144 } },

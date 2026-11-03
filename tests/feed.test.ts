@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+
+import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
   const now = "2026-08-29T08:00:00.000Z";
@@ -29,11 +30,11 @@ function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
   `).run(DEMO_PROJECT_ID, itemId, now, now, now, now);
 }
 
-test("a new project has separated Feed and Inbox tables with persisted read state", () => {
+test("a new project has separated Feed and Inbox tables with persisted read state", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-schema-"));
   const databasePath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
       const tables = new Set((store.db.prepare(
@@ -58,11 +59,11 @@ test("a new project has separated Feed and Inbox tables with persisted read stat
   }
 });
 
-test("opening a Feed item persists read state without invalidating its action revision", () => {
+test("opening a Feed item persists read state without invalidating its action revision", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-read-state-"));
   const molisWorkPath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(molisWorkPath);
+    await seedDemoGoals(molisWorkPath);
     const store = new LocalProjectDatabase(molisWorkPath);
     try {
       insertRssFeedItem(store, "feed-item-1");
@@ -90,11 +91,11 @@ test("opening a Feed item persists read state without invalidating its action re
   }
 });
 
-test("Attention overlay no longer changes Feed Item type or blocks markRead", () => {
+test("Attention overlay no longer changes Feed Item type or blocks markRead", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-inbox-state-"));
   const molisWorkPath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(molisWorkPath);
+    await seedDemoGoals(molisWorkPath);
     const store = new LocalProjectDatabase(molisWorkPath);
     try {
       const now = "2026-08-30T02:00:00.000Z";
@@ -122,7 +123,7 @@ test("Attention overlay no longer changes Feed Item type or blocks markRead", ()
         /已忽略的 Feed Item/,
       );
       assert.throws(
-        () => feed.linkGoal(DEMO_PROJECT_ID, "inbox-message-1", "CORE", "processing"),
+        () => feed.linkGoal(DEMO_PROJECT_ID, "inbox-message-1", "CORE", "promoted"),
         /已忽略的 Feed Item/,
       );
     } finally {
@@ -133,11 +134,11 @@ test("Attention overlay no longer changes Feed Item type or blocks markRead", ()
   }
 });
 
-test("Feed disposition updates reject stale revisions and archived shortcuts", () => {
+test("Feed disposition updates reject stale revisions and archived shortcuts", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-transition-"));
   const molisWorkPath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(molisWorkPath);
+    await seedDemoGoals(molisWorkPath);
     const store = new LocalProjectDatabase(molisWorkPath);
     try {
       insertRssFeedItem(store, "feed-item-1");
@@ -149,7 +150,7 @@ test("Feed disposition updates reject stale revisions and archived shortcuts", (
         /已忽略的 Feed Item/,
       );
       assert.throws(
-        () => feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "processing"),
+        () => feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted"),
         /已忽略的 Feed Item/,
       );
       const restored = feed.restoreToFeed(DEMO_PROJECT_ID, item.item_id, archived.revision);
@@ -202,6 +203,34 @@ test("Feed disposition updates reject stale revisions and archived shortcuts", (
         () => feed.setDisposition(DEMO_PROJECT_ID, item.item_id, "saved", item.revision),
         /已经变化/,
       );
+    } finally {
+      store.close();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("the Feed v1 schema refuses the removed processing disposition, and promotion records promoted + its event", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-processing-gone-"));
+  const molisWorkPath = join(directory, "molis-work.sqlite");
+  try {
+    await seedDemoGoals(molisWorkPath);
+    const store = new LocalProjectDatabase(molisWorkPath);
+    try {
+      insertRssFeedItem(store, "feed-processing-gone");
+      const feed = createLocalFeedApplication(store.db);
+      const item = feed.getItem(DEMO_PROJECT_ID, "feed-processing-gone");
+      // The v1 DDL no longer accepts the removed value: a real Feed database refuses it, not only the TypeScript type.
+      assert.throws(
+        () => store.db.prepare("UPDATE feed_items SET disposition = 'processing' WHERE project_id = ? AND item_id = ?").run(DEMO_PROJECT_ID, item.item_id),
+        /CHECK constraint/u,
+      );
+      const linked = feed.linkGoal(DEMO_PROJECT_ID, item.item_id, "CORE", "promoted");
+      assert.equal(linked.disposition, "promoted");
+      const events = store.db.prepare("SELECT type FROM feed_item_events WHERE project_id = ? AND item_id = ? ORDER BY at, event_id").all(DEMO_PROJECT_ID, item.item_id) as Array<{ type: string }>;
+      assert.equal(events.at(-1)?.type, "feed_item.promoted", "promotion records the promoted event");
+      assert.equal(events.some(event => event.type.includes("processing")), false, "no processing event is recorded");
     } finally {
       store.close();
     }

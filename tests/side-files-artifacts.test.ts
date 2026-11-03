@@ -15,7 +15,7 @@ test("the side panel previews a pinned document through its owner, as the 成果
   const home = await mkdtemp(join(tmpdir(), "side-files-artifacts-"));
   const project = await withCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "侧栏成果", actor_id: "owner" });
-    for (const plugin_id of ["pages", "artifacts"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "owner" });
+    for (const plugin_id of ["pages"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "owner" });
     return created;
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

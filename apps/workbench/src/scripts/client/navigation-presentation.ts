@@ -1,14 +1,16 @@
-import { DOCK_DEFAULT_PINS, pluginStageSummaries } from "../../plugin-catalog.js";
+import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
   // The label is set once on the shell, so a plugin that re-renders its list keeps the heading.
-  const STAGE_SUMMARIES = ${JSON.stringify(pluginStageSummaries())};
-  const titleStages = () => document.querySelectorAll(':is(.plugin-stage-shell, .session-stage-shell)[data-work-surface-label]').forEach((shell) => {
+  // [the Plugin's id, its summary] by work surface.
+  const STAGE_SUMMARIES = ${JSON.stringify(Object.fromEntries(Object.entries(pluginStageSummaries()).map(([id, { plugin_id, summary }]) => [id, [plugin_id, summary]])))};
+  const titleStages = () => document.querySelectorAll('.plugin-stage-shell[data-work-surface-label]').forEach((shell) => {
     const title = JSON.stringify(L(shell.dataset.workSurfaceLabel || ''));
     if (shell.style.getPropertyValue('--stage-title') !== title) shell.style.setProperty('--stage-title', title);
     const summary = STAGE_SUMMARIES[shell.dataset.workSurface || ''];
-    const desc = JSON.stringify(summary ? L(summary) : '');
+    // The summary is the Plugin's own text: English from its own words.
+    const desc = JSON.stringify(summary ? LF(summary[0], summary[1]) : '');
     if (shell.style.getPropertyValue('--stage-desc') !== desc) shell.style.setProperty('--stage-desc', desc);
   });
   titleStages();
@@ -45,8 +47,12 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   if (!dock) return;
   const rail = () => [...dock.querySelectorAll('.plugin-rail-items [data-plugin-id]')];
   const railItem = (id) => dock.querySelector('.plugin-rail-items [data-plugin-id="' + CSS.escape(id) + '"]');
+  // The market and the plugin studio are buttons at the head of the switcher, not rows of the rail: the chip names them
+  // from there too, so a place the rail does not list still reads as its name rather than its id (BL-114).
   const labelOf = (node) => node.querySelector('span')?.textContent?.trim() || node.getAttribute('title') || '';
-  const glyphOf = (id) => railItem(id)?.querySelector('svg')?.cloneNode(true) || null;
+  const namedItem = (id) => railItem(id) || dock.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(id) + '"]');
+  const nameOf = (id) => { const item = namedItem(id); return (item && labelOf(item)) || id; };
+  const glyphOf = (id) => namedItem(id)?.querySelector('svg')?.cloneNode(true) || null;
 
   /* The switcher. */
   const picker = dock.querySelector('[data-plugin-picker]');
@@ -98,7 +104,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
         return;
       }
       const entries = shown();
-      put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), railItem(entry.plugin) ? labelOf(railItem(entry.plugin)) : entry.plugin)));
+      put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), nameOf(entry.plugin))));
       current.parentElement?.classList.toggle('is-split', entries.length > 1);
       dock.querySelectorAll('[data-dock-pin]').forEach((button) => {
         const id = button.dataset.dockPin;
@@ -114,7 +120,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
 
   /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher. */
   const PINS_KEY = 'molis-work:dock-pins';
-  const DEFAULT_PINS = ${JSON.stringify(DOCK_DEFAULT_PINS)};
+  const DEFAULT_PINS = ${JSON.stringify(dockDefaultPins())};
   const pins = dock.querySelector('[data-dock-pins]');
   const readPins = () => {
     try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string'); } catch {}

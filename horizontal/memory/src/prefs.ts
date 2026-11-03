@@ -1,12 +1,12 @@
-import { MEMORY_CONSUMERS, MEMORY_KINDS, type MemoryConsumer, type MemoryKind, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_CONSUMERS, MEMORY_KINDS, type MemoryConsumer, type MemoryKind, type MemoryPrefs, type MemoryPreset, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 
 /**
- * Switches, as spec §10 lists them. Forming, automatic writing (D2: on, undoable) and learning from work and the
- * interface are on; every consumer may use memories except external AI clients reading personal ones.
+ * The assisted base switches; Home creation explicitly persists reviewed instead. Completing a stored override
+ * never chooses whether a Home is new. External AI clients cannot read personal memories by default.
  */
-export function defaultPrefs(scope: MemoryScope): MemoryPrefs {
+export function defaultPrefs(scope: MemoryScope, preset: "reviewed" | "assisted" = "assisted"): MemoryPrefs {
   return {
-    form: true, auto: true, learn_from_work: true, learn_from_ui: true,
+    enabled: true, task_recall: true, form: true, auto: preset === "assisted", learn_from_work: true, learn_from_ui: true,
     consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: scope === "project" },
     plugins: {},
   };
@@ -20,12 +20,14 @@ export const PERSONAL_PREFS_KEY = "personal";
 export const PROJECT_DEFAULT_PREFS_KEY = "project-default";
 export const projectPrefsKey = (projectId: string) => `project:${projectId}`;
 
+export { isCompleteMemoryPrefs as isCompletePrefs } from "@molis-ai/molis-work-contracts/services/memory";
+
 /** A stored (possibly partial or older) record, completed with the defaults; unknown keys are dropped. */
 export function completePrefs(scope: MemoryScope, ...layers: Array<Partial<MemoryPrefs> | null | undefined>): MemoryPrefs {
   const out = defaultPrefs(scope);
   for (const layer of layers) {
     if (!layer) continue;
-    for (const key of ["form", "auto", "learn_from_work", "learn_from_ui"] as const) if (typeof layer[key] === "boolean") out[key] = layer[key]!;
+    for (const key of ["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui"] as const) if (typeof layer[key] === "boolean") out[key] = layer[key]!;
     if (layer.consumers && typeof layer.consumers === "object") for (const consumer of MEMORY_CONSUMERS)
       if (typeof layer.consumers[consumer] === "boolean") out.consumers[consumer] = layer.consumers[consumer];
     if (layer.plugins && typeof layer.plugins === "object") for (const [pluginId, rule] of Object.entries(layer.plugins)) {
@@ -38,8 +40,8 @@ export function completePrefs(scope: MemoryScope, ...layers: Array<Partial<Memor
 }
 
 /** Whether a consumer may read a scope's memories, and the kinds a plugin may read. */
-export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, pluginId?: string | null): { allowed: boolean; kinds: readonly MemoryKind[] | null } {
-  if (!prefs.consumers[consumer]) return { allowed: false, kinds: null };
+export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, pluginId?: string | null, readMode: "explicit" | "task" = "task"): { allowed: boolean; kinds: readonly MemoryKind[] | null } {
+  if (!prefs.enabled || (readMode === "task" && !prefs.task_recall) || !prefs.consumers[consumer]) return { allowed: false, kinds: null };
   if (consumer !== "plugin") return { allowed: true, kinds: null };
   const rule = pluginId ? prefs.plugins[pluginId] : undefined;
   if (rule) return { allowed: rule.allowed && rule.kinds.length > 0, kinds: rule.kinds };
@@ -49,3 +51,9 @@ export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, plu
 export const CONSUMER_LABELS: Record<MemoryConsumer, string> = {
   assistant: "助理", agent: "Agent 工作", ui: "界面推荐", plugin: "插件", mcp: "外部 AI 客户端",
 };
+
+/** A person's chosen recipe changes only its four controls, preserving finer permissions and learning choices. */
+export function presetPrefs(current: MemoryPrefs, preset: MemoryPreset): MemoryPrefs {
+  if (preset === "off") return { ...current, enabled: false };
+  return { ...current, enabled: true, task_recall: preset !== "manual", form: preset !== "manual", auto: preset === "assisted" };
+}

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
 import {
   AGENT_PROMPT_LAYERS,
@@ -16,6 +19,8 @@ import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 const zh = (key: string, values: Record<string, string | number> = {}) => fillMessage((CODING_MESSAGES as Record<string, { zh: string }>)[key]?.zh ?? key, values);
 import { scheduleAgentManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+
+const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 
 /**
  * 一轮执行的指令来自四个不同的主人：产品、角色、项目、用户。
@@ -74,6 +79,21 @@ test("Coding 自己的声明是合法的，且 base 那一段独立成层", () =
   // Reading through commands costs a review each; rewriting through commands skips the diff preview.
   assert.match(base!.body, /不要用 cat、sed -n、grep、wc 这类命令代替/);
   assert.match(base!.body, /改文件只用 edit 或 write/);
+});
+
+// BL-304：从 Coding 提示词里删掉的三句约束由工具自己的说明承担（Prologue #42、#43，C4）。
+// SDK 没有公开系统工具清单，直接读安装包里那一份：上游把说明改没了，这里就红。
+test("SDK 的工具说明里有 Coding 提示词不再重复的三句", async () => {
+  const packageRoot = dirname(dirname(requireSdk.resolve("@prologue/sdk")));
+  const systemTools = await readFile(join(packageRoot, "dist", "tool", "core", "system.js"), "utf8");
+  assert.match(systemTools, /It does not match file names/,
+    "search 的说明要说清它只在文件内容里找文字，按名字找要用 list");
+  assert.match(systemTools, /Files over 64 KB cannot be read whole: pass offset and limit to read a window of lines/,
+    "read 的说明要教大文件用 offset、limit 读一段");
+  assert.match(systemTools, /A character that declares its tools gets exactly those whatever this list says, so \[\] is fine;/,
+    "dispatch-subagent 的说明要允许 tools 给空数组");
+  assert.match(systemTools, /if this run lacks one of them, the dispatch fails\./,
+    "dispatch-subagent 的说明要说清这一跑没有的工具不能在名单里");
 });
 
 function hostFor(projectPrompts?: readonly AgentPromptText[]) {

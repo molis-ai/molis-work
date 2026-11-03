@@ -1,9 +1,5 @@
-import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   FormOption,
   FormQuestion,
@@ -13,13 +9,13 @@ import type {
   FormStatus,
   FormSubmissionRecord,
   FormSubmissionSource,
-} from "@molis-ai/molis-work-contracts/modules/form";
+} from "./contract.js";
 import { formErrors } from "./error.js";
 import { FORM_ANSWER_FORMAT, FORM_ANSWER_LIMIT } from "./fillpage.js";
-import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
-import { formAggregates } from './replication.js';
 
 import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";
+import { FORM_DATABASE } from "./database.js";
+export { FORM_DATABASE };
 
 interface FormRow {
   id: string;
@@ -198,9 +194,12 @@ export class FormStore {
       let imported = 0, skipped = 0;
       const rejected: { name: string; reason: string }[] = [];
       for (const file of files) {
-        const name = String(file.name ?? "").slice(0, 200) || "答卷";
+        const name = [...String(file.name ?? "")].slice(0, 200).join("") || "答卷";
         try {
-          if (file.content.length > 400_000) throw formErrors.invalid("文件过大，不像一份答卷");
+          // The store's own size guard counts UTF-8 bytes, the size the file has on disk; the import action's schema counts code points
+          // instead (content.maxLength 400,000, Ajv), so that layer is a little looser. A file of 40 questions whose answers are 4000
+          // 汉字 each has about 480,000 bytes, so this guard refuses it as too large rather than reading it.
+          if (Buffer.byteLength(file.content) > 400_000) throw formErrors.invalid("文件过大，不像一份答卷");
           const parsed = JSON.parse(file.content) as Record<string, unknown>;
           if (parsed.format !== FORM_ANSWER_FORMAT) throw formErrors.invalid("不是 Molis 问卷答卷文件");
           if (parsed.form_id !== form.id) throw formErrors.invalid("这份答卷属于另一份问卷");
@@ -264,7 +263,7 @@ export class FormStore {
   generateQuestions(id: string, prompt: string, projectId?: string, expectedVersion?: number): FormRecord {
     const current = this.get(id, projectId);
     const title = prompt.trim() || "请填写你的回答";
-    if (title.length > 200) throw formErrors.invalid("出题提示须为 1 到 200 个字");
+    if ([...title].length > 200) throw formErrors.invalid("出题提示须为 1 到 200 个字");
     const question: FormQuestion = {
       id: crypto.randomUUID(),
       type: "text",
@@ -346,62 +345,6 @@ export class FormStore {
   }
 }
 
-/**
- * The form store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version. Columns keep the order existing stores have them in. It is the library the Host's start
- * list gives the running plugin (`services.database`), read with `form:read` and written with `form:write`; the store's
- * own connection (deletion, tests) opens the same file at the same baseline.
- */
-export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: "form", version: 3, read_permission: "form:read", write_permission: "form:write", schema: (`
-  CREATE TABLE forms (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL,
-    status TEXT NOT NULL,
-    share_id TEXT,
-    questions_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    project_id TEXT NOT NULL DEFAULT '',
-    artifact_id TEXT NOT NULL DEFAULT '',
-    artifact_version INTEGER NOT NULL DEFAULT 0,
-    publication_pending_json TEXT
-  );
-  CREATE TABLE submissions (
-    id TEXT PRIMARY KEY,
-    form_id TEXT NOT NULL,
-    answers_json TEXT NOT NULL,
-    submitted_at TEXT NOT NULL,
-    form_version INTEGER NOT NULL,
-    questions_json TEXT NOT NULL,
-    request_id TEXT,
-    source TEXT NOT NULL
-  );
-  CREATE UNIQUE INDEX submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL;
-  CREATE TABLE form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
-`)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
-
-/** A store on its own connection, for the project's deletion and for tests; the running plugin uses the library the Runtime gives it. */
-export function openFormStore(homeDirectory: string): FormStore & { replica(context: AggregateReplicaContext): ReturnType<typeof createAggregateReplica>;copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy> } {
-  const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_DATABASE);
-  initializeAggregateReplication(db, formAggregates);
-  const sql: FormSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return Object.assign(new FormStore(sql, run => immediate(db, run), () => db.close()), {
-    copy:(context:AggregateCopyContext)=>createAggregateCopy(db,formAggregates,context),
-    replica: (context: AggregateReplicaContext) => createAggregateReplica(db, formAggregates, context),
-  });
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 function fromRow(row: FormRow): FormRecord {
   const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as FormPublicationIntent : null;
@@ -453,12 +396,12 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名问卷";
-  if (title.length > FORM_TITLE_LIMIT) throw formErrors.invalid(`标题须为 1 到 ${FORM_TITLE_LIMIT} 个字`);
+  if ([...title].length > FORM_TITLE_LIMIT) throw formErrors.invalid(`标题须为 1 到 ${FORM_TITLE_LIMIT} 个字`);
   return title;
 }
 
 function normalizeDescription(value: string): string {
-  if (value.length > 2000) throw formErrors.invalid("说明须为 0 到 2000 个字");
+  if ([...value].length > 2000) throw formErrors.invalid("说明须为 0 到 2000 个字");
   return value;
 }
 
@@ -472,7 +415,7 @@ function normalizeQuestions(value: readonly FormQuestionInput[]): FormQuestion[]
   const normalized = value.map((question: FormQuestionInput, index) => {
     const type = question.type && QUESTION_TYPES.includes(question.type) ? question.type : "text";
     const title = String(question.title ?? "").trim() || `问题 ${index + 1}`;
-    if (title.length > 200) throw formErrors.invalid("题目标题须为 1 到 200 个字");
+    if ([...title].length > 200) throw formErrors.invalid("题目标题须为 1 到 200 个字");
     const options = usesOptions(type)
       ? (question.options ?? []).map((option: Partial<FormOption>, optionIndex: number) => ({
         id: option.id || crypto.randomUUID(),
@@ -508,7 +451,7 @@ function normalizeAnswers(
     if (question.required && !value) {
       throw formErrors.invalid(`请回答：${question.title}`);
     }
-    if (value.length > FORM_ANSWER_LIMIT) throw formErrors.invalid("回答过长");
+    if ([...value].length > FORM_ANSWER_LIMIT) throw formErrors.invalid("回答过长");
     if (value && usesOptions(question.type)) {
       const allowed = new Set((question.options ?? []).map(option => option.label));
       const values = question.type === "multiChoice" ? value.split("\n") : [value];

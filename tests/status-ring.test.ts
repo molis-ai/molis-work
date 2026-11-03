@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { icon, renderStateRing, renderStatusMark, renderSpinner, stateRingFamily, STATE_RING_FAMILIES } from "@molis-ai/molis-work-design-system";
-import { createWorkbenchGoalsStatusRenderer } from "@molis-ai/molis-work-app-workbench";
+import { icon, renderSpinner, renderStateRing, renderStatusMark, STATE_RING_FAMILIES, stateRingFamily } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { STATE_RING_STYLES } from "@molis-ai/molis-work-design-system";
+import { goalsRenderers } from "./goals-page-mount.js";
 
 test("RING-01 aliases share presentation without replacing the caller's business meaning", () => {
   for (const state of ["done", "saved", "round-ended", "staged"] as const) {
@@ -46,7 +47,7 @@ test("RING-02 RING-05 current status and loading entrypoints use one accessible 
 });
 
 test("RING-05 Goals keep their labels while only real execution moves", () => {
-  const renderer = createWorkbenchGoalsStatusRenderer({ translate: text => text, escapeHtml: text => text, icon });
+  const renderer = goalsRenderers.status({ translate: text => text, escapeHtml: text => text, icon });
   const running = renderer.renderVisibleGoalStatus({ status: "executing", display_status: "in_progress", status_label: "正在检查实现" });
   const doing = renderer.renderVisibleGoalStatus({ status: "execution_pending", display_status: "in_progress", status_label: "进行中" });
   assert.match(running, /data-mw-state="running"/);
@@ -58,10 +59,15 @@ test("RING-05 Goals keep their labels while only real execution moves", () => {
   assert.match(renderer.renderActionStatus("completed"), /data-mw-state="done"/);
 });
 
-test("RING-08 common marks stay legible while the catalog can demonstrate compact sizes", () => {
+test("RING-08 common marks stand as tall as their words and stay legible while the catalog can demonstrate compact sizes", () => {
+  // Without a size a ring follows its text (styles/state-ring.ts: 1em + 2px), and its stroke is at least 1.4 CSS px on
+  // screen at the 13px it is drawn for, beside 11px words (user 2026-10-22, VUX-46).
   for (const html of [renderStateRing({ state: "idle" }), icon("status-done"), renderStatusMark({ state: "failed", label: "失败" }), renderSpinner()]) {
-    assert.match(html, /width="20" height="20"/);
+    assert.doesNotMatch(html, /<svg[^>]* width="/);
+    assert.ok(Number(/--ring-stroke:([\d.]+)/.exec(html)![1]) * 13 / 24 >= 1.399);
   }
+  assert.match(STATE_RING_STYLES, /width: var\(--ring-size, calc\(1em \+ 2px\)\); height: var\(--ring-size, calc\(1em \+ 2px\)\);/);
+  assert.ok(Number(/--ring-stroke:([\d.]+)/.exec(renderStateRing({ state: "done", size: 20 }))![1]) * 20 / 24 >= 1.399);
   assert.match(renderStateRing({ state: "done", size: 12 }), /width="12" height="12"/);
   for (const state of ["idle", "read", "failed", "answer"] as const) {
     const opacity = [...renderStateRing({ state }).matchAll(/opacity="([\d.]+)"/g)].map(match => Number(match[1]));

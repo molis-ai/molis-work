@@ -14,7 +14,7 @@ type Schema = { properties?: Record<string, { title?: unknown; description?: unk
 const REFERENCE_GAPS: Record<ReferenceKindProblem["reason"], (problem: ReferenceKindProblem) => string> = {
   kind: problem => `对象种类 ${problem.kinds.join("、")} 的写法不是标识（小写字母开头，只用小写字母、数字和 _ . -，最长 ${problem.limit} 个字符）：助理的对象引用题问不到它。`,
   title: problem => `对象种类 ${problem.kinds.join("、")} 的显示名是空的、不止一行或超过 ${problem.limit} 个字：助理的对象引用题问不到它。`,
-  limit: problem => `对象种类 ${problem.kinds.join("、")} 超出了一个项目最多 ${problem.limit} 种的上限（内置插件在前，其余按插件标识排）：助理的对象引用题问不到它。`,
+  limit: problem => `对象种类 ${problem.kinds.join("、")} 超出了一个项目最多 ${problem.limit} 种的上限（按插件标识排，每个插件分同样的份额，列得多的用别人剩下的）：助理的对象引用题问不到它。`,
 };
 
 export function assistantContributions(views: readonly ActionView[]): AssistantContribution[] {

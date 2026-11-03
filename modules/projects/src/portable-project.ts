@@ -1,6 +1,6 @@
 import {applySyncedProjectRecycle} from './sync-recycle.js';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { ProjectsSqliteDatabase } from './repository.js';
+import type { ProjectsSqliteDatabase } from './sqlite.js';
 
 const errors=defineErrorCodes('catalog',{sync_project_invalid:'invalid',sync_project_scope:'forbidden',sync_project_lifecycle:'conflict'});
 export interface PortableProject {

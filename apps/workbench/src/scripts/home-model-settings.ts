@@ -1,9 +1,21 @@
+import { HOME_SETTINGS_QUERY_EXTRAS, SETTINGS_ADDRESS_DEFAULTS } from "../settings-address-params.js";
 import { MODEL_SETTINGS_CLIENT_SCRIPT } from "./settings-models.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 /** The project-free Home shell hosts the existing settings document without unloading plugin drafts. */
 export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
   const L = globalThis.L || (text => text);
+  // The pages' own address declarations (settings-address-params.ts): this dialog keeps only what the page it opens reads.
+  const DEFAULTS = ${JSON.stringify(SETTINGS_ADDRESS_DEFAULTS.global)};
+  const HOME_QUERY_EXTRAS = ${JSON.stringify(HOME_SETTINGS_QUERY_EXTRAS)};
+  const declared = (table, key) => Object.prototype.hasOwnProperty.call(table, key) ? table[key] : "";
+  const keptQuery = (search, path) => {
+    const allowed = (DEFAULTS + " " + declared(HOME_QUERY_EXTRAS, path)).trim().split(/ +/);
+    const kept = new URLSearchParams();
+    for (const [key, value] of new URLSearchParams(search || "")) if (allowed.includes(key)) kept.append(key, value);
+    const text = kept.toString();
+    return text ? "?" + text : "";
+  };
   ${MODEL_SETTINGS_CLIENT_SCRIPT}
   ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
   const dialog = document.querySelector('[data-home-model-settings]');
@@ -60,11 +72,18 @@ export const HOME_MODEL_SETTINGS_CLIENT_SCRIPT = `(() => {
   dialog.addEventListener('click', event => { if (backdrop && event.target === dialog) dialog.close(); });
   retry.addEventListener('click', () => void load());
   back.addEventListener('click', () => void load('/settings/models'));
+  const openSettings = href => {
+    if (typeof href !== 'string') return false;
+    let url;
+    try { url = new URL(href, location.origin); } catch { return false; }
+    if (url.origin !== location.origin || !['/settings/models', '/settings/connectors', '/capabilities/connections'].includes(url.pathname)) return false;
+    if (!dialog.open) dialog.showModal(); void load(url.pathname + keptQuery(url.search, url.pathname));
+    return true;
+  };
+  document.addEventListener('molis-work:open-settings-path', event => { openSettings(event.detail?.href); });
   document.addEventListener('click', event => {
     const link = event.target.closest('a[href]');
     if (!link || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
-    const url = new URL(link.href, location.origin);
-    if (url.origin !== location.origin || !['/settings/models', '/settings/connectors', '/capabilities/connections'].includes(url.pathname)) return;
-    event.preventDefault(); if (!dialog.open) dialog.showModal(); void load(url.pathname + url.search);
+    if (openSettings(link.href)) event.preventDefault();
   });
 })();`;

@@ -24,6 +24,12 @@ export interface ReviewAuthority {
   holds(): boolean;
 }
 
+/**
+ * `origin` is the authority of the installation that asked for a plugin operation, as recorded in this process; absent for
+ * anything else, including a review restored from history. Its `holds()` says whether that very activation still runs.
+ */
+export type ReviewSettlementListener = (request: AgentReviewRequest, receipt: AgentReviewReceipt, origin?: ReviewAuthority) => void;
+
 const pluginOperation = (request: AgentReviewRequest): string | null =>
   request.operation && (PLUGIN_REVIEW_KINDS as readonly string[]).includes(request.operation.kind) ? request.operation.kind : null;
 
@@ -80,7 +86,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly #automatic = new Map<string, { set_by: string; set_at: string }>();
   readonly #rows = new Map<string, ReviewRow>();
   readonly #consumed = new Set<string>();
-  readonly #settlements = new Set<(request: AgentReviewRequest, receipt: AgentReviewReceipt) => void>();
+  readonly #settlements = new Set<ReviewSettlementListener>();
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
   readonly #deciders = new Map<string, (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>>();
   readonly #refreshers = new Set<(projectId: string) => Promise<void>>();
@@ -285,14 +291,14 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   /** UI invalidation after an execution owner records a new outcome; never replays history. */
-  observeSettlement(listener: (request: AgentReviewRequest, receipt: AgentReviewReceipt) => void): () => void {
+  observeSettlement(listener: ReviewSettlementListener): () => void {
     this.#settlements.add(listener);
     return () => { this.#settlements.delete(listener); };
   }
 
   #notifySettlement(row: ReviewRow): void {
     for (const listener of this.#settlements) {
-      try { listener(structuredClone(row.request), structuredClone(row.receipt)); }
+      try { listener(structuredClone(row.request), structuredClone(row.receipt), this.#authorities.get(row.request.review_id)); }
       catch { /* A projection failure cannot turn a committed Effect into an execution failure. */ }
     }
   }

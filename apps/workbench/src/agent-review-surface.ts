@@ -1,4 +1,4 @@
-import { renderStateRing, type StateRingState } from "@molis-ai/molis-work-design-system";
+import { renderStateRing, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   AgentReviewDocument,
   AgentReviewReceipt,

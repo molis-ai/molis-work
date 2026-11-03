@@ -3,10 +3,11 @@ import path from "node:path";
 
 import type { RuntimeAdapter, SupportedRuntimeId, DesiredConnection, ConfigInspection } from "./runtime-integration-contract.js";
 import { tomlString, extractTomlFamily, normalizeBlock, digest, replaceTomlFamily, parseJsonObject, objectOrEmpty, canonicalJson, replaceTopLevelJsonProperty, parseJsoncObject } from "./runtime-config-text.js";
+import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 const CODEX_ADAPTER: RuntimeAdapter = {
   id: "codex",
-  displayName: "Codex",
+  displayName: RUNTIME_DISPLAY_NAMES.codex,
   executableNames: ["codex"],
   detectionPaths: (userHome) => [path.join(userHome, ".codex")],
   configPath: (userHome) => path.join(userHome, ".codex", "config.toml"),
@@ -19,12 +20,12 @@ const CODEX_ADAPTER: RuntimeAdapter = {
   inspectConfig: inspectCodexConfig,
   connectConfig: connectCodexConfig,
   removeConfig: removeCodexConfig,
-  restartInstructions: restartInstructionsFor("Codex"),
+  restartInstructions: restartInstructionsFor(RUNTIME_DISPLAY_NAMES.codex),
 };
 
 const CLAUDE_CODE_ADAPTER: RuntimeAdapter = {
   id: "claude-code",
-  displayName: "Claude Code",
+  displayName: RUNTIME_DISPLAY_NAMES["claude-code"],
   executableNames: ["claude"],
   detectionPaths: (userHome) => [path.join(userHome, ".claude"), path.join(userHome, ".claude.json")],
   configPath: (userHome) => path.join(userHome, ".claude.json"),
@@ -37,12 +38,12 @@ const CLAUDE_CODE_ADAPTER: RuntimeAdapter = {
   inspectConfig: inspectClaudeConfig,
   connectConfig: connectClaudeConfig,
   removeConfig: removeClaudeConfig,
-  restartInstructions: restartInstructionsFor("Claude Code"),
+  restartInstructions: restartInstructionsFor(RUNTIME_DISPLAY_NAMES["claude-code"]),
 };
 
 const OPENCODE_ADAPTER: RuntimeAdapter = {
   id: "opencode",
-  displayName: "OpenCode",
+  displayName: RUNTIME_DISPLAY_NAMES.opencode,
   executableNames: ["opencode"],
   detectionPaths: (userHome) => [
     path.join(userHome, ".config", "opencode"),
@@ -58,12 +59,12 @@ const OPENCODE_ADAPTER: RuntimeAdapter = {
   inspectConfig: inspectOpenCodeConfig,
   connectConfig: connectOpenCodeConfig,
   removeConfig: removeOpenCodeConfig,
-  restartInstructions: restartInstructionsFor("OpenCode"),
+  restartInstructions: restartInstructionsFor(RUNTIME_DISPLAY_NAMES.opencode),
 };
 
 const PI_AGENT_ADAPTER: RuntimeAdapter = {
   id: "pi-agent",
-  displayName: "Pi Agent",
+  displayName: RUNTIME_DISPLAY_NAMES["pi-agent"],
   executableNames: ["pi"],
   detectionPaths: (userHome) => [path.join(userHome, ".pi"), path.join(userHome, ".pi", "agent")],
   configPath: (userHome) => path.join(userHome, ".pi", "agent", "mcp.json"),
@@ -77,14 +78,14 @@ const PI_AGENT_ADAPTER: RuntimeAdapter = {
   connectConfig: connectPiConfig,
   removeConfig: removePiConfig,
   restartInstructions: [
-    ...restartInstructionsFor("Pi Agent"),
+    ...restartInstructionsFor(RUNTIME_DISPLAY_NAMES["pi-agent"]),
     "Pi 本体不内置 MCP。Molis Work 会写入 ~/.pi/agent/mcp.json，供 pi-mcp-adapter 读取。若新 Session 里看不到 Molis Work 工具，先运行 `pi install npm:pi-mcp-adapter` 再开新会话。Skill 不依赖 adapter，可用 /skill:goal-advance。",
   ],
 };
 
 const GROK_BUILD_ADAPTER: RuntimeAdapter = {
   id: "grok-build",
-  displayName: "Grok Build",
+  displayName: RUNTIME_DISPLAY_NAMES["grok-build"],
   executableNames: ["grok"],
   detectionPaths: (userHome) => [path.join(userHome, ".grok")],
   configPath: (userHome) => path.join(userHome, ".grok", "config.toml"),
@@ -97,7 +98,7 @@ const GROK_BUILD_ADAPTER: RuntimeAdapter = {
   inspectConfig: inspectCodexConfig,
   connectConfig: connectCodexConfig,
   removeConfig: removeCodexConfig,
-  restartInstructions: restartInstructionsFor("Grok Build"),
+  restartInstructions: restartInstructionsFor(RUNTIME_DISPLAY_NAMES["grok-build"]),
 };
 
 export const ADAPTERS: readonly RuntimeAdapter[] = [

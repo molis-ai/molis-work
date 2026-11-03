@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { isPrologueError, type Runtime } from "@prologue/sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentWriteChecker, AgentWriteCheckerList, AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentErrors } from "../errors.js";
 
 const KIND = "molis-write-checkers";
 /** One record per project and workspace. */
@@ -28,7 +29,7 @@ export function createPrologueWriteCheckers(runtime: Pick<Runtime, "store">): Ag
     if (!record || record.tombstoned) return { workspace_id: workspaceId, version: record?.version ?? 0, checkers: [] };
     const { project_id, workspace_id, checkers } = record.metadata;
     if (project_id !== projectId || workspace_id !== workspaceId || !Array.isArray(checkers) || !checkers.every(keptChecker)) {
-      throw new Error("写后检查器的记录不是现行形状，读不了");
+      throw agentErrors.write_checker_unreadable("写后检查器的记录不是现行形状，读不了");
     }
     return { workspace_id: workspaceId, version: record.version, checkers: structuredClone(checkers) };
   };

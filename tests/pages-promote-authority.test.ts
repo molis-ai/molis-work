@@ -6,7 +6,8 @@ import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionClient, PluginArtifactClient, PluginDatabase, PluginDatabaseTransaction, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createPagesPlugin, openPagesStore, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesPlugin, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
 type Stage = "before-begin" | "after-begin" | "after-publish-check" | "after-artifact" | "before-complete";
@@ -24,7 +25,8 @@ function runtimeFor(home: string, db: ReturnType<typeof openHomeSqliteDatabase>,
       await beforeEffect();
       phase += 1;
       hooks.onTransaction(phase);
-      const transaction: PluginDatabaseTransaction = { get: database.get, all: database.all, run: (sql, parameters = []) => db.prepare(sql).run(...parameters) };
+      const transaction: PluginDatabaseTransaction = { get: database.get, all: database.all, run: (sql, parameters = []) => db.prepare(sql).run(...parameters),
+        savepoint: () => { throw new Error("this fixture's writes do not use a savepoint"); } };
       const result = write(transaction);
       hooks.afterTransaction(phase);
       return result;
@@ -36,7 +38,7 @@ function runtimeFor(home: string, db: ReturnType<typeof openHomeSqliteDatabase>,
   };
   const none = bindActionClient(new ActionService(), () => ({ actor_id: "owner", project_id: "a", audience: "user", permissions: [] }));
   const actions: PluginActionClient = { ...none, invokeQuery: async () => { throw new ActionError("actions.dependency_missing", "unused"); } };
-  const context: PluginStartContext = { install_id: "pages-test", plugin_id: "io.molis.work.pages", version: "0.0.0", deployment: "local",
+  const context: PluginStartContext = { install_id: "pages-test", installation_generation: "1", plugin_id: "io.molis.work.pages", version: "0.0.0", deployment: "local",
     grants: [], project_id: "a", services: { database, artifacts, actions }, requireGrant: () => {} };
   return { context, published: () => published, home };
 }

@@ -1,3 +1,4 @@
+import {createStaticPersonalSync as createPersonalSync} from './static-personal-sync.js';
 import assert from 'node:assert/strict';
 import type {TestContext} from 'node:test';
 import {mkdtempSync,readFileSync,rmSync,realpathSync} from 'node:fs';
@@ -6,7 +7,7 @@ import {tmpdir} from 'node:os';
 import type {PluginManifest,PluginPrivateStorage} from '@molis-ai/molis-work-contracts/platform/plugin';
 import type {PrivateValueReplicationOwner,SyncContentCodec,SyncBlobSource} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type {StorageSpace} from '@molis-ai/molis-work-contracts/platform/storage';
-import {createPersonalSync,LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {createSqliteReplica,namespacedReplicaDatabase,ensureStorageSpace} from '@molis-ai/molis-work-storage';
 import {privateValueReplicaOwner,SqlitePluginPrivateStorage,SqlitePluginRuntimeRepository} from '@molis-ai/molis-work-plugin-runtime';

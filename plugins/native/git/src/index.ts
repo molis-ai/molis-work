@@ -1,34 +1,11 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-git",
-  packagePath: "plugins/native/git",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["git.artifact-types.v1", "git.ui-contribution.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-export type { GitOperationUpdate } from "./events.js";
-
 export {
-  GitStatusError,
   headLabel,
-  parsePorcelainStatus,
-  type GitChange,
-  type GitEntryState,
-  type GitHead,
-  type GitStatus,
-  type GitUpstream,
-  type PorcelainInput,
-} from "./status.js";
-export {
   projectGit,
   type GitListItem,
   type GitListKind,
   type GitPhase,
   type GitProjectionInput,
+  type GitUpstream,
   type GitView,
 } from "./projection.js";
 export {
@@ -40,12 +17,6 @@ export {
   type GitDraft,
   type StoredDrafts,
 } from "./drafts.js";
-export {
-  projectAcceptance,
-  type AcceptanceBlock,
-  type AcceptanceInput,
-  type AcceptanceView,
-} from "./acceptance.js";
 export {
   GIT_RESULT_SCHEMA_VERSION,
   GIT_RESULT_TYPE,
@@ -81,6 +52,7 @@ export { createGitPlugin, type GitPluginPorts } from "./plugin.js";
 export { renderGitBrowserDirectory, renderGitBrowserResult } from "./ui.js";
 export { GIT_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { GIT_MESSAGES } from "./messages.js";
+export { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 export { GIT_STYLES } from "./styles.js";
 
 export { gitActions, GIT_ACTIONS } from "./action-definitions.js";

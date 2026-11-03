@@ -6,12 +6,14 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWorkHostProjectReference, releaseProjectPlugins, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, releaseProjectPlugins, scheduleServiceFor, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
-import { SCHEDULE_ACTIONS, SCHEDULE_OPERATION_WAKEUP, SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID, reminderActions, scheduledOperationActions } from "@molis-ai/molis-work-plugin-schedule";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
+import { codingView } from "./fixtures/coding-view.js";
 
 /**
  * PLIB-04 (the Host half, L1b; specs/plugin-project-database/spec.md §2.3): when the Host opens a project's library, a plugin
@@ -68,10 +70,10 @@ async function pluginsInDirectory(home: string, projectId: string, databasePath:
 async function codingPanel(databasePath: string, projectId: string): Promise<string> {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const surface = await codingDirectoryPanel({ store, projectId, actions: pluginActions(store, projectId), actorId: "web-user",
-      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), translate: value => value });
+    const panel = await codingView({ store, ...openProjectVersionStores(store), projectId, actions: pluginActions(store, projectId), actorId: "web-user",
+      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;") });
     await releaseProjectPlugins(store, projectId);
-    return surface?.panel ?? "";
+    return panel;
   } finally { store.close(); }
 }
 
@@ -84,7 +86,7 @@ test("PLIB-04: a library this build made opens every plugin that declares tables
 });
 
 const cases = [
-  { plugin: SCHEDULE_PLUGIN_ID, change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'` },
+  { plugin: SCHEDULE_PLUGIN_ID, change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = version + 1 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'` },
   { plugin: FEED_PLUGIN_ID, change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${FEED_PLUGIN_ID}'` },
   { plugin: CODING_PLUGIN_ID, change: "one of its tables gained a column", sql: "ALTER TABLE coding_plan_drafts ADD COLUMN added_by_hand TEXT" },
 ];
@@ -118,26 +120,47 @@ const jobs = (path: string) => withDatabase(path, db => db.prepare(
   "SELECT job_id, capability_id, enabled, next_due_at, lease_until, lease_token, last_wakeup_id FROM schedule_jobs ORDER BY job_id").all().map(row => JSON.stringify(row)));
 const wakeups = (path: string) => withDatabase(path, db => (db.prepare("SELECT COUNT(*) AS count FROM schedule_wakeups").get() as { count: number }).count);
 
-test("PLIB-04/S-46: a refused Schedule claims none of its due jobs; they wait as they were until its library is put right", async t => {
-  const { projectId, databasePath } = await project(await scratch(t));
-  const due = new Date("2026-10-01T00:00:00.000Z"), later = new Date("2026-10-02T00:00:00.000Z");
-  // A one-off reminder (a claim would turn it off before its handler ran) and a scheduled operation (a claim prepares it first).
-  const store = new LocalProjectDatabase(databasePath);
-  try {
-    const schedule = scheduleServiceFor(store.db, () => due);
-    schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_REMINDER_WAKEUP, object_ref: "reminder-due", title: "到点的一次性提醒", due_at: due.toISOString() });
-    schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_OPERATION_WAKEUP, object_ref: `${projectId}|operation-due`, title: "到点的定时操作", due_at: due.toISOString() });
-  } finally { store.close(); }
-  withDatabase(databasePath, db => { db.exec(`UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'`); });
-  const before = { jobs: jobs(databasePath), wakeups: wakeups(databasePath), library: library(databasePath) };
-  assert.equal(before.jobs.length, 2, "both jobs are due");
+/**
+ * Feed keeps its own job on the platform's clock (FI-6), set by its activation a moment after the project opens. It is not Schedule's:
+ * once the open host has set it, the closed library moves it past the round below, which then sees only Schedule's two jobs (the running
+ * Feed leaves a current job of its own alone).
+ */
+async function feedClockSet(path: string): Promise<void> {
+  const set = () => withDatabase(path, db => (db.prepare("SELECT COUNT(*) AS count FROM schedule_jobs WHERE plugin_id = ?").get(FEED_PLUGIN_ID) as { count: number }).count);
+  for (const deadline = Date.now() + 10_000; set() !== 1;) {
+    assert.ok(Date.now() < deadline, "Feed set its clock job when the project opened");
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
 
-  const reopened = new LocalProjectDatabase(databasePath);
+test("PLIB-04/S-46: a refused Schedule claims none of its due jobs; they wait as they were until its library is put right", async t => {
+  const { home, projectId, databasePath } = await project(await scratch(t));
+  const due = new Date(Date.now() + 60_000), later = new Date(due.getTime() + 1_000);
+  const owner = scheduledOwnerPlugin(), reference = molisWorkHostProjectReference({ projectId, databasePath });
+  const options = { homeDirectory: home, completeText: null, pluginFixtures: { project: [owner.definition] } };
+  // A one-off reminder (a claim would turn it off before its handler ran) and a scheduled operation (a claim prepares it first).
+  const host = new MolisWorkLocalHost(options);
   try {
-    const schedule = scheduleServiceFor(reopened.db, () => later);
-    assert.deepEqual(await schedule.tick(later), { invoked: 0, failed: 0, skipped: 0 }, "the round claims none of them");
-    assert.deepEqual(await schedule.tick(later), { invoked: 0, failed: 0, skipped: 0 }, "and the next round runs as well: no job stops the rounds");
-  } finally { reopened.close(); }
+    await host.actionClient(reference).discover({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: PERMISSIONS });
+    await owner.actions(projectId).invoke(reminderActions.add, { at: due.toISOString(), text: "到点的一次性提醒" });
+    await owner.actions(projectId).invoke(scheduledOperationActions.add, { at: due.toISOString(), operation: "summarize", input: { text: "到点的定时操作" }, inbox: true });
+    await feedClockSet(databasePath);
+  } finally { await host.close(); }
+  withDatabase(databasePath, db => {
+    db.exec(`UPDATE plugin_project_databases SET version = version + 1 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'`);
+    db.exec(`UPDATE schedule_jobs SET next_due_at = '9999-12-31T00:00:00.000Z' WHERE plugin_id = '${FEED_PLUGIN_ID}'`);
+  });
+  const before = { jobs: jobs(databasePath), wakeups: wakeups(databasePath), library: library(databasePath) };
+  assert.equal(before.jobs.length, 3, "both jobs are due, beside Feed's parked one");
+
+  const reopened = new MolisWorkLocalHost(options);
+  try {
+    await reopened.withProject(reference, async runtime => {
+      const schedule = scheduleServiceFor(runtime.store.db);
+      assert.deepEqual(await schedule.tick(later), { invoked: 0, failed: 0, skipped: 2 }, "both persisted Runtime jobs are skipped before a claim");
+      assert.deepEqual(await schedule.tick(later), { invoked: 0, failed: 0, skipped: 2 }, "and the next round runs as well: no job stops the rounds");
+    });
+  } finally { await reopened.close(); }
 
   assert.deepEqual(jobs(databasePath), before.jobs, "neither job is turned off, moved on or leased");
   assert.equal(wakeups(databasePath), before.wakeups, "and no wakeup is recorded as failed");

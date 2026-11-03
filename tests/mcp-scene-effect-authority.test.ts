@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { recordedCallId, subjectOfferChoices, withCallId } from "@molis-ai/molis-work-kernel";
-import { createLocalFeedApplication, createLocalFeedSourceService, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
-import type { FunctionRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
+import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
+import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // The time limit only catches a hang: 13-16 s on macOS, and Linux CI runs about 2.3-2.5 times slower (user, 2026-10-15).
 test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its independent scene permission is revoked", { timeout: 90_000 }, async t => {
@@ -68,12 +69,12 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
     assert.ok(dismiss?.availability.available);
     // Prepare the real binding through protected owner HTTP first: a scene-dependent MCP grant cannot create that binding.
     const functionsPath = `/projects/${project.project_id}/api/functions`;
-    const { function: draft } = await home.web.post<{ function: FunctionRecord }>(functionsPath, { primitive: "choice", function_key: "effect_home_scene", name: "Actual Home scene rule" });
+    const { function: draft } = await home.web.post<{ function: JudgmentRuleRecord }>(functionsPath, { primitive: "choice", function_key: "effect_home_scene", name: "Actual Home scene rule" });
     await home.web.post(`${functionsPath}/${draft.id}`, { instructions: "Recommend the available finish action", criteria: [{ key: "finish", description: "Finish this entry" }, { key: "dismiss", description: "Dismiss this entry" }],
       scene_id: "home.dock", scene_version: 1, scene_provider_id: "system.home", subject_kinds: ["inbox_entry"],
       scene_map: { finish: choice.key, dismiss: dismiss.key }, action_map: { finish: choice.action, dismiss: dismiss.action } });
     await home.web.post(`${functionsPath}/${draft.id}/preview`, { input: "Original inbox work" });
-    const { function: rule } = await home.web.post<{ function: FunctionRecord }>(`${functionsPath}/${draft.id}/publish`, {});
+    const { function: rule } = await home.web.post<{ function: JudgmentRuleRecord }>(`${functionsPath}/${draft.id}/publish`, {});
     const judgment = publishedFunctionAction(rule);
     assert.deepEqual(judgment.action.permissions, ["functions:invoke"], "the judgment does not itself grant Home's independent permissions");
     const configured = await home.web.post<{ binding: ActionSceneBinding }>(`/projects/${project.project_id}/api/home/dock-judgment`, { function_key: rule.function_key });
@@ -97,6 +98,8 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
     held = false; release.resolve(); const outcome = await pending;
     assert.ok(outcome.error instanceof ActionError);
     assert.equal(outcome.error.code, "mcp.permission_revoked");
+    // RAC-2671: across the MCP process hop the client reads it as a refusal (403, so `forbidden`), no longer as a mistake in its input (400).
+    assert.equal(outcome.error.kind, "forbidden");
     assert.equal(outcome.recorded, callId);
     assert.deepEqual((await actions.invoke(functionContextActions.history, {})).judgments, before, "neither successful consumption nor failure bookkeeping was saved");
     await home.host.withProject(project.reference, runtime => assert.deepEqual(createLocalFeedApplication(runtime.store.db).getInboxEntry(project.project_id, entry.entry_id), entry));

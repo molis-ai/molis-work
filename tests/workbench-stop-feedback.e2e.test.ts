@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -61,17 +62,17 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   const stop = ".background-task-command button", alert = ".background-tasks-menu [role=alert]";
   await armResponse(browser, "stop-refused", "/stop", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-refused");
-  command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor("!!document.querySelector('.background-task[data-state=paused]')");
   await releaseResponse(browser, "stop-refused");
   await browser.waitFor(`[...document.querySelectorAll('${alert}')].some(node=>node.textContent.includes('The fixture Runtime refused this stop')) && !document.querySelector('${stop}').disabled`);
   assert.equal(command.ended(), false); assert.equal(command.attempts(), 1);
   assert.match(await browser.evaluate<string>(`[...document.querySelectorAll('${alert}')].find(node=>node.textContent.includes('The fixture Runtime refused this stop'))?.querySelector('[data-molis-call-id]')?.dataset.molisCallId || ''`), /^[a-f0-9-]{36}$/);
   command.allow();
-  await browser.evaluate(`(() => {const send=window.fetch; window.__auditLoseStopReply=true;
-    window.fetch=async(input,init={})=>{const response=await send(input,init);if(window.__auditLoseStopReply&&init.method==='POST'&&String(input).endsWith('/stop')) {
-      window.__auditLoseStopReply=false;await response.text();throw new TypeError('Fixture dropped the real stop reply');}return response;}; })()`);
+  const lost = await sendBarrier(browser, [{urlPattern:"*/stop",requestStage:"Response"}]);
   await browser.click(stop);
+  const stopped = await lost.next(); assert.equal(stopped.responseStatusCode, 200);
+  await lost.drop(stopped); await lost.close();
   await browser.waitFor(`[...document.querySelectorAll('${alert}')].some(node=>node.textContent.includes('不知道这次操作有没有完成')) && !document.querySelector('${stop}').disabled`);
   assert.equal(command.ended(), true, "the actual accepted stop occurred even though its HTTP reply was lost");
   assert.equal(command.attempts(), 2, "the unknown operation was not retried");

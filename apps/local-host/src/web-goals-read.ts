@@ -1,115 +1,143 @@
-import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
+import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
+import { declaredArtifactTypes } from "./artifact-type-registry.js";
+import { renderCharacters, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderGoalsReadRequest, renderGoalsPageRequest } from "@molis-ai/molis-work-plugin-goals/page";
+import { matchPageRoute } from "./page-routes.js";
+import { shownProjectPlugins } from "./plugin-registry.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { declaredArtifactTypes, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+import { renderGoalArtifactContext } from "./artifact-library-http.js";
 import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
-import type { createSessionProjectOperations } from "./web-session.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L } from "./web-locale.js";
-import { listPluginInstallationRecords } from "@molis-ai/molis-work-plugin-runtime";
-import {
-  builtinStagePanels,
-  codingWorkbenchPanel,
-  type CodingSurfacePorts,
-} from "./coding-surface.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
+import { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
+import { homeStageHalves } from "./home-plugin-http.js";
+import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory } from "./plugin-directory.js";
 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "rules", "planning", "general"] as const)
+/** The project settings page each path opens; `/settings` alone opens 常规. */
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
-
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
-  const installed = new Set(listPluginInstallationRecords(store.db).filter(record => record.state !== "uninstalled").map(record => record.plugin_id));
+  const installed = new Set(readPluginRuntimeRecords(store.db).filter(record => record.state !== "uninstalled").map(record => record.plugin_id));
   return withCatalog({ homeDirectory }, catalog => catalog.projectPluginRequirements(projectId)
     .map(plugin => ({ plugin_id: plugin.plugin_id, installed: plugin.installed || installed.has(plugin.plugin_id) })));
 }
-/** Opening the project page starts the project's plugin platform; the stages read what it runs. */
-async function projectPluginStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
-  await ensureProjectPlugins(ports);
-  const builtin = await builtinStagePanels(ports, enabled);
-  return { html: [...builtin.html, await builderWorkbenchPanel(ports)], ids: builtin.ids };
+/**
+ * Opening the project page starts the project's plugin platform; the stages read what it runs: every declared stage of a plugin
+ * the Runtime runs, drawn by its running instance (W5-06), the Coding page's companions included (they fill the slots its view
+ * opens). The 角色 page is the Host's own (CHR-1): the settings cover shows it inside the project, and its client mounts when it
+ * is first shown.
+ */
+async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: MolisWorkWebView,
+  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
+  model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
+  const record = await ensureProjectPlugins(ports);
+  const runtime = renderProjectRuntimeStages(record, ports.store, { shown: shownProjectPlugins(configuration.plugins, configuration.hidden),
+    drawn: view.plugin_stage_ids ?? [], model: projectPluginId => model(projectPluginId, view), home: await homeStageHalves(ports.homePlugins) });
+  const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
+  return { html: [characters, ...runtime.html], ids: runtime.ids, unavailable: runtime.unavailable,
+    directory: record.platform ? runningPluginDirectory(record.platform.supervisor, ports.homeDirectory) : [] };
 }
-type LocalGoalsReadPorts = {
+/**
+ * The project page with what its plugins draw and declare: the stages of the plugins its Runtime runs, the unavailable shell for one
+ * that does not, the installed plugins' stages, and the plugin directory the shell is drawn from (the Manifests the Home and project
+ * Runtimes run, and the installed plugins', read fresh for this page).
+ */
+async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
+  store: LocalProjectDatabase; projectId: string; homeDirectory: string | undefined;
+  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] };
+  pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">;
+  stageModel: (projectPluginId: string, view: MolisWorkWebView) => unknown;
+}): Promise<MolisWorkWebView> {
+  const { store, homeDirectory, pluginServices } = input;
+  const surfacePorts = { ...pluginServices, store, projectId: input.projectId, actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml,
+    translate: (value: string) => value, routePrefix: view.route_prefix };
+  const builtin = await projectPluginStages(surfacePorts, view, input.configuration, input.stageModel);
+  view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtin.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtin.ids],
+    unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...builtin.unavailable] };
+  // Installed execution supplies rail entries and stages independently of opening the authoring studio.
+  const installed = await installedPluginStages({ store, projectId: input.projectId, homeDirectory, routePrefix: view.route_prefix,
+    models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
+    ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }).catch(noInstalledStages);
+  return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)],
+    plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory), builtinMarketDirectory(homeDirectory)) };
+}
+export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
-  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
+  renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment" | "declaredStageModel">;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
-  sessionProjectOperationsData: ReturnType<typeof createSessionProjectOperations>;
-};
-
-async function readProjectSettings(ports: LocalGoalsReadPorts, request: IncomingMessage, response: ServerResponse, url: URL,
-  readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
-  context: { homeDirectory: string | undefined; store: LocalProjectDatabase },
-): Promise<boolean> {
+}) {
   const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
-  const { renderMolisWorkProjectSettingsHub } = ports.renderer;
-  const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
-  if (request.method === "GET" && open) {
-    const view = await readWebView();
-    if (!view.project) {
-      sendJson(response, 404, { error: "找不到这个 Molis Work 项目" });
+  const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment, declaredStageModel } = ports.renderer;
+  async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
+    readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
+    goalsHere: () => Promise<boolean>,
+  ): Promise<boolean> {
+    const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
+    if (request.method === "GET" && open) {
+      const view = await readWebView();
+      if (!view.project) {
+        sendJson(response, 404, { error: "找不到这个 Molis Work 项目" });
+        return true;
+      }
+      const embed = url.searchParams.get("embed") === "1";
+      let methods, guidance, policy;
+      try {
+        // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read
+        // refused in a project that has Goals is that refusal, shown with its code and operation number, not a project without Goals.
+        if (await goalsHere()) {
+          [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
+            actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
+        }
+      }
+      catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
+      const html = renderMolisWorkProjectSettingsHub(
+        { ...view, policy_bindings: policy?.bindings ?? [] },
+        guidance ?? null,
+        methods ?? [],
+        controlToken,
+        isDesktopShellRequest(request, url),
+        open,
+        embed ? open : null,
+      );
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "content-security-policy": PAGE_CSP,
+        "x-content-type-options": "nosniff",
+      });
+      response.end(html);
       return true;
     }
-    const embed = url.searchParams.get("embed") === "1";
-    let methods, guidance, policy;
-    try {
-      [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
-        actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
-    }
-    catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
-    const html = renderMolisWorkProjectSettingsHub(
-      { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(context.homeDirectory, context.store, view.project.project_id, withMolisWorkProjectCatalog) }, policy_bindings: policy.bindings },
-      guidance,
-      methods,
-      controlToken,
-      isDesktopShellRequest(request, url),
-      open,
-      embed ? open : null,
-    );
-    response.writeHead(200, {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-      "content-security-policy": PAGE_CSP,
-      "x-content-type-options": "nosniff",
-    });
-    response.end(html);
-    return true;
+    return false;
   }
-  return false;
-}
-export function createLocalGoalsReadHttp(ports: LocalGoalsReadPorts) {
-  const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData } = ports;
-  const { renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment } = ports.renderer;
-  const settings = readProjectSettings.bind(null, ports);
   async function fragments(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
   ): Promise<boolean> {
     if (request.method !== "GET") return false;
-    const resolved = resolveGoalsReadRoute(url.pathname, url.searchParams);
-    if (!resolved) return false;
-    if ("error" in resolved) { sendJson(response, resolved.status, { error: resolved.error }); return true; }
-    const route = resolved.route;
-    const view = await readWebView();
-    const selected = route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection);
-    const renderedGoalsRead = renderWorkbenchGoalsReadRoute(route, {
+    const renderedGoalsRead = await renderGoalsReadRequest(request.method, matchPageRoute(url), async route => {
+      const view = await readWebView();
+      return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
+    }, ({ view, selected }) => ({
       refresh: (goalId, collection) => renderMolisWorkRefreshFragment(selected, goalId, collection === "archive", collection === "trash"),
       momentum: (goalId, collection) => renderMolisWorkMomentumFragment(view, goalId, collection),
       document: (goalId, collection) => renderGoalDocumentFragment(selected, goalId, collection),
-    });
+    }));
     if (renderedGoalsRead) {
       if ("error" in renderedGoalsRead) {
         sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error });
@@ -126,60 +154,27 @@ export function createLocalGoalsReadHttp(ports: LocalGoalsReadPorts) {
     return false;
   }
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
-    homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, workActions: BoundActionClient, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
-    coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
-    pluginServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn">,
+    homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
+    store?: LocalProjectDatabase,
+    pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
-    const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
-      request.method, url.pathname, readWebView,
+    const renderedGoalsPage = await renderGoalsPageRequest(
+      request.method, matchPageRoute(url), readWebView,
       async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
         const desktopShell = isDesktopShellRequest(request, url);
-        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => ({
-          plugins: catalog.listProjectPlugins(options.project!.project_id),
-          hidden: catalog.listHiddenPlugins(options.project!.project_id),
-          workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
-        })) : null;
-        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden,
-          project: view.project && store ? { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } : view.project };
-        // Ask the running Coding Plugin for its own directory panel. A Plugin
-        // that is not running, or that fails, simply contributes nothing and the
-        // shell renders exactly as before.
+        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;
+        // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
+        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden, project: view.project && store ? { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } : view.project };
+        // The project's Runtime draws its plugins' panels and stages; one that is not running gets the unavailable shell (W5-06).
+        // Only the fixture server (one database, no project catalog: `fixtureWebBoardOptions`) has no project here; no Runtime
+        // runs there, so the shell draws the declared stages from the catalog.
         if (store && projectConfiguration !== null) {
           if (!pluginServices) throw new Error("项目插件缺少统一动作服务装配");
-          const surfacePorts = {
-            ...pluginServices,
-            store,
-            projectId: options.projectId,
-            actorId: LOCAL_PERSON_ACTOR_ID,
-            escapeHtml,
-            translate: (value: string) => value,
-            workspaces: projectConfiguration.workspaces,
-            routePrefix: view.route_prefix,
-          };
-          const builtinStages = await projectPluginStages(surfacePorts, projectConfiguration.plugins);
-          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: builtinStages.ids };
-          // Installed execution supplies rail entries and stages independently of opening the authoring studio.
-          const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
-            models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
-            ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }).catch(noInstalledStages);
-          if (installed.length) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)], plugin_rail: installed.map(({ surface, label }) => ({ surface, label })) };
-          if (projectConfiguration.plugins.includes("coding")) {
-            const stage = await codingWorkbenchPanel(surfacePorts);
-            if (stage) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), stage.panel] };
-          }
+          view = await withProjectPluginSurfaces(view, { store, projectId: options.projectId, homeDirectory, configuration: projectConfiguration, pluginServices, stageModel: declaredStageModel });
         }
-        const operations = options.project && availableProjectPluginIds(projectConfiguration!.plugins).has("sessions")
-          ? await sessionProjectOperationsData(
-              workActions,
-              options.project.project_id,
-              view,
-              options.projects,
-              projectConfiguration!.workspaces,
-            )
-          : { sessions: [], workspaces: [] };
         if (url.searchParams.has("workbenchPane")) view = { ...view, pane_plugin: url.searchParams.get("panePlugin") || "home" };
         return renderMolisWorkWeb(
-          coordinator && store
+          store
             ? await withSelectedGoalDocument(
                 view,
                 requestedGoalId ?? view.active_goal_id ?? undefined,
@@ -187,8 +182,6 @@ export function createLocalGoalsReadHttp(ports: LocalGoalsReadPorts) {
                 artifactActions,
                 trashView ? "trash" : archiveView ? "archive" : "current",
               )
-            : coordinator
-              ? await withSelectedEventDocument(view, requestedGoalId ?? view.active_goal_id ?? undefined, goalActions)
             : view,
           requestedGoalId,
           archiveView,
@@ -196,7 +189,6 @@ export function createLocalGoalsReadHttp(ports: LocalGoalsReadPorts) {
           controlToken,
           desktopShell,
           {},
-          operations,
         );
     });
     if (renderedGoalsPage) {

@@ -9,7 +9,7 @@ import { buildTestIndex } from "../scripts/affected-tests/index.mjs";
 import { discoverPackages, listFiles, namedChanges, readChanges, resolveBase } from "../scripts/affected-tests/repository.mjs";
 import { FULL_REGRESSION, I18N_TEST, UI } from "../scripts/affected-tests/rules.mjs";
 import { busyProcesses, parseProcessList, staleBuilds } from "../scripts/affected-tests/run.mjs";
-import { exportedNames, readmeTests, routeChunks, routesIn, selectAffected } from "../scripts/affected-tests/select.mjs";
+import { exportedNames, readmeTests, routeChunks, routesIn, selectAffected, selectorTokens } from "../scripts/affected-tests/select.mjs";
 import { holdsSchema, literalsOf, schemaChanged, schemaOf } from "../scripts/affected-tests/storage.mjs";
 
 // specs/repository-anti-corruption §4.7 (roadmap W2-17): scripts/affected-tests.mjs turns the 2026-10-03 validation-frequency
@@ -290,6 +290,41 @@ test("a package imported by more tests than the limit is narrowed to the readers
   assert.equal(picked(select(["plugins/native/beta/src/main.ts"], { packageLimit: 5 })).filter((file) => file.startsWith("tests/beta-user")).length, 3, "the limit is inclusive");
 });
 
+// ---- stylesheets and contract fields ---------------------------------------------------------------------------------------------
+test("a changed stylesheet selects the tests that assert its selectors, custom properties and attributes by writing them", () => {
+  put("plugins/native/alpha/src/styles/alpha-skin.ts", `export const ALPHA_SKIN = ${BT}.alpha-skin-card { gap: var(--alpha-skin-gap); }\n[data-alpha-skin-row] { color: var(--alpha-skin-line); }${BT};\n`);
+  put("tests/stylesheet-card.test.ts", `test("x", () => { assert.match(css, /\\.alpha-skin-card\\s*\\{/); });\n`);
+  put("tests/stylesheet-gap.test.ts", `test("x", () => { assert.match(css, /--alpha-skin-gap/); });\n`);
+  put("tests/stylesheet-row.test.ts", `test("x", () => { assert.match(css, /data-alpha-skin-row/); });\n`);
+  const result = select(["plugins/native/alpha/src/styles/alpha-skin.ts"]);
+  assert.ok(reasonsOf(result, "tests/stylesheet-card.test.ts").includes("reads-selector"), "a class the stylesheet names");
+  assert.ok(reasonsOf(result, "tests/stylesheet-gap.test.ts").includes("reads-selector"), "a custom property it names");
+  assert.ok(reasonsOf(result, "tests/stylesheet-row.test.ts").includes("reads-selector"), "an attribute it names");
+  assert.equal(picked(result).includes("tests/unrelated.test.ts"), false);
+  const tokens = selectorTokens(".alpha-skin-card, .x { --alpha-skin-gap: 1px; }");
+  assert.ok(tokens.includes(".alpha-skin-card") && tokens.includes("--alpha-skin-gap"), tokens.join(" "));
+  assert.equal(tokens.some((token) => token === ".x"), false, "a one-character name is too short");
+});
+
+test("a selector written into more tests than the symbol limit is too common to tell its readers apart, and --wide selects it", () => {
+  put("plugins/native/alpha/src/styles/alpha-skin.ts", `export const ALPHA_SKIN = ${BT}.alpha-common-chip { gap: 1px; }${BT};\n`);
+  for (const suffix of ["a", "b", "c"]) put(`tests/stylesheet-common-${suffix}.test.ts`, `test("${suffix}", () => { assert.match(css, /\\.alpha-common-chip/); });\n`);
+  const narrow = select(["plugins/native/alpha/src/styles/alpha-skin.ts"], { symbolLimit: 2 });
+  assert.equal(picked(narrow).some((file) => file.startsWith("tests/stylesheet-common-")), false);
+  assert.ok(narrow.notes.some((text) => text.includes("too common") && text.includes(".alpha-common-chip (3)")), narrow.notes.join("\n"));
+  const wide = select(["plugins/native/alpha/src/styles/alpha-skin.ts"], { symbolLimit: 2, wide: true });
+  assert.equal(picked(wide).filter((file) => file.startsWith("tests/stylesheet-common-")).length, 3);
+});
+
+test("a changed contract field selects the tests that name it, and a common word does not", () => {
+  put("packages/contracts/src/platform/plugin.ts", "export interface AlphaTurn {\n  steer?: string;\n  revision_key?: string;\n  options?: string;\n}\n");
+  put("tests/turn-reader.test.ts", `test("x", () => { const turn = { steer: "s", revision_key: "k" }; return turn; });\n`);
+  put("tests/options-reader.test.ts", `test("x", () => { const options = 1; return options; });\n`);
+  const result = select(["packages/contracts/src/platform/plugin.ts"]);
+  assert.ok(reasonsOf(result, "tests/turn-reader.test.ts").includes("uses-field"), "it names revision_key and steer");
+  assert.equal(picked(result).includes("tests/options-reader.test.ts"), false, "options is a word of many files");
+});
+
 // ---- the README --------------------------------------------------------------------------------------------------------------------
 test("the UI line of a README is selected for a UI change and not for another, and scoped extras are listed, not selected", () => {
   const code = select(["plugins/native/alpha/src/main.ts"]);
@@ -307,7 +342,7 @@ test("the UI line of a README is selected for a UI change and not for another, a
 });
 
 test("a UI change is told by the file's name and place: client, styles, a view, a renderer, a page, css, html, svg; not the host's web-request, a viewer or a pagination", () => {
-  const ui = ["client.ts", "client-views.ts", "styles.ts", "goals-page-renderer.ts", "panel.css", "client/menu.ts", "alpha-view.ts", "views.ts", "list-renderer.ts", "renderers.ts", "pages.ts", "alpha-page.ts", "shell.html", "icon.svg", "views/list.ts", "ui.ts", "styles/base.ts"];
+  const ui = ["client.ts", "client-views.ts", "styles.ts", "shell-page-renderer.ts", "panel.css", "client/menu.ts", "alpha-view.ts", "views.ts", "list-renderer.ts", "renderers.ts", "pages.ts", "alpha-page.ts", "shell.html", "icon.svg", "views/list.ts", "ui.ts", "styles/base.ts"];
   for (const name of ui) {
     const file = `plugins/native/alpha/src/${name}`;
     put(file, "export const X = 1;\n");
@@ -566,6 +601,20 @@ test("shared core (contracts, kernel, plugin-sdk, a module) recommends the full 
   assert.deepEqual(rulesOf(select(["packages/kernel/src/main.ts"])), ["shared-core"]);
   assert.deepEqual(rulesOf(select(["packages/plugin-sdk/src/execution-lifetime.ts"])), ["shared-core"], "the SDK holds rules the Kernel and Plugin Runtime apply");
   assert.deepEqual(rulesOf(select(["modules/goals/src/main.ts"])), ["shared-core"]);
+});
+
+// RAC-2401: docs/system/PARALLEL-DEVELOPMENT.md:66 counts packages/plugin-runtime as shared core (the Plugin Runtime's assembly and
+// lifecycle), so a source change there recommends the full suite exactly as contracts, kernel and plugin-sdk do.
+test("RAC-2401 only a source change under packages/plugin-runtime recommends the full suite", () => {
+  workspacePackage("packages/plugin-runtime", "@molis-ai/molis-work-plugin-runtime");
+  assert.deepEqual(rulesOf(select(["packages/plugin-runtime/src/main.ts"])), ["shared-core"]);
+});
+
+// RAC-2403: docs/system/PARALLEL-DEVELOPMENT.md:66 and the PR template count horizontal/agent-host as shared core too — it is the
+// one place model calls go through, the only package that depends on @prologue/sdk — so a source change there recommends the full suite.
+test("RAC-2403 only a source change under horizontal/agent-host recommends the full suite", () => {
+  workspacePackage("horizontal/agent-host", "@molis-ai/molis-work-service-agent-host");
+  assert.deepEqual(rulesOf(select(["horizontal/agent-host/src/main.ts"])), ["shared-core"]);
 });
 
 test("the assembly of the host recommends the full suite", () => {
@@ -1145,6 +1194,114 @@ test("every path the rules name exists in this repository, so a rename cannot le
   assert.ok(files.has(I18N_TEST), I18N_TEST);
 });
 
+// RAC-2427: docs/system/PARALLEL-DEVELOPMENT.md section 6 names the shared core in two places — the must-run table row and the
+// full-suite condition bullet — and both must carry exactly the packages FULL_REGRESSION.corePackages counts (plus the modules/ prefix).
+// RAC-2444 pins the same parse against three in-memory mutations, and the PR template's checkbox and the selector's group label too.
+const SHARED_CORE_AREAS = new Set(["horizontal/agent-host"]);
+
+/** The shared core as the two documents write it: an area-qualified path stays whole, every other package by its own name. */
+const sharedCoreNames = (paths: readonly string[], prefixes: readonly string[]) => new Set([
+  ...paths.map((entry) => SHARED_CORE_AREAS.has(entry) ? entry : entry.split("/").pop()!),
+  ...prefixes.map((prefix) => prefix.replace(/\/$/u, "")),
+]);
+
+/** Names in a 、-separated cell or bullet, ignoring descriptive parts such as "local-host 的装配" that are not package names. */
+const writtenNames = (text: string) => new Set(text.split(/[、，,]/u).map((part) => part.trim()).filter((part) => part && !/\s/u.test(part)));
+
+const compareSharedCore = (label: string, actual: ReadonlySet<string>, expected: ReadonlySet<string>) => {
+  const missing = [...expected].filter((name) => !actual.has(name));
+  const extra = [...actual].filter((name) => !expected.has(name));
+  assert.deepEqual({ missing, extra }, { missing: [], extra: [] },
+    `${label} names exactly the shared core; missing [${missing.join(", ")}], extra [${extra.join(", ")}]`);
+};
+
+const sharedCoreDocumentLines = () => {
+  const guide = readFileSync(path.join(realRoot, "docs/system/PARALLEL-DEVELOPMENT.md"), "utf8").split("\n");
+  return {
+    mustRun: guide.find((line) => line.startsWith("| 共享核心（")),
+    condition: guide.find((line) => line.startsWith("- 改了 contracts、kernel、plugin-sdk、plugin-runtime")),
+  };
+};
+
+/** The must-run row's shared-core cell: the names between its full-width parentheses, before the other categories in that cell. */
+const mustRunNames = (line: string | undefined) => {
+  assert.ok(line, "section 6's must-run table has the shared-core row");
+  const cell = /共享核心（([^）]+)）/u.exec(line)?.[1];
+  assert.ok(cell, "the shared-core row names its packages in parentheses");
+  return writtenNames(cell);
+};
+
+/** The full-suite condition bullet: packages after "改了 ", and the modules/ prefix it writes as a glob. */
+const conditionNames = (line: string | undefined) => {
+  assert.ok(line, "section 6's full-suite condition names the shared-core packages");
+  const listed = /^- 改了 (.+?)(?: 或任一| |；|$)/u.exec(line)?.[1];
+  assert.ok(listed, "the condition lists the packages after 改了");
+  const names = writtenNames(listed);
+  // Read every glob the bullet writes, not only the first one: a second prefix in the same bullet is part of the rule too.
+  for (const glob of [...line.matchAll(/`([a-z0-9-]+)\/\*`/gu)]) names.add(glob[1]!);
+  return names;
+};
+
+test("RAC-2427 the shared-core lists in PARALLEL-DEVELOPMENT.md and the full-suite condition name exactly the rule's packages", () => {
+  const { mustRun, condition } = sharedCoreDocumentLines();
+  const expected = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  assert.ok(expected.has("horizontal/agent-host"), "agent-host is shared core, as T-271 added it to the rule");
+  compareSharedCore("section 6's must-run table", mustRunNames(mustRun), expected);
+  compareSharedCore("section 6's full-suite condition", conditionNames(condition), expected);
+});
+
+test("RAC-2444 the shared-core parse rejects an extra name, a missing one and one moved into the row's explanation", () => {
+  const { mustRun, condition } = sharedCoreDocumentLines();
+  const expected = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  compareSharedCore("the unmodified table", mustRunNames(mustRun), expected);
+  compareSharedCore("the unmodified condition", conditionNames(condition), expected);
+  // The old check: one direction, substring anywhere in the line. Both mutations below pass it — the hole this test closes.
+  const oldIncludesLoop = (line: string) => { for (const name of expected) assert.ok(line.includes(name), `${name} is missing from: ${line}`); };
+  // An extra package the rule does not count: the old `line.includes(name)` loop could not see one.
+  const extra = mustRun!.replace("contracts、", "contracts、left-pad、");
+  oldIncludesLoop(extra);
+  assert.throws(() => compareSharedCore("the table with an extra", mustRunNames(extra), expected), /left-pad/u);
+  // A rule package dropped from the list: the old loop would catch this one too, kept so the guard is known to still see it.
+  const missing = mustRun!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the table without kernel", mustRunNames(missing), expected), /missing \[kernel\]/u);
+  // A name moved into the row's trailing explanation: still a substring of the line, so the old loop stayed green.
+  const moved = mustRun!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the table with kernel moved out of the cell", mustRunNames(moved), expected), /missing \[kernel\]/u);
+  const movedLine = `${moved}（kernel 见 rules.mjs）`;
+  oldIncludesLoop(movedLine);
+  assert.throws(() => compareSharedCore("the table with kernel in the explanation", mustRunNames(movedLine), expected), /missing \[kernel\]/u);
+  // The full-suite condition bullet is parsed by the same set, so the in-memory mutations hit it too: a name dropped from the bullet and
+  // an extra name written beside the shared-core ones are both seen.
+  const conditionMissing = condition!.replace("kernel、", "");
+  assert.throws(() => compareSharedCore("the condition without kernel", conditionNames(conditionMissing), expected), /missing \[kernel\]/u);
+  const conditionExtra = condition!.replace("contracts、", "contracts、left-pad、");
+  assert.throws(() => compareSharedCore("the condition with an extra", conditionNames(conditionExtra), expected), /left-pad/u);
+  const conditionGlob = condition!.replace("`modules/*`", "`modules/*` 或 `tools/*`");
+  assert.throws(() => compareSharedCore("the condition with a second glob", conditionNames(conditionGlob), expected), /tools/u);
+});
+
+test("RAC-2444 the shared core in the PR template and the selector's label is the same rule's set", () => {
+  const template = readFileSync(path.join(realRoot, ".github/pull_request_template.md"), "utf8").split("\n")
+    .find((line) => line.startsWith("- [ ] 共享核心（"))!;
+  assert.ok(template, "the PR template's merge queue section names the shared core");
+  const inside = /共享核心（([^）]+)）/u.exec(template)![1]!;
+  assert.doesNotMatch(inside, /等/u, "the template names the shared core in full, not with 等 (统筹答 T-327 6531556707)");
+  const listed = [...inside.matchAll(/`([^`]+)`/gu)].map((match) => match[1]!);
+  assert.ok(listed.length > 0, "the template lists the shared-core packages in code spans");
+  // The template mixes both forms (`packages/contracts` and `plugin-sdk`), so compare by the name each entry means.
+  const expectedShort = sharedCoreNames(FULL_REGRESSION.corePackages, FULL_REGRESSION.corePackagePrefixes);
+  const meaning = (name: string) => name.replace(/^packages\//u, "").replace(/\/\*$/u, "");
+  compareSharedCore("the PR template", new Set(listed.map(meaning)), expectedShort);
+
+  const select = readFileSync(path.join(realRoot, "scripts/affected-tests/select.mjs"), "utf8").split("\n")
+    .find((line) => line.includes('group("shared-core", "shared core ('))!;
+  assert.ok(select, "the selector has a shared-core group");
+  const label = /shared core \(([^)]+)\)/u.exec(select)![1]!;
+  const expectedLabel = new Set([...FULL_REGRESSION.corePackages.map((entry: string) => entry.split("/").pop()!),
+    ...FULL_REGRESSION.corePackagePrefixes.map((prefix: string) => prefix.replace(/\/$/u, ""))]);
+  compareSharedCore("the selector's group label", new Set(label.split(", ").map((name) => name.trim())), expectedLabel);
+});
+
 test("in this repository, a change to a package selects every test its README lists as must-run, and each of them exists", () => {
   const files = listFiles(realRoot), packages = discoverPackages(realRoot, files), index = buildTestIndex(realRoot, files, packages);
   assert.ok(packages.length >= 60, `${packages.length} packages`);
@@ -1163,8 +1320,8 @@ const ASSEMBLY = [
   "apps/local-host/src/home-plugins.ts", "apps/workbench/src/home-plugin-page.ts",
   "apps/local-host/src/project-host.ts", "apps/local-host/src/project-plugins.ts", "apps/local-host/src/local-host.ts", "apps/local-host/src/project-capabilities.ts",
   "apps/local-host/src/web-server.ts", "apps/local-host/src/web-request.ts", "apps/local-host/src/web-catalog.ts", "apps/local-host/src/mcp-server.ts",
-  "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/home-side.ts", "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/workbench-renderer.ts",
-  "apps/workbench/src/builtin-plugins.ts", "apps/workbench/src/browser-assets.ts", "apps/workbench/src/document-shell.ts", "apps/workbench/src/goals-page-renderer.ts",
+  "apps/local-host/src/system-agent-service.ts", "apps/local-host/src/home-side.ts", "apps/local-host/src/workbench-renderer.ts",
+  "apps/workbench/src/builtin-plugins.ts", "apps/workbench/src/browser-assets.ts", "apps/workbench/src/document-shell.ts", "apps/workbench/src/shell-page-renderer.ts",
   "apps/workbench/src/immersive-shell.ts", "apps/workbench/src/page-assets.ts", "apps/workbench/src/plugin-catalog.ts", "apps/workbench/src/plugin-workbench.ts",
   "apps/workbench/src/renderer.ts", "apps/workbench/src/ui-composition.ts", "apps/workbench/src/scripts/client/initialization.ts",
   "apps/workbench/src/scripts/client/plugin-workbench.ts",
@@ -1180,6 +1337,8 @@ test("in this repository: shared core recommends the full suite, a document alon
   assert.deepEqual(realAt("packages/contracts/src/platform/plugin.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/kernel/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("packages/plugin-sdk/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("packages/plugin-runtime/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
+  assert.deepEqual(realAt("horizontal/agent-host/src/index.ts").full.map((entry: { rule: string }) => entry.rule), ["shared-core"]);
   assert.deepEqual(realAt("apps/local-host/src/web-request.ts").full.map((entry: { rule: string }) => entry.rule), ["assembly"]);
   assert.deepEqual(realAt("docs/system/PARALLEL-DEVELOPMENT.md").full, []);
   assert.ok(index.tests.filter((entry: { kind: string }) => entry.kind === "browser").every((entry: { file: string; marks: string[] }) => entry.marks.includes("browser")));
@@ -1221,9 +1380,9 @@ test("every file a README table of local-host or workbench calls 装配 or 组�
 // client program scripts/client/plugin-workbench.ts was once credited to the workbench README, which names src/plugin-workbench.ts).
 /** The files a README names by file name, with the text of that README that names it (a link in a table, a code span in the prose, a link to the other package). */
 const NAMED_BY_README: { file: string; readme: string; text: string }[] = [
-  ...["project-host", "home-plugins", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "home-side", "goal-project-application", "space-sync-http"]
+  ...["project-host", "home-plugins", "local-host", "project-capabilities", "web-server", "mcp-server", "system-agent-service", "home-side", "space-sync-http"]
     .map((name) => ({ file: `apps/local-host/src/${name}.ts`, readme: "apps/local-host", text: `[src/${name}.ts](src/${name}.ts)` })),
-  ...["ui-composition", "goals-page-renderer", "home-plugin-page", "scripts/client/initialization", "browser-assets"]
+  ...["ui-composition", "shell-page-renderer", "home-plugin-page", "scripts/client/initialization", "browser-assets"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `[src/${name}.ts](src/${name}.ts)` })),
   ...["builtin-plugins", "plugin-catalog", "plugin-workbench"]
     .map((name) => ({ file: `apps/workbench/src/${name}.ts`, readme: "apps/workbench", text: `\`${name}.ts\`` })),
@@ -1247,7 +1406,7 @@ test("the assembly list is the README-named files, the hub-table files and the o
   const allText = [...readmes.values()].join("\n");
   for (const file of [...NOT_NAMED.hub, ...NOT_NAMED.judgment]) assert.equal(namedIn(allText, file), false, `a README names ${file}: it is not a hub-table or judgment file`);
   assert.ok(namedIn("`plugin-workbench.ts`", "apps/workbench/src/plugin-workbench.ts") && !namedIn("`plugin-workbench.ts`", "apps/workbench/src/scripts/client/plugin-workbench.ts"), "the two files of the same name are told apart");
-  assert.ok(namedIn("[src/renderer.ts](src/renderer.ts)", "apps/workbench/src/renderer.ts") && !namedIn("goals-page-renderer.ts", "apps/workbench/src/renderer.ts"), "a name inside a longer file name is not the file");
+  assert.ok(namedIn("[src/renderer.ts](src/renderer.ts)", "apps/workbench/src/renderer.ts") && !namedIn("shell-page-renderer.ts", "apps/workbench/src/renderer.ts"), "a name inside a longer file name is not the file");
   const parts = [...NAMED_BY_README.map((entry) => entry.file), ...NOT_NAMED.hub, ...NOT_NAMED.judgment];
   assert.equal(new Set(parts).size, parts.length, "no file is counted in two places");
   assert.deepEqual([...parts].sort(), [...ASSEMBLY].sort(), "the three groups are the whole list");
@@ -1263,7 +1422,7 @@ test("the assembly list is the README-named files, the hub-table files and the o
   assert.match(readFileSync(path.join(realRoot, "AGENTS.md"), "utf8"), /apps\/local-host\/src\/project-plugins\.ts/);
   // The account in section 6.1 and open point 1 of section 12 use these numbers.
   const named = NAMED_BY_README.length, hub = NOT_NAMED.hub.length, hosts = ASSEMBLY.filter((file) => file.startsWith("apps/local-host")).length;
-  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [19, 7, 1, 27, 14]);
+  assert.deepEqual([named, hub, NOT_NAMED.judgment.length, ASSEMBLY.length, hosts], [18, 7, 1, 26, 13]);
   assert.ok(guide.includes(`共 ${ASSEMBLY.length} 个文件`), "section 6.1 gives the size of the list");
   assert.ok(guide.includes(`两个包 README 按文件名点到的 ${named} 个`), "section 6.1 gives the README-named count");
   assert.ok(guide.includes(`第 2 节枢纽表里把东西接在一起的 ${hub} 个`), "section 6.1 gives the hub-table count");

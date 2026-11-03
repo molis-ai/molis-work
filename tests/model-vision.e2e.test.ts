@@ -6,14 +6,14 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { issueView } from "./fixtures/issue-browser.js";
 
-test("ISSUE-54 model settings preserve three image states and Issue uses the saved declaration", { timeout: 180_000 }, async t => {
+test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses the saved declaration", { timeout: 180_000 }, async t => {
   const b = await openGoalBrowser(t, "user"); if (!b) return;
   const { requests, namings } = await issueModel(t, b.homeDirectory);
   await withMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory }, catalog => {
     const provider = catalog.models.get("issue-fixture")!;
     catalog.models.upsert({ ...provider, models: provider.models.map(({ vision: _vision, ...model }) => model) });
   });
-  const v = issueView(b, "model-vision");
+  const v = await issueView(t, b, "model-vision");
   const settings = "/settings/models?provider=issue-fixture";
   const selected = "document.querySelector('[data-model-vision]')";
   const set = (selector: string, value: string) => b.evaluate(`(() => {
@@ -66,7 +66,7 @@ test("ISSUE-54 model settings preserve three image states and Issue uses the sav
   await v.go(`/locale?lang=en&next=${encodeURIComponent(settings)}`); await b.waitFor(selected);
   assert.deepEqual(await b.evaluate(`Array.from(${selected}.options, option => option.textContent)`),
     ["Not declared", "Can read images", "Cannot read images"]);
-  assert.match(await b.evaluate<string>(`${selected}.closest('label').textContent`), /Image capability/);
+  assert.match(await b.evaluate<string>(`${selected}.closest('label').textContent`), /Image input/);
   await v.viewport(480); assert.equal(await b.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await b.evaluate(`(async () => { ${selected}.closest('label').scrollIntoView({ block: 'center', behavior: 'instant' }); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true; })()`);
   await v.shot("settings-unset-en");

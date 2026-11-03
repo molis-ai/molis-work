@@ -77,6 +77,8 @@ test("VUX-39 the board's conditions section drives production parts through lang
 
   // Interface language: the same figure and lists in English, counts agreeing with their numbers.
   await choose("lang", "en");
+  // SYS-48: Pages' Duplicate label must not replace the Assistant's clipboard Copy label.
+  assert.equal(await inFrame<string>("return d.querySelector('.assistant-code-copy').textContent;"), "Copy");
   const english = await inFrame<{ lang: string; lines: string[]; more: string; state: string; button: string; env: string }>(`
     return { lang: d.documentElement.lang, lines: [...d.querySelectorAll('.assistant-code-lines')].map((n) => n.textContent),
       more: d.querySelector('.assistant-code-more').textContent, state: d.querySelector('[data-cond-state]').textContent,

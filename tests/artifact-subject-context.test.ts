@@ -4,12 +4,12 @@ import Database from "better-sqlite3";
 import { artifactSubjectId, parseArtifactSubjectId, type ArtifactVersionRecord, type RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, resolveActionSubject, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
-import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
-import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
+import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
+import { requireArtifactAnalysisRecord } from "@molis-ai/molis-work-module-artifacts";
 
 const projectId = "canonical-project";
 const reference = { artifact_id: 'report/季度@2:["draft"]', version: 1 };
@@ -38,10 +38,10 @@ function fixture(t: test.TestContext) {
   const get = artifacts.query.getArtifactVersion.bind(artifacts.query);
   artifacts.query.getArtifactVersion = (project, ref) => { reads++; return get(project, ref); };
   const unregister = actions.registerProvider({
-    provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
-    definitions: artifactsManifest.actions!,
+    provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
+    definitions: ARTIFACT_ACTIONS,
     availability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "已停用" },
-    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, importSources: () => ({}),
+    handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds: artifactLinkKinds(), importSources: () => ({}),
       importDocument: async () => { throw new Error("read-only fixture"); }, openProjectReference: async () => { throw new Error("must not fetch a file"); } }),
   });
   return { db, artifacts, ledger, actions, publish, unregister, reads: () => reads, disable: () => { enabled = false; } };
@@ -66,12 +66,12 @@ test("resolveActionSubject discovers the original provider and reads an exact in
   assert.ok(directory.some(view => view.capability_id === "artifacts.subject.read"));
   assert.equal(f.reads(), 0, "discovery must not load private content");
   const { context, reader } = await resolveActionSubject(f.actions, caller, subject());
-  assert.deepEqual(reader, { capability_id: "artifacts.subject.read", version: 1, provider_id: artifactsManifest.plugin_id });
+  assert.deepEqual(reader, { capability_id: "artifacts.subject.read", version: 2, provider_id: ARTIFACTS_PROVIDER_ID });
   assert.deepEqual(context.subject, subject());
   assert.equal(context.title, "第一版原文");
   assert.equal(context.truncated, false);
   assert.deepEqual(context.goal_ids, []);
-  assert.equal(context.session_id, null, "payload locators are not trusted relations");
+  assert.equal("session_id" in context, false, "the subject context has no Session field; payload locators are not trusted relations");
   const body = JSON.parse(context.content);
   assert.equal(body.version, 1);
   assert.deepEqual(body.payload, first.payload);
@@ -108,17 +108,17 @@ test("Artifact analysis rejects a project mismatch, withdrawn versions and file 
 test("Artifact subject reads retain the Action gate for current permissions, project, exact grants, audience and lifecycle", async t => {
   const f = fixture(t);
   f.publish();
-  const invoke = (context: ActionCallContext) => f.actions.invoke(context, { ...artifactsActions.subject, provider_id: artifactsManifest.plugin_id }, { subject_id: subject().id });
+  const invoke = (context: ActionCallContext) => f.actions.invoke(context, { ...artifactsActions.subject, provider_id: ARTIFACTS_PROVIDER_ID }, { subject_id: subject().id });
   await assert.rejects(invoke({ ...caller, permissions: [] }), { code: "actions.forbidden" });
   await assert.rejects(invoke({ ...caller, project_id: "other-project" }), { code: "actions.scope_mismatch" });
-  await assert.rejects(invoke({ ...caller, allowed_actions: [{ ...artifactsActions.read, provider_id: artifactsManifest.plugin_id }] }), { code: "actions.forbidden" });
+  await assert.rejects(invoke({ ...caller, allowed_actions: [{ ...artifactsActions.read, provider_id: ARTIFACTS_PROVIDER_ID }] }), { code: "actions.forbidden" });
   await assert.rejects(invoke({ ...caller, audience: "plugin", permissions: ["artifact:read", "artifacts:read"] }), { code: "actions.forbidden" });
   assert.equal(f.reads(), 0, "the common gate must reject before loading an Artifact");
   const discovered = f.actions.discover(caller).find(view => view.capability_id === "artifacts.subject.read")!;
   await assert.rejects(f.actions.invoke({ ...caller, validate_authority: actual => {
-    assert.deepEqual(actual, { capability_id: discovered.capability_id, version: discovered.version, provider_id: artifactsManifest.plugin_id });
+    assert.deepEqual(actual, { capability_id: discovered.capability_id, version: discovered.version, provider_id: ARTIFACTS_PROVIDER_ID });
     throw new ActionError("authority.revoked", "撤权");
-  } }, { capability_id: discovered.capability_id, version: discovered.version, provider_id: artifactsManifest.plugin_id }, { subject_id: subject().id }), { code: "authority.revoked" });
+  } }, { capability_id: discovered.capability_id, version: discovered.version, provider_id: ARTIFACTS_PROVIDER_ID }, { subject_id: subject().id }), { code: "authority.revoked" });
   const controller = new AbortController(); controller.abort();
   await assert.rejects(invoke({ ...caller, signal: controller.signal }), { name: "AbortError" });
   f.disable();

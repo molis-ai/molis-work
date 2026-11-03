@@ -18,7 +18,7 @@ async function mount(t: TestContext) {
   // W5-10-PGK-01: public mount, formal host bundle and CSS; no internal source imports.
   await b.evaluate(`Promise.all([
     new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';script.onload=resolve;script.onerror=reject;document.head.append(script)}),
-    new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/molis-work-workbench.css';css.onload=resolve;css.onerror=reject;document.head.append(css)})
+    Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href=href;css.onload=resolve;css.onerror=reject;document.head.append(css)})))
   ]).then(()=>undefined)`);
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='keyboard-fixture';root.className='pages-editor-host';

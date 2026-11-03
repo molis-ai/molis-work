@@ -14,37 +14,21 @@ import {
   ProjectService,
   type ProjectRecordDraftInput,
 } from "./project-service.js";
+import type { StoredProjectDeletion } from "./deletion-repository.js";
 import {
   createProjectsSchema,
   ProjectsRepository,
-  type ProjectsSqliteDatabase,
-  type StoredProjectDeletion,
 } from "./repository.js";
+import type { ProjectsSqliteDatabase } from "./sqlite.js";
 import { normalizeProjectWorkspace, ProjectWorkspaceService } from "./workspace.js";
 import { ProjectDeletionSteps } from "./deletion-steps.js";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-projects",
-  packagePath: "modules/projects",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/projects",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-ap1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "project-identity",
-    "project-catalog",
-    "workspace-membership",
-    "project-deletion-receipts",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
   /** Immutable store ownership, supplied by the Host rather than project input. */
   spaceId?: string;
+  /** Where the Host keeps the project databases. The catalog stores no path: a project's is `<projects_directory>/<project_id>/molis-work.db` (W5-17). */
+  projects_directory: string;
   now?: () => string;
   id?: (prefix: string) => string;
   /** The Plugins a project may enable and their companions; the Host derives it from what it ships. */
@@ -96,20 +80,24 @@ export class ProjectsModule implements ProjectsApplicationApi {
     normalizeWorkspace: typeof normalizeProjectWorkspace;
     upsertWorkspaceMembership: ProjectWorkspaceService["upsertMembership"];
     unlinkWorkspaceMembership: ProjectWorkspaceService["unlink"];
-    updateDatabasePath: ProjectService["updateDatabasePath"];
   };
 
   constructor(options: ProjectsModuleOptions) {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
-    const repository = new ProjectsRepository(options.db, options.spaceId);
-    this.recycle = new ProjectRecycle(options.db, now);
-    this.records = new ProjectService(repository, now, id, options.plugins);
+    const repository = new ProjectsRepository(options.db, options.projects_directory, options.spaceId);
+    this.records = new ProjectService(repository, options.projects_directory, now, id, options.plugins);
+    this.recycle = new ProjectRecycle(options.db, now, options.projects_directory);
     this.workspaces = new ProjectWorkspaceService(repository, now, id);
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
       wasProjectPluginRemoved:(projectId,pluginId)=>{this.records.get(projectId);return wasProjectPluginRemoved(options.db,projectId,pluginId);},
+      storedProjectPluginMembership: projectId => {
+        this.records.get(projectId);
+        return { plugins: repository.projects.listProjectPlugins(projectId), hidden: repository.projects.listHiddenPlugins(projectId) };
+      },
+      projectPluginMembership: (projectId) => this.records.pluginMembership(projectId),
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),
@@ -118,7 +106,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       listWorkspaceMemberships: () => this.workspaces.listMemberships(),
       listWorkspaceDirectory: (projectId) => this.workspaces.listDirectory(projectId),
       preferredWorkspacePath: (projectId) => this.workspaces.preferredPath(projectId),
-      workspaceProjectSelections: (workspaceId) => repository.workspaceProjectSelections(workspaceId),
+      workspaceProjectSelections: (workspaceId) => repository.workspaces.workspaceProjectSelections(workspaceId),
       listProjectDeletions: () => this.records.listDeletions().map(receipt => ({ ...receipt, owner_steps: this.deletionSteps.list(receipt.deletion_id) })),
     };
     this.commands = {
@@ -141,7 +129,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
         this.records.appendEvent(projectId, type, actorId, payload),
       removeFacts: (projectId) => this.records.removeFacts(projectId),
       removeWorkspaceMembershipsForProject: (projectId) =>
-        repository.removeWorkspaceMembershipsForProject(projectId),
+        repository.workspaces.removeWorkspaceMembershipsForProject(projectId),
       findDeletion: (actorId, idempotencyKey) => this.records.findDeletion(actorId, idempotencyKey),
       insertDeletion: (record) => this.records.insertDeletion(record),
       insertDeletionSteps: (deletionId, ownerIds) => this.deletionSteps.begin(deletionId, ownerIds),
@@ -156,9 +144,8 @@ export class ProjectsModule implements ProjectsApplicationApi {
       normalizeWorkspace: normalizeProjectWorkspace,
       upsertWorkspaceMembership: (workspace, projectId, actorId) =>
         this.workspaces.upsertMembership(workspace, projectId, actorId),
-      unlinkWorkspaceMembership: (workspaceId, projectId, actorId, removeEmptyWorkspace) =>
-        this.workspaces.unlink(workspaceId, projectId, actorId, removeEmptyWorkspace),
-      updateDatabasePath: (projectId, databasePath) => this.records.updateDatabasePath(projectId, databasePath),
+      unlinkWorkspaceMembership: (workspaceId, projectId, actorId) =>
+        this.workspaces.unlink(workspaceId, projectId, actorId),
     };
   }
 }
@@ -181,4 +168,5 @@ export type {PortableProject,ProjectReplicationOptions} from './portable-project
 
 export { ProjectRecycle } from "./recycle.js";
 export type { ProjectRecycleInput, ProjectRecycleObservation } from "./recycle.js";
+export { projectDatabasePath, projectDirectoryPath } from "./project-paths.js";
 export { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";

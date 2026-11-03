@@ -17,13 +17,13 @@ export function feedCaptureFixture(evaluate: (content: string) => { status: "ok"
       service.registerProvider({ provider: { provider_id: reference.provider_id, title: "Fixture", kind: "plugin", project_id: projectId },
         definitions: [definition], handlers: [{ ...definition, handle: (_caller, input) => evaluate((input as { content: string }).content) }] });
       service.registerProvider({ provider: { provider_id: "fixture.feed", kind: "plugin", title: "Feed", project_id: projectId }, definitions: [], handlers: [], scenes: [feedCaptureScene], scene_handlers: [createFeedCaptureSceneHandler({ projectId: projectId,
-        rules: () => feed.listOutRules(projectId), resolve: id => feed.getFeedItem(projectId, id),
-        save: (rule, binding) => { feed.updateOutRule(projectId, rule.rule_id, { judgment: binding.function, enabled: binding.enabled }); },
+        rules: () => feed.outRules.list(projectId), resolve: id => feed.getFeedItem(projectId, id),
+        save: (rule, binding) => { feed.outRules.update(projectId, rule.rule_id, { judgment: binding.function, enabled: binding.enabled }); },
         record: (item, rule, binding, result) => {
           const judgment: JudgmentRecord = { judgment_id: `fixture-${history.length}`, function_key: binding.function.capability_id,
             function_version: binding.function.version, subject: { kind: "feed_item", id: item.item_id, project_id: projectId }, scene_id: feedCaptureScene.scene_id,
             outcome: result.status, suggested_behavior_ids: result.suggested_behavior_ids, error_code: result.error_code ?? null, created_at: new Date().toISOString() };
-          history.push(judgment); feed.recordCaptureJudgment(item, rule, judgment); return judgment;
+          history.push(judgment); feed.capture.recordJudgment(item, rule, judgment); return judgment;
         },
       })] });
       trigger = createFeedCaptureTrigger({ scenes: service, context: () => caller, projectId });

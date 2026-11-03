@@ -1,5 +1,5 @@
 import type { ProjectDeletionStep } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { ProjectsSqliteDatabase } from "./repository.js";
+import type { ProjectsSqliteDatabase } from "./sqlite.js";
 
 type Row = Record<string, unknown>;
 

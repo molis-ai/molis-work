@@ -4,11 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
+import { WebSocket } from "ws";
 
+import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { BrowserHost, type BrowserListener, type BrowserPage } from "../apps/local-host/dist/browser/browser-host.js";
 import { createBrowserSurfaceDriver } from "../apps/local-host/dist/browser/surface-driver.js";
 import { locateBrowser } from "../apps/local-host/dist/browser/locate.js";
-import type { BrowserPageState } from "@molis-ai/molis-work-contracts/services/browser";
+import { BROWSER_SOCKET_PATH, type BrowserClientMessage, type BrowserPageState, type BrowserServerMessage } from "@molis-ai/molis-work-contracts/services/browser";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 
@@ -52,6 +54,100 @@ const centre = async (page: BrowserPage, selector: string) => {
   const raw = await page.evaluate(`JSON.stringify((() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })())`);
   return JSON.parse(String(raw)) as { x: number; y: number };
 };
+
+test("RAC-115: a real input protocol refusal reaches the existing socket, stays private and permits the next explicit input", { timeout: 120_000 }, async t => {
+  const ui = await openGoalBrowser(t, true, undefined, null); if (!ui) return;
+  const chrome = locateTestChrome(); assert.ok(chrome); assert.ok(ui.projectId);
+  const home = await mkdtemp(join(tmpdir(), "browser-input-owner-"));
+  const site = await serve("<!doctype html><title>RAC115 input</title><input id='probe' autofocus>");
+  const browsers = new BrowserHost({ homeDirectory: home, locate: () => ({ path: chrome, name: basename(chrome) }) });
+  let socket: WebSocket | undefined, restoreLog = () => {};
+  try {
+    const running = await browsers.browser();
+    // The real server keeps its page, takeover and socket wiring; only its public browser port uses our owned process.
+    t.mock.method(BrowserHost.prototype, "browser", async () => running);
+    const sendCdp = running.cdp.send.bind(running.cdp);
+    let pageSession: string | undefined, refuse = true, inputAttempts = 0;
+    const protocolRefusals: unknown[] = [];
+    const privateMethod = "Input.RAC115_PRIVATE_PROTOCOL", privateText = "RAC115 PRIVATE INPUT";
+    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
+      if (method === "Page.navigate" && params.url === `${site.origin}/`) pageSession = sessionId;
+      if (method === "Input.insertText") {
+        inputAttempts++;
+        if (refuse) return sendCdp(privateMethod, params, sessionId, timeoutMs).catch((error: unknown) => {
+          protocolRefusals.push(error); throw error;
+        });
+      }
+      return sendCdp(method, params, sessionId, timeoutMs);
+    });
+    const messages: BrowserServerMessage[] = [];
+    socket = new WebSocket(ui.origin.replace(/^http/u, "ws") + BROWSER_SOCKET_PATH, { headers: { Origin: ui.origin } });
+    socket.on("message", (bytes, binary) => { if (!binary) messages.push(JSON.parse(String(bytes)) as BrowserServerMessage); });
+    await new Promise<void>((resolve, reject) => { socket!.once("open", () => resolve()); socket!.once("error", reject); });
+    const send = (message: BrowserClientMessage) => socket!.send(JSON.stringify(message));
+    send({ type: "auth", token: ui.controlToken });
+    await until(() => messages.some(message => message.type === "ready"), Boolean, "authenticated browser socket");
+    send({ type: "attach", project_id: ui.projectId, viewport: { width: 800, height: 600, dpr: 1 } });
+    await until(() => messages.some(message => message.type === "state" && message.state.status === "ready"), Boolean, "real socket page startup");
+    send({ type: "navigate", input: `${site.origin}/` });
+    await until(() => messages.some(message => message.type === "state" && message.state.url === `${site.origin}/` && !message.state.loading), Boolean, "input page loaded");
+    assert.ok(pageSession);
+    const evaluate = async (expression: string) => {
+      const result = await sendCdp("Runtime.evaluate", { expression, returnByValue: true }, pageSession) as { result: { value: unknown }; exceptionDetails?: unknown };
+      assert.equal(result.exceptionDetails, undefined);
+      return result.result.value;
+    };
+    await until(() => evaluate("!!document.getElementById('probe')"), Boolean, "input field ready");
+    await evaluate("document.getElementById('probe').focus()");
+    const entries: HostLogEntry[] = [];
+    restoreLog = captureHostLog(entries);
+    send({ type: "text", text: privateText });
+    await until(() => protocolRefusals.length, count => count === 1, "actual Chrome protocol rejection");
+    const refusal = protocolRefusals[0]; assert.ok(refusal instanceof Error);
+    assert.equal(refusal.name, "CdpError");
+    assert.ok(refusal.message.includes(privateMethod), "Chrome's original error contains private protocol details");
+    const errors = () => messages.filter(message => message.type === "error");
+    await until(errors, value => value.length === 1, "input failure on the existing browser socket", 5_000);
+    assert.deepEqual(errors(), [{ type: "error", message: "无法确认这次输入是否完成，请检查页面。" }]);
+    assert.equal(inputAttempts, 1, "no automatic retry after an uncertain input result");
+    assert.equal(await evaluate("document.getElementById('probe').value"), "");
+    const diagnostics = entries.filter(entry => entry.event === "input_dispatch_failed");
+    assert.equal(diagnostics.length, 1);
+    assert.equal(diagnostics[0]!.area, "browser"); assert.equal(diagnostics[0]!.level, "warn");
+    assert.deepEqual(diagnostics[0]!.error, { name: "CdpError" });
+    assert.deepEqual(diagnostics[0]!.fields, { method: "Input.insertText" });
+    const exposed = JSON.stringify({ errors: errors(), diagnostics });
+    for (const value of [privateText, privateMethod, site.origin, refusal.message, refusal.stack!]) {
+      assert.equal(exposed.includes(value), false, "input, URL and raw protocol details stay out of errors and logs");
+    }
+    refuse = false;
+    send({ type: "text", text: "下一次中文输入" });
+    await until(() => evaluate("document.getElementById('probe').value"), value => value === "下一次中文输入", "next explicit input after recovery");
+    assert.equal(inputAttempts, 2); assert.equal(errors().length, 1);
+    // RAC-115: the other successful Input branches still drive the same real field through the socket.
+    const point = await evaluate("(() => { const r=document.getElementById('probe').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}; })()") as { x: number; y: number };
+    await evaluate("document.getElementById('probe').blur()");
+    for (const event of ["down", "up"] as const) send({ type: "mouse", event, ...point, button: "left", buttons: event === "down" ? 1 : 0, click_count: 1, modifiers: 0 });
+    await until(() => evaluate("document.activeElement.id"), value => value === "probe", "successful mouse focus");
+    await evaluate("(() => { const e=document.getElementById('probe');e.setSelectionRange(e.value.length,e.value.length); })()");
+    for (const event of ["down", "up"] as const) send({ type: "key", event, key: "ArrowLeft", code: "ArrowLeft", key_code: 37, modifiers: 0 });
+    await until(() => evaluate("(() => { const e=document.getElementById('probe');return e.selectionStart===e.value.length-1; })()"), Boolean, "successful key input");
+    send({ type: "compose", text: "组字" });
+    await until(() => evaluate("document.getElementById('probe').value"), value => value === "下一次中文输组字入", "successful input composition");
+    send({ type: "compose", text: "" });
+    await until(() => evaluate("document.getElementById('probe').value"), value => value === "下一次中文输入", "composition cancellation");
+    assert.equal(inputAttempts, 2); assert.equal(errors().length, 1);
+    assert.equal(entries.filter(entry => entry.event === "input_dispatch_failed").length, 1);
+  } finally {
+    restoreLog(); t.mock.restoreAll();
+    if (socket && socket.readyState !== WebSocket.CLOSED) {
+      await new Promise<void>(resolve => { socket!.once("close", () => resolve()); socket!.terminate(); });
+    }
+    await browsers.close();
+    await new Promise<void>(resolve => site.server.close(() => resolve()));
+    await rm(home, { recursive: true, force: true });
+  }
+});
 
 test("R5B-01/03: real page and browser process crashes retain their distinct recovery controls", { timeout: 120_000 }, async t => {
   const ui = await openGoalBrowser(t, true, undefined, null); if (!ui) return;

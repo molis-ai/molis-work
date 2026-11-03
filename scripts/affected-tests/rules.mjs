@@ -17,18 +17,21 @@ export const FULL_REGRESSION = {
   /**
    * Whole packages that are shared core. `modules/` is every package under it. plugin-sdk joined on 2026-10-10 (spec §1, W3-03):
    * it holds the runtime tools that authors and the platform share, the execution lifetime, the Manifest and
-   * declaration rules the Kernel and Plugin Runtime apply, and the text comparison (all moved in by W3-03). The same list is in
-   * scripts/package-owners.mjs (SHARED_CORE) and docs/system/PARALLEL-DEVELOPMENT.md section 6.
+   * declaration rules the Kernel and Plugin Runtime apply, and the text comparison (all moved in by W3-03). plugin-runtime joined on
+   * 2026-10-30 and agent-host on 2026-10-30: docs/system/PARALLEL-DEVELOPMENT.md line 66 and the PR template count both as shared
+   * core. plugin-runtime is the Plugin Runtime's assembly and lifecycle (packages/plugin-runtime/README.md); agent-host is where model
+   * calls go through, the only package that depends on `@prologue/sdk`. The owners' list in scripts/package-owners.mjs (SHARED_CORE)
+   * decides who reviews a package and is not the same list: it also carries local-host and workbench.
    */
-  corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk"],
+  corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk", "packages/plugin-runtime", "horizontal/agent-host"],
   corePackagePrefixes: ["modules/"],
   /**
-   * "local-host 的装配、workbench 外壳": 26 files, from three places (how each got on the list is checked against the READMEs by
+   * "local-host 的装配、workbench 外壳": 25 files, from three places (how each got on the list is checked against the READMEs by
    * tests/affected-tests.test.ts, so this account cannot drift from them again):
-   *  - 18 that the two packages' READMEs name by file name. By table ("从哪里读代码"): local-host's project-host, home-plugins, local-host,
+   *  - 17 that the two packages' READMEs name by file name. By table ("从哪里读代码"): local-host's project-host, home-plugins, local-host,
    *    project-capabilities, web-server, mcp-server, system-agent-service, home-side (binds a Host to its Home and its Agent service,
-   *    W3-06 D0), goal-project-application, and workbench's ui-composition,
-   *    goals-page-renderer, home-plugin-page, scripts/client/initialization, browser-assets. By prose: the workbench README's invariants name
+   *    W3-06 D0), and workbench's ui-composition,
+   *    shell-page-renderer, home-plugin-page, scripts/client/initialization, browser-assets. By prose: the workbench README's invariants name
    *    src/builtin-plugins.ts, src/plugin-catalog.ts and src/plugin-workbench.ts (the projections derived from BUILTIN_PLUGIN_CATALOG),
    *    and its "阅读装配方式" line points to apps/local-host/src/workbench-renderer.ts, the 12 lines that bind the renderer to the host.
    *  - 7 from the hub table of PARALLEL-DEVELOPMENT section 2 (and, for project-plugins, the AGENTS.md pointer to it), which neither
@@ -58,13 +61,12 @@ export const FULL_REGRESSION = {
     "apps/local-host/src/mcp-server.ts",
     "apps/local-host/src/system-agent-service.ts",
     "apps/local-host/src/home-side.ts",
-    "apps/local-host/src/goal-project-application.ts",
     "apps/local-host/src/workbench-renderer.ts",
     // apps/workbench: UI 组合, 工作台整页装配, 客户端初始化与恢复, 浏览器资产入口, the shell, its catalog and its slots
     "apps/workbench/src/builtin-plugins.ts",
     "apps/workbench/src/browser-assets.ts",
     "apps/workbench/src/document-shell.ts",
-    "apps/workbench/src/goals-page-renderer.ts",
+    "apps/workbench/src/shell-page-renderer.ts",
     "apps/workbench/src/home-plugin-page.ts",
     "apps/workbench/src/immersive-shell.ts",
     "apps/workbench/src/page-assets.ts",
@@ -113,13 +115,25 @@ export const UI = {
   packages: ["apps/workbench", "packages/design-system", "packages/ui-host", "packages/im-ui"],
   /**
    * A file of any package that is a page, a browser program or a stylesheet, by name or place: `client.ts`, `client-views.ts`,
-   * `goals-page-renderer.ts`, `styles.ts`, `ui.ts`, anything in a `client/` or `views/` folder, and css, html and svg files.
+   * `shell-page-renderer.ts`, `styles.ts`, `ui.ts`, anything in a `client/` or `views/` folder, and css, html and svg files.
    * Not `web-request.ts` (the host's route dispatch) or `viewer.ts`: the word has to stand alone between `/`, `-` and `.`.
    */
   files: /(?:^|[/-])(?:client|clients|styles?|ui|views?|renderers?|pages?)(?:[-.][\w.-]*)?\.(?:ts|mts|css|html|svg)$|\/(?:client|clients|styles|ui|views)\/[^/]+\.(?:ts|mts|css|html|svg)$|\.(?:css|html|svg)$/,
   /** A changed line of a browser program in a template literal, or a page's markup. */
   lines: /\b[A-Z][A-Z0-9_]*_(?:SCRIPT|STYLES?)\b|<style\b|\bclass(?:Name)?\s*=\s*\\?["']|\bclassList\b|\binnerHTML\b|\bdocument\.(?:querySelector|getElementById)\b/,
 };
+
+/**
+ * A file whose text is a stylesheet: a css/scss file, or a file under a styles folder (`packages/design-system/src/styles/…`).
+ * Its selectors, custom properties and attributes are not identifiers, so `tests/…` files that assert the built stylesheet by
+ * writing them as text are found by searching for those tokens, not by the name index (BL-153; W5-05 #630 deleted a skin and
+ * missed three tests that only write its selectors).
+ */
+export const STYLE_FILE = /\.(?:css|scss)$|\/(?:styles?|stylesheets?)\//;
+
+/** Where a changed contract field is declared: a source file of the contracts package. A field is a promise to callers (BL-153). */
+export const CONTRACT_SOURCE = /^packages\/contracts\/src\//;
+
 
 // ---- the rules about what the test touches ---------------------------------------------------------------------------------
 /**

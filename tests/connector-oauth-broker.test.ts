@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -5,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { catalogOAuthMethod } from "@molis-ai/molis-work-integration-catalog";
 import { createOAuthBroker, type BrokerEnv } from "../apps/local-host/cloudflare/worker.ts";
 import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken } from "../apps/local-host/src/connector-api-oauth.ts";
 import { connectorProtocolSecrets } from "../apps/local-host/src/connector-protocol-store.ts";
@@ -138,14 +140,14 @@ test("production Host uses the cloud broker for start, callback, identity and re
     return Response.json({ data: { gid: "original-account", name: "Molis tester", email: "tester@example.test" } });
   }) as typeof fetch;
   try {
-    assert.equal(connectorMethodsFor("asana").find(m => m.kind === "oauth")?.login_ready, true);
+    assert.equal(connectorMethodsFor("asana", catalogOAuthMethod("asana")).find(m => m.kind === "oauth")?.login_ready, true);
     const started = await startApiOAuth(directory, { serviceId: "asana", displayName: "Work", clientId: "", origin: local }, transport);
     const authorize = new URL(started.authorization_url);
     const returned = await f.request(`/callback?state=${encodeURIComponent(authorize.searchParams.get("state")!)}&code=provider-code`);
     const callback = new URL(returned.headers.get("location")!);
     const result = await completeApiOAuth(directory, { origin: local, state: callback.searchParams.get("state")!, code: callback.searchParams.get("code")! }, transport);
     assert.equal(result.connection.account_label, "Molis tester");
-    assert.equal(await resolveApiOAuthToken(directory, started.connection_id, true, transport), "provider-access");
+    assert.equal(await resolveApiOAuthToken(directory, started.connection_id, connectorControl(), true, transport), "provider-access");
     assert.doesNotMatch(connectorProtocolSecrets(directory, started.connection_id).get("client")!, /server-only-secret/);
     assert.equal(f.calls[1]!.get("refresh_token"), "provider-refresh");
   } finally { keys.forEach((k, i) => { if (old[i] === undefined) delete process.env[k]; else process.env[k] = old[i]; }); rmSync(directory, { recursive: true, force: true }); }
@@ -161,7 +163,8 @@ test("broker rejects HTTP 200 provider error envelopes even if they contain a to
   }
 });
 
-// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): the Worker is deployed on its own and imports nothing from the workspace, so its
+// Security invariant S-09 (docs/system/SECURITY-INVARIANTS.md): the Worker is deployed on its own and imports nothing from the workspace (its provider
+// data is its own `providers.ts`, kept equal to the plugins' declarations by `tests/connector-provider-contracts.test.ts`), so its
 // return-address check is a copy of the shared loopback check (packages/contracts platform/loopback). This is what keeps the two the same.
 test("the broker takes a return address on exactly the hosts the shared loopback check calls this machine, and on no other", async () => {
   const f = setup();

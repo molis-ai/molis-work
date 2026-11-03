@@ -4,17 +4,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { WORKFLOWS_ACTION_PERMISSIONS, createWorkflowContentPorts, handoffKey, openWorkflowsStore, workflowsActions as w, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { WORKFLOWS_ACTION_PERMISSIONS, createWorkflowContentPorts, handoffKey, workflowsActions as w, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { openPagesStore, openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PROJECT = "project-handoff";
 
 test("a handoff is delivered once: a lost race delivers nothing and a retry re-sends the saved result without asking the model again", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflows-handoff-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const dbPath = join(home, "project.db");
   seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);
@@ -78,6 +80,7 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
 
 for (const stage of ["preparation", "response"] as const) test(`workflow AI revocation during ${stage} prevents dispatch or commit and allows authorized recovery`, { timeout: 30_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflow-ai-authority-")), dbPath = join(home, "project.db");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);
   const source = createLocalFeedSourceService(db.db, PROJECT).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;

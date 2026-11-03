@@ -1,4 +1,4 @@
-import type { ShelfArtifactSource, ShelfItemRecord, ShelfJobRecord } from '@molis-ai/molis-work-contracts/modules/shelf';
+import type { ShelfArtifactSource, ShelfItemRecord, ShelfJobRecord } from './contract.js';
 import type { SyncBlobReference } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { shelfErrors } from './errors.js';
 

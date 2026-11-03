@@ -26,7 +26,7 @@ async function withConnectionActions<T>(home: string, localHost: MolisWorkLocalH
     if (work.character) {
       if (!work.project_ref) throw new ActionError("actions.forbidden", "原角色不属于这项工作");
       await localHost.withProject(work.project_ref, async runtime => {
-        freezeProjectCharacter(home, scope.actor_id, scope.project_id, runtime.coordinator.artifacts.query, work.character!);
+        freezeProjectCharacter(home, scope.actor_id, scope.project_id, runtime.artifacts.query, work.character!);
       });
     }
     const authority = assistantAuthority(localHost, work, () => store.disabledActions(scope.actor_id));
@@ -44,6 +44,6 @@ export function assistantConnectionCheckers(home: string, localHost: MolisWorkLo
   return [connectorSetupChecker(home, scope => withConnectionActions(home, localHost, scope, connectorManagementActions.authorization, async () => undefined)),
     connectorReadyChecker((scope, signal) => withConnectionActions(home, localHost, scope, connectorManagementActions.list, async (actions, work) => {
       const result = await actions.invoke({ capability_id: connectorManagementActions.list.capability_id, version: connectorManagementActions.list.version, provider_id: "system.connectors" }, {}, signal) as { connections: ManagedConnectorView[] };
-      return { connections: result.connections, paused: work.continuation_hold === "paused" };
+      return { connections: result.connections, paused: work.continuation_hold === "paused" || work.continuation_hold === "input" };
     }))];
 }

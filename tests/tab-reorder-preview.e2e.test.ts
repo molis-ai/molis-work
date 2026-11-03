@@ -11,7 +11,7 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
 
@@ -108,7 +108,7 @@ test("VUX-23 a tab dragged off the strips previews its own place, and a tab redr
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
   await click("[data-titlebar-tabs] [data-tab-add]");

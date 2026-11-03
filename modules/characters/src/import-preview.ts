@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CharacterContent, CharacterDraft, CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
+import { characterErrors, type CharacterContent, type CharacterDraft, type CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 
 /** File bodies stay in the Host until a person opens that exact preview. */
 export function characterSnapshotPreview(snapshot: CharacterImportSnapshot) {
@@ -12,6 +12,6 @@ export function characterBrowserPreview<T extends CharacterContent | CharacterDr
 }
 export function characterFilePreview(snapshot: CharacterImportSnapshot | undefined, input: Record<string, unknown>) {
   const file = snapshot?.skills.find(skill => skill.id === input.skill_id)?.files.find(file => file.path === input.path);
-  if (!file) throw new Error("该技能文件不在所选快照中");
+  if (!file) throw characterErrors.invalid("该技能文件不在所选快照中");
   return file.encoding === "utf8" ? file : { path: file.path, encoding: file.encoding, bytes: Buffer.byteLength(file.content, "base64") };
 }

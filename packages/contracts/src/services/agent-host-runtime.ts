@@ -1,10 +1,11 @@
 /** The agent-host contract (`services/agent-host`): a runtime's capabilities, descriptor and health, session and run references and phases, and the adapter a runtime implements. */
 import type { AgentMemoryExecutionControl, AgentMemoryCapability, AgentDocumentCapability } from "./agent-host-memory.js";
 import type { AgentRecoveryCapability, AgentScheduleCapability, AgentCheckpointsCapability, AgentSkillsCapability, AgentSkillLibrary, AgentMcpLibrary, AgentMcpCapability, AgentSubagentsCapability } from "./agent-host-ports.js";
-import type { AgentCreateSessionInput, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
+import type { AgentCreateSessionRequest, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
 import type { AgentProjectWorkCapability, AgentSessionMessagesCapability, AgentBackgroundCapability } from "./agent-host-session.js";
 import type { AgentCollaborationPort } from "./agent-collaboration.js";
+import type { AgentOriginalInput, AgentOriginalInputRef } from "./agent-inputs.js";
 
 export const AGENT_RUNTIME_CAPABILITIES = [
   "session.create",
@@ -48,6 +49,8 @@ export interface AgentRuntimeDescriptor {
   supports_workspace_none?: boolean;
   /** Runs business roles: no directory, the unified actions given at start and the root-free host tools. */
   supports_workspace_business?: boolean;
+  /** Has verified a Character's tool limits (its host tools and its actions) against the Runtime's own tool gates; a Runtime without this refuses a Character instead of running it unlimited. */
+  supports_character_limits?: boolean;
   runtime_id: string;
   display_name: string;
   provider_version: string;
@@ -55,6 +58,29 @@ export interface AgentRuntimeDescriptor {
 }
 
 export type AgentRuntimeHealthStatus = "ready" | "needs_setup";
+
+/** A session can be made on this Runtime and a round can run in it: neither capability is declared unsupported. */
+export const hostsAgentSessions = (runtime: AgentRuntimeDescriptor): boolean =>
+  runtime.capabilities["session.create"] !== "unsupported" && runtime.capabilities["run.start"] !== "unsupported";
+
+/** The Home default Runtime: the first one in the Runtime directory's order that hosts sessions, or none. A project that picks its own Runtime overrides it. */
+export const defaultAgentRuntime = (runtimes: readonly AgentRuntimeDescriptor[]): AgentRuntimeDescriptor | null => runtimes.find(hostsAgentSessions) ?? null;
+
+/** The Runtime a project's sessions run on: the one the person picked in the project's settings, else the Home default; with none, why. */
+export type ProjectRuntimeResolution =
+  | { readonly runtime: AgentRuntimeDescriptor; readonly picked: boolean }
+  | { readonly runtime: null; readonly picked: boolean; readonly reason: string };
+
+/** A pick the directory no longer offers, or that cannot host a session, resolves to none and says so: it is never replaced by another Runtime. */
+export function resolveProjectRuntime(runtimes: readonly AgentRuntimeDescriptor[], pickedId: string | null): ProjectRuntimeResolution {
+  if (pickedId === null) {
+    const first = defaultAgentRuntime(runtimes);
+    return first ? { runtime: first, picked: false } : { runtime: null, picked: false, reason: "宿主还没有可用的运行时" };
+  }
+  const picked = runtimes.find(runtime => runtime.runtime_id === pickedId);
+  if (picked && hostsAgentSessions(picked)) return { runtime: picked, picked: true };
+  return { runtime: null, picked: true, reason: `项目选定的运行时「${picked?.display_name ?? pickedId}」现在不可用，请在项目设置里改选，或恢复为默认运行时` };
+}
 
 export interface AgentRuntimeHealth {
   ok: boolean;
@@ -128,8 +154,10 @@ export interface AgentRuntimeAdapter {
   readonly documents?: AgentDocumentCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
-  createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
+  createSession(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
+  /** First immutable original plus its latest accepted direct attempt (not a derived continuation); absence never falls back to a composed task. */
+  readOriginalInput?(ref: AgentOriginalInputRef): Promise<{ original: AgentOriginalInput; accepted_run: AgentRunRef } | undefined>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
   /** The project's work under way, when this Runtime keeps it. */

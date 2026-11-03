@@ -5,7 +5,7 @@ export const PPT_STYLES = `
     display: inline-flex; align-items: center; flex: none; height: 28px; max-width: 28px;
     margin-right: 4px; padding: 0; overflow: hidden; border: 0; border-radius: 6px;
     background: transparent; color: var(--muted); cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint), color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .creative-artifact-act svg { width: 14px; height: 14px; flex: none; margin: 0 8px; }
   .creative-artifact-act span { overflow: hidden; white-space: nowrap; font-size: 12px; line-height: 28px; padding-right: 8px; }
@@ -14,8 +14,8 @@ export const PPT_STYLES = `
   }
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .ppt-stage-chrome { pointer-events: auto; }
-  [data-ppt=workbench] { --plugin-tint: var(--plugin-ppt); }
-  [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
+  [data-ppt=workbench] { --plugin-tint: var(--ink-soft); }
+  [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
   [data-ppt-stage-workspace] > .ppt-note { flex-shrink: 0; margin: 0 24px 16px; }
   .ppt-workspace > * { flex-shrink: 0; }
   .ppt-workspace {
@@ -49,21 +49,21 @@ export const PPT_STYLES = `
     display: flex; align-items: center; gap: 8px;
     flex: 1; min-width: 0; text-align: left; border: 0; background: transparent;
     color: inherit; font: inherit; padding: 8px 8px; border-radius: 6px; cursor: pointer;
-    transition: background-color var(--motion-fast, 130ms) var(--ease-quint);
+    transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .ppt-slide-row > button:first-child:hover { background: var(--nav-hover); }
   .ppt-slide-row.is-selected > button:first-child {
-    background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 12%, transparent);
+    background: color-mix(in srgb, var(--ink-soft) 12%, transparent);
   }
   .ppt-slide-index {
     display: inline-grid; place-items: center; flex: none;
-    width: 18px; height: 18px; border-radius: 5px;
+    width: 18px; height: 18px; border-radius: 4px;
     font-size: 11px; font-variant-numeric: tabular-nums;
-    background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 12%, transparent);
-    color: var(--plugin-ppt, var(--muted));
+    background: color-mix(in srgb, var(--ink-soft) 12%, transparent);
+    color: var(--ink-soft);
   }
   .ppt-slide-row.is-selected .ppt-slide-index {
-    background: color-mix(in srgb, var(--plugin-ppt, var(--ink)) 22%, transparent);
+    background: color-mix(in srgb, var(--ink-soft) 22%, transparent);
     color: var(--ink);
   }
   .ppt-slide-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -78,15 +78,16 @@ export const PPT_STYLES = `
   .ppt-card {
     aspect-ratio: 16 / 9; min-height: 140px; max-width: 100%; padding: 16px 24px; border-radius: 10px;
     border: 1px solid transparent; display: flex; flex-direction: column; justify-content: center; gap: 8px;
-    transition: box-shadow var(--motion-fast, 130ms) var(--ease-quint);
+    transition: box-shadow var(--dur-hover, 130ms) var(--ease-quint);
   }
   .ppt-card.is-current {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin-ppt, var(--focus)) 72%, var(--focus));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink-soft) 72%, var(--focus));
   }
   .ppt-card h2, .ppt-card li, .ppt-card-notes { overflow-wrap: anywhere; }
   .ppt-placement-line { margin: 2px 0 10px; }
   [data-ppt-empty]:not([hidden]) ~ .ppt-placement-line { display: none; }
   .ppt-export-menu > summary { list-style: none; }
+  @media (max-width: 600px) { .ppt-export-menu > .plugin-stage-more-actions { left: 0; right: auto; } }
   .ppt-present { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: #000; outline: none; cursor: pointer; }
   .ppt-present-frame { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; }
   /* A slide is drawn on a fixed 16:9 canvas with the type scale and scaled whole to the screen, like a picture. */

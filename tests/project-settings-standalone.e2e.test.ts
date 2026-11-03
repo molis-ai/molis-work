@@ -2,12 +2,13 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import Database from "better-sqlite3";
 import { join } from "node:path";
 import { ensureStorageSpace } from "@molis-ai/molis-work-storage";
 import { projectReplicationOwner } from "@molis-ai/molis-work-module-projects";
-import { listPluginInstallationRecords, PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { readPluginRuntimeRecords, PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 import { mkdir, writeFile } from "node:fs/promises";
 
@@ -48,7 +49,7 @@ test("PCSYNC-20 missing plugin hints inspect actual local installations without 
     await writeFile(`.impeccable/qa/review/project-missing-plugins-${width}-${theme}.png`, Buffer.from(shot.data, "base64"));
   }
   const readonly = new Database(databasePath, { readonly: true });
-  try { assert.deepEqual(listPluginInstallationRecords(readonly).find(record => record.install_id === installed.install_id), { ...installed, state: "disabled" }); }
+  try { assert.deepEqual(readPluginRuntimeRecords(readonly).find(record => record.install_id === installed.install_id), { ...installed, state: "disabled" }); }
   finally { readonly.close(); }
   const english = await (await fetch(origin + `/projects/${projectId}/settings/general?embed=1`, { headers: { "accept-language": "en" } })).text();
   assert.match(english, /Missing plugins/);assert.match(english, /Your synced content is kept/);
@@ -228,7 +229,7 @@ test("project settings preserve edits on failed saves, record guidance versions,
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor, reloadPage } = browser;
   const prefix = `/projects/${projectId}`;
-  const readGuidance = async () => (await (await fetch(origin + prefix + "/api/project-guidance")).json());
+  const readGuidance = async () => (await (await fetch(origin + prefix + "/api/plugins/io.molis.work.goals/project-guidance")).json());
   const fill = async (selector: string, value: string) => evaluate(`(() => { const field=document.querySelector(${JSON.stringify(selector)}); field.value=${JSON.stringify(value)}; field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   await command("Network.enable", {}, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/guidance" }, sessionId));
@@ -237,7 +238,7 @@ test("project settings preserve edits on failed saves, record guidance versions,
   assert.equal(await evaluate("document.querySelector('[name=kind]').value"), "constraint");
   await fill('[name=content]', "用户数据只保存在本机。");
   await fill('[name=reason]', "明确项目的数据边界。");
-  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/project-guidance"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/project-guidance"] }, sessionId);
   await click('[data-guidance-form] button[type=submit]');
   await waitFor("!document.querySelector('[data-guidance-editor-error]').hidden");
   assert.equal(await evaluate("document.querySelector('[name=content]').value"), "用户数据只保存在本机。");
@@ -261,15 +262,15 @@ test("project settings preserve edits on failed saves, record guidance versions,
   assert.match(await evaluate<string>("document.querySelector('.guidance-entry').textContent"), /用户数据和备份只保存在本机/);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/rules" }, sessionId));
   await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-policy-form]')", 15_000);
-  const beforeRules = browser.store.snapshot(DEMO_PROJECT_ID).cursor;
+  const beforeRules = boardSnapshot(browser.store, DEMO_PROJECT_ID).cursor;
   const accepted = "document.querySelector('[data-policy-form] [name=human_approval]').checked";
   const original = await evaluate<boolean>(accepted);
   await evaluate(accepted + " = " + String(!original));
   await click('[data-policy-cancel]');
   assert.equal(await evaluate(accepted), original);
-  assert.equal(browser.store.snapshot(DEMO_PROJECT_ID).cursor, beforeRules);
+  assert.equal(boardSnapshot(browser.store, DEMO_PROJECT_ID).cursor, beforeRules);
   await evaluate(accepted + " = " + String(!original));
-  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/policy-bindings"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/policy-bindings"] }, sessionId);
   await click('[data-policy-form] button[type=submit]');
   await waitFor("!document.querySelector('[data-policy-error]').hidden && !document.querySelector('[data-policy-form] button[type=submit]').disabled");
   assert.equal(await evaluate(accepted), !original);

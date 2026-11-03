@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { LocalHost, LocalMcpServer, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, type LocalHostOptions } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionAvailability, ActionCallContext, ActionDefinition, ActionSceneBinding, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
@@ -17,10 +16,11 @@ const counter: ActionDefinition<{ amount: number }, number> = { capability_id: "
 const ref = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });
 const context = (id: string): ActionCallContext => ({ actor_id: "alice", project_id: id, audience: "user", permissions: [] });
 
-test("a Plugin action can await a nested Host capability without waiting behind itself", { timeout: 2_000 }, async () => {
+test("a Plugin action can await a nested Host action without waiting behind itself", { timeout: 2_000 }, async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
-  const read = { capability_id: "nested.read", version: 1, operation: "query" as const };
-  host.register(read, runtime => runtime.value);
+  const read: ActionDefinition<undefined, number> = { capability_id: "nested.read", version: 1, operation: "query",
+    action: { ...counter.action, title: "读取", kind: "query", input_schema: {} } };
+  host.registerAction(read, runtime => runtime.value);
   host.registerAction(counter, async (runtime, input) => {
     runtime.value += input.amount;
     return host.client(ref("a")).invoke(read, undefined) as Promise<number>;
@@ -32,7 +32,7 @@ test("a Plugin action can await a nested Host capability without waiting behind 
   } finally { await host.close(); }
 });
 
-test("typed Host and action callers use one registration, one queue and the same Runtime", async () => {
+test("the Host's project client and action callers use one registration, one queue and the same Runtime", async () => {
   let opens = 0, closes = 0;
   let entered!: () => void, release!: () => void;
   const enteredCall = new Promise<void>(resolve => { entered = resolve; });
@@ -255,8 +255,10 @@ function settlements() {
   return { rows, actionSettled };
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const note: HostCapabilityDefinition<{ text: string }, string> = { capability_id: "host.notes.record", version: 1, operation: "command" };
-const broken: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "host.notes.broken", version: 1, operation: "command" };
+const note: ActionDefinition<{ text: string }, string> = { capability_id: "host.notes.record", version: 1, operation: "command",
+  action: { ...counter.action, title: "记录", input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false }, output_schema: { type: "string" } } };
+const broken: ActionDefinition<Record<string, never>, string> = { capability_id: "host.notes.broken", version: 1, operation: "command",
+  action: { ...counter.action, title: "坏掉的", input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
 const syncCounter: ActionDefinition<number, number> = { capability_id: "host.counter.sync", version: 1, operation: "command",
   action: { ...counter.action, title: "同步累计", audiences: ["plugin"], input_schema: { type: "integer" } } };
 /** A plugin started in a bare Host's project, acting for alice: its synchronous calls present the caller the Host issued it. */
@@ -266,18 +268,18 @@ async function pluginCaller(host: Parameters<typeof startPlugin>[0], project: Re
   return callAs(await issuedCaller(probe, plugin, project.project_id), []);
 }
 
-test("every route into an action or a typed capability is settled exactly once, each operation with its own id", async () => {
+test("every route into an action is settled exactly once, each operation with its own id", async () => {
   const { rows, actionSettled } = settlements();
   const host = new LocalHost({ runtimeFactory: { open: () => ({ total: 0 }), close: () => {} }, actionSettled });
   const project = ref("routes"), caller = context("routes"), noted: Array<string | undefined> = [];
   const directory = await mkdtemp(join(tmpdir(), "host-actions-")), store = new LocalProjectDatabase(join(directory, "project.db"));
   const homeRead = { ...counter, capability_id: "host.home.read", action: { ...counter.action, title: "首页读取", scope: "home" as const } };
   host.registerAction(counter, (runtime, input) => (runtime.total += input.amount));
-  host.register(note, (_runtime, input, invocation) => { noted.push(invocation.call_id); return input.text; });
-  host.register(broken, () => { throw new Error("the handler failed"); });
+  host.registerAction(note, (_runtime, input, invocation) => { noted.push(invocation.call_id); return input.text; });
+  host.registerAction(broken, () => { throw new Error("the handler failed"); });
   const lookalike = { ...broken, capability_id: "host.notes.lookalike" };
   const ownerFailure = Object.assign(new Error("the owner failed"), { code: "kernel.capability_missing" });
-  host.register(lookalike, () => { throw ownerFailure; });
+  host.registerAction(lookalike, () => { throw ownerFailure; });
   host.actionRegistry().registerProvider({ provider: { provider_id: "home", kind: "system", title: "Home" }, definitions: [homeRead], handlers: [{ ...homeRead, handle: () => 7 }] });
   host.actionRegistry(project).registerProvider({ provider: { provider_id: "sync", kind: "plugin", title: "Sync", project_id: project.project_id },
     definitions: [syncCounter], handlers: [{ ...syncCounter, execution: "sync", handle: (_context, input) => input }] });
@@ -299,46 +301,27 @@ test("every route into an action or a typed capability is settled exactly once, 
     await settledOnce(() => host.syncActionClient(project).invokeSync(plugin, syncCounter, 5),
       { title: "同步累计", provider_title: "Sync", provider_id: "sync", operation: "command", ok: true });
     await settledOnce(() => host.client(project).invoke(note, { text: "hello" }),
-      { title: note.capability_id, provider_title: "Molis Work", provider_id: undefined, operation: "command", ok: true, path: "typed", actor_id: "local-host" });
-    assert.equal(noted[0], rows.at(-1)!.call_id, "the handler of a typed capability is given the id its settlement carries");
+      { title: "记录", provider_title: "Molis Work", provider_id: "platform", operation: "command", ok: true, actor_id: "local-host" });
+    assert.equal(noted[0], rows.at(-1)!.call_id, "the handler of a Host action is given the id its settlement carries");
     await settledOnce(() => host.client(project).invoke(broken, {}),
-      { title: broken.capability_id, ok: false, code: undefined, refused: undefined, path: "typed", operation: "command" });
+      { title: "坏掉的", ok: false, code: undefined, refused: undefined, path: undefined, operation: "command" });
     await settledOnce(() => host.actionClient(project).invoke(caller, { capability_id: "host.nowhere", version: 1 }, {}),
       { operation: "unknown", title: "host.nowhere", provider_title: "", ok: false, code: "actions.missing", refused: true });
     await settledOnce(() => host.actionClient(project).invoke(caller, counter, { amount: "x" }), { title: "累计", ok: false, code: "actions.input_invalid", refused: true });
     await settledOnce(() => host.client(project).invoke({ ...counter, capability_id: "host.counter.unregistered" }, { amount: 1 }),
-      { title: "host.counter.unregistered", ok: false, code: "actions.dependency_missing", refused: true, path: "typed" });
-    // W3-07-5-01: normalize only the registry's genuine refusal, never an owner's coded lookalike.
+      { operation: "unknown", title: "host.counter.unregistered", ok: false, code: "actions.missing", refused: true, path: undefined });
+    // W3-07-5-01: an owner's own coded failure reaches its caller as the owner threw it, never rewritten as a refusal.
     await assert.rejects(host.client(project).invoke(lookalike, {}), error => error === ownerFailure);
     assert.deepEqual([rows.at(-1)!.code, rows.at(-1)!.refused], ["kernel.capability_missing", undefined]);
     assert.equal(new Set(rows.map(row => row.call_id)).size, rows.length, "operations do not share ids");
   } finally { await host.close(); store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
-test("a typed wait only observes: it runs but is not settled, while the typed query and command around it are", async () => {
-  const { rows, actionSettled } = settlements();
-  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
-  const project = ref("observe"), followed: string[] = [];
-  const peek: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "host.notes.peek", version: 1, operation: "query" };
-  const follow: HostCapabilityDefinition<{ after: number }, string> = { capability_id: "host.notes.follow", version: 1, operation: "wait" };
-  host.register(peek, () => "peeked");
-  host.register(follow, (_runtime, input) => { followed.push(`after ${input.after}`); return `followed ${input.after}`; });
-  host.register(note, (_runtime, input) => input.text);
-  try {
-    assert.equal(await host.client(project).invoke(peek, {}), "peeked");
-    assert.equal(await host.client(project).invoke(follow, { after: 3 }), "followed 3");
-    assert.equal(await host.client(project).invoke(note, { text: "after the wait" }), "after the wait");
-    assert.deepEqual(followed, ["after 3"], "the wait ran");
-    assert.deepEqual(rows.map(row => [row.capability_id, row.operation, row.path]), [[peek.capability_id, "query", "typed"], [note.capability_id, "command", "typed"]],
-      "the wait left no settlement, so it can never reach the call log");
-  } finally { await host.close(); }
-});
-
-test("a typed call made while an action is handled belongs to the same operation", async () => {
+test("a project-client call made while an action is handled belongs to the same operation", async () => {
   const { rows, actionSettled } = settlements();
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
   const project = ref("nested"), seen: Array<string | undefined> = [];
-  host.register(note, (_runtime, input, invocation) => { seen.push(invocation.call_id); return input.text; });
+  host.registerAction(note, (_runtime, input, invocation) => { seen.push(invocation.call_id); return input.text; });
   host.registerAction(counter, async (_runtime, input, invocation) => {
     seen.push(invocation.call_id);
     await host.client(project).invoke(note, { text: "inner" });
@@ -347,7 +330,7 @@ test("a typed call made while an action is handled belongs to the same operation
   try {
     await host.actionClient(project).invoke(context("nested"), counter, { amount: 1 });
     assert.deepEqual(rows.map(row => row.capability_id), [note.capability_id, counter.capability_id], "the inner call is settled when it ends, the outer one after it");
-    assert.equal(new Set([...seen, ...rows.map(row => row.call_id)]).size, 1, "the action's handler, the typed handler and both settlements share one id");
+    assert.equal(new Set([...seen, ...rows.map(row => row.call_id)]).size, 1, "the outer handler, the inner handler and both settlements share one id");
   } finally { await host.close(); }
 });
 

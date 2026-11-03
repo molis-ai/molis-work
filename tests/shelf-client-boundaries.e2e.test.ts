@@ -1,27 +1,25 @@
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { openHostShelfFiles } from "@molis-ai/molis-work-app-local-host";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
 import { hashBytes } from "@molis-ai/molis-work-module-shelf";
-import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_CLIENT_FACTORY_SCRIPT, SHELF_MESSAGES } from "@molis-ai/molis-work-plugin-shelf";
 import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
-import { ShelfPluginRouteTable } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_STYLES } from "@molis-ai/molis-work-plugin-shelf";
 import { renderShelfWorkbench } from "@molis-ai/molis-work-plugin-shelf";
-import { directShelfActions } from "./shelf-direct-actions.js";
+import { directShelfActions, ShelfPluginRouteTable, openTestShelfFiles } from "./shelf-direct-actions.js";
 
 // The only stub is runtime availability, so client handoffs can be exercised
 // without installing or launching an agent. Storage and HTTP handlers are real.
 class FixtureShelfStore extends ShelfStore {
-  override runtime() {
-    return { ...super.runtime(), runtime_key: "fixture", executable: "/fixture/not-launched", title: "Fixture" };
+  override async runtime() {
+    return { ...await super.runtime(), runtime_key: "fixture", executable: "/fixture/not-launched", title: "Fixture" };
   }
 }
 
@@ -29,7 +27,7 @@ async function openShelfBrowser(t: TestContext) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Shelf boundary E2E"); return null; }
   const home = await mkdtemp(join(tmpdir(), "shelf-client-boundaries-"));
-  const shelf = new FixtureShelfStore(join(home, "shelf"), openHostShelfFiles(home), { disabled: true });
+  const shelf = new FixtureShelfStore(join(home, "shelf"), openTestShelfFiles(home));
   await shelf.admit({ filename: "目录材料.md", bytes: Buffer.from("# Shelf 专用测试页\n"), mime: "text/markdown" });
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({ actions: directShelfActions(shelf) }));
   const requests: string[] = [];
@@ -47,18 +45,23 @@ async function openShelfBrowser(t: TestContext) {
     delayNextFile = () => { entered.resolve(); return release.promise; };
     return { started: entered.promise, release: () => release.resolve() };
   };
+  // The workbench's translator, in Chinese: a stable key's `zh` with its values filled in.
+  const zh = (key: string, values?: Record<string, string | number>) => fillMessage(SHELF_MESSAGES[key as keyof typeof SHELF_MESSAGES]?.zh ?? key, values);
+  const zhTable = JSON.stringify(Object.fromEntries(Object.entries(SHELF_MESSAGES).map(([key, text]) => [key, text.zh])));
   const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const html = `<!doctype html><html data-resolved-theme="light"><head><meta charset="utf-8"><style>
     [hidden]{display:none!important}body{margin:0;font-family:system-ui}*{box-sizing:border-box}
     :root{--content-side:#f5f5f4;--content-paper:#fff;--content-ink:#242424;--content-muted:#777;--content-line:#ddd}
     [data-shelf=workbench]{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:900px}
     ${SHELF_STYLES}</style></head><body data-desktop-surface="shelf">
-    ${renderShelfWorkbench({ ...(await shelf.snapshot()), selected_id: null, primitives: { escape, text: value => value } })}
+    ${renderShelfWorkbench({ ...(await shelf.snapshot()), selected_id: null, primitives: { escape, text: zh } })}
     <script src="/fixture.js"></script></body></html>`;
   const script = `document.querySelector('[data-shelf=workbench]').hidden=false;
-    window.molisWorkControlHeaders=()=>({'content-type':'application/json'});
+    const zhTable=${zhTable};
+    window.L=(key,values)=>(${fillMessage.toString()})(zhTable[key]??key,values);
+    ${UI_REQUEST_CLIENT_SCRIPT}
     window.mountShelf=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,translate:(value,values)=>String(value).replace(/\\{([^}]+)\\}/g,(_,key)=>values?.[key]??key)});bootShelf();`;
+    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,pluginId:'io.molis.work.shelf',pluginRoute:path=>'/api/plugins/io.molis.work.shelf'+path,loadMedia:async()=>null,copyText:text=>navigator.clipboard.writeText(text),translate:window.L});bootShelf();`;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     requests.push(`${request.method} ${url.pathname}`);
@@ -70,7 +73,7 @@ async function openShelfBrowser(t: TestContext) {
       const bytes = Buffer.concat(chunks);
       const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname, query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
       if (!result) { response.writeHead(404); response.end(); return; }
-      if (request.method === "GET" && url.pathname === "/api/shelf" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
+      if (request.method === "GET" && url.pathname === "/api/plugins/io.molis.work.shelf/" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
       if (request.method === "GET" && url.pathname.endsWith("/file") && delayNextFile) { const wait = delayNextFile; delayNextFile = undefined; await wait(); }
       response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
       response.end(result.bytes ? Buffer.from(result.bytes) : JSON.stringify(result.body));
@@ -132,14 +135,14 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
     const document = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
     const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: document.root.nodeId, selector: "[data-shelf-file]" }, sessionId);
     assert.ok(input.nodeId);
-    const before = requests.filter(value => value === "POST /api/shelf/items").length;
+    const before = requests.filter(value => value === "POST /api/plugins/io.molis.work.shelf/items").length;
     await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
     await waitFor("document.querySelector('[data-shelf-preview]')?.textContent.includes('PICKER_END_SENTINEL') && document.querySelector('[data-shelf-file]').value === ''");
-    assert.equal(requests.filter(value => value === "POST /api/shelf/items").length, before + 1);
+    assert.equal(requests.filter(value => value === "POST /api/plugins/io.molis.work.shelf/items").length, before + 1);
     const item = (await shelf.snapshot()).materials.find(item => item.name === filename);
     assert.ok(item); itemId = item.item_id;
     assert.equal(shelf.readFile(item.item_id).bytes.toString("utf8"), text);
-    assert.ok(requests.includes(`GET /api/shelf/items/${itemId}/file`), "full preview must read the real copy endpoint");
+    assert.ok(requests.includes(`GET /api/plugins/io.molis.work.shelf/items/${itemId}/file`), "full preview must read the real copy endpoint");
   });
 
   await t.test("unsent input is restored, missing bridge preserves the draft, and wheel handoff quotes apostrophes", async () => {
@@ -246,7 +249,7 @@ test("PCSYNC-15: Shelf stale browser draft is retained and cannot overwrite the 
 test("W2-18-SHELF-LIFETIME-01: a window event belongs to one live mount; a detached mount answers nothing", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { requests, evaluate } = browser;
-  const reads = () => requests.filter(request => request === "GET /api/shelf").length;
+  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/").length;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.remove()");
   await pause(50);
@@ -264,7 +267,7 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, requests, evaluate, waitFor, delaySnapshot } = browser;
   const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  const reads = () => requests.filter(request => request === "GET /api/shelf").length;
+  const reads = () => requests.filter(request => request === "GET /api/plugins/io.molis.work.shelf/").length;
   const delayed = delaySnapshot();
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
   await shelf.admit({ filename: "更新后的材料.md", bytes: Buffer.from("# 最新内容"), mime: "text/markdown" });
@@ -301,7 +304,7 @@ test("VUX-19: a clip's copy is said on the bar, a refused clipboard included, an
   await waitFor(`${row} && document.querySelector('[data-shelf-bar]')?.textContent.length > 0`);
   await evaluate(`(() => { window.allowCopy = false; window.copied = []; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
     writeText: (text) => window.allowCopy ? (window.copied.push(text), Promise.resolve()) : Promise.reject(new Error('denied')) } }); })()`);
-  const promoted = () => requests.filter(line => line === "POST /api/shelf/clipboard").length;
+  const promoted = () => requests.filter(line => line === "POST /api/plugins/io.molis.work.shelf/clipboard").length;
   const before = promoted();
   await evaluate(`${row}.querySelector('[data-shelf-row-action=copy]').click()`);
   await waitFor(`document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('复制失败')`);

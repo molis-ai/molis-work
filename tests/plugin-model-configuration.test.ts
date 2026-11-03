@@ -13,12 +13,13 @@ async function fixture() {
   const actions = [jellyServiceActions.modelSettings, jellyServiceActions.saveModelSettings, jellyActions.modelPlan];
   const manifest = { ...jellyManifest, plugin_id: `io.molis.work.example.config${crypto.randomUUID().replaceAll("-", "")}`, ui: { contributions: [] }, routes: [], actions };
   const definition = { manifest, async start() { return { kind: "app" as const, actions: actions.map(action => ({ ...action, handle: () => operation() })) }; } };
-  const runtime = new PluginRuntime(undefined, undefined, { actions: { registry: { registerProvider(value) { registration = value; return () => {}; } } } });
-  const installed = runtime.install({ definition, deployment: "local", grants: [...grants] }).install;
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: new Set([manifest.plugin_id]), actions: { registry: { registerProvider(value) { registration = value; return () => {}; } } } });
+  // This fixture Host ships the Home-level definition (Jelly's manifest): only the Host's own build runs in the Home.
+  const installed = runtime.install({ trust: { level: "host" }, definition, deployment: "local", grants: [...grants] }).install;
   await runtime.start(installed.install_id);
   const client = createPluginModelConfigurationClient(jellyManifest, JELLY_MODEL_CONFIGURATION,
     { selection: () => ({ provider_id: "chosen", model_id: "model" }), read: () => { reads++; return view; }, save: () => { writes++; return view; } },
-    { install_id: installed.install_id, assertActive() { if (!active) throw new ActionError("actions.provider_stopped", "stopped"); },
+    { install_id: installed.install_id, installation_generation: installed.installation_generation, assertActive() { if (!active) throw new ActionError("actions.provider_stopped", "stopped"); },
       requireGrant(permission) { if (!grants.has(permission)) throw new ActionError("actions.plugin_permission", "revoked"); } });
   const caller: ActionExecutionContext = { actor_id: "person", project_id: null, audience: "user", permissions: ["jelly:settings"], beforeEffect: async () => {} };
   const run = <T>(fn: () => T, action: ActionDefinition = jellyServiceActions.saveModelSettings, control = caller): T => {
@@ -26,7 +27,7 @@ async function fixture() {
     const handler = registration.handlers.find(item => item.capability_id === action.capability_id)!;
     return handler.handle(control, {}) as T;
   };
-  return { client, grants, caller, run, view, installId: installed.install_id, stop: () => { active = false; }, writes: () => writes, reads: () => reads };
+  return { client, grants, caller, run, view, installId: installed.install_id, generation: installed.installation_generation, stop: () => { active = false; }, writes: () => writes, reads: () => reads };
 
 }
 
@@ -65,7 +66,7 @@ test("W5-01-JMC-03 configuration copies input before yielding and refuses expire
   const f = await fixture(), entered = deferred(), release = deferred(); let saved: unknown;
   const client = createPluginModelConfigurationClient(jellyManifest, JELLY_MODEL_CONFIGURATION,
     { selection: () => undefined, read: () => f.view, save: input => { saved = input; return f.view; } },
-    { install_id: f.installId, assertActive() {}, requireGrant() {} });
+    { install_id: f.installId, installation_generation: f.generation, assertActive() {}, requireGrant() {} });
   const input = { provider_id: "original", model_id: "model" };
   const result = f.run(() => client.save(input), jellyServiceActions.saveModelSettings,
     { ...f.caller, beforeEffect: async () => { entered.resolve(); await release.promise; } });

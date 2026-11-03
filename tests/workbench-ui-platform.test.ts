@@ -4,19 +4,23 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
 } from "@molis-ai/molis-work-design-system";
 import {
+  BUILTIN_PLUGIN_CATALOG,
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
+  mountContributionsOf,
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
 } from "@molis-ai/molis-work-app-workbench";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "@molis-ai/molis-work-plugin-goals/page";
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -51,7 +55,7 @@ test("K1-01 document metadata keeps hostile markup inside its text and attribute
 });
 
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {
-  const contribution: UiContribution<{ title: string }> = {
+  const contribution: OwnedUiContribution<{ title: string }> = {
     descriptor: {
       contribution_id: "io.molis.work.test.ui.v1",
       plugin_id: "io.molis.work.test",
@@ -111,6 +115,111 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
     }),
     (error) => error instanceof ActionError && error.code === "ui_host.surface_invalid" && error.kind === "invalid" && actionHttpStatus(error) === 400,
   );
+});
+
+test("W5-06 UI Host mounts a surface in the slot its contribution declares, and only in a slot this host offers", () => {
+  const contribution: OwnedUiContribution<SurfaceCallModel<{ tag: string }>> = {
+    descriptor: {
+      contribution_id: "io.molis.work.test.declared.v1",
+      plugin_id: "io.molis.work.test",
+      kind: "embedded",
+      label: "Test",
+      surfaces: [
+        { surface_id: "panel", target_slot_id: "workbench.main", format: "declarative-html" },
+        { surface_id: "elsewhere", target_slot_id: "workbench.side", format: "declarative-html" },
+      ],
+      slots: [],
+    },
+    render: ({ surface, model }) => `<${model.primitives.tag} data-surface="${surface}">${model.kind}:${model.args.join(",")}</${model.primitives.tag}>`,
+  };
+  const host = new UiHost({ slots: [WORKBENCH_UI_SLOTS.main] });
+  host.register(contribution);
+  const id = contribution.descriptor.contribution_id;
+  assert.deepEqual(host.mountDeclared({ contribution_id: id, surface: "panel", model: { kind: "panel", args: ["a"], primitives: { tag: "p" } } }), {
+    slot_id: "workbench.main",
+    contribution_id: id,
+    surface: "panel",
+    html: '<p data-surface="panel">panel:a</p>',
+  });
+  // The surface names a slot this host was not given: refused, never mounted in another slot.
+  assert.throws(
+    () => host.mountDeclared({ contribution_id: id, surface: "elsewhere", model: { kind: "elsewhere", args: [], primitives: { tag: "p" } } }),
+    (error) => error instanceof ActionError && error.code === "ui_host.slot_incompatible" && error.kind === "invalid" && actionHttpStatus(error) === 400,
+  );
+  assert.throws(
+    () => host.mountDeclared({ contribution_id: id, surface: "missing", model: { kind: "missing", args: [], primitives: { tag: "p" } } }),
+    (error) => error instanceof ActionError && error.code === "ui_host.surface_invalid",
+  );
+  assert.throws(
+    () => host.mountDeclared({ contribution_id: "io.molis.work.test.absent.v1", surface: "panel", model: { kind: "panel", args: [], primitives: { tag: "p" } } }),
+    (error) => error instanceof ActionError && error.code === "ui_host.contribution_not_found",
+  );
+
+  // A renderer built from a method→surface map hands each call to the declared surface as { kind, args, primitives }. The builder is the
+  // Goals page's (the one such builder); the mount it is given is the UiHost's `mountDeclared`, as the workbench gives it.
+  const mount = (contributionId: string, surface: string, model: unknown): string => host.mountDeclared({ contribution_id: contributionId, surface, model }).html;
+  const renderer = surfaceRenderers<{ renderPanel: (value: string, count: number) => string }, { tag: string }>(mount, id, { renderPanel: "panel" })({ tag: "em" });
+  assert.equal(renderer.renderPanel("x", 2), '<em data-surface="panel">panel:x,2</em>');
+  const render = surfaceRenderer<(value: string) => string, { tag: string }>(mount, id, "panel")({ tag: "b" });
+  assert.equal(render("y"), '<b data-surface="panel">panel:y</b>');
+});
+
+/**
+ * Where a surface may mount: a slot the Workbench host offers, or a slot another contribution opens (`descriptor.slots`) when the plugin
+ * that contribution belongs to lists the surface's plugin in its Manifest `ui.embedded_plugins`. Anything else is a problem.
+ */
+function surfaceSlotProblems(
+  descriptors: readonly { contribution_id: string; plugin_id: string; surfaces?: readonly { surface_id: string; target_slot_id: string }[]; slots: readonly { slot_id: string }[] }[],
+  embeddedBy: ReadonlyMap<string, readonly string[]>,
+): string[] {
+  const offered = new Set(Object.values(WORKBENCH_UI_SLOTS).map((slot) => slot.slot_id));
+  const problems: string[] = [];
+  for (const descriptor of descriptors) {
+    for (const surface of descriptor.surfaces ?? []) {
+      if (offered.has(surface.target_slot_id)) continue;
+      const openers = descriptors.filter((other) => other.slots.some((slot) => slot.slot_id === surface.target_slot_id));
+      if (openers.length === 0) {
+        problems.push(`${descriptor.contribution_id} ${surface.surface_id} declares ${surface.target_slot_id}, which neither the Workbench host offers nor a contribution opens`);
+      } else if (!openers.some((opener) => embeddedBy.get(opener.plugin_id)?.includes(descriptor.plugin_id))) {
+        problems.push(`${descriptor.contribution_id} ${surface.surface_id} declares ${surface.target_slot_id}, opened by ${openers.map((opener) => opener.plugin_id).join(", ")}, whose Manifest ui.embedded_plugins does not list ${descriptor.plugin_id}`);
+      }
+    }
+  }
+  return problems;
+}
+
+test("T-116 a page is mounted only on its own plugin's contributions: another plugin's contribution id is refused by the host", () => {
+  const host = createWorkbenchUiHost();
+  const mountable = host.list().filter(item => (item.surfaces?.length ?? 0) > 0);
+  const own = mountable.find(item => item.plugin_id === GOALS_PLUGIN_ID), foreign = mountable.find(item => item.plugin_id !== GOALS_PLUGIN_ID);
+  assert.ok(own && foreign, "the workbench host holds Goals' contributions and another plugin's");
+  const code = (expected: string, kind?: string) => (error: unknown) => error instanceof ActionError && error.code === expected && (kind === undefined || error.kind === kind);
+  const mount = mountContributionsOf(GOALS_PLUGIN_ID, host);
+  // The Goals page's mount: a contribution another plugin owns is refused, whatever surface it names.
+  assert.throws(() => mount(foreign.contribution_id, foreign.surfaces![0]!.surface_id, {}), code("ui_host.plugin_denied", "forbidden"));
+  assert.throws(() => host.mountDeclared({ contribution_id: foreign.contribution_id, surface: foreign.surfaces![0]!.surface_id, model: {} }, GOALS_PLUGIN_ID), code("ui_host.plugin_denied"));
+  // Its own contribution passes the owner check: it stops at the next check (this surface is not declared), not at ownership.
+  assert.throws(() => mount(own.contribution_id, "no-such-surface", {}), code("ui_host.surface_invalid"));
+  assert.throws(() => mount("io.molis.work.absent.v1", "panel", {}), code("ui_host.contribution_not_found"));
+  // Without an owner the host mounts as before: the same foreign contribution is not refused for ownership.
+  assert.throws(() => host.mountDeclared({ contribution_id: foreign.contribution_id, surface: "no-such-surface", model: {} }), code("ui_host.surface_invalid"));
+});
+
+test("W5-06 every surface a Workbench contribution declares names a slot the Workbench host offers, or one a plugin that embeds it opens", () => {
+  const embeddedBy = new Map(BUILTIN_PLUGIN_CATALOG.map((entry) => [entry.manifest.plugin_id, entry.manifest.ui.embedded_plugins ?? []]));
+  const descriptors = createWorkbenchUiHost().list();
+  assert.deepEqual(surfaceSlotProblems(descriptors, embeddedBy), []);
+  // The Coding page's slots are filled by the browsers it embeds, so the check above is not vacuous for them.
+  assert.ok(descriptors.some((descriptor) => descriptor.surfaces?.some((surface) => surface.target_slot_id === "coding.companion-directory")));
+
+  const opens = { contribution_id: "x.opener.ui.v1", plugin_id: "x.opener", slots: [{ slot_id: "x.opener.inner" }] };
+  const embedded = { contribution_id: "x.embedded.ui.v1", plugin_id: "x.embedded", slots: [], surfaces: [{ surface_id: "s", target_slot_id: "x.opener.inner" }] };
+  assert.deepEqual(surfaceSlotProblems([opens, embedded], new Map([["x.opener", ["x.embedded"]]])), []);
+  // A slot nobody opens stays refused.
+  assert.equal(surfaceSlotProblems([opens, { ...embedded, surfaces: [{ surface_id: "s", target_slot_id: "x.opener.nowhere" }] }], new Map([["x.opener", ["x.embedded"]]])).length, 1);
+  // A slot a plugin opens is not open to a plugin its Manifest does not list.
+  assert.equal(surfaceSlotProblems([opens, embedded], new Map([["x.opener", ["x.other"]]])).length, 1);
+  assert.equal(surfaceSlotProblems([opens, embedded], new Map()).length, 1);
 });
 
 test("Workbench registers Native Plugin surfaces against stable slots", () => {

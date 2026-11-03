@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ensureProjectRoot } from "./fixtures/goals-board.js";
+import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -29,7 +31,9 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "已撤权"); } };
   const client = host.actionClient(reference), bound = bindActionClient(client, () => caller);
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project", actor_id: caller.actor_id, idempotency_key: "init" }));
+    // The project's plugins start as the workbench starts them on opening the project; this Host has no Home, so no Goals is among them.
+    await ensureProjectRoot(host, reference);
+    await startProjectPlugins(host, reference);
     const directory = await client.discover(caller);
     // Actions that need the Host review backend: staging, its results, and commit/branch/push/PR with their log.
     const reviewActions = [gitActions.prepareIndex.capability_id, gitActions.results.capability_id, gitActions.saveResult.capability_id,
@@ -40,12 +44,12 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     await assert.rejects(bound.invoke(gitActions.prepareIndex, { workspace_id: "fixture", path: ["note.txt"], action: "stage", revision: "unused", operation_id: "no-handler" }), { code: "actions.dependency_missing" });
     assert.equal(reads, 0, "missing review dependency is checked before even reading the workspace");
     let reviewed = 0;
-    const stopWrongVersion = host.registerCapability({ ...prepareGitIndexCapability, version: 2 }, () => { reviewed++; return { review_id: "wrong" }; });
+    const stopWrongVersion = host.registerAction({ ...prepareGitIndexCapability, version: 2 }, () => { reviewed++; return { review_id: "wrong" }; });
     assert.equal((await stateOf(gitActions.prepareIndex.capability_id)).available, false); stopWrongVersion();
-    const stopPrepare = host.registerCapability(prepareGitIndexCapability, () => { reviewed++; return { review_id: "fixture" }; });
-    const stopResults = host.registerCapability(readGitResultsCapability, () => { reviewed++; return []; });
-    const stopOperation = host.registerCapability(prepareGitOperationCapability, () => { reviewed++; return { review_id: "fixture" }; });
-    const stopOperations = host.registerCapability(readGitOperationsCapability, () => { reviewed++; return []; });
+    const stopPrepare = host.registerAction(prepareGitIndexCapability, () => { reviewed++; return { review_id: "fixture" }; });
+    const stopResults = host.registerAction(readGitResultsCapability, () => { reviewed++; return []; });
+    const stopOperation = host.registerAction(prepareGitOperationCapability, () => { reviewed++; return { review_id: "fixture" }; });
+    const stopOperations = host.registerAction(readGitOperationsCapability, () => { reviewed++; return []; });
     for (const id of reviewActions) assert.equal((await stateOf(id)).available, true);
     assert.equal(reviewed, 0); assert.equal(reads, 0);
     stopPrepare(); assert.equal((await stateOf(gitActions.prepareIndex.capability_id)).available, false);
@@ -81,7 +85,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     assert.equal(git.view.phase, "ready"); assert.equal(git.view.staged[0]?.path[0], "note.txt");
     const diff = await bound.invoke(gitActions.selectDiff, { workspace_id: "fixture", path: ["note.txt"], side: "index" });
     assert.equal(diff.result.outcome, "diff"); assert.ok(diff.selected?.reference);
-    const published = await host.withProject(reference, runtime => runtime.coordinator.processItems.query.getArtifactVersion("project", diff.selected!.reference));
+    const published = await host.withProject(reference, runtime => runtime.processItems.query.getArtifactVersion("project", diff.selected!.reference));
     assert.equal(published?.owner_actor_id, "web-user");
     for (const invalid of [{ ...input, actor_id: "other" }, { ...input, path: ["..", "secret"] }, { ...input, fingerprint: "stale" }]) {
       await assert.rejects(bound.invoke(filesActions.capture, invalid));
@@ -100,7 +104,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
       if (mode === "cancelled") controller.abort();
       release(); await rejection;
       allowed = true; enabled = true; pauseAt = -1;
-      assert.equal(await host.withProject(reference, runtime => runtime.coordinator.processItems.query.latestArtifactVersion("project", first.saved.artifact.artifact_id)?.version), 1, mode);
+      assert.equal(await host.withProject(reference, runtime => runtime.processItems.query.latestArtifactVersion("project", first.saved.artifact.artifact_id)?.version), 1, mode);
     }
     const recovered = await bound.invoke(filesActions.capture, input);
     assert.equal(recovered.saved.artifact.version, 2);

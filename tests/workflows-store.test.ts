@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openWorkflowsStore, ownWorkflowsStores, WORKFLOWS_DATABASE, WORKFLOWS_HOME_STORE } from "@molis-ai/molis-work-plugin-workflows";
+import { ownWorkflowsStores, WORKFLOWS_DATABASE, WORKFLOWS_HOME_STORE } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 
 const caller: ActionExecutionContext = { actor_id: "test", project_id: "a", audience: "user", permissions: [], beforeEffect: async () => {} };
 

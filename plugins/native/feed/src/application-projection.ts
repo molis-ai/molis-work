@@ -1,6 +1,6 @@
-import type { FeedItemRecord as ModuleFeedItemRecord } from "@molis-ai/molis-work-contracts/modules/feed";
+import type { FeedItemRecord as ModuleFeedItemRecord } from "./contract/feed.js";
 
-import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { ListenerRunRecord } from "./contract/listener.js";
 
 import type { FeedItemRecord, FeedSourceRunRecord } from "./projection.js";
 
@@ -21,7 +21,7 @@ export function feedItemRecord(item: ModuleFeedItemRecord): FeedItemRecord {
     url: item.url,
     origin_status: item.origin_status,
     priority: item.priority,
-    tags: item.tags,
+    tags: [...item.tags],
     author: item.author,
     disposition: item.disposition,
     linked_goal_id: item.linked_goal_id,

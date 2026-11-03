@@ -1,3 +1,4 @@
+import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition, type ActionExecutionContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionDirectory, PluginDefinition, PluginExecutionControl, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -6,6 +7,7 @@ import { createWorkflowsActionHandlers, workflowsActions, type WorkflowsActionPo
 import { createWorkflowContentPorts } from "./content-client.js";
 import { WorkflowsStore, type WorkflowsStores } from "./store.js";
 import { workflowsUiContribution } from "./ui.js";
+import { WORKFLOWS_INSTRUCTIONS } from "./prompts.js";
 
 /**
  * Workflows as a Plugin Runtime plugin, one instance per project (docs/system/RUNTIME-MIGRATION.md 5.3). Its library is the
@@ -14,7 +16,7 @@ import { workflowsUiContribution } from "./ui.js";
  * authority of each nested call is theirs, never the plugin's own.
  */
 export function createWorkflowsPlugin(): PluginDefinition {
-  return { manifest: workflowsManifest, async start(context) {
+  return { manifest: workflowsManifest, instructions: WORKFLOWS_INSTRUCTIONS, async start(context) {
     for (const permission of workflowsManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const projectId = context.project_id;
     if (!projectId) throw new ActionError("actions.scope_mismatch", "工作流程只属于一个项目");
@@ -33,7 +35,7 @@ export function createWorkflowsPlugin(): PluginDefinition {
         check: (reference, input) => directory.check(reference, input) }),
       textModel: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch(); return model.complete(prompt, { signal: options.signal }); } } : {}) };
-    return { kind: "app", views: [workflowsUiContribution], actions: createWorkflowsActionHandlers(projectId, ports), routes: workflowsRoutes(context) };
+    return { kind: "app", sync: syncBindings(context), views: [workflowsUiContribution], actions: createWorkflowsActionHandlers(projectId, ports), routes: workflowsRoutes(context) };
   } };
 }
 

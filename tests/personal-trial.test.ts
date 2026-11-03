@@ -36,19 +36,24 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   const text='完整正文🌲\r\n'+('离线保存与重启\n'.repeat(7000));
   const page=(await json(prefix+'/api/plugins/io.molis.work.pages/pages',{title:'首用文档',markdown:text})).document;assert.ok(page.id);
   const attachment=Buffer.from(Array.from({length:300007},(_,i)=>(i*29)%256));
-  const item=(await json(prefix+'/api/shelf/items',{filename:'完整附件.bin',mime:'application/octet-stream',bytes_base64:attachment.toString('base64')})).item;assert.ok(item.item_id);
-  const saved=(await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+page.id)).document;assert.match(JSON.stringify(saved.body),/离线保存与重启/);
-  const attachmentPath=prefix+'/api/shelf/items/'+item.item_id+'/file';assert.deepEqual(Buffer.from(await(await request(attachmentPath)).arrayBuffer()),attachment);
+  const itemsPath=prefix+'/api/plugins/io.molis.work.shelf/items';
+  const item=(await json(itemsPath,{filename:'完整附件.bin',mime:'application/octet-stream',bytes_base64:attachment.toString('base64')})).item;assert.ok(item.item_id);
+  const saved=(await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+page.id)).document;assert.ok(JSON.stringify(saved.body).includes('完整正文🌲'));assert.equal(JSON.stringify(saved.body).split('离线保存与重启').length-1,7000);
+  const attachmentPath=itemsPath+'/'+encodeURIComponent(item.item_id)+'/file';
+  const readAttachment=async()=>{const response=await request(attachmentPath);assert.equal(response.status,200);return Buffer.from(await response.arrayBuffer());};
+  assert.deepEqual(await readAttachment(),attachment);
   await close(server);resetSecretStoreCache();
   // Stop the identity substitute too: no network identity or cloud service is required to retain local work.
   await close(auth);server=factory({homeDirectory:home,controlToken:rootToken});await listen(server,port);
   const offline=await json('/api/personal/status');assert.equal(offline.identity.userId,'local-personal-trial-user');assert.equal(offline.offline,true);token=offline.viewToken;
   assert.equal((await json('/api/spaces')).current.kind,'local','restart begins at the local surface until the person chooses their account space');
+  assert.ok(!(await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id),'the local space cannot see the personal project');
+  assert.equal((await request(attachmentPath)).ok,false,'the local space cannot download the personal attachment');
   await json('/api/personal/space?kind=personal',{});token=(await json('/api/personal/status')).viewToken;
   assert.equal((await json('/api/spaces')).current.kind,'personal');
   assert.ok((await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id));
   assert.deepEqual((await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+page.id)).document.body,saved.body);
-  assert.deepEqual(Buffer.from(await(await request(attachmentPath)).arrayBuffer()),attachment);
+  assert.deepEqual(await readAttachment(),attachment);
   const edited=(await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+page.id,{markdown:'离线后继续编辑',expected_version:saved.version})).document;
   assert.match(JSON.stringify(edited.body),/离线后继续编辑/);
   const sync=await json('/api/sync');assert.equal(sync.available,false,'no mock identity is represented as actual cloud synchronization');

@@ -1,6 +1,7 @@
+import { projectDatabasePath } from './project-paths.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { ProjectsSqliteDatabase } from './repository.js';
+import type { ProjectsSqliteDatabase } from './sqlite.js';
 
 const errors = defineErrorCodes('catalog', { recycle_invalid: 'invalid', recycle_changed: 'conflict', recycle_missing: 'not_found' });
 export interface ProjectRecycleInput {
@@ -35,7 +36,7 @@ export function createProjectRecycleSchema(db: ProjectsSqliteDatabase): void {
 
 /** Lifecycle commands run inside the catalog transaction after the Host has released execution. */
 export class ProjectRecycle {
-  constructor(private readonly db: ProjectsSqliteDatabase, private readonly now: () => string) {}
+  constructor(private readonly db: ProjectsSqliteDatabase, private readonly now: () => string, private readonly projectsDirectory: string) {}
 
   inspect(projectId: string): ProjectRecycleObservation {
     const project = this.db.prepare('SELECT * FROM projects WHERE project_id=?').get(projectId) as Record<string, unknown> | undefined;
@@ -46,7 +47,7 @@ export class ProjectRecycle {
       this.db.prepare('SELECT * FROM project_portable_plugins WHERE project_id=? ORDER BY plugin_id').all(projectId),
       this.db.prepare('SELECT * FROM project_plugin_exclusions WHERE project_id=? ORDER BY plugin_id').all(projectId),
       this.db.prepare('SELECT * FROM workspace_project_memberships WHERE project_id=? ORDER BY membership_id').all(projectId)];
-    return { project_id: projectId, display_name: String(project.display_name), database_path: String(project.database_path),
+    return { project_id: projectId, display_name: String(project.display_name), database_path: projectDatabasePath(this.projectsDirectory, projectId),
       recycled: lifecycle?.recycled === 1, generation: lifecycle?.generation ?? 0,
       state: createHash('sha256').update(JSON.stringify(facts)).digest('hex') };
   }

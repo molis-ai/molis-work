@@ -1,4 +1,4 @@
-import type { InteractionNextStep } from "@molis-ai/molis-work-design-system";
+import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { cardOutcomeSteps } from "../agent-next-steps.js";

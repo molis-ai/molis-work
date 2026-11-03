@@ -194,17 +194,17 @@ test("VUX-08 VUX-09: 工作环境 names the work's project and 连接与工具 w
   assert.match(read.badge, /^\d+ 项可用$/);
 });
 
-// For a work Coding carries: its directory and repository, a conflict as the summary; a connection that needs signing in
-// stands out and is the 连接与工具 summary. The Host's answer is replaced by one in the contract's shape, as Coding,
+// For a work a plugin carries: its directory and repository, a conflict as the summary; a connection that needs signing in
+// stands out and is the 连接与工具 summary. The Host's answer is replaced by one in the contract's shape, as the executor,
 // the workspace and the connectors would give it.
-test("VUX-08 VUX-09: a Coding work shows its directory and repository, and what needs the person stands out in both groups", { timeout: 120_000 }, async t => {
+test("VUX-08 VUX-09: a plugin-carried work shows its directory and repository, and what needs the person stands out in both groups", { timeout: 120_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const { evaluate, waitFor } = browser;
   const id = await seedWork(browser, "改发布脚本");
-  const answer = { environment: { scope: { kind: "project", project_id: "p", title: "发布计划" }, coding: { workspace: { name: "molis", path: "/work/molis" },
+  const answer = { environment: { scope: { kind: "project", project_id: "p", title: "发布计划" }, executor: { workspace: { name: "molis", path: "/work/molis" },
       git: { repository: "molis-ai/molis-work", branch: "feature/env", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
     connections: [{ connection_id: "c1", title: "GitHub", account: "octo", state: "connected", tools: "callable" }, { connection_id: "c2", title: "Notion", account: null, state: "needs-authorization", tools: "none-discovered" }],
-    tools: { executor: "coding", callable: [{ provider: "GitHub MCP", count: 3 }], unavailable: [{ title: "create_issue", provider: "Linear MCP", reason: "服务未连接" }] }, read_at: at };
+    tools: { executor: "plugin", callable: [{ provider: "GitHub MCP", count: 3 }], unavailable: [{ title: "create_issue", provider: "Linear MCP", reason: "服务未连接" }] }, read_at: at };
   // The Host's answers in turn (the last one stays); "fail" is a read that fails.
   await evaluate(`(() => { window.answers = [${JSON.stringify(answer)}]; window.asked = 0; const fetch0 = window.fetch; window.fetch = async (input, init) => {
     const path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
@@ -227,14 +227,14 @@ test("VUX-08 VUX-09: a Coding work shows its directory and repository, and what 
   assert.match(read.tools, /GitHub.*已连接 · octo · 工具可调用/);
   assert.match(read.blocked, /需要登录授权/);
   assert.deepEqual(read.toolsBadge, ["1 项要处理", true]);
-  assert.match(read.tools, /Coding Agent自己的读写与命令，加上为这个会话选的 MCP 工具/);
-  assert.match(read.tools, /GitHub MCP3 项可用/, "the MCP tools chosen for the session, by server, as Coding has them");
+  assert.match(read.tools, /执行方自己的读写与命令，加上为这个会话选的 MCP 工具/);
+  assert.match(read.tools, /GitHub MCP3 项可用/, "the MCP tools chosen for the session, by server, as the executor has them");
   assert.match(read.blocked, /Linear MCP · 服务未连接/, "a chosen tool its server cannot serve now, with why");
   assert.equal(await evaluate<boolean>(`(() => { const side = document.querySelector('[data-assistant-block="tools"]').parentElement; return side.scrollWidth <= side.clientWidth; })()`), true, "a long line in a card ellipsizes; it never widens the side column");
 
   // The person signs in to Notion elsewhere and resolves the conflict; the work itself does not change. Coming back to the
   // page after more than 15 s asks again (here the first try fails), and focus entering the side 3 s later tries again.
-  const after = { ...answer, environment: { ...answer.environment, coding: { ...answer.environment.coding, git: { ...answer.environment.coding.git, conflicted: 0 } } },
+  const after = { ...answer, environment: { ...answer.environment, executor: { ...answer.environment.executor, git: { ...answer.environment.executor.git, conflicted: 0 } } },
     connections: answer.connections.map((one) => ({ ...one, state: "connected", tools: "callable" })) };
   const before = await evaluate<number>(`window.asked`);
   await evaluate(`(() => { window.answers = ["fail", ${JSON.stringify(after)}]; const now0 = Date.now; window.later = 20000; Date.now = () => now0() + window.later;

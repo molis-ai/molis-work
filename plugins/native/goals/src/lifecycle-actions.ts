@@ -1,8 +1,8 @@
 import { ActionError, withActionEffect, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalsLifecycleApi, GoalsCommandApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsLifecycleApi, GoalsCommandApi, GoalRecord } from "./contract/goals.js";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { goalRecordSchema, goalArchiveResultSchema, goalTrashResultSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { identifier, count, boolean, object, array } from "./contract/goal-actions.js";
+import { goalRecordSchema, goalArchiveResultSchema, goalTrashResultSchema, goalEntryActions } from "./contract/goal-actions.js";
 
 type ActiveInput = { goal_id: string; reason: string; idempotency_key: string };
 type ArchiveInput = ActiveInput & { archived: boolean };
@@ -14,8 +14,7 @@ export interface GoalsLifecycleActionPorts {
 }
 const write = { goal_id: identifier, reason: identifier, idempotency_key: identifier };
 export const goalsLifecycleActions = {
-  active: goalAction<ActiveInput, ReturnType<GoalsCommandApi["setActiveGoal"]>>("goals.active.set", "设为当前目标", "选择当前未完成且不在归档/回收站的目标；不启动工作，不改变完成状态", "command",
-    object(write), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
+  active: goalEntryActions.active,
   archive: goalAction<ArchiveInput, ReturnType<GoalsLifecycleApi["setArchived"]>>("goals.archive.set", "设置目标归档状态", "已完成的目标可以归档，也可恢复归档；归档清除匹配的当前目标，保留原完成事实和全部历史", "command",
     object({ ...write, archived: boolean }), goalArchiveResultSchema),
   // Trashed Goals can be restored; it stays out of generated plugins because it needs the person's confirmation.

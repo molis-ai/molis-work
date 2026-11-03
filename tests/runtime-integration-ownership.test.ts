@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readlink, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { RuntimeIntegrationService, type RuntimeIntegrationServiceOptions } from "@molis-ai/molis-work-app-local-host";
+import { RuntimeIntegrationService, readRuntimeConfigBackup, type RuntimeIntegrationServiceOptions } from "@molis-ai/molis-work-app-local-host";
 
 async function fixture(t: TestContext, before = 'model = "original"\n') {
   const directory = await mkdtemp(join(tmpdir(), "molis-runtime-owner-"));
@@ -41,7 +41,7 @@ test("W2-18-RUNTIME-ROLLBACK-01 preserves later config edits and a user Skill li
   assert.match(result.message, /保留|未完整回滚/);
   assert.equal(await readFile(f.config, "utf8"), laterConfig);
   assert.equal(await readlink(f.skill), userSkill);
-  assert.equal(await readFile(plan.backup_path!, "utf8"), f.before);
+  assert.equal((await readRuntimeConfigBackup(f.home, "codex", plan.plan_id)).contents, f.before);
   await assert.rejects(readFile(join(f.home, "runtime-integrations", "codex.json")), { code: "ENOENT" });
 });
 
@@ -64,7 +64,7 @@ test("W2-18-RUNTIME-ROLLBACK-02 rolls back only its own unchanged writes and ser
   assert.equal((await secondPending).status, "connected");
   assert.equal(await readlink(f.skill), f.skillSource);
   assert.equal((await second.detect("codex")).connection_state, "connected");
-  assert.equal(await readFile(firstPlan.backup_path!, "utf8"), f.before);
+  assert.equal((await readRuntimeConfigBackup(f.home, "codex", firstPlan.plan_id)).contents, f.before);
 });
 
 test("W2-18-RUNTIME-ROLLBACK-03 preserves an identical user replacement file by identity", async t => {

@@ -14,7 +14,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import {
   agentHostCapabilities, agentOfferActions, type AgentActionClient, type AgentOfferRunRequest, type AgentRunHandle, type AgentRunOffer, type AgentRunRef, type AgentRunView,
-  type AgentSessionRef, type AgentSessionView, type AgentStartRequest,
+  type AgentSessionRef, type AgentSessionView, type AgentStartInput,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { actionDigest, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -83,8 +83,8 @@ async function world(t: TestContext) {
   await localHost.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] }, project.reference);
   const plugin = keeper.contexts.at(-1);
   assert.ok(plugin?.actor_id, "the plugin whose sessions these are has started");
-  const capabilities = plugin.services?.capabilities, actions = plugin.services?.actions;
-  assert.ok(capabilities && actions, "it reaches the Agent Host and the action directory through its own SDK");
+  const actions = plugin.services?.actions, control = { beforeEffect: async () => {} };
+  assert.ok(actions, "it reaches the Agent Host and the action directory through its own SDK");
   const owner = { project_id: project.project_id, plugin_id: plugin.plugin_id, install_id: plugin.install_id, actor_id: plugin.actor_id };
   const answer: { read: (session: AgentSessionRef) => AgentSessionView } = {
     read: session => ({ session, owner, title: "Read", runs: [], latest_run: null }) };
@@ -123,9 +123,9 @@ async function world(t: TestContext) {
     return { capability_id, version: row.version, provider_id: row.provider_id };
   };
   /** `agent.run.start` as the plugin's page sends it, in the given session of that plugin; `extra` is whatever else a body could carry. */
-  const start = (sessionId: string, tools: readonly string[], extra: Record<string, unknown> = {}) => capabilities.invoke(agentHostCapabilities.startRun, [RUNTIME, {
-    ...owner, session: { runtime_id: RUNTIME, session_id: sessionId }, task: "读取项目", role_id: "builder",
-    directory: { canonical_path: home, realpath_verified: true }, action_tools: tools.map(reference), ...extra } as AgentStartRequest]);
+  const start = (sessionId: string, tools: readonly string[], extra: Record<string, unknown> = {}) => actions.invoke(agentHostCapabilities.startRun, [RUNTIME, {
+    session: { runtime_id: RUNTIME, session_id: sessionId }, task: "读取项目", role_id: "builder",
+    directory: { canonical_path: home, realpath_verified: true }, action_tools: tools.map(reference), ...extra } as AgentStartInput], control);
   const tools = [note.capability_id, goalsActions.treeSubmit.capability_id, goalsActions.treeRead.capability_id];
   const submit = (round: AgentActionClient, key: string, item = key) => round.invoke(reference(goalsActions.treeSubmit.capability_id), proposal(key, item)) as Promise<Submitted>;
   const proposals = async (round: AgentActionClient) => ((await round.invoke(reference(goalsActions.treeRead.capability_id), {})) as Proposals).proposals;
@@ -135,7 +135,7 @@ async function world(t: TestContext) {
   /** The latest round's model suggests an action, with its contract as the Host reads it now; the input is the person's at the click. */
   const suggest = async (offer_id: string, capability_id: string) => {
     const round = held[held.length - 1]!, ref = reference(capability_id);
-    const view = (await capabilities.invoke(agentHostCapabilities.listActions, [RUNTIME, owner.plugin_id])).find(row =>
+    const view = (await actions.invoke(agentHostCapabilities.listActions, [RUNTIME], control)).find(row =>
       row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
     assert.ok(view, `${capability_id} is offered to the round`);
     round.offers.push({ offer_id, offered_at: "2026-10-20T08:00:00.000Z", title: view.action.title, summary: view.action.description, reference: ref, input: {}, action_digest: actionDigest(view) });
@@ -150,8 +150,11 @@ async function world(t: TestContext) {
 
 test("S-17 a round's tool calls carry the session the Host verified (RCPT-391)", { timeout: 180_000 }, async t => {
   const w = await world(t);
-  // Whatever else the start body carries is the plugin's own data: only the Host-verified session reaches the tools.
-  await w.start("s", w.tools, { runtime_session_id: "forged", audit_actor_id: `${CLIENT}:forged` });
+  // A start body naming a session or an author of its own is refused by the action's schema before any round or tool exists.
+  await assert.rejects(w.start("s", w.tools, { runtime_session_id: "forged", audit_actor_id: `${CLIENT}:forged` }), { code: "actions.input_invalid" });
+  assert.equal(w.rounds.length, 0, "the refused start built no tools");
+  // Only the Host-verified session reaches the tools.
+  await w.start("s", w.tools);
   const first = w.last();
   await first.invoke(w.reference(note.capability_id), {});
   assert.deepEqual(w.handled, [{ actor_id: CLIENT, runtime_session_id: "s", audit_actor_id: `${CLIENT}:s` }],

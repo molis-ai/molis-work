@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { JellyBlock, JellyBlockKind, JellyNote } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyBlock, JellyBlockKind, JellyNote } from "./contract.js";
 
 function parseInline(source: string, inherited: ("bold" | "italic" | "code")[] = [], link?: string): NonNullable<JellyBlock["inline_spans"]> {
   const spans: NonNullable<JellyBlock["inline_spans"]> = [];

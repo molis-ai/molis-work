@@ -6,7 +6,7 @@ import type { McpServerConfiguration, StartMcpConnectionInput } from "./connecto
 export const CUSTOM_MCP_SERVICE = "mcp-bearer";
 const invalid = (message: string) => connectorErrors["connector.mcp.configuration"](message);
 export function mcpEndpointFor(servers: Readonly<Record<string, McpServerConfiguration>>, serviceId: string, requested?: string, testing = false): string {
-  const custom = serviceId === CUSTOM_MCP_SERVICE, server = servers[serviceId];
+  const custom = serviceId === CUSTOM_MCP_SERVICE, server = Object.hasOwn(servers, serviceId) ? servers[serviceId] : undefined;
   if (!custom && !server) throw invalid("这个服务尚未配置官方 MCP 地址");
   if (custom && !requested?.trim()) throw invalid("请填写自定义 MCP 地址");
   let endpoint: URL;

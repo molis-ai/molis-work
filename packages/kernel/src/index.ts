@@ -1,23 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type {
-  HostCapabilityDefinition,
-  HostCapabilityDescriptor,
-} from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionError, requireSynchronous, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-kernel",
-  packagePath: "packages/kernel",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/kernel",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-f3","goal-reorg-ap2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["kernel.capability-registry.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export type CapabilityHandler<Context, Input, Output> = (
   context: Context,
@@ -38,21 +22,18 @@ interface RegisteredCapability<Context> {
   synchronous?: boolean;
 }
 
-function normalizedDescriptor<Input, Output>(
-  definition: HostCapabilityDefinition<Input, Output>,
-): HostCapabilityDescriptor {
+function normalizedDescriptor(definition: HostCapabilityDescriptor): HostCapabilityDescriptor {
   const capabilityId = definition.capability_id.trim();
   if (!capabilityId || !Number.isInteger(definition.version) || definition.version < 1) {
     throw kernelErrors.capability_invalid("Capability 必须有非空 ID 和正整数版本");
   }
-  if (definition.operation !== "query" && definition.operation !== "command" && definition.operation !== "wait") {
-    throw kernelErrors.capability_invalid("Capability operation 必须是 query、command 或 wait");
+  if (definition.operation !== "query" && definition.operation !== "command") {
+    throw kernelErrors.capability_invalid("Capability operation 必须是 query 或 command");
   }
   return {
     capability_id: capabilityId,
     version: definition.version,
     operation: definition.operation,
-    ...(definition.scheduling === "concurrent" ? { scheduling: "concurrent" as const } : {}),
     ...(definition.action ? { action: structuredClone(definition.action) } : {}),
     ...(definition.action_provider ? { action_provider: structuredClone(definition.action_provider) } : {}),
   };
@@ -79,7 +60,7 @@ export class CapabilityRegistry<Context> {
   private ordered: HostCapabilityDescriptor[] | null = null;
 
   register<Input, Output>(
-    definition: HostCapabilityDefinition<Input, Output>,
+    definition: ActionDefinition<Input, Output>,
     handler: CapabilityHandler<Context, Input, Output>,
     options: { availability?: (context: Context) => ActionAvailability; synchronous?: boolean } = {},
   ): () => void {
@@ -133,25 +114,22 @@ export class CapabilityRegistry<Context> {
     return this.entries.get(capabilityKey(reference))?.token;
   }
 
-  /**
-   * An action's entry is settled by the action service, which is the only way to it (`ActionService.invoke` and
-   * `invokeSync`); the Host's typed port calls this directly for entries that have no action, and settles those itself.
-   */
+  /** Settled by the action service, which is the only way to an entry (`ActionService.invoke` and `invokeSync`). */
   async invoke<Input, Output>(
     context: Context,
-    definition: HostCapabilityDefinition<Input, Output>,
+    definition: HostCapabilityDescriptor,
     input: Input,
   ): Promise<Output> {
     return await this.requireCapability(context, definition).handler(context, input) as Output;
   }
 
-  invokeSync<Input, Output>(context: Context, definition: HostCapabilityDefinition<Input, Output>, input: Input): Output {
+  invokeSync<Input, Output>(context: Context, definition: HostCapabilityDescriptor, input: Input): Output {
     const registered = this.requireCapability(context, definition);
     if (!registered.synchronous) throw new ActionError("actions.async_required", "此能力未声明同步执行，不能在同步事务中调用");
     return requireSynchronous(registered.handler(context, input)) as Output;
   }
 
-  private requireCapability(context: Context, definition: HostCapabilityDefinition): RegisteredCapability<Context> {
+  private requireCapability(context: Context, definition: HostCapabilityDescriptor): RegisteredCapability<Context> {
     const descriptor = normalizedDescriptor(definition);
     const registered = this.entries.get(capabilityKey(descriptor));
     if (!registered || registered.descriptor.operation !== descriptor.operation) {
@@ -169,4 +147,4 @@ export { registeredActionMetadata, type RegisteredActionMetadata } from "./actio
 export { assertActionInput, compileActionSchema, precompileActionSchemas } from "./action-schema.js";
 export { assertActionCommandInput } from "./version-precondition.js";
 export { newCallId, currentCallId, withCallId, withCallIdSync, markCallRecorded, recordedCallId, expectingRefusal, refusalExpected } from "./call-scope.js";
-export { bindCall, refuseCall, settleCall, startHandler, type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "./action-settlement.js";
+export { bindCall, refuseCall, type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "./action-settlement.js";

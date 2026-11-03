@@ -1,4 +1,5 @@
-import { freshStart, type StreamTextOptions, type StreamTextResult } from "../stream-text.js";
+import type { StreamTextOptions, StreamTextResult } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { freshStart } from "../stream-text.js";
 
 /**
  * Put a streamed reply's latest HTML into its container (specs/visual-ui-experience §stream-rendering, VUX-14/15):
@@ -98,7 +99,8 @@ function patch(container: HTMLElement, parent: Node, incoming: Node[], shown: bo
 function molisStreamText(container: HTMLElement, html: string, { reveal: show = false, grow }: StreamTextOptions = {}): StreamTextResult {
   if (show) container.dataset.streamed = "";
   const shown = show && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!shown) { for (const piece of easing.get(container) ?? []) finish(piece); easing.delete(container); }
+  // Restore split text before comparing it with the renderer's complete source snapshot.
+  for (const piece of easing.get(container) ?? []) finish(piece); easing.delete(container);
   const template = document.createElement("template");
   template.innerHTML = html;
   const result = { kept: 0, replaced: 0, fresh: 0, grown: 0 };

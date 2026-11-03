@@ -1,7 +1,9 @@
-import path from "node:path";
-import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { resolveHomeDirectory, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 
-/** Resolve an explicit Home, otherwise the product Home. */
+/**
+ * An explicit Home, otherwise the product Home, as its real path. Every place a Home enters (`--home`, the Host, an installer or
+ * maintenance service) asks here, so the path handed down is the one the snapshot and purge compare store paths with (S-11).
+ */
 export function resolveConfiguredHome(homeDirectory?: string): string {
-  return path.resolve(homeDirectory ?? resolveMolisWorkHome());
+  return homeDirectory === undefined ? resolveMolisWorkHome() : resolveHomeDirectory(homeDirectory);
 }

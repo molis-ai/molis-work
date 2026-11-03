@@ -31,10 +31,14 @@ export const platformDomEventsContract = {
  */
 
 /**
- * The name prefixes in use. Four styles grew side by side; the rename to one is a separate change that edits this list
- * and every name below. A name must start with one of these, so a fifth style cannot appear unnoticed.
+ * The platform's own name prefixes: three styles grew side by side; the rename to one is a separate change that edits this
+ * list and every name below. A plugin's events need no entry here: a name that starts with `molis-<owner>-` is valid when the
+ * event's registered `owner` is exactly `<owner>` and all of that owner's files belong to one `plugins/<group>/<package>/`
+ * directory (`molis-shelf-notice` is owned by `shelf`). An owner mixing plugin and platform files, or different plugin
+ * packages, must be split. The longest complete owner prefix wins. Every plugin gets the same treatment and this table
+ * names none of them (ac-artifacts A4, PG-096). Platform owners use only the three prefixes below.
  */
-export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "molis-shelf-", "workbench-"] as const;
+export const DOM_EVENT_PREFIXES = ["molis-work:", "molis:", "workbench-"] as const;
 
 /**
  * The module that holds a piece of page state. The rule: it is the only place that changes it, and the one other modules
@@ -53,34 +57,35 @@ export interface PageStateOwner {
   readonly state: string;
 }
 
+// The Host frame adapters relay these owners' announcements into an isolated document; they own no second copy of the state.
 export const PAGE_STATE_OWNERS = {
   "side-panel": {
     files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
     state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
   },
   assistant: {
-    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts"],
+    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
-    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts"],
+    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   "context-toolbar": {
-    files: ["packages/design-system/src/context-toolbar.ts"],
+    files: ["packages/design-system/src/context-toolbar.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "The toolbar next to what the person has in hand, in the document that owns it: the tools a plugin offered for the open context, and the small form under it.",
   },
   placement: {
-    files: ["apps/workbench/src/scripts/client/placement.ts"],
+    files: ["apps/workbench/src/scripts/client/placement.ts", "apps/workbench/src/scripts/client/pane-messages.ts", "apps/workbench/src/browser/plugin-frame/parent.ts", "apps/workbench/src/browser/plugin-frame/presentation.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
   },
   "tab-workspace": {
-    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts"],
+    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"],
     state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
-    files: ["apps/workbench/src/scripts/client/settings-directory.ts"],
-    state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it.",
+    files: ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
+    state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it, including the standalone Home settings host.",
   },
   attention: {
     files: ["apps/workbench/src/scripts/client/attention.ts"],
@@ -103,7 +108,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The application chrome around the work area, including the Goal work mode.",
   },
   "navigation-feed": {
-    files: ["apps/workbench/src/scripts/client/navigation-feed.ts"],
+    files: ["apps/workbench/src/scripts/client/navigation-feed.ts", "apps/workbench/src/scripts/client/navigation-feed-sources.ts", "apps/workbench/src/scripts/client/navigation-feed-stage.ts"],
     state: "The Feed directory: its groups, the open group and the selected Feed task.",
   },
   "goal-selection": {
@@ -111,19 +116,19 @@ export const PAGE_STATE_OWNERS = {
     state: "The Goal selected in the Goals directory and the page's first selection on load.",
   },
   preferences: {
-    files: ["packages/design-system/src/preferences.ts"],
+    files: ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
   },
   shelf: {
-    files: ["plugins/native/shelf/src/client.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/settings-client.ts"],
+    files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
   coding: {
-    files: ["plugins/native/coding/src/client.ts"],
+    files: ["plugins/native/coding/src/browser/main/page.ts", "plugins/native/coding/src/browser/main/mount-events.ts"],
     state: "The Coding surface: its sessions, the open session and its composer.",
   },
   "character-terminal": {
-    files: ["apps/workbench/src/character-terminal-client.ts"],
+    files: ["apps/workbench/src/browser/characters/terminal.ts"],
     state: "The terminal that shows a Character run: which process it is attached to.",
   },
   "goals-event-document": {
@@ -217,8 +222,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:character-terminal", kind: "request", owner: "character-terminal", on: "window",
-    detail: "PtySpawnRequest (services/runtime-host), or { panelId, sessionId, attachOnly }",
-    summary: "Attach the Character terminal to a process the Characters page spawned or found running.",
+    detail: "{ panelId, attachOnly: true }: the panel of a run the Characters page started or found running; nothing it could start a process with",
+    summary: "Attach the Character terminal to the process of a run the Characters page started or found running.",
   },
   {
     name: "molis-work:character-terminal-reset", kind: "request", owner: "character-terminal", on: "window",
@@ -243,7 +248,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:item-unreadable", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "{ itemId }",
-    summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone. The surface says so on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
+    summary: "A plugin surface could not read the item the workbench asked it to show (molis-work:select-item): it is gone, or the plugin is refused the read (no permission, or the project turned the plugin off). The surface says which on itself; the workbench does not name the surface after the item, so the Assistant does not carry it as what the person is looking at. Raised from the surface root and bubbling.",
   },
   {
     name: "molis-work:knowledge-pick", kind: "request", owner: "knowledge-picker", on: "document",
@@ -263,7 +268,7 @@ export const DOM_EVENTS = [
   {
     name: "molis-work:open-settings-path", kind: "request", owner: "settings-directory", on: "document",
     detail: "{ href }",
-    summary: "Open the settings page at a settings address, global or of the project.",
+    summary: "Open the settings page at a settings address, global or of the project. The standalone Home host accepts only same-origin /settings/models, /settings/connectors and /capabilities/connections in its existing dialog; invalid detail, foreign origins and other paths open nothing, send no request and never navigate the owner document.",
   },
   {
     name: "molis-work:open-settings-section", kind: "request", owner: "settings-directory", on: "document",
@@ -336,7 +341,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,
     detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT",
-    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
+    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); a trusted opaque-page bridge returns its asynchronous acceptance in handled and keeps callback authority outside that page; if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
   },
   {
     name: "molis:assistant-effect", kind: "announcement", owner: "assistant", on: "window",
@@ -346,7 +351,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:assistant-message", kind: "request", owner: "assistant", on: "window",
     detail: "AssistantPluginMessage (services/assistant); ASSISTANT_MESSAGE_EVENT",
-    summary: "A plugin page tells the Assistant something. What happens depends on message.purpose: background, change, suggest, delegate or reply.",
+    summary: "A plugin page tells the Assistant something. What happens depends on message.purpose: background, change, suggest, delegate or reply. A suggest with `thread` offers 「让助理回复」 for that comment thread; only the person's press there starts it, for the plugin whose frame sent it.",
   },
   {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",
@@ -372,6 +377,11 @@ export const DOM_EVENTS = [
     name: "molis:assistant-surface-changed", kind: "request", owner: "assistant", on: "window",
     detail: "{ plugin_id, object: { kind, id } }; ASSISTANT_SURFACE_CHANGED_EVENT (services/assistant)",
     summary: "A surface changed an object the Assistant may be showing (Coding's session settings); the Assistant reads its Work again.",
+  },
+  {
+    name: "molis:context-intake", kind: "request", owner: "context-actions", on: "element", bubbles: true,
+    detail: "{ intake_id, id, title, text }",
+    summary: "A control on a plugin's page (`data-context-intake`) asks to put the object it holds into the creation entry `intake_id`. Sent on the control, or on the surface that holds the plugin's frame; the surface says which plugin and which kind of object it is, and the entry's own provider drafts and makes it.",
   },
   {
     name: "molis:context-panel-open", kind: "request", owner: "context-toolbar", on: "element", bubbles: true, cancelable: true,
@@ -451,7 +461,11 @@ export const DOM_EVENTS = [
   {
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT",
-    summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
+    summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; opaque pages report bounded data through their bound port, with identity and screen coordinates supplied by the shell; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
+  },
+  {
+    name: "molis:surface-interaction", kind: "announcement", owner: "placement", on: "window",
+    detail: "none", summary: "Input or a pointer press in a visible isolated surface dismisses informational placement cards; it grants no action authority.",
   },
   {
     name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,

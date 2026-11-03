@@ -12,22 +12,14 @@ import { actionMcpToolName, createActionMcpPorts, handleMcpMessage, molisWorkAct
 import {
   ActionError,
   bindActionClient,
-  resolveActionSubject,
   type ActionCallContext,
   type ActionClient,
-  type ActionSubject,
   type BoundActionClient,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
-import {
-  TODO_ACTION_PERMISSIONS,
-  createTodoActionHandlers,
-  openTodoStore,
-  todoActions,
-  todoManifest,
-  ownTodoStores,
-} from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-service-placement";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
@@ -37,7 +29,7 @@ import { serveNativeHttp } from "./fixtures/native-http.js";
 // Not every such edge saw a TodoError on origin/main, though: Todo's subject reader (`todo.search.subject`) already raised `new ActionError("todo.not_found")`.
 // So each test below says which kind it is. Changed by this slice (each fails when Todo's errors are put back to the origin/main shape): the MCP action port,
 // the Host's own MCP server, the Home dock's execute route, and the move that placement asks Todo to make. Unchanged, pinned because the slice rewrote the
-// errors they read: placement's read of a Todo that is gone, and the Home dock's talk/prepare. (The edges that read a failure by shape, such as the action
+// errors it reads: placement's read of a Todo that is gone. (The edges that read a failure by shape, such as the action
 // gateway, did not change and have no test here.)
 
 function todoHost(t: { after(fn: () => void): void }) {
@@ -48,7 +40,9 @@ function todoHost(t: { after(fn: () => void): void }) {
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const caller = (audience: ActionCallContext["audience"], project_id: string | null = null): ActionCallContext =>
-    ({ actor_id: audience === "user" ? "web-user" : "mcp-client", project_id, audience, permissions: TODO_ACTION_PERMISSIONS });
+    ({ actor_id: audience === "user" ? "web-user" : "mcp-client", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
+      // The Host gives the person's own calls the list of projects they may reach (S-74); an Agent's or MCP client's never have one.
+      ...(audience === "user" ? { readable_project_ids: ["q4"] } : {}) });
   return { service, store, caller, person: bindActionClient(service, () => caller("user")) };
 }
 
@@ -119,18 +113,6 @@ test("W3-02-G1-03 Home dock execute preserves the Todo owner's not_found kind an
   } finally { await server.close(); }
 });
 
-test("W3-02-G1-03 Home dock talk/prepare preserves a missing Todo's code and answers 404", async t => {
-  // Preparation begins with the real subject reader, whose refusal reaches the same common HTTP exit.
-  const { service, caller } = todoHost(t);
-  const reading: BoundActionClient = { discover: async () => [], invoke: async (_definition, input) =>
-    await resolveActionSubject(service, caller("user"), (input as { subject: ActionSubject }).subject) as never };
-  const server = await serveNativeHttp((request, response, url) => handleHomeDockJudgmentHttp(request, response, url, { actions: reading, invalidateWebView: () => undefined }));
-  try {
-    const prepare = await server.post("/api/home/talk/prepare", JSON.stringify({ subject: { kind: "todo_item", id: "no-such-todo" } }));
-    assert.deepEqual([prepare.status, prepare.body.code, prepare.body.error], [404, "todo.not_found", "这件待办已删除，或不在当前范围内"]);
-  } finally { await server.close(); }
-});
-
 function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
   const run = <T>(operation: () => T): T => {
     if (db.isTransaction) return operation();
@@ -148,7 +130,7 @@ function placementOver(t: { after(fn: () => void): void }, client: ActionClient)
   return new PlacementService({
     ledger: createContextLedger(ledgerDatabase(db), { authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id }),
     spaces: async () => [{ project_id: "personal", title: "个人空间", kind: "personal" }, { project_id: "q4", title: "Q4 新版发布", kind: "project" }],
-    scope: async projectId => ({ client, caller: { actor_id: "web-user", project_id: projectId, audience: "user", permissions: TODO_ACTION_PERMISSIONS } }),
+    scope: async projectId => ({ client, caller: { actor_id: "web-user", project_id: projectId, audience: "user", permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: ["q4"] } }),
     titles: { get: (kind, id) => titles.get(`${kind}:${id}`) ?? null, set: (kind, id, title) => { titles.set(`${kind}:${id}`, title); } },
   });
 }

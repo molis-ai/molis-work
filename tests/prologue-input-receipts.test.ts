@@ -61,3 +61,16 @@ test("AC-R3: what the Host relays is a note in the run, never the person's words
   applyRunEvent(state, { type: "steer-read", steerIds: ["s-host", "s-person"], callId: "call-1" }, null);
   assert.deepEqual(states(state), { "s-host": "read", "s-person": "read" });
 });
+
+
+test("original acceptance and speaker survive carried prompt projection; old records stay unknown", () => {
+  const state = emptyPrologueStreamState();
+  applyRunEvent(state, { type: "prompt", role: "user", text: "Original text", steerId: "input-1", source: "peer", acceptedAtMs: 1234 }, null);
+  applyRunEvent(state, { type: "steer-applied", steerId: "input-1" }, null);
+  applyRunEvent(state, { type: "cancelled" }, null);
+  assert.deepEqual(state.turns[0]?.steer, { id: "input-1", state: "unread", source: "peer", accepted_at_ms: 1234 });
+  const older = emptyPrologueStreamState();
+  applyRunEvent(older, { type: "prompt", role: "user", text: "Old host text", steerId: "old", source: "app" }, null);
+  assert.equal(older.turns[0]?.steer?.source, "host");
+  assert.equal(older.turns[0]?.steer?.accepted_at_ms, undefined);
+});

@@ -1,5 +1,7 @@
+import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { pdfDocumentParser } from "./pdf-document-parser.js";
+import { hostErrors } from "./host-errors.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
@@ -12,33 +14,23 @@ import {
   type PrologueNodeAdapterOptions,
   type AgentPromptResolver,
 } from "@molis-ai/molis-work-service-agent-host";
-import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readProjectGuidance } from "./goals-actions.js";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import { readProjectGuidance, type ProjectGuidanceFacts } from "./goal-callers.js";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { prepareGitOperation } from "./git-operations.js";
+import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
+import { registerWorkspaceGitWriters } from "./workspace-git-writers.js";
 import { draftText } from "./model-draft.js";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescriptor, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
-import { readFile, rename, writeFile } from "node:fs/promises";
-import { prepareGitIndex } from "./workspace-git-index.js";
-import { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
-import { createGitWorktreePort } from "./git-worktrees.js";
-import { writerDirectoryCapabilities, writerIntegrationCapabilities, type WriterIntegrationSource } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { createHash } from "node:crypto";
-import path from "node:path";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
-import { reviewAuthority } from "./plugin-callers.js";
-import { hostErrors } from "./host-errors.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -66,12 +58,19 @@ export interface AgentHostCompositionOptions {
 }
 
 export interface AgentHostComposition {
+  /** Resolves only this live installation's declarations and the project's verified workspaces. */
+  preparePlugin(caller: HostPluginCaller): Promise<{ authority: AgentStartAuthority; workspaces: readonly ProjectWorkspaceRef[] }>;
   readonly inference: PrologueInferenceClient;
   readonly savedHistory: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["savedHistory"];
   mcpLibrary(): Promise<AgentMcpLibrary | undefined>;
   refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
+  /**
+   * What Characters asks of the built-in Agent in one project: the engines and the actions a round may be given. Characters is a
+   * provider the Host registers itself, with no plugin caller, so it is answered here rather than through the plugin-only actions.
+   */
+  charactersCatalog(runtime: MolisWorkProjectRuntime): { listRuntimes(): Promise<AgentRuntimeDescriptor[]>; listActions(runtimeId: string): Promise<readonly ActionView[]> };
   /** Starts the runtime when it has not started yet. */
   readonly ready: Promise<void>;
   /** Settles once the runtime has started because something needed it; waiting on it never starts the runtime. */
@@ -97,80 +96,56 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const agentHost = new AgentHost(options.prompts ? { prompts: options.prompts } : {});
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  let initialization: ReturnType<typeof createPrologueNodeAdapter> | undefined;
   let ready: Promise<void> | undefined;
   let markStarted!: () => void;
   const started = new Promise<void>(resolve => { markStarted = resolve; });
   let disposed = false, disposal: Promise<void> | undefined;
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
-    return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
-      ...options.prologue,
-      // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
-      documentParsers: [pdfDocumentParser],
-      // File, owner and background-job waits each recheck the authority of their own source.
-      checks: hostConditionChecks(options),
-      reviewQueue: agentHost.reviews,
-      app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
+    return ready ??= (async () => {
+      if (options.prologue === undefined) return;
+      // A rejected start may still own resources. Finish that instance before creating another one.
+      await initialization?.close();
+      if (disposed) return;
+      initialization = createPrologueNodeAdapter({
+        ...options.prologue,
+        // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
+        documentParsers: [pdfDocumentParser],
+        // File, owner and background-job waits each recheck the authority of their own source.
+        checks: hostConditionChecks(options),
+        reviewQueue: agentHost.reviews,
+        app: { appId: "io.molis.work", appVersion: "0.0.0" },
+      });
+      const adapter = await initialization;
+      if (disposed) return;
+      prologue = adapter; agentHost.register(adapter); markStarted();
+    })()
       .catch(error => { ready = undefined; throw error; });
   };
   // Connected external MCP tools join the project directory; they follow every list, save and connection change.
   const externalMcp = createExternalMcpDirectory({ localHost: options.localHost, homeDirectory: options.homeDirectory });
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
-      register: (definition, handler) => { // Each kind on its own seam (PG-035): an action to the action one, the typed rest to the other.
+      register: (definition, handler) => { // Every Agent Host entry is an action (R8); the runtime starts on the first call.
         const started: typeof handler = async (project, input, invocation) => { await initialize(); return handler(project, input, invocation); };
-        return definition.action ? options.localHost.registerAction(definition as typeof definition & ActionDefinition, started) : options.localHost.registerCapability(definition, started);
+        return options.localHost.registerAction(definition, started);
       },
     },
     {
       agentHost: () => agentHost,
+      originalInput: (_runtime, caller) => currentOriginalInput(caller),
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
       projectId: (runtime) => runtime.project_id,
-      mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
+      mcpChanged: (runtime, runtimeId, library, owner, check) => externalMcp.sync(runtime, runtimeId, library, owner, check),
       writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
     },
   );
-  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {
-    await initialize();
-    if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
-    const current = () => workspaceGrants(options, project.project_id);
-    const prepared = await prepareGitIndex(input, current);
-    const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
-    if (!workspace) throw new Error("工作区已取消授权");
-    await invocation.beforeEffect();
-    const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
-      document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, { ...prepared, authority: reviewAuthority(invocation.plugin, "git-index") });
-    return { review_id: request.review_id };
-  });
-
-
-  // Commit, branch, push and PR: prepared against the repository as the person saw it, run only as the review shows.
-  // What each produced is kept beside the review, since a receipt only says whether it happened.
-  const detailsFile = path.join(options.homeDirectory ?? resolveConfiguredHome(), "git-operation-details.json");
-  const readDetails = async (): Promise<Record<string, string>> => { try { return JSON.parse(await readFile(detailsFile, "utf8")); } catch { return {}; } };
-  const saveDetail = async (key: string, detail: string) => {
-    const next = { ...await readDetails(), [key]: detail }, temporary = detailsFile + "." + process.pid + ".tmp";
-    await writeFile(temporary, JSON.stringify(next)); await rename(temporary, detailsFile);
-  };
-  const unregisterGitOperation = options.localHost.registerCapability(prepareGitOperationCapability, async (project, input, invocation) => {
-    await initialize();
-    if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
-    if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("Git 操作标识无效");
-    const grants = await workspaceGrants(options, project.project_id);
-    const workspace = grants.find(item => item.workspace_id === input.workspace_id && item.realpath_verified);
-    if (!workspace) throw new Error("工作区已取消授权");
-    const prepared = await prepareGitOperation(workspace, input.revision, input.operation);
-    // The caller's authority is checked again right before the review is created, as for staging.
-    await invocation.beforeEffect();
-    const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
-      operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
-      { authority: reviewAuthority(invocation.plugin, "git-operation"), check: prepared.check, async execute() {
-        const detail = await prepared.execute();
-        try { await saveDetail(`${project.project_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
-      } });
-    return { review_id: request.review_id };
-  });
+  const unregisterGit = registerWorkspaceGitActions({ localHost: options.localHost, homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
+    gitReviews: async () => { await initialize(); return prologue?.gitReviews; }, reviews: async () => { await initialize(); return agentHost.reviews; },
+    workspaces: projectId => workspaceGrants(options, projectId) });
+  const unregisterWriters = registerWorkspaceGitWriters({ localHost: options.localHost, authorizeWriterDirectory: options.authorizeWriterDirectory,
+    runtime: async () => { await initialize(); return prologue; }, workspaces: projectId => workspaceGrants(options, projectId) });
   // Drafts borrow the same owner as Agent runs; only the ephemeral model Session is scoped to the request.
   const unregisterDraft = options.localHost.registerAction(agentHostCapabilities.draftText, async (_project, input, invocation) => {
     if (!options.prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草");
@@ -178,135 +153,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       await initialize(); if (!prologue) throw new ActionError("actions.connection_required", "模型执行方尚未接通，不能起草"); return prologue.inference;
     } }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
   });
-  const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
-    await initialize();
-    const grants = await workspaceGrants(options, project.project_id);
-    if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
-    await agentHost.reviews.refresh(project.project_id);
-    const details = await readDetails(), records: GitOperationRecord[] = [];
-    for (const request of agentHost.reviews.list(project.project_id)) {
-      if (request.operation?.kind !== "git-operation" || request.operation.workspace_id !== input.workspace_id || request.document.kind !== "tool-operation") continue;
-      const receipt = agentHost.reviews.receipt(request.review_id);
-      const outcome: GitOperationRecord["outcome"] = !receipt ? "unknown" : receipt.effect_uncertain ? "unknown" : receipt.status === "pending" ? "pending"
-        : receipt.status === "rejected" ? "denied" : receipt.status === "cancelled" ? "cancelled" : receipt.status === "expired" ? "expired"
-        : receipt.effect_settled ? "succeeded" : receipt.effect_error ? "failed" : "running";
-      const detail = details[`${project.project_id}:${request.operation.operation_id}`];
-      records.push({ operation_id: request.operation.operation_id, review_id: request.review_id, tool: request.document.tool, summary: request.document.summary, outcome,
-        ...(outcome === "succeeded" && detail ? { detail } : {}), ...(receipt?.effect_error ? { failure_reason: receipt.effect_error } : {}),
-        requested_at: request.requested_at, decided_by: receipt?.decided_by ?? null, decided_at: receipt?.decided_at ?? null });
-    }
-    return records.reverse();
-  });
-  const unregisterGitResults = options.localHost.registerCapability(readGitResultsCapability, async (project, input) => {
-    await initialize();
-    const grants = await workspaceGrants(options, project.project_id);
-    if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
-    await agentHost.reviews.refresh(project.project_id);
-    const results: GitReviewedResult[] = [];
-    for (const request of agentHost.reviews.list(project.project_id)) {
-      if (request.operation?.kind !== "git-index" || request.operation.workspace_id !== input.workspace_id || request.document.kind !== "git-index") continue;
-      const receipt = agentHost.reviews.receipt(request.review_id);
-      if (!receipt || receipt.effect_uncertain || receipt.delivery_error || receipt.status === "pending") continue;
-      if (receipt.status === "approved" && !receipt.effect_settled && !receipt.effect_error) continue;
-      const outcome = receipt.status === "rejected" ? "denied" : receipt.status === "cancelled" ? "cancelled"
-        : receipt.status === "expired" ? "expired" : receipt.effect_settled ? "succeeded" : "failed";
-      const summary = outcome === "succeeded" ? (request.document.action === "stage" ? "已将审查版本放入暂存区；磁盘文件未改写。" : "已取消所选版本的暂存；磁盘文件未改写。")
-        : outcome === "denied" ? "用户拒绝，原操作未执行。" : outcome === "cancelled" ? "原等待已撤回，没有重新执行。"
-        : outcome === "expired" ? "原等待已过期，没有重新执行。" : receipt.reconciliation ? "已核对原操作未发生；不会自动重试。" : "原操作未完成；具体说明保留在宿主审查记录中。";
-      results.push({ workspace_id: input.workspace_id, operation_id: request.operation.operation_id, outcome, summary,
-        review: { review_id: request.review_id, action: request.document.action, paths: request.document.files.map(file => file.path),
-          requested_at: request.requested_at, decided_by: receipt.decided_by, decided_at: receipt.decided_at,
-          ...(receipt.effect_error ? { failure_reason: receipt.effect_error } : {}),
-          ...(receipt.reconciliation ? { reconciliation: receipt.reconciliation } : {}) } });
-    }
-    return results.reverse();
-  });
-
-  const writerParent = async (projectId: string, workspaceId: string) => {
-    const grants = await workspaceGrants(options, projectId);
-    const parent = grants.find(item => item.workspace_id === workspaceId && item.realpath_verified);
-    if (!parent) throw new Error("主工作区已取消授权，不能准备或读取子目录");
-    return { grants, parent, port: createGitWorktreePort(parent.canonical_path) };
-  };
-  const unregisterWriters = options.localHost.registerCapability(writerDirectoryCapabilities.list, async (project, input) => {
-    const { grants, parent, port } = await writerParent(project.project_id, input.workspace_id);
-    const { owned, unavailable } = await port.inspect();
-    const grantFor = (canonical_path: string) => grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null;
-    return [...owned.map(tree => {
-      const canonical_path = path.resolve(parent.canonical_path, tree.directory);
-      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path, workspace_id: grantFor(canonical_path) };
-    }), ...unavailable.map(entry => {
-      const canonical_path = path.resolve(parent.canonical_path, entry.directory);
-      return { worktree_id: path.basename(canonical_path), branch: entry.branch ?? "", base_commit: "", canonical_path, workspace_id: grantFor(canonical_path), problem: entry.reason };
-    })];
-  });
-  const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input, invocation) => {
-    await initialize();
-    if (!prologue?.gitReviews || !options.authorizeWriterDirectory) throw new Error("独立工作树的宿主审查与目录授权尚未装配");
-    if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("工作树操作标识无效");
-    const { parent, port } = await writerParent(project.project_id, input.workspace_id);
-    const id = "writer-" + createHash("sha256").update(input.operation_id).digest("hex").slice(0, 24);
-    const preview = await port.preview(id), target = path.resolve(parent.canonical_path, preview.directory);
-    const check = async () => {
-      const current = await writerParent(project.project_id, input.workspace_id);
-      if (current.parent.canonical_path !== parent.canonical_path || JSON.stringify(await current.port.preview(id)) !== JSON.stringify(preview)) throw new Error("主仓库或授权已改变，请重新预览独立目录");
-    };
-    const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
-      operation_kind: "git-worktree", document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树，并授权本项目在该目录执行任务",
-        fields: [{ label: "主工作区", value: parent.canonical_path }, { label: "新目录", value: target }, { label: "新分支", value: preview.branch },
-          { label: "起点提交", value: preview.base_commit }, { label: "执行范围", value: "仅创建独立目录和本地分支，关联到当前项目；不发送模型任务、不修改主工作区、不推送远端。禁用 Git hooks。" }] } },
-      { authority: reviewAuthority(invocation.plugin, "git-worktree"), check, async execute() {
-        await check();
-        await port.create(id, preview.base_commit);
-        // A failure keeps the real directory and branch for inspection; never deletes user work.
-        try { await options.authorizeWriterDirectory!(project.project_id, target); }
-        catch { throw new Error("工作树已创建，但项目目录授权未完成；已保留目录与分支，请通过工作区入口关联该目录，不要重复创建"); }
-      } });
-    return { review_id: request.review_id, directory: { worktree_id: id, branch: preview.branch, base_commit: preview.base_commit, canonical_path: target, workspace_id: null } };
-  });
-
-  const integrationSource = async (project: MolisWorkProjectRuntime, source: WriterIntegrationSource, caller: HostPluginCaller | undefined) => {
-    await initialize();
-    if (!prologue?.gitReviews || !prologue.subagents) throw new Error("子任务成果整合执行方尚未接通");
-    const session = await prologue.readSession({ runtime_id: "prologue", session_id: source.session_id });
-    assertIntegrableSession(session, project.project_id, caller);
-    const ref = session.runs.find(run => run.run_id === source.run_id);
-    if (!ref) throw new Error("此轮执行不属于原会话");
-    const run = await prologue.read(ref);
-    if (!["completed", "failed", "cancelled", "stopped"].includes(run.phase) || run.frozen.role_id !== "writers" || session.latest_run && !["completed", "failed", "cancelled", "stopped"].includes(session.latest_run.phase)) throw new Error("父任务仍在执行或需核对，暂不能整合");
-    const children = await prologue.subagents.list(ref), child = children.find(c => c.subagent_id === source.subagent_id);
-    // Any ended child may be brought back: one that ran out of turns after writing and testing its files still did the
-    // work. What lands is exactly what the person reviews file by file, re-checked at approval; unknown outcomes still block.
-    if (!child || !["completed", "failed", "cancelled"].includes(child.state) || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
-    const granted = await workspaceGrants(options, project.project_id);
-    const originalDirectory = run.frozen.directory;
-    if (!originalDirectory) throw new Error("无目录会话不能整合工作区");
-    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === originalDirectory.canonical_path);
-    if (!originalParent) throw new Error("原主工作区已取消授权");
-    const { grants, parent } = await writerParent(project.project_id, originalParent.workspace_id);
-    if (parent.canonical_path !== originalDirectory.canonical_path) throw new Error("原主工作区授权已改变");
-    const frozen = run.frozen.subagent_workspaces?.find(w => w.directory.canonical_path === child.workspace_path);
-    const writer = frozen && grants.find(g => g.workspace_id === frozen.workspace_id && g.realpath_verified && g.canonical_path === child.workspace_path);
-    if (!writer) throw new Error("原子任务目录没有本轮独立写入授权");
-    await prologue.assertDirectoriesIdle([parent.canonical_path, writer.canonical_path]);
-    return { workspace_id: parent.workspace_id, writer_workspace_id: writer.workspace_id, grants };
-  };
-  const unregisterReadIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.read, async (project, input, invocation) => {
-    const source = await integrationSource(project, input, invocation.plugin);
-    return readWriterIntegration(source, async () => (await integrationSource(project, input, invocation.plugin)).grants);
-  });
-  const unregisterPrepareIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.prepare, async (project, input, invocation) => {
-    const source = await integrationSource(project, input, invocation.plugin);
-    const prepared = await prepareWriterIntegration({ ...source, files: input.files }, async () => (await integrationSource(project, input, invocation.plugin)).grants);
-    const request = await prologue!.gitReviews!.prepare({ project_id: project.project_id, workspace_id: source.workspace_id, operation_id: input.operation_id,
-      operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
-        source: { session_id: input.session_id, run_id: input.run_id, subagent_id: input.subagent_id, branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
-        files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } }, { ...prepared, authority: reviewAuthority(invocation.plugin, "git-integration") });
-    return { review_id: request.review_id };
-  });
-
   const inference = inferenceClient(initialize, () => prologue);
-  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
+  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw hostErrors.builder_unavailable("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
     : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
   const decideSurfaceSite = (decision: { scope: string; decision: "allow" | "block" | "forget" }) => {
@@ -314,46 +162,40 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     prologue?.surfaces?.decide(decision.decision === "block" ? { scope: decision.scope, decision: "forget" } : decision);
   };
   const refreshExternalMcp = async (owner: AgentSkillOwner) => {
-    if (!options.projectReference) throw new Error("项目连接目录尚未装配");
+    if (!options.projectReference) throw hostErrors.project_connection_unavailable("项目连接目录尚未装配");
     const reference = await options.projectReference(owner.project_id); await initialize();
     if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
   };
-  return { agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}}, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
+  return { preparePlugin: caller => preparePluginAgent(options, caller), charactersCatalog: runtime => charactersCatalog(options, agentHost, initialize, runtime), agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}},  createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
     unregisterGit();
-    unregisterGitOperation();
     unregisterDraft();
-    unregisterGitOperations();
-    unregisterGitResults();
     unregisterWriters();
-    unregisterPrepareWriter();
-    unregisterReadIntegration();
-    unregisterPrepareIntegration();
     externalMcp.close();
     return disposal = (async () => {
       await ready?.catch(() => undefined);
-      await prologue?.close();
-    })();
+      await initialization?.close();
+    })().catch(error => { disposal = undefined; throw error; });
   } };
 }
 
-/**
- * The session being integrated must belong to this project and to the installation making the call: the owner it recorded when
- * the Host issued that plugin its caller (plugin and installation together, never read from input), whichever plugin it is (PG-009).
- * The project is checked first, then that there is a caller at all, then whose session it is, then that its result is settled.
- */
-function assertIntegrableSession(session: { owner: { project_id: string; plugin_id: string; install_id: string }; recovery?: unknown }, projectId: string, caller: HostPluginCaller | undefined): void {
-  if (session.owner.project_id !== projectId) throw new Error("执行不属于本项目的会话");
-  if (!caller) throw hostErrors.plugin_caller_invalid("整合子任务成果只能由插件发起");
-  if (session.owner.plugin_id !== caller.plugin_id || session.owner.install_id !== caller.install_id) throw new Error("执行不属于发起整合的这份插件安装的会话");
-  if (session.recovery) throw new Error("原结果仍需核对，暂不能整合");
+/** The built-in Agent's engines, and the actions its rounds may be given in this project, as Characters reads them. */
+function charactersCatalog(options: AgentHostCompositionOptions, agentHost: AgentHost, initialize: () => Promise<void>, runtime: MolisWorkProjectRuntime) {
+  return {
+    listRuntimes: async () => { await initialize(); return agentHost.descriptors(); },
+    listActions: async (runtimeId: string) => {
+      await initialize();
+      const authority = await startAuthority(runtime, CHARACTER_PLUGIN_ID, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory);
+      return authority.actions ? (await authority.actions(runtimeId)).discover() : [];
+    },
+  };
 }
 
 /** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */
 function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } | undefined): AgentWriteCheckerStore {
-  if (!prologue) throw new Error("Agent 运行时没有启动，读不到写后检查器");
+  if (!prologue) throw hostErrors.agent_runtime_unavailable("Agent 运行时没有启动，读不到写后检查器");
   return prologue.writeCheckers;
 }
 
@@ -370,6 +212,27 @@ async function workspaceGrants(options: Pick<AgentHostCompositionOptions, "works
   return options.workspacesFor ? await options.workspacesFor(projectId) : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
 }
 
+async function preparePluginAgent(options: AgentHostCompositionOptions, caller: HostPluginCaller) {
+  caller.assertActive();
+  if (!caller.project_id || !options.projectReference) throw new ActionError("actions.connection_required", "Agent 需要项目连接目录");
+  const reference = await options.projectReference(caller.project_id);
+  caller.assertActive();
+  const authority = await options.localHost.withProject(reference, runtime =>
+    startAuthority(runtime, caller.plugin_id, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller));
+  const workspaces = await workspaceGrants(options, caller.project_id);
+  caller.assertActive();
+  return { authority, workspaces };
+}
+
+function currentOriginalInput(caller: HostPluginCaller | undefined) {
+  const invocation = currentPluginInvocation();
+  return invocation && "definition" in invocation && invocation.install_id === caller?.install_id
+    && invocation.caller.original_input?.install_id === caller.install_id
+    && invocation.definition.capability_id === invocation.caller.original_input.action.capability_id
+    && invocation.definition.version === invocation.caller.original_input.action.version
+    ? structuredClone(invocation.caller.original_input) : undefined;
+}
+
 async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
@@ -379,12 +242,12 @@ async function startAuthority(
   homeDirectory?: string,
   caller?: HostPluginCaller,
 ): Promise<AgentStartAuthority> {
-  // Plugin declarations come from its actual activation. The bundled lookup is
-  // retained only for trusted Host composition that calls this API directly.
-  const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills }
-    : BUILTIN_PLUGIN_AGENTS.get(pluginId);
-  const manifest = caller?.declaration.manifest ?? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+  // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
+  // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
+  const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
+  const manifest = caller?.declaration.manifest ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
+  const original = currentOriginalInput(caller);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
   // The round's number: the call that starts it (agent.run.start), else a new one. The Runtime calls its tools later, in its own loop,
@@ -392,11 +255,12 @@ async function startAuthority(
   const callId = currentCallId() ?? newCallId();
   return {
     call_id: callId,
+    ...(original ? { original_input: original } : {}),
     manifest: declared?.manifest ?? { roles: [], prompts: [] },
     authorizedDirectories: workspaces.filter(entry => entry.realpath_verified).map(entry => entry.canonical_path),
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
-    method_owner: { project_id: runtime.project_id, plugin_id: pluginId },
+    skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     actions: async (runtimeId, validate, session) => {
       const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
       // `actor_id` stays the grant's client id (`agent:<runtime>`). The session is the one the Host checked against the Runtime's own record
@@ -412,7 +276,7 @@ async function startAuthority(
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },
-    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.coordinator.artifacts.query, reference) } : {}),
+    ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.artifacts.query, reference) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
     // The platform memory under the Agent work switch: the person's and this project's, where they apply.
     memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),
@@ -440,10 +304,10 @@ async function checkActionInput(authorized: { context: ActionCallContext; servic
  * into an instruction, which is a different claim.
  */
 async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
-  let view: ProjectGuidanceView;
+  let view: ProjectGuidanceFacts;
   try {
     const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
-    view = await readProjectGuidance(localHost.actionClient(reference, false), reference);
+    view = await readProjectGuidance(localHost.actionClient(reference), reference);
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.
@@ -488,7 +352,7 @@ export function workspaceRefFor(
 }
 
 function inferenceClient(initialize: () => Promise<void>, current: () => Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined): PrologueInferenceClient {
-  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw new Error("Prologue 推理服务未装配"); return adapter.inference; };
+  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw hostErrors.inference_unavailable("Prologue 推理服务未装配"); return adapter.inference; };
   return {
     completeText: async input => (await get()).completeText(input),
     completeTextResult: async input => (await get()).completeTextResult(input),

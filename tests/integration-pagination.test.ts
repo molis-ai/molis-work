@@ -1,9 +1,10 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createGmailConnector, createGithubConnector, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "@molis-ai/molis-work-plugin-feed";
-import { SignalsModule } from "@molis-ai/molis-work-module-signals";
+import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { withIntegrationHome } from "./fixtures/integration-home.js";
 
 const AT = "2026-08-30T10:00:00.000Z";
@@ -34,26 +35,26 @@ test("W2-18-GMAIL-01 + W2-18-GMAIL-02: one large history record drains across du
     let chain = home.chain(provider());
     const source = chain.source("gmail");
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-record-bootstrap" });
-    assert.deepEqual(chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, gmailCursor); bootstrapped = true;
+    assert.deepEqual(chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, gmailCursor); bootstrapped = true;
     const first = await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-record-first" });
     assert.equal(first.run.outcome, "completed");
-    const progress = chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor;
+    const progress = chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor;
     assert.deepEqual(progress, { ...gmailCursor, provenance: "history", position: { historyId: "101", offset: 25 } });
     assert.deepEqual(reads, ids.slice(0, 25));
     assert.equal(sourceItems(chain.feed, source.source_id).length, 25);
     home.reopen(); chain = home.chain(provider()); fail = true;
     await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: "gmail-record-failed" }), error => error instanceof ActionError && error.code === "feed.connector_failed");
-    assert.deepEqual(chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, progress);
+    assert.deepEqual(chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, progress);
     assert.equal(sourceItems(chain.feed, source.source_id).length, 25);
     fail = false;
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-record-second" });
-    assert.deepEqual((chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor as { position: unknown }).position, { historyId: "101", offset: 50 });
+    assert.deepEqual((chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor as { position: unknown }).position, { historyId: "101", offset: 50 });
     home.reopen(); chain = home.chain(provider());
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-record-third" });
-    assert.equal((chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor as { historyId: string }).historyId, "200");
-    assert.equal("position" in (chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor as Record<string, unknown>), false);
+    assert.equal((chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor as { historyId: string }).historyId, "200");
+    assert.equal("position" in (chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor as Record<string, unknown>), false);
     assert.deepEqual(sourceItems(chain.feed, source.source_id).map(item => item.external_id).sort(), ids.map(id => `${source.source_id}:gmail-msg-${id}`).sort());
-    const signals = new SignalsModule(home.store().db).query.list(DEMO_PROJECT_ID, source.source_id);
+    const signals = new SignalsModule(fromBetterSqlite(home.store().db)).query.list(DEMO_PROJECT_ID, source.source_id);
     assert.deepEqual(signals.map(signal => signal.provider_dedupe_id).sort(), ids.map(id => `gmail-msg-${id}`).sort());
     assert.equal(sourceAttention(chain.feed, source.source_id).length, 52);
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-record-repeat" });
@@ -80,10 +81,10 @@ test("W2-18-GMAIL-01: page-boundary progress does not skip the 26th message; fai
     const chain = home.chain(port), source = chain.source("gmail");
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-page-bootstrap" }); bootstrapped = true;
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-page-first" });
-    const progress = chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor;
+    const progress = chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor;
     assert.equal((progress as { historyId: string }).historyId, "101");
     await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: "gmail-page-fail" }));
-    assert.deepEqual(chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, progress);
+    assert.deepEqual(chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, progress);
     failPage = false;
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-page-recovery" });
     assert.deepEqual(sourceItems(chain.feed, source.source_id).map(item => item.external_id).sort(), ids.map(id => `${source.source_id}:gmail-msg-${id}`).sort());
@@ -109,11 +110,11 @@ test("W2-18-GMAIL-01 + W2-18-GMAIL-02: a later HTTP page failure retains the boo
     const chain = home.chain(port), source = chain.source("gmail");
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-cross-bootstrap" }); bootstrapped = true;
     await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: "gmail-cross-fail" }));
-    assert.deepEqual(chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, gmailCursor);
+    assert.deepEqual(chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, gmailCursor);
     assert.deepEqual(sourceItems(chain.feed, source.source_id), []);
     failPage = false;
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-cross-first" });
-    assert.deepEqual(chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, { ...gmailCursor, provenance: "history", historyId: "101", position: { historyId: "102", offset: 15 } });
+    assert.deepEqual(chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, { ...gmailCursor, provenance: "history", historyId: "101", position: { historyId: "102", offset: 15 } });
     assert.equal(sourceItems(chain.feed, source.source_id).length, 25);
     await chain.sync.sync(source.source_id, { idempotencyKey: "gmail-cross-tail" });
     assert.deepEqual(sourceItems(chain.feed, source.source_id).map(item => item.external_id).sort(), ids.map(id => `${source.source_id}:gmail-msg-${id}`).sort());
@@ -128,7 +129,7 @@ test("W2-18-GMAIL-02: initial snapshot still fetches at most 25 details", async 
     if (url.includes("/messages?")) return json({ messages: Array.from({ length: 52 }, (_, index) => ({ id: `m-${index + 1}` })), nextPageToken: "unused" });
     details++; return json(gmailMessage(new URL(url).pathname.split("/").at(-1)!));
   } });
-  const result = await port.sync({ cursor: null });
+  const result = await port.sync({ cursor: null }, connectorControl());
   assert.equal(result.ok, true); assert.equal(details, 25);
   if (result.ok) assert.equal(result.items.length, 25);
 });
@@ -143,7 +144,7 @@ test("W2-18-GITHUB-PAGES-01: the 20-page work bound rejects an unfinished respon
     const page = Number(new URL(url).searchParams.get("page") ?? 1); pages++;
     return json([], { headers: { link: `<https://api.github.com/notifications?page=${page + 1}&per_page=50>; rel="next"` } });
   } });
-  const result = await port.sync({ cursor: {} });
+  const result = await port.sync({ cursor: {} }, connectorControl());
   assert.equal(pages, 20); assert.equal(result.ok, false); assert.equal("cursor" in result, false);
 });
 
@@ -161,14 +162,14 @@ test("W2-18-GITHUB-PAGES-01: all pages reach Signals and Feed; a later page fail
     } });
     const chain = home.chain(port), source = chain.source("github");
     await assert.rejects(chain.sync.sync(source.source_id, { idempotencyKey: "github-pages-fail" }));
-    assert.deepEqual(chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, {});
+    assert.deepEqual(chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor, {});
     assert.equal(sourceItems(chain.feed, source.source_id).length, 0);
     fail = false;
     await chain.sync.sync(source.source_id, { idempotencyKey: "github-pages-ok" });
     assert.deepEqual(sourceItems(chain.feed, source.source_id).map(item => item.external_id).sort(), notifications.map(row => `${source.source_id}:github-notification-${row.id}`).sort());
-    assert.deepEqual(new SignalsModule(home.store().db).query.list(DEMO_PROJECT_ID, source.source_id).map(signal => signal.provider_dedupe_id).sort(), notifications.map(row => `github-notification-${row.id}`).sort());
+    assert.deepEqual(new SignalsModule(fromBetterSqlite(home.store().db)).query.list(DEMO_PROJECT_ID, source.source_id).map(signal => signal.provider_dedupe_id).sort(), notifications.map(row => `github-notification-${row.id}`).sort());
     assert.equal(sourceAttention(chain.feed, source.source_id).length, 51);
-    const cursor = chain.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor as { last_modified: string };
+    const cursor = chain.feed.sources.get(DEMO_PROJECT_ID, source.source_id).cursor as { last_modified: string };
     assert.equal(cursor.last_modified, "Sun, 30 Aug 2026 10:00:00 GMT");
     assert.equal(calls.filter(call => new URL(call.url).searchParams.get("page") === "2").every(call => !call.conditional), true);
     clock += 120_000;
@@ -188,7 +189,7 @@ test("W2-18-GITHUB-PAGES-01: hostile Link destinations and later-page rate limit
       if (new URL(url).searchParams.get("page") === "2") return json({}, { status: 429, headers: { "retry-after": "120" } });
       return json(notifications.slice(0, 50), { headers: { link } });
     } });
-    const result = await port.sync({ cursor: {} }); assert.equal(result.ok, false);
+    const result = await port.sync({ cursor: {} }, connectorControl()); assert.equal(result.ok, false);
     assert.equal(calls.every(url => new URL(url).origin === "https://api.github.com"), true);
     if (!result.ok && link.includes('page=2>;') && link.includes('https://api.github.com/notifications')) {
       assert.equal(result.failure, "rate_limited"); assert.equal(result.retryAfterAt, "2026-08-30T10:02:00.000Z");

@@ -1,4 +1,4 @@
-import type { FormRecord, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord, FormSubmissionRecord } from "./contract.js";
 
 /** What an exported fill page writes and `form.answers.import` reads back. */
 export const FORM_ANSWER_FORMAT = "molis.form.answer.v1";
@@ -47,6 +47,12 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
   document.getElementById("t").textContent = data.title || say("title", "问卷");
   document.getElementById("d").textContent = data.description || "";
   var el = function(tag, text){ var node = document.createElement(tag); if (text) node.textContent = text; return node; };
+  // form-answer-cap:begin
+  // The answer box takes at most FORM_ANSWER_LIMIT characters, the same rule the workbench's fields.ts (T-234) applies: one emoji is
+  // one character, so a UTF-16 maxlength attribute would stop an emoji answer at half the limit. The page is one self-contained file
+  // and cannot import that module, so the few lines live here; the form keeps the answer with the very same count.
+  var answerCap = function(text){ var chars = Array.from(text); return chars.length > ${FORM_ANSWER_LIMIT} ? chars.slice(0, ${FORM_ANSWER_LIMIT}).join("") : text; };
+  // form-answer-cap:end
   data.questions.forEach(function(q, index){
     var box = el("div"); box.className = "q"; box.dataset.id = q.id; box.dataset.type = q.type; box.dataset.required = q.required ? "1" : "";
     var label = el(q.type === "singleChoice" || q.type === "multiChoice" || q.type === "rating" ? "span" : "label", q.title || say("untitled", "（未命名题目）")); label.id = "question-" + index; box.setAttribute("role", q.type === "singleChoice" || q.type === "rating" ? "radiogroup" : "group"); box.setAttribute("aria-labelledby", label.id); if (box.getAttribute("role") === "radiogroup") box.setAttribute("aria-required", String(q.required));
@@ -62,7 +68,19 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     } else {
       var t = el("input"); t.type = q.type === "date" ? "date" : "text"; t.name = q.id; box.appendChild(t);
     }
-    [].forEach.call(box.querySelectorAll("input[type=text],input[type=date],select"), function(input){ input.id = label.id + "-input"; label.htmlFor = input.id; input.setAttribute("aria-labelledby", label.id); input.setAttribute("aria-required", String(q.required)); input.required = Boolean(q.required); if (input.type === "text") input.maxLength = ${FORM_ANSWER_LIMIT}; });
+    [].forEach.call(box.querySelectorAll("input[type=text],input[type=date],select"), function(input){ input.id = label.id + "-input"; label.htmlFor = input.id; input.setAttribute("aria-labelledby", label.id); input.setAttribute("aria-required", String(q.required)); input.required = Boolean(q.required); if (input.type === "text") {
+      // An input method's composition is not cut mid-way: the box is capped as it goes, and again once the composition ends.
+      var composing = false, tooLong = say("tooLong", "每题回答最多 ${FORM_ANSWER_LIMIT} 个字：") + (q.title || say("untitled", "（未命名题目）"));
+      var capNow = function(){
+        if (composing) return;
+        var capped = answerCap(input.value);
+        if (capped !== input.value) { input.value = capped; error.textContent = tooLong; }
+        else if (error.textContent === tooLong) error.textContent = "";
+      };
+      input.addEventListener("compositionstart", function(){ composing = true; });
+      input.addEventListener("compositionend", function(){ composing = false; capNow(); });
+      input.addEventListener("input", capNow);
+    } });
     qs.appendChild(box);
   });
   var answers = function(){
@@ -81,7 +99,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     var value = answers();
     var missing = data.questions.filter(function(q){ return q.required && !value[q.id]; });
     if (missing.length) { error.textContent = say("missing", "还有必填题没填：") + missing[0].title; return; }
-    var oversized = data.questions.find(function(q){ return value[q.id].trim().length > ${FORM_ANSWER_LIMIT}; });
+    var oversized = data.questions.find(function(q){ return Array.from(value[q.id].trim()).length > ${FORM_ANSWER_LIMIT}; });
     if (oversized) { error.textContent = say("tooLong", "每题回答最多 ${FORM_ANSWER_LIMIT} 个字：") + oversized.title; return; }
     error.textContent = "";
     var answer = { format: data.format, form_id: data.form_id, form_version: data.form_version, answer_id: uuid(), submitted_at: new Date().toISOString(), questions: data.questions, answers: value };
@@ -97,7 +115,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 }
 
 export function formFillPageFilename(title: string): string {
-  return (title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷").slice(0, 80) + " · 填写页.html";
+  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 填写页.html";
 }
 
 /** Responses as a table a spreadsheet opens: one row per response, one column per question (UTF-8 with BOM for Excel). */
@@ -115,5 +133,5 @@ export function formResultsCsv(form: FormRecord, submissions: readonly FormSubmi
 }
 
 export function formResultsCsvFilename(title: string): string {
-  return (title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷").slice(0, 80) + " · 答卷.csv";
+  return [...(title.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").trim() || "问卷")].slice(0, 80).join("") + " · 答卷.csv";
 }

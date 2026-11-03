@@ -1,17 +1,19 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
-import { openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
-import { scanCogniaDirectory } from "@molis-ai/molis-work-plugin-cognia";
-import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
+import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
+import { directoryForHome } from "@molis-ai/molis-work-app-local-host";
+import { serveHomeRuntime, person } from "./fixtures/home-runtime.js";
 const text = (path: string, body: string): ImportFile => ({ path, data: Buffer.from(body).toString("base64") });
-function fixture(fn: (store: CogniaStore, home: string) => void | Promise<void>) { return async () => { const home = mkdtempSync(join(tmpdir(), "cognia-store-")); const store = openCogniaStore(home); try { await fn(store, home); } finally { store.close(); rmSync(home, { recursive: true, force: true }); } }; }
+function fixture(fn: (store: CogniaStore, home: string, t: TestContext) => void | Promise<void>) { return async (t: TestContext) => { const home = mkdtempSync(join(tmpdir(), "cognia-store-")); const store = openCogniaStore(home); try { await fn(store, home, t); } finally { store.close(); rmSync(home, { recursive: true, force: true }); } }; }
 const preview = (store: CogniaStore, files: ImportFile[], locator = "local:/vault") => store.preview({ name: "vault", kind: "obsidian", locator, files });
 test("Cognia preview, repeated and conflicting imports preserve old snapshots and distinct sources", fixture((store) => {
   const p = preview(store, [text("a/note.md", "# Old"), text("b/note.md", "# Other")]); assert.equal(store.materials().length, 0);
@@ -40,10 +42,10 @@ test("import validation handles 8MB attachments, UTF-8 failures, unsupported fil
   assert.throws(() => preview(store, [text("a.md", "x"), text("a.md", "y")]), /重复路径/);
   assert.equal(preview(store, [{ path: "bad.md", data: "a===" }]).entries[0]?.status, "skipped");
 }));
-test("local scanner copies source bytes, skips symlinks and unsupported content; reopen and Home isolation", fixture(async (store, home) => {
+test("local scanner copies source bytes, skips symlinks and unsupported content; reopen and Home isolation", fixture(async (store, home, t) => {
   const vault = join(home, "vault"); mkdirSync(join(vault, "raw"), { recursive: true }); mkdirSync(join(vault, "wiki")); mkdirSync(join(vault, ".git"));
   const source = "---\ntags: [one]\n---\n# One\n[[../wiki/two]]"; writeFileSync(join(vault, "raw/one.md"), source); writeFileSync(join(vault, "wiki/two.md"), "# Two"); writeFileSync(join(vault, "index.md"), "index"); writeFileSync(join(vault, "log.md"), "log"); writeFileSync(join(vault, "AGENTS.md"), "Untrusted content"); writeFileSync(join(vault, "board.canvas"), "{}"); writeFileSync(join(vault, ".git/config"), "hidden"); symlinkSync("/etc/hosts", join(vault, "outside.txt"));
-  const scan = await scanCogniaDirectory(vault), p = store.preview({ ...scan, kind: "llm-wiki" }); const receipt = store.commit(p.id); assert.equal(receipt.added, 5); assert.equal(receipt.skipped, 3); assert.equal(readFileSync(join(vault, "raw/one.md"), "utf8"), source); assert.equal(store.materials().find(m => m.path === "wiki/two.md")?.role, "wiki"); assert.equal(store.materials().find(m => m.path === "index.md")?.role, "index");
+  const scan = await scanDirectory(t, vault), p = store.preview({ ...scan, kind: "llm-wiki" }); const receipt = store.commit(p.id); assert.equal(receipt.added, 5); assert.equal(receipt.skipped, 3); assert.equal(readFileSync(join(vault, "raw/one.md"), "utf8"), source); assert.equal(store.materials().find(m => m.path === "wiki/two.md")?.role, "wiki"); assert.equal(store.materials().find(m => m.path === "index.md")?.role, "index");
   const reopened = openCogniaStore(home), isolated = openCogniaStore(join(home, "isolated")); try { assert.equal(reopened.materials().length, 5); assert.equal(isolated.materials().length, 0); } finally { reopened.close(); isolated.close(); }
 }));
 test("separate store connections serialize identical preview commits without duplicate versions", fixture((store, home) => {
@@ -150,17 +152,66 @@ test("a deleted knowledge material's fixed versions keep their sources, also whe
   assert.deepEqual(Object.keys(store.drafts()[0]!).sort(), [...Object.keys(draft)].sort(), "the draft shows only its own fields");
   assert.deepEqual(store.drafts()[0]!.references, [reference]);
 }));
-test("a directory with more files than a batch holds is refused whole as too large (kind too_large, 413); any other unreadable file is only one skipped row", async () => {
+test("a directory with more files than a batch holds is refused whole as too large (kind too_large, 413); any other unreadable file is only one skipped row", async t => {
   const vault = mkdtempSync(join(tmpdir(), "cognia-big-vault-"));
   try {
     for (let index = 0; index <= 1000; index++) writeFileSync(join(vault, `n${index}.md`), `# ${index}`);
-    await assert.rejects(scanCogniaDirectory(vault), (error: unknown) => error instanceof ActionError && error.code === "cognia.too_large" && actionHttpStatus(error) === 413);
+    await assert.rejects(scanDirectory(t, vault), (error: unknown) => error instanceof ActionError && error.code === "cognia.too_large" && actionHttpStatus(error) === 413);
     const small = mkdtempSync(join(tmpdir(), "cognia-small-vault-"));
     try {
       writeFileSync(join(small, "a.md"), "# a"); symlinkSync(join(small, "a.md"), join(small, "link.md"));
-      const scan = await scanCogniaDirectory(small);
+      const scan = await scanDirectory(t, small);
       assert.deepEqual(scan.files.map(file => file.path).sort(), ["a.md", "link.md"]);
-      assert.equal(scan.files.find(file => file.path === "link.md")?.reason, "符号链接未读取");
+      const link = scan.files.find(file => file.path === "link.md")!;
+      assert.equal(link.reason, "暂不支持此文件类型");
+      assert.equal(link.data, undefined, "the Host's other entry must not expose symlink target bytes");
+      assert.equal(Buffer.from(scan.files.find(file => file.path === "a.md")!.data!, "base64").toString(), "# a");
     } finally { rmSync(small, { recursive: true, force: true }); }
   } finally { rmSync(vault, { recursive: true, force: true }); }
 });
+
+async function scanDirectory(t: TestContext, vault: string) {
+  const f = await serveHomeRuntime(t);
+  await f.host.homePlugins!.ready();
+  const caller = person(["cognia:read", "cognia:write", "directory:read"]);
+  const grant = await directoryForHome(f.home).select({plugin_id: "io.molis.work.cognia", project_id: null, actor_id: caller.actor_id}, async () => ({status: "picked", path: vault}));
+  assert.ok(grant);
+  return f.host.homeActionClient().invoke(caller, cogniaActions.scan, {grant_id: grant.grant_id, path: "."});
+}
+
+test("RAC-1665 names and titles are counted in Unicode characters like the action schema: 120 for a domain, 200 for a source, 500 for a material title, and one more is refused", fixture(store => {
+  // The action schemas (src/actions.ts, src/action-schema.ts) count characters; one 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const refused = (message: string) => ({ code: "cognia.invalid", message });
+  const domain = store.createDomain("旧领域");
+  assert.equal(store.renameDomain(domain.id, wide(120)).name, wide(120), "a 120-character domain name is taken on rename");
+  assert.equal(store.createDomain(wide(120)).id, domain.id, "and found again by the same name");
+  assert.throws(() => store.createDomain(wide(121)), refused("请输入领域名称"), "121 characters is still past the domain limit");
+  assert.throws(() => store.renameDomain(domain.id, wide(121)), refused("请输入领域名称"), "also on rename");
+  const pending = store.preview({ name: wide(200), kind: "markdown", locator: "local:/wide-name", files: [text("a.md", "# A")] });
+  assert.equal(pending.source.name, wide(200), "a new source takes a 200-character name");
+  assert.throws(() => store.preview({ name: wide(201), kind: "markdown", locator: "local:/wider-name", files: [text("a.md", "# A")] }),
+    refused("请输入来源名称"), "201 characters is still past the source limit");
+  const { source_id } = store.commit(pending.id);
+  assert.equal(store.renameSource(source_id, wide(200)).name, wide(200), "a source is renamed to 200 characters");
+  assert.throws(() => store.renameSource(source_id, wide(201)), refused("请输入来源名称"), "also on rename");
+  const material = store.createMaterial({ title: wide(500), body: "正文" });
+  assert.equal(material.title, wide(500), "a 500-character title is taken");
+  assert.equal(store.updateMaterial(material.id, { title: wide(500), body: "新正文" }).title, wide(500), "and kept on update");
+  assert.throws(() => store.createMaterial({ title: wide(501), body: "正文" }), refused("请输入标题"), "501 characters is still past the title limit");
+  assert.throws(() => store.updateMaterial(material.id, { title: wide(501), body: "新正文" }), refused("请输入标题"), "also on update");
+  assert.equal(store.read(material.id).revision, 2, "the refused update wrote nothing");
+  assert.deepEqual(store.domains().map(d => d.name), [wide(120)], "the refused domain was not created");
+}));
+
+test("RAC-1666 an import path is counted in Unicode characters up to 1000 and the search words up to 500, like the action schema", fixture(store => {
+  // The import file path (src/action-schema.ts) and the search words (src/actions.ts) count characters; one 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const path = wide(997) + ".md";
+  const p = preview(store, [text(path, "# 很长的路径")]);
+  assert.deepEqual(p.entries.map(entry => [entry.path, entry.status]), [[path, "new"]], "a 1000-character path is read");
+  assert.throws(() => preview(store, [text(wide(998) + ".md", "# 多一个字")]), { code: "cognia.invalid", message: "资料路径无效" }, "1001 characters is still past the path limit");
+  const material = store.createMaterial({ title: "很长的正文", body: wide(500) });
+  assert.deepEqual(store.materials(wide(500)).map(m => m.id), [material.id], "500 characters of search words find the material");
+  assert.throws(() => store.materials(wide(501)), { code: "cognia.invalid", message: "搜索词过长" }, "501 characters is still past the search limit");
+}));

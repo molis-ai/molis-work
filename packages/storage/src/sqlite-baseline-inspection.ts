@@ -1,0 +1,22 @@
+import { DatabaseSync } from 'node:sqlite';
+import type { SqliteBaselineDatabase } from './sqlite-baseline.js';
+
+/** Describe only triggers created by the current schema, excluding trusted scratch-only platform tables. */
+export function sqliteBaselineTriggers(schema: string, prelude = ''): ReadonlyMap<string, string> {
+  const reference = new DatabaseSync(':memory:');
+  try {
+    reference.exec(prelude);
+    const existing = new Set(reference.prepare("SELECT name FROM sqlite_schema WHERE type='trigger'").all().map(row => String(row.name)));
+    reference.exec(schema);
+    return new Map(reference.prepare("SELECT name,sql FROM sqlite_schema WHERE type='trigger'").all()
+      .filter(row => !existing.has(String(row.name))).map(row => [String(row.name),String(row.sql)]));
+  } finally { reference.close(); }
+}
+
+/** Current-baseline comparison never creates missing triggers or derives trust from a database's own contents. */
+export function assertSqliteBaselineTriggers(db: SqliteBaselineDatabase, expected: ReadonlyMap<string, string>): void {
+  for (const [name, sql] of expected) {
+    const actual = db.prepare("SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?").get(name) as {sql: string} | undefined;
+    if (actual?.sql !== sql) throw new Error('SQLITE_BASELINE_TRIGGER_MISMATCH');
+  }
+}

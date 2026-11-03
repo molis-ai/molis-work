@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards } from "@molis-ai/molis-work-app-workbench";
-import { developerMode } from "@molis-ai/molis-work-app-local-host";
+import { pluginMarketCards } from "@molis-ai/molis-work-app-workbench";
+import { developerMode, BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 
 // W2-18 decision 5: Text Stats, the platform's smallest reference plugin and a test fixture, is kept out of the plugin list a

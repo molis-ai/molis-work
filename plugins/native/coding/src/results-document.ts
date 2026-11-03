@@ -1,6 +1,6 @@
 import { defineErrorCodes, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { codingResultDocument, type CodingResultDocument, type CodingResultDocumentInput } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingResultDocument, type CodingResultDocument, type CodingResultDocumentInput } from "./contract.js";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingArtifacts, type CodingChangeSet } from "./artifacts.js";
 import { codingChangeSetPreview } from "./changeset.js";

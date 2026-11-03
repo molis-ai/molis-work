@@ -1,4 +1,4 @@
-import type { PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { PptRecord } from "./contract.js";
 import { pptErrors } from "./error.js";
 
 import { isDeepStrictEqual } from "node:util";

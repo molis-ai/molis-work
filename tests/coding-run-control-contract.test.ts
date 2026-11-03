@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { CODING_CLIENT_FACTORY_SCRIPT, CODING_MESSAGES, codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_MESSAGES, codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
 import { QUESTION_LIMITS, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+
+// The page is typed TypeScript (src/browser); what it sends is read from the source of the module that sends it.
+const pageSource = (path: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/coding/src/browser/${path}`, import.meta.url)), "utf8");
 
 const control = codingRouteActions["coding.control-run"]!;
 const schema = control.definition.action.input_schema;
@@ -20,9 +25,9 @@ function rejected(value: unknown): void {
 }
 
 // ADOPT-CONTROL-V2-01, RC-01, RCPT-321: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5; 6: withdraw, and a supplement's about, specs/ai-input-receipts 3b-2a; 7: a supplement's source, RCPT-368, BL-144).
-test("coding.runs.control uses version 7 and remains exclusive to the person at this computer", () => {
+test("coding.runs.control uses version 8 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 7);
+  assert.equal(control.definition.version, 8);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 
@@ -38,6 +43,7 @@ test("an answer without its question fields, or a steer without text, is rejecte
   rejected({ ...base, kind: "answer", text: "好" });
   rejected({ ...base, kind: "steer" });
   rejected({ ...base, kind: "steer", text: "   " });
+  rejected({ ...base, kind: "steer", text: "x", original: { text: "person", source: "person" } });
   rejected(control.toInput(request({ kind: "answer", run_id: "run-1", text: "好" })));
   rejected(control.toInput(request({ kind: "steer", run_id: "run-1", text: " " })));
 });
@@ -111,10 +117,10 @@ test("a complete control passes the published schema and the handler does not fa
 });
 
 test("the page still posts the provider and model, and the switch takes effect on the next model call", () => {
-  assert.match(CODING_CLIENT_FACTORY_SCRIPT, /kind:'switch-model',run_id:run\.ref\.run_id,\.\.\.model/);
-  assert.match(CODING_CLIENT_FACTORY_SCRIPT, /provider_id:model\.provider_id,model_id:model\.model_id/);
+  assert.match(pageSource("main/mount-composer.ts"), /kind: "switch-model", run_id: run\.ref\.run_id, \.\.\.model/);
+  assert.match(pageSource("composer-model.ts"), /provider_id: model\.provider_id, model_id: model\.model_id/);
   // The page says so through Coding's dictionary (VUX-40), in both languages.
-  assert.match(CODING_CLIENT_FACTORY_SCRIPT, /status\(L\('coding\.model\.switch-asked',\{model:model\.label\}\)\)/);
+  assert.match(pageSource("composer-model.ts"), /status\(L\("coding\.model\.switch-asked", \{ model: model\.label \}\)\)/);
   assert.match(CODING_MESSAGES["coding.model.switch-asked"].zh, /从下一次模型调用起生效/);
   assert.match(CODING_MESSAGES["coding.model.switch-asked"].en, /from the next model call/);
 });
@@ -136,8 +142,8 @@ test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads 
   assert.deepEqual((picked as { answers: unknown }).answers, [{ question: 0, value: [{ kind: "goal", id: "g1", label: "内部试用" }] }]);
   rejected({ ...base, ...asked, answers: [{ question: 0, value: [{ kind: "goal", id: "g1" }] }] });
   rejected({ ...base, ...asked, answers: [{ question: 0, value: [{ kind: "goal", id: "g1", label: "x", revision: "1" }] }] });
-  assert.match(CODING_CLIENT_FACTORY_SCRIPT, /pending_revision:question\.pending_revision,values:client\.read\(\)/, "the page sends the card's fields as they are");
-  assert.doesNotMatch(CODING_CLIENT_FACTORY_SCRIPT, /function questionAnswer/, "the page no longer carries its own copy of the reading");
+  assert.match(pageSource("main/questions.ts"), /pending_revision: question\.pending_revision, values: client\.read\(\)/, "the page sends the card's fields as they are");
+  assert.doesNotMatch(pageSource("main/questions.ts"), /function questionAnswer/, "the page no longer carries its own copy of the reading");
 });
 
 // AC-05 (specs/ai-interaction-experience): a reference question answered on Coding's page reached the schema as picked objects

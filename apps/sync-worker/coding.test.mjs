@@ -1,17 +1,18 @@
+import {runtimePersonalSync} from '../../tests/fixtures/runtime-personal-sync.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {createPersonalSync,LocalProjectDatabase,bindSavedHistory,openPluginProjectLibrary} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase,openPluginProjectLibrary} from '@molis-ai/molis-work-app-local-host';
 import {CodingSessionStore,codingManifest} from '@molis-ai/molis-work-plugin-coding';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {createPrologueNodeAdapter,savedAgentHistoryView} from '@molis-ai/molis-work-service-agent-host';
 import {cloudFixture} from './testing.mjs';
 
-test('S-64 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cross Host/Rust/D1/R2 without native authority or echo',async t=>{
- const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'coding-owner-cloud-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+test('S-116 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cross Host/Rust/D1/R2 without native authority or echo',async t=>{
+ const cloud=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'coding-owner-cloud-'));
  const env={MOLIS_WORK_SYNC_ORIGIN:'https://sync.example.test',MOLIS_WORK_SYNC_LOCAL:undefined,MOLIS_WORK_SECRET_BACKEND:'file',MOLIS_WORK_ENCRYPTION_KEY:''};
  const previous=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));
  for(const [key,value] of Object.entries(env))if(value===undefined)delete process.env[key];else process.env[key]=value;
@@ -30,8 +31,8 @@ test('S-64 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cross
   await source.inputs.write(noEffect,project.project_id,id,0,{draft:task,question_drafts:{question:'Full unsent answer '+index}});
  }
  const identity={project_id:project.project_id,plugin_id:codingManifest.plugin_id,install_id:'coding-source',actor_id:'web-user'};
- const adapter=await createPrologueNodeAdapter({app:{appId:'io.molis.work.cloud-history-test',appVersion:'1.0.0'},storageRoot:join(homes[0],'prologue'),modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'fixture'}),resolveCredential:()=> 'fixture-only'});
- t.after(()=>adapter.close());const unbind=bindSavedHistory(homes[0],adapter.savedHistory);t.after(unbind);
+ const adapter=await createPrologueNodeAdapter({app:{appId:'io.molis.work',appVersion:'0.0.0'},storageRoot:join(homes[0],'agent-runtime'),modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'fixture'}),resolveCredential:()=> 'fixture-only'});
+ t.after(()=>adapter.close());
  const runtime=await adapter.createSession({...identity,workspace:'business',title:'Actual saved SDK conversation'});
  await source.setRuntimeSession(noEffect,project.project_id,'saved-session-0',runtime.session_id,'2026-10-19T00:01:00Z');
  const role={role_id:'reader',version:1,workspace:'business',execution:'read-only',prompts:[],host_tools:[]};
@@ -40,9 +41,12 @@ test('S-64 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cross
   for(;;){const run=await adapter.read(handle.ref);if(['completed','failed','stopped','cancelled'].includes(run.phase)){assert.equal(run.phase,'completed');break;}assert.ok(Date.now()<deadline);await new Promise(resolve=>setTimeout(resolve,5));}
  }
  await source.setState(noEffect,project.project_id,'saved-session-0','done','2026-10-19T00:02:00Z');
+ await adapter.close();
  const check=()=>{},lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'alice'};
- const clients=await Promise.all(homes.map(home=>createPersonalSync(home,space,lease,withMolisWorkProjectCatalog,check)));t.after(()=>clients.forEach(client=>client.close()));
- const coding=clients[0].status().collections.find(row=>row.selection.plugin_id===codingManifest.plugin_id&&row.selection.collection_id==='sessions');assert.ok(coding);assert.equal(clients[0].policy().selections.length,0);
+ await withMolisWorkProjectCatalog({homeDirectory:homes[1]},async catalog=>{await catalog.ensureSyncedProject({project_id:project.project_id,display_name:'Restored project',actor_id:'alice'},check);catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'alice'});});
+ const runtimes=await Promise.all(homes.map(home=>runtimePersonalSync(home,space,check,{accessToken:async()=>'alice',authOrigin:'https://auth.example.test'})));t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});const clients=runtimes.map(runtime=>runtime.sync);t.after(()=>clients.forEach(client=>client.close()));
+ await Promise.all(clients.map(client=>client.refreshCatalog()));
+ const coding=clients[0].status().collections.find(row=>row.selection.plugin_id===codingManifest.plugin_id&&row.selection.collection_id==='sessions');assert.ok(coding,JSON.stringify(clients[0].status()));assert.equal(clients[0].policy().selections.length,0);
  await clients[0].save({...clients[0].policy(),selections:[coding.selection]});await clients[0].run();await clients[1].run();clients.forEach(client=>assert.equal(client.status().error,null));
  const targetProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects().find(p=>p.project_id===project.project_id));assert.ok(targetProject);
  const targetDatabase=new LocalProjectDatabase(targetProject.database_path);t.after(()=>targetDatabase.close());const target=sessions(targetDatabase);
@@ -56,7 +60,7 @@ test('S-64 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cross
  }
  const namespace=JSON.stringify([coding.selection.plugin_id,coding.selection.publisher_id,coding.selection.publisher_signature,coding.selection.collection_id,coding.selection.schema_version]);
  const saved=await cloud.db.prepare('SELECT value FROM sync_events WHERE namespace=? ORDER BY revision DESC LIMIT 1').bind(namespace).first();
- const wire=JSON.parse(saved.value);assert.equal(wire.sync_content,1);assert.ok(wire.size>1024*1024,'complete real owner content, not a synthetic preview, uses R2');
+ const envelope=JSON.parse(saved.value);assert.equal(envelope.sync_runtime,1);assert.equal(envelope.spaceId,space.spaceId);assert.equal(envelope.projectId,project.project_id);const wire=envelope.value;assert.equal(wire.sync_content,1);assert.ok(wire.size>1024*1024,'complete real owner content, not a synthetic preview, uses R2');
  const objects=(await cloud.bucket.list()).objects;assert.ok(objects.length>0);
  for(const object of objects){const bytes=Buffer.from(await(await cloud.bucket.get(object.key)).arrayBuffer());assert.doesNotMatch(bytes.toString('utf8'),/source-only-native-directory|source-only-sdk-session|source-only-command|never dispatch/);}
  const before=(await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n;await clients[0].run();await clients[1].run();assert.equal((await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n,before);
@@ -75,4 +79,4 @@ function modelResponse(text){
 }
 
 const noEffect=async()=>{};
-const sessions=store=>new CodingSessionStore(openPluginProjectLibrary({db:store.db,path:store.path},codingManifest,()=>{},'coding-cloud-test').client);
+const sessions=store=>new CodingSessionStore(openPluginProjectLibrary({db:store.db,path:store.path},codingManifest,()=>{},{install_id:'coding-cloud-test',installation_generation:'one'}).client);

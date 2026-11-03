@@ -3,7 +3,7 @@ import { Node } from "prosemirror-model";
 import { EditorView } from "prosemirror-view";
 import { closePagesPopover, pagesPopoverAnchor } from "./editor-transient.js";
 import { taskStatusText } from "./card-content.js";
-import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { PagesEditorMountOptions, Translate } from "./editor-types.js";
 import { t, dsIcon, escapeHtml, overlayRoot, field, actions } from "./editor-view-ui.js";
 

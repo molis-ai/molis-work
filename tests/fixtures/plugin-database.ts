@@ -27,6 +27,22 @@ export function memoryPluginDatabase(schema: string, projects: readonly string[]
   let bodies = 0;
   const get = (sql: string, parameters: readonly PluginSqlValue[] = []): PluginSqlRow | null => raw.prepare(sql).get(...parameters) ?? null;
   const all = (sql: string, parameters: readonly PluginSqlValue[] = []): PluginSqlRow[] => raw.prepare(sql).all(...parameters);
+  let savepoints = 0;
+  /** The contract's savepoint over the in-memory connection: the point is named here, the body is synchronous, `keep: false` or a throw undoes it. */
+  const savepoint = <T>(body: () => { readonly keep: boolean; readonly value: T }): T => {
+    const name = `memory_savepoint_${++savepoints}`;
+    raw.exec(`SAVEPOINT ${name}`);
+    try {
+      const result = body();
+      if (result instanceof Promise) throw new Error("a plugin database savepoint body must be synchronous");
+      if (!result.keep) raw.exec(`ROLLBACK TO ${name}`);
+      raw.exec(`RELEASE ${name}`);
+      return result.value;
+    } catch (error) {
+      raw.exec(`ROLLBACK TO ${name}`); raw.exec(`RELEASE ${name}`);
+      throw error;
+    }
+  };
   return {
     raw, get, all,
     committed: () => bodies,
@@ -36,7 +52,7 @@ export function memoryPluginDatabase(schema: string, projects: readonly string[]
       bodies += 1;
       raw.exec("BEGIN IMMEDIATE");
       try {
-        const result = write({ get, all, run: (sql, parameters = []) => raw.prepare(sql).run(...parameters) });
+        const result = write({ get, all, run: (sql, parameters = []) => raw.prepare(sql).run(...parameters), savepoint });
         if (result instanceof Promise) throw new Error("a plugin database write body must be synchronous");
         raw.exec("COMMIT");
         return result;

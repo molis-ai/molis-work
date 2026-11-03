@@ -1,7 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash } from "node:crypto";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginInstanceRecord, PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
@@ -33,6 +33,13 @@ export function assertRequiredGrants(manifest: PluginManifest, grants: readonly 
     .map((permission) => permission.permission);
   if (missing.length > 0) {
     throw pluginErrors.grant_denied(`Plugin 缺少必需 grant：${missing.join(", ")}`);
+  }
+}
+
+/** Normal recovery never releases quarantine; only the explicit lifecycle operation admits that state. */
+export function assertRecoverableState(record: PluginInstanceRecord, releaseQuarantine: boolean): void {
+  if (record.state !== (releaseQuarantine ? "quarantined" : "crashed")) {
+    throw pluginErrors.state_invalid(releaseQuarantine ? "只有 quarantined Plugin 可以显式解除隔离" : "只有 crashed Plugin 可以恢复");
   }
 }
 
@@ -68,4 +75,17 @@ export function sameStrings(left: readonly string[], right: readonly string[]): 
 
 export function cloneRecord(record: PluginInstanceRecord): PluginInstanceRecord {
   return { ...record, grants: [...record.grants] };
+}
+
+/** The Runtime owns both stores; these lookups add no state and keep the same refusal at every lifecycle entry. */
+export function requireInstall(repository: Pick<PluginRuntimeRepository, "get">, installId: string): PluginInstanceRecord {
+  const record = repository.get(installId);
+  if (!record) throw pluginErrors.definition_missing("Plugin installation 不存在");
+  return record;
+}
+
+export function requireDefinition(definitions: ReadonlyMap<string, PluginDefinition>, record: PluginInstanceRecord): PluginDefinition {
+  const definition = definitions.get(definitionKey(record));
+  if (!definition) throw pluginErrors.definition_missing("找不到当前安装版本与签名绑定的 Plugin 代码");
+  return definition;
 }

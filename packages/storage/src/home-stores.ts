@@ -9,9 +9,9 @@ export interface HomeStore extends HomeStoreDeclaration {
   readonly owner: string;
 }
 
-export interface HomeStoreRegistry {
-  readonly stores: readonly HomeStore[];
-  get(storePath: string): HomeStore | undefined;
+export interface HomeStoreRegistry<Store extends HomeStore = HomeStore> {
+  readonly stores: readonly Store[];
+  get(storePath: string): Store | undefined;
   /** Where each store is in `homeDirectory`, in registry order. */
   paths(homeDirectory: string): string[];
   /** The library file of a store that is one: `<home>/<path>/<file>`; of a library partitioned by project, that project's file. */
@@ -24,8 +24,8 @@ const SEGMENT = /^[a-z][a-z0-9.-]*$/u;
  * The Home's stores in one place. A path is refused when it is not a plain relative path of one or two segments (the second
  * only under `config/`), when two owners register it, or when one store would lie inside another.
  */
-export function homeStoreRegistry(stores: readonly HomeStore[]): HomeStoreRegistry {
-  const byPath = new Map<string, HomeStore>();
+export function homeStoreRegistry<Store extends HomeStore>(stores: readonly Store[]): HomeStoreRegistry<Store> {
+  const byPath = new Map<string, Store>();
   for (const store of stores) {
     const segments = store.path.split("/");
     if (!segments.every(segment => SEGMENT.test(segment)) || segments.length > 2 || (segments.length === 2 && segments[0] !== "config")) {

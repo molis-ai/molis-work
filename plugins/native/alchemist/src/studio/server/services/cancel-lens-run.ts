@@ -21,14 +21,14 @@ export function createCancelLensRunService(dependencies: {
       if (!job || job.kind !== RESEARCH_LENS_JOB) throw alchemistStateErrors.run_not_found("没有找到这次研究。");
       const input = inputSchema.safeParse(job.input);
       if (!input.success) throw alchemistStateErrors.run_not_found("没有找到这次研究。");
-      const run = dependencies.research.getRun(input.data.lensRunId);
+      const run = dependencies.research.runs.getRun(input.data.lensRunId);
       if (!run) throw alchemistStateErrors.run_not_found("没有找到这次研究。");
       try {
         dependencies.jobs.cancel(jobId);
       } catch {
         throw alchemistStateErrors.run_not_cancellable("这次研究已经结束，不能再取消。");
       }
-      return dependencies.research.updateRun(run.id, {
+      return dependencies.research.runs.updateRun(run.id, {
         status: "cancelled",
         stage: run.stage,
         now: dependencies.now(),

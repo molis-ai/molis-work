@@ -1,3 +1,4 @@
+import {openDatasetCopyOwner, openDatasetStore, openFormCopyOwner, openFormStore, openLingguangCopyOwner, openLingguangStore, openPptCopyOwner, openPptStore} from "./fixtures/plugin-sync-stores.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
@@ -6,10 +7,10 @@ import {join} from 'node:path';
 import {previewProjectCopy,projectCopyIdentities,type ProjectCopySource} from '@molis-ai/molis-work-service-placement';
 import type {ProjectCopyAsset,ProjectCopyOwner,ProjectCopyReference} from '@molis-ai/molis-work-contracts/services/placement';
 import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import {openFormStore,openFormCopyOwner} from '@molis-ai/molis-work-plugin-form';
-import {openDatasetStore,openDatasetCopyOwner} from '@molis-ai/molis-work-plugin-dataset';
-import {openPptStore,openPptCopyOwner} from '@molis-ai/molis-work-plugin-ppt';
-import {openLingguangStore,openLingguangCopyOwner} from '@molis-ai/molis-work-plugin-lingguang';
+
+
+
+
 
 function source(ownerId:string,roots:Map<string,ProjectCopyAsset[]>,links:Map<string,ProjectCopyReference[]>=new Map()):ProjectCopySource {
  const owner:ProjectCopyOwner={kinds:[ownerId+':record'],snapshot(projectId){return structuredClone(roots.get(projectId)??[]);},read(ref){return structuredClone([...roots.values()].flat().find(asset=>asset.key===ref.id)??null);},references(asset){return structuredClone(links.get(asset.key)??[]);},fork(){throw new Error('NOT_PREVIEW');},apply(){throw new Error('NOT_PREVIEW');}};

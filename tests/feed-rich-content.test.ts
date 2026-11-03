@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
-import { feedPlainText, renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
+import { renderRichText, richPlainText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { renderPersistedFeedItemDetail } from "./workbench-renderer-fixture.js";
 
 const MIXED_BODY = `Bumps [eslint](https://github.com/eslint/eslint) from 9.39.5 to 10.8.1.
@@ -47,7 +47,7 @@ function feedItem(overrides: Partial<FeedItemRecord> = {}): FeedItemRecord {
 }
 
 test("Feed rich content renders mixed GFM Markdown and allowlisted HTML", () => {
-  const html = renderFeedRichText(MIXED_BODY);
+  const html = renderRichText(MIXED_BODY);
   assert.match(html, /<a href="https:\/\/github\.com\/eslint\/eslint" target="_blank" rel="noopener noreferrer">eslint<\/a>/);
   assert.match(html, /<details open><summary>Release notes<\/summary>/);
   assert.match(html, /<h2>v10\.8\.1<\/h2>/);
@@ -56,7 +56,7 @@ test("Feed rich content renders mixed GFM Markdown and allowlisted HTML", () => 
 });
 
 test("Feed rich content removes active content, styling, media, and unsafe links", () => {
-  const html = renderFeedRichText(`
+  const html = renderRichText(`
 <script>globalThis.pwned = true</script>
 <style>body { display: none }</style>
 <iframe src="https://example.com"></iframe>
@@ -81,12 +81,12 @@ test("Feed rich content removes active content, styling, media, and unsafe links
 
 test("Feed plain text removes markup, decodes entities, and truncates by Unicode character", () => {
   assert.equal(
-    feedPlainText("Bumps [eslint](https://example.com) &amp; **TypeScript** <em>today</em>"),
+    richPlainText("Bumps [eslint](https://example.com) &amp; **TypeScript** <em>today</em>"),
     "Bumps eslint & TypeScript today",
   );
-  assert.equal(feedPlainText("😀😀😀😀", 4), "😀😀😀😀");
-  assert.equal(feedPlainText("😀😀😀😀😀", 4), "😀😀😀…");
-  assert.equal(feedPlainText("<script>hidden</script>"), "");
+  assert.equal(richPlainText("😀😀😀😀", 4), "😀😀😀😀");
+  assert.equal(richPlainText("😀😀😀😀😀", 4), "😀😀😀…");
+  assert.equal(richPlainText("<script>hidden</script>"), "");
 });
 
 test("persisted Feed detail uses clean summary and safe rich body", () => {

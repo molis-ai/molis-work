@@ -1,12 +1,17 @@
 import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
+import { withPluginWords } from "./i18n.js";
+import type { PluginHomeStart } from "./plugin-catalog.js";
 
 /**
  * Project home, as in the Soft Workbench design: today's heading, a horizontal day strip, the Goal in progress,
  * the day's events that open in place, and a margin with the things at hand.
- * The event detail keeps one node (`data-home-detail`) that the client moves into the open row.
+ * The event detail keeps one node (`data-home-detail`) that the client moves into the open row. The ways to start on an empty day are the
+ * enabled plugins' declared `start` (`data-home-starts`); the client keeps no list by plugin.
  */
-export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives): string {
-  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${L("项目首页")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${L("项目首页")}" hidden>
+export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives, starts: readonly PluginHomeStart[]): string {
+  // Each start is its plugin's own text, so it is worded in the page's language with that plugin's words before the page gets it.
+  const worded = starts.map(({ plugin_id, ...start }) => withPluginWords(plugin_id, () => ({ ...start, title: L(start.title), hint: L(start.hint) })));
+  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-home-starts="${e(JSON.stringify(worded))}" data-work-surface-label="${L("项目首页")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${L("项目首页")}" hidden>
     <div class="home-scroll" data-home-scroll>
       <header class="home-heading home-hero" data-home-hero>
         <time data-home-date></time>
@@ -40,18 +45,6 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
         <div class="home-detail__body" data-home-detail-body></div>
         <div class="home-detail__act" data-home-detail-act></div>
       </aside>
-    </div>
-    <div class="home-talk paper" data-home-talk role="dialog" aria-label="${L("对着这件事说一句")}" hidden>
-      <div class="home-talk__head">
-        <b>${L("说一句")}</b>
-        <span data-home-talk-ctx></span>
-        <button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-talk aria-label="${L("收起对话")}">${icon("x")}</button>
-      </div>
-      <div class="home-talk__body" data-home-talk-body></div>
-      <form class="home-talk__compose" data-home-talk-form>
-        <textarea class="mw-textarea" name="say" data-fit rows="2" maxlength="20000" aria-label="${L("消息文本")}" placeholder="${L("带着这件事说一句")}"></textarea>
-        <button class="mw-btn mw-btn--primary mw-btn--icon-only" type="submit" aria-label="${L("发送消息")}" disabled>${icon("send")}</button>
-      </form>
     </div>
     <template data-home-shortcut-template><li class="home-shortcut"><a class="home-shortcut-main" target="_blank" rel="noopener noreferrer" data-home-shortcut-link data-home-external><span class="home-shortcut-icon">${icon("link")}</span><span data-home-shortcut-name></span></a><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only home-shortcut-edit" data-home-shortcut-edit>${icon("more")}</button></li></template>
     <dialog class="mw-dialog home-shortcut-dialog" data-slot="dialog" data-home-shortcut-dialog aria-labelledby="home-shortcut-title">

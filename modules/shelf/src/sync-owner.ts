@@ -2,7 +2,7 @@ import type {SyncReplicaAdapter} from '@molis-ai/molis-work-contracts/platform/s
 import { createHash } from 'node:crypto';
 import type { SyncDocumentOwner } from '@molis-ai/molis-work-plugin-sdk';
 import type { CatalogFile, StoredItem } from './catalog-shape.js';
-import type { ShelfSyncOptions } from './catalog.js';
+import type { ShelfSyncOptions } from './sync-catalog.js';
 import { SHELF_PORTABLE_ITEM_FIELDS, SHELF_PORTABLE_JOB_FIELDS, shelfSyncKey, validateShelfPortable, type ShelfPortableRecord, type ShelfPortableJob } from './sync-shape.js';
 import { readShelfPortableFiles, stageShelfPortableFiles } from './sync-files.js';
 
@@ -21,8 +21,9 @@ function portableJob(job:CatalogFile['jobs'][number]):ShelfPortableJob{return fi
 function token(value:unknown):string{return createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 
 /** Each material/result and terminal job has its own conflict key; device settings and live jobs never enter this projection. */
-export function shelfCatalogOwner(root:string,context:ShelfSyncOptions,assertIdle?: (catalog:CatalogFile,key:string)=>void):Pick<SyncDocumentOwner<CatalogFile>,'spaceId'|'authorize'|'observe'|'read'|'apply'|'canUpload'>{
+export function shelfCatalogOwner(root:string,context:ShelfSyncOptions,assertIdle?: (catalog:CatalogFile,key:string)=>void):Pick<SyncDocumentOwner<CatalogFile>,'spaceId'|'authorize'|'authorizeKey'|'observe'|'read'|'apply'|'canUpload'>{
   return {spaceId:context.spaceId,authorize:context.authorize,
+    authorizeKey(_data,key){context.authorize();shelfSyncKey(key);},
     observe(data){return new Map([
       ...data.items.map(item=>[JSON.stringify(['item',item.item_id]),token(portableItem(item))] as const),
       ...data.jobs.filter(job=>job.status!=='running').map(job=>[JSON.stringify(['job',job.job_id]),token(portableJob(job))] as const),

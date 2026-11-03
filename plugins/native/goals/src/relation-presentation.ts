@@ -1,4 +1,4 @@
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRelationRecord } from "./contract/goals.js";
 
 export const GOALS_RELATION_LABELS: Record<string, { out: string; in: string }> = {
   part_of: { out: "属于", in: "包含" },

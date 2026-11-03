@@ -1,22 +1,64 @@
-import type { ProjectDataDeclaration } from "../modules/projects.js";
-import type { InstructionPrompt } from "./model-prompts.js";
-import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
-import type { HomePluginDatabaseDeclaration, HomeStoreDeclaration } from "./plugin-database.js";
-import type { PluginFilesDeclaration } from "./plugin-files.js";
-import type { PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
-import type { PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
+import type { HomeStoreDeclaration } from "./plugin-database.js";
 import type { PluginDefinition, PluginManifest } from "./plugin.js";
 import type { UiContribution } from "./ui.js";
 
 /** A row on a plugin's page that a search result or record opens, found by its selector and the dataset key holding its id. */
 export interface PluginSearchRow { readonly selector: string; readonly idDataset: string }
 
+/** One fixed state of a plugin's own view, drawn by its own renderer from sample data for the component board (a development tool). */
+export interface PluginBoardSpecimen {
+  readonly id: string;
+  /** What the state is, in the page's language (through `text`). */
+  readonly title: string;
+  /** Where the page draws it: a directory column beside the main area, or the main area itself. */
+  readonly place: "column" | "page";
+  readonly html: string;
+}
+/** What the component board hands a plugin's specimens: the page's own primitives and the language of the sample's words. */
+export interface PluginBoardSpecimenPorts {
+  escape(value: unknown): string;
+  text(value: string, values?: Record<string, string | number>): string;
+  icon(name: string): string;
+  formatDate(value: string): string;
+  /** The sample's own words (names, titles), apart from the interface's language. */
+  readonly sample: "zh" | "en" | "mixed";
+}
+
 /** What the workbench shell loads for one plugin: its views, styles and browser client. */
 export interface PluginWorkbenchRegistration {
+  /** Exact existing HTTP routes for pages whose backend is registered outside Plugin Runtime. This grants no Runtime services. */
+  readonly pageRequests?: readonly { readonly method: string; readonly path: string }[];
   /** Asset cascade/initialization order, independent of navigation order in the Manifest. */
   readonly order: number;
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
+  /**
+   * Where the shared workbench sheet puts what it holds of `stylesheet`: "over-shell" (the default) after the shell's own
+   * layers, so the plugin's rules win ties with them; "beneath-shell" before those layers (the canvas, density, primitives and
+   * finish), for a page the shell draws and restyles, so the shell's later rules still win ties with the plugin's.
+   */
+  readonly stylesheetLayer?: "over-shell" | "beneath-shell";
+  /**
+   * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespace (`.<project_plugin_id>-…`,
+   * `[data-<project_plugin_id>-…]`) as a sheet of its own, which only the frames that need it link; every other rule stays in
+   * the shared workbench sheet. These are the classes (no dot) of that namespace which something outside the plugin's own
+   * frame also draws, so the rules naming them stay in the shared sheet too. tests/plugin-styles.test.ts finds the classes
+   * this has to list.
+   */
+  readonly stylesheetShared?: readonly string[];
+  /**
+   * Further class/attribute prefixes this plugin's rules may be written under, beside `.<project_plugin_id>`. A plugin whose
+   * classes were named before the platform had its id (the plugin builder's `as-` and `pb-`) names them here, so its own rules
+   * can leave the shared sheet (PG-070). Each entry is a prefix ending in `-`; the Host refuses one that is another plugin's
+   * id or prefix, or one of the platform's own (`mw-`, `pc-`). The rules must still be ones the plugin alone can draw;
+   * `stylesheetShared` lists whatever something outside its frame also draws.
+   */
+  readonly stylesheetPrefixes?: readonly string[];
+  /**
+   * The plugins whose own sheet this plugin's frame links beside its own because it draws their classes (the plugins in
+   * `clientUses` are linked already). Their short ids.
+   */
+  readonly stylesheetUses?: readonly string[];
   readonly clientFactory?: string;
   /**
    * The shell sends `clientFactory` without its whole-line comments and indentation (the page does not run them). A script
@@ -25,25 +67,35 @@ export interface PluginWorkbenchRegistration {
    */
   readonly clientServed?: true;
   /**
-   * The plugin whose client also serves this surface (its short id): its bundle is loaded once and its factory mounts this
-   * surface's root, so a companion does not ship a second copy of the same client (W4-03).
-   */
-  readonly clientFrom?: string;
-  /**
-   * The plugins whose clients this one calls (their short ids). Their factories travel in this plugin's bundle and reach it as
-   * `host.clients[<short id>]`, with the Host's review actions as `host.reviews` (a rendering hook, never a decision); each of
-   * them names this plugin in `clientFrom`, so none ships a bundle of its own.
+   * The plugins whose clients this one calls (their short ids). Each ships a bundle of its own, which the page loads beside this
+   * plugin's; their factories reach it as `host.clients[<short id>]` and mount on the ports this plugin gives them, as the
+   * plugin they belong to.
    */
   readonly clientUses?: readonly string[];
   /** Browser dependencies prepared before this factory mounts. */
   readonly clientAssets?: readonly string[];
   readonly settingsClient?: string;
+  /**
+   * The rules of the settings pages this plugin's settings contributions draw. The settings sheet carries them, and so does the
+   * workbench sheet, where settings open inside a project.
+   */
+  readonly settingsStylesheet?: string;
+  /**
+   * For a plugin without a frame whose page the shell draws: the factories that page's script calls, by name. The shell takes
+   * them from this registration (`pluginPageClients`), never from the plugin's package.
+   */
+  readonly pageClients?: Readonly<Record<string, string>>;
   readonly searchRow?: PluginSearchRow;
   /**
    * The row a record is opened from on this plugin's page, where it differs from `searchRow`: ⌘/Ctrl- or middle-click on it
    * opens the record as a tab in the plugin's group (specs/plugin-tab-groups).
    */
   readonly recordRow?: PluginSearchRow;
+  /**
+   * The plugin's rows in fixed sample states for the component board (`/__ui/catalog`, specs/visual-ui-experience VUX-39), drawn
+   * by the renderer its page uses, so the board shows the production row and never a copy of it. Nothing is read or written.
+   */
+  readonly specimens?: (ports: PluginBoardSpecimenPorts) => readonly PluginBoardSpecimen[];
 }
 
 /**
@@ -59,57 +111,50 @@ export interface PluginRegistration {
   /** Position in the catalog, unique across the build; the derived lists keep this order. */
   readonly catalog_order: number;
   readonly manifest: PluginManifest;
-  /** One sentence for the plugin market and the page heading. 2026-10-18 改: declared in the Manifest (W5-02). */
-  readonly summary: string;
-  /**
-   * Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable and enabled where
-   * already added. 2026-10-18 改: declared in the Manifest (W5-02).
-   */
-  readonly developer?: true;
   /**
    * On in every project unless the person hid it there; not offered for enabling. Trusted: the Host reads it from this
    * registration only, never from a Manifest or an installed package.
    */
   readonly personal?: true;
+  /** Product setup choice for new projects; stored as ordinary membership and freely removable afterwards. */
+  readonly default_enabled?: true;
   /** Short ids enabled together with this plugin in a project, whatever its ports say (Feed brings Inbox). Trusted, as above. */
   readonly companions?: readonly string[];
   /**
-   * Explicit Runtime activation in the Home; personal visibility alone never migrates an existing plugin. Trusted, as above.
-   * 2026-10-18 改: the stores and model consumers it names are declared in the Manifest and granted like any plugin's (PG-022,
-   * PG-102 in specs/repository-anti-corruption/privileges.md).
+   * How the Host gets the code of a plugin that runs in the Home. Where a plugin runs is its Manifest's `runtime.scope` (PG-011),
+   * which this entry has exactly when that says `"home"` (`catalogProblems`). Explicit Runtime activation;
+   * personal visibility alone never migrates an existing plugin. Trusted: the Host reads it from this registration only, never from a
+   * Manifest or an installed package. Its library is the Manifest's `databases.home` (PG-022). Its files, model settings and image
+   * generation are the Manifest's `owner_files`, `model_configuration` and `image_generation` (PG-102).
    */
   readonly runtime?: {
-    readonly scope: "home";
     readonly create: () => PluginDefinition;
-    readonly database?: HomePluginDatabaseDeclaration;
-    readonly files?: PluginFilesDeclaration;
-    readonly model_configuration?: PluginModelConfigurationDeclaration;
-    readonly image_generation?: PluginImageGenerationDeclaration;
     readonly package_name: string;
     readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string;
     /**
      * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each
-     * project's instance from the project start list, and each half offers only its share of the one Manifest. Trusted, as above:
-     * no Manifest or installed package can say it. Every permission of such a Manifest is required (specs/dual-instance-plugins).
+     * project's instance from its `project_runtime`, and each half offers only its share of the one Manifest. Trusted, as above:
+     * no Manifest or installed package can say it (S-48). Every permission of such a Manifest is required (specs/dual-instance-plugins).
      */
     readonly dual_instance?: true;
   };
   /**
-   * What this plugin keeps in the Home for a project, and how to clear it. The Host runs it when a project is deleted (the
-   * owner's id in the receipt is `project_plugin_id`) and lists its label in the confirmation; absent when the plugin keeps
-   * nothing outside the project's own directory.
+   * Each project's instance, which the Host's project supervisor starts from this declaration (PG-067). Trusted, as above. A plugin
+   * whose library is the Manifest's `databases.home` runs only where the project has a Home. The factory takes nothing from the Host:
+   * what a project instance needs from it is a platform service or an action its Manifest declares (BL-616). A dual-instance
+   * plugin declares this and `runtime` (Shelf).
    */
-  readonly project_data?: ProjectDataDeclaration;
-  /** The Home store this plugin keeps (exported by the plugin, beside the code that opens it), for the Host's one registry of Home stores. */
+  readonly project_runtime?: {
+    readonly create: () => PluginDefinition;
+    readonly package_name: string;
+    readonly factory_export: string;
+  };
+  /**
+   * The Home store this plugin keeps (exported by the plugin, beside the code that opens it), for the Host's one registry of Home
+   * stores. A library is not written here: the registry reads it from the Manifest's `databases.home`.
+   */
   readonly home_store?: HomeStoreDeclaration;
-  /** Owner-scoped UI words, projected into the page language by the common translator. */
-  readonly messages?: Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
-  /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
-  readonly instructions?: readonly InstructionPrompt[];
-  readonly agent?: { readonly prompts: readonly AgentPromptText[]; readonly skills?: readonly AgentSkillDefinition[] };
-  /** Bodies of the Manifest's `methods` (offered to other Agents for business work); the package ships them. */
-  readonly methods?: readonly AgentSkillDefinition[];
   readonly workbench: PluginWorkbenchRegistration;
 }

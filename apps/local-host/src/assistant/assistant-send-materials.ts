@@ -1,5 +1,5 @@
 import type { ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantMaterial, AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
 import { KNOWLEDGE_PROVIDER_ID, KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { assistantErrors } from "./assistant-errors.js";
 
@@ -17,6 +17,26 @@ function pickedReference(value: unknown): AssistantMaterial["reference"] | null 
   return typeof kind === "string" && /^[a-zA-Z0-9_.:-]{1,64}$/u.test(kind) && typeof id === "string" && id && id.length <= 2000 ? { subject: { kind, id } } : null;
 }
 
+/** Keep only bounded locator fields. Their authority is established later against the live installation. */
+export function checkedMethodSelection(value: unknown): AssistantMethodSelection {
+  const row = value as AssistantMethodSelection | undefined;
+  if (!row || typeof row.method_id !== "string" || !/^[^\/\s]{1,120}\/[^\/\s]{1,80}$/.test(row.method_id)
+    || row.version !== undefined && (!Number.isSafeInteger(row.version) || row.version < 1)) throw assistantErrors.invalid("角色资料或方法引用无效");
+  const base = { method_id: row.method_id, ...(row.version === undefined ? {} : { version: row.version }) };
+  if (!row.method_id.startsWith("signed/")) {
+    if (row.default_ref !== undefined || row.installation !== undefined) throw assistantErrors.invalid("原生方法不能携带签名来源");
+    return base;
+  }
+  const ref = row.default_ref, source = ref?.source, installation = row.installation;
+  const text = (item: unknown, max: number): item is string => typeof item === "string" && item.length > 0 && item.length <= max;
+  if (!ref || !["role", "method"].includes(ref.kind) || !text(ref.entry_id, 71) || row.method_id !== `signed/${ref.entry_id}`
+    || !source || source.kind !== "plugin" || !text(source.plugin_id, 200) || !text(source.plugin_version, 200) || !text(source.publisher_signature, 200)
+    || !installation || !text(installation.install_id, 200) || !text(installation.installation_generation, 200)
+    || installation.project_id !== null && !text(installation.project_id, 200)) throw assistantErrors.invalid("签名正文必须携带完整版本与安装引用");
+  return { ...base, default_ref: { kind: ref.kind, entry_id: ref.entry_id, source: { kind: "plugin", plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature } },
+    installation: { install_id: installation.install_id, installation_generation: installation.installation_generation, project_id: installation.project_id } };
+}
+
 /** The materials as the page sent them, each kept to its own shape and bounds; what only the Host may add is read later. */
 export function checkMaterials(value: unknown): AssistantMaterial[] {
   if (value === undefined) return [];
@@ -31,8 +51,7 @@ export function checkMaterials(value: unknown): AssistantMaterial[] {
     // A capability picked with “/”: its exact identity; the words the model reads are the Host's, not the page's.
     // A method chosen with “/”: only its identity; the Host adds the registered body before the round.
     if (item.kind === "method") {
-      if (typeof item.method?.method_id !== "string" || !/^[^\/\s]{1,120}\/[^\/\s]{1,80}$/.test(item.method.method_id)) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
-      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "method" as const, title: item.title.slice(0, 200), explicit: true, method: { method_id: item.method.method_id } };
+      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "method" as const, title: item.title.slice(0, 200), explicit: true, method: checkedMethodSelection(item.method) };
     }
     if (item.kind === "capability") {
       const cap = item.capability;

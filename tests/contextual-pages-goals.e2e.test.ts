@@ -1,13 +1,15 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { GoalProjectApplication, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 const SOURCE = "发布笔记";
 const HEADING = "发布计划";
@@ -33,26 +35,29 @@ async function openPagesSelection(t: TestContext, blocks: object[], goalId?: str
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return null;
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t,browser,"pages");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const owner = openPagesStore(homeDirectory);
   const source = (() => { try { return owner.create({ project_id: projectId!, title, goal_id: goalId, body: { type: "doc", content: blocks } }); } finally { owner.close(); } })();
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${source.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(lines({ content: blocks }).at(-1))})`);
-  await evaluate(`(() => { const original = window.fetch; window.created = []; window.focusSeen = null;
+  await command("Page.addScriptToEvaluateOnNewDocument", {source:`(() => { const original = window.fetch; window.created = []; window.focusSeen = null;window.refusals=0;window.refuseRun=false;window.placedCard=null;
     window.fetch = async (url, options) => {
+      if(String(url).includes('/cards/') && String(url).endsWith('/run') && window.refuseRun){window.refusals++;return new Response(JSON.stringify({error:'fixture permission refusal'}),{status:403,headers:{'content-type':'application/json'}});}
       const response = await original(url, options);
+      if(String(url).endsWith('/api/assistant/cards'))window.placedCard={status:response.status,...(await response.clone().json())};
       if (String(url).endsWith('/api/contextual/create')) window.created.push({ asked: JSON.parse(options.body), ...(await response.clone().json()) });
       if (/\\/api\\/contextual\\/(candidates|judge)$/.test(String(url))) window.focusSeen = JSON.parse(options.body).focus;
       return response;
-    }; })()`);
+    }; })()`},sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${source.id}` }, sessionId));
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(lines({ content: blocks }).at(-1))})`);
   /** The nth paragraph of the open document, selected the way a person drags over it. */
-  const select = (index: number) => evaluate(`(() => {
+  const select = (index: number) => child.evaluate(`(() => {
     const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const range = document.createRange(); range.selectNodeContents(editor.querySelectorAll('p')[${index}].firstChild);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`);
   const documents = () => { const reader = openPagesStore(homeDirectory); try { return reader.list(projectId!); } finally { reader.close(); } };
-  return { ...browser, source, select, documents };
+  return { ...browser, child, source, select, documents };
 }
 
 // W4-2-08 (specs/context-program §21.10): 「存为文档」 is Pages' creation entry. For a passage in Pages, rules alone recommend the entry of
@@ -70,7 +75,7 @@ test("S2 W4-2-08 contextual Pages: the bar recommends another plugin's entry and
     await command("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode, ...extra }, sessionId);
     await command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode }, sessionId);
   };
-  const editorText = () => evaluate<string>("document.querySelector('[data-pages-editor] .ProseMirror').textContent");
+  const editorText = () => browser.child.evaluate<string>("document.querySelector('[data-pages-editor] .ProseMirror').textContent");
 
   // ⌘. goes into the bar, ←→ walk its buttons in a ring, Esc leaves it and gives the focus back to what was being read. Esc sets the
   // recommended buttons aside for that selection, so the walk has a paragraph of its own and is not met again below.
@@ -88,7 +93,8 @@ test("S2 W4-2-08 contextual Pages: the bar recommends another plugin's entry and
   await press("ArrowLeft", "ArrowLeft", 37);
   assert.equal(await evaluate(FOCUSED), walked.at(-1), "← goes back around");
   await press("Escape", "Escape", 27);
-  await waitFor(`!document.querySelector('${BAR}') && Boolean(document.activeElement.closest('.ProseMirror'))`, 5_000);
+  await waitFor(`!document.querySelector('${BAR}')`,5_000);
+  await browser.child.waitFor("Boolean(document.activeElement.closest('.ProseMirror'))",5_000);
   assert.equal(await evaluate("window.created.length"), 0, "walking the bar made nothing");
 
   // The same selection by keys only: ⌘., → until 「更多」, Enter. The proposal is under it; Pages' own entry is not.
@@ -173,13 +179,8 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
   const proposals = () => new GoalProjectApplication(store).goalTree.listGoalTreeProposals({ project_id: projectId! }).proposals.length;
 
   // Pressed under 更多: the Host drafts it and the page places the draft as a card.
-  await evaluate(`(() => { const original = window.fetch; window.placedCard = null;
-    window.fetch = async (url, options) => {
-      const response = await original(url, options);
-      if (String(url).endsWith('/api/assistant/cards')) window.placedCard = { status: response.status, ...(await response.clone().json()) };
-      return response;
-    };
-    ${BUTTON("拆成目标步骤")}.click(); })()`);
+  await evaluate(`${BUTTON("拆成目标步骤")}.dataset.testProposal='true'`);
+  await click('[data-test-proposal]');
   await waitFor("window.placedCard?.status === 200", 20_000);
   const placed = await evaluate<{ work_id: string }>("window.placedCard");
   const out = await evaluate<{ created: boolean; undo_token?: string }>("window.created.at(-1)");
@@ -196,13 +197,7 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
   const draft = await evaluate<string[]>(`[...document.querySelector('[data-card="${card.card_id}"]').querySelectorAll('input,textarea')].map(control => control.value)`);
 
   // A refused run writes nothing and leaves the card as it was, ready to run again.
-  await evaluate(`(() => { const original = window.fetch; window.cardFetch = original; window.refusals = 0; window.refuseRun = true;
-    window.fetch = async (url, options) => {
-      if (String(url).includes('/cards/') && String(url).endsWith('/run') && window.refuseRun) {
-        window.refusals++; return new Response(JSON.stringify({ error: 'fixture permission refusal' }), { status: 403, headers: { 'content-type': 'application/json' } });
-      }
-      return original(url, options);
-    }; })()`);
+  await evaluate("window.refuseRun=true");
   await click(run);
   await waitFor(`window.refusals === 1 && !document.querySelector(${JSON.stringify(run)}).disabled`, 10_000);
   assert.deepEqual(await evaluate(`[...document.querySelector('[data-card="${card.card_id}"]').querySelectorAll('input,textarea')].map(control => control.value)`), draft, "the card is as it was");
@@ -220,15 +215,14 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
   const proposal = coordinator.goalTree.listGoalTreeProposals({ project_id: projectId! }).proposals[0]!;
   assert.equal(proposal.root_goal_id, goalId ?? null);
   assert.deepEqual([link.text, link.href], ["去 Goals 确认", `/projects/${projectId}/?openPlugin=goals#${proposal.proposal_id}`]);
-  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), PLAN + SECOND, "the source document is not written");
+  assert.equal(await browser.child.evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), PLAN + SECOND, "the source document is not written");
   const other = coordinator.goalTreeSubmission.submitGoalTreeProposal({ project_id: projectId!, actor_id: "browser-planner", summary: "另一份尚未决定的计划",
     idempotency_key: "other-proposal", items: [{ item_id: "other-step", kind: "goal", operation: "create", payload: { goal_id: "other-step", title: "另一个目标步骤" },
       source_refs: ["conversation://other-plan"], reason: "必须由人单独决定", confidence: 1 }] }).proposal;
-  const before = store.snapshot(projectId!);
+  const before = boardSnapshot(store, projectId!);
   const goalItems = proposal.items.filter(item => item.kind === "goal");
   assert.equal(goalItems.length, 2);
   assert.ok(goalItems.every(item => !before.goals.some(goal => goal.goal_id === item.payload.goal_id)), "submitting a proposal materializes no Goals");
-  await evaluate("window.fetch = window.cardFetch");
   await navigate(() => click(`[data-card="${card.card_id}"] a[href="${link.href}"]`));
   const entry = `#${proposal.proposal_id}`;
   const form = `${entry} [data-goal-tree-proposal-id="${proposal.proposal_id}"]`;
@@ -259,17 +253,17 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
   await click(form + ' textarea[name="reason"]');
   await command("Input.insertText", { text: "确认这两步，按选中的发布计划推进。" }, sessionId);
   await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [origin + `/projects/${projectId}/api/goal-tree-proposals/${proposal.proposal_id}/decision`] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + `/projects/${projectId}/api/plugins/io.molis.work.goals/goal-tree-proposals/${proposal.proposal_id}/decision`] }, sessionId);
   await click(form + ' button[value="confirm"]');
   await waitFor(`!document.querySelector(${JSON.stringify(form + " [data-decision-error]")}).hidden && !document.querySelector(${JSON.stringify(form + ' button[value="confirm"]')}).disabled`);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(form + ' textarea[name="reason"]')}).value`), "确认这两步，按选中的发布计划推进。");
-  assert.deepEqual(store.snapshot(projectId!).goals, before.goals, "a refused approval writes no Goals");
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, before.goals, "a refused approval writes no Goals");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click(form + ' button[value="confirm"]');
   await waitFor(`!document.querySelector(${JSON.stringify(entry)})`, 15_000);
   assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), true, "another proposal stays expanded through the forced refresh");
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(otherForm + ' textarea[name="reason"]')}).value`), "另一份计划先保留这段未提交的意见。", "approving this proposal preserves another proposal's unsubmitted reason");
-  const after = store.snapshot(projectId!);
+  const after = boardSnapshot(store, projectId!);
   assert.equal(after.goal_tree_proposals.find(item => item.proposal_id === proposal.proposal_id)?.state, "approved");
   assert.equal(after.goal_tree_proposals.find(item => item.proposal_id === other.proposal_id)?.state, "pending");
   for (const item of goalItems) {
@@ -277,12 +271,12 @@ for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Go
     assert.equal(after.relations.filter(relation => relation.from_goal_id === item.payload.goal_id && relation.to_goal_id === goalId && relation.type === "part_of" && relation.state === "active").length, goalId ? 1 : 0);
   }
   await reloadPage();
-  assert.deepEqual(store.snapshot(projectId!).goals, after.goals, "approved Goals survive reload without repetition");
-  assert.deepEqual(store.snapshot(projectId!).relations, after.relations);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, after.goals, "approved Goals survive reload without repetition");
+  assert.deepEqual(boardSnapshot(store, projectId!).relations, after.relations);
   const openBeforeMissing = await evaluate(`document.querySelector('#${other.proposal_id}').open`);
   await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/?openPlugin=goals#missing-proposal` }, sessionId));
   await waitFor(`document.readyState === "complete" && Boolean(document.querySelector('#${other.proposal_id}'))`);
   assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), openBeforeMissing, "a missing target preserves the existing disclosure state");
-  assert.deepEqual(store.snapshot(projectId!).goal_tree_proposals, after.goal_tree_proposals);
+  assert.deepEqual(boardSnapshot(store, projectId!).goal_tree_proposals, after.goal_tree_proposals);
 
 });

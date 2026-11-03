@@ -16,13 +16,15 @@
 | 个人助理 | “分出去的子任务”列表可以打开子工作，子工作沿现有输入路径继续交流 | 助理子工作与 SDK 子代理按同一用户体验呈现，父子导航、直接对话及回报语义一致；不能只覆盖某一种派发来源 |
 | Coding | 时间线内子任务卡片与结果面板；过程、审批、停止、评价、返工准备和成果整合 | 子代理专属对话与输入，结束后继续，以及从父任务进入、返回和读取更新的完整动线 |
 
-源码依据：[Coding 子任务卡片](../../plugins/native/coding/src/subagent-cards-client.ts)、[结果面板](../../plugins/native/coding/src/subagents-client.ts)、[助理子任务入口](../../apps/workbench/src/scripts/client/assistant-island.ts)、[助理发送路径](../../apps/local-host/src/assistant/assistant-service.ts)、[Agent Host 子代理投影](../../horizontal/agent-host/src/adapters/prologue-subagents.ts)。Prologue 当前[公开入口](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/packages/sdk/src/composition/core/runtime.ts#L344)只提供 list/get/cancel；[子代理需求](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/docs/product/requirements/engines/orchestration/subagent.md#L91)区分 App 查看与父代理发话。不能把模型转向工具直接当作用户对话入口。
+源码依据：[Coding 子任务卡片](../../plugins/native/coding/src/browser/subagent-cards.ts)、[结果面板](../../plugins/native/coding/src/browser/subagents.ts)、[助理子任务入口](../../apps/workbench/src/scripts/client/assistant-island.ts)、[助理发送路径](../../apps/local-host/src/assistant/assistant-service.ts)、[Agent Host 子代理投影](../../horizontal/agent-host/src/adapters/prologue-subagents.ts)。Prologue 当前[公开入口](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/packages/sdk/src/composition/core/runtime.ts#L344)只提供 list/get/cancel；[子代理需求](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/docs/product/requirements/engines/orchestration/subagent.md#L91)区分 App 查看与父代理发话。不能把模型转向工具直接当作用户对话入口。
 
 ## 2. 范围与保留项
 
 覆盖个人助理内的子工作、Coding 内的 SDK 子代理，以及这些任务在现行协作合同下的父子关联。可见和可对话的范围只包含当前用户有权访问的工作。已有任务内容、原会话历史、身份、成果与审批记录继续由各自主人保存。
 
 复用 [Prologue 采用与统一协作](../prologue-adoption/spec.md)、[输入回执](../ai-input-receipts/spec.md)、[跨插件 AI 交互](../ai-interaction-experience/spec.md)的事实和端口。组件统一的是用户交互和共享视图合同，不将助理 Work 与 SDK 子运行强行改成同一种数据库对象，不为 UI 另造任务图、消息账或运行状态机。
+
+2026-10-28 新增的[个人助理主对话与后台任务体验](../proactive-assistant/spec.md#75-主对话持续可用任务在后台执行)包含连续接单、及时答复、任务可视化和结果回到主对话；不要求所有后台工作都采用子代理。实际委派时复用本文的详情、直接对话、父子关系与控制；用户无需进入子代理才能知道后台在做什么。一次主对话答复结束不等于父任务结束，结果同步也不授权重启已停止或结束的父任务。本项完整直接对话仍按原阶段交付，不阻塞后台任务的基础查看与控制。
 
 不新增独立的 Agent 管理产品、外部聊天页面或浏览器标签页；不加入跨项目自由通信、多人群聊、自动扩大权限或无限并发；不改变 Coding 的成果整合授权。已停止、失败、重启中断的任务不会因打开组件自动执行。
 

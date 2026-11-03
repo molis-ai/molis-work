@@ -1,3 +1,4 @@
+import {openDatasetStore, openFormStore, openLingguangStore, openPptStore} from "./fixtures/plugin-sync-stores.js";
 interface TestEnvelope {spaceId:string;record:Record<string,unknown>;children:Record<string,Record<string,unknown>[]>}
 import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
@@ -8,10 +9,10 @@ import {tmpdir} from 'node:os';
 import {DatabaseSync} from 'node:sqlite';
 import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,type AggregateReplicaContext} from '@molis-ai/molis-work-storage';
 import type {SyncEvent,SyncReplicaAdapter} from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import {openFormStore,FormStore} from '@molis-ai/molis-work-plugin-form';
-import {openDatasetStore} from '@molis-ai/molis-work-plugin-dataset';
-import {openPptStore} from '@molis-ai/molis-work-plugin-ppt';
-import {openLingguangStore} from '@molis-ai/molis-work-plugin-lingguang';
+import {FormStore} from '@molis-ai/molis-work-plugin-form';
+
+
+
 
 function fixture(t:TestContext){
   const root=mkdtempSync(join(tmpdir(),'plugin-replication-')),homes=[join(root,'a'),join(root,'b')];
@@ -75,7 +76,7 @@ test('PPT preserves slides, notes and colors; both sides survive conflicts and r
   a.update(d.id,{title:'设备 A'});b.update(d.id,{title:'设备 B'});f.send(ra,rb);
   assert.equal(rb.counts().conflicts,1);assert.equal(b.get(d.id).title,'设备 B');
   const again=f.open(openPptStore,1).replica(f.context);assert.equal(again.counts().conflicts,1);again.resolve(again.conflicts()[0]!.key,'remote');assert.equal(b.get(d.id).title,'设备 A');assert.equal(again.next(),null);
-  const db=new DatabaseSync(homeSqlitePath(f.homes[1]!,'ppt'));try{const backup=db.prepare('SELECT local_json FROM replica_resolutions').get()!;assert.match(String(backup.local_json),/设备 B/);}finally{db.close();}
+  const db=new DatabaseSync(homeSqlitePath(f.homes[1]!,'ppt'));try{const backup=db.prepare('SELECT local_json FROM '+b.namespace+'_replica_resolutions').get()!;assert.match(String(backup.local_json),/设备 B/);}finally{db.close();}
 });
 
 test('Lingguang restores completed conversation turns, ordering and workflow idempotency without generating replies',t=>{

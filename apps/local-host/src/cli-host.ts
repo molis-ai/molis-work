@@ -3,6 +3,7 @@ import { runLocalInstallCli, runLocalServiceCli } from "./cli-install-service.js
 import { runLocalDemoCli, runLocalUninstallCli } from "./cli-project-maintenance.js";
 import { runV1Cli } from "./cli-project.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { runLocalHomeCli } from "./cli-home.js";
 
 export interface LocalCliOptions {
   defaultSourceDirectory(): string;
@@ -12,6 +13,7 @@ export interface LocalCliOptions {
 
 export function runLocalCli(args: string[], options: LocalCliOptions): Promise<number> {
   return dispatchCli(args, {
+    home: runLocalHomeCli,
     plugin: options.runPlugin,
     install: (args) => runLocalInstallCli(args, options.defaultSourceDirectory),
     service: runLocalServiceCli,

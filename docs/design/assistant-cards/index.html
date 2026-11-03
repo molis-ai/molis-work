@@ -1,0 +1,1913 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>助理卡片规格板</title>
+<style>
+:root {
+  --desk:#eeefef; --paper:#ffffff; --surface-soft:#fafaf9; --rail:#f5f5f3;
+  --ink:#292a2c; --ink-soft:#5c5d60; --muted:#636569; --faint:#6a6c70;
+  --line:#e9e9e7; --line-strong:#d5d6d4;
+  --action:#292a2c; --action-hover:#3d3e41; --action-ink:#ffffff;
+  --accent:#93604b; --accent-strong:#7a4d3a; --accent-soft:#f6eee8;
+  --green:#42775d; --amber:#8a5c18; --red:#b03d45; --popover:#ffffff;
+  --nav-hover:rgba(41,42,44,.05); --nav-active:rgba(41,42,44,.08); --nav-press:rgba(41,42,44,.11);
+  --control-fill:rgba(41,42,44,.06);
+  --sheet-shadow:0 0 0 .5px rgba(21,23,29,.04),0 1px 2px rgba(21,23,29,.04),0 10px 28px -12px rgba(21,23,29,.10);
+  --lift-1:0 1px 2px rgba(21,23,29,.10),0 0 0 .5px rgba(21,23,29,.05);
+  --lift-3:0 12px 32px -8px rgba(21,23,29,.20),0 2px 6px rgba(21,23,29,.06);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --dur-press:130ms; --dur-hover:130ms; --dur-move:250ms; --dur-arrive:420ms; --dur-moment:640ms;
+  --ease-quint:cubic-bezier(.22,1,.36,1); --ease-spring:cubic-bezier(.2,1.35,.4,1);
+  --panel-w:400px;
+  color-scheme:light;
+}
+:root[data-theme="dark"] {
+  --desk:#1c1d20; --paper:#242528; --surface-soft:#292a2d; --rail:#2e2f32;
+  --ink:#f0efed; --ink-soft:#c0beba; --muted:#a2a19e; --faint:#979693;
+  --line:#36373b; --line-strong:#4c4d50;
+  --action:#ecebe8; --action-hover:#ffffff; --action-ink:#252628;
+  --accent:#d6a18a; --accent-strong:#e8c0ad; --accent-soft:#382f2b;
+  --green:#8db99d; --amber:#d9b67b; --red:#ee858c; --popover:#2c2d31;
+  --nav-hover:rgba(240,239,237,.07); --nav-active:rgba(240,239,237,.11); --nav-press:rgba(240,239,237,.15);
+  --control-fill:rgba(240,239,237,.08);
+  --sheet-shadow:0 0 0 1px rgba(255,255,255,.05),0 10px 28px -12px rgba(0,0,0,.5);
+  --lift-1:0 0 0 1px rgba(255,255,255,.06),0 1px 2px rgba(0,0,0,.4);
+  --lift-3:0 0 0 1px rgba(255,255,255,.06),0 16px 36px -8px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+* { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; }
+body { margin:0; background:var(--desk); color:var(--ink); font:400 13px/1.5 var(--font); letter-spacing:-.011em; font-synthesis-weight:none; -webkit-font-smoothing:antialiased; }
+::selection { background:var(--accent-soft); color:var(--ink); }
+button { font:inherit; color:inherit; letter-spacing:inherit; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:6px; }
+h1,h2,h3,h4,p { margin:0; }
+code, .mono { font-family:var(--mono); font-size:12px; }
+code { background:var(--control-fill); padding:1px 5px; border-radius:4px; color:var(--ink-soft); }
+.ic { width:14px; height:14px; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.ic-12 { width:12px; height:12px; } .ic-16 { width:16px; height:16px; } .ic-20 { width:20px; height:20px; stroke-width:1.6; }
+.ring { display:inline-flex; flex:none; width:calc(1em + 2px); height:calc(1em + 2px); }
+.ring svg { width:100%; height:100%; overflow:visible; }
+.ring .spin { transform-origin:8px 8px; animation:spin 2.4s steps(12) infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+
+/* ── board chrome ─────────────────────────── */
+.board-top { position:sticky; top:0; z-index:20; background:var(--desk); display:flex; align-items:center; gap:16px; padding:14px 24px; }
+.board-top .mark { display:flex; align-items:center; gap:10px; }
+.board-top .mark .ic { color:var(--ink-soft); }
+.board-top h1 { font-size:15px; font-weight:600; }
+.board-top .sub { font-size:12px; color:var(--muted); }
+.board-top .tools { margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.seg { display:inline-flex; background:var(--control-fill); border-radius:10px; padding:4px; gap:2px; }
+.seg button { border:0; background:transparent; height:24px; padding:0 10px; border-radius:6px; font-size:12px; font-weight:500; color:var(--muted); cursor:pointer; transition:color var(--dur-hover), background var(--dur-move) var(--ease-quint); }
+.seg button[aria-pressed="true"] { background:var(--paper); color:var(--ink); box-shadow:var(--lift-1); }
+.layout { display:grid; grid-template-columns:200px minmax(0,1fr); gap:14px; padding:0 14px 48px 14px; }
+.toc { position:sticky; top:56px; align-self:start; padding:8px 4px; display:flex; flex-direction:column; gap:1px; }
+.toc a { display:block; padding:6px 10px; border-radius:10px; color:var(--ink-soft); text-decoration:none; font-size:13px; }
+.toc a:hover { background:var(--nav-hover); }
+.toc .grp { font-size:11px; font-weight:500; color:var(--muted); padding:12px 10px 4px; }
+main { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.sheet { background:var(--paper); border-radius:14px; box-shadow:var(--sheet-shadow); padding:28px 32px 32px; min-width:0; }
+.sheet > header { margin-bottom:20px; max-width:76ch; }
+.eyebrow { font-size:12px; font-weight:500; color:var(--muted); margin-bottom:6px; display:flex; gap:6px; align-items:center; }
+.sheet h2 { font-size:24px; font-weight:600; letter-spacing:-.02em; line-height:1.25; }
+.sheet h3 { font-size:15px; font-weight:600; }
+.lead { margin-top:8px; color:var(--ink-soft); font-size:13px; line-height:1.65; }
+.lead + .lead { margin-top:6px; }
+.demo-note { display:inline-flex; gap:6px; align-items:center; font-size:12px; color:var(--muted); background:var(--control-fill); border-radius:6px; padding:2px 8px; margin-top:10px; }
+
+/* ── spec rows: specimen + notes ───────────── */
+.spec { display:grid; grid-template-columns:var(--panel-w) minmax(0,1fr); gap:28px 32px; align-items:start; padding:20px 0; border-top:1px solid var(--line); }
+.spec:first-of-type { border-top:0; padding-top:4px; }
+.notes { display:grid; gap:12px; font-size:13px; color:var(--ink-soft); min-width:0; }
+.notes .nm { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.notes .nm b { font-size:15px; font-weight:600; color:var(--ink); }
+.notes .nm code { font-size:12px; }
+.notes dl { display:grid; grid-template-columns:72px minmax(0,1fr); gap:6px 12px; margin:0; }
+.notes dt { font-size:12px; font-weight:500; color:var(--muted); padding-top:1px; }
+.notes dd { margin:0; line-height:1.6; }
+.notes dd code { white-space:nowrap; }
+.group-title { display:flex; align-items:baseline; gap:10px; margin:28px 0 4px; }
+.group-title:first-child { margin-top:0; }
+.group-title h3 { font-size:15px; }
+.group-title span { font-size:12px; color:var(--muted); }
+
+/* ── card ──────────────────────────────────── */
+.card { position:relative; background:var(--surface-soft); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; cursor:default; transition:background var(--dur-hover); outline:none; }
+.card[data-hit] { cursor:pointer; }
+.card[data-hit]:hover { background:color-mix(in srgb, var(--surface-soft), var(--ink) 3%); }
+.card.is-selected { background:color-mix(in srgb, var(--surface-soft), var(--ink) 7%); }
+.card:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:12px; }
+.card.is-new { animation:land var(--dur-moment) var(--ease-quint) 1; }
+@keyframes land { from { background:var(--accent-soft); } to { background:var(--surface-soft); } }
+.card.is-arriving { animation:rise var(--dur-arrive) var(--ease-quint) both; }
+@keyframes rise { from { opacity:.4; transform:translateY(7px); } }
+.c-head { display:flex; align-items:center; gap:6px; font-size:12px; line-height:16px; color:var(--muted); min-width:0; }
+.c-head .intent { font-weight:500; color:var(--ink-soft); white-space:nowrap; }
+.c-head .dot { color:var(--line-strong); }
+.c-head .obj { display:inline-flex; align-items:center; gap:4px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.c-head .obj .ic { color:var(--ink-soft); }
+.c-head .when { margin-left:auto; color:var(--faint); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.c-head .sug { white-space:nowrap; font-weight:500; }
+.c-title { font-size:13px; font-weight:500; line-height:1.45; color:var(--ink); }
+.c-why { font-size:12px; line-height:1.55; color:var(--ink-soft); margin-top:-6px; }
+.c-blocks { display:flex; flex-direction:column; gap:8px; }
+.c-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.c-actions .end { margin-left:auto; display:flex; gap:2px; }
+.c-basis { display:flex; flex-wrap:wrap; gap:2px 10px; font-size:12px; color:var(--faint); padding-top:8px; border-top:1px solid var(--line); line-height:1.5; }
+.c-basis .gap { color:var(--ink-soft); display:inline-flex; gap:5px; align-items:center; }
+.c-basis .gap::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--amber); flex:none; }
+.c-basis .skill { display:inline-flex; gap:4px; align-items:center; }
+.c-status { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); }
+.c-status.failed { color:var(--red); }
+.c-status.waiting { color:var(--amber); }
+.c-banner { display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--amber) 10%, transparent); color:var(--ink); border-radius:8px; padding:8px 10px; font-size:12px; line-height:1.5; }
+.c-banner .ic { color:var(--amber); margin-top:1px; }
+.c-banner.red { background:color-mix(in srgb, var(--red) 9%, transparent); }
+.c-banner.red .ic { color:var(--red); }
+.c-banner .grow { flex:1; }
+
+/* buttons */
+.btn { height:28px; padding:0 10px; border-radius:8px; border:0; font-size:13px; font-weight:500; display:inline-flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap; transition:background var(--dur-hover), transform var(--dur-press) var(--ease-spring); max-width:100%; }
+.btn:active { transform:scale(.97); }
+.btn > span { overflow:hidden; text-overflow:ellipsis; }
+.btn-primary { background:var(--action); color:var(--action-ink); box-shadow:var(--lift-1); }
+.btn-primary:hover { background:var(--action-hover); }
+.btn-secondary { background:var(--control-fill); color:var(--ink); }
+.btn-secondary:hover { background:var(--nav-active); }
+.btn-ghost { background:transparent; color:var(--ink-soft); }
+.btn-ghost:hover { background:var(--nav-hover); color:var(--ink); }
+.btn-icon { width:28px; padding:0; justify-content:center; }
+.btn[disabled] { opacity:.45; cursor:default; transform:none; }
+.btn.is-busy::before { content:""; width:12px; height:12px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:spin .8s linear infinite; }
+
+/* tags */
+.tag { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:500; line-height:18px; padding:0 6px; border-radius:6px; background:var(--control-fill); color:var(--ink-soft); white-space:nowrap; }
+.tag.green { background:color-mix(in srgb, var(--green) 13%, transparent); color:var(--green); }
+.tag.amber { background:color-mix(in srgb, var(--amber) 13%, transparent); color:var(--amber); }
+.tag.red { background:color-mix(in srgb, var(--red) 11%, transparent); color:var(--red); }
+.tag.copper { background:var(--accent-soft); color:var(--accent-strong); }
+:root[data-theme="dark"] .tag.copper { color:var(--accent); }
+.tag.na { background:transparent; color:var(--faint); box-shadow:inset 0 0 0 1px var(--line-strong); }
+.tag .sw { width:6px; height:6px; border-radius:50%; background:currentColor; }
+.who { display:inline-flex; align-items:center; gap:3px; font-size:11px; font-weight:500; color:var(--muted); background:var(--control-fill); border-radius:4px; padding:0 4px; line-height:16px; }
+.who.ai { color:var(--accent-strong); background:var(--accent-soft); }
+:root[data-theme="dark"] .who.ai { color:var(--accent); }
+.cite { display:inline-flex; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; margin-left:2px; border-radius:4px; font-size:11px; font-weight:500; line-height:14px; color:var(--accent-strong); background:var(--accent-soft); vertical-align:1px; cursor:help; font-variant-numeric:tabular-nums; }
+:root[data-theme="dark"] .cite { color:var(--accent); }
+
+/* blocks ─ object rows (owner words) */
+.obj-row { display:grid; grid-template-columns:16px minmax(0,1fr) auto; column-gap:8px; align-items:center; padding:7px 10px; border-radius:10px; background:var(--paper); min-height:36px; }
+.obj-row > .ic { color:var(--ink-soft); width:16px; height:16px; }
+.obj-row .t { font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.obj-row .f { grid-column:2 / 4; font-size:12px; color:var(--muted); display:flex; gap:4px 8px; flex-wrap:wrap; line-height:1.45; }
+.obj-row .f .ring { font-size:12px; }
+.obj-row .side { display:flex; gap:6px; align-items:center; }
+.obj-row.compact { padding:5px 10px; min-height:32px; }
+.obj-list { display:flex; flex-direction:column; gap:2px; background:var(--paper); border-radius:10px; padding:2px; }
+.obj-list .obj-row { background:transparent; border-radius:8px; }
+.obj-list .more { font-size:12px; color:var(--muted); padding:4px 10px 6px 34px; }
+.obj-list .note { grid-column:2 / 4; font-size:12px; color:var(--ink-soft); }
+.ok-mark { color:var(--green); } .miss-mark { color:var(--amber); }
+.arrow-down { display:flex; align-items:center; gap:8px; padding:0 10px 0 13px; font-size:12px; color:var(--ink-soft); }
+.arrow-down::before { content:""; width:1px; height:22px; background:var(--line-strong); margin-right:6px; }
+
+/* blocks ─ assistant words */
+.prose { font-size:13px; line-height:1.6; color:var(--ink); }
+.prose.soft { color:var(--ink-soft); font-size:12px; }
+.claim { display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 8px; align-items:baseline; }
+.claim .st { font-size:11px; font-weight:500; padding:0 5px; border-radius:4px; line-height:16px; background:var(--control-fill); color:var(--ink-soft); white-space:nowrap; }
+.claim .st.guess { box-shadow:inset 0 0 0 1px var(--line-strong); background:transparent; }
+.claim .st.check { background:color-mix(in srgb, var(--amber) 13%, transparent); color:var(--amber); }
+.claim .s { font-size:13px; line-height:1.55; }
+.claim .ev { grid-column:2; font-size:12px; color:var(--muted); }
+
+/* options */
+.opts { display:flex; flex-direction:column; gap:4px; }
+.opts .q { font-size:12px; font-weight:500; color:var(--muted); margin-bottom:2px; }
+.opt { display:grid; grid-template-columns:16px minmax(0,1fr); gap:2px 8px; padding:8px 10px; border-radius:8px; background:var(--paper); border:0; text-align:left; cursor:pointer; transition:background var(--dur-hover); width:100%; }
+.opt:hover { background:color-mix(in srgb, var(--paper), var(--ink) 3%); }
+.opt .rd { width:14px; height:14px; border-radius:50%; box-shadow:inset 0 0 0 1.5px var(--line-strong); margin-top:2px; display:grid; place-items:center; transition:box-shadow var(--dur-move); }
+.opt[aria-checked="true"] .rd { box-shadow:inset 0 0 0 7px var(--action); }
+.opt[aria-checked="true"] .rd::after { content:""; width:5px; height:5px; border-radius:50%; background:var(--action-ink); }
+.opt.multi .rd { border-radius:4px; }
+.opt.multi[aria-checked="true"] .rd::after { width:8px; height:5px; border-radius:0; background:transparent; border-left:1.6px solid var(--action-ink); border-bottom:1.6px solid var(--action-ink); transform:rotate(-45deg) translate(1px,-1px); }
+.opt .l { font-size:13px; font-weight:500; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.opt .d { grid-column:2; font-size:12px; color:var(--muted); line-height:1.5; }
+.opt.other .l { color:var(--muted); font-weight:400; }
+
+/* draft & diff */
+.draft { background:var(--paper); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+.draft .to { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted); }
+.draft .to b { font-weight:500; color:var(--ink-soft); }
+.draft .body { font-size:13px; line-height:1.65; border-left:2px solid color-mix(in srgb, var(--green) 45%, transparent); padding-left:10px; }
+.diff { background:var(--paper); border-radius:10px; padding:6px 0; font-family:var(--mono); font-size:12px; line-height:1.7; overflow:hidden; }
+.diff div { padding:0 12px; white-space:pre-wrap; display:grid; grid-template-columns:14px 1fr; }
+.diff .ins { background:color-mix(in srgb, var(--green) 11%, transparent); }
+.diff .del { background:color-mix(in srgb, var(--red) 9%, transparent); color:var(--ink-soft); }
+.diff .ins::before { content:"+"; color:var(--green); } .diff .del::before { content:"−"; color:var(--red); } .diff .ctx::before { content:" "; }
+.diff-sum { font-size:12px; color:var(--muted); display:flex; gap:8px; align-items:center; }
+.diff-sum .p { color:var(--green); font-family:var(--mono); } .diff-sum .m { color:var(--red); font-family:var(--mono); }
+
+/* metric */
+.metrics { display:grid; grid-template-columns:repeat(auto-fit, minmax(84px, 1fr)); gap:2px; background:var(--paper); border-radius:10px; padding:2px; }
+.metric { padding:8px 10px; border-radius:8px; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.metric .v { font-size:20px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1.2; display:flex; align-items:baseline; gap:3px; }
+.metric .v small { font-size:12px; font-weight:400; color:var(--muted); letter-spacing:0; }
+.metric .k { font-size:12px; color:var(--muted); }
+.metric .b { font-size:11px; color:var(--faint); }
+
+/* status grid (pulse) */
+.status { background:var(--paper); border-radius:10px; padding:2px; display:flex; flex-direction:column; gap:2px; }
+.st-row { display:grid; grid-template-columns:16px 64px 56px minmax(0,1fr); gap:8px; align-items:center; padding:6px 10px; border-radius:8px; font-size:12px; }
+.st-row > .ic { color:var(--ink-soft); width:16px; height:16px; }
+.st-row .tag { justify-self:start; }
+.st-row .src { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.st-row .why { color:var(--ink-soft); line-height:1.45; }
+.st-row .why .host { color:var(--faint); }
+.st-sum { display:flex; gap:6px; flex-wrap:wrap; }
+
+/* agenda */
+.agenda { background:var(--paper); border-radius:10px; padding:8px 10px; display:grid; grid-template-columns:40px 14px minmax(0,1fr); column-gap:8px; }
+.agenda .tm { font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; padding:4px 0; text-align:right; }
+.agenda .rail { position:relative; display:flex; justify-content:center; padding-top:7px; }
+.agenda .rail::after { content:""; position:absolute; top:22px; bottom:-6px; width:1px; background:var(--line); }
+.agenda .rail.last::after { display:none; }
+.agenda .rail .ring { font-size:12px; position:relative; z-index:1; background:var(--paper); }
+.agenda .ev { padding:3px 0 9px; min-width:0; }
+.agenda .ev .t { font-size:13px; font-weight:500; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.agenda .ev .f { font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+.agenda .now { grid-column:1 / 4; display:grid; grid-template-columns:40px 1fr; gap:8px; align-items:center; margin:2px 0 6px; }
+.agenda .now span { font-size:12px; color:var(--accent); font-weight:500; text-align:right; font-variant-numeric:tabular-nums; }
+.agenda .now i { height:1px; background:var(--accent); position:relative; }
+.agenda .now i::before { content:""; position:absolute; left:-3px; top:-3px; width:7px; height:7px; border-radius:50%; background:var(--accent); }
+
+/* progress */
+.steps { background:var(--paper); border-radius:10px; padding:6px 10px; display:flex; flex-direction:column; }
+.step { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:8px; align-items:center; padding:4px 0; font-size:13px; }
+.step .ring { font-size:13px; }
+.step.done { color:var(--ink-soft); }
+.step.now { font-weight:500; }
+.step.todo { color:var(--muted); }
+.step .t2 { font-size:12px; color:var(--faint); font-variant-numeric:tabular-nums; font-weight:400; }
+
+/* compare */
+.cmp { width:100%; border-collapse:separate; border-spacing:0; background:var(--paper); border-radius:10px; overflow:hidden; font-size:12px; }
+.cmp th, .cmp td { padding:7px 8px; text-align:left; vertical-align:top; line-height:1.45; }
+.cmp thead th { font-weight:500; color:var(--ink); border-bottom:1px solid var(--line); }
+.cmp thead th .tag { margin-top:3px; }
+.cmp tbody th { font-weight:500; color:var(--muted); white-space:nowrap; }
+.cmp tbody td { color:var(--ink-soft); }
+.cmp tbody tr + tr > * { border-top:1px solid var(--line); }
+.cmp .rec { background:color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+
+/* delta, gap */
+.delta { background:var(--paper); border-radius:10px; padding:4px 10px; display:flex; flex-direction:column; }
+.dl { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:8px; align-items:center; padding:5px 0; font-size:13px; }
+.dl + .dl { border-top:1px solid var(--line); }
+.dl .k { font-size:12px; color:var(--muted); white-space:nowrap; }
+.dl .ic { width:14px; height:14px; }
+.dl.add .ic { color:var(--ink-soft); } .dl.chg .ic { color:var(--accent); } .dl.done .ic { color:var(--green); } .dl.block .ic { color:var(--red); } .dl.lost .ic { color:var(--amber); }
+.gapline { display:flex; gap:8px; align-items:flex-start; font-size:12px; color:var(--ink-soft); line-height:1.5; }
+.gapline::before { content:""; width:6px; height:6px; border-radius:50%; background:var(--amber); margin-top:5px; flex:none; }
+
+/* file */
+.file { display:grid; grid-template-columns:44px minmax(0,1fr); gap:10px; align-items:center; background:var(--paper); border-radius:10px; padding:8px 10px; }
+.file .thumb { width:44px; height:56px; border-radius:4px; background:var(--surface-soft); box-shadow:inset 0 0 0 1px var(--line); padding:7px 6px; display:flex; flex-direction:column; gap:4px; }
+.file .thumb i { display:block; height:3px; border-radius:2px; background:var(--line-strong); }
+.file .thumb i:nth-child(1) { width:70%; background:var(--ink-soft); opacity:.5; } .file .thumb i:nth-child(3) { width:85%; } .file .thumb i:nth-child(5) { width:60%; }
+.file .t { font-size:13px; font-weight:500; }
+.file .f { font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.kind { font-size:11px; font-weight:500; line-height:16px; padding:0 4px; border-radius:4px; background:color-mix(in srgb, var(--red) 11%, transparent); color:var(--red); }
+.kind.doc { background:color-mix(in srgb, #3b6ea8 13%, transparent); color:#3b6ea8; }
+:root[data-theme="dark"] .kind.doc { color:#8fb4e0; }
+
+/* exhibit */
+.exhibit { background:var(--paper); border-radius:10px; padding:10px; }
+.exhibit svg { width:100%; height:auto; display:block; }
+.exhibit .cap { font-size:12px; color:var(--muted); margin-top:6px; }
+.ex-node rect { fill:var(--surface-soft); stroke:var(--line-strong); }
+.ex-node text { fill:var(--ink); font:500 11px var(--font); }
+.ex-node.hot rect { fill:color-mix(in srgb, var(--amber) 12%, var(--paper)); stroke:var(--amber); }
+.ex-edge { stroke:var(--line-strong); stroke-width:1.2; fill:none; marker-end:url(#arrow); }
+.ex-edge.hot { stroke:var(--amber); }
+.ex-label { fill:var(--muted); font:400 11px var(--font); }
+
+/* row size */
+.rows { display:flex; flex-direction:column; gap:2px; }
+.row { display:grid; grid-template-columns:16px minmax(0,1fr) auto auto; gap:10px; align-items:center; min-height:40px; padding:4px 10px; border-radius:10px; cursor:pointer; transition:background var(--dur-hover); }
+.row:hover { background:var(--nav-hover); }
+.row .ring { font-size:13px; justify-self:center; }
+.row .main { min-width:0; display:flex; flex-direction:column; }
+.row .t { font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row .f { font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row > .ic { color:var(--ink-soft); }
+.row .act { opacity:0; transition:opacity var(--dur-hover); }
+.row:hover .act, .row:focus-within .act { opacity:1; }
+@media (hover:none) { .row .act { opacity:1; } }
+.row-head { display:flex; align-items:baseline; gap:8px; padding:0 10px; margin:14px 0 4px; }
+.row-head:first-child { margin-top:0; }
+.row-head h4 { font-size:12px; font-weight:500; color:var(--muted); }
+.row-head span { font-size:12px; color:var(--faint); }
+
+/* anatomy */
+.anatomy { display:grid; grid-template-columns:var(--panel-w) minmax(0,1fr); gap:32px; align-items:start; }
+.pin { position:absolute; width:18px; height:18px; border-radius:50%; background:var(--accent); color:var(--paper); font-size:11px; font-weight:600; display:grid; place-items:center; box-shadow:0 0 0 2px var(--paper); z-index:2; letter-spacing:0; }
+:root[data-theme="dark"] .pin { color:#1c1d20; }
+.legend { counter-reset:pin; display:grid; gap:10px; margin:0; padding:0; list-style:none; }
+.legend li { display:grid; grid-template-columns:18px minmax(0,1fr); gap:10px; font-size:13px; color:var(--ink-soft); line-height:1.6; }
+.legend li::before { counter-increment:pin; content:counter(pin); width:18px; height:18px; border-radius:50%; background:var(--accent); color:var(--paper); font-size:11px; font-weight:600; display:grid; place-items:center; margin-top:2px; }
+:root[data-theme="dark"] .legend li::before { color:#1c1d20; }
+.legend b { color:var(--ink); font-weight:500; }
+
+/* voices */
+.voices.marked [data-voice="owner"] { box-shadow:0 0 0 1.5px var(--ink-soft); }
+.voices.marked [data-voice="ai"] { outline:1.5px dashed var(--accent); outline-offset:2px; }
+.voices.marked [data-voice="host"] { outline:1.5px dotted var(--amber); outline-offset:2px; border-radius:4px; }
+.voice-key { display:grid; gap:12px; }
+.voice-key .k { display:grid; grid-template-columns:28px minmax(0,1fr); gap:10px; font-size:13px; color:var(--ink-soft); line-height:1.6; }
+.voice-key .k b { color:var(--ink); font-weight:500; }
+.voice-key .sw { width:28px; height:18px; border-radius:6px; margin-top:2px; }
+.voice-key .sw.owner { background:var(--paper); box-shadow:0 0 0 1.5px var(--ink-soft); }
+.voice-key .sw.ai { outline:1.5px dashed var(--accent); outline-offset:-3px; }
+.voice-key .sw.host { outline:1.5px dotted var(--amber); outline-offset:-3px; }
+.switch { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft); cursor:pointer; background:none; border:0; padding:0; }
+.switch .tr { width:28px; height:16px; border-radius:8px; background:var(--line-strong); position:relative; transition:background var(--dur-move); }
+.switch .tr::after { content:""; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:var(--paper); box-shadow:var(--lift-1); transition:transform var(--dur-move) var(--ease-spring); }
+.switch[aria-pressed="true"] .tr { background:var(--action); }
+.switch[aria-pressed="true"] .tr::after { transform:translateX(12px); }
+
+/* block catalog */
+.blockgrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+.bspec { background:var(--surface-soft); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+.bspec header { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.bspec header b { font-size:13px; font-weight:500; }
+.bspec header code { font-size:11px; }
+.bspec header .src { margin-left:auto; font-size:11px; font-weight:500; padding:0 5px; border-radius:4px; line-height:16px; }
+.src.owner { color:var(--ink-soft); background:var(--paper); box-shadow:inset 0 0 0 1px var(--line-strong); }
+.src.ai { color:var(--accent-strong); background:var(--accent-soft); }
+:root[data-theme="dark"] .src.ai { color:var(--accent); }
+.src.host { color:var(--amber); background:color-mix(in srgb, var(--amber) 12%, transparent); }
+.bspec .bnote { font-size:12px; color:var(--muted); line-height:1.5; }
+
+/* sizes */
+.sizes { display:grid; grid-template-columns:minmax(0,300px) var(--panel-w) minmax(0,1fr); gap:24px; align-items:start; }
+.size-col h4 { font-size:12px; font-weight:500; color:var(--muted); margin-bottom:8px; display:flex; gap:6px; align-items:center; }
+
+/* home mock */
+.home { display:grid; grid-template-columns:minmax(0,1fr) var(--panel-w); gap:24px; align-items:start; }
+.home .day small { font-size:12px; color:var(--muted); display:block; margin-bottom:2px; }
+.home .day h3 { font-size:30px; font-weight:600; letter-spacing:-.03em; line-height:1.15; }
+.home .day h3 span { font-size:15px; font-weight:500; color:var(--muted); margin-left:8px; letter-spacing:0; }
+.home .day p { color:var(--ink-soft); margin:8px 0 18px; font-size:13px; }
+.side-mock { background:var(--paper); border-radius:14px; box-shadow:var(--sheet-shadow); padding:12px; display:flex; flex-direction:column; gap:10px; }
+.side-mock .sm-head { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); padding:2px 4px; }
+.side-mock .sm-head b { font-size:13px; font-weight:500; color:var(--ink); }
+.side-mock .sm-head .grow { flex:1; }
+.side-mock .newer { align-self:center; border:0; background:var(--action); color:var(--action-ink); font-size:12px; font-weight:500; height:24px; border-radius:12px; padding:0 10px; box-shadow:var(--lift-1); cursor:pointer; }
+
+/* states strip */
+.states { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
+.state-cap { font-size:12px; font-weight:500; color:var(--muted); margin-bottom:6px; display:flex; gap:6px; align-items:center; }
+.state-cap code { font-size:11px; }
+
+/* brief pages */
+.brief-frame { background:var(--desk); border-radius:14px; padding:14px; }
+.brief { background:var(--paper); border-radius:14px; box-shadow:var(--sheet-shadow); padding:32px; display:grid; grid-template-columns:minmax(0,1fr) 248px; gap:32px; }
+.brief.single { grid-template-columns:minmax(0,1fr); }
+.b-head { grid-column:1 / -1; display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+.b-head .tt { flex:1; min-width:240px; }
+.b-head .kick { font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+.b-head h3 { font-size:24px; font-weight:600; letter-spacing:-.02em; line-height:1.25; }
+.b-head .meta { font-size:12px; color:var(--muted); margin-top:6px; display:flex; gap:4px 10px; flex-wrap:wrap; }
+.b-head .acts { display:flex; gap:8px; align-items:center; padding-top:20px; flex-wrap:wrap; }
+.b-main { display:flex; flex-direction:column; gap:24px; min-width:0; }
+.b-sec { display:flex; flex-direction:column; gap:10px; }
+.b-sec > h4 { font-size:15px; font-weight:600; display:flex; gap:8px; align-items:center; }
+.b-sec > h4 .cnt { font-size:12px; font-weight:400; color:var(--muted); }
+.b-sec > .lede { font-size:13px; color:var(--ink-soft); line-height:1.65; max-width:68ch; }
+.b-sec.soft { background:var(--surface-soft); border-radius:12px; padding:14px 16px; }
+.b-rail { display:flex; flex-direction:column; gap:16px; font-size:12px; color:var(--ink-soft); min-width:0; }
+.b-rail h5 { font-size:12px; font-weight:500; color:var(--muted); margin:0 0 6px; }
+.src-list { display:flex; flex-direction:column; gap:2px; }
+.src-item { display:grid; grid-template-columns:14px minmax(0,1fr) auto; gap:8px; align-items:center; padding:5px 6px; border-radius:8px; }
+.src-item:hover { background:var(--nav-hover); }
+.src-item .ic { color:var(--ink-soft); }
+.src-item .s { color:var(--faint); font-variant-numeric:tabular-nums; }
+.src-item .s.bad { color:var(--amber); font-weight:500; }
+.edited { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:500; color:var(--muted); }
+.proposal { background:color-mix(in srgb, var(--accent-soft) 70%, transparent); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+.proposal .ph { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; flex-wrap:wrap; }
+.proposal .ph .grow { flex:1; }
+.pblock { background:var(--paper); border-radius:10px; padding:10px 12px; display:grid; gap:8px; }
+.pblock .pt { display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+.pblock .pt b { color:var(--ink); font-weight:500; font-size:13px; }
+.pblock .choices { display:flex; gap:4px; flex-wrap:wrap; }
+.pblock .choices .btn[aria-pressed="true"] { background:var(--action); color:var(--action-ink); }
+.tabs { display:inline-flex; background:var(--control-fill); border-radius:10px; padding:4px; gap:2px; flex-wrap:wrap; }
+.tabs button { border:0; background:transparent; height:26px; padding:0 12px; border-radius:6px; font-size:12px; font-weight:500; color:var(--muted); cursor:pointer; display:inline-flex; gap:6px; align-items:center; }
+.tabs button[aria-selected="true"] { background:var(--paper); color:var(--ink); box-shadow:var(--lift-1); }
+.tabs .n { font-size:11px; color:var(--faint); }
+.tabpanel[hidden] { display:none; }
+.scroll-x { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.ws { width:100%; border-collapse:collapse; font-size:13px; }
+.ws th { font-size:12px; font-weight:500; color:var(--muted); text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.ws td { padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+.ws td .t { font-weight:500; display:flex; gap:6px; align-items:center; }
+.ws td .t .ic { color:var(--ink-soft); }
+.ws td .f { font-size:12px; color:var(--muted); }
+.ws .stale td { color:var(--muted); }
+.claims { display:flex; flex-direction:column; gap:12px; }
+.ctree { display:grid; grid-template-columns:24px minmax(0,1fr); gap:10px; }
+.ctree .no { font-size:12px; font-weight:600; color:var(--muted); padding-top:2px; font-variant-numeric:tabular-nums; }
+.ctree .cbody { display:flex; flex-direction:column; gap:10px; padding-bottom:14px; border-bottom:1px solid var(--line); min-width:0; }
+.ctree .cs { font-size:15px; font-weight:500; line-height:1.5; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.ctree .sub { margin-left:2px; padding-left:14px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:6px; }
+.comment { display:flex; gap:8px; }
+.comment input { flex:1; height:32px; border-radius:8px; border:0; background:var(--control-fill); padding:0 10px; font:inherit; color:var(--ink); min-width:0; }
+.comment input:focus { outline:none; box-shadow:0 0 0 1px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); background:var(--paper); }
+.handback { position:sticky; bottom:12px; margin-top:8px; display:flex; gap:10px; align-items:center; background:var(--popover); border-radius:12px; box-shadow:var(--lift-3); padding:10px 12px; font-size:13px; flex-wrap:wrap; }
+.handback .grow { flex:1; color:var(--ink-soft); min-width:180px; }
+
+/* narrow */
+.narrow { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+.phone { width:390px; max-width:100%; background:var(--desk); border-radius:24px; padding:10px; box-shadow:0 0 0 1px var(--line-strong); }
+.phone .scr { background:var(--paper); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:10px; min-height:520px; }
+.phone .ph-top { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:500; padding:4px 2px; }
+.phone .ph-top .grow { flex:1; }
+.phone .card .c-actions .btn { height:44px; }
+.phone .card .c-actions .btn-primary { flex:1 1 100%; justify-content:center; }
+.phone .opt { padding:12px; }
+.fold { background:var(--surface-soft); border-radius:10px; }
+.fold summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; padding:0 12px; min-height:44px; font-size:13px; font-weight:500; }
+.fold summary::-webkit-details-marker { display:none; }
+.fold summary .ic { margin-left:auto; color:var(--muted); transition:transform var(--dur-move) var(--ease-quint); }
+.fold[open] summary .ic { transform:rotate(180deg); }
+.fold .fb { padding:0 12px 12px; }
+
+/* don'ts */
+.donts { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; }
+.dont { background:var(--surface-soft); border-radius:12px; padding:12px 14px; display:grid; grid-template-columns:16px minmax(0,1fr); gap:10px; font-size:13px; color:var(--ink-soft); line-height:1.6; }
+.dont .ic { color:var(--red); margin-top:3px; }
+.dont b { color:var(--ink); font-weight:500; display:block; }
+
+/* toast */
+.toast { position:fixed; left:50%; bottom:24px; transform:translate(-50%, 8px); opacity:0; pointer-events:none; background:var(--action); color:var(--action-ink); border-radius:999px; padding:9px 16px; font-size:13px; font-weight:500; box-shadow:var(--lift-3); transition:opacity var(--dur-move), transform var(--dur-move) var(--ease-quint); max-width:calc(100vw - 32px); z-index:50; display:flex; gap:8px; align-items:center; }
+.toast.on { opacity:1; transform:translate(-50%,0); }
+.tip { position:fixed; z-index:60; background:var(--action); color:var(--action-ink); font-size:12px; line-height:1.5; padding:6px 9px; border-radius:8px; max-width:280px; pointer-events:none; opacity:0; transition:opacity var(--dur-hover); box-shadow:var(--lift-3); }
+.tip.on { opacity:1; }
+
+@media (max-width: 1100px) {
+  .brief { grid-template-columns:minmax(0,1fr); }
+  .b-rail { border-top:1px solid var(--line); padding-top:16px; }
+  .sizes { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width: 960px) {
+  .layout { grid-template-columns:minmax(0,1fr); }
+  .toc { display:none; }
+  .spec, .anatomy, .home { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width: 600px) {
+  .layout { padding:0 0 40px; gap:10px; }
+  .sheet { border-radius:0; padding:20px 16px 24px; }
+  .board-top { position:static; padding:12px 16px; flex-wrap:wrap; gap:10px; }
+  .board-top .sub { display:none; }
+  .board-top .tools { margin-left:0; }
+  .board-top .seg button { min-height:36px; }
+  .card .c-actions .btn-primary { flex:1 1 100%; justify-content:center; }
+  .ws { min-width:560px; }
+  .exhibit { overflow-x:auto; }
+  .exhibit svg { min-width:460px; }
+  .ctree { grid-template-columns:16px minmax(0,1fr); gap:8px; }
+  .brief { padding:20px 16px; }
+  .brief-frame { padding:0; background:none; }
+  :root { --panel-w:100% !important; }
+  .btn, .seg button, .tabs button { min-height:44px; }
+  .opt { padding:12px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 8 4 0 8z" fill="var(--line-strong)"/></marker>
+    <symbol id="i-goals" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-pages" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+    <symbol id="i-todo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-schedule" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></symbol>
+    <symbol id="i-coding" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></symbol>
+    <symbol id="i-git" viewBox="0 0 24 24"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+    <symbol id="i-feed" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+    <symbol id="i-shelf" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+    <symbol id="i-lingguang" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+    <symbol id="i-cognia" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+    <symbol id="i-form" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></symbol>
+    <symbol id="i-dataset" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol>
+    <symbol id="i-ppt" viewBox="0 0 24 24"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></symbol>
+    <symbol id="i-images" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+    <symbol id="i-workflows" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect x="13" y="13" width="8" height="8" rx="2"/></symbol>
+    <symbol id="i-files" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+    <symbol id="i-alchemist" viewBox="0 0 24 24"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+    <symbol id="i-brief" viewBox="0 0 24 24"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M2 15h10"/><path d="m9 18 3-3-3-3"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+    <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chev-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><path d="M2 12h3"/><path d="M19 12h3"/><path d="M12 2v3"/><path d="M12 19v3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-talk" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/></symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/></symbol>
+  </defs>
+</svg>
+
+<header class="board-top">
+  <div class="mark">
+    <svg class="ic ic-20"><use href="#i-cards"/></svg>
+    <div><h1>助理卡片规格板</h1><div class="sub">一条记录 · 一套块 · 三种尺寸 · 各归其主 — 设计稿 2026-10-26</div></div>
+  </div>
+  <div class="tools">
+    <div class="seg" role="group" aria-label="主题" data-seg="theme">
+      <button type="button" data-v="light" aria-pressed="true">浅色</button>
+      <button type="button" data-v="dark" aria-pressed="false">深色</button>
+    </div>
+    <div class="seg" role="group" aria-label="侧栏宽度" data-seg="panel">
+      <button type="button" data-v="340px" aria-pressed="false">侧栏 340</button>
+      <button type="button" data-v="400px" aria-pressed="true">400</button>
+      <button type="button" data-v="480px" aria-pressed="false">480</button>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="目录">
+  <span class="grp">基础</span>
+  <a href="#anatomy">卡片解剖</a>
+  <a href="#voices">三种字</a>
+  <a href="#blocks">块目录</a>
+  <span class="grp">卡型</span>
+  <a href="#g-advance">推进 · 4</a>
+  <a href="#g-decide">决定 · 3</a>
+  <a href="#g-watch">守望 · 4</a>
+  <a href="#g-run">执行 · 2</a>
+  <a href="#g-review">回顾 · 5</a>
+  <a href="#g-discover">发现 · 1</a>
+  <span class="grp">放进产品</span>
+  <a href="#sizes">三种尺寸</a>
+  <a href="#home">首页与侧栏</a>
+  <a href="#states">状态</a>
+  <span class="grp">工作简报</span>
+  <a href="#p-pulse">脉搏页</a>
+  <a href="#p-report">周报页</a>
+  <a href="#p-status">状态页</a>
+  <a href="#p-review">专题分析页</a>
+  <span class="grp">其他</span>
+  <a href="#narrow">窄屏</a>
+  <a href="#donts">不要这样</a>
+</nav>
+
+<main>
+
+<!-- ═════════ 解剖 ═════════ -->
+<section class="sheet" id="anatomy">
+  <header>
+    <div class="eyebrow">基础 · 1</div>
+    <h2>卡片解剖</h2>
+    <p class="lead">一张卡片回答五件事：针对哪个对象、为什么是现在、内容是什么、依据在哪、我能做什么。所有卡型共用这个骨架；不同卡型只换中间的块。</p>
+    <span class="demo-note"><svg class="ic ic-12"><use href="#i-info"/></svg>全板都是示例数据，按钮只在页面里演示</span>
+  </header>
+  <div class="anatomy">
+    <div style="position:relative" data-anatomy>
+      <span class="pin" data-pin="ring" style="left:-9px">1</span>
+      <span class="pin" data-pin="head" style="right:-9px">2</span>
+      <span class="pin" data-pin="title" style="left:-9px">3</span>
+      <span class="pin" data-pin="why" style="left:-9px">4</span>
+      <span class="pin" data-pin="blocks" style="left:-9px">5</span>
+      <span class="pin" data-pin="actions" style="left:-9px">6</span>
+      <span class="pin" data-pin="basis" style="left:-9px">7</span>
+      <article class="card" data-hit tabindex="0" data-say="选中：侧栏展开详情，主区打开 Goals 并定位「1.0 可发布」的决定区">
+        <div class="c-head" data-anchor="head"><i class="ring" data-s="answer" data-anchor="ring"></i><span class="intent">需要你决定</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="when">10:20</span></div>
+        <div class="c-title" data-anchor="title">1.0 的灰度先开给谁？</div>
+        <div class="c-why" data-anchor="why">周三 10:00 评审要定；《Q4 发布方案》第 3 节和发布日程都在等这个选择。</div>
+        <div class="c-blocks" data-anchor="blocks">
+          <div class="opts" role="radiogroup" aria-label="灰度对象">
+            <button class="opt" role="radio" aria-checked="true" type="button" data-label="内测 50 人"><span class="rd"></span><span class="l">内测 50 人 <span class="tag copper">推荐</span></span><span class="d">已有反馈通道，回滚只影响 50 人<span class="cite" data-cite="《内测反馈问卷》· Form · 48 份回收">1</span></span></button>
+            <button class="opt" role="radio" aria-checked="false" type="button" data-label="5% 新注册用户"><span class="rd"></span><span class="l">5% 新注册用户</span><span class="d">数据更有代表性，但没有反馈通道</span></button>
+            <button class="opt" role="radio" aria-checked="false" type="button" data-label="先内部 20 人"><span class="rd"></span><span class="l">先内部 20 人，再扩到内测</span><span class="d">多 3 天，评审后才能开始<span class="cite" data-cite="日程「1.0 发布评审」· 周三 10:00">2</span></span></button>
+            <button class="opt other" role="radio" aria-checked="false" type="button" data-label="其他"><span class="rd"></span><span class="l">其他，我来写…</span></button>
+          </div>
+          <div class="obj-list" aria-label="受影响">
+            <div class="obj-row compact"><svg class="ic"><use href="#i-pages"/></svg><span class="t">《Q4 发布方案》第 3 节</span><span class="side"><span class="tag">草稿 v7</span></span></div>
+            <div class="obj-row compact"><svg class="ic"><use href="#i-schedule"/></svg><span class="t">1.0 发布评审</span><span class="side"><span class="tag">周三 10:00</span></span></div>
+          </div>
+        </div>
+        <div class="c-actions" data-anchor="actions" data-primary-template="按「{x}」定下来">
+          <button class="btn btn-primary" type="button" data-say="提交答案：回到原工作，并记为 Goal「1.0 可发布」的决定"><span>按「内测 50 人」定下来</span></button>
+          <button class="btn btn-ghost" type="button" data-say="暂不决定：可选到时间、条件变化或只留给我找回">暂不决定</button>
+          <span class="end"><button class="btn btn-ghost btn-icon" type="button" aria-label="说一句" data-say="这张卡成为输入框的对象"><svg class="ic"><use href="#i-talk"/></svg></button><button class="btn btn-ghost btn-icon" type="button" aria-label="更多"><svg class="ic"><use href="#i-more"/></svg></button></span>
+        </div>
+        <div class="c-basis" data-anchor="basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>决策 Skill v2</span><span>截至 10:20</span><span>依据 2</span><span>读了 Goals、Pages、Schedule、Form</span></div>
+      </article>
+    </div>
+    <ol class="legend">
+      <li><span><b>状态环与意图。</b>环说状态，字说意图（需要你决定、卡住了、已备好…）。意图不配颜色，颜色只用于状态。</span></li>
+      <li><span><b>主对象与时间。</b>主对象由主人解析，带插件图标；点卡片主体会打开并定位到它。右侧是生成或更新时刻，处理后这里换成建议状态（已暂缓、已处理、已失效）。</span></li>
+      <li><span><b>标题：对象 + 结果。</b>一句话，至多 60 字。不写「建议继续完善」这种没有对象的话。</span></li>
+      <li><span><b>为什么是现在。</b>时机与代价，至多 120 字。</span></li>
+      <li><span><b>块区。</b>按卡型放 1–3 个块。这里是一个选项块（只改待提交的参数）和一个对象列表（主人的字）。依据标 <span class="cite">1</span> 悬停可看来源。</span></li>
+      <li><span><b>动作行。</b>至多一个实心主按钮，名字写对象和结果，随选项改变；其余是幽灵按钮。说一句、更多在右端。</span></li>
+      <li><span><b>依据条（宿主写）。</b>用了哪个 Skill 与版本、截至、依据数、读了哪些来源，以及读不到的缺口（琥珀点）。模型改不了这一行。</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ═════════ 三种字 ═════════ -->
+<section class="sheet" id="voices">
+  <header>
+    <div class="eyebrow">基础 · 2</div>
+    <h2>三种字：谁说的，一眼分得清</h2>
+    <p class="lead">卡片里的每个字都有来源。主人的事实永远由主人给，助理只决定选哪些、怎么排、加一句注；助理的断言挂依据；读不到、谁完成、变了什么由宿主写，模型压不掉。</p>
+  </header>
+  <div class="spec">
+    <div class="voices marked" id="voiceCard">
+      <article class="card">
+        <div class="c-head"><i class="ring" data-s="quiet"></i><span class="intent">回顾</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-brief"/></svg>周报 10-19 ～ 10-25</span><span class="when">周一 08:30</span></div>
+        <div class="c-title" data-voice="ai">上周交付了同步修复方案和评审纪要，灰度对象还没定</div>
+        <div class="c-blocks">
+          <div class="obj-list" data-voice="owner">
+            <div class="obj-row compact"><svg class="ic"><use href="#i-pages"/></svg><span class="t">《同步冲突修复方案》</span><span class="side"><span class="tag green">已定稿</span><span class="who ai"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>助理</span></span></div>
+            <div class="obj-row compact"><svg class="ic"><use href="#i-pages"/></svg><span class="t">《1.0 评审纪要 10-22》</span><span class="side"><span class="tag green">已完成</span><span class="who"><svg class="ic ic-12"><use href="#i-user"/></svg>你</span></span></div>
+          </div>
+          <div class="claim" data-voice="ai"><span class="st">推断</span><span class="s">灰度对象没定，是本周最可能拖住发布的一件事<span class="cite" data-cite="Goal「1.0 可发布」· 决定请求 · 10-22">1</span><span class="cite" data-cite="日程「1.0 发布评审」· 周三 10:00">2</span></span></div>
+        </div>
+        <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>周报 Skill v3</span><span>周期已结束</span><span data-voice="host" class="gap">Git 未连接：代码变化未计入</span></div>
+      </article>
+    </div>
+    <div class="notes">
+      <div class="voice-key">
+        <div class="k"><span class="sw owner"></span><span><b>主人的字</b> — 对象行里的标题、状态、时间与事实行，来自主题摘要（<code>*.subject.summaries</code>）。画在纸色的行里、带插件图标：它们是「真的东西」。</span></div>
+        <div class="k"><span class="sw ai"></span><span><b>助理的字</b> — 标题、为什么是现在、结论、选项、注。断言必须挂依据：本轮真实读到的活动编号，或主人能解析的对象。把握分「确定 / 推断 / 待验证」。</span></div>
+        <div class="k"><span class="sw host"></span><span><b>宿主的字</b> — 依据条、缺口、<code>stale</code>、<code>owner-supplied</code>、你 / 助理、两次之间的变化。由读取的成败与动作记录算出。</span></div>
+      </div>
+      <button class="switch" type="button" aria-pressed="true" data-toggle-voices><span class="tr"></span>标出字的来源（只在规格板里）</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 块目录 ═════════ -->
+<section class="sheet" id="blocks">
+  <header>
+    <div class="eyebrow">基础 · 3</div>
+    <h2>块目录</h2>
+    <p class="lead">闭集，19 种。卡型从这里挑块拼；工具 schema 只列宿主能画的块，用了没有的当场失败。右上角标出字来自谁。每种块都有行、卡、页三种画法，这里是卡尺寸。</p>
+  </header>
+  <div class="blockgrid">
+    <div class="bspec"><header><b>对象</b><code>object</code><span class="src owner">主人</span></header>
+      <div class="obj-row"><svg class="ic"><use href="#i-todo"/></svg><span class="t">准备灰度名单</span><span class="side"><span class="tag amber">未开始</span></span><span class="f"><span>到期 周二 18:00</span><span>负责人 你</span></span></div>
+      <p class="bnote">主题摘要：标题、状态、至多 3 条事实、打开位置。点它打开并定位。</p></div>
+
+    <div class="bspec"><header><b>对象列表</b><code>list</code><span class="src owner">主人</span></header>
+      <div class="obj-list">
+        <div class="obj-row compact"><svg class="ic"><use href="#i-shelf"/></svg><span class="t">剪藏：CRDT 合并策略对比</span><span class="side"><span class="f" style="grid-column:auto">10-21</span></span></div>
+        <div class="obj-row compact"><svg class="ic"><use href="#i-feed"/></svg><span class="t">GitHub #212 离线编辑丢失</span><span class="side"><span class="f" style="grid-column:auto">10-23</span></span></div>
+        <div class="more">还有 2 条</div>
+      </div>
+      <p class="bnote">卡尺寸 3–5 条，其余折叠；每项可带助理一句注。</p></div>
+
+    <div class="bspec"><header><b>数</b><code>metric</code><span class="src host">宿主</span></header>
+      <div class="metrics"><div class="metric"><span class="v">48<small>/ 50 份</small></span><span class="k">问卷回收</span><span class="b">依据 · Form 读取 09:12</span></div><div class="metric"><span class="v">1<small>天</small></span><span class="k">预计晚于评审</span><span class="b">估算 · 按上次整理用时</span></div></div>
+      <p class="bnote">数只能从读取输出取，或标「口述」「估算 + 方法」。没有来路的数不出现。</p></div>
+
+    <div class="bspec"><header><b>来源状态</b><code>status</code><span class="src ai">助理 + 宿主</span></header>
+      <div class="status">
+        <div class="st-row"><svg class="ic"><use href="#i-goals"/></svg><span class="src">Goals</span><span class="tag green"><span class="sw"></span>正常</span><span class="why">3/5 交付按计划</span></div>
+        <div class="st-row"><svg class="ic"><use href="#i-git"/></svg><span class="src">Git</span><span class="tag na">n.a.</span><span class="why"><span class="host">未连接（宿主）</span></span></div>
+      </div>
+      <p class="bnote">色与一句话是助理的判断；读取成败和 n.a. 是宿主的。一个来源失败不挡别的。</p></div>
+
+    <div class="bspec"><header><b>时间轴</b><code>agenda</code><span class="src owner">主人</span></header>
+      <div class="agenda">
+        <span class="tm">10:32</span><span class="rail"><i class="ring" data-s="running"></i></span><div class="ev"><div class="t">现在</div></div>
+        <span class="tm">14:00</span><span class="rail last"><i class="ring" data-s="empty"></i></span><div class="ev"><div class="t">设计评审 <span class="tag amber">重叠 30 分</span></div><div class="f"><svg class="ic ic-12"><use href="#i-schedule"/></svg>Schedule · 到 15:00</div></div>
+      </div>
+      <p class="bnote">日程、提醒、到期放在一根轴上，现在线是铜色。</p></div>
+
+    <div class="bspec"><header><b>经过</b><code>timeline</code><span class="src owner">主人</span></header>
+      <div class="agenda">
+        <span class="tm">10-22</span><span class="rail"><i class="ring" data-s="done"></i></span><div class="ev"><div class="t">评审纪要定稿</div><div class="f">Goals · 你</div></div>
+        <span class="tm">10-24</span><span class="rail last"><i class="ring" data-s="answer"></i></span><div class="ev"><div class="t">请求决定：灰度对象</div><div class="f">Goals · 助理</div></div>
+      </div>
+      <p class="bnote">一件事最近发生了什么，取主人的时间线或事件。</p></div>
+
+    <div class="bspec"><header><b>进度</b><code>progress</code><span class="src owner">执行主人</span></header>
+      <div class="steps">
+        <div class="step done"><i class="ring" data-s="done"></i><span>定位到合并函数</span><span class="t2">2 分</span></div>
+        <div class="step now"><i class="ring" data-s="running"></i><span>写字段级合并 <span class="t2">第 3/5 步</span></span><span class="t2">8 分</span></div>
+        <div class="step todo"><i class="ring" data-s="empty"></i><span>跑同步测试</span><span class="t2"></span></div>
+      </div>
+      <p class="bnote">真实步骤与状态；控制（暂停、停止）是执行主人的动作。</p></div>
+
+    <div class="bspec"><header><b>对照</b><code>diff</code><span class="src owner">主人 / SDK</span></header>
+      <div class="diff"><div class="ctx">首批灰度：内测用户</div><div class="del">首批 5% 用户</div><div class="ins">首批：内测 50 人，48 份反馈已回收</div></div>
+      <p class="bnote">主人的对照动作，或 SDK <code>compareTexts</code>。行尺寸只写「+1 −1」。</p></div>
+
+    <div class="bspec"><header><b>文件</b><code>file</code><span class="src owner">主人</span></header>
+      <div class="file"><div class="thumb"><i></i><i></i><i></i><i></i><i></i></div><div><div class="t">1.0 评审纪要.pdf</div><div class="f"><span class="kind">PDF</span>4 页 · 成果 v2 · 10-22</div></div></div>
+      <p class="bnote">预览来自主人的预览动作；不渲染文件里的脚本。</p></div>
+
+    <div class="bspec"><header><b>正文</b><code>text</code><span class="src ai">助理</span></header>
+      <p class="prose">第 3 节写到「首批 5% 用户」，还没写<b>什么情况回滚、谁来判断</b>。</p>
+      <p class="bnote">富文本子集；对象片由宿主解析成真实对象。</p></div>
+
+    <div class="bspec"><header><b>结论</b><code>claim</code><span class="src ai">助理，宿主核对</span></header>
+      <div class="claim"><span class="st">确定</span><span class="s">#212 的三例丢失都发生在两端同时改不同字段时<span class="cite" data-cite="Feed · GitHub #212 · 3 条复现">1</span><span class="cite" data-cite="Coding 会话「复现同步丢失」· 日志">2</span></span></div>
+      <div class="claim"><span class="st guess">推断</span><span class="s">字段级合并能覆盖现有全部案例</span></div>
+      <div class="claim"><span class="st check">待验证</span><span class="s">离线超过 24 小时的情况没有样本</span></div>
+      <p class="bnote">「确定」至少一条依据；没有依据只能写「推断」或「待验证」。</p></div>
+
+    <div class="bspec"><header><b>选项</b><code>options</code><span class="src ai">助理</span></header>
+      <div class="opts" role="radiogroup">
+        <button class="opt" role="radio" aria-checked="true" type="button"><span class="rd"></span><span class="l">字段级合并 <span class="tag copper">推荐</span></span></button>
+        <button class="opt" role="radio" aria-checked="false" type="button"><span class="rd"></span><span class="l">显示冲突让人选</span></button>
+      </div>
+      <p class="bnote">就是 <code>AgentQuestion</code> 的选择题：单选、多选、推荐理由、其他、暂不决定。</p></div>
+
+    <div class="bspec"><header><b>方案对照</b><code>compare</code><span class="src ai">助理</span></header>
+      <table class="cmp"><thead><tr><th></th><th>最后写入</th><th class="rec">字段级合并</th></tr></thead>
+        <tbody><tr><th>丢数据</th><td>会</td><td class="rec">不会<span class="cite" data-cite="Coding · 合并测试 3/3 通过">1</span></td></tr><tr><th>工作量</th><td>1 天</td><td class="rec">4 天</td></tr></tbody></table>
+      <p class="bnote">方案 × 维度；推荐列铜色淡底，格子可挂依据。</p></div>
+
+    <div class="bspec"><header><b>候选稿</b><code>draft</code><span class="src ai">助理，目标由主人</span></header>
+      <div class="draft"><div class="to"><svg class="ic ic-12"><use href="#i-pages"/></svg>采用到 <b>《Q4 发布方案》§3 第 2 段后</b></div><div class="body">出现以下任一情况，30 分钟内回滚……</div></div>
+      <p class="bnote">采用走目标主人的写入动作，旁边给差异。</p></div>
+
+    <div class="bspec"><header><b>动作</b><code>action</code><span class="src owner">动作卡记录</span></header>
+      <div class="c-actions"><button class="btn btn-primary" type="button"><span>把 3 条建成待办</span></button><span class="tag">会修改，可在原处撤回</span></div>
+      <p class="bnote">现有动作卡：精确能力、准备好的输入、影响标记、最多执行一次。</p></div>
+
+    <div class="bspec"><header><b>问题</b><code>question</code><span class="src ai">助理（必答）</span></header>
+      <div class="c-banner" style="background:var(--paper)"><svg class="ic"><use href="#i-help"/></svg><span class="grow">导入时「设备型号」这一列放到哪？<br><span style="color:var(--muted)">这一轮停在这里等你回答</span></span></div>
+      <p class="bnote">现有问题卡；回答回到原 Run，与「选项」的区别是它阻塞执行。</p></div>
+
+    <div class="bspec"><header><b>变化</b><code>delta</code><span class="src host">宿主</span></header>
+      <div class="delta">
+        <div class="dl chg"><svg class="ic"><use href="#i-arrow-right"/></svg><span>修复同步冲突：进行中 → 待评审</span><span class="k">状态</span></div>
+        <div class="dl block"><svg class="ic"><use href="#i-alert"/></svg><span>隐私条款：等法务</span><span class="k">新阻塞</span></div>
+      </div>
+      <p class="bnote">宿主比较两次的引用块得出，不跑模型。</p></div>
+
+    <div class="bspec"><header><b>缺口</b><code>gap</code><span class="src host">宿主</span></header>
+      <div class="gapline">Git 未连接：本周代码变化未计入，「推进了什么」里没有提交记录。</div>
+      <div class="gapline">《竞品对照》3 天前读过，之后没再读到。</div>
+      <p class="bnote">本轮失败的读取与未连接的来源必出，模型压不掉。</p></div>
+
+    <div class="bspec"><header><b>附图</b><code>exhibit</code><span class="src ai">助理给数据</span></header>
+      <div class="exhibit"><svg viewBox="0 0 300 92" role="img" aria-label="同步状态机">
+        <g class="ex-node"><rect x="4" y="8" width="70" height="26" rx="6"/><text x="39" y="25" text-anchor="middle">本地编辑</text></g>
+        <g class="ex-node"><rect x="114" y="8" width="70" height="26" rx="6"/><text x="149" y="25" text-anchor="middle">待同步</text></g>
+        <g class="ex-node"><rect x="224" y="8" width="70" height="26" rx="6"/><text x="259" y="25" text-anchor="middle">已同步</text></g>
+        <g class="ex-node hot"><rect x="114" y="58" width="70" height="26" rx="6"/><text x="149" y="75" text-anchor="middle">合并冲突</text></g>
+        <path class="ex-edge" d="M74 21H112"/><path class="ex-edge" d="M184 21H222"/><path class="ex-edge hot" d="M149 34V56"/>
+      </svg></div>
+      <p class="bnote">节点、边、表格的 JSON 由渲染器画；不收 HTML、Mermaid 或脚本。</p></div>
+  </div>
+</section>
+
+<!-- ═════════ 卡型：推进 ═════════ -->
+<section class="sheet" id="g-advance">
+  <header>
+    <div class="eyebrow">卡型 · 推进</div>
+    <h2>推进：把已开始的接上、把做好的交出去</h2>
+    <p class="lead">卡型是一份配方：槽、每槽允许的块、各尺寸显示哪几槽。Skill 选卡型、填槽，平台不按卡型写分支。</p>
+  </header>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开《Q4 发布方案》并定位到第 3 节第 2 段">
+      <div class="c-head"><i class="ring" data-s="empty"></i><span class="intent">可以接着做</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>Pages</span><span class="when">09:40</span></div>
+      <div class="c-title">接着写《Q4 发布方案》第 3 节「灰度节奏」</div>
+      <div class="c-why">上周五停在这一节第 2 段；周三评审前还缺回滚条件。</div>
+      <div class="c-blocks">
+        <div class="obj-row"><svg class="ic"><use href="#i-pages"/></svg><span class="t">《Q4 发布方案》</span><span class="side"><span class="tag">草稿 v7</span></span><span class="f"><span>你 · 上周五 18:12 编辑</span><span>§3 写了 2/4 段</span></span></div>
+        <p class="prose soft">停在「首批 5% 用户」之后，还没写什么情况回滚、谁来判断。</p>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="打开 Pages，光标放到第 3 节第 2 段末"><span>接着写第 3 节</span></button><button class="btn btn-ghost" type="button" data-say="助理按 Skill 起草回滚条件，完成后出一张「已备好」卡">先起草回滚条件</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>接续 Skill v2</span><span>截至 09:40</span><span>读了 Pages、Schedule</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>接着做</b><code>next</code><span class="tag">意图 next</span></div>
+      <dl>
+        <dt>何时出</dt><dd>已开始的工作停了，且有理由现在接上（临近的约定、等它的下游）。</dd>
+        <dt>槽</dt><dd><b>*主对象</b> object · <b>*停在哪</b> text · <b>*动作</b> action</dd>
+        <dt>来源</dt><dd><code>goals.work.resume</code> <code>coding.sessions.read</code> <code>pages.get</code> <code>schedule.tasks.list</code></dd>
+        <dt>主按钮</dt><dd>打开并定位到断点，不跑模型。「先起草」是新的委托，出另一张「已备好」。</dd>
+        <dt>不出</dt><dd>说不出具体断点；对象已完成或已被别人接手。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开《Q4 发布方案》并高亮插入位置（临时标记，不进正文）">
+      <div class="c-head"><i class="ring" data-s="ready"></i><span class="intent">已备好</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span><span class="when">10:05</span></div>
+      <div class="c-title">第 3 节的回滚条件起草好了，等你采用</div>
+      <div class="c-why">按你 10-22 评审纪要里定的三条指标写的。</div>
+      <div class="c-blocks">
+        <div class="draft"><div class="to"><svg class="ic ic-12"><use href="#i-pages"/></svg>采用到 <b>§3 第 2 段之后</b><span style="margin-left:auto" class="diff-sum"><span class="p">+6</span><span class="m">−0</span></span></div>
+          <div class="body">出现以下任一情况，30 分钟内回滚：<br>· 同步失败率 &gt; 0.5%（10 分钟窗口）<span class="cite" data-cite="《1.0 评审纪要 10-22》第 4 条">1</span><br>· 崩溃率高于基线 2 倍<span class="cite" data-cite="Dataset「1.0 基线」· 崩溃率 0.21%">2</span><br>· 1 小时内客服工单 ≥ 20 条</div></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="调用 pages.landing.insert：插入到 §3 第 2 段之后；完成后卡片变成「已完成」，可在 Pages 里撤回"><span>采用到第 3 节</span></button><button class="btn btn-ghost" type="button" data-say="在侧栏里改候选稿，改的是草稿，不动原文">调整</button><button class="btn btn-ghost" type="button" data-say="放弃：卡片移入历史，保留可找回">放弃</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>起草 Skill v1</span><span>截至 10:05</span><span>依据 2</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>已备好</b><code>prepared</code><span class="tag">意图 prepared</span></div>
+      <dl>
+        <dt>何时出</dt><dd>在授权内做好了一份可审阅的结果：候选稿、整理、修改建议。</dd>
+        <dt>槽</dt><dd><b>*候选</b> draft · <b>*对照</b> diff（卡尺寸只给 +/− 计数）· 依据 claim · <b>*动作</b> action</dd>
+        <dt>来源</dt><dd><code>pages.ai</code> <code>ppt.outline_ai</code> <code>form.questions.draft</code> <code>todo.organize.extract</code></dd>
+        <dt>主按钮</dt><dd>「采用到 + 目标」，走目标主人的写入（<code>pages.landing.insert</code>）。主人没有可靠撤销时不显示撤销。</dd>
+        <dt>失效</dt><dd>目标从 v7 变了 → 琥珀横幅，按钮换成「按新版本重新准备」。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：侧栏列出两个对象，主区先打开《内测反馈问卷》的结果页">
+      <div class="c-head"><i class="ring" data-s="empty"></i><span class="intent">可以接着做</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-form"/></svg>Form → <svg class="ic ic-12"><use href="#i-dataset"/></svg>Dataset</span><span class="when">09:12</span></div>
+      <div class="c-title">内测问卷收齐了，可以导入「内测反馈」数据集</div>
+      <div class="c-why">问卷 09:00 截止，回收 48/50；数据集上次导入是 10-19。</div>
+      <div class="c-blocks">
+        <div class="obj-row compact"><svg class="ic"><use href="#i-form"/></svg><span class="t">内测反馈问卷</span><span class="side"><span class="tag green">已截止</span></span><span class="f">48 份 · 6 道题</span></div>
+        <div class="arrow-down">按题目对上 6 列，新增 1 列「设备型号」</div>
+        <div class="obj-row compact"><svg class="ic"><use href="#i-dataset"/></svg><span class="t">内测反馈</span><span class="side"><span class="tag">v3</span></span><span class="f">312 行 · 10-19 导入</span></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="form.results.csv → dataset.import；数据集生成 v4，可回滚"><span>导入 48 份到「内测反馈」</span></button><button class="btn btn-ghost" type="button" data-say="展开列对应，可改">先看列对应</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>接续 Skill v2</span><span>截至 09:12</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>接续</b><code>handoff</code><span class="tag">意图 next</span></div>
+      <dl>
+        <dt>何时出</dt><dd>一处产生的结果已经满足另一处工作的前提。</dd>
+        <dt>槽</dt><dd><b>*从</b> object · <b>*怎么转</b> text · <b>*到</b> object · <b>*动作</b> action</dd>
+        <dt>例子</dt><dd>问卷 → 数据集（<code>form.results.csv</code> → <code>dataset.import</code>）；Coding 报告 → Goal 交付（<code>coding.reports.read</code> → <code>goals.deliverables.add</code>）；Feed 条目 → Inbox（<code>feed.items.inbox</code>）。</dd>
+        <dt>边界</dt><dd>保持原对象与来源关系，不制造重复业务事实；两个对象同等重要，点主体先列出让人选。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：没有主对象，侧栏列出 4 份材料，主区不跳转">
+      <div class="c-head"><i class="ring" data-s="empty"></i><span class="intent">收拢</span><span class="dot">·</span><span class="obj">4 份材料</span><span class="when">昨天</span></div>
+      <div class="c-title">关于「离线同步」的 4 份材料，收成一个 Goal？</div>
+      <div class="c-why">这周你在 Shelf、Feed、灵光、Inbox 里 4 次碰到同一件事，还没有地方放它。</div>
+      <div class="c-blocks">
+        <div class="obj-list">
+          <div class="obj-row compact"><svg class="ic"><use href="#i-shelf"/></svg><span class="t">剪藏：CRDT 合并策略对比</span><span class="side"><span class="f" style="grid-column:auto">Shelf · 10-21</span></span></div>
+          <div class="obj-row compact"><svg class="ic"><use href="#i-feed"/></svg><span class="t">GitHub #212 离线编辑丢失</span><span class="side"><span class="f" style="grid-column:auto">Feed · 10-23</span></span></div>
+          <div class="obj-row compact"><svg class="ic"><use href="#i-lingguang"/></svg><span class="t">「同步要能看见冲突」</span><span class="side"><span class="f" style="grid-column:auto">灵光 · 10-24</span></span></div>
+          <div class="more">还有 1 条 · Inbox</div>
+        </div>
+        <div class="opts" role="radiogroup" aria-label="去处"><div class="q">放到哪</div>
+          <button class="opt" role="radio" aria-checked="true" type="button" data-label="新建 Goal"><span class="rd"></span><span class="l">新建 Goal「离线同步可靠」<span class="tag copper">推荐</span></span><span class="d">有用户反馈、有 issue，已经是要交付的事</span></button>
+          <button class="opt" role="radio" aria-checked="false" type="button" data-label="挂到「1.0 可发布」"><span class="rd"></span><span class="l">挂到已有 Goal「1.0 可发布」</span></button>
+          <button class="opt" role="radio" aria-checked="false" type="button" data-label="先整理成文档"><span class="rd"></span><span class="l">先整理成一页文档</span></button>
+        </div>
+      </div>
+      <div class="c-actions" data-primary-template="{x}，带上 4 份材料"><button class="btn btn-primary" type="button" data-say="goals.create + goals.inputs.bind：材料作为输入挂上，原材料不移动"><span>新建 Goal，带上 4 份材料</span></button><button class="btn btn-ghost" type="button">这次不用</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>收拢 Skill v1</span><span>未确认的意图不建承诺</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>收拢</b><code>gather</code><span class="tag">意图 next</span></div>
+      <dl>
+        <dt>何时出</dt><dd>零散的材料与行为开始指向同一个结果。</dd>
+        <dt>槽</dt><dd><b>*材料</b> list · <b>*去处</b> options · <b>*动作</b> action</dd>
+        <dt>来源</dt><dd><code>shelf.items.list</code> <code>feed.items.get</code> <code>lingguang.content.list</code> <code>inbox.list</code> <code>search.query</code></dd>
+        <dt>去处</dt><dd><code>goals.create</code> <code>goals.inputs.bind</code> <code>pages.create</code>；主按钮随选项改名。</dd>
+        <dt>边界</dt><dd>没有主对象：点主体不跳转，只在侧栏列出材料。</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 卡型：决定 ═════════ -->
+<section class="sheet" id="g-decide">
+  <header>
+    <div class="eyebrow">卡型 · 决定</div>
+    <h2>决定：只交出真正改变后续的选择</h2>
+    <p class="lead">每组选项先说正在决定什么、选了会怎样。推荐写具体依据，不替你提交；始终可以写自己的答案或暂不决定。</p>
+  </header>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：侧栏展开对照全表与每格依据">
+      <div class="c-head"><i class="ring" data-s="answer"></i><span class="intent">方案对照</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>离线同步可靠</span><span class="when">11:02</span></div>
+      <div class="c-title">同步冲突怎么处理：三个方案对照</div>
+      <div class="c-blocks">
+        <table class="cmp"><thead><tr><th></th><th>最后写入</th><th class="rec">字段级合并<br><span class="tag copper">推荐</span></th><th>让人选</th></tr></thead>
+          <tbody>
+            <tr><th>丢数据</th><td>会<span class="cite" data-cite="GitHub #212 · 3 条复现">1</span></td><td class="rec">不会</td><td>不会</td></tr>
+            <tr><th>工作量</th><td>1 天</td><td class="rec">4 天<span class="cite" data-cite="Coding 估算 · 会话「修复同步冲突」">2</span></td><td>6 天</td></tr>
+            <tr><th>打扰用户</th><td>无</td><td class="rec">无</td><td>每次冲突</td></tr>
+            <tr><th>满足 #212</th><td>否</td><td class="rec">是</td><td>是</td></tr>
+          </tbody></table>
+        <div class="claim"><span class="st">确定</span><span class="s">#212 的三例都是不同字段同时改，字段级合并能全部覆盖<span class="cite" data-cite="Coding · 合并测试 3/3 通过">3</span></span></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="记为 Goal「离线同步可靠」的决定（goals.decisions.record），引用这张对照"><span>选「字段级合并」并记成决定</span></button><button class="btn btn-ghost" type="button">选别的</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>方案对照 Skill v1</span><span>依据 3</span><span>截至 11:02</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>方案对照</b><code>compare</code><span class="tag">意图 decide</span></div>
+      <dl>
+        <dt>何时出</dt><dd>两到四个方案需要按维度比较，结论会改变后续工作。</dd>
+        <dt>槽</dt><dd><b>*表</b> compare（卡尺寸至多 4 维度）· <b>*推荐</b> claim · <b>*选择</b> options（可内嵌在表头）</dd>
+        <dt>页尺寸</dt><dd>全表、每格依据展开、可加维度；可保存为简报「方案对照」。</dd>
+        <dt>落地</dt><dd>关于 Goal 的决定 → <code>goals.decisions.record</code>；其他回到原工作作为输入。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：侧栏展开记忆的作用范围与历史">
+      <div class="c-head"><i class="ring" data-s="ready"></i><span class="intent">待确认</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-memory"/></svg>记忆</span><span class="when">周一 08:31</span></div>
+      <div class="c-title">记住「周报按项目分节，先写结论」？</div>
+      <div class="c-why">你连续三周都把助理的周报改成了这个结构。</div>
+      <div class="c-blocks">
+        <div class="diff"><div class="del">按时间顺序列出本周事项</div><div class="ins">每个项目一节，第一句写结论，再列依据</div></div>
+        <p class="prose soft">只对「周报」Skill 生效 · 一直有效，可在 设置 › 记忆 撤回</p>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="memory.candidates.accept；下一份周报起生效"><span>记住这条</span></button><button class="btn btn-ghost" type="button">只这一次</button><button class="btn btn-ghost" type="button">不要</button></div>
+      <div class="c-basis"><span>依据：你改过的 3 份周报</span><span>截至 08:31</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>待确认</b><code>confirm</code><span class="tag">意图 decide</span></div>
+      <dl>
+        <dt>何时出</dt><dd>要改变助理自己做法的东西：记忆候选、Skill 修改草案、长期委托。</dd>
+        <dt>槽</dt><dd><b>*改动</b> diff 或 text · <b>*范围</b> text（对什么、多久）· <b>*动作</b> action</dd>
+        <dt>来源</dt><dd><code>memory.candidates.list</code> <code>memory.candidates.accept</code> <code>agent.skills.read</code></dd>
+        <dt>边界</dt><dd>一次成功不自动升级成长期执行；「以后不要这样」写清针对什么、多久。</dd>
+      </dl>
+    </div>
+  </div>
+  <p class="lead" style="margin-top:4px">「需要你决定 <code>decision</code>」的样张就是第 1 节解剖里那张。</p>
+</section>
+
+<!-- ═════════ 卡型：守望 ═════════ -->
+<section class="sheet" id="g-watch">
+  <header>
+    <div class="eyebrow">卡型 · 守望</div>
+    <h2>守望：卡住的、要出问题的、快到的</h2>
+    <p class="lead">用事实说问题：具体记录、天数或范围、下一步。没有新条件不反复催；起草的消息只是草稿，发送按发送授权。</p>
+  </header>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开 Goal「1.0 可发布」，定位到阻塞项">
+      <div class="c-head"><i class="ring" data-s="blocked"></i><span class="intent">卡住了</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="when">4 天</span></div>
+      <div class="c-title">「1.0 可发布」在等法务确认隐私条款</div>
+      <div class="c-why">条款没定，发布说明和商店文案都不能定稿。</div>
+      <div class="c-blocks">
+        <div class="obj-row"><svg class="ic"><use href="#i-pages"/></svg><span class="t">《隐私条款 v2》</span><span class="side"><span class="tag red">等回复</span></span><span class="f"><span>等「法务」</span><span>自 10-22</span><span>恢复：收到回复或条款改版</span></span></div>
+        <div class="obj-list">
+          <div class="obj-row compact"><svg class="ic"><use href="#i-todo"/></svg><span class="t">写应用商店文案</span><span class="side"><span class="tag">被挡</span></span></div>
+          <div class="obj-row compact"><svg class="ic"><use href="#i-todo"/></svg><span class="t">发布说明</span><span class="side"><span class="tag">被挡</span></span></div>
+        </div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="起草一条催办，只是草稿，发送要你确认"><span>起草催办（不发送）</span></button><button class="btn btn-ghost" type="button" data-say="reminders.add：周三 09:00 提醒你">周三 9 点提醒我</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>阻塞跟进 Skill v2</span><span>条件变了才再提</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>卡住了</b><code>blocked</code><span class="tag">意图 blocked</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*对象</b> object · <b>*等</b> list（等谁、自哪天、恢复条件、被挡的）· <b>*动作</b> action</dd>
+        <dt>来源</dt><dd><code>goals.state.read</code> <code>goals.relations.list</code> <code>todo.items.list</code> <code>issues.list</code> <code>coding.runs.list</code></dd>
+        <dt>动作</dt><dd>提醒我 <code>reminders.add</code>、改期 <code>todo.items.update</code>、起草催办（草稿，不发）。</dd>
+        <dt>暂缓</dt><dd>默认按「条件变化」暂缓：对象版本变了或收到回复才重新出现。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开待办「准备灰度名单」">
+      <div class="c-head"><i class="ring" data-s="verify"></i><span class="intent">风险</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-todo"/></svg>Todo</span><span class="when">10:30</span></div>
+      <div class="c-title">「准备灰度名单」会比评审晚 1 天</div>
+      <div class="c-why">它要用的内测反馈还没导入，导入后整理要 1 天。</div>
+      <div class="c-blocks">
+        <div class="obj-row"><svg class="ic"><use href="#i-todo"/></svg><span class="t">准备灰度名单</span><span class="side"><span class="tag amber">未开始</span></span><span class="f"><span>到期 周二 18:00</span><span>负责人 你</span></span></div>
+        <div class="metrics"><div class="metric"><span class="v">晚 1<small>天</small></span><span class="k">相对周三 10:00 评审</span><span class="b">估算：上次整理用时 1 天<span class="cite" data-cite="Todo 历史 · 「整理 9 月名单」用时 1 天">1</span></span></div></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="打开「接续」卡：先导入问卷"><span>先导入问卷</span></button><button class="btn btn-ghost" type="button" data-say="todo.items.update：到期改到周三 09:00">到期改到周三 9 点</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>偏差 Skill v1</span><span>依据 1</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>偏差与风险</b><code>risk</code><span class="tag">意图 blocked</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*记录</b> object · <b>*影响</b> metric（天数、金额、范围，带依据）· <b>*下一步</b> action</dd>
+        <dt>门槛</dt><dd>没有具体记录不出这张卡；「有些逾期」不算。估算必须写方法。</dd>
+        <dt>颜色</dt><dd>琥珀「待核对」环：是要注意，不是已失败；真正受阻才用红。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开 Schedule 今天的视图">
+      <div class="c-head"><i class="ring" data-s="verify"></i><span class="intent">日程</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-schedule"/></svg>今天</span><span class="when">10:32</span></div>
+      <div class="c-title">下午 2 点半，用户访谈和设计评审撞了</div>
+      <div class="c-blocks">
+        <div class="agenda">
+          <span class="tm">09:00</span><span class="rail"><i class="ring" data-s="done"></i></span><div class="ev"><div class="t">内测问卷截止</div><div class="f"><svg class="ic ic-12"><use href="#i-form"/></svg>Form</div></div>
+          <div class="now"><span>10:32</span><i></i></div>
+          <span class="tm">14:00</span><span class="rail"><i class="ring" data-s="empty"></i></span><div class="ev"><div class="t">设计评审</div><div class="f"><svg class="ic ic-12"><use href="#i-schedule"/></svg>Schedule · 到 15:00</div></div>
+          <span class="tm">14:30</span><span class="rail"><i class="ring" data-s="verify"></i></span><div class="ev"><div class="t">用户访谈 #3 <span class="tag amber">重叠 30 分</span></div><div class="f"><svg class="ic ic-12"><use href="#i-schedule"/></svg>Jelly 日历 · 到 15:30</div></div>
+          <span class="tm">18:00</span><span class="rail last"><i class="ring" data-s="empty"></i></span><div class="ev"><div class="t">到期：回复法务</div><div class="f"><svg class="ic ic-12"><use href="#i-todo"/></svg>Todo 提醒</div></div>
+        </div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="jelly.item.update：访谈改到 15:30–16:30（会通知受访者前要你确认）"><span>访谈改到 15:30</span></button><button class="btn btn-ghost" type="button">14:25 提醒我</button></div>
+      <div class="c-basis"><span>读了 Schedule、Jelly、Todo</span><span>截至 10:32</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>日程与临近</b><code>agenda</code><span class="tag">意图 next</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*轴</b> agenda · <b>*冲突</b> claim（标在轴上）· 动作 action</dd>
+        <dt>来源</dt><dd><code>schedule.tasks.list</code> <code>jelly.calendar.list</code> <code>todo.reminders.due</code> <code>reminders.add</code></dd>
+        <dt>行尺寸</dt><dd>「下一个：14:00 设计评审 · 撞 1 个」。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开日程「1.0 发布评审」">
+      <div class="c-head"><i class="ring" data-s="waiting"></i><span class="intent">提前准备</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-schedule"/></svg>周三 10:00</span><span class="when">2 天后</span></div>
+      <div class="c-title">周三发布评审：材料还缺 2 份</div>
+      <div class="c-blocks">
+        <div class="obj-row compact"><svg class="ic"><use href="#i-schedule"/></svg><span class="t">1.0 发布评审</span><span class="side"><span class="tag">6 人 · 60 分</span></span></div>
+        <div class="obj-list" aria-label="材料">
+          <div class="obj-row compact"><svg class="ic ok-mark"><use href="#i-check"/></svg><span class="t">《Q4 发布方案》v7</span><span class="side"><span class="f" style="grid-column:auto">Pages</span></span></div>
+          <div class="obj-row compact"><svg class="ic ok-mark"><use href="#i-check"/></svg><span class="t">崩溃率基线</span><span class="side"><span class="f" style="grid-column:auto">Dataset</span></span></div>
+          <div class="obj-row compact"><svg class="ic miss-mark"><use href="#i-alert"/></svg><span class="t">灰度名单</span><span class="side"><span class="tag amber">缺 · 未开始</span></span></div>
+          <div class="obj-row compact"><svg class="ic miss-mark"><use href="#i-alert"/></svg><span class="t">隐私条款确认</span><span class="side"><span class="tag red">缺 · 等法务</span></span></div>
+        </div>
+        <p class="prose soft">要问的：回滚由谁拍板？条款周三前没回来，是否推迟？</p>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="生成一份「准备材料」简报，保存在工作简报"><span>生成评审准备简报</span></button><button class="btn btn-ghost" type="button">把问题加进议程</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>会前准备 Skill v1</span><span>「已具备 / 缺」由主人事实判断</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>提前准备</b><code>prep</code><span class="tag">意图 next</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*事件</b> object · <b>*材料</b> list（已具备 / 缺）· <b>*要问的</b> text · 动作 action</dd>
+        <dt>来源</dt><dd><code>schedule.tasks.list</code> <code>cognia.knowledge.query</code> <code>files.side.entries</code> <code>pages.list</code> <code>goals.contract.read</code></dd>
+        <dt>边界</dt><dd>不做勾选清单：缺的转待办，不在简报里存第二份任务状态。</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 卡型：执行 ═════════ -->
+<section class="sheet" id="g-run">
+  <header>
+    <div class="eyebrow">卡型 · 执行</div>
+    <h2>执行：受托的工作，真实地跑、真实地交</h2>
+  </header>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开 Coding 会话「修复同步冲突」">
+      <div class="c-head"><i class="ring" data-s="running"></i><span class="intent">进行中</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-coding"/></svg>Coding</span><span class="when">8 分钟</span></div>
+      <div class="c-title">正在修复「离线编辑丢失」（#212）</div>
+      <div class="c-blocks">
+        <div class="steps">
+          <div class="step done"><i class="ring" data-s="done"></i><span>复现问题</span><span class="t2">2 分</span></div>
+          <div class="step done"><i class="ring" data-s="done"></i><span>定位到合并函数</span><span class="t2">3 分</span></div>
+          <div class="step now"><i class="ring" data-s="running"></i><span>写字段级合并</span><span class="t2">8 分</span></div>
+          <div class="step todo"><i class="ring" data-s="empty"></i><span>跑同步测试</span><span class="t2"></span></div>
+          <div class="step todo"><i class="ring" data-s="empty"></i><span>写变更说明</span><span class="t2"></span></div>
+        </div>
+        <p class="prose soft">不需要你做什么。改动只在会话自己的工作树里。</p>
+      </div>
+      <div class="c-actions"><button class="btn btn-secondary" type="button" data-say="打开 Coding 会话">查看会话</button><button class="btn btn-ghost" type="button" data-say="agent.run.control：暂停，保留进度"><svg class="ic"><use href="#i-pause"/></svg>暂停</button><button class="btn btn-ghost" type="button" data-say="停止：结束这项委托，迟到结果不再生效"><svg class="ic"><use href="#i-stop"/></svg>停止</button></div>
+      <div class="c-basis"><span>10:10 受托</span><span>第 3/5 步</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>进行中</b><code>running</code><span class="tag">意图 running</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*进度</b> progress · <b>*在等</b> text · <b>*控制</b> action</dd>
+        <dt>来源</dt><dd><code>agent.run.read.v1</code> <code>coding.runs.list</code> <code>workflows.instances.get</code> <code>images.jobs.get</code></dd>
+        <dt>按钮</dt><dd>没有实心主按钮：这时没有要你决定的事。暂停、停止是三件不同的事（另有免打扰）。</dd>
+        <dt>等你</dt><dd>停在问题上时，卡里出现问题块，意图变成 decide。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开 Todo，高亮新建的 5 条">
+      <div class="c-head"><i class="ring" data-s="done"></i><span class="intent">已完成</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-todo"/></svg>Todo</span><span class="when">10:41</span></div>
+      <div class="c-title">评审纪要里的 5 条行动项已建成待办</div>
+      <div class="c-blocks">
+        <div class="obj-list">
+          <div class="obj-row compact"><svg class="ic"><use href="#i-todo"/></svg><span class="t">准备灰度名单</span><span class="side"><span class="f" style="grid-column:auto">周二 · 你</span></span></div>
+          <div class="obj-row compact"><svg class="ic"><use href="#i-todo"/></svg><span class="t">写回滚手册</span><span class="side"><span class="f" style="grid-column:auto">周四 · 你</span></span></div>
+          <div class="obj-row compact"><svg class="ic"><use href="#i-todo"/></svg><span class="t">确认商店截图尺寸</span><span class="side"><span class="f" style="grid-column:auto">周五</span></span></div>
+          <div class="more">还有 2 条</div>
+        </div>
+        <div class="diff-sum"><span class="p">新建 5</span><span>· 没改已有待办</span></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="打开 Todo 并逐条定位"><span>在待办里查看</span></button><button class="btn btn-ghost" type="button" data-say="todo.changes.revert：撤回这次新建的 5 条"><svg class="ic"><use href="#i-undo"/></svg>撤回这次新建</button></div>
+      <div class="c-basis"><span>你 10:40 点了「建成待办」</span><span>助理 10:41 执行</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>已完成</b><code>receipt</code><span class="tag">意图 notice</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*结果</b> object / file / list · <b>*改动</b> diff · <b>*动作</b> action</dd>
+        <dt>撤销</dt><dd>只在主人有撤销时出：<code>todo.changes.revert</code> <code>pages.revert</code> <code>jelly.undo</code> <code>dataset.rollback</code>。</dd>
+        <dt>部分成功</dt><dd>逐项列成功与失败，失败项保留输入与「再试这几项」。</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 卡型：回顾 ═════════ -->
+<section class="sheet" id="g-review">
+  <header>
+    <div class="eyebrow">卡型 · 回顾</div>
+    <h2>回顾：卡尺寸是摘要，点开是简报</h2>
+    <p class="lead">回顾类卡片在侧栏和首页只给摘要；完整内容是工作简报里的一页（见「工作简报」各页）。同一份内容，不是两份。</p>
+  </header>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开工作简报「本周脉搏」">
+      <div class="c-head"><i class="ring" data-s="quiet"></i><span class="intent">脉搏</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-brief"/></svg>本周</span><span class="when">10:45</span></div>
+      <div class="c-title">本周：发布主线正常，隐私条款是唯一受阻</div>
+      <div class="c-blocks">
+        <div class="status">
+          <div class="st-row"><svg class="ic"><use href="#i-goals"/></svg><span class="src">Goals</span><span class="tag green"><span class="sw"></span>正常</span><span class="why">3/5 交付按计划</span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-todo"/></svg><span class="src">待办</span><span class="tag amber"><span class="sw"></span>注意</span><span class="why">2 条本周到期未开始</span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-coding"/></svg><span class="src">Coding</span><span class="tag green"><span class="sw"></span>正常</span><span class="why">完成 2，进行中 1</span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-user"/></svg><span class="src">法务</span><span class="tag red"><span class="sw"></span>受阻</span><span class="why">等了 4 天 <span class="host">· 你口述</span></span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-git"/></svg><span class="src">Git</span><span class="tag na">n.a.</span><span class="why"><span class="host">未连接</span></span></div>
+        </div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="打开工作简报「本周脉搏」"><span>展开成一页</span></button><button class="btn btn-ghost" type="button" data-say="brief.briefs.create：保存当前这一版">保存为简报</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>脉搏 Skill v1</span><span>周期进行中</span><span class="gap">Git 未连接</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>一页式脉搏</b><code>pulse</code><span class="tag">意图 review</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*状态</b> status · <b>*风险</b> list（每条是 risk 的行尺寸）· <b>*缺口</b> gap</dd>
+        <dt>规则</dt><dd>并行读各来源；失败的来源由宿主标 n.a.，不挡其他。没连接时可以口述，标「你口述」（<code>owner-supplied</code>）。</dd>
+        <dt>行尺寸</dt><dd>「本周脉搏 · 2 绿 1 黄 1 红 1 n.a.」</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开工作简报「周报 10-19 ～ 10-25」">
+      <div class="c-head"><i class="ring" data-s="quiet"></i><span class="intent">周报</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-brief"/></svg>10-19 ～ 10-25</span><span class="when">周一 08:30</span></div>
+      <div class="c-title">上周交付了同步修复方案和评审纪要，灰度对象还没定</div>
+      <div class="c-blocks">
+        <div class="metrics">
+          <div class="metric"><span class="v">9</span><span class="k">完成</span><span class="b">你 6 · 助理 3</span></div>
+          <div class="metric"><span class="v">1</span><span class="k">新阻塞</span><span class="b">隐私条款</span></div>
+          <div class="metric"><span class="v">1</span><span class="k">待你决定</span><span class="b">灰度对象</span></div>
+        </div>
+        <div class="row" tabindex="0" style="background:var(--paper)"><i class="ring" data-s="answer"></i><span class="main"><span class="t">1.0 的灰度先开给谁？</span><span class="f">需要你决定 · 周三评审前</span></span><span></span><svg class="ic"><use href="#i-chev-right"/></svg></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="打开工作简报"><span>打开周报</span></button><button class="btn btn-ghost" type="button">复制摘要</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>周报 Skill v3</span><span>周期已结束</span><span>7 个来源</span><span class="gap">Git 未连接</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>周期报告</b><code>report</code><span class="tag">意图 review</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*推进</b> list（你 / 助理 / 合作，宿主按动作记录给）· 对比 claim + metric · <b>*未解决</b> list · <b>*待决定</b> options · 接下来 action ≤ 3 · 经验 claim</dd>
+        <dt>卡尺寸</dt><dd>一句结论 + 三个数 + 待决定的行。</dd>
+        <dt>周期</dt><dd>按用户时区与周起始日；标「进行中 / 已结束」，比上期时说明比较范围。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开状态页「1.0 发布」">
+      <div class="c-head"><i class="ring" data-s="quiet"></i><span class="intent">状态页</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-brief"/></svg>1.0 发布</span><span class="when">v5 · 10:45</span></div>
+      <div class="c-title">自上次刷新（10-23 18:00）有 4 项变化</div>
+      <div class="c-blocks">
+        <div class="delta">
+          <div class="dl add"><svg class="ic"><use href="#i-plus"/></svg><span>新增待办「写回滚手册」</span><span class="k">新增</span></div>
+          <div class="dl chg"><svg class="ic"><use href="#i-arrow-right"/></svg><span>修复同步冲突：进行中 → 待评审</span><span class="k">状态</span></div>
+          <div class="dl block"><svg class="ic"><use href="#i-alert"/></svg><span>隐私条款：等法务</span><span class="k">新阻塞</span></div>
+          <div class="dl lost"><svg class="ic"><use href="#i-help"/></svg><span>Git 分支状态读不到</span><span class="k">stale</span></div>
+        </div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button" data-say="打开状态页"><span>打开状态页</span></button><button class="btn btn-ghost" type="button" data-say="brief.briefs.refresh：只重读事实、算变化，不跑模型"><svg class="ic"><use href="#i-refresh"/></svg>刷新</button></div>
+      <div class="c-basis"><span>变化由宿主比较得出</span><span>上一版 v4</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>状态页</b><code>status-page</code><span class="tag">意图 review</span></div>
+      <dl>
+        <dt>tab</dt><dd>概览（成功标准）· 工作流 · 下一步 · 风险 · 决定；没内容的 tab 不出。</dd>
+        <dt>state 块</dt><dd>就是引用块的冻结快照，不另造隐藏块。</dd>
+        <dt>刷新</dt><dd>重读事实 → 宿主算 <code>delta</code> → 只有风险与下一步交给助理重判。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开专题分析「离线同步可靠性」">
+      <div class="c-head"><i class="ring" data-s="answer"></i><span class="intent">专题分析</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-brief"/></svg>离线同步</span><span class="when">昨天</span></div>
+      <div class="c-title">离线同步可靠性：4 条结论，2 处等你决定</div>
+      <div class="c-blocks">
+        <div class="claim"><span class="st">确定</span><span class="s">丢失都发生在两端同时改不同字段时<span class="cite" data-cite="Feed · #212">1</span><span class="cite" data-cite="Coding · 复现日志">2</span></span></div>
+        <div class="metrics"><div class="metric"><span class="v">4</span><span class="k">结论</span></div><div class="metric"><span class="v">2</span><span class="k">待决定</span></div><div class="metric"><span class="v">3</span><span class="k">附图</span></div></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button"><span>打开分析</span></button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>专题分析 Skill v1</span><span>依据 11</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>专题分析 / 交互评审</b><code>review</code><span class="tag">意图 review</span></div>
+      <dl>
+        <dt>页</dt><dd>结论树；每条结论配附图，决定挂在它影响的结论上；读者勾选、评论，一次「交给助理」。</dd>
+        <dt>边界</dt><dd>提交前不改业务事实；保存与引用走成果。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开工作简报「10 月使用回顾」（只有你可见）">
+      <div class="c-head"><i class="ring" data-s="quiet"></i><span class="intent">使用回顾</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-lock"/></svg>只有你可见</span><span class="when">10-01 ～ 10-25</span></div>
+      <div class="c-title">10 月助理经手 23 件，采用 17 件，返工 4 件</div>
+      <div class="c-blocks">
+        <div class="metrics">
+          <div class="metric"><span class="v">41</span><span class="k">你完成</span></div>
+          <div class="metric"><span class="v">23</span><span class="k">助理经手</span></div>
+          <div class="metric"><span class="v">17<small>/23</small></span><span class="k">被采用</span><span class="b">按动作记录</span></div>
+        </div>
+        <div class="obj-row compact"><svg class="ic"><use href="#i-brief"/></svg><span class="t">返工最多：周报结构</span><span class="side"><span class="tag">3 次</span></span></div>
+        <div class="gapline">不估算节省了多少时间：没有可靠的基准。</div>
+      </div>
+      <div class="c-actions"><button class="btn btn-primary" type="button"><span>打开回顾</span></button></div>
+      <div class="c-basis"><span>数据：本机会话、动作记录、插件事实</span><span>重复来源只计一次</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>使用回顾</b><code>usage</code><span class="tag">意图 review</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*产出</b> list（你 / 助理）· <b>*采用</b> metric · 返工 list · <b>*缺口</b> gap</dd>
+        <dt>来源</dt><dd><code>actions.usages.read</code>、动作记录、各插件事实；不读其他工具的私有目录。</dd>
+        <dt>边界</dt><dd>不写节省时间与比例，除非写方法；默认只给本人看，分享按授权、可脱敏。</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 卡型：发现 ═════════ -->
+<section class="sheet" id="g-discover">
+  <header>
+    <div class="eyebrow">卡型 · 发现</div>
+    <h2>发现：有关系，再说出来</h2>
+  </header>
+  <div class="spec">
+    <article class="card" data-hit tabindex="0" data-say="选中：主区打开 Feed 里的这篇文章">
+      <div class="c-head"><i class="ring" data-s="quiet"></i><span class="intent">知会</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-feed"/></svg>Feed</span><span class="when">08:10</span></div>
+      <div class="c-title">Feed 里一篇字段级合并的实现笔记，和 #212 的方案相关</div>
+      <div class="c-blocks">
+        <div class="obj-row"><svg class="ic"><use href="#i-feed"/></svg><span class="t">Field-level merge in practice</span><span class="side"><span class="tag">未读</span></span><span class="f"><span>今天 08:10</span><span>约 12 分钟</span></span></div>
+        <div class="claim"><span class="st guess">推断</span><span class="s">讲的就是方案 2 的做法，附了冲突测试用例，可以直接对照<span class="cite" data-cite="Feed 条目正文 · 第 4 节「Tests」">1</span></span></div>
+      </div>
+      <div class="c-actions"><button class="btn btn-secondary" type="button" data-say="shelf.items.capture + goals.inputs.bind">存进 Shelf，挂到「离线同步」</button><button class="btn btn-ghost" type="button">不相关</button></div>
+      <div class="c-basis"><span class="skill"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>相关发现 Skill v1</span></div>
+    </article>
+    <div class="notes">
+      <div class="nm"><b>机会</b><code>opportunity</code><span class="tag">意图 notice</span></div>
+      <dl>
+        <dt>槽</dt><dd><b>*相关的</b> object · <b>*依据</b> claim · <b>*小试</b> action（范围小、可审阅）</dd>
+        <dt>来源</dt><dd><code>feed.goals.context</code> <code>alchemist.opportunities.save</code> <code>plugins.installed.list</code></dd>
+        <dt>克制</dt><dd>默认排最后、只用次级按钮；不为推荐工具制造工作。「不相关」回到判断，换措辞再推同一件事不算新卡。</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 三种尺寸 ═════════ -->
+<section class="sheet" id="sizes">
+  <header>
+    <div class="eyebrow">放进产品 · 1</div>
+    <h2>三种尺寸：同一条记录</h2>
+    <p class="lead">卡型配方说每种尺寸显示哪几槽；块自己知道在行、卡、页里怎么画。行在首页和通知，卡在侧栏和对话，页在工作简报。</p>
+  </header>
+  <div class="sizes">
+    <div class="size-col"><h4><svg class="ic ic-12"><use href="#i-layout"/></svg>行 · 首页、通知</h4>
+      <div class="rows">
+        <div class="row" tabindex="0"><i class="ring" data-s="answer"></i><span class="main"><span class="t">1.0 的灰度先开给谁？</span><span class="f">需要你决定 · 周三评审前</span></span><svg class="ic"><use href="#i-goals"/></svg><button class="btn btn-ghost act" type="button">定下来</button></div>
+      </div>
+      <p class="lead" style="font-size:12px">环 · 标题 · 一条事实 · 主对象图标 · 一个动作（悬停或聚焦才出）。点行等于点卡片主体。</p>
+    </div>
+    <div class="size-col"><h4><svg class="ic ic-12"><use href="#i-cards"/></svg>卡 · 侧栏、对话</h4>
+      <article class="card">
+        <div class="c-head"><i class="ring" data-s="answer"></i><span class="intent">需要你决定</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="when">10:20</span></div>
+        <div class="c-title">1.0 的灰度先开给谁？</div>
+        <div class="opts" role="radiogroup">
+          <button class="opt" role="radio" aria-checked="true" type="button"><span class="rd"></span><span class="l">内测 50 人 <span class="tag copper">推荐</span></span></button>
+          <button class="opt" role="radio" aria-checked="false" type="button"><span class="rd"></span><span class="l">5% 新注册用户</span></button>
+          <button class="opt" role="radio" aria-checked="false" type="button"><span class="rd"></span><span class="l">先内部 20 人</span></button>
+        </div>
+        <div class="c-actions"><button class="btn btn-primary" type="button"><span>按「内测 50 人」定下来</span></button><button class="btn btn-ghost" type="button">暂不决定</button></div>
+      </article>
+    </div>
+    <div class="size-col"><h4><svg class="ic ic-12"><use href="#i-brief"/></svg>页 · 简报里的一段</h4>
+      <div class="b-sec soft">
+        <h4 style="font-size:15px;font-weight:600">待你决定 <span class="cnt" style="font-size:12px;font-weight:400;color:var(--muted)">1</span></h4>
+        <p class="lede" style="font-size:13px;color:var(--ink-soft)">1.0 的灰度先开给谁？周三 10:00 评审要定。</p>
+        <table class="cmp"><thead><tr><th></th><th class="rec">内测 50 人 <span class="tag copper">推荐</span></th><th>5% 新注册</th><th>内部 20 人</th></tr></thead>
+          <tbody><tr><th>反馈通道</th><td class="rec">有<span class="cite" data-cite="《内测反馈问卷》">1</span></td><td>无</td><td>有</td></tr><tr><th>回滚影响</th><td class="rec">50 人</td><td>约 600 人</td><td>20 人</td></tr><tr><th>时间</th><td class="rec">评审后即开</td><td>评审后即开</td><td>多 3 天</td></tr></tbody></table>
+        <div class="c-actions"><button class="btn btn-primary" type="button"><span>按「内测 50 人」定下来</span></button><button class="btn btn-ghost" type="button">写自己的答案</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 首页与侧栏 ═════════ -->
+<section class="sheet" id="home">
+  <header>
+    <div class="eyebrow">放进产品 · 2</div>
+    <h2>首页与侧栏：读同一条</h2>
+    <p class="lead">首页按意图分组成行，结论和动作优先于活动流水；侧栏是持续处理的地方，展开成卡。在任一处处理后，其他处同时变。后台更新不重排你正在看的，新来的进「n 条新内容」。</p>
+  </header>
+  <div class="home">
+    <div>
+      <div class="day"><small>Q4 发布 · 截至 10:45</small><h3>10月26日<span>周一</span></h3><p>发布主线正常；今天要定灰度对象，隐私条款还在等法务。</p></div>
+      <div class="rows" id="homeRows">
+        <div class="row-head"><h4>需要你处理</h4><span>2</span></div>
+        <div class="row" tabindex="0" data-pick="decide"><i class="ring" data-s="answer"></i><span class="main"><span class="t">1.0 的灰度先开给谁？</span><span class="f">需要你决定 · 周三评审前</span></span><svg class="ic"><use href="#i-goals"/></svg><button class="btn btn-ghost act" type="button">定下来</button></div>
+        <div class="row" tabindex="0"><i class="ring" data-s="blocked"></i><span class="main"><span class="t">「1.0 可发布」在等法务确认隐私条款</span><span class="f">卡住了 · 4 天 · 挡住 2 条待办</span></span><svg class="ic"><use href="#i-goals"/></svg><button class="btn btn-ghost act" type="button">起草催办</button></div>
+        <div class="row-head"><h4>可以接着做</h4><span>3</span></div>
+        <div class="row" tabindex="0"><i class="ring" data-s="ready"></i><span class="main"><span class="t">第 3 节的回滚条件起草好了</span><span class="f">已备好 · 采用到《Q4 发布方案》</span></span><svg class="ic"><use href="#i-pages"/></svg><button class="btn btn-ghost act" type="button">采用</button></div>
+        <div class="row" tabindex="0"><i class="ring" data-s="empty"></i><span class="main"><span class="t">内测问卷收齐了，可以导入数据集</span><span class="f">接续 · 48/50 份</span></span><svg class="ic"><use href="#i-form"/></svg><button class="btn btn-ghost act" type="button">导入</button></div>
+        <div class="row" tabindex="0"><i class="ring" data-s="verify"></i><span class="main"><span class="t">下午 2 点半，访谈和评审撞了</span><span class="f">日程 · 重叠 30 分</span></span><svg class="ic"><use href="#i-schedule"/></svg><button class="btn btn-ghost act" type="button">改期</button></div>
+        <div class="row-head"><h4>进行中</h4><span>1</span></div>
+        <div class="row" tabindex="0"><i class="ring" data-s="running"></i><span class="main"><span class="t">正在修复「离线编辑丢失」</span><span class="f">Coding · 第 3/5 步 · 8 分钟</span></span><svg class="ic"><use href="#i-coding"/></svg><button class="btn btn-ghost act" type="button">查看</button></div>
+        <div class="row-head"><h4>回顾</h4></div>
+        <div class="row" tabindex="0"><i class="ring" data-s="quiet"></i><span class="main"><span class="t">本周脉搏</span><span class="f">2 绿 · 1 黄 · 1 红 · 1 n.a.</span></span><svg class="ic"><use href="#i-brief"/></svg><button class="btn btn-ghost act" type="button">打开</button></div>
+        <div class="row" tabindex="0"><i class="ring" data-s="quiet"></i><span class="main"><span class="t">周报 10-19 ～ 10-25</span><span class="f">完成 9 · 新阻塞 1 · 待决定 1</span></span><svg class="ic"><use href="#i-brief"/></svg><button class="btn btn-ghost act" type="button">打开</button></div>
+      </div>
+    </div>
+    <div class="side-mock" aria-label="侧栏示意">
+      <div class="sm-head"><svg class="ic"><use href="#i-sparkles"/></svg><b>助理</b><span>· Q4 发布</span><span class="grow"></span><span>本页相关</span></div>
+      <button class="newer" type="button" data-say="点了才插入，不顶走你正在看的卡">2 条新内容</button>
+      <article class="card is-selected">
+        <div class="c-head"><i class="ring" data-s="answer"></i><span class="intent">需要你决定</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="when">选中</span></div>
+        <div class="c-title">1.0 的灰度先开给谁？</div>
+        <div class="c-status"><svg class="ic ic-12" style="color:var(--accent)"><use href="#i-locate"/></svg>已在主区定位到 Goal 的决定区 · <button class="btn btn-ghost" type="button" style="height:22px;padding:0 6px;font-size:12px">重新定位</button></div>
+      </article>
+      <article class="card"><div class="c-head"><i class="ring" data-s="blocked"></i><span class="intent">卡住了</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="when">4 天</span></div><div class="c-title">「1.0 可发布」在等法务确认隐私条款</div></article>
+      <article class="card"><div class="c-head"><i class="ring" data-s="ready"></i><span class="intent">已备好</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span><span class="when">10:05</span></div><div class="c-title">第 3 节的回滚条件起草好了，等你采用</div></article>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 状态 ═════════ -->
+<section class="sheet" id="states">
+  <header>
+    <div class="eyebrow">放进产品 · 3</div>
+    <h2>状态：四道，互不冒充</h2>
+    <p class="lead">呈现（新、已看、选中）、建议（待处理、暂缓、已处理、已失效）、工作（准备中、执行中、等待、完成、部分完成、失败、结果未确认）、有效性（对象变了、来源不可用）。处理后卡片保留结果和入口，不瞬间消失。</p>
+  </header>
+  <div class="states">
+    <div><div class="state-cap">新到 <code>presentation: new</code></div>
+      <article class="card is-new" data-replay><div class="c-head"><i class="ring" data-s="ready"></i><span class="intent">已备好</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span><span class="when">刚刚</span></div><div class="c-title">第 3 节的回滚条件起草好了</div><div class="c-status">一次铜色淡底着陆，640ms 后褪去 · <button class="btn btn-ghost" type="button" style="height:22px;padding:0 6px;font-size:12px" data-replay-btn>重放</button></div></article></div>
+    <div><div class="state-cap">暂缓 <code>suggestion: snoozed</code></div>
+      <article class="card"><div class="c-head"><i class="ring" data-s="ready"></i><span class="intent">已备好</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span><span class="sug when">暂缓到 周二 9:00</span></div><div class="c-title">第 3 节的回滚条件起草好了</div><div class="c-status"><svg class="ic ic-12"><use href="#i-clock"/></svg>到时先重读，仍有价值才回来</div></article></div>
+    <div><div class="state-cap">执行中 <code>work: running</code></div>
+      <article class="card"><div class="c-head"><i class="ring" data-s="running"></i><span class="intent">已备好</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span><span class="when">10:06</span></div><div class="c-title">第 3 节的回滚条件起草好了</div><div class="c-actions"><button class="btn btn-primary is-busy" type="button" disabled><span>正在采用…</span></button></div></article></div>
+    <div><div class="state-cap">完成 <code>work: done</code></div>
+      <article class="card"><div class="c-head"><i class="ring" data-s="done"></i><span class="intent">已采用</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》v8</span><span class="sug when">已处理</span></div><div class="c-title">回滚条件已插入第 3 节第 2 段后</div><div class="c-actions"><button class="btn btn-secondary" type="button"><svg class="ic"><use href="#i-locate"/></svg>查看并定位</button><button class="btn btn-ghost" type="button"><svg class="ic"><use href="#i-undo"/></svg>在 Pages 里撤回</button></div></article></div>
+    <div><div class="state-cap">部分完成 <code>work: partial</code></div>
+      <article class="card"><div class="c-head"><i class="ring" data-s="partial"></i><span class="intent">已完成 3/5</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-todo"/></svg>Todo</span></div><div class="c-title">建成 3 条待办，2 条没建成</div><div class="c-status failed"><svg class="ic ic-12"><use href="#i-x"/></svg>「确认商店截图尺寸」「对齐法务」：负责人不在这个项目</div><div class="c-actions"><button class="btn btn-primary" type="button"><span>改负责人后再试这 2 条</span></button></div></article></div>
+    <div><div class="state-cap">失败 <code>work: failed</code></div>
+      <article class="card"><div class="c-head"><i class="ring" data-s="failed"></i><span class="intent">没有完成</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-dataset"/></svg>内测反馈</span></div><div class="c-title">导入 48 份到「内测反馈」</div><div class="c-status failed">数据集正被另一次导入占用；没有写入任何行</div><div class="c-actions"><button class="btn btn-primary" type="button"><span>再试一次：导入 48 份</span></button><button class="btn btn-ghost" type="button">诊断编号</button></div></article></div>
+    <div><div class="state-cap">结果未确认 <code>work: unknown</code></div>
+      <article class="card"><div class="c-head"><i class="ring" data-s="verify"></i><span class="intent">待核对</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-schedule"/></svg>Jelly 日历</span></div><div class="c-title">访谈改到 15:30</div><div class="c-status waiting">结果未确认，请到原处核对，不会自动重试</div><div class="c-actions"><button class="btn btn-secondary" type="button">到日历里核对</button></div></article></div>
+    <div><div class="state-cap">对象变了 <code>validity: changed</code></div>
+      <article class="card" id="changedCard"><div class="c-head"><i class="ring" data-s="stale"></i><span class="intent">已备好</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span><span class="sug when">已失效</span></div>
+        <div class="c-banner"><svg class="ic"><use href="#i-alert"/></svg><span class="grow">《Q4 发布方案》已从 v7 改到 v8：第 3 节第 2 段被你改过，原插入位置不确定。</span></div>
+        <div class="seg" role="group" aria-label="对照" data-seg="then"><button type="button" data-v="then" aria-pressed="true">当时 v7</button><button type="button" data-v="now" aria-pressed="false">现在 v8</button></div>
+        <p class="prose soft" data-then>…首批 5% 用户。<span style="color:var(--muted)">（插入点在这里）</span></p>
+        <p class="prose soft" data-now hidden>…首批：内测 50 人。回滚由值班负责人判断。</p>
+        <div class="c-actions"><button class="btn btn-primary" type="button"><span>按 v8 重新准备</span></button><button class="btn btn-ghost" type="button">放弃</button></div></article></div>
+    <div><div class="state-cap">无法访问 <code>validity: unavailable</code></div>
+      <article class="card"><div class="c-head"><i class="ring" data-s="stale"></i><span class="intent">接续</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-dataset"/></svg>Dataset</span><span class="sug when">不可用</span></div>
+        <div class="c-banner red"><svg class="ic"><use href="#i-lock"/></svg><span class="grow">Dataset 插件已从这个项目移除。卡片不再显示它的内容；《内测反馈问卷》仍可打开。</span></div>
+        <div class="c-actions"><button class="btn btn-secondary" type="button">打开问卷</button><button class="btn btn-ghost" type="button">移入历史</button></div></article></div>
+  </div>
+</section>
+
+<!-- ═════════ 脉搏页 ═════════ -->
+<section class="sheet" id="p-pulse">
+  <header>
+    <div class="eyebrow">工作简报 · 1</div>
+    <h2>脉搏页</h2>
+    <p class="lead">「今天 / 本周怎么样」。每个来源一行，失败的来源由宿主标 n.a.；风险必须是具体记录 + 影响 + 下一步。</p>
+  </header>
+  <div class="brief-frame"><div class="brief">
+    <div class="b-head">
+      <div class="tt"><div class="kick"><svg class="ic ic-12"><use href="#i-brief"/></svg>工作简报 · Q4 发布</div><h3>本周脉搏</h3>
+        <div class="meta"><span>10-26 周一 ～ 11-01</span><span>周期进行中</span><span>截至 10:45</span><span>未保存的临时回顾</span></div></div>
+      <div class="acts"><button class="btn btn-ghost" type="button" data-say="只重读事实，不跑模型"><svg class="ic"><use href="#i-refresh"/></svg>刷新</button><button class="btn btn-primary" type="button" data-say="brief.briefs.create：保存这一版"><span>保存为简报</span></button></div>
+    </div>
+    <div class="b-main">
+      <div class="b-sec"><h4>一句话</h4><p class="lede">发布主线按计划；唯一受阻是隐私条款，等法务 4 天，它挡住了发布说明和商店文案。今天要定灰度对象。</p></div>
+      <div class="b-sec"><h4>各来源 <span class="cnt">6</span></h4>
+        <div class="status">
+          <div class="st-row"><svg class="ic"><use href="#i-goals"/></svg><span class="src">Goals</span><span class="tag green"><span class="sw"></span>正常</span><span class="why">「1.0 可发布」3/5 交付按计划<span class="cite" data-cite="goals.state.read · 10:44">1</span></span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-todo"/></svg><span class="src">待办</span><span class="tag amber"><span class="sw"></span>注意</span><span class="why">2 条本周到期未开始：准备灰度名单、写回滚手册<span class="cite" data-cite="todo.items.list · 10:44">2</span></span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-coding"/></svg><span class="src">Coding</span><span class="tag green"><span class="sw"></span>正常</span><span class="why">完成 2 个会话，1 个进行中<span class="cite" data-cite="coding.runs.list · 10:44">3</span></span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-schedule"/></svg><span class="src">日程</span><span class="tag amber"><span class="sw"></span>注意</span><span class="why">今天 14:30 重叠 30 分</span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-user"/></svg><span class="src">法务</span><span class="tag red"><span class="sw"></span>受阻</span><span class="why">隐私条款等了 4 天 <span class="host">· 你口述（10:40），未经拉取</span></span></div>
+          <div class="st-row"><svg class="ic"><use href="#i-git"/></svg><span class="src">Git</span><span class="tag na">n.a.</span><span class="why"><span class="host">未连接：本周提交与分支状态未计入</span></span></div>
+        </div>
+      </div>
+      <div class="b-sec"><h4>风险 <span class="cnt">2</span></h4>
+        <div class="rows">
+          <div class="row" tabindex="0" style="background:var(--surface-soft)"><i class="ring" data-s="verify"></i><span class="main"><span class="t">「准备灰度名单」会比评审晚 1 天</span><span class="f">到期周二 18:00 · 依赖问卷导入 · 下一步：先导入</span></span><svg class="ic"><use href="#i-todo"/></svg><button class="btn btn-ghost act" type="button">先导入</button></div>
+          <div class="row" tabindex="0" style="background:var(--surface-soft)"><i class="ring" data-s="blocked"></i><span class="main"><span class="t">隐私条款不回，发布说明不能定稿</span><span class="f">已等 4 天 · 挡住 2 条 · 下一步：起草催办</span></span><svg class="ic"><use href="#i-goals"/></svg><button class="btn btn-ghost act" type="button">起草</button></div>
+        </div>
+      </div>
+      <div class="b-sec"><h4>没覆盖到的</h4>
+        <div class="gapline">Git 未连接：本周代码变化没进这一页。<button class="btn btn-ghost" type="button" style="height:22px;padding:0 6px;font-size:12px;margin-left:4px">去连接</button></div>
+        <div class="gapline">「法务」是你口述的，没有可拉取的来源。</div>
+      </div>
+    </div>
+    <aside class="b-rail">
+      <div><h5>读了什么</h5>
+        <div class="src-list">
+          <div class="src-item"><svg class="ic"><use href="#i-goals"/></svg><span>Goals</span><span class="s">10:44</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-todo"/></svg><span>Todo</span><span class="s">10:44</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-coding"/></svg><span>Coding</span><span class="s">10:44</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-schedule"/></svg><span>Schedule · Jelly</span><span class="s">10:44</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-user"/></svg><span>你口述</span><span class="s">10:40</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-git"/></svg><span>Git</span><span class="s bad">未连接</span></div>
+        </div></div>
+      <div><h5>做法</h5><span>脉搏 Skill v1 · 个人 › 回顾</span></div>
+      <div><h5>不算成果的</h5><span>操作数、调用数、停留时间只作背景，不出现在这一页。</span></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ═════════ 周报页 ═════════ -->
+<section class="sheet" id="p-report">
+  <header>
+    <div class="eyebrow">工作简报 · 2</div>
+    <h2>周报页：版本、人改过的、再生成的提案</h2>
+    <p class="lead">人改过的块标「你改过」，再生成不覆盖；再生成产出一份提案，逐块选「保留我的 / 用新的 / 合并」。分享过的版本固定为成果，之后的刷新只产生新版本。</p>
+  </header>
+  <div class="brief-frame"><div class="brief">
+    <div class="b-head">
+      <div class="tt"><div class="kick"><svg class="ic ic-12"><use href="#i-brief"/></svg>工作简报 · Q4 发布 <span class="tag">v2 · 当前</span><span class="tag green">v1 已分享</span></div><h3>周报 10-19 ～ 10-25</h3>
+        <div class="meta"><span>周期已结束</span><span>资料截至 10-25 23:59</span><span>生成于 周一 08:30</span><span>你改过 2 处</span></div></div>
+      <div class="acts"><button class="btn btn-ghost" type="button"><svg class="ic"><use href="#i-history"/></svg>版本</button><button class="btn btn-ghost" type="button" data-say="分享按原有授权；能读不等于能发给对方"><svg class="ic"><use href="#i-share"/></svg>分享</button><button class="btn btn-primary" type="button"><span>保存这一版</span></button></div>
+    </div>
+    <div class="b-main">
+      <div class="proposal" id="proposal">
+        <div class="ph"><svg class="ic" style="color:var(--accent)"><use href="#i-sparkles"/></svg><span>有一份新的生成：迟到的 Coding 报告到了，2 块有变化</span><span class="grow"></span><button class="btn btn-ghost" type="button">全部保留我的</button></div>
+        <div class="pblock" data-pblock>
+          <div class="pt"><b>推进了什么</b><span>新增 1 项 · 你没改过这块</span></div>
+          <div class="diff"><div class="ins">《同步冲突修复》Coding 报告（10-25 23:10 完成，周一才收到）</div></div>
+          <div class="choices"><button class="btn btn-ghost" type="button" aria-pressed="false">保留我的</button><button class="btn btn-ghost" type="button" aria-pressed="true">用新的</button></div>
+        </div>
+        <div class="pblock" data-pblock>
+          <div class="pt"><b>一句话</b><span class="edited"><svg class="ic ic-12"><use href="#i-pencil"/></svg>你改过</span><span>与新生成冲突</span></div>
+          <div class="diff"><div class="del">上周交付了同步修复方案和评审纪要。</div><div class="ins">上周交付了同步修复方案、评审纪要和修复代码。</div></div>
+          <div class="choices"><button class="btn btn-ghost" type="button" aria-pressed="true">保留我的</button><button class="btn btn-ghost" type="button" aria-pressed="false">用新的</button><button class="btn btn-ghost" type="button" aria-pressed="false">合并后再改</button></div>
+        </div>
+      </div>
+      <div class="b-sec"><h4>一句话 <span class="edited"><svg class="ic ic-12"><use href="#i-pencil"/></svg>你改过</span></h4><p class="lede">上周交付了同步修复方案和评审纪要；灰度对象还没定，是本周最可能拖住发布的一件事。</p></div>
+      <div class="b-sec"><h4>推进了什么 <span class="cnt">9</span></h4>
+        <div class="obj-list">
+          <div class="obj-row"><svg class="ic"><use href="#i-pages"/></svg><span class="t">《同步冲突修复方案》</span><span class="side"><span class="tag green">已定稿</span><span class="who ai"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>助理起草 · 你定稿</span></span><span class="f">10-21 · 引用 #212 的 3 例</span></div>
+          <div class="obj-row"><svg class="ic"><use href="#i-pages"/></svg><span class="t">《1.0 评审纪要 10-22》</span><span class="side"><span class="tag green">已完成</span><span class="who"><svg class="ic ic-12"><use href="#i-user"/></svg>你</span></span><span class="f">10-22 · 5 条行动项</span></div>
+          <div class="obj-row"><svg class="ic"><use href="#i-todo"/></svg><span class="t">5 条行动项建成待办</span><span class="side"><span class="tag green">已完成</span><span class="who ai"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>助理</span></span><span class="f">10-22 · 你确认后执行</span></div>
+          <div class="more">还有 6 项 · 你 4 · 助理 2</div>
+        </div></div>
+      <div class="b-sec"><h4>与上周比</h4>
+        <div class="metrics">
+          <div class="metric"><span class="v">9<small>项</small></span><span class="k">完成</span><span class="b">上周 7 · 同为完整一周</span></div>
+          <div class="metric"><span class="v">3/5</span><span class="k">Goal 交付</span><span class="b">上周 2/5</span></div>
+          <div class="metric"><span class="v">1</span><span class="k">新阻塞</span><span class="b">隐私条款</span></div>
+        </div></div>
+      <div class="b-sec"><h4>待你决定 <span class="cnt">1</span></h4>
+        <div class="row" tabindex="0" style="background:var(--surface-soft)"><i class="ring" data-s="answer"></i><span class="main"><span class="t">1.0 的灰度先开给谁？</span><span class="f">推荐：内测 50 人 · 周三评审前</span></span><svg class="ic"><use href="#i-goals"/></svg><button class="btn btn-ghost act" type="button">去决定</button></div></div>
+      <div class="b-sec"><h4>接下来</h4>
+        <div class="c-actions"><button class="btn btn-secondary" type="button">导入内测问卷</button><button class="btn btn-secondary" type="button">采用回滚条件</button><button class="btn btn-secondary" type="button">起草法务催办</button></div></div>
+      <div class="b-sec"><h4>经验</h4>
+        <div class="claim"><span class="st">确定</span><span class="s">评审前一天才导入反馈，已经连续两次让名单晚交<span class="cite" data-cite="Todo 历史 · 9 月、10 月">1</span></span></div>
+        <div class="claim"><span class="st guess">推断</span><span class="s">把「问卷截止 → 导入」做成一条接续，可能省掉这次的晚交</span></div>
+      </div>
+    </div>
+    <aside class="b-rail">
+      <div><h5>版本</h5>
+        <div class="src-list">
+          <div class="src-item"><svg class="ic"><use href="#i-brief"/></svg><span>v2 · 当前 · 你改过 2 处</span><span class="s">08:52</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-share"/></svg><span>v1 · 已分享 · 固定</span><span class="s">08:30</span></div>
+        </div></div>
+      <div><h5>来源</h5>
+        <div class="src-list">
+          <div class="src-item"><svg class="ic"><use href="#i-goals"/></svg><span>Goals</span><span class="s">08:29</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-pages"/></svg><span>Pages</span><span class="s">08:29</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-todo"/></svg><span>Todo</span><span class="s">08:29</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-coding"/></svg><span>Coding</span><span class="s">08:29</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-git"/></svg><span>Git</span><span class="s bad">未连接</span></div>
+        </div></div>
+      <div><h5>归功</h5><span>「你 / 助理」按动作记录里的执行人给；同一成果多个来源只计一次。</span></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ═════════ 状态页 ═════════ -->
+<section class="sheet" id="p-status">
+  <header>
+    <div class="eyebrow">工作简报 · 3</div>
+    <h2>状态页（living page）</h2>
+    <p class="lead">按有内容的 tab 组织；刷新只重读事实，宿主比出变化，读不到的标 stale。页面是视图，业务状态仍在原主人那里。</p>
+  </header>
+  <div class="brief-frame"><div class="brief single">
+    <div class="b-head">
+      <div class="tt"><div class="kick"><svg class="ic ic-12"><use href="#i-brief"/></svg>工作简报 · 状态页 <span class="tag">v5</span></div><h3>1.0 发布</h3>
+        <div class="meta"><span>截至 10:45</span><span>上次 10-23 18:00</span><span>每个工作日 9:00 刷新</span></div></div>
+      <div class="acts"><button class="btn btn-ghost" type="button"><svg class="ic"><use href="#i-history"/></svg>v4</button><button class="btn btn-secondary" type="button" data-say="重读全部引用块，宿主算变化；风险与下一步再交给助理"><svg class="ic"><use href="#i-refresh"/></svg>刷新</button></div>
+    </div>
+    <div class="b-main">
+      <div class="b-sec soft"><h4>自上次以来 <span class="cnt">4 项变化</span></h4>
+        <div class="delta" style="background:transparent;padding:0">
+          <div class="dl add"><svg class="ic"><use href="#i-plus"/></svg><span>新增待办「写回滚手册」</span><span class="k">新增</span></div>
+          <div class="dl chg"><svg class="ic"><use href="#i-arrow-right"/></svg><span>修复同步冲突：进行中 → 待评审</span><span class="k">状态变化</span></div>
+          <div class="dl block"><svg class="ic"><use href="#i-alert"/></svg><span>隐私条款：等法务</span><span class="k">新阻塞</span></div>
+          <div class="dl lost"><svg class="ic"><use href="#i-help"/></svg><span>Git 分支状态读不到，沿用 10-23 的值</span><span class="k">stale</span></div>
+        </div></div>
+      <div class="tabs" role="tablist" aria-label="状态页" data-tabs="status">
+        <button role="tab" type="button" aria-selected="false" data-tab="overview">概览</button>
+        <button role="tab" type="button" aria-selected="true" data-tab="streams">工作流 <span class="n">4</span></button>
+        <button role="tab" type="button" aria-selected="false" data-tab="next">下一步 <span class="n">3</span></button>
+        <button role="tab" type="button" aria-selected="false" data-tab="risk">风险 <span class="n">2</span></button>
+        <button role="tab" type="button" aria-selected="false" data-tab="decide">决定 <span class="n">1</span></button>
+      </div>
+      <div class="tabpanel" data-panel="overview" hidden>
+        <div class="b-sec"><h4>成功标准</h4>
+          <div class="obj-list">
+            <div class="obj-row compact"><svg class="ic ok-mark"><use href="#i-check"/></svg><span class="t">离线编辑不丢数据（#212 三例全部通过）</span><span class="side"><span class="tag green">达成</span></span></div>
+            <div class="obj-row compact"><svg class="ic miss-mark"><use href="#i-alert"/></svg><span class="t">灰度一周崩溃率不高于基线</span><span class="side"><span class="tag">未开始</span></span></div>
+            <div class="obj-row compact"><svg class="ic miss-mark"><use href="#i-alert"/></svg><span class="t">隐私条款与商店文案定稿</span><span class="side"><span class="tag red">受阻</span></span></div>
+          </div></div>
+      </div>
+      <div class="tabpanel" data-panel="streams">
+        <div class="scroll-x"><table class="ws">
+          <thead><tr><th>工作流</th><th>负责人</th><th>状态</th><th>关键</th><th>来源</th></tr></thead>
+          <tbody>
+            <tr><td><span class="t"><svg class="ic"><use href="#i-coding"/></svg>同步修复</span><span class="f">#212</span></td><td>你 · 助理</td><td><span class="tag copper">待评审</span></td><td>3/3 测试通过</td><td class="f">Coding 10:44</td></tr>
+            <tr><td><span class="t"><svg class="ic"><use href="#i-pages"/></svg>发布方案</span><span class="f">《Q4 发布方案》v7</span></td><td>你</td><td><span class="tag">写作中</span></td><td>§3 缺回滚条件</td><td class="f">Pages 10:44</td></tr>
+            <tr><td><span class="t"><svg class="ic"><use href="#i-goals"/></svg>合规</span><span class="f">隐私条款</span></td><td>法务</td><td><span class="tag red">受阻</span></td><td>等 4 天</td><td class="f">口述 10:40</td></tr>
+            <tr class="stale"><td><span class="t"><svg class="ic"><use href="#i-git"/></svg>发布分支</span><span class="f">release/1.0</span></td><td>你</td><td><span class="tag na">stale</span></td><td>领先 main 14 个提交（10-23）</td><td class="f" style="color:var(--amber)">读不到</td></tr>
+          </tbody></table></div>
+      </div>
+      <div class="tabpanel" data-panel="next" hidden>
+        <div class="rows">
+          <div class="row" tabindex="0"><i class="ring" data-s="empty"></i><span class="main"><span class="t">导入内测问卷</span><span class="f">接续 · 解开灰度名单</span></span><svg class="ic"><use href="#i-dataset"/></svg><button class="btn btn-ghost act" type="button">导入</button></div>
+          <div class="row" tabindex="0"><i class="ring" data-s="ready"></i><span class="main"><span class="t">采用第 3 节回滚条件</span><span class="f">已备好</span></span><svg class="ic"><use href="#i-pages"/></svg><button class="btn btn-ghost act" type="button">采用</button></div>
+          <div class="row" tabindex="0"><i class="ring" data-s="blocked"></i><span class="main"><span class="t">催法务回复</span><span class="f">草稿，不发送</span></span><svg class="ic"><use href="#i-goals"/></svg><button class="btn btn-ghost act" type="button">起草</button></div>
+        </div>
+      </div>
+      <div class="tabpanel" data-panel="risk" hidden><p class="lede" style="color:var(--ink-soft)">与脉搏页的风险是同两条记录（同一张卡的行尺寸）。</p></div>
+      <div class="tabpanel" data-panel="decide" hidden><p class="lede" style="color:var(--ink-soft)">「1.0 的灰度先开给谁？」——与侧栏、首页是同一张决定卡。</p></div>
+    </div>
+  </div></div>
+</section>
+
+<!-- ═════════ 专题分析页 ═════════ -->
+<section class="sheet" id="p-review">
+  <header>
+    <div class="eyebrow">工作简报 · 4</div>
+    <h2>专题分析页：结论树、附图、内嵌决定</h2>
+    <p class="lead">结论按树组织，每条配附图；决定挂在它影响的结论上。勾选与评论都是草稿，「交给助理」一次送回原工作；提交前不改任何业务事实。</p>
+  </header>
+  <div class="brief-frame"><div class="brief">
+    <div class="b-head">
+      <div class="tt"><div class="kick"><svg class="ic ic-12"><use href="#i-brief"/></svg>工作简报 · 专题分析</div><h3>离线同步可靠性</h3>
+        <div class="meta"><span>主题：#212 离线编辑丢失</span><span>资料截至 昨天 17:20</span><span>依据 11</span></div></div>
+    </div>
+    <div class="b-main">
+      <div class="claims">
+        <div class="ctree"><span class="no">1</span><div class="cbody">
+          <div class="cs"><span class="claim"><span class="st">确定</span></span>丢失都发生在两端同时改不同字段时<span class="cite" data-cite="Feed · GitHub #212 · 3 条复现">1</span><span class="cite" data-cite="Coding · 会话「复现同步丢失」日志">2</span></div>
+          <div class="exhibit"><svg viewBox="0 0 520 110" role="img" aria-label="同步状态机：本地编辑、待同步、已同步，合并冲突时丢失">
+            <g class="ex-node"><rect x="6" y="14" width="96" height="30" rx="7"/><text x="54" y="33" text-anchor="middle">本地编辑</text></g>
+            <g class="ex-node"><rect x="190" y="14" width="96" height="30" rx="7"/><text x="238" y="33" text-anchor="middle">待同步</text></g>
+            <g class="ex-node"><rect x="400" y="14" width="96" height="30" rx="7"/><text x="448" y="33" text-anchor="middle">已同步</text></g>
+            <g class="ex-node hot"><rect x="190" y="72" width="96" height="30" rx="7"/><text x="238" y="91" text-anchor="middle">合并：后写覆盖</text></g>
+            <path class="ex-edge" d="M102 29H188"/><text class="ex-label" x="145" y="24" text-anchor="middle">联网</text>
+            <path class="ex-edge" d="M286 29H398"/><text class="ex-label" x="342" y="24" text-anchor="middle">无冲突</text>
+            <path class="ex-edge hot" d="M238 44V70"/><text class="ex-label" x="246" y="62">两端都改</text>
+            <path class="ex-edge hot" d="M286 87H448V46"/><text class="ex-label" x="370" y="82" text-anchor="middle">另一端字段丢失</text>
+          </svg><div class="cap">附图 1 · 同步状态机（结构化数据，由渲染器画）</div></div>
+          <div class="sub">
+            <div class="claim"><span class="st">确定</span><span class="s">三例里改动的都是不同字段（标题 / 正文 / 标签）<span class="cite" data-cite="Feed · #212 评论 4、7、9">3</span></span></div>
+          </div>
+        </div></div>
+        <div class="ctree"><span class="no">2</span><div class="cbody">
+          <div class="cs"><span class="claim"><span class="st guess">推断</span></span>字段级合并能覆盖现有全部案例</div>
+          <div class="opts" role="group" aria-label="决定"><div class="q">决定 · 挂在这条结论上</div>
+            <button class="opt multi" role="checkbox" aria-checked="true" type="button" data-review><span class="rd"></span><span class="l">采用字段级合并作为 1.0 方案</span><span class="d">工作量 4 天，评审后开始</span></button>
+            <button class="opt multi" role="checkbox" aria-checked="false" type="button" data-review><span class="rd"></span><span class="l">同时保留「显示冲突」作为兜底</span><span class="d">多 2 天；只在同一字段冲突时出现</span></button>
+          </div>
+          <div class="comment"><input type="text" placeholder="写一条评论，随「交给助理」一起送出" aria-label="评论结论 2" data-review-comment></div>
+        </div></div>
+        <div class="ctree"><span class="no">3</span><div class="cbody">
+          <div class="cs"><span class="claim"><span class="st check">待验证</span></span>离线超过 24 小时的情况没有样本</div>
+          <div class="gapline">没有可读的长时离线日志；这条结论不影响 1、2。</div>
+        </div></div>
+      </div>
+      <div class="handback"><span class="grow" id="handbackText">已勾选 1 项 · 0 条评论 · 提交前不改任何业务事实</span><button class="btn btn-ghost" type="button">复制成文字</button><button class="btn btn-primary" type="button" data-say="打成一份输入送回原工作（同一 request_id，重复点不重复送）"><span>交给助理</span></button></div>
+    </div>
+    <aside class="b-rail">
+      <div><h5>结论</h5>
+        <div class="src-list">
+          <div class="src-item"><span class="claim"><span class="st">确定</span></span><span>1 · 丢失的条件</span><span></span></div>
+          <div class="src-item"><span class="claim"><span class="st guess">推断</span></span><span>2 · 方案覆盖</span><span class="s">决定 2</span></div>
+          <div class="src-item"><span class="claim"><span class="st check">待验证</span></span><span>3 · 长时离线</span><span></span></div>
+        </div></div>
+      <div><h5>依据</h5>
+        <div class="src-list">
+          <div class="src-item"><svg class="ic"><use href="#i-feed"/></svg><span>GitHub #212</span><span class="s">昨天</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-coding"/></svg><span>Coding 复现日志</span><span class="s">昨天</span></div>
+          <div class="src-item"><svg class="ic"><use href="#i-shelf"/></svg><span>CRDT 合并策略对比</span><span class="s">10-21</span></div>
+        </div></div>
+    </aside>
+  </div></div>
+</section>
+
+<!-- ═════════ 窄屏 ═════════ -->
+<section class="sheet" id="narrow">
+  <header>
+    <div class="eyebrow">其他 · 1</div>
+    <h2>窄屏</h2>
+    <p class="lead">390px：卡占满宽度，主按钮单独一行在最前，触达 44px；简报页的依据栏收成折叠。侧栏在 760px 以下是底栏上方的底部面板。</p>
+  </header>
+  <div class="narrow">
+    <div class="phone"><div class="scr">
+      <div class="ph-top"><svg class="ic"><use href="#i-sparkles"/></svg>助理<span class="grow"></span><span style="font-size:12px;color:var(--muted);font-weight:400">Q4 发布</span></div>
+      <article class="card">
+        <div class="c-head"><i class="ring" data-s="answer"></i><span class="intent">需要你决定</span><span class="dot">·</span><span class="obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="when">10:20</span></div>
+        <div class="c-title">1.0 的灰度先开给谁？</div>
+        <div class="c-why">周三评审要定；第 3 节和发布日程都在等。</div>
+        <div class="opts" role="radiogroup">
+          <button class="opt" role="radio" aria-checked="true" type="button" data-label="内测 50 人"><span class="rd"></span><span class="l">内测 50 人 <span class="tag copper">推荐</span></span><span class="d">已有反馈通道，回滚只影响 50 人</span></button>
+          <button class="opt" role="radio" aria-checked="false" type="button" data-label="5% 新注册用户"><span class="rd"></span><span class="l">5% 新注册用户</span></button>
+          <button class="opt" role="radio" aria-checked="false" type="button" data-label="先内部 20 人"><span class="rd"></span><span class="l">先内部 20 人</span></button>
+        </div>
+        <div class="c-actions" data-primary-template="按「{x}」定下来"><button class="btn btn-primary" type="button"><span>按「内测 50 人」定下来</span></button><button class="btn btn-ghost" type="button">暂不决定</button><button class="btn btn-ghost btn-icon" type="button" aria-label="更多" style="width:44px"><svg class="ic"><use href="#i-more"/></svg></button></div>
+        <div class="c-basis"><span>决策 Skill v2</span><span>依据 2</span></div>
+      </article>
+    </div></div>
+    <div class="phone"><div class="scr">
+      <div class="ph-top"><svg class="ic"><use href="#i-brief"/></svg>本周脉搏<span class="grow"></span><span style="font-size:12px;color:var(--muted);font-weight:400">截至 10:45</span></div>
+      <p class="prose" style="color:var(--ink-soft)">发布主线按计划；唯一受阻是隐私条款。今天要定灰度对象。</p>
+      <div class="status">
+        <div class="st-row"><svg class="ic"><use href="#i-goals"/></svg><span class="src">Goals</span><span class="tag green"><span class="sw"></span>正常</span><span class="why">3/5 交付</span></div>
+        <div class="st-row"><svg class="ic"><use href="#i-todo"/></svg><span class="src">待办</span><span class="tag amber"><span class="sw"></span>注意</span><span class="why">2 条到期未开始</span></div>
+        <div class="st-row"><svg class="ic"><use href="#i-user"/></svg><span class="src">法务</span><span class="tag red"><span class="sw"></span>受阻</span><span class="why">等 4 天 <span class="host">· 口述</span></span></div>
+        <div class="st-row"><svg class="ic"><use href="#i-git"/></svg><span class="src">Git</span><span class="tag na">n.a.</span><span class="why"><span class="host">未连接</span></span></div>
+      </div>
+      <details class="fold"><summary>读了什么 · 6 个来源<svg class="ic"><use href="#i-chev-down"/></svg></summary><div class="fb"><div class="src-list" style="font-size:12px;color:var(--ink-soft)"><div class="src-item"><svg class="ic"><use href="#i-goals"/></svg><span>Goals</span><span class="s">10:44</span></div><div class="src-item"><svg class="ic"><use href="#i-git"/></svg><span>Git</span><span class="s bad">未连接</span></div></div></div></details>
+      <div class="c-actions"><button class="btn btn-primary" type="button" style="flex:1 1 100%;justify-content:center;height:44px"><span>保存为简报</span></button></div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ═════════ 不要这样 ═════════ -->
+<section class="sheet" id="donts">
+  <header>
+    <div class="eyebrow">其他 · 2</div>
+    <h2>不要这样</h2>
+  </header>
+  <div class="donts">
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不给意图上色</b>颜色只说状态。「需要你决定」不是一个紫色卡片，是琥珀待答环加一个词。</span></div>
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不叠卡中卡</b>卡片是纸上的一块浅底，里面的对象行是纸色的行，不再加边框和阴影。</span></div>
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不出没有来路的数</b>「效率提升 30%」「节省 2 小时」没有方法就不出现；口述的标「你口述」。</span></div>
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不用名字假装对象</b>对象必须经主人解析；解析不了，卡片不生成，而不是显示一个点不开的名字。</span></div>
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不写「执行」「确定」</b>按钮写对象和结果：「采用到第 3 节」「导入 48 份到『内测反馈』」。</span></div>
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不画模型给的 HTML</b>附图是结构化数据由渲染器画；第三方内容一律按数据转义。</span></div>
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不在简报里存第二份任务状态</b>要打勾就转成待办；简报只引用原主人的状态。</span></div>
+    <div class="dont"><svg class="ic"><use href="#i-x"/></svg><span><b>不为每个场景做页面</b>周报、会前准备、阻塞分析都是卡型配方加 Skill；新场景先找现有卡型。</span></div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+(function () {
+  "use strict";
+  var store = { get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage may be unavailable */ } } };
+
+  // ── state rings: twelve segments, as the product's renderStateRing ──
+  var NS = "http://www.w3.org/2000/svg";
+  var C = { line: "var(--line-strong)", ink: "var(--ink-soft)", accent: "var(--accent)", amber: "var(--amber)", red: "var(--red)", green: "var(--green)", faint: "var(--faint)" };
+  var RINGS = {
+    empty: { fill: [[C.line, 12]] },
+    ready: { fill: [[C.ink, 12]] },
+    answer: { fill: [[C.amber, 12]], dot: C.amber },
+    blocked: { fill: [[C.red, 12]], bar: C.red },
+    running: { fill: [[C.line, 12]], lit: 4, spin: true },
+    waiting: { fill: [[C.amber, 6], [C.line, 6]] },
+    done: { fill: [[C.green, 12]], glyph: "M5.4 8.3l1.7 1.7 3.5-3.7", glyphColor: C.green },
+    partial: { fill: [[C.green, 8], [C.amber, 4]] },
+    failed: { fill: [[C.red, 12]], glyph: "M6.2 6.2l3.6 3.6M9.8 6.2l-3.6 3.6", glyphColor: C.red },
+    verify: { fill: [[C.amber, 12]], glyph: "M8 5.4v3.2M8 10.6v.01", glyphColor: C.amber },
+    stale: { fill: [[C.faint, 12]], dashed: true },
+    quiet: { fill: [[C.faint, 12]], soft: true }
+  };
+  function arc(i) {
+    var a0 = (-90 + i * 30 + 5) * Math.PI / 180, a1 = (-90 + i * 30 + 25) * Math.PI / 180, r = 6;
+    return "M" + (8 + r * Math.cos(a0)).toFixed(2) + " " + (8 + r * Math.sin(a0)).toFixed(2) + "A" + r + " " + r + " 0 0 1 " + (8 + r * Math.cos(a1)).toFixed(2) + " " + (8 + r * Math.sin(a1)).toFixed(2);
+  }
+  function ring(el) {
+    var spec = RINGS[el.getAttribute("data-s")] || RINGS.empty;
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16"); svg.setAttribute("aria-hidden", "true");
+    var colors = [];
+    spec.fill.forEach(function (pair) { for (var n = 0; n < pair[1]; n += 1) colors.push(pair[0]); });
+    var g = document.createElementNS(NS, "g");
+    if (spec.spin) g.setAttribute("class", "spin");
+    for (var i = 0; i < 12; i += 1) {
+      if (spec.dashed && i % 2) continue;
+      var p = document.createElementNS(NS, "path");
+      p.setAttribute("d", arc(i)); p.setAttribute("fill", "none"); p.setAttribute("stroke-width", "1.7"); p.setAttribute("stroke-linecap", "round");
+      p.setAttribute("stroke", spec.lit && i < spec.lit ? C.accent : colors[i]);
+      if (spec.soft) p.setAttribute("opacity", ".55");
+      (spec.spin ? g : svg).appendChild(p);
+    }
+    if (spec.spin) svg.appendChild(g);
+    if (spec.glyph) { var q = document.createElementNS(NS, "path"); q.setAttribute("d", spec.glyph); q.setAttribute("fill", "none"); q.setAttribute("stroke", spec.glyphColor); q.setAttribute("stroke-width", "1.6"); q.setAttribute("stroke-linecap", "round"); q.setAttribute("stroke-linejoin", "round"); svg.appendChild(q); }
+    if (spec.dot) { var d = document.createElementNS(NS, "circle"); d.setAttribute("cx", "8"); d.setAttribute("cy", "8"); d.setAttribute("r", "1.6"); d.setAttribute("fill", spec.dot); svg.appendChild(d); }
+    if (spec.bar) { var b = document.createElementNS(NS, "path"); b.setAttribute("d", "M5.8 8h4.4"); b.setAttribute("stroke", spec.bar); b.setAttribute("stroke-width", "1.7"); b.setAttribute("stroke-linecap", "round"); svg.appendChild(b); }
+    el.textContent = ""; el.appendChild(svg);
+    el.setAttribute("role", "img"); el.setAttribute("aria-label", el.getAttribute("data-s"));
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".ring[data-s]"), ring);
+
+  // ── anatomy pins follow their targets ──
+  function placePins() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-anatomy]"), function (wrap) {
+      var base = wrap.getBoundingClientRect().top;
+      Array.prototype.forEach.call(wrap.querySelectorAll("[data-pin]"), function (pin) {
+        var target = wrap.querySelector('[data-anchor="' + pin.getAttribute("data-pin") + '"]');
+        if (!target) return;
+        var r = target.getBoundingClientRect();
+        var top = pin.getAttribute("data-pin") === "blocks" ? r.top - base + 2 : r.top - base + Math.min(r.height, 28) / 2 - 9;
+        pin.style.top = Math.round(top) + "px";
+      });
+    });
+  }
+  placePins();
+  window.addEventListener("resize", placePins);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(placePins);
+
+  // ── toast: every press says it is a demo ──
+  var toast = document.getElementById("toast"), timer = 0;
+  function say(text) {
+    toast.textContent = "示例 · " + text; toast.classList.add("on");
+    clearTimeout(timer); timer = setTimeout(function () { toast.classList.remove("on"); }, 2600);
+  }
+
+  // ── theme & panel width ──
+  function applySeg(name, value) {
+    var group = document.querySelector('[data-seg="' + name + '"]');
+    if (!group) return;
+    Array.prototype.forEach.call(group.querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === value)); });
+    if (name === "theme") document.documentElement.setAttribute("data-theme", value);
+    if (name === "panel") document.documentElement.style.setProperty("--panel-w", value);
+    if (typeof placePins === "function") placePins();
+  }
+  var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applySeg("theme", store.get("ac-board-theme") || (prefersDark ? "dark" : "light"));
+  applySeg("panel", store.get("ac-board-panel") || "400px");
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    var segBtn = target.closest(".seg button");
+    if (segBtn) {
+      var group = segBtn.parentElement, name = group.getAttribute("data-seg"), value = segBtn.getAttribute("data-v");
+      if (name === "theme" || name === "panel") { applySeg(name, value); store.set("ac-board-" + name, value); return; }
+      Array.prototype.forEach.call(group.querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b === segBtn)); });
+      if (name === "then") {
+        var card = group.closest(".card");
+        card.querySelector("[data-then]").hidden = value !== "then";
+        card.querySelector("[data-now]").hidden = value !== "now";
+      }
+      return;
+    }
+    var tab = target.closest(".tabs button");
+    if (tab) {
+      var tabs = tab.parentElement, scope = tabs.parentElement;
+      Array.prototype.forEach.call(tabs.querySelectorAll("button"), function (b) { b.setAttribute("aria-selected", String(b === tab)); });
+      Array.prototype.forEach.call(scope.querySelectorAll(".tabpanel"), function (p) { p.hidden = p.getAttribute("data-panel") !== tab.getAttribute("data-tab"); });
+      return;
+    }
+    var voices = target.closest("[data-toggle-voices]");
+    if (voices) {
+      var on = voices.getAttribute("aria-pressed") !== "true";
+      voices.setAttribute("aria-pressed", String(on));
+      document.getElementById("voiceCard").classList.toggle("marked", on);
+      return;
+    }
+    var replay = target.closest("[data-replay-btn]");
+    if (replay) {
+      var c = replay.closest(".card"); c.classList.remove("is-new"); void c.offsetWidth; c.classList.add("is-new"); return;
+    }
+    var choice = target.closest(".pblock .choices .btn");
+    if (choice) {
+      Array.prototype.forEach.call(choice.parentElement.querySelectorAll(".btn"), function (b) { b.setAttribute("aria-pressed", String(b === choice)); });
+      return;
+    }
+    var opt = target.closest(".opt");
+    if (opt) {
+      if (opt.getAttribute("role") === "checkbox") {
+        opt.setAttribute("aria-checked", String(opt.getAttribute("aria-checked") !== "true"));
+        updateHandback();
+      } else {
+        Array.prototype.forEach.call(opt.parentElement.querySelectorAll(".opt"), function (o) { o.setAttribute("aria-checked", String(o === opt)); });
+        var cardEl = opt.closest(".card"), actions = cardEl && cardEl.querySelector("[data-primary-template]");
+        if (actions && opt.getAttribute("data-label")) {
+          var label = opt.getAttribute("data-label");
+          actions.querySelector(".btn-primary span").textContent = label === "其他" ? "提交我写的答案" : actions.getAttribute("data-primary-template").replace("{x}", label);
+        }
+      }
+      return;
+    }
+    var btn = target.closest("button");
+    if (btn) { say(btn.getAttribute("data-say") || ("按下「" + btn.textContent.trim() + "」：只在页面里演示")); return; }
+    var hit = target.closest("[data-hit]");
+    if (hit) { select(hit); return; }
+    var row = target.closest(".row");
+    if (row) say("点行等于点卡片主体：选中、侧栏展开、主区定位");
+  });
+  function select(card) {
+    var scope = card.closest("section");
+    Array.prototype.forEach.call(scope.querySelectorAll(".card.is-selected"), function (c) { if (c !== card) c.classList.remove("is-selected"); });
+    card.classList.toggle("is-selected");
+    if (card.classList.contains("is-selected")) say(card.getAttribute("data-say") || "选中：只看，不改");
+  }
+  document.addEventListener("keydown", function (event) {
+    var card = event.target.closest && event.target.closest("[data-hit]");
+    if (card && event.target === card && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); select(card); }
+    if (card && event.target === card && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+      var all = Array.prototype.slice.call(card.closest("section").querySelectorAll("[data-hit]"));
+      var next = all[all.indexOf(card) + (event.key === "ArrowDown" ? 1 : -1)];
+      if (next) { event.preventDefault(); next.focus(); }
+    }
+  });
+
+  // ── review page hand-back count ──
+  function updateHandback() {
+    var picked = document.querySelectorAll("[data-review][aria-checked='true']").length;
+    var notes = Array.prototype.filter.call(document.querySelectorAll("[data-review-comment]"), function (i) { return i.value.trim(); }).length;
+    document.getElementById("handbackText").textContent = "已勾选 " + picked + " 项 · " + notes + " 条评论 · 提交前不改任何业务事实";
+  }
+  document.addEventListener("input", function (event) { if (event.target.matches("[data-review-comment]")) updateHandback(); });
+
+  // ── citation tooltips ──
+  var tip = document.getElementById("tip");
+  function showTip(el) {
+    var text = el.getAttribute("data-cite"); if (!text) return;
+    tip.textContent = "依据 · " + text; tip.classList.add("on");
+    var r = el.getBoundingClientRect(), w = Math.min(280, window.innerWidth - 24);
+    tip.style.maxWidth = w + "px";
+    var left = Math.max(12, Math.min(r.left + r.width / 2 - tip.offsetWidth / 2, window.innerWidth - tip.offsetWidth - 12));
+    tip.style.left = left + "px"; tip.style.top = (r.top - tip.offsetHeight - 8) + "px";
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".cite"), function (c) { c.tabIndex = 0; });
+  document.addEventListener("mouseover", function (e) { var c = e.target.closest && e.target.closest(".cite"); if (c) showTip(c); });
+  document.addEventListener("mouseout", function (e) { if (e.target.closest && e.target.closest(".cite")) tip.classList.remove("on"); });
+  document.addEventListener("focusin", function (e) { if (e.target.classList && e.target.classList.contains("cite")) showTip(e.target); });
+  document.addEventListener("focusout", function (e) { if (e.target.classList && e.target.classList.contains("cite")) tip.classList.remove("on"); });
+  window.addEventListener("scroll", function () { tip.classList.remove("on"); }, { passive: true });
+})();
+</script>
+</body>
+</html>

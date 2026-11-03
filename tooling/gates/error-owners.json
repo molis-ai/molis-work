@@ -11,7 +11,9 @@
   },
   "owners": {
     "sample_notes": {
-      "paths": ["examples/personal-sync-plugin/"],
+      "paths": [
+        "examples/personal-sync-plugin/"
+      ],
       "reason": "The independent author-only personal sync example owns its note validation and unavailable-storage failures."
     },
     "storage": {
@@ -20,9 +22,12 @@
         "packages/storage/src/catalog-metadata.ts",
         "packages/storage/src/adapters/file-document.ts",
         "packages/storage/src/adapters/local-aead.ts",
-        "packages/storage/src/adapters/local-payload-protection.ts"
+        "packages/storage/src/adapters/local-payload-protection.ts",
+        "packages/storage/src/adapters/file-secret-store.ts",
+        "packages/storage/src/adapters/storage-owner.ts",
+        "packages/storage/src/sqlite-baseline.ts"
       ],
-      "reason": "Project replication validates portable rows and journal sequence references; atomic file documents validate opaque UTF-8 and file shape; local payload protection owns AEAD validation and pinned local-key refusal. Catalog metadata owns read-only SQLite observation and refusal of partial or changing journals, while the Host decides business owner/version acceptance. These remain within Storage's technical persistence boundary."
+      "reason": "Project replication validates portable rows and journal sequence references; atomic file documents validate opaque UTF-8 and file shape; local payload protection owns AEAD validation and pinned local-key refusal. Catalog metadata owns read-only SQLite observation and refusal of partial or changing journals, while the Host decides business owner/version acceptance. These remain within Storage's technical persistence boundary. Platform storage owns sealed-vault integrity, the shared filesystem storage owner's exclusive lease and capability refusals, and a store's baseline refusals (version and structure)."
     },
     "agent": {
       "paths": [
@@ -85,10 +90,9 @@
         "apps/local-host/src/demo-project-lifecycle.ts",
         "apps/local-host/src/project-database.ts",
         "apps/local-host/src/project-deletion-*",
-        "apps/local-host/src/project-file-paths.ts",
-        "apps/desktop/src/panels.ts"
+        "apps/local-host/src/project-file-paths.ts"
       ],
-      "reason": "The project catalog: creating, binding, recovering and deleting projects and their panels (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
+      "reason": "The project catalog: creating, binding, recovering and deleting projects (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
     },
     "catalog_integration": {
       "paths": [
@@ -101,15 +105,10 @@
         "modules/characters/",
         "apps/local-host/src/character-*",
         "apps/local-host/src/characters-host.ts",
+        "apps/local-host/src/characters-http.ts",
         "packages/contracts/src/modules/characters-errors.ts"
       ],
-      "reason": "The Characters module, plugin and the Host files that import and run them; character.* becomes characters.* (spec W3-02 R4c)."
-    },
-    "coding": {
-      "paths": [
-        "apps/local-host/src/coding-*"
-      ],
-      "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
+      "reason": "The Characters module and the Host files that assemble, serve and run it (the plugin was removed in CHR-1); character.* becomes characters.* (spec W3-02 R4c)."
     },
     "computer": {
       "paths": [
@@ -139,39 +138,34 @@
       ],
       "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
     },
-    "feed": {
+    "diff": {
       "paths": [
-        "modules/feed/",
-        "packages/contracts/src/modules/feed.ts",
-        "apps/local-host/src/feed-*",
-        "apps/local-host/src/research-library-source.ts"
+        "packages/plugin-sdk/src/unified-diff.ts"
       ],
-      "reason": "The Feed module, plugin and the Host files that sync and promote; the feed_* snake codes become feed.* (spec W3-02 E)."
+      "reason": "The unified-diff parse the SDK's /diff-view gives Diff, Coding and third-party plugins, moved out of the Diff plugin (PG-062); its codes already start with diff."
     },
     "functions": {
       "paths": [
-        "modules/functions/",
-        "apps/local-host/src/functions-*",
-        "apps/local-host/src/functions-http/",
+        "modules/judgment-rules/",
+        "apps/local-host/src/judgment-rules-*",
+        "apps/local-host/src/judgment-rules-http/",
         "packages/contracts/src/modules/functions.ts"
       ],
-      "reason": "The Functions module and the Host files that serve it (functions-host, functions-http): functions.*"
+      "reason": "The Functions module and the Host files that serve it (judgment-rules-host, judgment-rules-http): functions.*"
     },
     "git": {
       "paths": [
-        "apps/local-host/src/git-*"
+        "packages/plugin-sdk/src/git-porcelain.ts"
       ],
-      "reason": "The Git plugin's Host side (worktrees, status, operations); its codes already start with git."
+      "reason": "The porcelain parse the SDK gives both the Host's workspace Git service and the Git plugin (G1); its codes start with git. The Git plugin's own files are git's by their directory; the Host's workspace Git files are workspace_git's (G5)."
     },
     "goals": {
       "paths": [
-        "modules/goals/",
-        "modules/governance-collaboration/",
         "apps/local-host/src/goal-*",
-        "apps/local-host/src/goals-actions.ts",
+        "apps/local-host/src/goal-callers.ts",
         "apps/local-host/src/web-goals-read.ts"
       ],
-      "reason": "Goals is the plugin plus its module, the governance module that records tree proposals and event decisions, and the Host files that serve them; every Goals code is goals.<family>.<reason>."
+      "reason": "Goals is the plugin, whose package also holds its Goal module and the governance module that records tree proposals and event decisions (S9-3), plus the Host files that serve them; every Goals code is goals.<family>.<reason>."
     },
     "host": {
       "paths": [
@@ -187,10 +181,9 @@
     },
     "inbox": {
       "paths": [
-        "apps/local-host/src/inbox-*",
         "packages/contracts/src/modules/attention-resumption.ts"
       ],
-      "reason": "The Inbox plugin and the Host files that serve it; the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
+      "reason": "The Inbox plugin (its Host files are gone, FI-7); the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
     },
     "installer": {
       "paths": [
@@ -213,10 +206,9 @@
     },
     "listener": {
       "paths": [
-        "horizontal/listener-host/",
-        "packages/contracts/src/services/listener-host.ts"
+        "plugins/native/feed/src/store/listener.ts"
       ],
-      "reason": "The listener host: its listener_* codes become listener.*."
+      "reason": "The listener host (inside Feed's store since FI-5): its listener_* codes become listener.*."
     },
     "material": {
       "paths": [
@@ -273,6 +265,12 @@
       ],
       "reason": "The plugin builder (Studio) plugin and its Host side."
     },
+    "rss": {
+      "paths": [
+        "plugins/official-integrations/rss/"
+      ],
+      "reason": "The RSS official integration (the custom RSS address rules the platform's source vocabulary uses); its refusals were raised in Feed's name until PG-111 Feed (T-110)."
+    },
     "runtime_host": {
       "paths": [
         "horizontal/runtime-host/"
@@ -284,12 +282,6 @@
         "packages/plugin-sandbox/"
       ],
       "reason": "The plugin sandbox (SandboxError): its UPPER_CASE codes become sandbox.* (spec W3-02 J6)."
-    },
-    "schedule": {
-      "paths": [
-        "apps/local-host/src/schedule-*"
-      ],
-      "reason": "The Schedule plugin and the Host files that serve it (tasks, reminders, runner); its schedule_task_* snake codes become schedule.* (spec W3-02 E)."
     },
     "scheduler": {
       "paths": [
@@ -307,23 +299,21 @@
     },
     "shelf": {
       "paths": [
-        "modules/shelf/",
-        "apps/local-host/src/shelf-*"
+        "modules/shelf/"
       ],
-      "reason": "The Shelf module, plugin and its Host AI file; its codes already start with shelf."
+      "reason": "The Shelf module and plugin; its codes already start with shelf."
     },
     "signals": {
       "paths": [
-        "modules/signals/"
+        "plugins/native/feed/src/store/signals.ts"
       ],
-      "reason": "The signals module: its signal_* codes become signals.*."
+      "reason": "The signals module (inside Feed's store since FI-5): its signal_* codes become signals.*."
     },
     "sources": {
       "paths": [
-        "modules/sources/",
-        "packages/contracts/src/modules/sources.ts"
+        "plugins/native/feed/src/store/sources.ts"
       ],
-      "reason": "The sources module (SourcesError): its source_* codes become sources.*."
+      "reason": "The sources module (SourcesError; inside Feed's store since FI-5): its source_* codes become sources.*."
     },
     "ui_host": {
       "paths": [
@@ -335,22 +325,31 @@
       "paths": [
         "modules/private-work-context/",
         "packages/contracts/src/modules/private-work-context.ts",
-        "packages/contracts/src/modules/workspace-artifacts.ts",
-        "apps/local-host/src/work-*"
+        "packages/contracts/src/modules/workspace-artifacts.ts"
       ],
-      "reason": "The Work plugin owns sessions, handoffs, workspaces and their private context; the session, sessions, handoff, context and workspace prefixes become work.* (spec W3-02 R4a)."
+      "reason": "The private work context module owns the runtime-context bindings and workspace artifacts; the context and workspace prefixes become work.* (spec W3-02 R4a). The Sessions plugin that used to share this owner is retired (SC-4)."
     },
-    "workflows": {
+    "workspace_git": {
       "paths": [
-        "apps/local-host/src/workflow-*"
+        "apps/local-host/src/workspace-git-actions.ts",
+        "apps/local-host/src/workspace-git-integration.ts",
+        "apps/local-host/src/workspace-git-operations.ts",
+        "apps/local-host/src/workspace-git-worktrees.ts",
+        "apps/local-host/src/workspace-git-writers.ts"
       ],
-      "reason": "The Workflows plugin and the Host files that serve it; its codes already start with workflows."
+      "reason": "The platform's workspace Git service (Git exit plan T5, T6): the projects.workspace.git.* (G3) and projects.workspace.writers.* (G4, workspace_git.writer.*) actions the Host registers for plugins, and the operations, writer worktrees (workspace_git.worktree.*) and integration behind them, renamed from git-*.ts (G5). Not the Git plugin, so not git.*; not Work's workspace.* either. workspace-git.ts and workspace-git-index.ts were the host owner's before G5 and stay so (the table only gets stricter)."
+    },
+    "youtube": {
+      "paths": [
+        "plugins/official-integrations/youtube/"
+      ],
+      "reason": "The YouTube official integration (the public channel rules the platform's source vocabulary uses); its refusal was raised in Feed's name until PG-111 Feed (T-110)."
     },
     "sync_replication": {
       "paths": [
         "modules/sync-replication/"
       ],
-      "reason": "The personal sync coordinator owns policy validation and transport coordination failures; asset semantics remain with each owner."
+      "reason": "Personal synchronization policy and transport errors; business validation remains with each owner."
     }
   }
 }

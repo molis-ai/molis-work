@@ -3,11 +3,18 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
+// W5-02-REG-06: real generated-catalog startup, Files snapshots, Diff and Git readers, including Coding's embedded Files.
 test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
-  const { click, evaluate, waitFor, command, sessionId } = b;
+  const { command, sessionId } = b;
+  const views = Object.fromEntries(await Promise.all(["files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, b, id)])));
+  let active: Pick<typeof b, "evaluate" | "waitFor" | "click"> = b;
+  const evaluate: typeof b.evaluate = (...args) => active.evaluate(...args);
+  const waitFor: typeof b.waitFor = (...args) => active.waitFor(...args);
+  const click: typeof b.click = (...args) => active.click(...args);
   const prefix = `${b.origin}/projects/${b.projectId}`;
   const workspace = join(b.homeDirectory, "coding-fixture");
   await mkdir(join(workspace, "nested"), { recursive: true });
@@ -18,8 +25,9 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   git("add", "."); git("commit", "-m", "initial");
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   const open = async (plugin: string) => {
-    await click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);
-    await waitFor(`document.querySelector('[data-work-surface="${plugin}"]').getBoundingClientRect().width > 100 && !document.querySelector('[data-work-surface="${plugin}"]').hidden`);
+    await b.click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);
+    await b.waitFor(`document.querySelector('[data-work-surface="${plugin}"]').getBoundingClientRect().width > 100 && !document.querySelector('[data-work-surface="${plugin}"]').hidden`);
+    active = views[plugin]!;
   };
   const files = '[data-companion="files"]';
   const coding = '[data-coding-workbench]';
@@ -35,6 +43,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await b.navigate(() => command("Page.navigate", { url: prefix + "/" }, sessionId));
   // Folders are associated in project settings; the chosen one is the project's current directory for Files, Git and Coding.
   const showWorkspaceSettings = async () => {
+    active = b;
     await click('.navigator-project-settings');
     await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
     await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
@@ -50,7 +59,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await capture("workspace-desktop");
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
-  await click(`${files} [data-files-tree] [title="nested"]`);
+  try { await click(`${files} [data-files-tree] [title="nested"]`); }
+  catch (error) { throw new Error(JSON.stringify(await evaluate(`({tree:document.querySelector('${files} [data-files-tree]').textContent,rows:[...document.querySelectorAll('${files} [data-files-tree] button')].map(b=>[b.title,b.dataset.filePath])})`)), {cause:error}); }
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="nested/empty.txt"]')`);
   await click(`${files} [data-files-tree] [title="nested/empty.txt"]`);
   await waitFor(`document.querySelector('${files} [data-files-notice]').textContent.includes('空的')`);
@@ -84,6 +94,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
       inset, column: list.clientWidth - inset - parseFloat(style.paddingRight), contentLeft: shell.querySelector('[data-companion-content]').getBoundingClientRect().left - box.left }; })()`);
   await open("diff");
   await waitFor("document.querySelector('[data-companion=" + '"diff"' + "] [data-phase=ready]')");
+  const compared = await evaluate<string>("document.querySelector('[data-companion=diff] [data-companion-content]').textContent");
+  assert.match(compared, /first/); assert.match(compared, /second/, "Diff reads both snapshots captured by Files");
   const diffStage = await stage("diff");
   assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开 Files"]);
   assert.ok(diffStage.inset >= 32 && diffStage.column <= 960 && diffStage.contentLeft >= 32, JSON.stringify(diffStage));
@@ -91,7 +103,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
+  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
@@ -106,15 +118,22 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor("!document.querySelector('[data-companion=git] [data-git-refresh]').disabled");
   await click('[data-companion="git"] [data-git-list] button');
   await waitFor("document.querySelector('[data-companion=" + '"git"' + "] [data-git-diff] [data-phase=ready]')");
+  const staged = await evaluate<string>("document.querySelector('[data-companion=git] [data-git-diff]').textContent");
+  assert.match(staged, /first/); assert.match(staged, /staged/, "Git reads the actual HEAD→index change");
   assert.equal(await evaluate("document.querySelectorAll('[data-companion=git] [data-git-list] .is-selected').length"), 1);
   await click('[data-companion="git"] [data-git-list] section:last-child button');
   await waitFor("document.querySelector('[data-companion=git] [data-git-scope]').textContent.includes('未暂存')");
+  await waitFor("document.querySelector('[data-companion=git] [data-git-diff]').textContent.includes('second')");
+  assert.match(await evaluate<string>("document.querySelector('[data-companion=git] [data-git-diff]').textContent"), /staged/,
+    "the worktree comparison reads the actual index→worktree change");
   assert.equal(await evaluate("document.querySelectorAll('[data-companion=git] [data-git-list] .is-selected').length"), 1, "same path on two Git sides has only one selected row");
   await capture("git-desktop");
 
   await open("coding");
   await click(`${coding} [data-coding-face="files"]`);
-  await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`);
+  await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`).catch(async error => {
+    throw new Error(JSON.stringify(await evaluate(`({files:document.querySelector('[data-files-notice]')?.textContent,git:document.querySelector('[data-git-status]')?.textContent,tree:document.querySelector('[data-files-tree]')?.outerHTML,root:document.querySelector('[data-coding-workbench]')?.dataset})`)),{cause:error});
+  });
   await waitFor(`!document.querySelector('${coding} [data-files-refresh]').disabled && !document.querySelector('${coding} [data-git-refresh]').disabled`);
   await click(`${coding} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${coding} [data-files-text]').hidden && document.querySelector('${coding} [data-files-text]').value.startsWith('second')`);
@@ -139,13 +158,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   const first = sessions.find(id => id !== current)!;
   // Select through the actual tab system, rather than the directory's direct select handler.
   // Tabs store semantic ownership in persisted UI state, not a duplicated DOM id scheme.
-  const state = await evaluate<any>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${b.projectId}'))`);
+  const state = await b.evaluate<any>(`JSON.parse(localStorage.getItem('molis-work-tab-workspace:${b.projectId}'))`);
   const tabs = state.panes.flatMap((pane: any) => pane.tabs);
   const firstTab = tabs.find((tab: any) => tab.itemId === first);
   const secondTab = tabs.find((tab: any) => tab.itemId === current);
-  await click(`[data-tab-id="${firstTab.id}"]`);
+  await b.click(`[data-tab-id="${firstTab.id}"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
-  await click(`[data-tab-id="${secondTab.id}"]`);
+  await b.click(`[data-tab-id="${secondTab.id}"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
   await click(`${coding} [data-coding-new]`);
   await waitFor(`document.querySelectorAll('${coding} [data-coding-session]').length === 3 && document.querySelector('${coding} [data-coding-task]').value === ''`);
@@ -163,7 +182,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await capture("coding-desktop");
   await open("coding");
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'false'`);
-  await click(`[data-tab-id="${secondTab.id}"]`);
+  await b.click(`[data-tab-id="${secondTab.id}"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
   await b.reloadPage();
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
@@ -190,7 +209,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${coding} [data-coding-context-toggle]`);
   await capture("coding-mobile");
   await click(`${coding} [data-coding-results-open]`);
-  await click(`[data-tab-id="${firstTab.id}"]`);
+  await b.click(`[data-tab-id="${firstTab.id}"]`);
   await waitFor(`document.querySelector('${coding}').dataset.codingResults === 'false' && document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
   await click(`${coding} [data-coding-results-open]`);
   await click(`${coding} [data-coding-results-close]`);
@@ -201,7 +220,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
   await click(`${files} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${files} [data-files-text]').hidden`);
-  await evaluate("localStorage.setItem('molis-work:theme','dark');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
+  await b.evaluate("localStorage.setItem('molis-work:theme','dark');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
   await capture("files-mobile-dark");
   await click(`${files} [data-files-close]`);
   assert.equal(await evaluate(`document.activeElement?.getAttribute('title')`), 'note.txt', 'return restores the originating file row');
@@ -226,22 +245,24 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await capture('workspace-mobile-dark');
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 600, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await click(`[data-tab-id="${secondTab.id}"]`);
+  await b.click(`[data-tab-id="${secondTab.id}"]`);
+  active = views.coding!;
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
   await capture('coding-compact-dark');
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
-  assert.deepEqual(await evaluate("window.codingTestErrors"), []);
+  assert.deepEqual(await b.evaluate("window.codingTestErrors"), []);
 });
 
 // PCSYNC-22/23: browser display evidence only; canonical SDK/digest/SQL behavior is exercised in coding-sync safety tests.
 test('received saved history is readable on a narrow new-device page without reviving old approvals',{timeout:60000},async t=>{
  const b=await openGoalBrowser(t,'seeded');if(!b)return;
+ const frame=await pluginFrameBrowser(t,b,'coding');
  await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.historyCalls=[];window.fetch=async(url,init)=>{const response=await original(url,init),path=new URL(String(url),location.href).pathname;
  if((init?.method||'GET')==='GET'&&/\\/api\\/plugins\\/io\\.molis\\.work\\.coding\\/sessions\\/[^/]+(?:\\/runs)?$/.test(path)&&(response.ok||path.endsWith('/runs'))){const value=await response.json();window.historyCalls.push(path);value.runs=[];value.saved_history={total:25,offset:path.endsWith('/runs')?0:5,runs:[{run_id:path.endsWith('/runs')?'earlier-source-run':'saved-source-run',outcome:'completed',messages:[{role:'user',text:'原设备的完整请求 <script>window.historyXss=true</script>'},{role:'assistant',text:'已保存的完整答复 — 尾部标记'},{role:'tool',text:'原执行回执只供阅读'}]}]};return Response.json(value);}return response;};})();`},b.sessionId);
- await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId+'/'},b.sessionId));await b.click('[data-plugin-strip] [data-plugin-id="coding"]');await b.surfaceReady('coding');await b.click('[data-coding-new]');
- await b.waitFor("document.querySelector('[data-coding-saved-history]')?.textContent.includes('尾部标记')");assert.equal(await b.evaluate('Boolean(window.historyXss)'),false);assert.equal(await b.evaluate("Boolean(document.querySelector('[data-coding-turns] [data-coding-welcome]'))"),false,'saved history is not an empty new conversation');
- assert.equal(await b.evaluate("document.querySelector('[data-coding-saved-history]').querySelectorAll('[data-coding-continue], [data-coding-approve], [data-coding-question], [data-coding-nudge]').length"),0);
- await b.command('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:false},b.sessionId);assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+ await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId+'/'},b.sessionId));await b.click('[data-plugin-strip] [data-plugin-id="coding"]');await b.surfaceReady('coding');await frame.click('[data-coding-new]');
+ await frame.waitFor("document.querySelector('[data-coding-saved-history]')?.textContent.includes('尾部标记')");assert.equal(await frame.evaluate('Boolean(window.historyXss)'),false);assert.equal(await frame.evaluate("Boolean(document.querySelector('[data-coding-turns] [data-coding-welcome]'))"),false,'saved history is not an empty new conversation');
+ assert.equal(await frame.evaluate("document.querySelector('[data-coding-saved-history]').querySelectorAll('[data-coding-continue], [data-coding-approve], [data-coding-question], [data-coding-nudge]').length"),0);
+ await b.command('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:false},b.sessionId);assert.equal(await frame.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
  const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await mkdir('.impeccable/qa/review',{recursive:true});await writeFile('.impeccable/qa/review/coding-saved-history-390.png',Buffer.from(shot.data,'base64'));
- const box=await b.evaluate<{x:number;y:number}>("(()=>{const rect=document.querySelector('[data-coding-turns]').getBoundingClientRect();return{x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()");await b.command('Input.dispatchMouseEvent',{type:'mouseWheel',x:box.x,y:box.y,deltaX:0,deltaY:-2000},b.sessionId);await b.waitFor("document.querySelector('[data-coding-saved-history] button').getBoundingClientRect().top>=0");await b.click('[data-coding-saved-history] button');await b.waitFor("document.querySelector('[data-coding-saved-history]')?.textContent.includes('earlier-source-run')");
+ await frame.evaluate("document.querySelector('[data-coding-saved-history] button').scrollIntoView({block:'center'})");await frame.click('[data-coding-saved-history] button');await frame.waitFor("document.querySelector('[data-coding-saved-history]')?.textContent.includes('earlier-source-run')");
 });

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // specs/archive/page-interaction-flow: every entry of the bar is a switch, every cover has a way out, history walks both,
@@ -12,14 +13,16 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
-  const exclusive = "document.querySelector('[data-tab-workspace]').dataset.exclusive || ''";
+  const exclusive = "(document.querySelector('[data-tab-workspace]').dataset.exclusive || '')";
   const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
   // A Dock entry pressed twice returns to where the pane was.
   await click('[data-dock-pin="goals"]');
   await waitFor(shows("goals"));
+  // PIF-ESC-01: wait for the real board's open groups before leaving; its retained state must not consume Escape.
+  await waitFor("!!document.querySelector('[data-goal-kanban] details[open][data-layer-open]')");
   await click('[data-dock-pin="inbox"]');
-  await waitFor(shows("inbox"));
+  await waitFor(`${shows("inbox")} && document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current') === 'page'`);
   assert.equal(await evaluate("document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current')"), "page");
   await click('[data-dock-pin="inbox"]');
   await waitFor(shows("goals"));
@@ -36,6 +39,9 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   assert.equal(await evaluate("document.title.startsWith('设置')"), true);
   assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin][aria-current]').length"), 0);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false);
+  await waitFor("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))");
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))"), true,
+    "PIF-ESC-01: the real board retains its open groups in a hidden or inert surface");
   // 1. Esc.
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
@@ -61,7 +67,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await waitFor(`${exclusive} === 'settings'`);
   // 能力 is four of the categories (specs/artifact-positioning S6b).
   assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 13)"),
-    ["appearance", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
+    ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-settings-page=characters]').closest('[data-work-surface=settings]')");
   await waitFor("!!document.querySelector('[data-character-builtin-list] a.characters-row')");
@@ -91,52 +97,76 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   }
 });
 
+test("PIF-ESC-02 visible menus and dialogs take Escape before the settings cover", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, waitFor, navigate, click, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await click('[data-directory-open="settings"]');
+  const settingsOpen = "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'";
+  await waitFor(settingsOpen);
+  for (const [trigger, opened, closed] of [
+    ["[data-plugin-picker-toggle]", "!document.querySelector('[data-plugin-picker-popover]').hidden", "document.querySelector('[data-plugin-picker-popover]').hidden"],
+    ["[data-global-search-open]", "document.querySelector('[data-global-search-dialog]').open", "!document.querySelector('[data-global-search-dialog]').open"],
+  ]) {
+    await click(trigger);
+    await waitFor(`${opened} && ${settingsOpen}`);
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+    await waitFor(`${closed} && ${settingsOpen}`);
+  }
+});
+
 test("a plugin's page keeps what was open in it across switches and a reload", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage } = browser;
+  const lingguang = await pluginFrameBrowser(t, browser, "lingguang");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
-  await waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
-  await evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
-  const noteId = await evaluate<string>("document.querySelector('[data-work-surface=lingguang] [data-lingguang-id]').dataset.lingguangId");
+  // The child DOM is visible before its client mounts; the trusted owner releases input only after readiness.
+  await waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.uiClientState === 'ready' && !document.querySelector('[data-work-surface=lingguang]').hidden && !document.querySelector('[data-work-surface=lingguang]').inert");
+  await lingguang.evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
+  const noteId = await lingguang.evaluate<string>("document.querySelector('[data-work-surface=lingguang] [data-lingguang-id]').dataset.lingguangId");
   // A note left with nothing written is thrown away when the page goes (W2-18 decision 6): these are notes with words in them.
   const write = async (text: string) => {
-    await evaluate(`(() => { const body = document.querySelector('[data-work-surface=lingguang] [data-lingguang-body]'); body.value = ${JSON.stringify(text)}; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
-    await waitFor("document.querySelector('[data-work-surface=lingguang] [data-lingguang-save-status]').textContent === '已保存'");
+    await lingguang.evaluate(`(() => { const body = document.querySelector('[data-work-surface=lingguang] [data-lingguang-body]'); body.value = ${JSON.stringify(text)}; body.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+    await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang] [data-lingguang-save-status]').textContent === '已保存'");
   };
   await write("第一条灵光");
-  await evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
+  await lingguang.evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
   await click('[data-dock-pin="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
-  await waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
-  assert.equal(await evaluate("document.querySelector('[data-work-surface=lingguang]').dataset.expanded"), "true", "the open note is still open");
+  await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
+  assert.equal(await lingguang.evaluate("document.querySelector('[data-work-surface=lingguang]').dataset.expanded"), "true", "the open note is still open");
   await reloadPage();
-  await waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.expanded === 'true'");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.expanded === 'true'");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false, "history survives the reload");
   // The plugin's tab goes back to the list, and the list is what then stays.
   await click('[data-titlebar-tabs] [data-tab-kind="plugin"][data-plugin="lingguang"] .tab-item-trigger');
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
 
   // A record opened on the page is a step of history: Back from a second note is the first, then the list.
-  await evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]').length >= 2");
+  await lingguang.evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]').length >= 2");
   const opened = (id: string) => `document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${id}"]')?.matches('.is-selected, [aria-selected="true"]')`;
-  const newId = await evaluate<string>(`[...document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]')].find(row => row.matches('.is-selected, [aria-selected="true"]'))?.dataset.lingguangId`);
+  const newId = await lingguang.evaluate<string>(`[...document.querySelectorAll('[data-work-surface=lingguang] [data-lingguang-id]')].find(row => row.matches('.is-selected, [aria-selected="true"]'))?.dataset.lingguangId`);
   assert.ok(newId && newId !== noteId, "the new note is the chosen row");
   await write("第二条灵光");
-  await evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
-  await waitFor(opened(noteId));
+  await lingguang.evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
+  await lingguang.waitFor(opened(noteId));
   await click("[data-workspace-history=back]");
-  await waitFor(opened(newId));
+  await lingguang.waitFor(opened(newId));
   await click("[data-workspace-history=back]");
-  await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
+  await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
   await click("[data-workspace-history=forward]");
-  await waitFor(opened(newId));
+  await lingguang.waitFor(opened(newId));
 });

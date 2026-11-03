@@ -16,7 +16,7 @@ export const COSS_CONTROL_STYLES = `
   body { caret-color: var(--ink); }
   ::selection { background: var(--blue-soft); color: var(--ink); }
   :where(button, a, summary, input, select, textarea) { -webkit-tap-highlight-color: transparent; }
-  :where(button, a, summary) { transition: background-color var(--motion-fast) var(--ease-quint), color var(--motion-fast) var(--ease-quint), border-color var(--motion-fast) var(--ease-quint), box-shadow var(--motion-fast) var(--ease-quint); }
+  :where(button, a, summary) { transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-hover) var(--ease-quint); }
   :where(input, select, textarea) { accent-color: var(--action); }
   :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
 
@@ -52,15 +52,11 @@ export const COSS_CONTROL_STYLES = `
   .frame-picker-tools select,
   .inline-settings-form input[type=text],
   .project-settings-identity .inline-settings-form input[type=text],
-  .project-record-tools input,
   .connection-action-form input,
   .connection-action-form select,
   .dialog-body input:not([type=checkbox]):not([type=radio]),
   .dialog-body textarea,
   .dialog-body select,
-  .project-operation-dialog input:not([type="checkbox"]),
-  .project-operation-dialog select,
-  .project-operation-dialog textarea,
   .runtime-plan-dialog input:not([type=checkbox]),
   .artifact-reference-label input,
   .artifact-content-reference input,
@@ -79,8 +75,7 @@ export const COSS_CONTROL_STYLES = `
     outline: 0;
     box-shadow: none;
   }
-  .dialog-body textarea,
-  .project-operation-dialog textarea {
+  .dialog-body textarea {
     height: auto;
     min-height: 72px;
     padding: 8px 12px;
@@ -90,7 +85,6 @@ export const COSS_CONTROL_STYLES = `
   .create-dialog,
   .runtime-plan-dialog,
   .project-delete-dialog,
-  .project-operation-dialog,
   .home-shortcut-dialog {
     border: 1px solid var(--control-border);
     border-radius: var(--radius-surface);
@@ -101,7 +95,6 @@ export const COSS_CONTROL_STYLES = `
   .create-dialog::backdrop,
   .runtime-plan-dialog::backdrop,
   .project-delete-dialog::backdrop,
-  .project-operation-dialog::backdrop,
   .home-shortcut-dialog::backdrop {
     background: var(--scrim);
   }
@@ -156,7 +149,6 @@ export const COSS_CONTROL_STYLES = `
     .mw-btn--secondary,
     .mw-btn--danger,
     .create-dialog footer button,
-    .project-operation-dialog footer button,
     .runtime-plan-shell > footer button {
       min-height: 44px;
     }
@@ -219,14 +211,13 @@ export const COSS_CONTROL_STYLES = `
   :where(dialog)::backdrop { background: var(--scrim); transition: opacity var(--dur-hover) var(--ease-quint), overlay var(--dur-hover) allow-discrete, display var(--dur-hover) allow-discrete; opacity: 0; }
   :where(dialog[open])::backdrop { opacity: 1; transition-duration: var(--dur-move); }
   @starting-style { :where(dialog[open]) { opacity: 0; transform: translateY(8px) scale(.98); } :where(dialog[open])::backdrop { opacity: 0; } }
-  [popover]:popover-open { animation: feedback-reveal 130ms var(--ease-quint); }
-  :is([data-toast], [data-settings-toast]).is-visible { animation: feedback-reveal 130ms var(--ease-quint); }
-  :is(.form-error, .event-form-status, .event-field-error)[role=alert]:not([hidden]) { animation: feedback-reveal 130ms var(--ease-quint); }
+  [popover]:popover-open { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
+  .mw-modal-cover[popover] { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: var(--scrim); }
+  :is(.form-error, .event-form-status, .event-field-error)[role=alert]:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint); }
   .form-disclosure[open] { border-color: var(--line-strong); }
-  :is(.form-disclosure, .feed-task-extra) summary { transition: color 130ms var(--ease-quint); }
+  :is(.form-disclosure, .feed-task-extra) summary { transition: color var(--dur-hover) var(--ease-quint); }
   :is(.form-disclosure, .feed-task-extra) summary:hover { color: var(--ink); }
   body.immersive-workbench .tab-item[aria-current] { box-shadow: inset 0 1px 0 color-mix(in srgb,var(--ink) 6%,transparent); }
-  @keyframes feedback-reveal { from { opacity: .35; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) {
     :where(dialog), :where(dialog)::backdrop { transform: none; transition: none; animation: none; }
     [popover]:popover-open { animation: none; }
@@ -236,8 +227,8 @@ export const COSS_CONTROL_STYLES = `
   .form-actions > button { min-height: 36px; }
   @media (max-width: 760px) { .form-actions > button, .feed-plan-actions > button { min-height: 44px; } }
 
-  :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 36px; }
-  @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog, .project-operation-surface-empty) { --control-h: 44px; } }
+  :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 36px; }
+  @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; } }
   @media (max-width: 760px), (pointer: coarse) {
     :is(.frame-picker, .frame-goal-actions, .frame-empty) { --control-h: 44px; }
     .frame-goal-actions button, .frame-empty button, .frame-picker > header button { min-height: 44px; }

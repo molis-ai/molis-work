@@ -22,7 +22,8 @@ async function fixture(t: test.TestContext) {
   const bodies: any[] = [];
   let beforeReply = () => {};
   const server = createServer(async (request, response) => {
-    let raw = ''; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw); bodies.push(body);
     assert.equal(request.headers.authorization, 'Bearer explicit-plugin-model-key');
     beforeReply();

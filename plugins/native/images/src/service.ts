@@ -1,20 +1,23 @@
-import type {PluginSyncContext} from "@molis-ai/molis-work-contracts/platform/plugin";
+import type {PluginSyncContext, PluginSyncClient} from "@molis-ai/molis-work-contracts/platform/plugin";
 import {validatePortableImage} from "./sync-files.js";
 import { createHash, randomUUID } from "node:crypto";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabase, PluginExecutionControl, PluginFilesClient, PluginImageGenerationClient, PluginBackgroundClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, PluginImageGenerationClient, PluginBackgroundClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ImagesStore, type StoredConnection } from "./store.js";
 import { runImageJob } from "./service-job.js";
+import { IMAGES_ASSETS } from "./owner-files.js";
 
 export type ImagesControl = Omit<PluginExecutionControl, "project_id">;
 
 export interface ImagesServiceOptions {
   sync?:PluginSyncContext;
+  syncClient?:PluginSyncClient;
   database: PluginDatabase;
-  files: PluginFilesClient;
+  files: PluginOwnerFilesClient;
   imageGeneration: PluginImageGenerationClient;
   background: PluginBackgroundClient;
 }
@@ -26,13 +29,25 @@ export class ImagesService {
 
   constructor(private readonly options: ImagesServiceOptions) {
     this.store = new ImagesStore({ get: (sql, values) => options.database.get(sql, values), all: (sql, values) => options.database.all(sql, values),
-      run: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); } });
+      run: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); },
+      savepoint: () => { throw imagesErrors.invalid("读取图片记录时不能写入。"); } });
   }
 
+  /** Jobs a stopped process left running are interrupted; this is the plugin's own database and needs no file grant. */
   async recover(control: ImagesControl): Promise<void> {
     await this.write(control, store => store.recoverInterrupted());
+  }
+
+  /** Tidying, not recovery: files no job refers to. A start whose installation cannot read and write the files skips it (the next one that can does it). */
+  async reclaimAssets(control: ImagesControl): Promise<void> {
     const referenced = this.store.referencedFiles();
-    for (const name of this.options.files.list()) if (!referenced.has(name)) await this.options.files.remove(control, name);
+    const unreferenced = this.options.files.list(IMAGES_ASSETS).filter(entry => entry.kind === "file" && !referenced.has(entry.name)).map(entry => entry.name);
+    if (unreferenced.length) {
+      await this.options.files.write(writer => {
+        requireSynchronous(control.assert_authority_current?.());
+        for (const name of unreferenced) writer.removeTree(`${IMAGES_ASSETS}/${name}`);
+      });
+    }
   }
 
   listConnections(): ImageConnection[] {
@@ -71,12 +86,18 @@ export class ImagesService {
   async deleteJob(projectId: string, id: string, control: ImagesControl): Promise<void> {
     const snapshot=this.store.getJob(project(projectId),textField(id,"任务 ID",128)),sync=this.options.sync;
     const retained=sync?{spaceId:sync.spaceId,job:snapshot,authorize:()=>sync.assertActive(),images:snapshot.images.map(image=>{
-      const bytes=this.options.files.read(image.filename);if(!bytes||bytes.byteLength!==image.byte_length)throw imagesErrors.invalid("原图片缺失，删除未执行。");
+      const bytes=this.options.files.read(`${IMAGES_ASSETS}/${image.filename}`);if(!bytes||bytes.byteLength!==image.byte_length)throw imagesErrors.invalid("原图片缺失，删除未执行。");
       const portable={id:image.id,mime_type:image.mime_type,byte_length:image.byte_length,data_base64:Buffer.from(bytes).toString('base64')};validatePortableImage(portable);return portable;
     })}:undefined;
     const job = await this.write(control, store => store.deleteJob(snapshot.project_id,snapshot.id,retained));
-    const referenced = this.store.referencedFiles();
-    for (const image of job.images) if (!referenced.has(image.filename)) await this.options.files.remove(control, image.filename);
+    if (job.images.length) {
+      await this.options.files.write(writer => {
+        requireSynchronous(control.assert_authority_current?.());
+        const referenced = this.store.referencedFiles();
+        for (const image of job.images) if (!referenced.has(image.filename)) writer.removeTree(`${IMAGES_ASSETS}/${image.filename}`);
+      });
+    }
+
   }
 
   async start(projectId: string, input: ImageGenerateInput, control: ImagesControl): Promise<ImageJob> {
@@ -140,7 +161,7 @@ export class ImagesService {
   readImage(projectId: string, jobId: string, imageId: string): { bytes: Buffer; mime: GeneratedImage["mime_type"]; filename: string } {
     const image = this.getJob(projectId, jobId).images.find(item => item.id === imageId);
     if (!image) throw imagesErrors.not_found("找不到这张图片。");
-    const bytes = this.options.files.read(image.filename);
+    const bytes = this.options.files.read(`${IMAGES_ASSETS}/${image.filename}`);
     if (!bytes) throw imagesErrors.not_found("图片文件已丢失，请重新生成。");
     return { bytes: Buffer.from(bytes), mime: image.mime_type, filename: image.filename };
   }
@@ -150,7 +171,7 @@ export class ImagesService {
   private write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {
     return this.options.database.transaction(() => control.beforeEffect(), transaction => {
       this.assertOpen(); control.signal?.throwIfAborted(); requireSynchronous(control.assert_authority_current?.());
-      return apply(new ImagesStore(transaction));
+      return apply(new ImagesStore(transaction,this.options.syncClient));
     });
   }
 
@@ -164,8 +185,9 @@ export class ImagesService {
 }
 
 function textField(value: unknown, name: string, maximum: number): string {
-  if (typeof value !== "string" || !value.trim() || value.trim().length > maximum) throw imagesErrors.invalid(`${name}不能为空，且最多 ${maximum} 个字符。`);
-  return value.trim();
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text || exceedsCharacters(text, maximum)) throw imagesErrors.invalid(`${name}不能为空，且最多 ${maximum} 个字符。`);
+  return text;
 }
 function optionalText(value: unknown, name: string, maximum: number): string { return value === undefined || value === "" ? "" : textField(value, name, maximum); }
 function project(value: unknown): string { return textField(value, "当前项目", 256); }

@@ -4,7 +4,7 @@
 
 状态：实施盘点（2026-10-17），负责人 Codex。本文是[唯一需求书](spec.md)的覆盖证据，不是运行时服务名单。基准 `afe440dd8`，在实施基线 `ba64f24a3` 复核；这期间目录中的服务与方式没有增加，Catalog 的变化为 Atlassian/Salesforce 地址校验收紧。GitHub 官方 MCP 已有真实账号、外部写入和连接管理证据；Token/CLI 的真实读取与管理已验证，v30 模型的受保护接入和自动读取路径已通过，附加事实解释仍有质量问题，详见[增量诊断](model-diagnosis.md#剩余路径的增量验收)。
 
-依据：[服务目录](../../apps/local-host/src/connector-directory.ts)、[装配后的方式](../../apps/local-host/src/host-connector-methods.ts)、[API OAuth](../../apps/local-host/src/connector-api-oauth-providers.ts)、[CLI 实际命令](../../apps/local-host/src/connector-cli.ts)、[MCP 客户端](../../apps/local-host/src/connector-mcp.ts)、[Catalog 实际请求](../../plugins/official-integrations/catalog/src/catalog.ts)。下面的 API 操作按处理器的实际 endpoint/GraphQL 字段列出，不沿用目录中较宽泛的宣传文字，例如 Airtable 目前读取 Base 列表，并不读取任意表格记录。
+依据：[服务目录](../../apps/local-host/src/connector-directory.ts)、[装配后的方式](../../apps/local-host/src/host-connector-methods.ts)、[API OAuth 声明](../../plugins/official-integrations/catalog/src/oauth-methods.ts)、[CLI 实际命令](../../apps/local-host/src/connector-cli.ts)、[MCP 客户端](../../apps/local-host/src/connector-mcp.ts)、[Catalog 实际请求](../../plugins/official-integrations/catalog/src/catalog.ts)。下面的 API 操作按处理器的实际 endpoint/GraphQL 字段列出，不沿用目录中较宽泛的宣传文字，例如 Airtable 目前读取 Base 列表，并不读取任意表格记录。
 
 标记：**O** = 已有 API OAuth 处理器（GitHub/Gmail/Notion 还保留专用入口）；**T** = 已有 token/应用凭据表单；**M** = 已有 MCP 处理器，其工具/资源以实际发现为准，不预先承诺某个工具；**C** = 已有 CLI 检测、登录和验证。OAuth/MCP 仍可能需要本人填写注册客户端、租户或取得服务商资格。CLI 可复用已有可执行程序，或由原接入请求准备并安装固定版本。本轮已对表中全部 20 个 CLI 入口验证官方发行物安装及版本启动；这不等于真实账号登录或业务验收。
 

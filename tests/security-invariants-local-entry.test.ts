@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
@@ -227,10 +228,11 @@ test("S-03 a refused mutation does not use up its key; a replayed one and a seco
 
 test("S-03 a mutation outside /api/ and /projects/<id>/api/ is refused even with a complete set of credentials", { timeout: 60_000 }, async t => {
   const host = await startHost(t);
+  const body = "{}";
   for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
     for (const path of ["/", "/settings", "/settings/planning", "/onboarding", "/plugins/io.molis.work.generated.00000000-0000-0000-0000-000000000000", "/side/files/x", "/projects/p1", "/projects/p1/settings",
       "/projects/p1/apix", "/health", "/assets/workbench.js", "/desktop/capsule", "/capabilities/rules"]) {
-      const answer = await send(host, method, path, good(host), "{}");
+      const answer = await send(host, method, path, good(host, { "content-length": String(Buffer.byteLength(body)) }), body);
       assert.equal(answer.status, 403, `${method} ${path} answered ${answer.status}: ${answer.body}`);
       assertRefusedBody(answer, `${method} ${path}`);
     }
@@ -392,6 +394,7 @@ test("S-05 no channel answers before the control token (the self-guarded /im mou
   }
   // A file an earlier version read is only a file now: a world-readable one does not stop the host, opens no channel, and is left as it was.
   const home = await mkdtemp(join(os.tmpdir(), "security-invariants-leftover-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   t.after(() => rm(home, { recursive: true, force: true }));
   await mkdir(join(home, "config"), { recursive: true });
   const leftover = JSON.stringify({ version: 1, grants: [{ token: credential, project_ref: "project-one" }] });
@@ -443,7 +446,15 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
     assert.equal(answer.headers["x-frame-options"], "SAMEORIGIN", `${method} ${path} (${answer.status}) can be framed by another site`);
     if (String(answer.headers["content-type"] ?? "").startsWith("text/html") && answer.headers["content-security-policy"]) {
       pages++;
-      assert.match(String(answer.headers["content-security-policy"]), /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
+      const policy = String(answer.headers["content-security-policy"]);
+      assert.match(policy, /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
+      // FRAME-WEBKIT-01: WebKit does not match 'self' inside a sandboxed srcdoc plugin frame, so the page also names its own origin.
+      if (policy.includes("script-src 'self'") && !headers.host) {
+        const origin = `http://127.0.0.1:${host.port}`.replaceAll(".", "\\.");
+        assert.match(policy, new RegExp(`script-src 'self' ${origin}`), `${method} ${path}: plugin frame scripts stay blocked in WebKit`);
+        assert.match(policy, new RegExp(`style-src 'self' ${origin}`), `${method} ${path}: plugin frame styles stay blocked in WebKit`);
+        assert.match(policy, new RegExp(`font-src 'self' ${origin}`), `${method} ${path}: plugin frame fonts stay blocked in WebKit`);
+      }
     }
   }
   const account = await send(host, "GET", "/api/personal/status");

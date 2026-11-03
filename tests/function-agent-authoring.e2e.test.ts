@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -7,15 +8,16 @@ import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { bindActionClient, type ActionDefinition, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalMcpServer, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { functionAuthoringActions, functionContextActions, functionsActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionAuthoringActions, functionContextActions, functionsActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
 import { grantMcpActions, revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
+// RAC-2846 / RA4-04: the real Host serves the unchanged editor behavior from the renamed implementation paths.
 test("Agent authoring discovers runtime capabilities, preserves exact references, and MCP recommendations require a separate authorized business call", { timeout: 120_000 }, async t => {
   let onEvaluate: (() => Promise<void>) | undefined;
   let evaluated = 0;
@@ -23,7 +25,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     async evaluate(_key, record) { evaluated++; await onEvaluate?.(); return { primitive: "noul", noul: .9, choice: null,
       score: null, legend: null, probabilities: {}, confidence: null, model: record.model }; },
   } };
-  const browser = await openGoalBrowser(t, "seeded", undefined, null, undefined, functions); if (!browser) return;
+  const browser = await openGoalBrowser(t, "seeded", undefined, null, functions); if (!browser) return;
   const { localHost, store, projectId, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate, reloadPage, origin, web } = browser;
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
@@ -47,8 +49,8 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     async start() { return { kind: "app", actions: [{ ...read, handle: () => note() }, { ...privateAction, handle: () => note() }, { ...write, handle: (_caller, input) => {
       store.db.prepare("UPDATE fixture_agent_notes SET state = ? WHERE id = 'note-1'").run((input as { state: string }).state); return note();
     } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   const ref = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version, provider_id: install.install_id });
   const draft = withFunctionsService(homeDirectory, service => service.create({ primitive: "noul", name: "给 Agent 推荐原笔记动作", function_key: "agent_notes" }), functions);

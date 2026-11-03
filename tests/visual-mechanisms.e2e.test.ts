@@ -23,7 +23,7 @@ async function openPage(t: test.TestContext, body: string): Promise<ChromePage |
   await page.evaluate(`(() => {
     const style = document.createElement("style");
     // The page's own motion tokens, as every product page defines them.
-    style.textContent = ":root{--ease-quint:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);--motion-fast:130ms;--motion-normal:250ms}" + ${JSON.stringify(MICRO_INTERACTION_STYLES)} + "body{font:14px system-ui}";
+    style.textContent = ":root{--ease-quint:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);--motion-fast:130ms;--motion-normal:250ms;--dur-press:130ms;--dur-hover:130ms;--dur-move:250ms;--dur-arrive:420ms}" + ${JSON.stringify(MICRO_INTERACTION_STYLES)} + "body{font:14px system-ui}";
     document.head.append(style);
     document.body.innerHTML = ${JSON.stringify(body)};
     for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}, ${JSON.stringify(SHOW_MORE_CLIENT_SCRIPT)}, ${JSON.stringify(MEDIA_ZOOM_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }

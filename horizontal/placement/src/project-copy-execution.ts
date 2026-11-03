@@ -40,7 +40,7 @@ export async function executeProjectCopy(input:ProjectCopyExecution):Promise<Pro
   for(const project of receipt.plan.projects){check();await prepareProject(project,check);check();}
   // Owners enforce dependency presence. Repeat only declared dependency waits; all other refusals stop intact.
   let pending=[...assets],processed=0;while(pending.length){const waiting:typeof pending=[];let progress=false;
-   for(const entry of pending){if(processed++%20===0){await setImmediate();check();}check();try{requireSynchronous(targets.get(entry.ownerId)!.owner.apply(entry.asset),'复制 owner 必须在同步事务内提交');}catch(error){if(error&&typeof error==='object'&&'details' in error&&error.details&&typeof error.details==='object'&&'sync_waiting' in error.details&&error.details.sync_waiting===true){waiting.push(entry);continue;}throw error;}check();journal.applied(operationId,lease.attempt,entry.id);progress=true;}
+   for(const entry of pending){if(processed++%20===0){await setImmediate();check();}check();try{const owner=targets.get(entry.ownerId)!.owner;await owner.prepare?.(entry.asset);check();requireSynchronous(owner.apply(entry.asset),'复制 owner 必须在同步事务内提交');}catch(error){if(error&&typeof error==='object'&&'details' in error&&error.details&&typeof error.details==='object'&&'sync_waiting' in error.details&&error.details.sync_waiting===true){waiting.push(entry);continue;}throw error;}check();journal.applied(operationId,lease.attempt,entry.id);progress=true;}
    if(!progress)throw errors.copy_execution_stale('关联内容尚未全部到达，副本保留在未完成状态，可使用同一回执重试');pending=waiting;
   }
   for(const project of receipt.plan.projects){check();await publishProject(project,check);check();journal.published(operationId,lease.attempt,project.targetId);}

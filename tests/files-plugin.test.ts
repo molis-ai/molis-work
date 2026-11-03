@@ -1,7 +1,9 @@
-import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_EVENT_SOURCE, HOST_WORKSPACE_CHANGED_EVENT, type HostWorkspaceChangedPayload, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -176,6 +178,31 @@ test("Files 订阅的事件 id 和发布方导出的是同一个", () => {
   assert.equal(subscribed.includes(CODING_FILE_CHANGED_EVENT), true);
 });
 
+test("PG061-FILES-01 a Coding or Git event makes Files' own pages read again; a delivery no longer current moves nothing, and nothing else calls it", async () => {
+  // C6: the Host's `onWorkspaceChanged` port is gone; Files moves its own revision through `services.ui.invalidate()` (PG-061).
+  let invalidated = 0;
+  const context: PluginStartContext = { install_id: "files-invalidate", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
+    requireGrant: () => {}, services: { ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } } } };
+  const plugin = createFilesPlugin(), contribution = await plugin.start(context);
+  const record: PluginEventRecord = { event_id: "event-1", project_id: "project", sequence: 1, event_type_id: GIT_FILE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: "io.molis.work.git", source_install_id: "git", payload: {}, correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: filesManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${filesManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(invalidated, 0, "starting and idling move nothing: Files keeps no timer or watcher that calls it (BL-411)");
+
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.equal(invalidated, 1, "the delivery makes Files' own pages read again");
+
+  const refusal = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { throw refusal; })), error => error === refusal);
+  assert.equal(invalidated, 1, "a delivery that is no longer current is refused before it moves anything");
+
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(invalidated, 1, "no timer or watcher calls invalidate again");
+});
+
 
 test("S18-FILES-RETRY a refused workspace transition retries persistence and every output before remembering success", async () => {
   for (const failure of ["save", "delete", "invalidate"] as const) {
@@ -185,12 +212,14 @@ test("S18-FILES-RETRY a refused workspace transition retries persistence and eve
     const actions = bindActionClient(service, () => caller);
     let refuse = true, persistenceCalls = 0;
     const rejected = () => { throw new ActionError("actions.forbidden", "transition was refused"); };
-    const context: PluginStartContext = { install_id: "files-retry", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    const context: PluginStartContext = { install_id: "files-retry", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
       deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: caller.project_id, actor_id: caller.actor_id,
       requireGrant: () => {}, services: {
         ui: { register: () => {}, unregister: () => {} },
-        actions: { ...actions, invokeQuery: async () => assert.fail("the state action does not delegate queries") },
-        capabilities: { availability: () => ({ available: true }), invoke: async <Input, Output>(_capability: unknown, _input: Input) => selected as Output },
+        // Files' own state action through the action service; the project's current folder (a Host action it consumes) answers `selected`.
+        actions: { ...actions, availability: () => ({ available: true }), invokeQuery: async () => assert.fail("the state action does not delegate queries"),
+          invoke: ((definition: ActionReference, input: never, control?: never) => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id
+            ? Promise.resolve(selected) : actions.invoke(definition as never, input, control)) as typeof actions.invoke },
         storage: { get: key => stored.get(key) ?? null, set: (key, value) => {
           persistenceCalls++; if (refuse && failure === "save") rejected(); stored.set(key, value);
         }, delete: key => { persistenceCalls++; if (refuse && failure === "delete") rejected(); return stored.delete(key); } },
@@ -220,4 +249,87 @@ test("S18-FILES-RETRY a refused workspace transition retries persistence and eve
       assert.deepEqual(invalidated, []);
     } finally { unregister(); }
   }
+});
+
+test("BL-379 any person-approved workspace operation makes Files' pages read again, whoever asked for it", async () => {
+  // Coding's worktree and integration reviews settle only to Coding, and Git publishes `operation-updated` only for its own
+  // (S-54). The Host's broadcast reaches Files for every one of them.
+  assert.ok(filesManifest.events?.subscribes.some(item => item.event_type_id === HOST_WORKSPACE_CHANGED_EVENT && item.type_version === 1 && item.from_plugin_ids === undefined),
+    "Files subscribes to the Host's broadcast by type and version only");
+  assert.ok(filesManifest.permissions.some(item => item.permission === "workspace:read" && item.required), "and declares the permission it is broadcast under");
+  let invalidated = 0;
+  const context: PluginStartContext = { install_id: "files-changed", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
+    requireGrant: () => {}, services: { ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } } } };
+  const plugin = createFilesPlugin(), contribution = await plugin.start(context);
+  const payload: HostWorkspaceChangedPayload = { workspace_id: "ws-1", cause: "plugin-operation" };
+  const record: PluginEventRecord = { event_id: "host-changed-1", project_id: "project", sequence: 0, event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload, correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: filesManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${filesManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.equal(invalidated, 1, "Files' pages read again");
+  const stale = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { throw stale; })), error => error === stale);
+  assert.equal(invalidated, 1, "a delivery no longer current moves nothing");
+});
+
+test("RAC-332 BL-366 a workspace change makes Files look again at the folder it browses: a switch withdraws the old folder's snapshots, a stale delivery withdraws nothing", async () => {
+  const stored = new Map([["last-workspace", "old"]]), withdrawn: string[] = [];
+  let selected: { workspace_id: string; display_name: string } | null = { workspace_id: "old", display_name: "Old" }, invalidated = 0;
+  const context: PluginStartContext = { install_id: "files-recheck", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user", requireGrant: () => {}, services: {
+      ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } },
+      actions: { availability: () => ({ available: true }), invoke: async <Input, Output>(_definition: unknown, _input: Input) => selected as Output,
+        discover: async () => [], invokeQuery: async () => assert.fail("no query delegation") },
+      storage: { get: key => stored.get(key) ?? null, set: (key, value) => { stored.set(key, value); }, delete: key => stored.delete(key) },
+      outputs: { publish: () => assert.fail("no publish"), select: () => assert.fail("no select"), reference: () => null, retain: () => assert.fail("no retain"), read: () => null,
+        invalidate: port => { withdrawn.push(port); } },
+    } };
+  const plugin = createFilesPlugin(), contribution = await plugin.start(context);
+  const record: PluginEventRecord = { event_id: "host-changed-agent", project_id: "project", sequence: 0, event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload: { workspace_id: "old", cause: "agent-change" } satisfies HostWorkspaceChangedPayload,
+    correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: filesManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${filesManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual(withdrawn, [], "the same folder: its snapshots stay");
+  assert.equal(invalidated, 1);
+
+  // The folder was switched while the delivery was being read: the delivery is refused before anything is withdrawn.
+  selected = { workspace_id: "next", display_name: "Next" };
+  let checks = 0;
+  const stale = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { if (++checks > 1) throw stale; })), error => error === stale);
+  assert.deepEqual(withdrawn, [], "a delivery no longer current withdraws nothing");
+  assert.equal(stored.get("last-workspace"), "old");
+  assert.equal(invalidated, 1);
+
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual(withdrawn, ["files", "before", "after", "selection"], "a switch withdraws every snapshot of the old folder");
+  assert.equal(stored.get("last-workspace"), "next");
+  assert.equal(invalidated, 2);
+  withdrawn.length = 0;
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual(withdrawn, [], "a switch is withdrawn once");
+});
+
+test("RAC-2531 BL-616 Files' factory takes nothing from the Host: with no folder to browse a read is refused and reaches no workspace read", async () => {
+  const asked: string[] = [];
+  const context: PluginStartContext = { install_id: "files-no-folder", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user", requireGrant: () => {}, services: {
+      ui: { register: () => {}, unregister: () => {}, invalidate: () => {} },
+      actions: { availability: () => ({ available: true }), discover: async () => [], invokeQuery: async () => assert.fail("no query delegation"),
+        invoke: async <Input, Output>(definition: ActionReference, _input: Input) => { asked.push(definition.capability_id); return null as Output; } },
+      storage: { get: () => null, set: () => assert.fail("nothing is remembered"), delete: () => false },
+      outputs: { publish: () => assert.fail("no publish"), select: () => assert.fail("no select"), reference: () => null, retain: () => assert.fail("no retain"), read: () => null,
+        invalidate: () => assert.fail("nothing is withdrawn") },
+    } };
+  const plugin = createFilesPlugin();
+  assert.deepEqual(await plugin.health!(context), { ok: true, message: "插件已启动；浏览目录按项目设置读取" });
+  const contribution = await plugin.start(context);
+  const entries = contribution.actions!.find(binding => binding.capability_id === "files.side.entries")!;
+  await assert.rejects(async () => entries.handle({ actor_id: "web-user" } as never, {}), { code: "files.invalid" });
+  assert.deepEqual(asked, [projectSettingsCapabilities.browsingWorkspace.capability_id], "only the browsing folder was asked; no file was read");
 });

@@ -38,18 +38,20 @@ pub(crate) struct DirectoryPreview {
     pub truncated: bool,
 }
 
+/// One chosen file as the page gets it back: the digest the Host staged it under, or why the file itself was not sent.
 #[derive(Debug, Serialize)]
-pub(crate) struct FileRead {
+pub(crate) struct StagedFile {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<String>,
+    pub staged: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub(crate) struct DirectoryRead {
-    pub files: Vec<FileRead>,
+#[derive(Deserialize)]
+struct HostStaged {
+    staged: Option<String>,
+    error: Option<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -294,25 +296,114 @@ pub async fn context_directory_preview(
     .await
 }
 
+/// The onboarding round a file goes into: the id the page made for it (a UUID), so it can only name a place in the Host's route.
+fn valid_journey(journey: &str) -> Result<(), String> {
+    if (1..=64).contains(&journey.len())
+        && journey
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    {
+        Ok(())
+    } else {
+        Err("整理轮次无效".into())
+    }
+}
+
+/// Sends one chosen file straight into the Host's staging for this onboarding round (user 2026-10-22): the file is read and sent in
+/// pieces over the shell's authenticated loopback socket, so a file of any size takes the same small memory, and the page gets back
+/// only its digest. A problem with the file itself is its own reason; the Host refusing (a full disk, a round no longer being chosen)
+/// stops the upload with the Host's words.
+fn stage_on_host(
+    directory: &std::fs::File,
+    journey: &str,
+    expected: &FilePreview,
+) -> Result<StagedFile, String> {
+    use crate::context_directory_files::{stream_one, StreamFailure};
+    use std::io::{Read, Write};
+    const UNREACHABLE: &str = "连不上 Molis Work 服务，请稍后重试";
+    let token = crate::web_identity::control_token()?;
+    let mut target = Url::parse(&format!(
+        "http://127.0.0.1:4173/api/onboarding/context/{journey}/files"
+    ))
+    .map_err(|_| "整理轮次无效")?;
+    target.query_pairs_mut().append_pair("path", &expected.path);
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], 4173));
+    let mut stream =
+        std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_millis(800))
+            .map_err(|_| UNREACHABLE)?;
+    crate::web_identity::authenticate(&mut stream, &token)?;
+    let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(120)));
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(600)));
+    let key = format!(
+        "context-directory-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|value| value.as_nanos())
+            .unwrap_or(0)
+    );
+    write!(
+        stream,
+        "POST {}?{} HTTP/1.1\r\nHost: 127.0.0.1:4173\r\nOrigin: http://127.0.0.1:4173\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\nx-molis-work-control-token: {token}\r\nx-molis-work-idempotency-key: {key}\r\n\r\n",
+        target.path(),
+        target.query().unwrap_or(""),
+        expected.size
+    )
+    .map_err(|_| UNREACHABLE)?;
+    match stream_one(directory, expected, &mut stream) {
+        Ok(()) => {}
+        // Dropping the connection part-way makes the Host discard what it had received of this file.
+        Err(StreamFailure::File(reason)) => {
+            return Ok(StagedFile {
+                path: expected.path.clone(),
+                staged: None,
+                reason: Some(reason),
+            })
+        }
+        Err(StreamFailure::Sink) => return Err(UNREACHABLE.into()),
+    }
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response).map_err(|_| UNREACHABLE)?;
+    let (head, body) = crate::shelf_http::split_http(&response).ok_or(UNREACHABLE)?;
+    let head = String::from_utf8_lossy(head).to_ascii_lowercase();
+    let body = if head.contains("transfer-encoding: chunked") {
+        crate::shelf_http::decode_chunked(body).ok_or(UNREACHABLE)?
+    } else {
+        body.to_vec()
+    };
+    let answer: HostStaged = serde_json::from_slice(&body).map_err(|_| UNREACHABLE)?;
+    match (head.starts_with("http/1.1 201"), answer.staged) {
+        (true, Some(staged)) => Ok(StagedFile {
+            path: expected.path.clone(),
+            staged: Some(staged),
+            reason: None,
+        }),
+        _ => Err(answer
+            .error
+            .unwrap_or_else(|| "这份文件没有存下，请重试".into())),
+    }
+}
+
 #[tauri::command]
-pub async fn context_directory_read(
+pub async fn context_directory_stage(
     app: AppHandle,
     window: WebviewWindow,
     id: String,
-    files: Vec<FilePreview>,
-) -> Result<DirectoryRead, String> {
+    journey: String,
+    file: FilePreview,
+) -> Result<StagedFile, String> {
     valid_id(&id)?;
+    valid_journey(&journey)?;
     operation(app, window, move |_, _, path| {
         let records = load_records(path)?;
         let record = records.get(&id).ok_or("请先连接这个目录")?;
         #[cfg(target_os = "macos")]
         {
             let scope = crate::context_directories_macos::access(record)?;
-            crate::context_directory_files::read(&scope.directory, files)
+            stage_on_host(&scope.directory, &journey, &file)
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let _ = (record, files);
+            let _ = (record, journey, file);
             Err("目录授权仅支持 macOS 桌面应用".into())
         }
     })

@@ -24,8 +24,10 @@ export interface LocalMcpConfiguration extends ConnectorProtocolConfiguration {
 }
 const invalid = () => connectorErrors["connector.mcp.configuration"]("本地 MCP 的程序、参数、工作目录或环境变量无效，请重新准备接入");
 // A runtime reads options, module paths and start-up code from its own family of names (JDK_JAVA_OPTIONS, CLASSPATH, PERL5LIB, RUBYLIB,
-// PYTHONUSERBASE, NODE_EXTRA_CA_CERTS…), and new ones appear between releases: each family is refused by its prefix, not name by name.
-const reservedEnvironment = /^(?:PATH|HOME|SHELL|ENV|BASH_ENV|CLASSPATH|_JAVA_OPTIONS|JAVA_.*|JDK_.*|PYTHON.*|PERL.*|RUBY.*|NODE_.*|LD_.*|DYLD_.*)$/u;
+// PYTHONUSERBASE, NODE_EXTRA_CA_CERTS, DOTNET_STARTUP_HOOKS, PHP_INI_SCAN_DIR, LUA_INIT, NPM_CONFIG_SCRIPT_SHELL…), and new ones appear
+// between releases: each family is refused by its prefix, not name by name. ZDOTDIR and GCONV_PATH are one-off shell and glibc start-up
+// hooks, so they are named.
+const reservedEnvironment = /^(?:PATH|HOME|SHELL|ENV|BASH_ENV|CLASSPATH|_JAVA_OPTIONS|JAVA_.*|JDK_.*|PYTHON.*|PERL.*|RUBY.*|NODE_.*|LD_.*|DYLD_.*|DOTNET_.*|PHP.*|LUA_.*|NPM_CONFIG_.*|ZDOTDIR|GCONV_PATH)$/u;
 
 /** Persist canonical paths, so a later symlink change cannot redirect a previously selected launch. */
 export function validateLocalMcpLaunch(input: LocalMcpLaunch): LocalMcpLaunch {

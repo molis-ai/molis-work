@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GoalProjectApplication, LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, openProjectVersionStores, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openDatasetStore, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { parseCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
@@ -39,8 +40,8 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   const connect = (clientId: string, projectId: string): Tool => createActionMcpPorts({ serverInfo: { name: "external-dataset", version: "1" },
     service: new LocalActionGatewayClient({ url: web!.origin, homeDirectory: home, clientId, projectId, controlToken: web!.controlToken }),
     context: () => ({ actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [] }) });
-  // W4-6-07: a tool is named by its capability version, and `content.receive` is at version 2; the other tools keep `__v1`.
-  const tool = (name: string) => `dataset.${name}__v${name === "content.receive" ? 2 : 1}`;
+  // W4-6-07 RAC-633-MIG-01: content.receive and subject.read have version 2; the other tools keep version 1.
+  const tool = (name: string) => `dataset.${name}__v${["content.receive", "subject.read"].includes(name) ? 2 : 1}`;
   const answer = async (client: Tool, name: string, args: Record<string, unknown>) =>
     (await handleMcpMessage({ id: 1, method: "tools/call", params: { name: tool(name), arguments: args } }, client))!.result as { isError: boolean; content: Array<{ text: string }>; structuredContent?: unknown };
   const call = async (client: Tool, name: string, args: Record<string, unknown> = {}): Promise<any> => {
@@ -92,11 +93,11 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   assert.equal(recovered.dataset.title, "发布后继续编辑"); assert.equal(recovered.dataset.publication_pending, undefined);
   const project = new LocalProjectDatabase(a.database_path);
   try {
-    const owner = new GoalProjectApplication(project);
-    const artifact = owner.artifacts.query.getArtifactVersion(a.project_id, recovered.artifact)!;
+    const library = openProjectVersionStores(project);
+    const artifact = library.artifacts.query.getArtifactVersion(a.project_id, recovered.artifact)!;
     assert.equal((artifact.payload as { title: string }).title, "外部数据表");
     assert.deepEqual((artifact.payload as { rows: unknown[] }).rows, original.rows);
-    assert.equal(owner.artifacts.query.getArtifactVersion(a.project_id, { artifact_id: recovered.artifact.artifact_id, version: 2 }), null);
+    assert.equal(library.artifacts.query.getArtifactVersion(a.project_id, { artifact_id: recovered.artifact.artifact_id, version: 2 }), null);
   } finally { project.close(); }
   const store = openDatasetStore(home);
   try { assert.deepEqual(store.get(dataset.id, a.project_id), recovered.dataset); } finally { store.close(); }

@@ -1,4 +1,4 @@
-import type {} from "@molis-ai/molis-work-design-system";
+import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 /** The page's own lifetime (packages/ui-host client-lifecycle): its timers and listeners end with the page. */
 interface DraftLifetime {
   timeout(job: () => void, delay: number): number;

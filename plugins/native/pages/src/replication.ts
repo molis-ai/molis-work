@@ -1,47 +1,20 @@
 import { syncError } from './sync-errors.js';
-import type { DatabaseSync } from 'node:sqlite';
-import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
-import { initializeReplica, replicaMarkSql, queueReplicaChange, replicaTransaction, createSqliteReplica } from '@molis-ai/molis-work-storage';
-import { parsePayload, type PagesSyncContext } from './sync.js';
+import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+import { parsePayload } from './sync.js';
 
-export interface PagesReplicationContext {
-  authorize(): void;
-  conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
-  canUploadProject?(projectId: string): boolean;
-  project(projectId: string): { title: string; context: PagesSyncContext };
-}
-
-/** Seed once, then observe every owner mutation transaction (including deletes). */
-export function initializePagesReplication(db: DatabaseSync): void {
-  replicaTransaction(db,()=>{
-    initializeReplica(db);
-    const installed=db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='pages_replica_insert'").get();
-    if(installed)return;
-    for(const [table,kind] of [['folders','folder'],['pages','document']]) {
-      for(const row of db.prepare(`SELECT project_id,id FROM ${table} ORDER BY id`).all() as Array<{project_id:string;id:string}>)
-        queueReplicaChange(db,JSON.stringify([row.project_id,kind,row.id]));
-      const key=(row:string)=>`json_array(${row}.project_id,'${kind}',${row}.id)`;
-      db.exec(`
-        CREATE TRIGGER ${table}_replica_insert AFTER INSERT ON ${table} BEGIN ${replicaMarkSql(key('NEW'))} END;
-        CREATE TRIGGER ${table}_replica_delete AFTER DELETE ON ${table} BEGIN ${replicaMarkSql(key('OLD'))} END;
-        CREATE TRIGGER ${table}_replica_update AFTER UPDATE ON ${table} BEGIN
-          ${replicaMarkSql(key('NEW'))}
-          ${replicaMarkSql(key('OLD'),'OLD.project_id<>NEW.project_id')}
-        END;
-      `);
-    }
-  });
-}
-
-export function createPagesReplica(db: DatabaseSync, space: StorageSpace | undefined, caller: PagesReplicationContext) {
-  if(space?.kind!=='personal')throw syncError("scope",'仅支持已绑定的个人空间');
+export const pagesCollection: PluginSyncCollectionDefinition = {
+ tracking: [
+  {table:"folders",key:[{column:"project_id"},{literal:"folder"},{column:"id"}]},
+  {table:"pages",key:[{column:"project_id"},{literal:"document"},{column:"id"}],
+   revision:{table:"pages_editor_versions",key:[{column:"id",rowColumn:"id"}],column:"version",rowColumn:"version"}},
+ ],create(db,caller) {
   const decode=(key:string):[string,'folder'|'document',string]=>{
     const parts=JSON.parse(key);
     if(!Array.isArray(parts)||parts.length!==3||!parts.every(p=>typeof p==='string'&&p.length>0&&p.length<=80)||!['folder','document'].includes(parts[1]))throw syncError("invalid",'文档同步标识无效');
     return parts as [string,'folder'|'document',string];
   };
-  return createSqliteReplica(db,{
-    authorize:()=>caller.authorize(),conflictState:caller.conflictState,
+  return {
+    authorizeKey(key){ caller.project(decode(key)[0]); },
     belongsToProject:(key,projectId)=>decode(key)[0]===projectId,
     canUpload:key=>caller.canUploadProject?.(decode(key)[0])!==false,
     read(key){
@@ -52,8 +25,8 @@ export function createPagesReplica(db: DatabaseSync, space: StorageSpace | undef
       limit(value);return value;
     },
     apply(key,value){
-      const [projectId,kind,id]=decode(key),project=caller.project(projectId);
-      caller.authorize();
+      const [projectId,kind,id]=decode(key);
+      caller.project(projectId); caller.authorize();
       const table=kind==='folder'?'folders':'pages';
       const current=db.prepare('SELECT project_id FROM '+table+' WHERE id=?').get(id);
       if(current&&current.project_id!==projectId)throw syncError('scope','资产标识与其他项目冲突');
@@ -74,26 +47,26 @@ export function createPagesReplica(db: DatabaseSync, space: StorageSpace | undef
         db.prepare('INSERT INTO folders(id,project_id,title,created_at,updated_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,created_at=excluded.created_at,updated_at=excluded.updated_at').run(id,projectId,row.title,row.created_at,row.updated_at);
       }else{
         const row=parsed.documents[0]!;
-        if(row.goal_id&&!project.context.hasReference({owner:'goals',assetId:row.goal_id}))throw syncError('dependencies','关联目标尚未到达');
-        if(row.artifact_id&&!project.context.hasReference({owner:'artifacts',assetId:row.artifact_id,version:row.artifact_version}))throw syncError('dependencies','关联成果版本尚未到达');
-        const high=Number(db.prepare('SELECT revision FROM pages_sync_revisions WHERE project_id=?').get(projectId)?.revision??0);
+        if(row.goal_id&&!caller.hasReference?.(projectId,{owner:'goals',assetId:row.goal_id}))throw syncError('dependencies','关联目标尚未到达');
+        if(row.artifact_id&&!caller.hasReference?.(projectId,{owner:'artifacts',assetId:row.artifact_id,version:row.artifact_version}))throw syncError('dependencies','关联成果版本尚未到达');
+        const high=Number(db.prepare('SELECT version FROM pages_editor_versions WHERE id=?').get(id)?.version??0);
         db.prepare(`INSERT INTO pages(id,project_id,title,body_json,folder_id,starred,goal_id,artifact_id,artifact_version,created_at,updated_at,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
           ON CONFLICT(id) DO UPDATE SET title=excluded.title,body_json=excluded.body_json,folder_id=excluded.folder_id,starred=excluded.starred,goal_id=excluded.goal_id,artifact_id=excluded.artifact_id,artifact_version=excluded.artifact_version,created_at=excluded.created_at,updated_at=excluded.updated_at,version=MAX(pages.version+1,excluded.version)`)
           .run(id,projectId,row.title,JSON.stringify(row.body),row.folder_id,row.starred?1:0,row.goal_id,row.artifact_id,row.artifact_version,row.created_at,row.updated_at,high+1);
       }
       caller.authorize();
     },
-  });
-}
+  };
+} };
 
-function dependencyFolder(db:DatabaseSync,projectId:string,folderId:unknown){
+function dependencyFolder(db:PluginSyncBusinessDatabase,projectId:string,folderId:unknown){
  if(!folderId)return [];
  if(typeof folderId!=='string')throw syncError('invalid','文档文件夹标识无效');
  const folder=db.prepare('SELECT id,title,created_at,updated_at FROM folders WHERE id=? AND project_id=?').get(folderId,projectId);
  if(!folder)throw syncError('dependencies','等待文档所属文件夹');
  return [folder];
 }
-function readRecord(db:DatabaseSync,projectId:string,kind:'folder'|'document',id:string){
+function readRecord(db:PluginSyncBusinessDatabase,projectId:string,kind:'folder'|'document',id:string){
  if(kind==='folder'){
   const folder=db.prepare('SELECT id,title,created_at,updated_at FROM folders WHERE id=? AND project_id=?').get(id,projectId);
   return folder?parsePayload({folders:[folder],documents:[]}).folders[0]:null;
@@ -105,9 +78,3 @@ function readRecord(db:DatabaseSync,projectId:string,kind:'folder'|'document',id
  return parsePayload({folders:dependencyFolder(db,projectId,row.folder_id),documents:[{...record,body:JSON.parse(String(body_json)),starred:!!starred}]}).documents[0];
 }
 function limit(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>100000000)throw syncError('limit','文档超过账号容量上限（100 MB），原数据仍保留在本机');}
-
-export function bindPagesReplication(store:{close():void;replica(context:PagesReplicationContext):ReturnType<typeof createPagesReplica>}){
- return {close:()=>store.close(),replica(context:import('@molis-ai/molis-work-storage').AggregateReplicaContext){
-  return store.replica({authorize:context.authorize,conflictState:context.conflictState,canUploadProject:context.canUploadProject,project(projectId){return {title:context.project(projectId).title,context:{spaceId:context.spaceId,projectId,authorize:context.authorize,hasReference:ref=>context.hasReference?.(projectId,ref)===true}};}});
- }};
-}

@@ -37,7 +37,8 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
   const requests: Array<{ tools?: Array<{ name: string; input_schema: { properties: { questions: { items: { properties: { type: { enum: string[] } } } } } } }>; messages?: unknown }> = [];
   const model = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }

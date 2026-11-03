@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { connectorLocalActions, connectorManagementActions, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { activateConnectorConnection, connectorLocalActions, connectorManagementActions, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openTestHome } from "./fixtures/test-home.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
@@ -85,4 +85,98 @@ test("S-37 ASC-34 ASC-35: local execution reports the current intent hold before
   assert.deepEqual(JSON.parse(readFileSync(join(home.home, "mcp-notes.jsonl"), "utf8")), { note: "only after the latest intent" });
   assert.equal(withConnectorConnections(home.home, store => store.list().length), 1);
   assert.doesNotMatch(JSON.stringify([held, submitted, accepted]), /fixture-page-only/);
+});
+
+// RAC-1494: the same directory through the cleanup action is a declared invalid refusal, and the refusal itself carries no
+// local path (the record read's ENOENT text used to).
+test("RAC-1494 cleanup of a managed install without its ownership record is a declared invalid refusal without the home path", async t => {
+  const home = await openTestHome(t), id = "0e3b1d6a-4b5f-4c47-9a58-2f0f9d6b9f11", directory = join(home.home, "runtime/connectors/installs", id);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "keep.txt"), "not ours");
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorLocalActions.cleanup, { installation_id: id }), (error: { code?: string; kind?: string; message?: string }) => {
+    assert.equal(error.code, "connector.install.invalid");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, "安装所有权记录缺失，未移除任何文件", "the action passes the declared refusal's own sentence on");
+    assert.ok(!(error.message ?? "").includes(home.home), "the refusal does not name the local path");
+    return true;
+  });
+  assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in a directory we cannot own is removed");
+});
+// RAC-1640: an ownership record that is there but is not JSON is still an owner we cannot read, so the install stays and the
+// refusal is the same declared invalid one (not the raw SyntaxError the parse throws).
+test("RAC-1640 cleanup of a managed install whose ownership record is not valid JSON is a declared invalid refusal and removes nothing", async t => {
+  const home = await openTestHome(t), id = "6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5", directory = join(home.home, "runtime/connectors/installs", id);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "installation.json"), "{\"id\":");
+  writeFileSync(join(directory, "keep.txt"), "not ours");
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorLocalActions.cleanup, { installation_id: id }), (error: { code?: string; kind?: string; message?: string }) => {
+    assert.equal(error.code, "connector.install.invalid");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, "安装所有权记录无法读取，未移除任何文件", "the action passes the declared refusal's own sentence on");
+    return true;
+  });
+  assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in an install whose owner we cannot read is removed");
+  assert.equal(readFileSync(join(directory, "installation.json"), "utf8"), "{\"id\":", "the unreadable record is left as it was");
+});
+
+// RAC-1641: an ownership record path that is a directory reads as EISDIR; it gets the same declared refusal and nothing goes.
+test("RAC-1641 cleanup of a managed install whose ownership record is a directory is a declared invalid refusal and removes nothing", async t => {
+  const home = await openTestHome(t), id = "7a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", directory = join(home.home, "runtime/connectors/installs", id);
+  mkdirSync(join(directory, "installation.json"), { recursive: true });
+  writeFileSync(join(directory, "keep.txt"), "not ours");
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorLocalActions.cleanup, { installation_id: id }), (error: { code?: string; kind?: string; message?: string }) => {
+    assert.equal(error.code, "connector.install.invalid");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, "安装所有权记录无法读取，未移除任何文件", "the action passes the declared refusal's own sentence on");
+    return true;
+  });
+  assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in an install whose owner we cannot read is removed");
+  assert.equal(existsSync(join(directory, "installation.json")), true, "the record directory is left in place");
+});
+
+// RAC-1694 / RAC-1695 helper: a CLI connection that points at a managed install id, checked through the public action. The refusal is
+// the declared one with its own sentence (no local path), and the refused check leaves the connection where it was.
+async function checkRefusedAs(home: Awaited<ReturnType<typeof openTestHome>>, id: string, message: string, prepare?: (directory: string, id: string) => void) {
+  prepare?.(join(realpathSync(home.home), "runtime/connectors/installs", id), id);
+  const connection = activateConnectorConnection(home.home, { kind: "cli", revisions: [], binary: "gh", fingerprint: "fixture", installation_id: id,
+    input: { serviceId: "github", displayName: "GitHub managed", externalId: `gh:${id}`, accountLabel: "fixture" } });
+  const connections = withConnectorConnections(home.home, store => store.list().length);
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: connection.connection_id }), (error: { code?: string; kind?: string; message?: string }) => {
+    assert.equal(error.code, "connector.install.invalid", "a declared refusal, not the raw error the read throws");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, message, "the action passes the declared refusal's own sentence on");
+    assert.ok(!(error.message ?? "").includes(home.home), "the refusal does not name the local path");
+    return true;
+  });
+  assert.equal(withConnectorConnections(home.home, store => store.list().length), connections, "a refused check leaves the connection in place");
+}
+
+// RAC-1694: reading a managed install whose directory is gone, or whose ownership record cannot be read (missing, not JSON, a
+// directory), is a declared invalid refusal (not ENOENT, SyntaxError or EISDIR).
+test("RAC-1694 checking a connection whose managed install is gone or whose record cannot be read is a declared invalid refusal", async t => {
+  const home = await openTestHome(t);
+  await t.test("install directory missing", () => checkRefusedAs(home, "8b1c2d3e-5f6a-4b7c-9d8e-0f1a2b3c4d51", "受管理安装不存在，请重新准备接入"));
+  await t.test("ownership record missing", () => checkRefusedAs(home, "8b1c2d3e-5f6a-4b7c-9d8e-0f1a2b3c4d52", "安装所有权记录无法读取，请重新准备接入",
+    directory => mkdirSync(directory, { recursive: true })));
+  await t.test("ownership record is not JSON", () => checkRefusedAs(home, "8b1c2d3e-5f6a-4b7c-9d8e-0f1a2b3c4d53", "安装所有权记录无法读取，请重新准备接入",
+    directory => { mkdirSync(directory, { recursive: true }); writeFileSync(join(directory, "installation.json"), "{\"id\":"); }));
+  await t.test("ownership record is a directory", () => checkRefusedAs(home, "8b1c2d3e-5f6a-4b7c-9d8e-0f1a2b3c4d54", "安装所有权记录无法读取，请重新准备接入",
+    directory => mkdirSync(join(directory, "installation.json"), { recursive: true })));
+});
+
+// RAC-1695: a record that reads but is not a complete ready record, or whose executable is gone, is the same declared refusal as a
+// record for another plan (not a TypeError on a missing field, or ENOENT from the executable check).
+test("RAC-1695 checking a connection whose managed install record is incomplete or whose executable is gone is a declared invalid refusal", async t => {
+  const home = await openTestHome(t), message = "已有安装与本次方案不符，请重新准备接入";
+  const source = { kind: "npm", package: "fixture", version: "1.0.0", bin: "fixture", node_version: "20.0.0" };
+  const record = (value: (directory: string, id: string) => unknown) => (directory: string, id: string) => {
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, "installation.json"), JSON.stringify(value(directory, id)));
+  };
+  await t.test("record is null", () => checkRefusedAs(home, "9c2d3e4f-6a7b-4c8d-8e9f-1a2b3c4d5e61", message, record(() => null)));
+  await t.test("record is an array", () => checkRefusedAs(home, "9c2d3e4f-6a7b-4c8d-8e9f-1a2b3c4d5e62", message, record(() => [])));
+  await t.test("ready record without an executable", () => checkRefusedAs(home, "9c2d3e4f-6a7b-4c8d-8e9f-1a2b3c4d5e63", message,
+    record((directory, id) => ({ id, directory, ready: true, source, runtime_path: [] }))));
+  await t.test("ready record whose executable file is gone", () => checkRefusedAs(home, "9c2d3e4f-6a7b-4c8d-8e9f-1a2b3c4d5e64", message,
+    record((directory, id) => ({ id, directory, ready: true, source, runtime_path: [], executable: join(directory, "node_modules/.bin/fixture") }))));
 });

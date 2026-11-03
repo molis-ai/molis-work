@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules page saves its current default once", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
@@ -13,7 +13,7 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
     actor_kind: "user", source_kind: "web", idempotency_key: "policy-current-goal" }).goal;
   // Every rules request the page sends is kept for this browser session, through any reload a save causes.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => { const original = window.fetch;
-    window.fetch = (url, options) => { if (String(url).endsWith('/api/policy-bindings') && options?.method === 'POST') {
+    window.fetch = (url, options) => { if (String(url).endsWith('/api/plugins/io.molis.work.goals/policy-bindings') && options?.method === 'POST') {
       const posts = JSON.parse(sessionStorage.getItem('policy-posts') || '[]'); posts.push(JSON.parse(options.body).scope); sessionStorage.setItem('policy-posts', JSON.stringify(posts)); }
       return original(url, options); }; })()` }, sessionId);
   // The Goal details sit beside the work at a desktop width; below 840px they fold away.
@@ -44,7 +44,7 @@ test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules
   const accepted = await evaluate<boolean>("(() => { const box = document.querySelector('[data-project-rules-form] [name=human_approval]'); box.checked = !box.checked; return box.checked; })()");
   // With the service out of reach the page stays, so every request the one save sent is still on record.
   await command("Network.enable", {}, sessionId);
-  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/policy-bindings"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/plugins/io.molis.work.goals/policy-bindings"] }, sessionId);
   await click("[data-project-rules-form] button[type=submit]");
   await waitFor("!document.querySelector('[data-project-rules-form] [data-policy-error]').hidden", 10_000);
   await new Promise(resolve => setTimeout(resolve, 500));

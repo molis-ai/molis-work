@@ -5,7 +5,7 @@ export const contentHash = (data: Uint8Array | string): string => createHash("sh
 const textExtensions = new Set([".md", ".markdown", ".txt"]);
 const attachmentTypes: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml", ".pdf": "application/pdf", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mp4": "video/mp4", ".webm": "video/webm" };
 export function safeRelativePath(value: unknown): string {
-  requireCognia(typeof value === "string" && value.length > 0 && value.length <= 1000 && !/[\x00-\x1f\\]/u.test(value), "资料路径无效");
+  requireCognia(typeof value === "string" && value.length > 0 && [...value].length <= 1000 && !/[\x00-\x1f\\]/u.test(value), "资料路径无效");
   requireCognia(!posix.isAbsolute(value) && !/^[a-z]:/iu.test(value) && value.split("/").every(p => p && p !== "." && p !== ".."), "资料路径不能越过来源目录"); return value;
 }
 export function ignoredPath(path: string): boolean { return path.split("/").some(p => p.startsWith(".") || ["node_modules", "__pycache__", "cache"].includes(p)); }

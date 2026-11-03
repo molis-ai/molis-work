@@ -1,6 +1,6 @@
 # 项目库里的插件表
 
-状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；有 v7 项目库的 Home 要先做维护八。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
+状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；旧v7维护八已被2026-10-30干净Home重建取代；现行项目结构起点1，重建前不要用新构建打开旧Home。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）已在 `claude/ac-pg022-manifest-declarations` 做好、未合入（片稿 `specs/repository-anti-corruption/slices/pg022-manifest-declarations.md`，只给宿主启动名单上的插件，发布者账本是 P1b）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
 
 依据：
 
@@ -22,12 +22,12 @@
 
 ```ts
 interface PluginManifest { …; databases?: PluginManifestDatabases }
-interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration }   // home 一半在 L4 加
+interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration; readonly home?: HomePluginDatabaseDeclaration }   // home 一半是 L4（PG-022）
 ```
 
 - 按范围的对象，不用数组：每个范围结构上最多一份。每份仍是 `PluginDatabaseDeclaration`（`store_name`、`version`、`schema`、`read_permission`、`write_permission`），`scripts/verify-release-versions.mjs` 照样认得。
 - SDK 的形状检查（`packages/plugin-sdk/src/database-declarations.ts`，`parsePluginManifest` 调它），任一项不合，整份 Manifest 拒绝（`plugin.manifest_invalid`）：
-  - `databases` 是对象，现在只认 `project`；`home` 到 L4 才认。
+  - `databases` 是对象，认 `project` 和 `home`（L4，PG-022）；`home` 比 `project` 多一个可选的 `partition`，只许 `"project"`。
   - `project` 只有上面五个字段。
   - `store_name` 合 Home 库同一条名字规则（小写字母开头，只含小写字母、数字、连字符）。
   - `version` 是正整数，`schema` 不是空白。
@@ -86,12 +86,13 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
   - 读只经只读连接；写只经 `transaction(beforeEffect, write)`；
   - 异步写体拒绝并回滚；
   - 每次调用核授权，停用后句柄失效，写前核原调用者仍有效。
+  - 沙箱插件用的是它的异步孪生 `PluginProjectStatements`（`services.project_statements`）：同样的规则，一步一步问，语句在子进程里。
 - 逐句检查：在关键字过滤之外，加 `EXPLAIN` 操作码白名单，带根页的步骤对照账本里本插件的表。
 - Coding 是第一个使用者：服务在 L2 里给到它，代码改用它、删掉宿主给 Coding 的那条路是 ③ 的 C1（决策记录 2026-10-21）。
 
 ### 2.6 沙箱（L3）、Home 库（L4）
 
-- **L3**：沙箱插件经 broker 拿库，逐句检查和授权走 L2 那份包装。与 L2 同批合入。
+- **L3**：沙箱插件经 broker 拿库，逐句检查和授权与 L2 那份包装相同。与 L2 同批合入。2026-10-23 起（BL-395，S-59）：沙箱插件的语句不在宿主的线程上跑，宿主给声明 `execution: "sandbox"` 的插件 `services.project_statements`（不给 `project_database`），语句跑在宿主能杀的子进程里；授权与原调用者的复查在宿主，一步一步地问。
 - **L4**：可信条目上的 `database:` 搬进 `databases.home`，Home 库也记发布者，换了发布者就拒；沙箱插件的 Home 库也在这时经 broker 开（决策记录 2026-10-21）。
 
 ### 2.7 安全不变量
@@ -154,7 +155,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | 2026-10-21 | 没有文件的项目库（L2 日常取舍） | 插件平台的库不是宿主自己连到文件的 better-sqlite3 连接（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路 | ② |
 | 2026-10-21 | Coding 什么时候改用新服务 | 服务在 L2 里给到 Coding（它已声明表，启动时拿到）；Coding 的代码改用它、删掉宿主给 Coding 的那条路是 ③ 的 C1，排在 L2 之后，按统筹 10-20 的派单。改了 2026-10-19「L2 里由 ② 做」那一行 | 统筹派单 |
 | 2026-10-21 | Home 级插件拿不拿项目库（L2） | 不拿：`HomePluginExecutor` 不给 `project_database`；Home 级插件按项目的数据放在 S0a 分区后的 Home 库里 | ② |
-| 2026-10-21 | 沙箱插件的语句跑多久（L3 评审） | 逐句检查只管碰得到哪些表；沙箱插件的语句在宿主主线程上同步跑，没有时间与结果大小的上限。L3 不修，记成已知缺口（`docs/system/SECURITY-INVARIANTS.md` §4）与 BL-395；修法属于信任边界的设计，要问用户；要在第一个能给沙箱插件开项目库的生产路径（第三方安装、重做的创作台）之前做完 | ⑤ 评审 |
+| 2026-10-21 | 沙箱插件的语句跑多久（L3 评审） | 逐句检查只管碰得到哪些表；沙箱插件的语句原先在宿主主线程上同步跑，没有时间与结果大小的上限。L3 记成已知缺口与 BL-395，修法动信任边界，要问用户。**2026-10-23 用户在统筹会话弹窗定：做完子进程执行**（没选“先限量并关住入口”）：沙箱插件的语句跑在宿主能 SIGKILL 的子进程里，超时、超内存就杀、答带码的错误，结果在读的时候按行数与字节停，递归查询不开始；见 `specs/repository-anti-corruption/slices/sandbox-project-database-limits.md`，S-59 | ⑤ 评审、用户 |
 
 ## 5. 验收标准
 
@@ -164,15 +165,15 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | PLIB-02 | 插件第一次打开时，平台在一个事务里建它声明的表并写账本，再打开时认出同一份；L1b 起，表、列、索引与 v7 完全相同 | L1a、L1b | L1a：`tests/plugin-project-database-ledger.test.ts`；L1b：`tests/project-database-baseline.test.ts` |
 | PLIB-03 | 声明的各条规则逐条拒绝（2.1、2.2），拒绝时一张表也不建，开头检查不过的连内存库里也不执行 | L1a | `tests/plugin-project-database-ledger.test.ts` |
 | PLIB-04 | 账本的各种不符逐条拒绝：同名对象已在、库名已归别人、发布者不同、库名或形状不同；版本不同只拒这个插件。宿主开库时被拒的插件只停它自己：动作不进项目的目录，页面说明原因，库不修补、不重建，别的插件照常 | L1a、L1b | L1a：`tests/plugin-project-database-ledger.test.ts`；L1b：`tests/project-plugin-database-refusal.test.ts` |
-| PLIB-05 | v7 库经维护后每一行不变（`boards` 只少了 `title` 的值，行与 rowid 不变；建看板的幂等回执换成现行的请求哈希，维护前用过的键重试照常重放），结果与新建的 v8 库（四个插件的声明都已打开）逐表相同，账本有四行，再打开不往账本添一行 | L1b、S8 | `tests/project-maintenance-v8.test.ts` |
+| PLIB-05 | 原v7→v8迁移已被干净Home重建取代，SQL/演练删除；当前完整新库、账本与重开不增行见RAC-2360，原事务迁移不再执行 | L1b、S8 | `tests/project-database-baseline.test.ts` |
 | PLIB-06 | 逐句检查的每种拒绝各一条，外键读 `project_root` 放行 | L2 | `tests/security-invariants-plugin-project-database.test.ts` |
 | PLIB-07 | 取消、撤权、换了提供方、别的安装、停用之后不写任何记录（S-18） | L2 | `tests/security-invariants-plugin-original-caller.test.ts`（目标 `project_database`）；沙箱一侧 `tests/installed-plugin-execution.test.ts`（PLIB-10） |
-| PLIB-08 | 同一文件只用一份 SQLite 库（测试断言客户端的连接类型） | L2 | `tests/security-invariants-plugin-project-database.test.ts` |
+| PLIB-08 | 同一个进程里同一文件只用一份 SQLite 库（测试断言客户端的连接类型）；2026-10-23 用户定：沙箱插件的语句在另一个进程里，那个进程用自己的一份 better-sqlite3 开同一个文件（口径、锁与一致性、崩溃见 `specs/repository-anti-corruption/slices/sandbox-project-database-limits.md` 第 2.3 节），那个进程里同样只有一份库 | L2、BL-395 | `tests/security-invariants-plugin-project-database.test.ts`；`tests/security-invariants-sandbox-project-database-limits.test.ts`（S-59） |
 | PLIB-09 | 项目的身份是 `project_root`：正好一行；11 张表的外键指向它；`boards` 由 Goals 声明，它的外键也指向 `project_root`，Goals 的其余表仍指向 `boards` | L1b、S8 | `tests/project-database-baseline.test.ts` |
 | PLIB-10 | 沙箱插件经 broker 读写，检查与原生插件相同 | L3 | `tests/security-invariants-plugin-project-database.test.ts`；`tests/installed-plugin-execution.test.ts`（装进项目的沙箱插件，取消与撤权） |
-| PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | L4 | |
+| PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | L4 | `tests/home-library-declaration.test.ts` |
 | PLIB-12 | Goals 在 Manifest 里声明项目库：声明过 SDK 的形状检查和 SQL 规则；在空库里建出 Goals 与治理的全部表（31 张表、30 个索引）并写账本一行；再打开原样不变 | S8 | `tests/goals-project-database.test.ts` |
-| PLIB-13 | 宿主基线不再带 Goals 与治理的表；声明的表与 v7 基线里 Goals 的那些相同，只有 `boards` 不同：没有 `title`，`project_id` 的外键指 `project_root`；存量的 v7 库、`goal-event-history` 的夹具都按这个形状 | S8 | `tests/goals-project-database.test.ts`、`tests/project-database-baseline.test.ts`、`tests/project-maintenance-v8.test.ts` |
+| PLIB-13 | 宿主基线不再带 Goals 与治理的表；声明的表与 v7 基线里 Goals 的那些相同，只有 `boards` 不同：没有 `title`，`project_id` 的外键指 `project_root`；存量的 v7 库、`goal-event-history` 的夹具都按这个形状 | S8 | `tests/goals-project-database.test.ts`、`tests/project-database-baseline.test.ts` |
 | PLIB-14 | Goals 的发布者、版本或形状与账本不符时只停 Goals：动作不在项目的目录里，调用被拒，平台记下的拒绝码保留，库照常打开、别的插件照常、库里什么都不修补、不重建、不补账本 | S8 | `tests/goals-project-database-refusal.test.ts` |
 | PLIB-15 | 看板没有名字：初始化动作 `goals.board.initialize` 是 v2、输入只有 `idempotency_key`；快照、约定、集合的输出里没有 `board.title`，这三个动作各升 v2；指引的提示词前缀没有 “Project:” 行；管理 MCP 工具与 CLI `v1 init` 不收标题 | S8 | `tests/goals-board-actions.test.ts`、`tests/goals-guidance-actions.test.ts`、`tests/resident-management-actions.test.ts`、`tests/cli-goals-actions.test.ts`；动作合同快照 `tests/action-contract-snapshot.test.ts` 钉住版本与形状 |
 
@@ -186,14 +187,14 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 
 **L1b（2026-10-20，分支 `feat/project-library-l1b`，叠在 L1a 上）**
 
-- 新写和重写的用例全过：`tests/project-database-baseline.test.ts` 6 条，`tests/project-plugin-database-refusal.test.ts` 5 条，`tests/project-maintenance-v8.test.ts` 6 条。维护八只在一次性 Home 上演练。
+- 新写和重写的用例全过：`tests/project-database-baseline.test.ts` 6 条，`tests/project-plugin-database-refusal.test.ts` 5 条，原维护演练6条（2026-10-30随干净重建取消，文件删除）。维护八只在一次性 Home 上演练。
 - 相关用例 42 个文件全过。范围是：外键改到 `project_root` 的用例、三个插件和宿主装配、账本、Store 版本、发布核对。其中 Schedule 的两个恢复用例会开浏览器。
 - API 快照和动作合同快照都与源码一致，不用刷新。
 - 共享核心的全量和 ③ 的 S8 同一批跑。
 
 **S8（2026-10-20，分支 `feat/goals-s8-project-database`，叠在 L1b 上，已合并 `origin/feat/project-library-l1b` 的 0b60c3a6a）**
 
-- 新写和改写的用例全过：`tests/goals-project-database.test.ts` 4 条（PLIB-12 三条、PLIB-13 一条），`tests/goals-project-database-refusal.test.ts` 5 条（PLIB-14：一条正向，发布者、版本、两种形状不符各一条拒绝），`tests/project-maintenance-v8.test.ts` 6 条（四个插件的账本行、`boards` 改建、与新建的 v8 库逐表相同、再打开不加账本），`tests/project-database-baseline.test.ts` 6 条，`tests/goals-board-actions.test.ts` 2 条、`tests/goals-guidance-actions.test.ts`、`tests/cli-goals-actions.test.ts`、`tests/security-invariants-management.test.ts`（PLIB-15）。
+- 新写和改写的用例全过：`tests/goals-project-database.test.ts` 4 条（PLIB-12 三条、PLIB-13 一条），`tests/goals-project-database-refusal.test.ts` 5 条（PLIB-14：一条正向，发布者、版本、两种形状不符各一条拒绝），原维护演练6条（2026-10-30随干净重建取消，文件删除）（四个插件的账本行、`boards` 改建、与新建的 v8 库逐表相同、再打开不加账本），`tests/project-database-baseline.test.ts` 6 条，`tests/goals-board-actions.test.ts` 2 条、`tests/goals-guidance-actions.test.ts`、`tests/cli-goals-actions.test.ts`、`tests/security-invariants-management.test.ts`（PLIB-15）。
 - 相关用例 175 个文件按 `node scripts/affected-tests.mjs` 选出（浏览器用例按规则不跑）；合并 L1b 之后，S8 自己的 37 个文件在合并后的树上重跑全过。一批并发跑里有几个文件因机器负载超时，单独重跑通过；两个超时的（`tests/images-mcp.test.ts`、`tests/resident-management-actions.test.ts`）单独跑仍超时，探针量到子进程冷启动要 10 到 21 秒，把超时放宽后的临时副本全过，临时副本已删。
 - `tests/npm-package.test.ts` 在这台机器上因为没有 `npm` 而 `spawn npm ENOENT`，与本次改动无关。
 - 动作合同快照刷新：`goals.board.initialize`、`goals.snapshot.read`、`goals.contract.read`、`goals.collection.read` 各由 v1 升 v2；`feed.goals.context@1` 的依赖声明一格（固定到 `goals.contract.read` v2）变了，它的输入输出不变，仓库里没有固定它的引用。公开 API 快照刷新了 `contracts/modules/goals` 与 `contracts/modules/goal-actions` 两份。

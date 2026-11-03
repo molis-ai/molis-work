@@ -5,15 +5,19 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type 
  * `management` source. A test that used to call a typed management door calls the Goals action as this caller instead; the action
  * records the person, takes the project from the context and refuses an identity carried in its input.
  */
-export function managementCaller(projectId: string, key = "management"): ActionCallContext {
+export function managementCaller(projectId: string, key = "management", permissions: readonly string[] = ["goals:read", "goals:write"]): ActionCallContext {
   return {
     actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
-    permissions: ["goals:read", "goals:write"],
+    permissions: [...permissions],
     user_action: { source: "management", conversation_ref: `management:${projectId}`, message_ref: `management:${key}` },
   };
 }
 
-/** A client whose every call is made as the management caller; the message reference follows the call's idempotency key. */
+/**
+ * A client whose every call is made as the management caller; the message reference follows the call's idempotency key. As the Host
+ * builds the real one (`bindGoalsManagementActions`), the caller holds the permissions of the one action it calls, so an action that
+ * writes through a platform service (Attention, the Context Ledger) is reached with the permission it declares for that.
+ */
 export function managementGoals(client: ActionClient, projectId: string): BoundActionClient {
   const keyOf = (input: unknown) => {
     const key = (input as { idempotency_key?: unknown } | null | undefined)?.idempotency_key;
@@ -22,7 +26,7 @@ export function managementGoals(client: ActionClient, projectId: string): BoundA
   return {
     discover: async () => client.discover(managementCaller(projectId)),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
-      await client.invoke(managementCaller(projectId, keyOf(input)), definition, input) as Output,
+      await client.invoke(managementCaller(projectId, keyOf(input), [...new Set(["goals:read", "goals:write", ...definition.action.permissions])]), definition, input) as Output,
   };
 }
 

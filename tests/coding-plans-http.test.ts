@@ -1,11 +1,11 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule, createProcessItemReplication } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -16,25 +16,29 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 test("Plan formal routes preserve confirmed revisions, reject stale/blocked/foreign proposals, and do not replay execution", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-plans-")), dbPath = join(home, "board.db");
   let activeHome = home;
-  seedDemoBoard(dbPath); await seedConfiguredModels(home); let store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(home); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store);
   for (const id of ["app", "other"]) { await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString()); }
   const content = { title: "修复运费边界", steps: [{ title: "核对 shipping.mjs", acceptance: "10000 分免运费，9999 分收 500 分" }], blockers: "", change_reason: "" };
   const makeRun = (id: string, role = "planner", text = JSON.stringify(content)): AgentRunView => ({
-    ref: { runtime_id: "prologue", session_id: "sdk-app", run_id: id }, phase: "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-    turns: [{ turn_id: "u", kind: "user", text: "检查并修复边界", sequence: 1 }, { turn_id: "a", kind: "assistant", text, sequence: 2 }], activity: [], awaiting_input: [], awaiting_review: [],
+    ref: { session_id: "sdk-app", run_id: id }, phase: "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
+    turns: [{ turn_id: "u", kind: "user", text: "检查并修复边界", at: null, sequence: 1 }, { turn_id: "a", kind: "assistant", text, at: null, sequence: 2 }], activity: [], awaiting_input: [],
     frozen: { role_id: role, role_version: 1, execution: role === "planner" ? "read-only" : "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: ["read-file"], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true } },
     usage: { tokens: { input: 0, output: 0 } },
   } as unknown as AgentRunView);
   const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify({ ...content, blockers: "无" })), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
   runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
-  const host = () => ({ store, homeDirectory: activeHome, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+  // The one writer directory the Host lists; the other writer actions are not asked here.
+  const writerActions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
+    if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ worktree_id: "writer-a", workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }];
+    throw new Error(`Unexpected action ${definition.capability_id}`);
+  });
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: activeHome, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
-      if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
@@ -50,7 +54,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host())).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown, id = "app") => {
@@ -74,7 +78,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const fixed = { ...localFixed, source: portableSource };
     assert.equal(localPath, home);
     assert.deepEqual((await request("/plan/confirm", "POST", { expected_revision: 1 })).body.plan, localFixed);
-    // S-62 PCSYNC-22/23: use the actual confirmation producer, not a hand-written plan-shaped transport fixture.
+    // S-114 PCSYNC-22/23: use the actual confirmation producer, not a hand-written plan-shaped transport fixture.
     const originalStore = store, targetHome = join(home, "second-device"), targetPath = join(targetHome, "board.db");
     seedDemoBoard(targetPath); const targetStore = new LocalProjectDatabase(targetPath);
     const replication = (database: LocalProjectDatabase) => createProcessItemReplication(database.db,

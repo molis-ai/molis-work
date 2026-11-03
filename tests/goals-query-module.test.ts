@@ -8,11 +8,12 @@ import test from "node:test";
 import {
   GoalsModule,
   createGoalReadServices,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { insertHistoricalPolicy } from "./historical-sql-fixture.js";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goals public Query API owns list, detail, relation, policy, trash, and snapshot reads", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-query-"));
@@ -24,7 +25,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
       actor_id: "user-1",
       idempotency_key: "initialize",
     });
-    const goals = new GoalsModule(store.db, {});
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {});
 
     for (const [goalId, title] of [
       ["goal-parent", "父 Goal"],
@@ -86,11 +87,11 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
       .run("2026-09-02T00:01:00.000Z", "user-1", "goal-history");
 
     // W5-08-MOD-03/04: read-only assembly exposes the same facts without a public Repository.
-    const read = createGoalReadServices(store.db);
+    const read = createGoalReadServices(pluginLegalSql(store).db, store);
     assert.equal("repository" in read.query, false);
     assert.deepEqual(read.query.snapshot("board-query"), goals.query.snapshot("board-query"));
     const snapshot = goals.query.snapshot("board-query");
-    const legacySnapshot = store.snapshot("board-query");
+    const legacySnapshot = boardSnapshot(store, "board-query");
     assert.deepEqual(snapshot.board, legacySnapshot.board);
     assert.deepEqual(snapshot.goals, legacySnapshot.goals);
     assert.deepEqual(snapshot.relations, legacySnapshot.relations);

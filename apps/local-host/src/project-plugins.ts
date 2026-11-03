@@ -1,53 +1,55 @@
-import { openHostShelfStore } from "./shelf-actions.js";
-import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
-import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
-import { charactersPluginPorts } from "./characters-host.js";
-import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { scheduleServiceFor } from "./project-clock.js";
+import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
-import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
-import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
-import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
-import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
-import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
-import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
-import { WORKFLOWS_DATABASE, createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
+import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
+import { noteProjectOpened, noteProjectReleased } from "./running-project-platforms.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, outsidePluginAction, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
-import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
+import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
+import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
+import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
+import { projectRuntimeDeclarations } from "./plugin-registry.js";
 
 export interface ProjectPluginPorts {
-  observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
-  characterWorkspaces?: () => Promise<readonly ProjectWorkspaceRef[]>;
-  characterSpawn?: (request: import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnRequest) => import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnResult;
+  /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
+  observeReviewSettlements?: ObserveReviewSettlements;
   store: LocalProjectDatabase;
+  /** The library's 成果库 and process items: the runtime's one pair, which the platform writes through too (D3). */
+  artifacts: ProjectVersionStores["artifacts"];
+  processItems: ProjectVersionStores["processItems"];
   projectId: string;
   actorId: string;
-  /** Directories bound to this project. Empty means none is bound yet. */
-  workspaces?: readonly ProjectWorkspaceRef[];
-  capabilities?: PluginCapabilityPort;
+  dependencyCheck?: PluginDependencyCheck;
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
   routePrefix?: string;
   homeDirectory?: string;
+  /** Definitions a test installs into this platform by hand, which its Runtime then admits to the process (S-75 ⑥); none in production. */
+  installedByHand?: ReadonlySet<PluginDefinition>;
 }
 
 export interface ProjectPluginState {
   platform: PluginPlatform | null;
+  /**
+   * The plugin ids this project's Runtime is meant to run, known before it starts: a plugin listed here and not running is
+   * unavailable, not absent, even when the whole platform failed.
+   */
+  plugins?: readonly string[];
   /** Why the platform itself did not start. Whether one plugin runs is that plugin's own state (`projectPluginProblem`). */
   error?: string;
   updateObservers?(): void;
   stopObservers?(): void;
+  refreshEnablement?(): Promise<void>;
+  /** The `consentRevision` this project last reconciled its default wirings at. */
+  reconciledAt?: number;
 }
 
 /**
@@ -60,15 +62,8 @@ export function projectPluginProblem(state: ProjectPluginState, store: LocalProj
   return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.error ?? null };
 }
 
-const started = new WeakMap<LocalProjectDatabase, Map<string, { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> }>>();
-
-export interface ProjectStageView { readonly surface: string; readonly label: string; readonly stage: string }
-
-/**
- * Runtime stage views of the project's running plugins: the Manifest says a view sits in `stage`, and its contribution
- * renders it with the page's primitives. A plugin with no such view contributes nothing; the host keeps no per-plugin
- * renderer for the stage (PRR-12, S-20's declarative surface rule).
- */
+type StartedProject = { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> };
+const started = new WeakMap<LocalProjectDatabase, Map<string, StartedProject>>();
 /** A project's plugin platform when it is already running; never starts one. */
 export async function runningProjectPlatform(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform | null> {
   const opening = started.get(store)?.get(projectId);
@@ -81,6 +76,7 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
   const opening = boards?.get(projectId);
   if (!opening) return;
   boards!.delete(projectId);
+  noteProjectReleased(opening);
   const record = await opening.ready;
   record.stopObservers?.();
   if (!record.platform) return;
@@ -90,13 +86,9 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
 async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   const failures: unknown[] = [];
   await platform.closeCoordination();
-  for (const pluginId of platform.supervisor.enabledPluginIds()) {
-    const active = platform.supervisor.state(pluginId);
-    platform.supervisor.revoke(pluginId);
-    if (active?.status === "running" && active.install_id) {
-      try { await platform.runtime.stop(active.install_id); } catch (error) { failures.push(error); }
-    }
-  }
+  // Closing the project is not switching the plugin off (see closePlugin): the next start runs it, and only a plugin list keeps a
+  // project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
+  for (const pluginId of platform.supervisor.enabledPluginIds()) await closePlugin(platform, pluginId, supervisedInstall(platform, pluginId), failures);
   if (failures.length) throw new AggregateError(failures, "项目插件停止失败");
 }
 
@@ -108,121 +100,65 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations"] as const) {
+    for (const key of ["routePrefix", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
+    await state.refreshEnablement?.();
     state.updateObservers?.();
+    // Reconcile a changed consent ledger on this next project request; revoking itself does not broadcast to open projects.
+    if (state.platform && state.reconciledAt !== consentRevision()) { state.reconciledAt = consentRevision(); bindDeclaredDefaults(state.platform, ports.projectId, ports.actorId); }
     return state;
   }
   const configuration = { ...ports };
   const opening = startPlatform(configuration);
-  boards.set(ports.projectId, { ports: configuration, ready: opening });
+  const project = { ports: configuration, ready: opening };
+  boards.set(ports.projectId, project);
+  noteProjectOpened(project);
   return opening;
 }
 
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
   const record: ProjectPluginState = { platform: null };
   try {
+    // Scope and trust belong to the complete declaration list, before either library refusals or absent Home services filter it.
+    const fixtures = projectFixtureEntries(ports.homeDirectory);
+    const scoped = projectScopeEntries([...projectPluginEntries(), ...fixtures], ports.homeDirectory);
+    const entries = scoped.filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance);
+    record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
-    const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
-    const processItems = new ProcessItemsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
-    const platform = createPluginPlatform({
+    // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.
+    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db), inProcess: fixtureAdmission(fixtures, ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
       project_id: ports.projectId,
       actor_id: ports.actorId,
       db: ports.store.db,
       journal: ports.store,
-      artifacts,
-      processItems,
-      ui: new UiHost(),
+      artifacts: ports.artifacts,
+      processItems: ports.processItems,
+      ui: new UiHost({ drawingAs: withPluginWords }),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
+      deleteInstallationData: installId => storage.deleteInstallationData(installId),
       capturePrivateData: installId => storage.snapshotInstallationData(installId),
       restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
-      ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
+      ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),
       actions: ports.actions,
       home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     });
     record.platform = platform;
-    // Start independent companions together so their Artifact inputs and outputs
-    // can connect. Browsing roots come from current-project settings capabilities.
-    const charactersPorts = charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query,
-      () => ports.characterWorkspaces?.() ?? Promise.resolve(ports.workspaces ?? []), request => {
-        if (!ports.characterSpawn) throw new Error("原生终端尚未接通");
-        return ports.characterSpawn(request);
-      });
-    const shelfPorts: ShelfResultPorts | undefined = ports.homeDirectory ? {
-        // What Shelf may take a copy of, and the text of it, it asks the platform for; the Host only holds the project's route prefix and the personal store.
-        projectPath: () => ports.routePrefix ?? "",
-        receive: async preview => {
-          const shelf = openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
-          const item = await shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
-          return { item, snapshot: await shelf.snapshot() };
-        },
-      } : undefined;
-    const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
-      onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };
-    const operationListeners = new Set<(event: GitOperationUpdate) => void>();
-    let observer: ProjectPluginPorts["observeGitOperations"], unsubscribe: (() => void) | undefined, closed = false;
-    record.updateObservers = () => {
-      if (closed || observer === ports.observeGitOperations) return;
-      unsubscribe?.(); observer = ports.observeGitOperations;
-      // The Host delivers a settled operation on its own behalf, outside whichever action settled it: Git publishes for its own installation (S-18).
-      unsubscribe = observer?.(event => { if (!closed) outsidePluginAction(() => { for (const listener of operationListeners) listener(event); }); });
-    };
-    record.stopObservers = () => { closed = true; unsubscribe?.(); operationListeners.clear(); };
+    let closed = false;
+    const settlements = reviewSettlementForwarder(platform.hostEvents);
+    record.updateObservers = () => { if (!closed) settlements.update(ports.observeReviewSettlements); };
+    record.stopObservers = () => { closed = true; settlements.stop(); };
     record.updateObservers();
-    const gitPorts = {
-      observeOperationSettled(listener: (event: GitOperationUpdate) => void) {
-        operationListeners.add(listener); return () => { operationListeners.delete(listener); };
-      },
-      onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
-    };
-    const entries: PluginPlatformEntry[] = [
-      {
-        definition: createCharactersPlugin(charactersPorts),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createCharactersPlugin>(
-          "@molis-ai/molis-work-plugin-characters", "createCharactersPlugin", factory => factory(charactersPorts)),
-      },
-      {
-        definition: createShelfPlugin(shelfPorts),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
-          "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory(shelfPorts)),
-      },
-      ...ports.homeDirectory ? homeLibraryPlugins() : [],
-      {
-        definition: createCodingPlugin(),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createCodingPlugin>(
-          "@molis-ai/molis-work-plugin-coding", "createCodingPlugin", factory => factory()),
-      },
-      {
-        definition: createFilesPlugin(filesPorts),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createFilesPlugin>(
-          "@molis-ai/molis-work-plugin-files", "createFilesPlugin", factory => factory(filesPorts)),
-      },
-      {
-        definition: createDiffPlugin(),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createDiffPlugin>(
-          "@molis-ai/molis-work-plugin-diff", "createDiffPlugin", factory => factory()),
-      },
-      {
-        definition: createGitPlugin(gitPorts),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createGitPlugin>(
-          "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory(gitPorts)),
-      },
-      {
-        definition: createTextStatsPlugin(),
-        bundled: true,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createTextStatsPlugin>(
-          "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
-      },
-    ];
-    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory));
+    const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
+    // Validate the declared halves before a per-project database refusal removes one from this start attempt.
+    await platform.start(withoutRefusedPlugins(ports.store.db, entries, entry => entry.definition.manifest.plugin_id)
+            .map(entry => {
+        const pluginId = entry.definition.manifest.plugin_id;
+        return { ...entry, enabled: (enabled?.get(pluginId) ?? true) && !installationSwitchedOff(platform, pluginId) };
+      }));
+    record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
+    record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
   } catch (error) {
     record.stopObservers?.();
@@ -236,43 +172,14 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   return record;
 }
 
-/** Project instances whose own libraries live in this Home. */
-function homeLibraryPlugins(): PluginPlatformEntry[] {
-  return [{
-    definition: createDatasetPlugin(), bundled: true, database: DATASET_DATABASE,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createDatasetPlugin>(
-      "@molis-ai/molis-work-plugin-dataset", "createDatasetPlugin", factory => factory()),
-  }, {
-    definition: createFormPlugin(), bundled: true, database: FORM_DATABASE,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
-      "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
-  }, {
-    definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
-      "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
-  }, {
-    definition: createPagesPlugin(), bundled: true, database: PAGES_DATABASE,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
-      "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
-  }, {
-    definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(
-      "@molis-ai/molis-work-plugin-ppt", "createPptPlugin", factory => factory()),
-  }, {
-    definition: createWorkflowsPlugin(), bundled: true, database: WORKFLOWS_DATABASE,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createWorkflowsPlugin>(
-      "@molis-ai/molis-work-plugin-workflows", "createWorkflowsPlugin", factory => factory()),
-  }];
-}
-
 /**
- * Which directory this project is working in.
- *
- * Exactly one bound directory is an answer. Several with nothing to choose
- * between them is not: picking one would silently point every downstream Plugin
- * at a directory the user never chose.
+ * The built-in plugins every project's Runtime runs, before fixtures and refusals: each registration's `project_runtime` (PG-067).
+ * Independent companions start together so their Artifact inputs and outputs can connect; browsing roots come from
+ * current-project settings capabilities.
  */
-function currentWorkspaceId(ports: ProjectPluginPorts): string | null {
-  const workspaces = ports.workspaces ?? [];
-  return workspaces.length === 1 ? workspaces[0]!.workspace_id : null;
+function projectPluginEntries(): PluginPlatformEntry[] {
+  return projectRuntimeDeclarations().map(entry => ({
+    definition: entry.create(), trust: HOST_BUILD_TRUST,
+    releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => factory()),
+  }));
 }

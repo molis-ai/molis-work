@@ -28,8 +28,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     if (character !== undefined && allowsCharacter()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
     if (curId) { body.work_id = curId; const target = receipts.target(); if (target) body.target = target; }
     else if (nextExec !== "assistant") {
-      body.executor = nextExec;
-      if (nextExec === "coding") { const session = codingSession(); if (session) body.coding_session_id = session; else body.mode = nextMode; }
+      body.executor = { kind: "plugin", plugin_id: nextExec };
+      const session = executorSession(nextExec);
+      if (session) body.executor_session_id = session; else if (nextMode) body.mode = nextMode;
     } else body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
     const intent = !requestOverride && again?.body.text === text ? again : {
       body, work: curId, target: sendTarget(), route: host.route("/api/assistant/send"), character, inputRevision:inputRev,
@@ -60,7 +61,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
         if (String(input.value || "")) saveDraft(true);
         await reload();
       }
-      if (res.work.executor?.kind === "coding") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: "coding.runs.start", session_id: res.work.executor.session_id } }));
+      const carrier = res.work.executor?.kind === "plugin" ? executorOffer(res.work.executor.plugin_id) : null;
+      if (carrier) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: carrier.capability_ids["run.start"], session_id: res.work.executor.session_id } }));
       // A supplement's fate is its receipt line in the thread; only an answer and words kept for the next round say more.
       const said = { answered: L("已作为回答发送"), queued: L("已保存，下一轮开始生效") }[res.outcome];
       if (visible && said) host.showToast?.(said);

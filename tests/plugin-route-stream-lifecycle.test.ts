@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 // RAC-24: finished, failed and cancelled dispatches release their instance watcher.
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,7 +9,7 @@ import { deferred } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
 
 test("W5-01-STREAM-05 repeated success, throw, cancellation and stop release every instance watcher", async () => {
-  const probe = streamProbe(), runtime = new PluginRuntime(), supervisor = new PluginSupervisor(runtime);
+  const probe = streamProbe(), runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
   // This test exercises the Runtime router alone; it needs no Host action registry or business storage binding.
   const definition = { ...probe.definition, manifest: { ...probe.definition.manifest, actions: [],
     routes: probe.definition.manifest.routes!.filter(route => route.route_id === "direct") },

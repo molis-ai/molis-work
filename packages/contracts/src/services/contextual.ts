@@ -33,11 +33,13 @@ export interface ContextActionChosen {
   /** The object the context is about; with `scope: "object"` the page that has it open may take the choice without a selection. */
   readonly object?: SurfaceFocus["object"];
   /** The provider's complete input for this offer and exactly this context; rejects when it is no longer offered. */
-  prepare(): Promise<{ readonly key: string; readonly apply: FragmentApply; readonly action: ContextualCandidate["action"]; readonly input: unknown }>;
+  prepare(control?: { readonly signal?: AbortSignal; readonly page_id?: string }): Promise<{ readonly key: string; readonly apply: FragmentApply; readonly action: ContextualCandidate["action"]; readonly input: unknown }>;
   /** An `attach.` choice: where it goes on the left. The landing's owner takes it and only places its preview there. */
   readonly landing?: SurfaceLanding;
   /** An `attach.` choice: runs it through the Host at exactly `landing`, bound by the row when the choice was made. */
-  run?(): Promise<unknown>;
+  run?(control?: { readonly signal?: AbortSignal; readonly page_id?: string }): Promise<unknown>;
+  /** The trusted page bridge reports whether its isolated page accepted this choice. */
+  handled?: Promise<boolean>;
 }
 /** Raised by the navigation owner when the focused pane's place changes; any pending judgment for that pane is void. */
 export const PLACE_CHANGED_EVENT = "molis-work:place-changed";

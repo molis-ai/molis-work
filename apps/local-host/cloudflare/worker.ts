@@ -1,4 +1,4 @@
-import { API_OAUTH_PROVIDERS, apiOAuthProvider } from "../src/connector-api-oauth-providers.js";
+import { API_OAUTH_PROVIDERS, apiOAuthProvider } from "./providers.js";
 
 export interface BrokerEnv {
   PUBLIC_ORIGIN: string;

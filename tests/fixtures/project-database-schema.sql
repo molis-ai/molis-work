@@ -1,4 +1,3 @@
--- Current platform/module project database baseline, version 16. Plugin declarations are separate.
 CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
 
     CREATE TABLE IF NOT EXISTS project_root (
@@ -145,157 +144,10 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
 
 
-    CREATE TABLE IF NOT EXISTS feed_sources (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      source_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      definition_id TEXT,
-      sync_kind TEXT NOT NULL DEFAULT 'manual' CHECK (sync_kind IN ('public_source', 'github', 'gmail', 'connector', 'manual')),
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      item_count INTEGER NOT NULL DEFAULT 0,
-      origin TEXT NOT NULL CHECK (origin = 'molis_work'),
-      config_json TEXT NOT NULL DEFAULT '{}',
-      schedule_json TEXT NOT NULL DEFAULT '{"mode":"manual"}',
-      credential_ref TEXT,
-      account_label TEXT,
-      last_sync_at TEXT,
-      last_outcome TEXT,
-      last_error_code TEXT,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
-);
-    CREATE INDEX IF NOT EXISTS feed_sources_project_updated_idx
-      ON feed_sources(project_id, updated_at DESC, source_id);
-
-    CREATE TABLE IF NOT EXISTS source_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('source.created', 'source.updated', 'source.status_changed', 'source.retired')),
-      payload_json TEXT NOT NULL,
-      at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS source_events_project_source_idx
-      ON source_events(project_id, source_id, at, event_id);
-
-
-    CREATE TABLE IF NOT EXISTS signals (
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      provider_dedupe_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      occurred_at TEXT NOT NULL,
-      observed_at TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      content_refs_json TEXT NOT NULL DEFAULT '[]',
-      raw_event_id TEXT NOT NULL,
-      adapter_plugin_id TEXT NOT NULL,
-      adapter_version TEXT NOT NULL,
-      provenance_json TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      content_hash TEXT NOT NULL,
-      validation TEXT NOT NULL CHECK (validation = 'accepted'),
-      superseded_by TEXT,
-      withdrawn_at TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id),
-      UNIQUE (project_id, source_id, provider_dedupe_id)
-    );
-    CREATE INDEX IF NOT EXISTS signals_project_source_observed_idx
-      ON signals(project_id, source_id, observed_at DESC, signal_id);
-
-    CREATE TABLE IF NOT EXISTS signal_revisions (
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      content_hash TEXT NOT NULL,
-      draft_json TEXT NOT NULL,
-      accepted_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id, revision)
-    );
-
-    CREATE TABLE IF NOT EXISTS signal_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      signal_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('signal.accepted', 'signal.changed')),
-      revision INTEGER NOT NULL,
-      at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS signal_events_project_source_idx
-      ON signal_events(project_id, source_id, at, event_id);
-
-
-    CREATE TABLE IF NOT EXISTS listener_instances (
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      cursor_json TEXT NOT NULL DEFAULT '{}',
-      state TEXT NOT NULL CHECK (state IN ('idle', 'listening', 'retry_wait', 'quarantined')),
-      attempt INTEGER NOT NULL DEFAULT 0,
-      retry_at TEXT,
-      last_error_code TEXT,
-      lease_owner TEXT,
-      lease_expires_at TEXT,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS listener_deliveries (
-      project_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      operation_id TEXT NOT NULL,
-      raw_event_id TEXT NOT NULL,
-      provider_dedupe_id TEXT NOT NULL,
-      raw_event_json TEXT NOT NULL,
-      cursor_after_json TEXT,
-      adapter_plugin_id TEXT NOT NULL,
-      adapter_version TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state IN ('pending', 'retry_wait', 'accepted', 'quarantined')),
-      attempt INTEGER NOT NULL DEFAULT 0,
-      signal_id TEXT,
-      last_error_code TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id, raw_event_id)
-    );
-    CREATE INDEX IF NOT EXISTS listener_deliveries_recovery_idx
-      ON listener_deliveries(project_id, source_id, state, updated_at, raw_event_id);
-
-    -- The run ledger belongs to Listener Host and names its Source by id only: the Source table is modules/sources' own, and
-    -- a Source's runs are forgotten explicitly (deleteListenerSourceState), never through another owner's foreign key.
-    CREATE TABLE IF NOT EXISTS feed_source_runs (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      run_id TEXT NOT NULL,
-      operation_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      phase TEXT NOT NULL CHECK (phase IN ('running', 'terminal', 'interrupted')),
-      outcome TEXT,
-      empty INTEGER NOT NULL DEFAULT 0,
-      error_code TEXT,
-      receipt_json TEXT,
-      created_count INTEGER NOT NULL DEFAULT 0,
-      deduped_count INTEGER NOT NULL DEFAULT 0,
-      recovery_count INTEGER NOT NULL DEFAULT 0,
-      started_at TEXT NOT NULL,
-      completed_at TEXT,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, run_id),
-      UNIQUE (project_id, operation_id)
-    );
-    CREATE INDEX IF NOT EXISTS feed_source_runs_project_source_idx
-      ON feed_source_runs(project_id, source_id, started_at DESC);
-
-
     CREATE TABLE IF NOT EXISTS inbox_entries (
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
       reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
@@ -305,9 +157,12 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (project_id, entry_id),
-      UNIQUE (project_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id)
 );
+    CREATE UNIQUE INDEX IF NOT EXISTS inbox_entries_owned_subject_idx
+      ON inbox_entries(project_id, owner_plugin_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS inbox_entries_unassigned_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NULL;
     CREATE INDEX IF NOT EXISTS inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
     CREATE INDEX IF NOT EXISTS inbox_entries_project_subject_idx
@@ -317,6 +172,7 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       type TEXT NOT NULL,
       subject_type TEXT NOT NULL,
       subject_id TEXT NOT NULL,
@@ -326,85 +182,14 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
       ON attention_events(project_id, entry_id, at, event_id);
 
 
-    CREATE TABLE IF NOT EXISTS feed_items (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      item_id TEXT NOT NULL,
-      source_id TEXT,
-      signal_id TEXT,
-      signal_revision INTEGER,
-      kind TEXT NOT NULL,
-      title TEXT NOT NULL,
-      summary TEXT NOT NULL DEFAULT '',
-      body TEXT,
-      source_kind TEXT NOT NULL,
-      source_label TEXT NOT NULL,
-      external_id TEXT,
-      url TEXT,
-      origin_status TEXT NOT NULL,
-      priority TEXT NOT NULL,
-      tags_json TEXT NOT NULL DEFAULT '[]',
-      author TEXT,
-      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'processing', 'archived')),
-      read_at TEXT,
-      revision INTEGER NOT NULL DEFAULT 1,
-      source_created_at TEXT NOT NULL,
-      source_updated_at TEXT NOT NULL,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, item_id)
-    );
-    CREATE INDEX IF NOT EXISTS feed_items_project_updated_idx
-      ON feed_items(project_id, disposition, source_updated_at DESC);
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_source_external_idx
-      ON feed_items(project_id, source_id, external_id)
-      WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
-    CREATE TABLE IF NOT EXISTS feed_materials (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
-      material_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      canonical_url TEXT,
-      title TEXT NOT NULL,
-      source_name TEXT NOT NULL,
-      published_at TEXT,
-      preview TEXT NOT NULL DEFAULT '',
-      content_hash TEXT,
-      content_ref TEXT,
-      content_available INTEGER NOT NULL DEFAULT 0,
-      content_type TEXT,
-      character_count INTEGER,
-      captured_at TEXT,
-      provenance_json TEXT NOT NULL DEFAULT '{}',
-      selected_for_context INTEGER NOT NULL DEFAULT 0,
-      imported_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, material_id),
-      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS feed_materials_project_item_idx
-      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
-
-    CREATE TABLE IF NOT EXISTS feed_item_events (
-      event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
-      item_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS feed_item_events_project_item_idx
-      ON feed_item_events(project_id, item_id, at, event_id);
-
-    CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_signal_idx
-      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
-
-
   CREATE TABLE IF NOT EXISTS feed_runtime_blobs (
     namespace TEXT NOT NULL, key TEXT NOT NULL, opaque TEXT NOT NULL, cas_token TEXT NOT NULL,
     PRIMARY KEY (namespace, key)
   );
 
 
-    CREATE TABLE IF NOT EXISTS plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL,
+      publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 
 
     CREATE TABLE IF NOT EXISTS plugin_runtime_release_artifacts (
@@ -459,6 +244,27 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
     CREATE TABLE IF NOT EXISTS plugin_event_resolutions (
       resolution_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, subscriber_plugin_id TEXT NOT NULL, record_json TEXT NOT NULL
     );
+
+
+    CREATE TABLE IF NOT EXISTS plugin_notifications (
+      notification_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      sender_plugin_id TEXT NOT NULL,
+      sender_install_id TEXT NOT NULL,
+      sender_generation TEXT NOT NULL,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      body TEXT NOT NULL,
+      open_plugin_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      delivered_at TEXT,
+      item_id TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
+      UNIQUE (sender_install_id, sender_generation, key)
+    );
+    CREATE INDEX IF NOT EXISTS plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
 
 
     CREATE TABLE IF NOT EXISTS plugin_port_bindings (
@@ -543,18 +349,18 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
       FOREIGN KEY (job_id) REFERENCES schedule_jobs(job_id)
     );
 
+CREATE TABLE IF NOT EXISTS schedule_action_bindings (
+  job_id TEXT PRIMARY KEY REFERENCES schedule_jobs(job_id) ON DELETE CASCADE,
+  install_id TEXT NOT NULL,
+  installation_generation TEXT NOT NULL,
+  action_version INTEGER NOT NULL CHECK (action_version > 0)
+);
+
 
   CREATE TABLE IF NOT EXISTS project_browsing_settings (
     project_id TEXT PRIMARY KEY, workspace_id TEXT
   );
 
-    CREATE TABLE IF NOT EXISTS goals_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS goals_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS goals_replica_changes_key ON goals_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS goals_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS goals_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS goals_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS goals_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 
     CREATE TABLE IF NOT EXISTS artifacts_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS artifacts_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
@@ -564,6 +370,8 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
     CREATE TABLE IF NOT EXISTS artifacts_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS artifacts_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 
+INSERT INTO artifacts_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+
     CREATE TABLE IF NOT EXISTS process_items_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS process_items_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS process_items_replica_changes_key ON process_items_replica_changes(key);
@@ -572,53 +380,19 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
     CREATE TABLE IF NOT EXISTS process_items_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS process_items_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 
-    CREATE TABLE IF NOT EXISTS schedule_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS schedule_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS schedule_replica_changes_key ON schedule_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS schedule_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS schedule_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS schedule_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS schedule_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-    CREATE TABLE IF NOT EXISTS feed_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS feed_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS feed_replica_changes_key ON feed_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS feed_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS feed_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS feed_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS feed_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-    CREATE TABLE IF NOT EXISTS sources_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sources_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS sources_replica_changes_key ON sources_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS sources_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS sources_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS sources_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS sources_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-    CREATE TABLE IF NOT EXISTS attention_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS attention_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS attention_replica_changes_key ON attention_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS attention_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS attention_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS attention_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS attention_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-    CREATE TABLE IF NOT EXISTS messages_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS messages_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS messages_replica_changes_key ON messages_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS messages_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS messages_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS messages_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS messages_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-
-    CREATE TABLE IF NOT EXISTS coding_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS coding_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
-    CREATE INDEX IF NOT EXISTS coding_replica_changes_key ON coding_replica_changes(key);
-    CREATE TABLE IF NOT EXISTS coding_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS coding_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS coding_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
-    CREATE TABLE IF NOT EXISTS coding_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+INSERT INTO process_items_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER artifacts_sync_identity_insert AFTER INSERT ON library_artifacts BEGIN INSERT INTO artifacts_replica_changes(key) SELECT json_array(NEW.project_id,'artifact',NEW.artifact_id) WHERE (SELECT applying FROM artifacts_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER artifacts_sync_identity_update AFTER UPDATE ON library_artifacts BEGIN INSERT INTO artifacts_replica_changes(key) SELECT json_array(NEW.project_id,'artifact',NEW.artifact_id) WHERE (SELECT applying FROM artifacts_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER artifacts_sync_identity_delete AFTER DELETE ON library_artifacts BEGIN INSERT INTO artifacts_replica_changes(key) SELECT json_array(OLD.project_id,'artifact',OLD.artifact_id) WHERE (SELECT applying FROM artifacts_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER artifacts_sync_version_insert AFTER INSERT ON library_artifact_versions WHEN (SELECT project_id FROM library_artifacts WHERE artifact_id=NEW.artifact_id) IS NOT NULL BEGIN INSERT INTO artifacts_replica_changes(key) SELECT json_array((SELECT project_id FROM library_artifacts WHERE artifact_id=NEW.artifact_id),'artifact',NEW.artifact_id) WHERE (SELECT applying FROM artifacts_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER artifacts_sync_version_update AFTER UPDATE ON library_artifact_versions WHEN (SELECT project_id FROM library_artifacts WHERE artifact_id=NEW.artifact_id) IS NOT NULL BEGIN INSERT INTO artifacts_replica_changes(key) SELECT json_array((SELECT project_id FROM library_artifacts WHERE artifact_id=NEW.artifact_id),'artifact',NEW.artifact_id) WHERE (SELECT applying FROM artifacts_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER artifacts_sync_version_delete AFTER DELETE ON library_artifact_versions WHEN (SELECT project_id FROM library_artifacts WHERE artifact_id=OLD.artifact_id) IS NOT NULL BEGIN INSERT INTO artifacts_replica_changes(key) SELECT json_array((SELECT project_id FROM library_artifacts WHERE artifact_id=OLD.artifact_id),'artifact',OLD.artifact_id) WHERE (SELECT applying FROM artifacts_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER process_items_sync_identity_insert AFTER INSERT ON process_items BEGIN INSERT INTO process_items_replica_changes(key) SELECT json_array(NEW.project_id,'process_item',NEW.artifact_id) WHERE (SELECT applying FROM process_items_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER process_items_sync_identity_update AFTER UPDATE ON process_items BEGIN INSERT INTO process_items_replica_changes(key) SELECT json_array(NEW.project_id,'process_item',NEW.artifact_id) WHERE (SELECT applying FROM process_items_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER process_items_sync_identity_delete AFTER DELETE ON process_items BEGIN INSERT INTO process_items_replica_changes(key) SELECT json_array(OLD.project_id,'process_item',OLD.artifact_id) WHERE (SELECT applying FROM process_items_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER process_items_sync_version_insert AFTER INSERT ON process_item_versions WHEN (SELECT project_id FROM process_items WHERE artifact_id=NEW.artifact_id) IS NOT NULL BEGIN INSERT INTO process_items_replica_changes(key) SELECT json_array((SELECT project_id FROM process_items WHERE artifact_id=NEW.artifact_id),'process_item',NEW.artifact_id) WHERE (SELECT applying FROM process_items_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER process_items_sync_version_update AFTER UPDATE ON process_item_versions WHEN (SELECT project_id FROM process_items WHERE artifact_id=NEW.artifact_id) IS NOT NULL BEGIN INSERT INTO process_items_replica_changes(key) SELECT json_array((SELECT project_id FROM process_items WHERE artifact_id=NEW.artifact_id),'process_item',NEW.artifact_id) WHERE (SELECT applying FROM process_items_replica_state WHERE id=1)=0 AND (1=1); END;
+CREATE TRIGGER process_items_sync_version_delete AFTER DELETE ON process_item_versions WHEN (SELECT project_id FROM process_items WHERE artifact_id=OLD.artifact_id) IS NOT NULL BEGIN INSERT INTO process_items_replica_changes(key) SELECT json_array((SELECT project_id FROM process_items WHERE artifact_id=OLD.artifact_id),'process_item',OLD.artifact_id) WHERE (SELECT applying FROM process_items_replica_state WHERE id=1)=0 AND (1=1); END;
 
     CREATE TABLE IF NOT EXISTS builder_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS builder_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
@@ -627,3 +401,10 @@ CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CH
     CREATE TABLE IF NOT EXISTS builder_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS builder_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS builder_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+
+INSERT INTO builder_replica_state(id,device) VALUES(1,lower(hex(randomblob(16))));
+CREATE TRIGGER builder_content_private_sync_insert AFTER INSERT ON plugin_private_values WHEN NEW.item_key='plugin-builder:agent-built:v1' AND substr(NEW.install_id,1,13)='agent-studio:' BEGIN INSERT INTO builder_replica_changes(key) SELECT key FROM (SELECT json_array(substr(NEW.install_id,14),'builder_content',entries.item_id) AS key FROM (SELECT json_extract(value,'$.id') AS item_id FROM json_each(NEW.item_value,'$.builds') UNION SELECT json_extract(value,'$.buildId') AS item_id FROM json_each(NEW.item_value,'$.releases')) AS entries) WHERE (SELECT applying FROM builder_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER builder_content_private_sync_delete AFTER DELETE ON plugin_private_values WHEN OLD.item_key='plugin-builder:agent-built:v1' AND substr(OLD.install_id,1,13)='agent-studio:' BEGIN INSERT INTO builder_replica_changes(key) SELECT key FROM (SELECT json_array(substr(OLD.install_id,14),'builder_content',entries.item_id) AS key FROM (SELECT json_extract(value,'$.id') AS item_id FROM json_each(OLD.item_value,'$.builds') UNION SELECT json_extract(value,'$.buildId') AS item_id FROM json_each(OLD.item_value,'$.releases')) AS entries) WHERE (SELECT applying FROM builder_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER builder_content_private_sync_update AFTER UPDATE OF item_value ON plugin_private_values WHEN NEW.item_key='plugin-builder:agent-built:v1' AND substr(NEW.install_id,1,13)='agent-studio:' AND NEW.install_id=OLD.install_id AND NEW.item_key=OLD.item_key BEGIN INSERT INTO builder_replica_changes(key) SELECT key FROM (SELECT json_array(substr(NEW.install_id,14),'builder_content',entries.item_id) AS key FROM (SELECT json_extract(value,'$.id') AS item_id FROM json_each(OLD.item_value,'$.builds') UNION SELECT json_extract(value,'$.buildId') AS item_id FROM json_each(OLD.item_value,'$.releases') UNION SELECT json_extract(value,'$.id') AS item_id FROM json_each(NEW.item_value,'$.builds') UNION SELECT json_extract(value,'$.buildId') AS item_id FROM json_each(NEW.item_value,'$.releases')) AS entries WHERE ((SELECT json_group_array(json(value)) FROM json_each(OLD.item_value,'$.builds') WHERE json_extract(value,'$.id')=entries.item_id) || (SELECT json_group_array(json(value)) FROM json_each(OLD.item_value,'$.releases') WHERE json_extract(value,'$.buildId')=entries.item_id)) IS NOT ((SELECT json_group_array(json(value)) FROM json_each(NEW.item_value,'$.builds') WHERE json_extract(value,'$.id')=entries.item_id) || (SELECT json_group_array(json(value)) FROM json_each(NEW.item_value,'$.releases') WHERE json_extract(value,'$.buildId')=entries.item_id))) WHERE (SELECT applying FROM builder_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER builder_content_private_sync_move_old AFTER UPDATE OF install_id,item_key ON plugin_private_values WHEN OLD.item_key='plugin-builder:agent-built:v1' AND substr(OLD.install_id,1,13)='agent-studio:' AND NOT (NEW.install_id=OLD.install_id AND NEW.item_key=OLD.item_key) BEGIN INSERT INTO builder_replica_changes(key) SELECT key FROM (SELECT json_array(substr(OLD.install_id,14),'builder_content',entries.item_id) AS key FROM (SELECT json_extract(value,'$.id') AS item_id FROM json_each(OLD.item_value,'$.builds') UNION SELECT json_extract(value,'$.buildId') AS item_id FROM json_each(OLD.item_value,'$.releases')) AS entries) WHERE (SELECT applying FROM builder_replica_state WHERE id=1)=0; END;
+CREATE TRIGGER builder_content_private_sync_move_new AFTER UPDATE OF install_id,item_key ON plugin_private_values WHEN NEW.item_key='plugin-builder:agent-built:v1' AND substr(NEW.install_id,1,13)='agent-studio:' AND NOT (NEW.install_id=OLD.install_id AND NEW.item_key=OLD.item_key) BEGIN INSERT INTO builder_replica_changes(key) SELECT key FROM (SELECT json_array(substr(NEW.install_id,14),'builder_content',entries.item_id) AS key FROM (SELECT json_extract(value,'$.id') AS item_id FROM json_each(NEW.item_value,'$.builds') UNION SELECT json_extract(value,'$.buildId') AS item_id FROM json_each(NEW.item_value,'$.releases')) AS entries) WHERE (SELECT applying FROM builder_replica_state WHERE id=1)=0; END;

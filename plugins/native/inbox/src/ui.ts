@@ -1,14 +1,14 @@
 import type { InboxJudgmentSummary } from "./route-handlers.js";
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  INBOX_DISMISS_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
-  INBOX_COMPOSE_BEHAVIOR_ID,
-  INBOX_VERIFY_BEHAVIOR_ID,
+  INBOX_DISMISS_OPTION_ID,
+  INBOX_DONE_OPTION_ID,
+  INBOX_COMPOSE_OPTION_ID,
+  INBOX_VERIFY_OPTION_ID,
   defaultInboxNextBehaviorIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { isActiveInboxStatus, type InboxUiEntry, type InboxUiFilter } from "./projection.js";
@@ -32,9 +32,8 @@ export interface InboxUiModel {
   readonly primitives: InboxUiPrimitives;
 }
 
-export const inboxUiDescriptor: UiContributionDescriptor = {
+export const inboxUiDescriptor: UiContributionDeclaration = {
   contribution_id: INBOX_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.native.inbox",
   kind: "primary-page",
   navigation_id: "inbox",
   label: "Inbox",
@@ -126,20 +125,21 @@ function renderInboxStageRow(entry: InboxUiEntry, p: InboxUiPrimitives): string 
 
 function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPrimitives): string {
   const openAction = openButton(entry, p);
-  return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" data-make-todo-scope${selected ? "" : " hidden"}>
+  return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" ${selected ? "" : " hidden"}>
     <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-inbox-collapse aria-label="${p.text("返回 Inbox 列表")}" title="${p.text("返回 Inbox 列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--attention">${p.escape(entry.kind_label)}</span><span class="mw-status mw-status--quiet">${p.escape(entry.source_label)}</span><span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"}" data-mw-state="${entry.status === "open" ? "answer" : entry.status === "in_progress" ? "doing" : entry.status === "done" ? "done" : "cancelled"}">${p.escape(entry.status_label)}</span></div></header>
     <header class="feed-detail-header"><h1>${p.escape(entry.title)}</h1></header>
-    <div class="inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="feed-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${todoButton(entry, p)}${resultActions(entry, p)}</div><p class="feed-action-status" data-inbox-action-status data-make-todo-status role="status" hidden></p></div>
+    <div class="inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="feed-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${todoButton(entry, p)}${resultActions(entry, p)}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></div>
     <div class="inbox-reference-body"><section class="inbox-attention-context" aria-label="${p.text("处理上下文")}"><dl><div><dt>${p.text("为什么进入 Inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${p.text("关联对象")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${p.text("下一步")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${p.text("当前状态")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${p.text("处理结果")}"></section></div>
   </article>`;
 }
 
 /**
- * "转为待办": the workbench composes it with Todo when Todo is there (and hides it otherwise). The entry is kept as the
- * todo's source; handling this entry does not complete the todo, and converting does not handle the entry.
+ * "转为待办": the entry put into the creation entry named `todo` (`data-context-intake`), which the workbench finds in what the
+ * plugins declare. The entry is kept as the todo's source; handling this entry does not complete the todo, and converting does
+ * not handle the entry.
  */
 function todoButton(entry: InboxUiEntry, p: InboxUiPrimitives): string {
-  return `<button class="mw-btn mw-btn--secondary" type="button" data-make-todo="inbox" data-make-todo-id="${p.escape(entry.entry_id)}" data-make-todo-subject="inbox_entry" data-make-todo-surface="inbox" data-make-todo-title="${p.escape(entry.title)}" data-make-todo-reason="${p.text("你从 Inbox 转为待办")}">${p.icon("list")}${p.text("转为待办")}</button>`;
+  return `<button class="mw-btn mw-btn--secondary" type="button" data-context-intake="todo" data-context-id="${p.escape(entry.entry_id)}" data-context-title="${p.escape(entry.title)}">${p.icon("list")}${p.text("转为待办")}</button>`;
 }
 
 function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
@@ -151,25 +151,25 @@ function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
 }
 
 function renderMaterialActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
-  return [[INBOX_COMPOSE_BEHAVIOR_ID, "compose", "整理成文稿"], [INBOX_VERIFY_BEHAVIOR_ID, "verify", "先核查"]].map(([id, mode, label]) =>
+  return [[INBOX_COMPOSE_OPTION_ID, "compose", "整理成文稿"], [INBOX_VERIFY_OPTION_ID, "verify", "先核查"]].map(([id, mode, label]) =>
     `<button class="mw-btn mw-btn--${isActiveInboxStatus(entry.status) && entry.suggested_behavior_ids.includes(id!) ? "primary" : "secondary"}" type="button" data-inbox-compose-open="${p.escape(entry.entry_id)}" data-inbox-compose-mode="${mode}">${p.text(label!)}</button>`).join("");
 }
 
 function renderNextSuggestion(entry: InboxUiEntry, p: InboxUiPrimitives): string {
   const judgment = entry.next_judgment;
   if (!judgment || !isActiveInboxStatus(entry.status)) return "";
-  const names: Record<string, string> = { [INBOX_COMPOSE_BEHAVIOR_ID]: "整理成文稿", [INBOX_VERIFY_BEHAVIOR_ID]: "先核查", [INBOX_DISMISS_BEHAVIOR_ID]: "忽略", [INBOX_DONE_BEHAVIOR_ID]: "做完了" };
+  const names: Record<string, string> = { [INBOX_COMPOSE_OPTION_ID]: "整理成文稿", [INBOX_VERIFY_OPTION_ID]: "先核查", [INBOX_DISMISS_OPTION_ID]: "忽略", [INBOX_DONE_OPTION_ID]: "做完了" };
   const label = judgment.outcome === "needs_review" ? p.text("判断未完成，请人工复核或重试")
     : p.text("建议：{action}，由你确认执行", { action: p.text(names[judgment.suggested_behavior_ids[0] ?? ""] ?? "查看原消息") });
   return `<p class="inbox-next-suggestion">${p.escape(label)} <small>v${judgment.function_version} · ${p.escape(p.formatDate(judgment.created_at))}</small><button class="mw-btn mw-btn--ghost" type="button" data-inbox-evaluate="${p.escape(entry.entry_id)}">${p.text("重新判断")}</button></p>`;
 }
 
 function writeButton(entry: InboxUiEntry, behaviorId: string, primary: boolean, p: InboxUiPrimitives): string {
-  if (behaviorId === INBOX_DISMISS_BEHAVIOR_ID) {
+  if (behaviorId === INBOX_DISMISS_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
     return `<button class="${cls}" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`;
   }
-  if (behaviorId !== INBOX_DONE_BEHAVIOR_ID) return "";
+  if (behaviorId !== INBOX_DONE_OPTION_ID) return "";
   const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
   return `<button class="${cls}" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button>`;
 }

@@ -1,7 +1,9 @@
-import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_BEHAVIOR_ID, INBOX_ADMIT_BEHAVIOR_ID } from '@molis-ai/molis-work-contracts/modules/functions';
+import { FEED_PLUGIN_ID } from '@molis-ai/molis-work-plugin-feed';
+import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID } from '@molis-ai/molis-work-contracts/modules/functions';
 
 /** Feed reads judgment choices from the shared directory; system authoring owns natural-language drafts. */
 export const FEED_RULE_AUTHORING_SCRIPT = `
+    const FL = (text, vars) => LF(${JSON.stringify(FEED_PLUGIN_ID)}, text, vars);
     const feedRuleDrafts = new Map();
     const feedRuleKey = (section) => route("/") + ":feed-rule:" + section.dataset.feedOutRules;
     const feedRuleFields = ["data-feed-out-rule-name", "data-feed-out-rule-contains", "data-feed-rule-instructions", "data-feed-out-rule-function-key", "data-feed-out-rule-admission"];
@@ -27,7 +29,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
     };
     let feedJudgmentCatalogRequest = null;
     const readFeedJudgmentCatalog = () => {
-      if (!feedJudgmentCatalogRequest) feedJudgmentCatalogRequest = api("/api/feed/out-rules/judgments", "GET").finally(() => { feedJudgmentCatalogRequest = null; });
+      if (!feedJudgmentCatalogRequest) feedJudgmentCatalogRequest = api(feedApi + "/out-rules/judgments", "GET").finally(() => { feedJudgmentCatalogRequest = null; });
       return feedJudgmentCatalogRequest;
     };
     const loadFeedJudgments = async (section) => {
@@ -40,21 +42,21 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
         const result = await readFeedJudgmentCatalog();
         if (!select.isConnected || select.dataset.catalogRequest !== request) return;
         const selected = select.value || state.fields?.["data-feed-out-rule-function-key"] || "";
-        select.replaceChildren(new Option(L("请选择判断能力"), ""));
+        select.replaceChildren(new Option(FL("请选择判断能力"), ""));
         for (const choice of result.choices) {
           const value = JSON.stringify(choice.reference);
           const option = new Option(choice.title + (choice.available ? "" : " · " + choice.reason), value);
           option.disabled = !choice.available; select.append(option);
         }
         if (selected && !Array.from(select.options).some(option => option.value === selected)) {
-          const missing = new Option(L("原判断能力不可用，请重新选择"), selected); missing.disabled = true; select.append(missing);
+          const missing = new Option(FL("原判断能力不可用，请重新选择"), selected); missing.disabled = true; select.append(missing);
         }
         select.value = selected;
         for (const row of section.querySelectorAll("[data-feed-out-rule-row]")) {
           const usage = result.usages.find(usage => usage.binding_id === "feed.capture:" + row.dataset.feedOutRuleRow);
           const label = row.querySelector("[data-feed-rule-binding-status]");
-          if (usage && label) label.textContent = !usage.enabled ? L("已停用") : usage.availability.available ? L("已启用") : usage.availability.reason;
-          else if (label?.textContent.includes(L("正在检查判断能力"))) label.textContent = L("原判断能力不可用，请重新配置");
+          if (usage && label) label.textContent = !usage.enabled ? FL("已停用") : usage.availability.available ? FL("已启用") : usage.availability.reason;
+          else if (label?.textContent.includes(FL("正在检查判断能力"))) label.textContent = FL("原判断能力不可用，请重新配置");
         }
       } catch (error) { feedRuleStatus(section,error,true); }
     };
@@ -89,9 +91,9 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
       const contains = mode === "keyword" ? value("data-feed-out-rule-contains") : "";
       const selectedJudgment = mode === "existing" ? value("data-feed-out-rule-function-key") : "";
       const judgment = selectedJudgment ? JSON.parse(selectedJudgment) : null;
-      if (mode === "keyword" && !contains) throw new Error(L("填写一个关键词，再预览匹配结果。"));
-      if (mode === "natural" && !instructions) throw new Error(L("先描述你想捕捉什么消息。"));
-      if (mode === "existing" && !judgment) throw new Error(L("请选择一条已发布规则。"));
+      if (mode === "keyword" && !contains) throw new Error(FL("填写一个关键词，再预览匹配结果。"));
+      if (mode === "natural" && !instructions) throw new Error(FL("先描述你想捕捉什么消息。"));
+      if (mode === "existing" && !judgment) throw new Error(FL("请选择一条已发布规则。"));
       return { mode, instructions, contains, judgment, name: value("data-feed-out-rule-name") || contains || instructions.slice(0, 40), admission: value("data-feed-out-rule-admission") || "suggest" };
     };
     const ensureFeedFunctionDraft = async (section, rule) => {
@@ -117,7 +119,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
           name: rule.name, instructions: rule.instructions,
           criteria: { true_description: "符合用户描述，值得关注。", false_description: "不符合用户描述，无需关注。" },
           scene_id: ${JSON.stringify(FEED_CAPTURE_SCENE_ID)}, subject_kinds: ["feed_item"],
-          scene_map: { true: ${JSON.stringify(INBOX_ADMIT_BEHAVIOR_ID)}, false: ${JSON.stringify(FEED_OPEN_BEHAVIOR_ID)} }
+          scene_map: { true: ${JSON.stringify(INBOX_ADMIT_OPTION_ID)}, false: ${JSON.stringify(FEED_OPEN_OPTION_ID)} }
         })).function;
         state.functionContent = content;
         delete state.previewContent;
@@ -141,16 +143,16 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
       if (composer.getAttribute("aria-busy") === "true") return true;
       const preview = button.hasAttribute("data-feed-rule-preview-run");
       composer.setAttribute("aria-busy", "true"); composer.inert = true;
-      feedRuleStatus(section, L(preview ? "正在预览最近的消息…" : "正在保存规则…"));
+      feedRuleStatus(section, FL(preview ? "正在预览最近的消息…" : "正在保存规则…"));
       try {
         const rule = readFeedRule(section);
         const state = feedRuleState(section);
         if (preview) {
-          const result = await api("/api/feed/out-rules/preview", "POST", { source_id: section.dataset.feedOutRules, contains: rule.contains });
-          if (!result.samples.length) throw new Error(L("还没有可预览的消息。先拉取来源内容，再试一次。"));
+          const result = await api(feedApi + "/out-rules/preview", "POST", { source_id: section.dataset.feedOutRules, contains: rule.contains });
+          if (!result.samples.length) throw new Error(FL("还没有可预览的消息。先拉取来源内容，再试一次。"));
           if (rule.mode === "natural") {
             const settings = await api("/api/functions/settings", "GET");
-            if (!settings.has_credential) throw new Error(L("AI 判断还未连接。请在能力服务的连接设置中配置模型；当前输入已保留。"));
+            if (!settings.has_credential) throw new Error(FL("AI 判断还未连接。请在能力服务的连接设置中配置模型；当前输入已保留。"));
             await ensureFeedFunctionDraft(section, rule);
           }
           const rows = [];
@@ -165,9 +167,9 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
               matched = !needsReview && evaluated.noul >= 0.5;
               rememberFeedRule(section);
             } else if (rule.mode === "existing") {
-              const evaluated = await api("/api/feed/out-rules/preview-judgment", "POST", { judgment: rule.judgment, item_id: sample.item_id });
+              const evaluated = await api(feedApi + "/out-rules/preview-judgment", "POST", { judgment: rule.judgment, item_id: sample.item_id });
               needsReview = evaluated.status !== "ok";
-              matched = !needsReview && evaluated.suggested_behavior_ids.includes(${JSON.stringify(INBOX_ADMIT_BEHAVIOR_ID)});
+              matched = !needsReview && evaluated.suggested_behavior_ids.includes(${JSON.stringify(INBOX_ADMIT_OPTION_ID)});
             }
             rows.push({ title: sample.title, matched, needsReview });
           }
@@ -175,25 +177,25 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
           const output = section.querySelector("[data-feed-rule-preview]");
           output.replaceChildren();
           const heading = document.createElement("strong");
-          heading.textContent = L("最近 {count} 条消息的预览", { count: rows.length }); output.append(heading);
+          heading.textContent = FL("最近 {count} 条消息的预览", { count: rows.length }); output.append(heading);
           for (const row of rows) {
             const line = document.createElement("div"); line.className = "feed-rule-preview-row";
             const title = document.createElement("span"); title.textContent = row.title;
             const outcome = document.createElement("span"); outcome.className = "feed-rule-preview-outcome";
-            outcome.textContent = L(row.needsReview ? "待复核" : row.matched ? "匹配" : "不匹配");
+            outcome.textContent = FL(row.needsReview ? "待复核" : row.matched ? "匹配" : "不匹配");
             outcome.dataset.match = String(row.matched); line.append(title, outcome); output.append(line);
           }
           output.hidden = false;
-          feedRuleStatus(section, L("预览完成，未改变消息或 Inbox。"));
+          feedRuleStatus(section, FL("预览完成，未改变消息或 Inbox。"));
         } else {
           if (rule.mode === "natural") {
             const content = JSON.stringify({ name: rule.name, instructions: rule.instructions });
-            if (!state.function || state.previewContent !== content) throw new Error(L("请先用当前描述预览，再保存并启用。"));
+            if (!state.function || state.previewContent !== content) throw new Error(FL("请先用当前描述预览，再保存并启用。"));
             if (state.function.status !== "published") state.function = (await api("/api/functions/" + encodeURIComponent(state.function.id) + "/publish", "POST", { updated_at: state.function.updated_at })).function;
             rule.judgment = { capability_id: "functions.published." + state.function.function_key, version: state.function.version, provider_id: "system.functions" };
             rememberFeedRule(section);
           }
-          await api("/api/feed/out-rules", "POST", { name: rule.name || L("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, judgment: rule.judgment });
+          await api(feedApi + "/out-rules", "POST", { name: rule.name || FL("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, judgment: rule.judgment });
           feedRuleDrafts.delete(feedRuleKey(section));
           try { sessionStorage.removeItem(feedRuleKey(section)); } catch {}
           section.querySelectorAll("[data-feed-rule-composer] input, [data-feed-rule-composer] textarea").forEach(field => field.value = "");
@@ -201,7 +203,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
           section.querySelector("[data-feed-rule-preview]").hidden = true;
           feedRuleStatus(section, "");
           await refreshFeedStage(); hydrateFeedRuleDrafts();
-          showToast(L("规则已启用，将处理新消息和更新。"));
+          showToast(FL("规则已启用，将处理新消息和更新。"));
           feedRuleStatus(section, "");
         }
       } catch (error) { feedRuleStatus(section,error,true); }

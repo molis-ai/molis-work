@@ -30,7 +30,7 @@ describe("Lens cancellation", () => {
       let sequence = 0;
       const idFactory = { next: (prefix: string) => `${prefix}-cancel-${++sequence}` };
       const research = new SqliteResearchRepository(database);
-      research.createPlan({
+      research.plans.createPlan({
         id: "plan-cancel",
         key: marketLensCompatibilityKey("idea-01", 1),
         scopeSummary: "验证市场空间",
@@ -92,7 +92,7 @@ describe("Lens cancellation", () => {
       expect(runtime.crossCheck).not.toHaveBeenCalled();
       expect(runtime.synthesize).not.toHaveBeenCalled();
       expect(jobs.get(run.jobId)?.status).toBe("cancelled");
-      expect(research.getRun(run.id)?.status).toBe("cancelled");
+      expect(research.runs.getRun(run.id)?.status).toBe("cancelled");
     } finally {
       database.close();
       temp.cleanup();

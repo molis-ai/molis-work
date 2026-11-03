@@ -1,5 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -11,7 +12,7 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { managementGoals } from "./goal-management-caller.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import type { GoalEventClosureResult, GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventClosureResult, GoalEventStateView } from "@molis-ai/molis-work-plugin-goals/contract";
 
 function localType() {
   return {
@@ -31,12 +32,14 @@ test("Runtime state tools record progress and close without applying user identi
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-state-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory });
+  let served: TestHostServer | undefined;
   let runtime: MolisWorkServer | undefined;
   let management: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "状态闭环", actor_id: "user" });
-    await grantGoalsMcp(homeDirectory, project);
+    served = await serveTestHost(null, { home: homeDirectory, host });
+    await grantGoalsMcp(served, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -156,6 +159,7 @@ test("Runtime state tools record progress and close without applying user identi
   } finally {
     await runtime?.close();
     await management?.close();
+    await served?.close();
     await host.close();
     catalog.close();
     rmSync(directory, { recursive: true, force: true });
@@ -166,11 +170,13 @@ test("Runtime agree unknown field and omitted close version are rejected with no
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-unknown-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory });
+  let served: TestHostServer | undefined;
   let runtime: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "未知字段", actor_id: "user" });
-    await grantGoalsMcp(homeDirectory, project);
+    served = await serveTestHost(null, { home: homeDirectory, host });
+    await grantGoalsMcp(served, project);
     runtime = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
       projectId: project.project_id,
@@ -206,6 +212,7 @@ test("Runtime agree unknown field and omitted close version are rejected with no
     assert.equal(after.observed_event_cursor, state.observed_event_cursor);
   } finally {
     await runtime?.close();
+    await served?.close();
     await host.close();
     catalog.close();
     rmSync(directory, { recursive: true, force: true });
@@ -216,12 +223,14 @@ test("MCP agreement_change request keeps request-time commitment; later related 
   const directory = mkdtempSync(join(tmpdir(), "molis-work-mcp-goal-events-stale-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory });
+  let served: TestHostServer | undefined;
   let runtime: MolisWorkServer | undefined;
   let management: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "过期请求", actor_id: "user" });
-    await grantGoalsMcp(homeDirectory, project);
+    served = await serveTestHost(null, { home: homeDirectory, host });
+    await grantGoalsMcp(served, project);
     const connection = {
       databasePath: project.database_path,
       projectId: project.project_id,
@@ -287,6 +296,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
   } finally {
     await runtime?.close();
     await management?.close();
+    await served?.close();
     await host.close();
     catalog.close();
     rmSync(directory, { recursive: true, force: true });

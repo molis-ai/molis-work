@@ -71,14 +71,14 @@ test("real workspace payload installs offline from an unrelated directory and pr
       const db = new Database(':memory:'); db.exec('CREATE TABLE probe(value TEXT)'); db.close();
       await import('node-pty');
       const { ProjectsModule } = await import('@molis-ai/molis-work-module-projects');
-      const { loadBuiltinPlanningMethodPacks } = await import('@molis-ai/molis-work-module-goals');
+      const { loadBuiltinPlanningMethodPacks } = await import('@molis-ai/molis-work-plugin-goals/module');
       const developerMethod = loadBuiltinPlanningMethodPacks().find(method => method.method_id === 'industry-developer-tools');
       console.log(JSON.stringify({ projectType: typeof ProjectsModule, method: developerMethod?.name }));
     `], { cwd: installed.release_directory, env: { ...process.env, NODE_PATH: "" } });
     assert.deepEqual(JSON.parse(moduleResult.stdout), { projectType: "function", method: "开发者工具" });
     const methodPath = "industries/industry-developer-tools.md";
     assert.deepEqual(await readFile(join(installed.skill_directory, "goal-advance", "methods", methodPath)),
-      await readFile(join(process.cwd(), "modules", "goals", "methods", methodPath)));
+      await readFile(join(process.cwd(), "plugins", "native", "goals", "methods", methodPath)));
     assert.ok((await stat(join(installed.skill_directory, "molis-plugin-dev", "SKILL.md"))).isFile());
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

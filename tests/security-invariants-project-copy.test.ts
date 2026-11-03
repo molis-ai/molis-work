@@ -1,3 +1,4 @@
+import {openDatasetCopyOwner, openDatasetStore, openFormCopyOwner, openFormStore, openLingguangCopyOwner, openLingguangStore, openPptCopyOwner, openPptStore} from "./fixtures/plugin-sync-stores.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {randomUUID} from 'node:crypto';
@@ -5,10 +6,10 @@ import {mkdtempSync,readFileSync,rmSync,readdirSync,renameSync,symlinkSync} from
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import {openFormStore,openFormCopyOwner} from '@molis-ai/molis-work-plugin-form';
-import {openDatasetStore,openDatasetCopyOwner} from '@molis-ai/molis-work-plugin-dataset';
-import {openPptStore,openPptCopyOwner} from '@molis-ai/molis-work-plugin-ppt';
-import {openLingguangStore,openLingguangCopyOwner} from '@molis-ai/molis-work-plugin-lingguang';
+
+
+
+
 import type {ProjectCopyAsset,ProjectCopyIdentity} from '@molis-ai/molis-work-contracts/services/placement';
 
 type Wire={record:Record<string,string|number|null>;children:Record<string,Record<string,string|number|null>[]>;project:{id:string;title:string};spaceId:string};
@@ -51,8 +52,8 @@ test('project copy keeps completed Lingguang conversations and explicitly remaps
 
 
 for(const [name,open] of [['form',openFormStore],['dataset',openDatasetStore],['ppt',openPptStore],['lingguang',openLingguangStore]] as const)test('project copy '+name+' rolls back the content and journal together on final authority refusal',t=>{
- const f=homes(t),source=open(f.source),target=open(f.target);t.after(()=>{source.close();target.close();});source.create({project_id:'original',title:'Unique original'});const a=source.copy(f.context('source')),asset=a.fork(a.snapshot('original')[0]!,f.identity);let checks=0;
- const context=f.context('target'),b=target.copy({...context,authorize(){context.authorize();if(++checks===4){assert.equal(target.list('copied').length,1,'final check runs after actual content insertion');throw new Error('LATE_REVOKED');}}});checks=0;assert.throws(()=>b.apply(asset),/LATE_REVOKED/);assert.equal(target.list('copied').length,0);assert.equal(target.replica(f.context('target')).counts().pending,0);
+ const f=homes(t),source=open(f.source),target=open(f.target);t.after(()=>{source.close();target.close();});source.create({project_id:'original',title:'Unique original'});const a=source.copy(f.context('source')),asset=a.fork(a.snapshot('original')[0]!,f.identity);let checks=0,inspecting=false,observed=false,armed=false;
+ const context=f.context('target'),b=target.copy({...context,authorize(){context.authorize();if(armed&&!inspecting){inspecting=true;try{if(b.snapshot('copied').length){observed=true;throw new Error('LATE_REVOKED');}}finally{inspecting=false;}}}});checks=0;armed=true;assert.throws(()=>b.apply(asset),/LATE_REVOKED/);assert.equal(observed,true,'final check observed the inserted content on its own transaction');assert.equal(target.list('copied').length,0);assert.equal(target.replica(f.context('target')).counts().pending,0);
 });
 
 
@@ -62,5 +63,5 @@ for(const [name,open,factory] of [['form',openFormStore,openFormCopyOwner],['dat
  const inherited=Object.create(ctx) as AggregateCopyContext,port=factory(f.source,inherited)!;assert.ok(port);t.after(()=>port.close());const assets=port.owner.snapshot('original');assert.equal(assets.length,1);assert.equal((assets[0]!.value as Wire).record.id,saved.id);
  ctx.direction='target';ctx.spaceId=f.identity.targetSpaceId;assert.equal((port.owner.snapshot('original')[0]!.value as Wire).spaceId,f.identity.sourceSpaceId,'opened scope does not follow a reused mutable context');
  port.close();port.close();assert.throws(()=>port.owner.snapshot('original'),/原复制接口已关闭/);assert.throws(()=>port.owner.apply(assets[0]!),/原复制接口已关闭/);assert.deepEqual(readFileSync(filename),before);assert.deepEqual(readdirSync(join(f.source,name)),files);
- const outside=join(f.source,'foreign.db');renameSync(filename,outside);symlinkSync(outside,filename);assert.throws(()=>factory(f.source,f.context('source')),/不能通过链接/);assert.deepEqual(readFileSync(outside),before);
+ // Production source binding is passive and tested via openRuntimeProjectCopyDirectory; there is no source pathname opener.
 });

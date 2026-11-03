@@ -1,4 +1,5 @@
-import { icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderIconSprite } from "@molis-ai/molis-work-design-system";
 const button = (action: string, label: string, glyph: Parameters<typeof icon>[0], extra = "") =>
   `<button type="button" class="im-icon-button ${extra}" data-action="${action}" aria-label="${label}" title="${label}">${icon(glyph)}</button>`;
 function composer(kind: "group" | "thread") {

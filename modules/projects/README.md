@@ -60,8 +60,10 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 - 公开入口：`@molis-ai/molis-work-module-projects`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/projects`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 目录库不保存项目库路径：由必填的 `projects_directory` 与单段 `project_id` 推导，合同的 `database_path` 是读出值。不是普通目录名的 id 在创建和读取时拒绝，项目库不由本模块移动（W5-17、S-102）。
   - 身份只有 `project_id`：目录条目、项目数据库、库里的根行 `project_root` 与 Goals 的看板同值。项目库正好有一行根行，项目库里引用项目的外键（插件声明的表也一样）指向它，不指向 Goals 的表；根行不存标题，显示名只在目录里（`specs/plugin-project-database` §2.4）。
   - 目录关联只由本模块管理，不建第二份目录库；按项读取当前项目，不返回其他项目的关联。
+  - `query.projectPluginMembership` 在一次同步查询中共用当前常开判断，返回派生成员与过滤后的隐藏标记；先读取注册表，再查项目。结果不留在实例中，后续调用及等待后的写前检查仍须重新读取当前状态。`storedProjectPluginMembership` 只返回显示事实，不能代替它作可达性判断。
   - 卸载检查只提供目录事实，不删除用户文件。
   - `query.wasProjectPluginRemoved` 只读本项目的移除事实，供可信 Host 区分从未安装和用户主动移除；同步到达不能覆盖后者的本机选择。
   - 卸载检查只列 `projects` 表里的项目（`listCatalogProjectsForUninstall`）；`catalog_meta` 归 storage，目录是不是本产品的，由宿主用 `LocalCatalogMetadata` 判断后再问本模块。
@@ -75,9 +77,6 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 - [职责与接入说明](../../docs/modules/projects.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/projects`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ap1`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

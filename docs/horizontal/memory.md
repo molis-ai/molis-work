@@ -4,6 +4,14 @@
 
 **类别：** 平台产品服务（[系统架构 §3](../system/ARCHITECTURE.md)），不是技术性的横向运行服务。哪些内容可以记、怎样从工作里提出建议、召回时先带哪些，是跨插件的产品策略；这类策略可以放在这里，但记忆不拥有任何插件或 Module 的业务事实：业务对象的事实永远向所有者读取，记忆只记「用户想让系统记住什么」。位置暂不变动，仍在 `horizontal/memory`。
 
+**首期策略接入（设计，尚未实现）：** [现役 spec](../../specs/prologue-memory-strategy/spec.md) 是新方案的范围与验收来源，[包合同](../../horizontal/memory/README.md#首期策略接入合同设计尚未实现) 定义本包边界。Molis 声明场景、类型、生命周期、使用方读写矩阵和产品批准政策；Prologue 执行共同的候选、写入、状态、异步召回、token 预算和最终使用回执。分类不是授权，Coding 与助理也不是两个记忆库。下面「提供」仍是现有行为，不表示新矩阵或新 SDK 已可用。
+
+采用时保留旧 Home 的有效开关、人工条目和待认可建议；不以「没有保存设置」判断为新用户，不把未知场景默认放到 common。现有管理入口、恢复/导入、历史/撤销、配对/维护和项目删除一起接到新门，不能只切换 Agent 的读取入口。P0 不搬历史正文、不换 `molis.memory` 信封。SDK 由 Agent Host 单一适配入口采用可追溯构建包，SDK 源码存在某项能力不等于本产品已消费。
+
+单值纠正保持同一个 memory_id，以领域版本条件更新，历史与撤销仍沿用该身份。session 记忆绑定可信逻辑 Session：归档时暂停、取消归档只在原期限内恢复、purge 永久结束；单轮完成和退出进程不会结束会话，任何恢复或读取都不自动延长到期时间。
+
+格式采用须遵守 [合同变更流程](../system/CONTRACT-CHANGES.md)：沿用 `MemoryLedger` 的严格基线版本门，在 inference/builder 绑定、SDK 初始化和处理器可用之前校验；失败不留下半装配。先在隔离副本验证有效配置与分类映射，以及旧产品 Web、MCP、Home 入口明确拒绝且没有 SDK 目标写入，再按授权操作真实 Home。这保护受支持的产品入口，不是对同一磁盘/密钥权限下任意程序的隔离承诺；首期不建 generation 库或第二个 Runtime root。失败保持拒写或只读排障，不静默退回旧写路径，不从旧快照恢复用户后来已遗忘的内容。
+
 **提供：**
 
 - 系统动作 `memory.*`（提供方 `system.memory`，Host 装配在 `apps/local-host/src/memory/memory-host.ts`）：`memory.recall`、`memory.list`、`memory.write`、`memory.change`、`memory.history`、`memory.candidates.list`、`memory.candidates.accept`、`memory.candidates.discard`、`memory.changes.list`、`memory.changes.undo`、`memory.prefs.read`、`memory.prefs.write`、`memory.signals.report`、`memory.pairs.list`、`memory.pairs.resolve`、`memory.upkeep.run`、`memory.scope.preview`、`memory.scope.clear`、`memory.export`、`memory.import`。使用方（助理、Agent、界面、插件、MCP）由可信调用上下文的受众得出，不从输入读；`memory.recall` 声明了界面、Agent、工作流和 MCP，`memory.write` 与 `memory.list` 声明了界面和 Agent，MCP 只能召回，其余动作只对界面。外部 MCP 客户端要先有本人在 `config/mcp-tools.json` 里给它的 `memory.recall` 授权才看得到、调得了，默认只读项目记忆，个人记忆要本人单独打开（`tests/memory-mcp.test.ts`）。插件受众「未启用」（决定 19，W2-03）：没有插件用记忆，生成插件的调用也不带宿主确认的插件身份，所以这三个动作都带 `plugin: false`，目录和创作台的「能力板」都不向插件提供；有插件要用记忆时，连同宿主确认的插件身份一起重新打开，服务里按插件命名空间和类别的规则一直保留。逐项核对见 [CALL-CHAINS §8](../system/CALL-CHAINS.md)。
@@ -17,7 +25,7 @@
 - 项目被删除时清掉该项目及其角色的记忆（`purgeProjectMemories`，Host 在 `apps/local-host/src/memory/memory-host.ts` 里把它登记为删除收据里的一步）：存储里的条目与候选、旁表里与之相关的一切；Agent 运行环境只有执行进程会为这一步启动，别的入口把这一步留给它。
 - 界面信号计数：情境动作被接受、忽略、改写、撤销的次数（只记动作和标题，不记内容）。单次事件不会形成记忆；次数和不同场合都过了门槛，才提出一条待认可的建议。
 
-**技术状态：** 旁表在 `{home}/memory/memory.db`（版本 2，建库代码在 `packages/storage/src/adapters/memory-ledger.ts`）：历史版本、候选、最近变动、开关、界面信号、使用记录、所有者标题、配对和标记。记忆正文、版本号、墓碑和作用域隔离在 Prologue Memory，经 `horizontal/agent-host` 的适配器访问；旁表只在条目存在时保留某个旧版本的文字，条目删除时一并清掉。
+**技术状态：** 旁表在 `{home}/memory/memory.db`（版本 3，建库代码在 `packages/storage/src/adapters/memory-ledger.ts`）：历史版本、候选、最近变动、开关、界面信号、使用记录、所有者标题、配对和标记。记忆正文、版本号、墓碑和作用域隔离在 Prologue Memory，经 `horizontal/agent-host` 的适配器访问；旁表只在条目存在时保留某个旧版本的文字，条目删除时一并清掉。
 
 **不拥有：** 记忆正文与版本（Prologue Memory）；模型调用和提炼（Agent Host，记忆服务自己不调模型）；交互规则（助理规则引擎）；项目说明（Goals）；设置页面（工作台，`apps/workbench/src/settings-memory.ts`）。
 

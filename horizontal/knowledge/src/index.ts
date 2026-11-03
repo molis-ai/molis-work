@@ -1,3 +1,4 @@
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import {
   ActionError,
   isSearchEntriesSource,
@@ -58,19 +59,7 @@ export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";
 export { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
-export { locateSections, type KnowledgeLocateDraft, type KnowledgeLocateDraftInput, type KnowledgeLocator } from "./locate.js";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-knowledge",
-  packagePath: "horizontal/knowledge",
-  kind: "horizontal",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/services/knowledge",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["knowledge.recall.v1"],
-} as const;
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+export { knowledgeLocateData, locateSections, type KnowledgeLocateDraft, type KnowledgeLocateDraftInput, type KnowledgeLocator } from "./locate.js";
 
 /**
  * One caller's way into its project: the client of that project and the caller's own trusted context. `beforeEffect` is the
@@ -112,7 +101,7 @@ const reasonOf = (error: unknown) => (error instanceof Error ? error.message : S
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 /** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */
 const cardHit = (card: KnowledgeCardRecord, matched: KnowledgeMatchLayer): KnowledgeCard => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title,
-  plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
+  plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: cutHead(card.brief, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
 
 /** A card as `list` shows it: no text, and section notes only when organized from this revision. */
 const entryOf = (card: KnowledgeCardRecord): KnowledgeListEntry => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title, plugin_id: card.plugin_id,
@@ -164,7 +153,7 @@ export class KnowledgeService {
       const stored = this.stored(project, hit.subject, hit.plugin_id);
       if (stored?.excluded) continue;
       cards.push({ subject: hit.subject, ref: knowledgeRef(hit.subject), revision: hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
-        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open });
+        updated_at: hit.updated_at, matched: hit.locator.field, hint: cutHead(hit.snippet, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open });
     }
     // What only a card's own words match (its brief, keywords, section notes), for a caller who may see the piece.
     const more = this.options.cards.search(project, input.query, limit * 2).map(match => this.options.cards.get(project, match.subject))
@@ -182,7 +171,7 @@ export class KnowledgeService {
     const near = new Map(ranked.map(item => [`${item.kind}\u0000${item.id}`, item.snippet ?? ""]));
     for (const card of relatedCards(shown, [ranked, this.options.cards.related(project, input.query, RELATED_POOL)]).slice(0, limit - cards.length)) {
       const hit = cardHit(card, "related"), snippet = near.get(`${card.subject.kind}\u0000${card.subject.id}`);
-      cards.push(snippet ? { ...hit, hint: snippet.slice(0, HINT_CHARS) } : hit);
+      cards.push(snippet ? { ...hit, hint: cutHead(snippet, HINT_CHARS) } : hit);
     }
     return { status: found.status, cards };
   }
@@ -257,11 +246,12 @@ export class KnowledgeService {
     if (!range) throw knowledgeErrors.anchor_unknown("这份资料现在没有这个分节，先用 knowledge.outline 重新看它的结构", { anchor: input.anchor ?? null, revision: context.revision });
     const start = range.start + (input.offset ?? 0);
     if (start > range.end) throw knowledgeErrors.invalid("读取位置超出了这一段的长度", { offset: input.offset ?? 0, length: range.end - range.start });
+    await access.beforeEffect?.();
     const round = roundOf(access.caller), left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
     const until = input.max_lines === undefined ? range.end : Math.min(range.end, afterLines(lines, start, input.max_lines, context.content.length));
     const end = Math.min(until, start + Math.min(asked, left ?? asked));
     const text = context.content.slice(start, end);
-    await this.receipt(access, [{ context, via: "read", chars: text.length }]);
+    this.receipt(access, [{ context, via: "read", chars: text.length }]);
     this.budget.spend(round, text.length);
     const startLine = lineAt(lines, start);
     return { subject: context.subject, ref: knowledgeRef(context.subject, "allow"), revision: context.revision, title: context.title, layer: "original", text, start, end,
@@ -290,6 +280,7 @@ export class KnowledgeService {
     const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
     // Lines found are original text: they count toward the round's fill, and the rest is left with `more`. Counts are not text.
+    await access.beforeEffect?.();
     const round = roundOf(access.caller), fill = lines ? this.budget.left(round) : null;
     let chars = 0;
     const given: Array<{ context: ActionSubjectContext; via: "grep"; chars: number }> = [];
@@ -311,7 +302,7 @@ export class KnowledgeService {
       given.push({ context: outcome.context, via: "grep", chars: taken });
     });
     result.found.sort((a, b) => b.lines - a.lines);
-    await this.receipt(access, given);
+    this.receipt(access, given);
     this.budget.spend(round, chars);
     const roundLeft = lines ? fill : this.budget.left(round);
     return { ...result, round_chars_left: roundLeft === null ? null : roundLeft - chars };
@@ -351,10 +342,8 @@ export class KnowledgeService {
   }
 
   /** Who got original text of which piece, written once the call is still current right before it (PMAT-12). */
-  private async receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>): Promise<void> {
+  private receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>): void {
     const given = reads.filter(item => item.chars > 0);
-    if (!given.length) return;
-    await access.beforeEffect?.();
     const { caller } = access, at = (this.options.clock?.() ?? new Date()).toISOString();
     for (const { context, via, chars } of given) {
       this.options.cards.addReceipt({ project_id: caller.project_id!, at, subject: context.subject, revision: context.revision, via, chars, actor_id: caller.actor_id,

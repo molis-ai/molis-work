@@ -24,7 +24,7 @@ export function createGetResearchWorkspaceService(dependencies: Dependencies) {
   return async (ideaId: string, ideaVersion: number, signal?: AbortSignal): Promise<IdeaResearchWorkspaceDto> => {
     const version = dependencies.ideas.getVersion(ideaId, ideaVersion);
     if (!version) throw new Error("alchemist.idea_version_not_found");
-    const scope = dependencies.research.getMvpScopeForIdeaVersion(ideaId, ideaVersion);
+    const scope = dependencies.research.plans.getMvpScopeForIdeaVersion(ideaId, ideaVersion);
     const marketKey = marketLensCompatibilityKey(ideaId, ideaVersion);
     const costKey = scope ? buildLensCompatibilityKey(ideaId, ideaVersion, scope.version) : undefined;
     return {
@@ -43,23 +43,23 @@ export function createGetResearchWorkspaceService(dependencies: Dependencies) {
 
 async function lensWorkspace(dependencies: Dependencies, key: LensCompatibilityKey, signal?: AbortSignal): Promise<LensWorkspaceDto> {
   const repository = dependencies.research;
-  const storedPlan = repository.getLatestPlan(key);
+  const storedPlan = repository.plans.getLatestPlan(key);
   const plan = storedPlan ? await dependencies.workReuse?.projectPlan(storedPlan, signal) ?? storedPlan : undefined;
-  const run = plan ? repository.getRunForPlan(plan.id) : repository.getLatestRun(key);
-  const report = repository.getLatestReport(key);
+  const run = plan ? repository.runs.getRunForPlan(plan.id) : repository.runs.getLatestRun(key);
+  const report = repository.reports.getLatestReport(key);
   return {
     lens: key.lens,
     status: deriveStatus(plan, run, report),
     ...(plan ? { plan } : {}),
     ...(run ? { run } : {}),
-    ...(report ? { report, evidence: repository.listEvidence(report.id) } : {}),
+    ...(report ? { report, evidence: repository.reports.listEvidence(report.id) } : {}),
   };
 }
 
 function deriveStatus(
-  plan: ReturnType<SqliteResearchRepository["getLatestPlan"]>,
-  run: ReturnType<SqliteResearchRepository["getLatestRun"]>,
-  report: ReturnType<SqliteResearchRepository["getLatestReport"]>,
+  plan: ReturnType<SqliteResearchRepository["plans"]["getLatestPlan"]>,
+  run: ReturnType<SqliteResearchRepository["runs"]["getLatestRun"]>,
+  report: ReturnType<SqliteResearchRepository["reports"]["getLatestReport"]>,
 ): LensViewStatus {
   if (run) {
     if (run.status === "interrupted") return "queued";

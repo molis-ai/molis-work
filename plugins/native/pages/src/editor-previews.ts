@@ -1,10 +1,10 @@
 import type { EditorView } from "prosemirror-view";
 import { TextSelection } from "prosemirror-state";
-import { followScroll, placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { followScroll, placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { linkAt, commentAt } from "./commands.js";
 import { bookmarkLabel, safePagesHref } from "./link.js";
 import type { PagesEditorMountOptions } from "./editor-types.js";
-import { t } from "./editor-view-ui.js";
+import { t, keepFocus } from "./editor-view-ui.js";
 
 function previewButton(options: Pick<PagesEditorMountOptions, "translate">, label: string): HTMLButtonElement {
   const button = document.createElement("button");
@@ -72,8 +72,8 @@ export function createEditorPreviews(options: Pick<PagesEditorMountOptions, "tra
 
   function bind(view: EditorView,
     openLink: (view: EditorView) => void, openComment: (view: EditorView) => void): void {
-    linkPreview.addEventListener("mousedown", (event) => event.preventDefault());
-    commentPreview.addEventListener("mousedown", (event) => event.preventDefault());
+    linkPreview.addEventListener("mousedown", keepFocus);
+    commentPreview.addEventListener("mousedown", keepFocus);
     commentEdit.addEventListener("click", () => openComment(view));
     linkOpen.addEventListener("click", () => {
       const found = linkAt(view.state.doc, view.state.selection);

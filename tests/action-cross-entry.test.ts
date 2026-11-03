@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
@@ -7,8 +8,8 @@ import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { scheduleCapabilities } from "@molis-ai/molis-work-contracts/services/scheduler";
-import type { PluginCapabilityClient, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { agentHostCapabilities as service } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 import { crossEntrySchedule as subject, crossEntryTodo as todo, isCrossEntryObject } from "./fixtures/cross-entry-subjects.js";
@@ -19,21 +20,21 @@ async function scheduleSdk(t: Parameters<typeof openTestHome>[0], home: TestHome
   let sdk: BoundActionClient | undefined;
   const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference, false), project_id: project.project_id };
   const runtime = await home.host.withProject(project.reference, owner => new PluginRuntime(undefined, new PluginHostExecutor({ actions,
-    project_id: project.project_id, actor_id: "schedule-sdk-owner", artifacts: owner.coordinator.artifacts, processItems: owner.coordinator.processItems,
-    ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions }));
+    project_id: project.project_id, actor_id: "schedule-sdk-owner", artifacts: owner.artifacts, processItems: owner.processItems,
+    ui: new UiHost(), privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, actions }));
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.schedule-sdk", version: "1.0.0", name: "Schedule consumer", kind: "app",
     publisher: { publisher_id: "fixture", signature: "schedule-sdk" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "schedule:read", required: true, reason: "Read the original task" }, { permission: "schedule:write", required: true, reason: "Save the authorized task" }],
     capabilities: { provides: [], consumes: [subject.create.capability_id, subject.archive.capability_id, subject.list.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
     async start(context) { sdk = context.services?.actions; return { kind: "app" }; } };
-  const install = runtime.install({ definition, deployment: "local", grants: ["schedule:read", "schedule:write"] }).install;
+  const install = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["schedule:read", "schedule:write"] }).install;
   t.after(() => runtime.stop(install.install_id));
   await runtime.start(install.install_id); assert.ok(sdk, "the real executor bound the declared action client"); return sdk;
 }
 
 function object(value: unknown) { assert.ok(isCrossEntryObject(value), JSON.stringify(value)); return value; }
 async function page(home: TestHome, path: string, input: unknown) {
-  const response = await fetch(home.origin + path, { method: "POST", headers: { origin: home.origin, "content-type": "application/json",
+  const response = await fetch(home.origin + path.replace("/list/tasks", "/tasks"), { method: "POST", headers: { origin: home.origin, "content-type": "application/json",
     "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(input) });
   const body: unknown = await response.json();
   return { status: response.status, body: object(body), callId: response.headers.get("x-molis-work-call-id") };
@@ -107,34 +108,41 @@ test("W3-09-1-01 T1: page, actual MCP tool and the bound plugin SDK action clien
   for (const result of results) assert.ok(persisted.tasks.some(task => task.task_id === result.task.task_id && task.title === input.title && task.clock_label === time && task.enabled));
 });
 
-test("W3-09-1-01 T4: the actual typed service records refusals, requires its original plugin identity and leaves successful reads unrecorded", { timeout: 60_000 }, async t => {
-  let client: PluginCapabilityClient | undefined;
+// R8 batches 3 and 4 (RAC-180, RAC-182): the Agent service is plugin-only actions, so the refusals here are the action service's, each
+// recorded, and the identity a session is opened for is never the request's to give.
+test("W3-09-1-01 T4: the Agent service records refusals, requires its original plugin identity and leaves successful reads unrecorded", { timeout: 60_000 }, async t => {
+  let actions: BoundActionClient | undefined;
   const definition: PluginDefinition = {
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.cross-entry-service", version: "1.0.0", name: "Typed service fixture", kind: "app",
       publisher: { publisher_id: "fixture", signature: "typed-service-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-      permissions: [], capabilities: { provides: [], consumes: [scheduleCapabilities.cancel.capability_id, scheduleCapabilities.list.capability_id] },
+      permissions: [], capabilities: { provides: [], consumes: [service.createSession.capability_id, service.listRuntimes.capability_id] },
       artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
-    async start(context) { client = context.services?.capabilities; return { kind: "app", views: [], actions: [] }; }, async stop() {},
+    async start(context) { actions = context.services?.actions; return { kind: "app", views: [], actions: [] }; }, async stop() {},
   };
   const home = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } });
   const project = await home.createProject("Cross entry typed service", ["schedule"]);
   await home.host.inspectActions({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] }, project.reference);
-  assert.ok(client, "the production executor opened the fixture's declared service port");
+  assert.ok(actions, "the production executor opened the fixture's declared service port");
   const changed = t.mock.method(home.host.search!, "changed");
+  const fields = (record: ReturnType<typeof row>) => [record.operation, record.actor_id, record.audience, record.ok, record.code, record.refused];
+  // A caller that is not a plugin has no plugin identity to open a session for: refused before any Runtime is asked.
   const directId = newCallId();
-  await withCallId(directId, () => assert.rejects(home.host.client(project.reference).invoke(scheduleCapabilities.cancel, { job_id: "missing" }),
-    { code: "scheduler.job_invalid", message: "插件身份无效" }));
-  const direct = row(home, directId, scheduleCapabilities.cancel.capability_id);
-  assert.deepEqual([direct.path, direct.actor_id, direct.ok, direct.code], ["typed", "local-host", false, "scheduler.job_invalid"]);
-  const native = client, missingId = newCallId();
-  await withCallId(missingId, () => assert.rejects(native.invoke(scheduleCapabilities.cancel, { job_id: "missing" }),
-    { code: "scheduler.job_not_found", message: "定时任务不存在" }));
-  const missing = row(home, missingId, scheduleCapabilities.cancel.capability_id);
-  assert.deepEqual([missing.path, missing.ok, missing.code], ["typed", false, "scheduler.job_not_found"]);
+  await withCallId(directId, () => assert.rejects(home.host.client(project.reference).invoke(service.createSession, ["prologue", { title: "refused" }] as never),
+    { code: "actions.forbidden" }));
+  assert.deepEqual(fields(row(home, directId, service.createSession.capability_id)), ["command", "local-host", "user", false, "actions.forbidden", true]);
+  // The plugin's own call cannot name another owner: the schema refuses the forged identity.
+  const native = actions, forgedId = newCallId();
+  const forged = ["prologue", { project_id: "foreign", plugin_id: "io.molis.work.other", install_id: "foreign", actor_id: "foreign", title: "refused" }] as never;
+  await withCallId(forgedId, () => assert.rejects(native.invoke(service.createSession, forged), { code: "actions.input_invalid" }));
+  assert.deepEqual(fields(row(home, forgedId, service.createSession.capability_id)), ["command", "web-user", "plugin", false, "actions.input_invalid", true]);
+  // Without a forged owner the same call reaches the service as the plugin, whose refusal is recorded as the service's own.
+  const missingId = newCallId();
+  await withCallId(missingId, () => assert.rejects(native.invoke(service.createSession, ["no-such-runtime", { title: "own" }] as never), { code: "agent.runtime_unknown" }));
+  assert.deepEqual(fields(row(home, missingId, service.createSession.capability_id)), ["command", "web-user", "plugin", false, "agent.runtime_unknown", undefined]);
   const readId = newCallId();
-  assert.deepEqual(await withCallId(readId, () => native.invoke(scheduleCapabilities.list, {})), { jobs: [] });
-  assert.deepEqual(home.host.callLog!.find(readId), [], "a successful typed query is not a platform command");
-  assert.equal(changed.mock.calls.length, 0, "the typed service creates no plugin owner-change signal");
+  assert.ok(Array.isArray(await withCallId(readId, () => native.invoke(service.listRuntimes, []))));
+  assert.deepEqual(home.host.callLog!.find(readId), [], "a successful query is not a platform command");
+  assert.equal(changed.mock.calls.length, 0, "the Agent service creates no plugin owner-change signal");
 });
 
 test("W3-09-1-01 T2: an owner refusal preserves its literal error and each page/MCP/SDK action diagnostic row without changing tasks", { timeout: 60_000 }, async t => {
@@ -185,17 +193,18 @@ test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equall
 
 test("W3-09-1-01 T5: a real Shelf page caller retains the operation id on schema refusal before any owner write", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Literal page caller", ["shelf"]);
-  const path = `/projects/${encodeURIComponent(project.project_id)}/api/shelf`;
-  const before = await home.web.get(path);
-  const refused = await page(home, path + "/items", { text: "原材料保留", title: "x".repeat(201), capture_pages: false });
+  const path = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.shelf`;
+  const before = await home.web.get(path + "/");
+  const refused = await page(home, path + "/items", { text: "原材料保留", title: "x".repeat(201) });
   assert.equal(refused.status, 400); assert.equal(refused.body.code, "actions.input_invalid");
   assert.equal(refused.callId, refused.body.call_id);
   const record = row(home, refused.callId, shelfActions.admit.capability_id);
-  assert.deepEqual([record.ok, record.code, record.refused, record.project_id, record.actor_id], [false, "actions.input_invalid", true, null, "web-user"]);
-  assert.deepEqual(await home.web.get(path), before, "invalid material creates no Shelf item or job");
+  // A Home plugin route under a project's prefix runs in that project, so the row names the page's project.
+  assert.deepEqual([record.ok, record.code, record.refused, record.project_id, record.actor_id], [false, "actions.input_invalid", true, project.project_id, "web-user"]);
+  assert.deepEqual(await home.web.get(path + "/"), before, "invalid material creates no Shelf item or job");
 });
 
-test("W3-09-1-01 T6: a disabled ordinary plugin returns the same 403 refusal through its page and actual Host gateway, with findable rows and no owner write", { timeout: 60_000 }, async t => {
+test("W3-09-1-01 T6: a stopped Runtime withdraws its actions and rejects page and saved gateway access without owner writes", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Disabled cross entry", ["schedule"]);
   await home.grant(clientId, project.project_id, [subject.create, subject.list]);
   const path = subject.path(project.project_id), before = await home.web.get(path);
@@ -204,40 +213,36 @@ test("W3-09-1-01 T6: a disabled ordinary plugin returns the same 403 refusal thr
   const input = subject.input("停用后不得新建", "23:00");
   const refusedPage = await page(home, path + "/tasks", input);
   assert.equal(refusedPage.status, 403); assert.equal(refusedPage.body.code, "actions.plugin_disabled");
-  assert.equal(refusedPage.callId, refusedPage.body.call_id); assert.ok(typeof refusedPage.body.error === "string");
+  assert.equal(refusedPage.callId, null); assert.equal(refusedPage.body.call_id, undefined, "the page is rejected before entering an action");
+  assert.ok(typeof refusedPage.body.error === "string");
   const gatewayId = newCallId();
   await withCallId(gatewayId, () => assert.rejects(connection.client.invoke(connection.caller, subject.create, input),
-    { code: "actions.plugin_disabled", message: refusedPage.body.error }));
-  const typedId = newCallId();
-  await withCallId(typedId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input),
-    { code: "actions.forbidden" }));
-  assert.equal(row(home, typedId, subject.create.capability_id).code, "actions.forbidden");
-  for (const id of [refusedPage.callId, gatewayId]) {
-    const record = row(home, id, subject.create.capability_id);
-    assert.deepEqual([record.ok, record.code, record.refused], [false, "actions.plugin_disabled", true]);
-    const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + String(id).slice(0, 8));
-    assert.equal(diagnostics.status, 200);
-    const html = await diagnostics.text();
-    assert.ok(html.includes(`data-molis-call-id="${id}"`), "the real diagnostics page offers the actual operation number for copying");
-    assert.match(html, /actions\.plugin_disabled/u); assert.match(html, /未执行/u);
-  }
+    { code: "actions.missing" }));
+  // The Host's own project client refuses the withdrawn action as the gateway does: there is no other path to fall back to.
+  const hostId = newCallId();
+  await withCallId(hostId, () => assert.rejects(home.host.client(project.reference).invoke(subject.create, input),
+    { code: "actions.missing" }));
+  assert.equal(row(home, hostId, subject.create.capability_id).code, "actions.missing");
+  const diagnostics = await fetch(home.origin + "/settings/diagnostics?call=" + hostId.slice(0, 8));
+  assert.equal(diagnostics.status, 200);
+  const html = await diagnostics.text();
+  assert.ok(html.includes(`data-molis-call-id="${hostId}"`));
+  assert.match(html, /actions\.missing/u); assert.match(html, /未执行/u);
   await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   assert.deepEqual(await home.web.get(path), before, "reenabling exposes the unchanged owner's task facts");
 });
 
-test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the Host under its exact saved grant and records one refusal", { timeout: 60_000 }, async t => {
+test("W3-09-2-01: a stopped Runtime removes the MCP tool even with a saved grant; reenabling preserves owner facts and revocation still applies", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Named unavailable action", ["schedule"]);
   await home.grant(clientId, project.project_id, [subject.create, subject.list]);
   const path = subject.path(project.project_id), before = await home.web.get(path);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
   await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
   const input = subject.input("隐藏能力不得写入", "23:00"), fromMcp = await mcpCall(mcp, subject.create.capability_id, input, false);
-  assert.equal(fromMcp.result.isError, true); assert.equal(fromMcp.body.code, "actions.plugin_disabled");
+  assert.equal(fromMcp.result.isError, true); assert.equal(fromMcp.body.code, "mcp.tool_unknown");
   assert.ok(typeof fromMcp.body.error === "string");
-  const record = row(home, fromMcp.body.call_id, subject.create.capability_id);
-  assert.deepEqual([record.ok, record.code, record.refused, record.actor_id, record.audience, record.project_id],
-    [false, "actions.plugin_disabled", true, clientId, "mcp", project.project_id]);
-  assert.equal(home.host.callLog!.find(String(fromMcp.body.call_id)).length, 1, "the named tool does not create a second diagnostic or typed row");
+  assert.equal(fromMcp.body.call_id, undefined, "an unregistered tool never starts a platform invocation");
+  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 0);
   const ungranted = await mcp.handleMessage({ jsonrpc: "2.0", id: 3, method: "tools/call", params: {
     name: `molis_work_v1_action_${subject.archive.capability_id}__v1`, arguments: { task_id: "missing" } } });
   assert.match(JSON.stringify(ungranted), /mcp\.tool_unknown/u);
@@ -249,7 +254,7 @@ test("W3-09-2-01: a real MCP tool hidden after plugin disable still reaches the 
     name: `molis_work_v1_action_${subject.create.capability_id}__v1`, arguments: input } });
   // Removing the saved grant makes this dynamic tool unknown; no second Host row is made.
   assert.match(JSON.stringify(denied), /mcp\.tool_unknown/u);
-  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 1, "revoked authority does not enter the Host a second time");
+  assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.create.capability_id).length, 0, "revoked authority never enters the Host");
 });
 
 test("W3-09-3-01/02: actual Home Todo MCP writes require complete read revisions while the person's page keeps its contract", { timeout: 60_000 }, async t => {

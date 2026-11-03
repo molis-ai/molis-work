@@ -1,180 +1,25 @@
 {
-  "note": "A table is read and written only by the package that creates it (scripts/gates/table-owners.mjs). \"shared\" lists the tables several packages use on purpose; \"same_name\" lists the tables two packages each create, in different databases. Both are checked against the code in both directions: a package that uses a shared table and is not listed fails, a listed package that no longer uses it fails, a table that more than one package creates and is not under same_name fails, and a same_name entry that is not exactly the creating packages fails.",
-  "shared": {
-    "events": {
-      "owner": "packages/storage",
-      "users": ["modules/goals", "modules/governance-collaboration"],
-      "reason": "The project journal: one append-only log per project database, one cursor sequence for all of it. Storage creates the table and owns its journal API (LocalSqliteJournal: eventCursor, appendEvent, getIdempotency, putIdempotency, all on the project database's one connection, so a module's own transaction already covers a call to it). Goals and Governance still carry their own copy of those few statements. The reason is dependency direction, not transactions: they depend only on the contracts package and cannot import storage. Artifacts takes the journal as injected functions (appendEvent, eventCursor) and has left this list; Goals and Governance move to the same injected journal port as a follow-up, and then this entry is deleted."
-    },
-    "idempotency_records": {
-      "owner": "packages/storage",
-      "users": ["modules/goals", "modules/governance-collaboration"],
-      "reason": "The replay record of write actions: (project, actor, operation, key) with the request hash and the stored outcome. Storage creates the table and has the journal functions for it (getIdempotency, putIdempotency). Goals and Governance keep their own copy of the read and the insert, run inside the same transaction as the change the record guards, because they depend only on the contracts package and cannot import storage; they move to the injected journal port as a follow-up, and then this entry is deleted. The row is keyed by the operation name its writer chooses; no package reads another's operations."
-    },
-    "acceptance_criteria": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "boards": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_agreements": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_applied_decisions": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_closures": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_concerns": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_config_versions": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_configs": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_decision_requests": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_progress_summaries": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_requirement_bindings": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_requirement_conclusions": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_requirements": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_state_owners": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_trusted_decisions": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/governance-collaboration"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/governance-collaboration until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_types": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_event_work_status": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_relations": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_trash_records": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_trash_relation_records": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_tree_proposal_decisions": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/governance-collaboration"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/governance-collaboration until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_tree_proposal_items": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/governance-collaboration"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/governance-collaboration until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_tree_proposals": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/governance-collaboration"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/governance-collaboration until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_work_event_judgments": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goal_work_events": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "goals": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "input_bindings": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "planning_method_packs": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "policy_bindings": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "project_guidance_entries": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    },
-    "project_guidance_revisions": {
-      "owner": "plugins/native/goals",
-      "users": ["modules/goals"],
-      "reason": "Goals declares this table in its Manifest (databases.project, S8, PG-020) and the plugin creates it; the SQL that reads and writes it stays in modules/goals until S9 moves Goals' storage into the plugin, and then this entry is deleted."
-    }
-  },
+  "note": "A table is read and written only by the package that creates it (scripts/gates/table-owners.mjs). \"shared\" lists the tables several packages use on purpose; \"same_name\" lists the tables two packages each create, in different databases. Both are checked against the code in both directions: a package that uses a shared table and is not listed fails, a listed package that no longer uses it fails, a table that more than one package creates and is not under same_name fails, and a same_name entry that is not exactly the creating packages fails. \"areas\" lists directories inside a package that own their tables as a package would (Feed’s src/store); the rest of that package then counts as another owner, and an area that does not exist, holds a package.json, sits inside another area or no longer creates a table fails.",
+  "shared": {},
   "same_name": {
     "workspaces": {
-      "packages": ["modules/projects", "plugins/native/alchemist"],
+      "packages": [
+        "modules/projects",
+        "plugins/native/alchemist"
+      ],
       "reason": "Two different tables in two different databases: the project catalog's workspaces (modules/projects, the catalog database) and the Alchemist's workspaces (plugins/native/alchemist, one studio.sqlite per project). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
     },
     "jobs": {
-      "packages": ["plugins/native/alchemist", "plugins/native/images"],
+      "packages": [
+        "plugins/native/alchemist",
+        "plugins/native/images"
+      ],
       "reason": "Two different tables in two different databases: the Alchemist's jobs (plugins/native/alchemist, one studio.sqlite per project) and Images' jobs (plugins/native/images, images.db). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
+    }
+  },
+  "areas": {
+    "plugins/native/feed/src/store": {
+      "reason": "The Feed store owns the Feed tables it creates (items, materials, sources, Listener runs, signals and their events): the rest of the Feed package reads and writes them through the store's functions, so a Feed file outside src/store that names one of these tables in SQL fails (BL-802, T-125: this replaced the hand-written three-table list, directFactSql, that scripts/check-package-boundaries.mjs held)."
     }
   }
 }

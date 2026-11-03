@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { shelfManifest, shelfRuntimeActions } from "@molis-ai/molis-work-plugin-shelf";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -52,8 +52,8 @@ test("W5-01-CODING-08 the preview of a fixed change set is the very copy the hos
   });
 });
 
-test("W5-01-CODING-09 the action Shelf asks for is the one contract definition Coding declares, and Shelf's Manifest names it and holds the permission it needs", () => {
-  // One definition in the contracts (`modules/coding`): Coding declares that very object and Shelf consumes its id; neither plugin carries a copy.
+test("W5-01-CODING-09 the action Shelf asks for is the one definition Coding declares, and Shelf's Manifest names it by id and holds the permission it needs", () => {
+  // The definition lives in Coding (`@molis-ai/molis-work-plugin-coding/contract`, PG-111) and Shelf consumes its id: the Host runs Coding's schemas, Shelf keeps only a view to ask with.
   assert.ok(codingManifest.actions?.some(row => Object.is(row, codingResultDocument)), "Coding's Manifest declares the contract's definition");
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(shelfManifest)));
   assert.deepEqual(manifest.capabilities.consumes, [codingResultDocument.capability_id]);
@@ -104,6 +104,6 @@ test("W5-01-CODING-12 the host no longer composes the boundary: no file, no Shel
     assert.ok(!assembly.includes(name), `project-plugins.ts still mentions ${name}`);
   }
   const ports = readFileSync(join(REPOSITORY, "plugins/native/shelf/src/runtime-actions.ts"), "utf8");
-  const declaration = ports.slice(ports.indexOf("export interface ShelfResultPorts"), ports.indexOf("\n}", ports.indexOf("export interface ShelfResultPorts")));
-  assert.deepEqual([...declaration.matchAll(/^\s+(\w+)\(/gmu)].map(row => row[1]), ["projectPath", "receive"], "the host gives Shelf only where the pages are and where a copy is admitted");
+  assert.doesNotMatch(ports, /ShelfResultPorts|projectPath\(/, "the plugin needs no host-composed ports");
+  assert.match(ports, /services\.actions\.dependencies\.invoke/, "the project instance delivers through the public action service");
 });

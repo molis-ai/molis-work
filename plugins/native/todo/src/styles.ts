@@ -1,5 +1,5 @@
 export const TODO_STYLES = `
-  [data-todo=workbench] { --plugin-tint: var(--plugin-todo, var(--accent)); }
+  [data-todo=workbench] { --plugin-tint: var(--ink-soft); }
   [data-todo=workbench] .todo-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
   /* The header is in the flow (several rows), so the space the shell keeps for its single-row chrome is not needed. */
   body.immersive-workbench .plugin-stage-shell[data-todo=workbench] > .todo-list.plugin-stage-list { padding-top: 16px; }

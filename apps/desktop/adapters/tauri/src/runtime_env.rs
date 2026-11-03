@@ -1,4 +1,3 @@
-use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub(crate) fn login_shell_path() -> String {
@@ -16,21 +15,4 @@ pub(crate) fn login_shell_path() -> String {
         }
         _ => std::env::var("PATH").unwrap_or_default(),
     }
-}
-
-pub(crate) fn resolve_command(command: &str, search_path: &str) -> PathBuf {
-    let candidate = PathBuf::from(command);
-    if candidate.is_absolute() || command.contains('/') {
-        return candidate;
-    }
-    for dir in search_path.split(':') {
-        if dir.is_empty() {
-            continue;
-        }
-        let path = Path::new(dir).join(command);
-        if path.is_file() {
-            return path;
-        }
-    }
-    candidate
 }

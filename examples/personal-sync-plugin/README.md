@@ -8,6 +8,8 @@
 
 样例的便笺属于整个个人 Home，明确声明 `belongsToProject` 为 false；项目生命周期检查不因独立便笺而误阻塞。共同 SDK 仍对未声明归属的文档报告不支持，不能把不明归属当作干净。此样例只有数据接口，没有页面，因而不伪造内容定位。
 
+样例显式实现必需的 `SyncDocumentOwner.authorizeKey`：复核当前激活、`storage:private` 授权与笔记键格式，不读取附件或生成快照，也不要求记录当前存在，因此正常墓碑仍可接收。便笺没有项目作用域；项目型作者应在该回调中检查当前记录及传入保留正文的项目权限。公共 SDK 把此能力提供给 Runtime，并在冻结上传、冲突、恢复版本及其列表中再次检查，缺少声明不会默认放行。
+
 
 独立开发和分发：在干净目录只复制本目录源文件，安装已构建的公共 SDK/Contracts 包，然后执行 `npm run build`、`npm pack`。没有 TypeScript、Host、Storage 或 Prologue 依赖；Node 自带类型擦除生成 `plugin.js`，Manifest 从唯一 PluginDefinition 导出。归档只包含执行入口、Manifest 和说明，不包含仓库或开发状态。安装仍需 Host 的正常包校验、身份与用户授权；本地打包不等于正式签名发布。
 

@@ -1,16 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-diff";
+import { compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
+import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
-import { pageText } from "./fixtures/page-text.js";
+import { diffPageText } from "./fixtures/diff-page-text.js";
 
-// specs/visual-ui-experience VUX-33 (§code-diff, shared row geometry): a change's line numbers and code keep their rows
+// DFP-03; specs/visual-ui-experience VUX-33 (§code-diff, shared row geometry): a change's line numbers and code keep their rows
 // under the page's zoom in and out, fractional device pixels and a missing code font. Every row's cells share its top and bottom;
 // rows of one line are all one height whether they hold Latin, Chinese, emoji or tabs (glyphs from a fallback font do not
 // grow a line); a number sits on its code's baseline; a tab is the shared `--code-tab` (4) wide, the same in both layouts.
 
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const primitives = { escape, text: pageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
+const primitives = { escape, text: diffPageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
 const BEFORE = ["function check(x) {", "\treturn x;", "// 中文注释：行高不变", "const mark = 'ok';", "\t\tnested(1);", "}", ""].join("\n");
 const AFTER = ["function check(x) {", "\treturn x + 1;", "// 中文注释：行高不变，再加几个字", "const mark = '🙂✅';", "\t\tnested(1);", "\tadded(2);", "}", ""].join("\n");
 
@@ -18,12 +19,12 @@ function write() {
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-rows", applied: true, files: [{ path: "rows.ts", kind: "modified", added_lines: 4, removed_lines: 3, diff: "",
     review: { review_id: "review-rows", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  const html = (mode: "unified" | "split") => renderDiff({ labels: DIFF_LABELS, view: { ...view, mode }, primitives, line_feedback: true, fold_context: 3, sides: false });
   return { html, patch: unifiedPatch(view.rows, { path: "rows.ts" }) };
 }
 
 type Geometry = { rows: number; misaligned: string[]; heights: number[]; baseline: string[]; tabs: number[]; zero: number };
-const GEOMETRY = (list: string) => `(() => { const ol = ${list}, rows = [...ol.querySelectorAll(':scope > li:not([hidden]):not(.diff-fold)')];
+const GEOMETRY = (list: string) => `(() => { const ol = ${list}, rows = [...ol.querySelectorAll(':scope > li:not([hidden]):not(.mw-diff-fold)')];
   const out = { rows: rows.length, misaligned: [], heights: [], baseline: [], tabs: [], zero: 0 };
   const glyph = (node, at) => { const range = document.createRange(); range.setStart(node, at); range.setEnd(node, at + 1); return range.getClientRects()[0]; };
   // The first glyph of a cell's own text: for code, past the line's sign and its indent.
@@ -55,10 +56,10 @@ test("VUX-33: change rows keep their numbers and code together under zoom, fract
   const body = (mode: "unified" | "split") => ({ html: html(mode), change: { files: [file] }, reference: { artifact_id: "artifact-rows", version: 1 },
     saved_at: "2026-10-21T00:00:00.000Z", view_mode: "write", net_groups: [], output: null, patch });
   await evaluate(`fakes.push({method:'GET',path:'layout=split',body:${JSON.stringify(body("split"))}},{method:'GET',path:'layout=unified',body:${JSON.stringify(body("unified"))}})`);
-  const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.diff-rows')`;
+  const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.mw-diff-rows')`;
   await evaluate("localStorage.removeItem('molis-coding-diff-layout')");
   await openItem(`coding-changeset:${encodeURIComponent(session)}:run-rows`);
-  await waitFor(`!${reader}.hidden && !!${list} && !${list}.classList.contains('diff-split')`, 30_000);
+  await waitFor(`!${reader}.hidden && !!${list} && !${list}.classList.contains('mw-diff-split')`, 30_000);
   const conditions: Array<[string, () => Promise<unknown>]> = [
     ["as shipped", async () => {}],
     ["1.25 device pixels", () => command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1.25, mobile: false }, sessionId)],
@@ -66,13 +67,13 @@ test("VUX-33: change rows keep their numbers and code together under zoom, fract
     // Zooming the page (the browser's or the desktop's) scales device pixels and narrows the page in CSS pixels.
     ["zoomed to 125%", () => command("Emulation.setDeviceMetricsOverride", { width: 1088, height: 720, deviceScaleFactor: 1.25, mobile: false }, sessionId)],
     ["zoomed to 90%", () => command("Emulation.setDeviceMetricsOverride", { width: 1511, height: 1000, deviceScaleFactor: 0.9, mobile: false }, sessionId)],
-    ["a missing code font", async () => { await evaluate("const style = document.createElement('style'); style.textContent = '.diff .diff-rows { font-family: MolisMissingMono, monospace !important; }'; document.head.append(style)"); }],
+    ["a missing code font", async () => { await evaluate("const style = document.createElement('style'); style.textContent = '.mw-diff .mw-diff-rows { font-family: MolisMissingMono, monospace !important; }'; document.head.append(style)"); }],
   ];
   for (const [name, apply] of conditions) {
     await apply();
     for (const layout of ["unified", "split"] as const) {
       await evaluate(`${reader}.querySelector('[data-coding-change-layout=${layout}]').click()`);
-      await waitFor(`${list} && ${list}.classList.contains('diff-split') === ${layout === "split"}`, 15_000);
+      await waitFor(`${list} && ${list}.classList.contains('mw-diff-split') === ${layout === "split"}`, 15_000);
       await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
       const seen = await evaluate<Geometry>(GEOMETRY(list));
       const where = `${name}, ${layout}`;

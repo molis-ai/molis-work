@@ -34,7 +34,8 @@ export async function modelRuntimeFixture(t: TestContext, format: "openai-chat-c
   const sources: { root: string; label?: string; bytes: Buffer; mode: number; directoryMode: number }[] = [];
   let answer: () => Promise<{ text: string; status?: number }> = async () => ({ text: '{"answer":"original"}' });
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += String(chunk);
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw) as ModelRequest; requests.push(body);
     const reply = await answer();
     if (response.destroyed) return;
@@ -80,6 +81,7 @@ export async function modelRuntimeFixture(t: TestContext, format: "openai-chat-c
   const complete = (model: PluginModelClient, request: PluginModelRequest = {}) => model.complete(instructed(probe.instruction, "材料"), { selection, ...request });
   const invoke = (next: Run, context: Partial<ActionCallContext> = {}) => { run = next; return f.host.homeActionClient().invoke({ ...person(probe.permissions), ...context }, probe.ask, {}); };
   return { ...f, probe, platform, install, selection, connectionId: connection.connection_id, requests, receipts, sources, save, complete, invoke,
+    base: `http://127.0.0.1:${address.port}`,
     model: () => probe.contexts.at(-1)!.services!.model!,
     answer: (next: typeof answer) => { answer = next; },
     async result(request: PluginModelRequest = {}): Promise<PluginModelResult> {

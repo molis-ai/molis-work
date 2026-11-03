@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { followScroll, pinAt, placeFloating, placeOverlay, scrollShouldFollow } from "@molis-ai/molis-work-design-system/floating";
+import { followScroll, pinAt, placeFloating, placeOverlay, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 // W1-02 (context-program §18): where a floating layer goes is one thing in the design system. The Pages editor, the toolbar next to
 // a selection and the popovers in a split pane place themselves with it. It is a leaf with no import, so a page bundle takes it alone.
@@ -100,7 +100,7 @@ test("W1-02: following the page's scroll stops when asked, and ignores the panel
 });
 
 test("W1-02: the subpath is a leaf a page bundle can take alone: no import, nothing of Node", () => {
-  const source = readFileSync(new URL(import.meta.resolve("@molis-ai/molis-work-design-system/floating")), "utf8");
+  const source = readFileSync(new URL(import.meta.resolve("@molis-ai/molis-work-plugin-sdk/browser")), "utf8");
   assert.doesNotMatch(source, /^\s*import\s/mu);
   assert.doesNotMatch(source, /\bfrom\s+["']/u);
   assert.doesNotMatch(source, /node:/u);

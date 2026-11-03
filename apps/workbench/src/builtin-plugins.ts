@@ -2,9 +2,7 @@
 // edit: change the plugin's own registration and regenerate; `pnpm health:check` fails while this file is out of date.
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { registration as alchemistRegistration } from "@molis-ai/molis-work-plugin-alchemist/registration";
-import { registration as artifactsRegistration } from "@molis-ai/molis-work-plugin-artifacts/registration";
 import { registration as pluginBuilderRegistration } from "@molis-ai/molis-work-plugin-builder/registration";
-import { registration as charactersRegistration } from "@molis-ai/molis-work-plugin-characters/registration";
 import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
 import { registration as cogniaRegistration } from "@molis-ai/molis-work-plugin-cognia/registration";
 import { registration as datasetRegistration } from "@molis-ai/molis-work-plugin-dataset/registration";
@@ -25,7 +23,6 @@ import { registration as scheduleRegistration } from "@molis-ai/molis-work-plugi
 import { registration as shelfRegistration } from "@molis-ai/molis-work-plugin-shelf/registration";
 import { registration as textStatsRegistration } from "@molis-ai/molis-work-plugin-text-stats/registration";
 import { registration as todoRegistration } from "@molis-ai/molis-work-plugin-todo/registration";
-import { registration as workRegistration } from "@molis-ai/molis-work-plugin-work/registration";
 import { registration as workflowsRegistration } from "@molis-ai/molis-work-plugin-workflows/registration";
 
 /** Every plugin this build ships, in catalog order: the shared build composition for the catalog and the UI resources. */
@@ -36,21 +33,18 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   imagesRegistration,
   jellyRegistration,
   goalsRegistration,
-  workRegistration,
   inboxRegistration,
   scheduleRegistration,
   feedRegistration,
   shelfRegistration,
   lingguangRegistration,
   todoRegistration,
-  charactersRegistration,
   pagesRegistration,
   formRegistration,
   datasetRegistration,
   pptRegistration,
   alchemistRegistration,
   workflowsRegistration,
-  artifactsRegistration,
   codingRegistration,
   filesRegistration,
   gitRegistration,

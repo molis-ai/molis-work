@@ -14,7 +14,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | `SearchService`：来源发现、同步、失败恢复、查询聚合、打开核对 |
+| [src/index.ts](src/index.ts) | `SearchService` 保留实例状态、生命周期与授权查询；同文件函数负责索引同步、正文读取、来源与状态投影 |
 | [src/references.ts](src/references.ts) | 可引用的对象：`findReferenceCandidates`（`search.references` 动作，按种类在调用者的项目里找、每个都向对象主人重读）与 `confirmReferences`（宿主在带引用的回答交给运行之前逐个再读，安全不变量 S-26）。上下文条的落点取候选也走这一对 |
 
 合同在 `@molis-ai/molis-work-contracts/services/search`（消费合同与索引端口）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的搜索来源协议）。索引持久化由 `@molis-ai/molis-work-storage` 的 `openTextSearchIndex` 实现，Host 装配在 [apps/local-host/src/search-actions.ts](../../apps/local-host/src/search-actions.ts)。
@@ -42,7 +42,7 @@ pnpm --filter @molis-ai/molis-work-service-search build
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 只经动作目录调用插件声明的动作，不读取插件私有库；来源由协议声明发现，不维护名单。
-  - 查询结果与摘要只来自调用者当前可用的来源；正文由读取器提供的种类还要求调用者能用该读取器。
+  - 查询结果与摘要只来自调用者当前可用的来源；正文由读取器提供的种类还要求调用者能用该读取器。 等待索引之后、披露正文与定位信息之前，异步复核并同步尾检本次原 source/reader 授权；重新授权或新 reader 不救活旧请求（ACA005），个人空间仍核其原 owner 的 scope。
   - 建索引用 Host 提供的本机用户上下文，结果不随提问者变化；被停用的插件不在索引里留内容。
   - 一次同步失败不删除已有条目；删除只在完整列出之后发生。
   - 打开时对象读取器报任何错（已加密锁定、只有文件引用、暂时不可读，或插件自己抛的普通错误）都只说明“现在读不到”：随后一律再问来源自己的完整列出，列出里仍有就返回 `unavailable` 并保留索引条目，没有才返回 `missing` 并移出索引。读取器报错的错误码与措辞都不作判断依据。
@@ -55,8 +55,5 @@ pnpm --filter @molis-ai/molis-work-service-search build
 
 - [职责与接入说明](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/services/search`
-- Migration Goals: `goal-reorg-f2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

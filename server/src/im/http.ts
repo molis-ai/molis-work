@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ImError } from "./errors.js";
 
 const MAX_BODY_BYTES = 64_000;
@@ -43,6 +45,7 @@ export function imJson(response: ServerResponse, status: number, value: unknown)
 }
 
 export function imFailure(response: ServerResponse, error: unknown): void {
+  if (error instanceof ActionError) { const failure = actionErrorResponse(error); imJson(response, failure.status, failure.body); return; }
   if (error instanceof ImError) { imJson(response, error.status, { code: error.code, error: error.message }); return; }
   // Identity providers may expose their own typed authentication errors.
   if (error instanceof Error && "status" in error && [400, 401, 403, 409, 422].includes(Number(error.status))

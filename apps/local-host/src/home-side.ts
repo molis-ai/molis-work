@@ -4,11 +4,14 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { homeStores } from "./home-stores.js";
+import { HomeConsentLedger } from "./home-plugin-store.js";
+import type { InProcessAdmission, PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 import type { PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginPlatformEntry } from "./plugin-platform.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions } from "./project-host.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
+import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /**
  * What a plugin platform is given of the Home it runs in. A platform that reaches no Home in this process is given `null`
@@ -24,6 +27,8 @@ export interface PluginPlatformHome {
   completeText(): HostCompleteText | null | undefined;
   /** The Home's stores (W4-11): a plugin is given a library only when the library is registered here as its own. */
   readonly stores: HomeStoreRegistry;
+  /** What a person agreed to for the plugins of this Home, and the publishers they pinned (ac-trust): one answer for every project. */
+  readonly consents: PluginConsentLedger;
 }
 
 type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor">;
@@ -32,7 +37,17 @@ type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginF
  * What each Home's Host was built with, by resolved path. A Home has one open Host at a time (its Agent service binds the
  * Home's inference once), so there is one entry per Home, and it leaves with its Host.
  */
-const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions }>();
+const sides = new Map<string, { host: MolisWorkLocalHost; options: HomeSideOptions; catalog?: LocalWebCatalogRunner }>();
+
+/** Project activations read the same catalog owner that settings commit to. */
+export function bindPluginCatalog(host: MolisWorkLocalHost, home: string, catalog: LocalWebCatalogRunner): void {
+  const side = sides.get(path.resolve(home));
+  if (side?.host === host) side.catalog = catalog;
+}
+
+export function pluginCatalogFor(home: string): LocalWebCatalogRunner | undefined {
+  return sides.get(path.resolve(home))?.catalog;
+}
 
 /**
  * Binds a Host to its Home when it is built: the Home's Agent service, as before, and what a plugin platform reads of this Host
@@ -53,7 +68,14 @@ export function releaseHomeSide(host: MolisWorkLocalHost): void {
 /** The Home for a platform to be given: what it reads of the Host is looked up on each call. */
 export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
   const directory = path.resolve(homeDirectory);
-  return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures) };
+  return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures),
+    consents: new HomeConsentLedger(directory) };
+}
+
+/** The existing, single Agent runtime of this Home; never creates a second runtime for a plugin. */
+export function pluginAgentRuntime(home: PluginPlatformHome) {
+  const side = sides.get(home.directory);
+  return side ? ensureSystemAgentService(side.host, home.directory) : undefined;
 }
 
 /**
@@ -64,25 +86,25 @@ export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
 export function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeStoreRegistry {
   const registry = homeStores(), own = new Map<string, HomeStore>();
   for (const fixture of [...fixtures?.project ?? [], ...fixtures?.home ?? []]) {
-    if ("manifest" in fixture) continue;
-    const names = new Set([fixture.database?.store_name, fixture.files?.store_name, fixture.owner_files?.store_name]);
+    const entry = "manifest" in fixture ? { definition: fixture } : fixture, database = entry.definition.manifest.databases?.home;
+    const names = new Set([database?.store_name, entry.definition.manifest.owner_files?.store_name]);
     for (const name of names) {
       if (!name || registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
-      own.set(name, { path: name, owner: fixture.definition.manifest.plugin_id,
-        ...(fixture.database?.store_name === name ? { library: { baseline: fixture.database } } : {}) });
+      own.set(name, { path: name, owner: entry.definition.manifest.plugin_id,
+        ...(database?.store_name === name ? { library: { baseline: database, ...database.partition ? { partition: database.partition } : {} } } : {}) });
     }
   }
   return own.size ? homeStoreRegistry([...registry.stores, ...own.values()]) : registry;
 }
 
 /**
- * A plugin a Host is given for a test or a probe: a definition, or a definition with the library in the Home the Host gives it
- * (what a start-list entry does for a shipped plugin, `PluginPlatformEntry.database`; the definition itself declares none).
+ * A plugin a Host is given for a test or a probe: a definition, or a definition with the half of a dual-instance plugin it is (what a
+ * start-list entry does for a shipped plugin). Its library in the Home is the one its Manifest declares (`databases.home`).
  */
 export type PluginFixture = PluginDefinition | PluginOwnerFilesEntry;
 
 /**
- * The test fixtures the Host bound to this Home was given, as start entries for a project's platform. Never `bundled`: a
+ * The test fixtures the Host bound to this Home was given, as start entries for a project's platform. Never `host` trust: a
  * fixture is not a plugin the Host ships, so it registers under its installation id and no shipped plugin's id.
  */
 export function projectFixtureEntries(homeDirectory: string | undefined): PluginPlatformEntry[] {
@@ -99,11 +121,25 @@ export function pluginFixtureDeclarations(fixtures: readonly PluginFixture[]): P
   return fixtures.map(fixture => "manifest" in fixture ? { definition: fixture } : { ...fixture });
 }
 
+/**
+ * What a Host given test fixtures admits to its Runtimes' process without `host` trust (S-75 ⑥): the fixtures it starts, and the
+ * definitions its test installs by hand (`pluginFixtures.installed`, a set the test fills before it installs). Objects, as given.
+ */
+export function fixtureAdmission(entries: readonly PluginPlatformEntry[], installed: ReadonlySet<PluginDefinition> | undefined): InProcessAdmission {
+  const listed = new Set(entries.map(entry => entry.definition));
+  return { admit: { has: definition => listed.has(definition) || installed?.has(definition) === true } };
+}
+
+/** The set of definitions the test Host bound to this Home was told it would install by hand. */
+export function installedFixturesFor(homeDirectory: string | undefined): ReadonlySet<PluginDefinition> | undefined {
+  return homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.installed : undefined;
+}
+
 export function fixtureDeclarationsFor(homeDirectory: string | undefined, scope: "home" | "project"): PluginPlatformEntry[] {
   return pluginFixtureDeclarations(homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.[scope] ?? [] : []);
 }
 
-/** Both scopes use the same unbundled, in-process fixture declarations. */
+/** Both scopes use the same in-process fixture, without `host` trust, declarations. */
 export function pluginFixtureEntries(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
   return pluginFixtureDeclarations(fixtures).map(entry => {
     const { definition } = entry;

@@ -200,7 +200,6 @@ export const SHELF_STYLES = `
     max-width: 16px; overflow: hidden; opacity: 1;
     transition: opacity var(--da-t) var(--da-ease);
   }
-  [data-shelf] .shelf-row .shelf-status svg { width: 14px; height: 14px; }
   [data-shelf] .shelf-row:is(:hover, :focus-within, .is-on):not(.is-child) :is(.shelf-when, .shelf-status, .shelf-now) {
     max-width: 0; margin: 0; opacity: 0; pointer-events: none;
   }

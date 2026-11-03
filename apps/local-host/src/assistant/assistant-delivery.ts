@@ -1,4 +1,5 @@
-import { escapeHtml, RECEIPT_WORDS, type InteractionNextStep } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { RECEIPT_WORDS, type InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputModelClaim, AgentInputQuestion, AgentQueuedInput, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantActivity, AssistantRound, AssistantWorkObject, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";

@@ -77,6 +77,7 @@ export interface SyncConflictInspection {
 export type SyncConflictState = (event: SyncEvent, local: unknown, localRevision: number) => string;
 
 export interface SyncContentCodec {
+    prepare?(key: string, value: unknown): Promise<void>;
     encode(key: string, value: unknown): {
         value: unknown;
         blobs: SyncBlobSource[];
@@ -113,6 +114,7 @@ export interface SyncRecoveryRecord {
 }
 
 export interface SyncReplicaAdapter {
+    authorizeKey?(key: string, value?: unknown): void;
     next(options?: {
         deletionsOnly?: boolean;
         excludeKeys?: readonly string[];

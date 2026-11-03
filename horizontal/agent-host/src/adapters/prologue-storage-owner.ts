@@ -1,19 +1,20 @@
-import { mkdirSync } from "node:fs";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { acquireStorageOwner, borrowStorageOwner, type StorageOwner } from "@molis-ai/molis-work-storage";
+import { agentErrors } from "../errors.js";
 
-/** The SDK's recovery assumes a sole execution owner. Never recover another live owner's work. */
-export function acquirePrologueStorageOwner(directory: string): () => void {
-  mkdirSync(directory, { recursive: true });
-  const db = new DatabaseSync(path.join(directory, ".molis-runtime-owner.db"));
-  try { db.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE"); }
+/** The SDK borrows a real Home owner, or owns this same storage lock itself for an independent runtime. */
+export function acquirePrologueStorageOwner(directory: string, parent?: StorageOwner): () => void {
+  let owned: StorageOwner | undefined;
+  try {
+    const owner = parent === undefined ? (owned = acquireStorageOwner(directory)) : parent;
+    const child = borrowStorageOwner(directory, owner);
+    return () => { child.release(); owned?.release(); };
+  }
   catch (error) {
-    db.close();
-    if ((error as { errcode?: number }).errcode === 5 || (error as { errcode?: number }).errcode === 6) {
-      throw Object.assign(new Error("Agent 执行服务正由另一个进程使用；当前入口尚未接通该执行方，请在原入口处理。原任务不会被撤回。"), { code: "agent.storage_busy" });
+    owned?.release();
+    if (error instanceof ActionError && error.code === "storage.owner.busy") {
+      throw agentErrors.storage_busy("Agent 执行服务正由另一个进程使用；请在原入口处理，原任务不会被撤回。");
     }
     throw error;
   }
-  let released = false;
-  return () => { if (!released) { released = true; db.close(); } };
 }

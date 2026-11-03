@@ -26,6 +26,7 @@ export async function readMcpActionAccess(home: string, host: MolisWorkLocalHost
     const reason = status === "stale" ? "能力所需权限已变化，请查看新权限后重新授权。"
       : status === "unavailable" ? accepted && !accepted.availability.available ? accepted.availability.reason : "当前授权不再满足调用条件，请刷新后检查。" : undefined;
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
+      ...(view.provider.plugin_id ? { plugin_id: view.provider.plugin_id } : {}),
       title: view.action.title, provider_title: view.provider.title, description: view.action.description, kind: view.action.kind,
       permissions: view.action.permissions, status, ...(reason ? { reason } : {}),
       can_enable: status === "ungranted" || status === "disabled" || status === "stale", can_revoke: !!grant?.enabled || defaultOpen };

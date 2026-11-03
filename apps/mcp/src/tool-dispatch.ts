@@ -1,20 +1,26 @@
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
+
+/** The three Goals actions the management tools call, by the id and version Goals registers them under. */
+export const MANAGEMENT_GOAL_ACTIONS = {
+  initialize: { capability_id: "goals.board.initialize", version: 2 },
+  decide: { capability_id: "goals.decisions.record", version: 1 },
+  treeDecide: { capability_id: "goals.tree.decide", version: 2 },
+} as const;
+type McpGoalActionReference = { readonly capability_id: string; readonly version: number };
 
 /** The Host's management port: the entry chooses a Goals action and business input, never a caller or permissions. */
 export interface McpManagementActions {
   readonly project_id: string;
-  invoke<Output>(definition: ActionDefinition<unknown, Output>, input: Record<string, unknown>, evidence?: unknown): Promise<Output>;
+  invoke<Output = unknown>(reference: McpGoalActionReference, input: Record<string, unknown>, evidence?: unknown): Promise<Output>;
+  /** The business fields the action takes, as the Goals definition the Host ships declares its input; a tool accepts these and nothing else. */
+  fields(reference: McpGoalActionReference): readonly string[];
 }
 
 export interface McpToolDispatchPorts {
   audience: "runtime" | "management";
   createError: McpPresentationErrorFactory;
 }
-
-// Event decisions accept the declared business fields plus the transport's project and database, with no authority or identity.
-const eventFields = new Set(["database_path", "project_id", ...Object.keys(goalsActions.decide.action.input_schema.properties as Record<string, unknown>)]);
 
 /** Adapt the three management tool wires over the port the Host built; Runtime callers are given no management port. */
 export async function dispatchMcpProjectTool(
@@ -32,14 +38,17 @@ export async function dispatchMcpProjectTool(
   switch (name) {
   case "molis_work_v1_initialize": {
     const actions = management(); bound(actions, String(arguments_.project_id));
-    result = await actions.invoke(goalsActions.initialize, { idempotency_key: String(arguments_.idempotency_key) });
+    result = await actions.invoke(MANAGEMENT_GOAL_ACTIONS.initialize, { idempotency_key: String(arguments_.idempotency_key) });
     break;
   }
   case "molis_work_v1_event_decide": {
+    const actions = management();
+    // Event decisions accept the declared business fields plus the transport's project and database, with no authority or identity.
+    const eventFields = new Set(["database_path", "project_id", ...actions.fields(MANAGEMENT_GOAL_ACTIONS.decide)]);
     const unexpected = Object.keys(arguments_).filter(key => !eventFields.has(key));
     if (unexpected.length) throw ports.createError("mcp.unexpected_field", `不能使用未许可字段：${unexpected.join("、")}`, { fields: unexpected });
-    const actions = management(); bound(actions, String(arguments_.project_id));
-    result = await actions.invoke(goalsActions.decide, {
+    bound(actions, String(arguments_.project_id));
+    result = await actions.invoke(MANAGEMENT_GOAL_ACTIONS.decide, {
       goal_id: String(arguments_.goal_id), idempotency_key: String(arguments_.idempotency_key ?? ""),
       request_id: arguments_.request_id == null ? undefined : String(arguments_.request_id),
       selected_option_id: arguments_.selected_option_id == null ? undefined : String(arguments_.selected_option_id),
@@ -55,7 +64,7 @@ export async function dispatchMcpProjectTool(
     const actions = management();
     const { database_path: _database, web_base_url: _url, project_id, authority, ...decision } = arguments_;
     bound(actions, project_id);
-    result = await actions.invoke(goalsActions.treeDecide, decision, authority);
+    result = await actions.invoke(MANAGEMENT_GOAL_ACTIONS.treeDecide, decision, authority);
     break;
   }
   default:

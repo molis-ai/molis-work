@@ -18,7 +18,7 @@ test("LOGIC-01 a project that will not open is skipped: the ones after it open, 
   const errors: unknown[] = [];
   let run: (() => Promise<void>) | undefined;
   const schedulers = startWebProjectSchedulers({
-    localHost: { async withProject(reference: { project_id: string }) {
+    localHost: { async inspectActions(_caller: unknown, reference: { project_id: string }) {
       opened.push(reference.project_id);
       if (reference.project_id === "a" && failA) throw Object.assign(new Error("file is not a database"), { code: "SQLITE_NOTADB" });
     } } as never,
@@ -28,14 +28,14 @@ test("LOGIC-01 a project that will not open is skipped: the ones after it open, 
       { database_path: paths[1], project_id: "b" },
     ] } as never),
     fixture: null,
-    agents: { agentHost: {} as never, ready: Promise.resolve() },
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},
     onError(error) { errors.push(error); },
   });
   t.after(() => schedulers.stop());
-  // The project that did open runs its schedules on this round.
-  schedulers.runtimes.set(paths[1]!, { scheduler: { tick: async () => { rounds += 1; return {}; } }, schedule: { tick: async () => ({}) } } as never);
+  // The project that did open runs its schedules on this round. Its Feed sources are not on this timer: the Runtime Feed pulls them as its
+  // own background job (FI-6), so the round is the project's tasks.
+  schedulers.runtimes.set(paths[1]!, { schedule: { tick: async () => { rounds += 1; return {}; } } } as never);
   await run!();
   assert.deepEqual(opened, ["a", "b"], "the broken first project does not stop the second from opening");
   assert.equal(rounds, 1, "the round runs although one project would not open");
@@ -64,11 +64,10 @@ test("LOGIC-01 stopping the host finishes while an open is still failing", async
   const entered = new Promise<void>(resolve => { markEntered = resolve; });
   let run: (() => Promise<void>) | undefined;
   const schedulers = startWebProjectSchedulers({
-    localHost: { withProject: () => new Promise((_resolve, reject) => { rejectOpen = reject; markEntered(); }) } as never,
+    localHost: { inspectActions: () => new Promise((_resolve, reject) => { rejectOpen = reject; markEntered(); }) } as never,
     homeDirectory: home,
     withCatalog: async (_options, operation) => operation({ listProjects: async () => [{ database_path: path, project_id: "a" }] } as never),
     fixture: null,
-    agents: { agentHost: {} as never, ready: Promise.resolve() },
     periodic: { every(task: { run(): Promise<void> }) { run = () => Promise.resolve(task.run()).then(() => undefined); return () => {}; }, list: () => [], stop: async () => {} } as never,
     changed() {},
     onError() { throw new Error("a stopped host does not report the open"); },

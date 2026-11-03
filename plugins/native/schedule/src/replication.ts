@@ -1,16 +1,5 @@
 import { syncError } from './sync-errors.js';
-import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import {
-  createSqliteReplica,
-  initializeReplica,
-  namespacedReplicaDatabase,
-  readDatabaseSpace,
-  installReplicaTrigger, replicaMarkSql,
-  replicaTransaction,
-  queueReplicaChange,
-  type ReplicaDatabase,
-} from "@molis-ai/molis-work-storage";
-import { SCHEDULE_TASKS_SCHEMA_SQL } from "./database.js";
+import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 
 const TASK_COLUMNS = [
   "task_id", "title", "instructions", "hour", "minute", "notify_important",
@@ -67,46 +56,21 @@ function validateTurns(value: unknown, taskId: string): Row[] {
   });
 }
 
-/** Install in the project DB when the personal project opens, before any task mutation. */
-export function installScheduleReplication(db: ReplicaDatabase, projectId: string): void {
-  if (!/^[a-zA-Z0-9_-]{1,80}$/u.test(projectId)) invalid();
-  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
-  const ledger = namespacedReplicaDatabase(db, "schedule");
-  const key = (row: string) => `json_array('${projectId}','schedule_task',${row}.task_id)`;
-  const mark = (expression: string) => replicaMarkSql(expression).replace(/\breplica_/gu, "schedule_replica_");
-  replicaTransaction(db, () => {
-    initializeReplica(ledger);
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='schedule_task_sync_insert'").get()) {
-    for(const row of db.prepare('SELECT task_id FROM schedule_conversation_tasks ORDER BY task_id').all())queueReplicaChange(ledger,JSON.stringify([projectId,'schedule_task',row.task_id]));
-    }
-    for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
-      installReplicaTrigger(db, `schedule_task_sync_${event.toLowerCase()}`, `CREATE TRIGGER schedule_task_sync_${event.toLowerCase()} AFTER ${event} ON schedule_conversation_tasks BEGIN ${mark(key(row))} END`);
-    }
-    for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
-      const task = `(SELECT json_array('${projectId}','schedule_task',task_id) FROM schedule_conversation_tasks WHERE task_id=${row}.task_id)`;
-      installReplicaTrigger(db, `schedule_turn_sync_${event.toLowerCase()}`, `CREATE TRIGGER schedule_turn_sync_${event.toLowerCase()} AFTER ${event} ON schedule_conversation_turns BEGIN ${mark(task)} END`);
-    }
-  });
-}
-
 /** Copies task content and history, never a scheduler lease or runnable job binding. */
-export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
-  spaceId: string; projectId: string; title: string; authorize(): void; conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
-}): SyncReplicaAdapter {
-  const binding = readDatabaseSpace(db);
-  if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) {
-    throw syncError("scope", "只允许同步当前个人空间的定时任务");
-  }
+export function scheduleCollection(projectId: string): PluginSyncCollectionDefinition {
+ return {tracking:scheduleTracking,create(db, context) {
+
+
   const keyId = (key: string): string => {
     const parts: unknown = JSON.parse(key);
-    if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== context.projectId
+    if (!Array.isArray(parts) || parts.length !== 3 || parts[0] !== projectId
       || parts[1] !== "schedule_task" || !str(parts[2], 100) || !parts[2]) invalid();
     return String(parts[2]);
   };
-  const ledger = namespacedReplicaDatabase(db, "schedule");
-  return createSqliteReplica(ledger, {
-    authorize: context.authorize,
-    conflictState: context.conflictState,
+  return {
+    authorizeKey(key){keyId(key);context.project(projectId);},
+    canUpload(key){keyId(key);return context.canUploadProject(projectId);},
+    belongsToProject(key, target) { keyId(key); return projectId === target; },
     read(key) {
       const id = keyId(key);
       const source = db.prepare("SELECT * FROM schedule_conversation_tasks WHERE task_id=?").get(id) as Row | undefined;
@@ -116,7 +80,7 @@ export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
         .map(row => Object.fromEntries(TURN_COLUMNS.map(column => [column, row[column]])));
       validateTask(task, id);
       validateTurns(turns, id);
-      const value = { format: 1, spaceId: context.spaceId, project: { id: context.projectId, title: context.title }, task, turns };
+      const value = { format: 1, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, task, turns };
       size(value);
       return value;
     },
@@ -136,7 +100,7 @@ export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
       exact(wire, ["format", "spaceId", "project", "task", "turns"]);
       const project = record(wire.project);
       exact(project, ["id", "title"]);
-      if (wire.format !== 1 || wire.spaceId !== context.spaceId || project.id !== context.projectId
+      if (wire.format !== 1 || wire.spaceId !== context.spaceId || project.id !== projectId
         || !str(project.title, 120) || !String(project.title).trim()) invalid();
       const task = validateTask(wire.task, id);
       const turns = validateTurns(wire.turns, id);
@@ -153,5 +117,11 @@ export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
         VALUES (${TURN_COLUMNS.map(() => "?").join(",")})`).run(...TURN_COLUMNS.map(column => turn[column] as string|number|null));
       context.authorize();
     },
-  });
+  };
+ }};
 }
+
+export const scheduleTracking: PluginSyncCollectionDefinition["tracking"] = [
+   {table:"schedule_conversation_tasks",key:[{scope:'projectId'},{literal:"schedule_task"},{column:"task_id"}]},
+   {table:"schedule_conversation_turns",key:[{scope:'projectId'},{literal:"schedule_task"},{column:"task_id"}]},
+];

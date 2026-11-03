@@ -10,7 +10,7 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       template.innerHTML = String(html || "").trim();
       const nextView = template.content.querySelector("[data-goal-view]");
       if (!nextView) throw new Error("Goal 正文响应不完整");
-      (documentPane.querySelector('[data-work-surface="goal"]') || documentPane).replaceChildren(nextView);
+      (documentPane.querySelector('[data-work-surface="goals"]') || documentPane).replaceChildren(nextView);
       afterReplace();
     };
 
@@ -24,7 +24,7 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       indicator.dataset.goalDocumentLoading = "true";
       indicator.setAttribute("role", "status");
       indicator.textContent = L("正在载入 Goal…");
-      (documentPane.querySelector('[data-work-surface="goal"]') || documentPane).prepend(indicator);
+      (documentPane.querySelector('[data-work-surface="goals"]') || documentPane).prepend(indicator);
     };
 
     const loadGoalDocument = async (goalId) => {

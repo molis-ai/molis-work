@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("Feed source navigation, independent nested panes, resize and restore", { timeout: 90_000 }, async (t) => {
@@ -158,4 +159,43 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   await waitFor("!originalFrame.hidden");
   assert.equal(await evaluate("originalFrame.contentDocument===originalDocument"), true);
   assert.equal(await evaluate("originalDocument.querySelector('[data-goal-view]').dataset.goalView"), "CORE");
+});
+
+test("a background refresh keeps the titlebar tabs hidden while panes are split, and shown once they merge (RAC-1220, RAC-1221)", { timeout: 90_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory });
+  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "pane-refresh-test" }); catalog.close();
+  // Another connection writing this project is what the shell's background refresh is for: a Goal event through Goals' own
+  // application appends the journal event the board refresh reads, and the attention poll carries its new cursor to the page.
+  const app = new GoalProjectApplication(browser.store);
+  const refreshAfterWrite = async (key: string, title: string) => {
+    const before = await evaluate<number>("JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor");
+    app.goalEvents.createIntent({ project_id: projectId!, title, outcome: "证明分屏之后后台刷新不再改写顶栏标签条的可见性", actor_id: "pane-refresh-test", actor_kind: "user", idempotency_key: key });
+    // The cursor in the payload is not trusted: the page's refreshBoard re-reads /api/board/cursor itself;
+    // the payload only makes the attention listener notice that the two cursors differ.
+    await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: { board_cursor: ${Number(before) + 1} } }))`);
+    await waitFor(`JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor !== ${before}`);
+  };
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
+  await click('[data-plugin-id="feed"]');
+  await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-shell]')");
+  await click('[data-titlebar-tabs] [data-tab-split]');
+  await click('[data-layout-split=right]');
+  await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2 && [...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.body?.dataset.desktopSurface==='feed')");
+  await refreshAfterWrite("background-refresh-split", "分屏之后的后台刷新");
+  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true, "RAC-1220: a background refresh must not bring the titlebar tabs back while panes are split");
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden && Boolean(strip.querySelector('.tab-item-trigger')?.getBoundingClientRect().width))"), true, "RAC-1220: every pane keeps its own visible, usable tab strip");
+  await evaluate(`(() => {
+    const panes = [...document.querySelectorAll('[data-tab-pane]')];
+    window.mergedPane = panes.find(pane => pane !== document.querySelector('.tab-pane.is-focused')).dataset.tabPane;
+  })()`);
+  await evaluate("document.querySelector('[data-tab-pane=\"'+mergedPane+'\"] [data-tab-pane-close]').click()");
+  await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1");
+  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), false, "RAC-1221: merging the panes back shows the titlebar tabs again");
+  await refreshAfterWrite("background-refresh-merged", "合回一个窗格之后的后台刷新");
+  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), false, "RAC-1221: a background refresh keeps the titlebar tabs shown after the panes merge");
 });

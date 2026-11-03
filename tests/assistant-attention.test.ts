@@ -5,13 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import type { AssistantRule } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantFollowUp, AssistantRule } from "@molis-ai/molis-work-contracts/services/assistant";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, holdingRule } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ASSISTANT_RULE_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/dist/assistant/assistant-rule-actions.js";
+import { ASSISTANT_FOLLOW_UP_ACTIONS, ASSISTANT_RULE_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/dist/assistant/assistant-rule-actions.js";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
 const rule = (partial: Partial<AssistantRule>): AssistantRule => ({ rule_id: "r", kind: "quiet", surfaces: [], except: [], label: "规则", enabled: true, created_at: "2026-09-28T00:00:00.000Z", ...partial });
 
@@ -59,24 +60,24 @@ test("a round that finishes while the person is elsewhere raises one notice; the
     service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不提醒，失败除外" });
     const sent = await service.send({ text: "整理一下", request_id: "req-attention-1" }, { project_ref: project });
     await service.list();
-    assert.deepEqual(service.notices("pages"), [], "a running round raises nothing");
+    assert.deepEqual(service.notices.notices("pages"), [], "a running round raises nothing");
     release();
     await until(async () => (await service.list()).find(work => work.work_id === sent.work.work_id)?.state === "completed", "completion");
-    const onPages = service.notices("pages");
+    const onPages = service.notices.notices("pages");
     assert.equal(onPages.length, 1);
     assert.equal(onPages[0]!.kind, "completed");
     assert.deepEqual(onPages[0]!.held, { rule_id: service.followUps.rules()[0]!.rule_id, reason: "写文档时不提醒，失败除外" }, "on Pages the person's rule holds it");
-    assert.equal(service.notices("coding")[0]!.held, undefined, "elsewhere it comes through");
+    assert.equal(service.notices.notices("coding")[0]!.held, undefined, "elsewhere it comes through");
     await service.list(); await service.list();
-    assert.equal(service.notices("coding").length, 1, "seeing the same state again raises nothing more");
+    assert.equal(service.notices.notices("coding").length, 1, "seeing the same state again raises nothing more");
     // A temporary pause holds it everywhere; removing the pause leaves the long-term rule as it was.
     const [, pause] = service.followUps.saveRule({ kind: "pause", surfaces: [], except: ["failed"], until: new Date(Date.now() + 3600_000).toISOString(), label: "这次先别提醒" });
-    assert.equal(service.notices("coding")[0]!.held?.reason, "这次先别提醒");
+    assert.equal(service.notices.notices("coding")[0]!.held?.reason, "这次先别提醒");
     service.followUps.removeRule(pause!.rule_id);
-    assert.equal(service.notices("coding")[0]!.held, undefined);
-    assert.equal(service.notices("pages")[0]!.held?.reason, "写文档时不提醒，失败除外");
-    assert.equal(service.settleNotices({ work_id: sent.work.work_id }, "seen"), 1);
-    assert.deepEqual(service.notices("coding"), [], "seen is settled");
+    assert.equal(service.notices.notices("coding")[0]!.held, undefined);
+    assert.equal(service.notices.notices("pages")[0]!.held?.reason, "写文档时不提醒，失败除外");
+    assert.equal(service.notices.settleNotices({ work_id: sent.work.work_id }, "seen"), 1);
+    assert.deepEqual(service.notices.notices("coding"), [], "seen is settled");
     assert.throws(() => service.followUps.saveRule({ kind: "pause", surfaces: [], except: [], label: "没有结束时间" }), /结束时间/);
     assert.throws(() => service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "" }), /说法/);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
@@ -101,7 +102,7 @@ test("a new work whose round fails at once, before anything looked, still raises
     // The first look after it started finds it already failed (without a baseline at start, that look would raise nothing).
     await until(async () => (await service.read(sent.work.work_id)).work.state === "failed", "failure");
     await service.list();
-    const onPages = service.notices("pages");
+    const onPages = service.notices.notices("pages");
     assert.deepEqual(onPages.map(notice => [notice.kind, notice.held ?? null]), [["failed", null]], "the failure comes through, the rule's exception applies");
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -127,4 +128,40 @@ test("PG-036: the add action's page field names no plugin and fixes no list: the
   const field = (ASSISTANT_RULE_ACTIONS.add.action.input_schema.properties as Record<string, Record<string, unknown>>).surfaces!;
   assert.equal((field.items as Record<string, unknown>).enum, undefined, "the pages are not a fixed list in the contract");
   assert.doesNotMatch(JSON.stringify(field), /jelly|cognia|coding|dataset|lingguang|workflows/i, "no plugin is named in the field or its description");
+});
+
+test("RAC-1602 RAC-1603: adding a timed round outside a work and removing another work's timed round are the Assistant's own refusals, not internal failures", async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-followup-refusals-"));
+  try {
+    const actions = new ActionService();
+    const store = new AssistantStore(new DatabaseSync(":memory:"));
+    const service = new AssistantService(store, { pages: async () => ["home", "pages"], host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
+    registerAssistantRuleActions(actions, () => service, home);
+    const person = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
+    // RAC-1602: a person, or an MCP client, calls "add a timed round" outside a work; the handler refuses before touching the service.
+    const addError = await actions.invoke(person, ASSISTANT_FOLLOW_UP_ACTIONS.add, { text: "提醒我看一眼", at: new Date(Date.now() + 3_600_000).toISOString(), label: "一小时后" })
+      .then(() => null, (error: unknown) => error);
+    const added = actionErrorResponse(addError);
+    assert.equal(added.status, 400, JSON.stringify(added.body));
+    assert.equal(added.body.code, "assistant.invalid");
+    assert.equal(added.body.error, "定时要在一项助理工作里添加");
+    // RAC-1603: one work's round cannot cancel another work's timed round; both records stay.
+    const followUp = (followupId: string, workId: string): AssistantFollowUp => ({ followup_id: followupId, work_id: workId, label: "定时", text: "做点事", repeat: "none",
+      time_zone: "Asia/Tokyo", enabled: true, created_at: "2026-10-28T00:00:00.000Z" });
+    store.followUps.save("web-user", followUp("fu-a", "work-a"));
+    store.followUps.save("web-user", followUp("fu-b", "work-b"));
+    const worker = { ...person, audit_actor_id: "assistant:work-a" };
+    const removeError = await actions.invoke(worker, ASSISTANT_FOLLOW_UP_ACTIONS.remove, { followup_id: "fu-b" }).then(() => null, (error: unknown) => error);
+    const removed = actionErrorResponse(removeError);
+    assert.equal(removed.status, 404, JSON.stringify(removed.body));
+    assert.equal(removed.body.code, "assistant.not_found");
+    assert.equal(removed.body.error, "这项工作没有这个定时");
+    assert.deepEqual(store.followUps.list("web-user").map(item => item.followup_id).sort(), ["fu-a", "fu-b"], "the refused removal keeps both timed rounds");
+    // The same round still cancels its own work's timed round.
+    const own = await actions.invoke(worker, ASSISTANT_FOLLOW_UP_ACTIONS.remove, { followup_id: "fu-a" }) as { followups: AssistantFollowUp[] };
+    assert.deepEqual(own.followups, []);
+    assert.deepEqual(store.followUps.list("web-user").map(item => item.followup_id), ["fu-b"]);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

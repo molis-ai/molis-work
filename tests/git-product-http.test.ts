@@ -7,12 +7,15 @@ import { mkdtemp, mkdir, writeFile, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
 const exec = promisify(execFile);
 
 test("Git formal routes select the current grant, publish exact staged/worktree diffs and retain fixed history across restart", async () => {
   new Function("return (" + GIT_CLIENT_FACTORY_SCRIPT + ")");
-  const root = await mkdtemp(path.join(tmpdir(), "git-product-")), directory = path.join(root, "repo"); await mkdir(directory);
+  const root = await mkdtemp(path.join(tmpdir(), "git-product-")), directory = path.join(root, "repo");
+  await new MolisWorkLocalHost({ homeDirectory: root, completeText: null }).close();
+  await mkdir(directory);
   const git = (...args: string[]) => exec("git", args, { cwd: directory });
   const token = "git-product-control-token-0123456789abcdef";
   let server: ReturnType<typeof createMolisWorkWebServer>, origin = "";

@@ -106,6 +106,8 @@ test("VUX-14/15: the Assistant's streamed reply keeps its blocks, shows only new
   await command("Page.addScriptToEvaluateOnNewDocument", { source: watch }, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  // This case observes the motion itself, so lift the automation-only craft freeze.
+  await evaluate("document.documentElement.removeAttribute('data-craft-still')");
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "写一段说明" }, sessionId);
   await click("[data-assistant-send]");
@@ -135,4 +137,24 @@ test("VUX-14/15: the Assistant's streamed reply keeps its blocks, shows only new
   assert.deepEqual(await evaluate("(() => { const rich = document.querySelector('.assistant-msg--assistant .assistant-rich'); return [!!rich.closest('[data-streamed]'), getComputedStyle(rich.querySelector('p')).textWrapStyle]; })()"), [false, "pretty"], "reopened from history, its paragraphs wrap pretty again");
   assert.equal(reopened.text, written.text, "the reopened reply has the same words");
   assert.equal(reopened.html.replaceAll(' data-bound=""', ""), written.html.replaceAll(' data-bound=""', ""), "and the same structure as the one that was written");
+});
+
+test("SYS-04 streaming updates in one frame keep mixed text and stable nodes", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
+  await waitFor("typeof window.molisStreamText === 'function'");
+  await evaluate("window.box = document.body.appendChild(document.createElement('div')); window.put = (html, reveal = true) => window.molisStreamText(window.box, html, { reveal })");
+  // SYS-04: update before animationend, in the same frame, while a split text node precedes a growing strong.
+  const mixed = await evaluate<{ html: string; text: string; kept: boolean }>(`(() => {
+    window.put('<p>Stable</p><p>Hel</p>', false);
+    const stable = window.box.firstChild;
+    window.put('<p>Stable</p><p>Hello <strong>b</strong></p>');
+    window.put('<p>Stable</p><p>Hello <strong>bold</strong></p>');
+    window.put('<p>Stable</p><p>Hello <strong>bold</strong></p>', false);
+    return { html: window.box.innerHTML, text: window.box.textContent, kept: stable === window.box.firstChild };
+  })()`);
+  assert.deepEqual(mixed, { html: '<p>Stable</p><p>Hello <strong>bold</strong></p>', text: 'StableHello bold', kept: true });
+  assert.equal(await evaluate("window.box.querySelectorAll('.mw-fresh').length"), 0);
+
 });

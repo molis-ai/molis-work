@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, createChosen, molisWorkHostProjectReference, undoCreated, type DraftPorts } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, createChosen, intakeKey, molisWorkHostProjectReference, undoCreated, type DraftPorts } from "@molis-ai/molis-work-app-local-host";
 import { FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
@@ -124,6 +124,14 @@ for (const [name, entry, prepared] of [
   });
 }
 
+test("RAC-137 R11: a page names a creation entry by the id its owner declared; one match is its key, none or two is refused", () => {
+  const entry = view("notes.create", { intake: intake() }), twin = view("tasks.create", { intake: intake({ title: "任务", verb: "记成任务" }) });
+  const at = focus("n2"), key = contextualCandidates([entry, offers], at).find(item => item.origin === "intake")!.key;
+  assert.equal(intakeKey([entry, offers], at, undefined, "note"), key);
+  assert.throws(() => intakeKey([entry, offers], at, undefined, "nobody-declares-this"), /已不在当前内容的候选里/u);
+  assert.throws(() => intakeKey([entry, twin, offers], at, undefined, "note"), /已不在当前内容的候选里/u);
+});
+
 test("W4-1 Q08: with an undo offered now, the entry is made at once and the undo kept behind a token", async () => {
   const directory = [view("notes.create", { intake: intake(), undo, result_subject: { id: "note.id" } }), offers, view("notes.remove")];
   const called: { capability_id: string; input: unknown }[] = [];
@@ -207,7 +215,7 @@ test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and 
 });
 
 test("W4-2-05: 拆成目标步骤 always comes back as a draft for a card, and nothing is filed until the person submits it", { timeout: 60_000 }, async () => {
-  const { actions, invoke, close } = await openHost(["goals:read", "goals:write"]);
+  const { actions, invoke, close } = await openHost(["goals:read", "goals:write", "attention:write"]);
   try {
     const directory = await actions.discover();
     const at = focus("g1");

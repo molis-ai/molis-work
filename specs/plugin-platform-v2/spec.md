@@ -33,7 +33,7 @@ Goal 事件协议、Artifact 版本语义、Module 事实所有权、MCP 工具�
 - `apps/workbench/src/ui-composition.ts` 逐个 `host.register(...)` 21 个 contribution；新增插件必须改这个文件。
 - `packages/contracts/src/modules/projects.ts:29` 的 `BUILTIN_PROJECT_PLUGIN_IDS` 是字面量联合类型；`modules/projects/src/project-service.ts:88` 用它做校验；新增项目级插件要改 contract + 服务 + 迁移。
 - `apps/local-host` 里 `feed-native-plugin-http.ts` / `shelf-native-plugin-http.ts` / `artifact-native-plugin-http.ts` 是三份同形状的手写挂载。
-- `PluginRuntime` 只被 `OfficialIntegrationRegistry` 用于 Integration；Native 插件从不经过安装、grant、崩溃恢复这条链。
+- `PluginRuntime` 只被 `IntegrationRegistry` 用于 Integration；Native 插件从不经过安装、grant、崩溃恢复这条链。
 
 ## 范围与非目标
 

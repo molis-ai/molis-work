@@ -1,5 +1,5 @@
 import { strToU8, zipSync, type Zippable } from "fflate";
-import type { PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { PptRecord } from "./contract.js";
 
 /**
  * A real PowerPoint file (Office Open XML) from a saved deck: one 16:9 slide per page with its title, bullets and
@@ -162,5 +162,6 @@ export function buildPptx(deck: Deck): Uint8Array {
 }
 
 export function pptxFilename(title: string): string {
-  return (clean(title).replace(/[\\/:*?"<>|]/gu, "_").trim() || "演示稿").slice(0, 80) + ".pptx";
+  // 80 whole characters, not UTF-16 units: unit 80 of a title with emoji can fall inside one and leave half of it in the file name.
+  return [...(clean(title).replace(/[\\/:*?"<>|]/gu, "_").trim() || "演示稿")].slice(0, 80).join("") + ".pptx";
 }

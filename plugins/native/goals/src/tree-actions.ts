@@ -1,23 +1,15 @@
 import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
-import { goalAction, goalActor } from "./action-contract.js";
-import { GOALS_TREE_INTAKE, GOALS_TREE_SUBMIT_RESULT } from "./tree-intake.js";
-import * as schema from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { ATTENTION_WRITE_PERMISSION, goalActor, usingServices } from "./action-contract.js";
+import { goalEntryActions } from "./contract/goal-actions.js";
 
 type Input<Key extends keyof GoalTreeApplicationApi> = Omit<Parameters<GoalTreeApplicationApi[Key]>[0],
   "project_id" | "actor_id" | "submitted_session_id" | "runtime_actor_id" | "authority">;
-type Output<Key extends keyof GoalTreeApplicationApi> = ReturnType<GoalTreeApplicationApi[Key]>;
-const decide = goalAction<Input<"decideGoalTreeProposal">, Output<"decideGoalTreeProposal">>("goals.tree.decide", "审批结构提案",
-  "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供", "command", schema.treeDecideInputSchema, schema.treeDecisionResultSchema);
-const submit = goalAction<Input<"submitGoalTreeProposal">, Output<"submitGoalTreeProposal">>("goals.tree.submit", "提交结构提案",
-  "提交新目标及父子或依赖关系的待确认提案；提交不会创建正式目标。五项及以上变化须提供整份 narrative 和逐项 explanation。用户通过 Web 或管理入口审批后落地", "command", schema.treeSubmitInputSchema, schema.treeSubmitResultSchema);
 export const goalsTreeActions = {
-  treeSubmit: { ...submit, action: { ...submit.action, intake: GOALS_TREE_INTAKE, result_view: GOALS_TREE_SUBMIT_RESULT } },
-  treeRead: goalAction<Input<"listGoalTreeProposals">, Output<"listGoalTreeProposals">>("goals.tree.read", "读取结构提案",
-    "读取当前项目的结构提案；可按提案 ID 或根目标筛选", "query", schema.treeReadInputSchema, schema.treeReadResultSchema),
-  treeCheck: { ...goalAction<Input<"checkGoalTreeProposal">, Output<"checkGoalTreeProposal">>("goals.tree.check", "检查结构提案",
-    "检查提案的事实基线及目标关系约束，保存检查结果；预检回滚正式目标和关系变更", "command", schema.treeCheckInputSchema, schema.treeCheckResultSchema), version: 2 },
-  treeDecide: { ...decide, version: 2, action: { ...decide.action, audiences: ["user"] as const, permissions: ["goals:decide"] } },
+  treeSubmit: usingServices(goalEntryActions.treeSubmit, [ATTENTION_WRITE_PERMISSION]),
+  treeRead: goalEntryActions.treeRead,
+  treeCheck: goalEntryActions.treeCheck,
+  treeDecide: usingServices(goalEntryActions.treeDecide, [ATTENTION_WRITE_PERMISSION]),
 } as const;
 
 function authority(caller: ActionCallContext) {

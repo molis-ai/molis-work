@@ -3,6 +3,7 @@ import test, { type TestContext } from "node:test";
 
 import { PAGES_CLIENT_FACTORY_SCRIPT, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
+import { pagesHost } from "./fixtures/pages-host.js";
 
 // W2-18 decision 6: a 「新建文档」 left with nothing written is taken back with the existing pages.discard when the
 // person leaves it (back to the list, another document, another new document, the workbench hiding the page for another
@@ -55,7 +56,15 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
   const store = new Map<string, Doc>(initial.map(doc => [doc.id, doc]));
   const calls: Array<{ method: string; path: string; body: Record<string, unknown>; keepalive?: boolean; stored_version?: number }> = [];
   let editorBody: unknown = EMPTY, change: (() => void) | null = null, created = 0, config: EditorConfig | null = null;
-  const lifetime = fakeLifetime();
+  const lifetime = fakeLifetime({ close(action) {
+    assert.equal(action.reference.capability_id, "pages.discard");
+    const input = action.input as {id: string; expected_version: number};
+    workbench.setAttribute("data-expanded", "false");
+    const context = JSON.parse(attributes.get("data-assistant-context") || "{}"); delete context.object; delete context.unsaved;
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+    workbench.querySelector("[data-pages-stage-workspace]")!.hidden = true;
+    void fetch("/api/plugins/io.molis.work.pages/pages/"+input.id+"/discard", {method:"POST",body:JSON.stringify({expected_version:input.expected_version}),keepalive:true});
+  } });
   const saved = { fetch: globalThis.fetch, document: (globalThis as { document?: unknown }).document, window: (globalThis as { window?: unknown }).window };
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const workbench = element(), rows = element(), titleInput = element(), note = element();
@@ -85,7 +94,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
       dispatchEvent(event: { type: string; detail?: unknown }) { for (const fn of this.listeners.get(event.type) ?? []) fn(event); },
       addEventListener(type: string, fn: (event: { type?: string; detail?: unknown }) => void) { const list = this.listeners.get(type) ?? []; list.push(fn); this.listeners.set(type, list); },
       MolisWorkPagesEditor: {
-        emptyDoc: () => EMPTY,
+        emptyDoc: () => EMPTY, canShow: () => true,
         bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), // This fixture tests discard; real comments are covered by the editor/browser regressions.
         mount: (_host: unknown, given: EditorConfig) => { config = given; editorBody = given.doc; change = given.onChange; return { id: "editor" }; },
         setDoc: (_editor: unknown, doc: unknown) => { editorBody = doc; }, getDoc: () => editorBody,
@@ -133,8 +142,9 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     }
     return json({ document: current });
   }) as typeof fetch;
-  const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: { translate: (text: string) => string; projectId: string; mountPluginClient: typeof lifetime.mount }) => void;
-  factory({ translate: value => value, projectId: "project-pages", mountPluginClient: lifetime.mount });
+  const factory = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: ReturnType<typeof pagesHost>) => void;
+  // The frame's shared confirmation box, answering yes: its request (when it has one) runs first, as in the page.
+  factory(pagesHost(lifetime, { confirmBox: async (_dialog: unknown, _ok: unknown, run?: () => Promise<unknown>) => { await run?.(); return true; } }));
   await flush();
   const fire = async (event: ReturnType<typeof click>) => { await workbench.listeners.click!(event); await flush(); };
   return {
@@ -203,8 +213,6 @@ test("LOGIC-02 and LOGIC-03 unsaved edits are stored before a star, a folder cha
   try {
     await folder.fire(click("button[data-page-id]", { pageId: "OLD" }));
     await folder.write({ title: "删文件夹前先保存" }, false);
-    const confirm = folder.parts.get("[data-pages-confirm]") as FakeNode & { returnValue?: string };
-    confirm.showModal = () => { confirm.returnValue = "ok"; void confirm.listeners.close?.({}); };
     await folder.fire(click("[data-pages-folder-delete]", { pagesFolderDelete: "f1" }));
     assert.equal(folder.store.get("OLD")?.title, "删文件夹前先保存");
     const deleteAt = folder.calls.findIndex(call => call.path.includes("/folders/"));

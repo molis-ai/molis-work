@@ -1,13 +1,14 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
-import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FEED_PLUGIN_ID } from "./identity.js";
+import { feedErrors } from "./contract/feed.js";
+import { isAccountConnectorSyncKind } from "./contract/sources.js";
+import { ActionError, retainActionAuthority, type ActionAudience, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedConnectorSync } from "./connector-sync.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { sourceRegistrationInput } from "./route-input.js";
 import type { ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, UpdateFeedSourceInput } from "./source-ports.js";
+import { removeFeedSource } from "./source-removal.js";
 import type { FeedSourceService } from "./source-service.js";
+import type { ScheduleWakeupInput, ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { FeedSourceScheduler, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -55,24 +56,33 @@ export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(fe
 /** Services are built per call so capture judgments started by a sync run with that caller's authority. */
 export interface FeedSourceActionPorts {
   feed(): FeedApplication;
-  sources(caller: ActionCallContext): FeedSourceService;
-  connectorSync(caller: ActionCallContext): Pick<FeedConnectorSync, "sync">;
+  sources(caller: ActionExecutionContext): FeedSourceService;
+  connectorSync(caller: ActionExecutionContext): Pick<FeedConnectorSync, "sync">;
+  /** Wraps the commit of a deletion with what releasing its history found; the Runtime Feed hands it to the history port. */
+  retire?: Parameters<typeof removeFeedSource>[3];
+  /** The command the platform's clock wakes (Runtime Feed only): it does what a tick does, as the plugin. */
+  wake?: ActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply>;
 }
 
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
   // Retain the scheduler's existing overlap guard across tick invocations, without holding the project's command queue during network waits.
   const scheduledSources = new Set<string>();
-  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>): ActionHandlerBinding => ({
+  // Judgments a source change starts keep this call's authority, pinned to the Feed action that started them. A change that only writes
+  // answers synchronously, so the Runtime's transaction can hold it whole; one that waits (a pull) re-checks its caller first.
+  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
-    // Judgments a sync starts keep this call's authority, pinned to the Feed action that started them.
+    handle: (caller, input) => handle(input as Input, retainActionAuthority(caller, definition, caller.beforeEffect)),
+  });
+  const bindWaiting = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Promise<Output>): ActionHandlerBinding => ({
+    capability_id: definition.capability_id, version: definition.version,
     handle: async (caller, input) => {
       await caller.beforeEffect();
-      return await handle(input as Input, retainActionAuthority(caller, { ...definition, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect));
+      return await handle(input as Input, retainActionAuthority(caller, definition, caller.beforeEffect));
     },
   });
   const a = feedSourceActions;
   const sync = async (input: { source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, caller: ActionExecutionContext) => {
-    const current = ports.feed().getSource(board, input.source_id);
+    const current = ports.feed().sources.get(board, input.source_id);
     const idempotencyKey = input.idempotency_key ?? "";
     if (current.sync_kind === "public_source") {
       return await ports.sources(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect,
@@ -84,6 +94,9 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     }
     throw feedErrors.source_not_syncable("这个来源没有同步能力");
   };
+  const tick = (caller: ActionExecutionContext) => new FeedSourceScheduler(board, () => ports.sources(caller),
+    (source, key, authority) => sync({ source_id: source.source_id, idempotency_key: key }, { ...caller, beforeEffect: authority.beforeEffect }), undefined, scheduledSources)
+    .tick(new Date(), caller);
   return [
     bind(a.register, (input, caller) => {
       const registration = sourceRegistrationInput(input);
@@ -94,7 +107,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       const { source_id, ...patch } = input;
       return { source: ports.sources(caller).update(source_id, patch as UpdateFeedSourceInput) };
     }),
-    bind(a.delete, (input, caller) => ({ source: ports.sources(caller).delete(input.source_id, input.history_decision), history_decision: input.history_decision })),
+    bindWaiting(a.delete, async (input, caller) => ({ source: await removeFeedSource(ports.sources(caller), input.source_id, input.history_decision, ports.retire), history_decision: input.history_decision })),
     bind(a.schedule, (input, caller) => {
       const schedule: ConfigureFeedSourceScheduleInput | null = input.mode === "manual" ? { mode: "manual" }
         : input.mode === "interval" && typeof input.enabled === "boolean" && Number.isInteger(input.interval_minutes)
@@ -104,14 +117,17 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     }),
     bind(a.enabled, (input, caller) => ({ source: ports.sources(caller).setEnabled(input.source_id, input.enabled) })),
     bind(a.disconnect, (input, caller) => {
-      if (!isAccountConnectorSyncKind(ports.feed().getSource(board, input.source_id).sync_kind)) {
+      if (!isAccountConnectorSyncKind(ports.feed().sources.get(board, input.source_id).sync_kind)) {
         throw feedErrors.source_invalid_state("公开来源不需要断开账号；可以暂停或删除");
       }
       return { source: ports.sources(caller).disconnect(input.source_id) };
     }),
-    bind(a.sync, sync),
-    bind(a.tick, (_, caller) => new FeedSourceScheduler(board, () => ports.sources(caller),
-      (source, key, authority) => sync({ source_id: source.source_id, idempotency_key: key }, { ...caller, beforeEffect: authority.beforeEffect }), undefined, scheduledSources)
-      .tick(new Date(), caller)),
+    bindWaiting(a.sync, sync),
+    bindWaiting(a.tick, (_, caller) => tick(caller)),
+    // Each source records its own failure, so a wakeup that got as far as pulling is `ok`.
+    ...(ports.wake ? [bindWaiting(ports.wake, async (_input, caller) => {
+      const result = await tick(caller);
+      return { status: "ok" as const, detail: `到期 ${result.due}，完成 ${result.completed}，失败 ${result.failed}，跳过 ${result.skipped}` };
+    })] : []),
   ];
 }

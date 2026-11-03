@@ -7,9 +7,10 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { LocalProjectDatabase, seedDemoGoals, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // Every plugin is content in the one workbench (specs/shell-page-exceptions, S7). Following every local link a seeded
 // workbench offers, as a person opening it in the address bar would, each address is the workbench itself, leads into it,
@@ -43,7 +44,7 @@ async function seededHome(t: test.TestContext) {
   for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "page-gate" });
   catalog.close();
   for (const suffix of ["", "-wal", "-shm"]) await rm(project.database_path + suffix, { force: true });
-  seedDemoBoard(project.database_path, project.project_id);
+  await seedDemoGoals(project.database_path, project.project_id);
   const store = new LocalProjectDatabase(project.database_path);
   // Feed has no sources until one is added; two give its source pages and their links something to show.
   const sources = createLocalFeedSourceService(store.db, project.project_id);
@@ -67,6 +68,12 @@ const exceptionOf = (address: string) => EXCEPTIONS.find(([pattern]) => pattern.
 /** The local addresses a page links to: href attributes and GET forms, without fragments and data or file endpoints. */
 function localLinks(html: string, base: string, origin: string): string[] {
   const found = new Set<string>();
+  // Isolated content is serialized, inert markup until the Host mounts its frame. Crawl those same links too.
+  for (const match of html.matchAll(/<script\b[^>]*\bdata-plugin-document(?:="[^"]*")?[^>]*>([\s\S]*?)<\/script>/g)) {
+    const content: unknown = JSON.parse(match[1]!);
+    assert.equal(typeof content, "string");
+    for (const link of localLinks(content as string, base, origin)) found.add(link);
+  }
   const add = (raw: string) => {
     if (!raw || raw.startsWith("#") || raw.startsWith("__") || /^(?:javascript|data|blob|mailto):/i.test(raw) || raw.includes("${") || raw.includes("' +")) return;
     let url: URL;
@@ -115,7 +122,7 @@ test("every local address a seeded workbench links to is the workbench, leads in
 
 test("the workbench is one page: plugin content brings no page shell of its own", async t => {
   const { origin, prefix } = await seededHome(t);
-  const homePages = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").map(entry => `/plugins/${entry.project_plugin_id}`);
+  const homePages = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry => `/plugins/${entry.project_plugin_id}`);
   for (const address of [prefix + "/", ...homePages]) {
     const html = (await open(origin, address)).body;
     assert.ok(isWorkbench(html), address);
@@ -133,9 +140,12 @@ test("the workbench is one page: plugin content brings no page shell of its own"
 // Host workbench entrypoints and every other whole-page producer. A standalone page still needs an exception in
 // specs/shell-page-exceptions; a Home workbench entrypoint is checked above under the same rules as a project.
 const PAGE_PRODUCERS: Record<string, string> = {
+  "apps/workbench/src/browser/plugin-frame/document.ts": "Host-owned opaque iframe document for installed plugin content",
+  "apps/workbench/src/plugin-document-shell.ts": "Host-owned frame document for installed plugin views",
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
-  "apps/workbench/src/goals-page-renderer.ts": "the workbench",
+  "apps/workbench/src/shell-page-renderer.ts": "the workbench",
   "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
+  "apps/workbench/src/plugin-store-unavailable.ts": "Host static recovery document for an unreadable Home ledger; no plugin content or client (ac-trust-install §7.3, RAC-404)",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
   "apps/local-host/src/web-project-platform-routes.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
   "apps/local-host/src/personal-http.ts": "Host 账号回调响应：仅 /account/callback 的失败提示；成功 303 返回工作台，不属于插件页面",
@@ -149,12 +159,11 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/primitive-catalog.ts": "开发规格板",
   "apps/workbench/src/condition-frame.ts": "开发规格板：条件与状态的框架页",
   "apps/workbench/src/assistant-board-frame.ts": "开发规格板：助理信息与任务的框架页",
-  "apps/local-host/src/plugin-builder/agent-surface.ts": "沙箱框里的文档：试用与已安装的生成插件",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",
   "plugins/native/jelly/src/markdown.ts": "导出：Jelly 的 HTML 文件",
-  "plugins/native/pages/src/client.ts": "导出：Pages 的 HTML 文件",
-  "plugins/native/ppt/src/client.ts": "打印：PPT 打印框",
+  "plugins/native/pages/src/browser/document.ts": "导出：Pages 的 HTML 文件",
+  "plugins/native/ppt/src/browser/present.ts": "打印：PPT 打印框",
 };
 
 test("only the listed source files produce a whole page", () => {

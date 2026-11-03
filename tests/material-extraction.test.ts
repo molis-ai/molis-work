@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +12,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { createMaterialExtractor, extractMaterial, readMaterialHtml } from "../apps/local-host/src/material-extraction.js";
 import { extractUploadedMaterial } from "../apps/local-host/src/material-upload.js";
-import { prepareContextDocuments } from "../apps/local-host/src/context-onboarding-documents.js";
+import { prepareContextDocument } from "../apps/local-host/src/context-onboarding-documents.js";
 
 function pdf(texts: string[]): Buffer {
   const objects = ["<< /Type /Catalog /Pages 2 0 R >>", `<< /Type /Pages /Kids [${texts.map((_, i) => `${4 + i * 2} 0 R`).join(" ")}] /Count ${texts.length} >>`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
@@ -140,18 +141,27 @@ test("Host sends the selected OCR languages to its helper and rejects invalid li
     }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
-test("onboarding rejects partially readable PDFs and truncated text, preserves exact originals and titles", async () => {
-  const html = '<title>Project</title><article><h1>Plan</h1><p>Ship it</p></article>';
-  const files = [{ path: "partial.pdf", data: pdf(["Readable", ""]).toString("base64") },
-    { path: "large.txt", data: Buffer.from("中".repeat(700_000)).toString("base64") },
-    { path: "page.html", data: Buffer.from(html).toString("base64") }];
-  const result = await prepareContextDocuments("files", files);
-  assert.deepEqual(result.issues.map(issue => issue.path), ["partial.pdf", "large.txt"]);
-  assert.match(result.issues[0]!.reason, /第 2 页/); assert.match(result.issues[1]!.reason, /2 MB/);
-  assert.equal(result.references.length, 1); assert.equal(result.references[0]!.title, "Project");
-  assert.equal(result.references[0]!.original.data_base64, files[2]!.data); assert.match(result.references[0]!.body, /# Plan/);
-  const controller = new AbortController(), stopped = new Error("cancel onboarding"); controller.abort(stopped);
-  await assert.rejects(prepareContextDocuments("files", files, controller.signal), error => error === stopped);
+// A long text is read whole (user 2026-10-22, replaces the 2 MB rejection of slice 90): each file is read on its own into the
+// journey's staging, under its digest; a partly readable PDF still fails on its own.
+test("onboarding rejects partially readable PDFs, reads long text whole, preserves exact originals and titles", async () => {
+  const home = mkdtempSync(path.join(tmpdir(), "molis-onboarding-documents-")), id = randomUUID();
+  try {
+    const html = '<title>Project</title><article><h1>Plan</h1><p>Ship it</p></article>', long = "中".repeat(700_000);
+    const files = [{ path: "partial.pdf", bytes: pdf(["Readable", ""]) }, { path: "large.txt", bytes: Buffer.from(long) }, { path: "page.html", bytes: Buffer.from(html) }];
+    const read = [];
+    for (const file of files) read.push(await prepareContextDocument(home, id, "files", file));
+    const issues = read.flatMap(r => "issue" in r ? [r.issue] : []), references = read.flatMap(r => "reference" in r ? [r.reference] : []);
+    assert.deepEqual(issues.map(issue => issue.path), ["partial.pdf"]); assert.match(issues[0]!.reason, /第 2 页/);
+    const staged = (kind: "files" | "texts", sha256: string) => readFileSync(path.join(home, "context-onboarding", "journeys", id, kind, sha256));
+    const [large, page] = references;
+    assert.equal(references.length, 2); assert.equal(page!.title, "Project");
+    assert.equal(String(staged("texts", large!.text.sha256)), long, "the whole long text, not cut at 2 MB");
+    assert.match(String(staged("texts", page!.text.sha256)), /# Plan/);
+    assert.equal(page!.original.sha256, createHash("sha256").update(html).digest("hex"));
+    assert.equal(String(staged("files", page!.original.sha256)), html, "the exact original");
+    const controller = new AbortController(), stopped = new Error("cancel onboarding"); controller.abort(stopped);
+    await assert.rejects(prepareContextDocument(home, id, "files", files[2]!, controller.signal), error => error === stopped);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 
@@ -188,4 +198,45 @@ test("native source and build inputs invalidate the existing installation build 
     writeFileSync(path.join(native, "build.sh"), "swift build"); const withBuild = await computeBuildSourceDigest(root); assert.notEqual(withBuild, changed);
     writeFileSync(path.join(native, "Package.resolved"), "locked dependencies"); assert.notEqual(await computeBuildSourceDigest(root), withBuild);
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+// A title is cut to 500 whole characters (an emoji is one, as the action schemas count it), never between the two halves of one.
+const TITLES = [
+  { name: "the 500th character is a two-unit one", heading: "a".repeat(499) + "😀" + "尾".repeat(10), title: "a".repeat(499) + "😀" },
+  { name: "600 two-unit characters", heading: "😀".repeat(600), title: "😀".repeat(500) },
+  { name: "exactly 500 two-unit characters", heading: "😀".repeat(500), title: "😀".repeat(500) },
+  { name: "short", heading: "短标题", title: "短标题" },
+];
+
+test("RAC-1861 a material title is cut to 500 whole characters, in Markdown and in HTML", async t => {
+  for (const kind of ["markdown", "html"] as const) for (const c of TITLES) await t.test(`${kind}: ${c.name}`, async () => {
+    const source = kind === "markdown" ? { file_name: "title.md", bytes: Buffer.from(`# ${c.heading}\n\nbody`) }
+      : { file_name: "title.html", bytes: Buffer.from(`<title>${c.heading}</title><p>body</p>`) };
+    assert.equal((await extractMaterial(source)).title, c.title);
+  });
+});
+
+test("RAC-1862 an onboarding document's title is whole characters, so the sources line can encode it", async t => {
+  const home = mkdtempSync(path.join(tmpdir(), "molis-onboarding-titles-")), id = randomUUID();
+  try {
+    for (const c of TITLES.slice(0, 3)) await t.test(c.name, async () => {
+      const read = await prepareContextDocument(home, id, "files", { path: "notes/long.md", bytes: Buffer.from(`# ${c.heading}\n\nbody`) });
+      const title = "reference" in read ? read.reference.title : read.issue.reason;
+      // The onboarding page's sources line encodes the title this way (context-onboarding-service.ts); half a character throws here.
+      assert.doesNotThrow(() => encodeURIComponent(title));
+      assert.equal(title, c.title);
+    });
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAC-1863 a title that fits is kept as it is: the document's own, else the file name without its extension", async t => {
+  const home = mkdtempSync(path.join(tmpdir(), "molis-onboarding-titles-")), id = randomUUID();
+  try {
+    const titles = [];
+    for (const file of [{ path: "notes/plan.md", bytes: Buffer.from("# 十月计划\n\nbody") }, { path: "notes/周报 😀.txt", bytes: Buffer.from("body") }]) {
+      const read = await prepareContextDocument(home, id, "files", file);
+      titles.push("reference" in read ? read.reference.title : read.issue.reason);
+    }
+    assert.deepEqual(titles, ["十月计划", "周报 😀"]);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

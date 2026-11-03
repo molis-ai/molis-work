@@ -229,9 +229,9 @@ export class WorkReuseService {
     return this.d.memory.revisePlaybookRule(input, this.d.now());
   }
   async publish(reportId: string, signal?: AbortSignal, control?: AlchemistEffectControl) {
-    const report = this.d.research.getReport(reportId);
+    const report = this.d.research.reports.getReport(reportId);
     if (!report) return fail("alchemist.reuse_report_not_found", "研究报告不存在。");
-    const evidence = this.d.research.listEvidence(reportId);
+    const evidence = this.d.research.reports.listEvidence(reportId);
     const caller = await this.caller(signal, ["alchemist:read", "alchemist:write"]);
     await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     return this.d.host!.publishReport(caller, { report, evidence, title: report.summary.slice(0, 100) });

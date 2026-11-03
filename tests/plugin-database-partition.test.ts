@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { DatabaseSync } from "node:sqlite";
+import { captureHostLog, type HostLogEntry, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import {
-  PROBE, PROBE_DATABASE, homeRead, later, noteTexts, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, storeNote, write,
+  PROBE, PROBE_DATABASE, PROBE_ID, homeRead, later, noteTexts, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, probeWithLibrary, read, storeNote, write,
 } from "./fixtures/partition-probe.js";
+import { withLibrary } from "./fixtures/home-library.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
 // specs/plugin-project-partition: a Home plugin's library partitioned by project. Each call reaches the library of the project it
@@ -23,10 +23,10 @@ const IDLE_LOOK_MS = 10 * 60_000;
 const open = (home: string, projectId: string) => existsSync(`${partitionFile(home, projectId)}-wal`);
 
 test("PART-01 the entry and the Home's store registry agree on the partition, either way round, or the Home plugins do not start", async t => {
-  const todo = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo")!;
-  const partitionedTodo = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, database: { ...todo.runtime!.database!, partition: "project" } }]);
+  const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
+  const partitionedTodo = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, create: () => withLibrary(todo.runtime!.create(), { ...todo.manifest.databases!.home!, partition: "project" }) }]);
   await assert.rejects(partitionedTodo.host.ready(), /分区方式不同/u, "a library the registry keeps whole cannot be opened per project");
-  const whole = partitionHome(t, [probeEntry({ database: { ...PROBE_DATABASE, partition: undefined } })]);
+  const whole = partitionHome(t, [probeEntry({ create: probeWithLibrary({ ...PROBE_DATABASE, partition: undefined }) })]);
   await assert.rejects(whole.host.ready(), /分区方式不同/u, "a library the registry keeps per project cannot be opened whole");
   assert.equal(existsSync(join(whole.home, PROBE)), false);
 
@@ -37,22 +37,25 @@ test("PART-01 the entry and the Home's store registry agree on the partition, ei
   assert.equal(stores.libraryPath("/home", stores.get("split")!, "p1"), "/home/split/projects/p1/split.db");
 });
 
-test("PART-03 a partitioned library needs a project data owner and may leave purge to the Host; any other owner needs purge", async t => {
+test("PART-03 PG-024 a partitioned library's data of a project is the platform's to remove: the plugin declares nothing more and the dialog names it in the Host's words", async t => {
+  // The partition is the declaration: a start list that names no owner still starts the plugin, its step under the plugin's id.
   const unowned = partitionHome(t, [probeEntry({ project_data: undefined })]);
-  await assert.rejects(unowned.host.ready(), /project_data/u);
-  const todo = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo")!;
-  const purgeless = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, project_data: { owner_id: "todo", declaration: { label: "待办" } } }]);
-  await assert.rejects(purgeless.host.ready(), /purge/u);
-  await partitionHome(t, [probeEntry({ project_data: { owner_id: PROBE, declaration: { label: "分区探针的笔记" } } })]).ready();
+  await unowned.ready();
+  const step = unowned.hooks.owners().find(owner => owner.id === PROBE_ID);
+  assert.deepEqual(step && { label: step.label, label_values: step.label_values, words_of: step.words_of },
+    { label: "{name} 在这个项目里的数据", label_values: { name: PROBE }, words_of: PROBE_ID });
 
-  // The deletion's owners come from the build's catalog as well (project-deleted-owners.ts): there, too, only a partitioned one may leave out purge.
-  const catalog = BUILTIN_PLUGIN_CATALOG as PluginRegistration[], shipped = catalog.find(entry => entry.project_plugin_id === PROBE)!;
+  // The deletion's owners come from the platform's registration list as well (project-deleted-owners.ts; W5-02 PR-B), with no Host running.
   const elsewhere = mkdtempSync(join(tmpdir(), "plugin-partition-owners-"));
   t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
-  catalog.push({ ...shipped, project_plugin_id: "purgeless", project_data: { label: "没有清理办法的数据" }, runtime: undefined });
-  try { assert.throws(() => projectDeletedHooksFor(elsewhere), /purge/u); } finally { catalog.pop(); }
-  catalog.push({ ...shipped, project_plugin_id: "unpurged", project_data: { label: "分区探针的笔记" } });
-  try { projectDeletedHooksFor(join(elsewhere, "partitioned")); } finally { catalog.pop(); }
+  const offline = projectDeletedHooksFor(elsewhere), shipped = offline.owners().find(owner => owner.id === PROBE);
+  assert.deepEqual(shipped && { label: shipped.label, label_values: shipped.label_values, words_of: shipped.words_of },
+    { label: "{name} 在这个项目里的数据", label_values: { name: PROBE }, words_of: PROBE_ID });
+  mkdirSync(partitionDirectory(elsewhere, "p1"), { recursive: true }); writeFileSync(partitionFile(elsewhere, "p1"), "");
+  mkdirSync(partitionDirectory(elsewhere, "p2"), { recursive: true }); writeFileSync(partitionFile(elsewhere, "p2"), "");
+  assert.equal(await offline.clear(PROBE, "p1"), true);
+  assert.equal(existsSync(partitionDirectory(elsewhere, "p1")), false);
+  assert.ok(existsSync(partitionFile(elsewhere, "p2")), "another project's library stays");
 });
 
 test("PART-04 a call in no project is refused before any file is made: start, a Home action", async t => {
@@ -131,7 +134,7 @@ test("PART-09 stopping the plugin closes every project's library, and a handle k
   const kept = probe.database();
   await platform.runtime.stop(record.install_id);
   assert.equal(open(f.home, "a"), false); assert.equal(open(f.home, "b"), false);
-  assert.throws(() => kept.get("SELECT 1"), { code: "actions.plugin_unavailable" });
+  assert.equal(kept.get("SELECT 1"), undefined, "BL-411: outside every call the kept handle is refused and answers nothing");
   await platform.runtime.start(record.install_id);
   assert.deepEqual(await f.invoke(read, {}, "b"), ["b"], "a new start opens the library again");
 });
@@ -157,4 +160,47 @@ test("PART-12 a project's library has the checks of any plugin library: SELECT-o
   await assert.rejects(f.invoke(write, { text: "revoked" }, "a", authority), { code: "actions.forbidden" });
   probe.read = noteTexts;
   assert.deepEqual(await f.invoke(read, {}, "a"), ["row"], "nothing refused was written");
+});
+
+for (const method of ["get", "all"] as const) {
+  test(`SYS-06 a Home transaction's ${method} refuses CTE writes and still reads its own writes`, async t => {
+    const f = partitionHome(t);
+    await f.ready();
+    await f.invoke(write, { text: "original" }, "a");
+    probe.write = async (database, _text, caller) => {
+      for (const statement of ["DELETE FROM notes RETURNING text", "UPDATE notes SET text='changed' RETURNING text", "INSERT INTO notes(text) VALUES('extra') RETURNING text"]) {
+        await assert.rejects(database.transaction(caller.beforeEffect, tx => {
+          tx.run("INSERT INTO notes(text) VALUES (?)", ["rolled-back"]);
+          tx[method]("WITH unused AS (SELECT 1) " + statement);
+        }), /readonly/u);
+      }
+      await database.transaction(caller.beforeEffect, tx => {
+        tx.run("INSERT INTO notes(text) VALUES (?)", ["kept"]);
+        assert.equal(tx.get("WITH current AS (SELECT text FROM notes) SELECT count(*) AS n FROM current")!.n, 2);
+        assert.deepEqual(tx.all("SELECT text FROM notes ORDER BY id").map(row => row.text), ["original", "kept"]);
+        tx.run("UPDATE notes SET text=? WHERE text=?", ["updated", "kept"]);
+      });
+    };
+    await f.invoke(write, { text: "unused" }, "a");
+    assert.deepEqual(await f.invoke(read, {}, "a"), ["original", "updated"], "rejected statements and their earlier transaction writes left no changes");
+  });
+}
+
+
+test("SYS-39 a rollback failure is logged without replacing the original operation error", async t => {
+  const f = partitionHome(t); await f.ready();
+  const entries: HostLogEntry[] = [], restore = captureHostLog(entries); t.after(restore);
+  const failure = new Error("original write failed"), rollbackFailure = new Error("rollback acknowledgement failed");
+  const exec = DatabaseSync.prototype.exec;
+  t.mock.method(DatabaseSync.prototype, "exec", function(this: DatabaseSync, sql: string) {
+    exec.call(this, sql);
+    if (sql === "ROLLBACK") throw rollbackFailure;
+  });
+  probe.write = async (database, text, caller) => database.transaction(caller.beforeEffect, tx => {
+    tx.run("INSERT INTO notes (text) VALUES (?)", [text]); throw failure;
+  });
+  await assert.rejects(f.invoke(write, { text: "not stored" }, "p1"), error => error === failure);
+  assert.deepEqual(await f.invoke(read, {}, "p1"), []);
+  assert.deepEqual(entries.filter(entry => entry.event === "rollback_failed").map(entry => entry.error), [{ name: "Error" }]);
+  assert.equal(JSON.stringify(entries).includes(rollbackFailure.message), false);
 });

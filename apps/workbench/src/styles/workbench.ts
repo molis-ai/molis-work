@@ -1,4 +1,3 @@
-import { GOALS_DECISION_COMMON_STYLES, GOALS_PROPOSAL_STYLES, GOALS_EVENT_DOCUMENT_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export const MORE_STYLES = `
   .runtime-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 5px; overflow: hidden; }
   .runtime-grid > section { min-width: 0; min-height: 174px; padding: 12px 16px; border-right: 1px solid var(--line-strong); }
@@ -285,9 +284,6 @@ export const MORE_STYLES = `
   .history-list span { min-width: 0; display: grid; }
   .history-list strong, .history-list small { overflow-wrap: anywhere; }
   .history-list small { color: var(--muted); }
-${GOALS_DECISION_COMMON_STYLES}
-${GOALS_PROPOSAL_STYLES}
-${GOALS_EVENT_DOCUMENT_STYLES}
   .decision-reason { padding: 12px 16px; border-top: 1px solid var(--line); background: var(--page); display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: start; gap: 12px; }
   .decision-reason > span { padding-top: 8px; font-weight: 400; }
   .decision-reason textarea { width: 100%; min-width: 0; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); resize: vertical; }
@@ -363,9 +359,7 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .goal-choice strong, .goal-choice small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .form-error { margin: 0; padding: 8px 12px; border-radius: 4px; color: var(--red); background: var(--red-soft); }
   .create-dialog footer { padding: 12px 24px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
-  .toast { position: fixed; left: 50%; bottom: 24px; z-index: 30; padding: 8px 16px; border-radius: 5px; color: var(--action-ink); background: var(--action); box-shadow: var(--shadow); transform: translate(-50%, 18px); opacity: 0; pointer-events: none; transition: 130ms var(--ease-quint); }
-  .toast.is-visible { transform: translate(-50%, 0); opacity: 1; }
-  .toast.is-error { background: var(--red); }
+  .toast { position: fixed; inset-inline: 0; margin-inline: auto; bottom: 24px; z-index: 30; }
   .bound-list { display: grid; gap: 8px; }
   .bound-list article { min-width: 0; display: grid; }
   .bound-list small { color: var(--muted); overflow-wrap: anywhere; }
@@ -403,7 +397,6 @@ ${GOALS_EVENT_DOCUMENT_STYLES}
   .event-ledger-pagination button:disabled { cursor: wait; opacity: .58; }
   .event-ledger-pagination [role="alert"] { flex-basis: 100%; margin: 0; color: var(--red); font-size: 11px; }
   .event-ledger-pagination:has([role="alert"]:not([hidden])) { flex-wrap: wrap; }
-  @keyframes document-in { from { opacity: .5; transform: translateY(5px); } }
   @keyframes pulse { 50% { opacity: .35; } }
 `;
 

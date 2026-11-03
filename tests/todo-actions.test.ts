@@ -1,25 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PERSONAL_SPACE_PROJECT_ID, actionEffect, actionFieldOptions, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import {
-  TODO_ACTIONS as TODO_ALL_ACTIONS,
-  TODO_ACTION_PERMISSIONS,
-  createTodoActionHandlers,
-  openTodoStore,
-  parseTodoQuickText,
-  todoActions as actions,
-  todoManifest,
-  todoSearchActions,
-  type TodoListResult,
-  ownTodoStores,
-} from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTIONS as TODO_ALL_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, parseTodoQuickText, todoActions as actions, todoManifest, todoSearchActions, type TodoListResult, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const TODAY = "2026-09-28";
+const REACHABLE_PROJECTS = ["project-a", "project-b"];
 
 function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-09-28T10:30:00+08:00")) {
   const home = mkdtempSync(join(tmpdir(), "todo-actions-"));
@@ -28,8 +19,11 @@ function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => TODAY, now }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
+  // The Host gives the person's own calls the list of projects they may reach (PG-014, S-74); an Agent's calls never have one. The plugin
+  // reads that list and nothing else, so what an audience may reach is the Host's to say (tests/security-invariants-project-reach.test.ts).
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
-    bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS }));
+    bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
+      ...(audience === "user" ? { readable_project_ids: REACHABLE_PROJECTS } : {}) }));
   return { service, home, store, me: as(null), inA: as("project-a"), inB: as("project-b"), agentA: as("project-a", "agent"), agentHome: as(null, "agent") };
 }
 
@@ -68,6 +62,27 @@ test("scope: personal and unplaced todos everywhere, a project's todos only in t
   // The person's own page may edit another project's todo from "所有项目" without moving it.
   const edited = await f.inA.invoke(actions.update, { id: bTodo.id, title: "B 项目的事（改）", placement: "project" });
   assert.equal(edited.item.project_id, "project-b");
+});
+
+test("RAC-591 S-74 what a caller may reach is the Host's list alone: the same call is refused without one and the plugin compares no audience to decide it", async t => {
+  const f = fixture(t);
+  const inB = (await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project" })).item;
+  // The person's call, with the list the Host gives it, reaches another project's todo; the same call without a list does not, whoever makes it.
+  const withoutList = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user" as const, permissions: TODO_ACTION_PERMISSIONS }));
+  assert.equal((await f.inA.invoke(actions.get, { id: inB.id })).item.id, inB.id);
+  await assert.rejects(withoutList.invoke(actions.get, { id: inB.id }), { code: "todo.not_found" });
+  await assert.rejects(withoutList.invoke(actions.list, { all_projects: true }), { code: "actions.forbidden" });
+  // A list that names a project does not name the others: a todo of a project the Host did not list is not found.
+  const onlyA = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user" as const, permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: ["project-a"] }));
+  await assert.rejects(onlyA.invoke(actions.get, { id: inB.id }), { code: "todo.not_found" });
+  assert.deepEqual(titles(await onlyA.invoke(actions.list, { all_projects: true, view: "all" })), []);
+  assert.deepEqual(titles(await f.inA.invoke(actions.list, { all_projects: true, view: "all" })), ["B 项目的事"]);
+  const source = (name: string) => readFileSync(new URL(`../plugins/native/todo/src/${name}`, import.meta.url), "utf8");
+  // The plugin's own code has no audience comparison in what decides scope: not in the access it builds, nor in the search source.
+  for (const line of source("actions.ts").split("\n").filter(text => /projectIds|readable_project_ids/u.test(text))) assert.doesNotMatch(line, /audience/u, line);
+  assert.doesNotMatch(source("search.ts"), /audience\s*(===|!==|==)/u);
+  assert.match(source("store-types.ts"), /projectIds: readonly string\[\]/u);
+  assert.doesNotMatch(source("store-types.ts"), /everything: boolean/u);
 });
 
 test("revisions refuse stale writes; the person's edits are recorded and the Assistant cannot set importance", async t => {
@@ -257,7 +272,7 @@ test("search entries and the object reader follow the caller's scope", async t =
   // The person at Home (the placement panel after a move) reads a project's todo and learns where it is; an agent at Home does not.
   assert.equal((await f.me.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
   await assert.rejects(f.agentHome.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
-  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
+  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS, readable_project_ids: REACHABLE_PROJECTS }));
   assert.equal((await personalSpace.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
   assert.deepEqual(titles(await personalSpace.invoke(actions.list, { view: "all" })), ["个人的事"], "列表仍只列个人空间的");
   // What the person changed is said in the page's words, not as stored field names (search shows this text).
@@ -429,4 +444,47 @@ test("choices a card may show carry the names a person reads, and still validate
   const made = (await f.inA.invoke(actions.create, { title: "按名称选", placement: "project", status: "doing" })).item;
   assert.deepEqual([made.placement, made.status], ["project", "doing"]);
   await assert.rejects(f.inA.invoke(actions.create, { title: "不认识的值", placement: "当前项目" as never }), { code: "actions.input_invalid" });
+});
+test("RAC-1655: a todo's title, notes and waiting fields are counted in Unicode characters, as its action schemas count them", async t => {
+  // fieldInput in src/actions.ts allows a 200-character title, 10000 characters of notes and an 80/200-character waiting who/what;
+  // one 🟢 is one character but two UTF-16 units.
+  const f = fixture(t);
+  const wide = (count: number) => "🟢".repeat(count);
+  const { item } = await f.me.invoke(actions.create, { title: wide(200) });
+  assert.equal(item.title, wide(200), "create keeps a 200-character title");
+  const noted = (await f.me.invoke(actions.update, { id: item.id, notes: wide(10_000) })).item;
+  assert.equal(noted.notes, wide(10_000), "update keeps 10000 characters of notes");
+  const waited = (await f.me.invoke(actions.update, { id: item.id, waiting: { who: wide(80), what: wide(200), follow_up_on: null } })).item;
+  assert.deepEqual(waited.waiting, { who: wide(80), what: wide(200), follow_up_on: null }, "update keeps an 80-character who and a 200-character what");
+  await assert.rejects(f.me.invoke(actions.update, { id: item.id, title: wide(201) }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
+});
+
+test("RAC-1656: a todo's sources keep names, excerpts and reasons up to their schema lengths in Unicode characters", async t => {
+  // sourceInput in src/actions.ts allows a 200-character name, a 2000-character excerpt and a 500-character reason.
+  const f = fixture(t);
+  const wide = (count: number) => "🟢".repeat(count);
+  const { item } = await f.me.invoke(actions.create, { title: "有来源", sources: [{ kind: "material", title: wide(200), excerpt: wide(2000), reason: wide(500) }] });
+  assert.deepEqual(item.sources.map(source => [source.title, source.excerpt, source.reason]), [[wide(200), wide(2000), wide(500)]], "create keeps the source as given");
+  await assert.rejects(f.me.invoke(actions.create, { title: "来源名太长", sources: [{ kind: "material", title: wide(201) }] }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
+});
+
+test("RAC-1657: a link's name is counted in Unicode characters, as todo.items.link's schema counts it", async t => {
+  // linkInput in src/actions.ts allows a 200-character name; organizing names a link after another todo's title, which may be that long.
+  const f = fixture(t);
+  const wide = (count: number) => "🟢".repeat(count);
+  const { item } = await f.me.invoke(actions.create, { title: "有关联" });
+  const linked = (await f.me.invoke(actions.link, { id: item.id, add: { kind: "material", subject: { kind: "page", id: "doc-1" }, title: wide(200) } })).item;
+  assert.deepEqual(linked.links.map(link => link.title), [wide(200)], "link keeps a 200-character name");
+  await assert.rejects(f.me.invoke(actions.link, { id: item.id, add: { kind: "material", subject: { kind: "page", id: "doc-2" }, title: wide(201) } }), { code: "actions.input_invalid" }, "201 characters is still past the schema");
+});
+
+test("RAC-1679: the Assistant's reminder query names a reminder by its whole title, never half a character", async t => {
+  // A todo's title is at most 200 characters (RAC-1655) and DUE_REMINDER_SCHEMA allows 300; "a" and 199 🟢 are 200 characters but 399
+  // UTF-16 units, so unit 300 is the first half of the 150th 🟢.
+  const f = fixture(t);
+  const at = (hours: number) => new Date(Date.UTC(2026, 8, 28, hours)).toISOString();
+  const title = "a" + "🟢".repeat(199);
+  await f.me.invoke(actions.create, { title, remind_at: at(2) });
+  const { reminders } = await f.me.invoke(actions.dueWindow, { from: at(1), to: at(3) });
+  assert.deepEqual(reminders.map(reminder => reminder.title), [title], "a 200-character title is named whole");
 });

@@ -1,5 +1,4 @@
 import { HOME_OFFERS_FACTORY_SCRIPT } from "./home-offers.js";
-import { HOME_TALK_FACTORY_SCRIPT } from "./home-talk.js";
 import { HOME_SHORTCUTS_FACTORY_SCRIPT } from "./project-home-shortcuts.js";
 import { createHomeFlow } from "../../home-flow.js";
 
@@ -8,7 +7,7 @@ import { createHomeFlow } from "../../home-flow.js";
  * (the things at hand). One detail node moves into whichever row is open.
  */
 export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
-  const { getState, translate: L, openItem, openPlugin, openTarget, api, messageApi } = host;
+  const { getState, translate: L, openItem, openPlugin, openTarget, api } = host;
   (${HOME_SHORTCUTS_FACTORY_SCRIPT})({ root: document.querySelector('[data-work-surface="home"]'), translate: L,
     projectKey: getState().project?.project_id || getState().snapshot.board.project_id });
   const home = document.querySelector('[data-work-surface="home"]');
@@ -37,7 +36,6 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const $$ = (sel, root) => [...(root || home).querySelectorAll(sel)];
   const detailNode = $("[data-home-detail]");
   const detailHolder = $("[data-home-detail-holder]");
-  const scroller = $("[data-home-scroll]");
   const labels = {
     todayEmpty: L("今天还没有事件走进来"),
     empty: L("这一天没有事件"),
@@ -67,41 +65,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const dotsHTML = (list) => list.length
     ? list.slice(0, 4).map((event) => '<i data-k="' + event.kind + '"></i>').join("") + (list.length > 4 ? '<u></u>' : "")
     : "";
-  const closeTalk = (returnToTrigger = false) => {
-    const pop = $("[data-home-talk]");
-    const restoreFocus = returnToTrigger || pop?.contains(document.activeElement);
-    pop?.classList.remove("is-on");
-    pop?.setAttribute("hidden", "");
-    home.dataset.dock = "closed";
-    if (restoreFocus) requestAnimationFrame(() => { if (home.dataset.dock === "closed" && eventId) $("[data-home-open-talk]")?.focus(); });
-  };
   const closeEvent = () => {
     eventId = "";
     home.dataset.event = "off";
-    closeTalk();
-  };
-  // The Talk sheet rises from the open event's action row. When that row is out of view (a smaller window, a
-  // resize) it is brought into view first; the sheet never leaves the home.
-  const placeTalk = (reveal) => {
-    const pop = $("[data-home-talk]");
-    const bar = $(".home-detail__primary") || $("[data-home-detail-act]");
-    if (!pop || !bar || home.dataset.dock !== "open") return;
-    pop.removeAttribute("hidden");
-    const ar = home.getBoundingClientRect();
-    let r = bar.getBoundingClientRect();
-    if (reveal === true && scroller) {
-      const sr = scroller.getBoundingClientRect();
-      if (r.bottom > sr.bottom || r.top < sr.top + 160) { scroller.scrollTop += r.bottom - sr.bottom + 12; r = bar.getBoundingClientRect(); }
-    }
-    const width = Math.min(Math.max(280, r.width), ar.width - 16);
-    pop.style.width = Math.round(width) + "px";
-    pop.style.left = Math.round(Math.max(8, Math.min(r.left - ar.left, ar.width - width - 8))) + "px";
-    const gap = 8;
-    const anchor = Math.max(ar.top + 168, Math.min(r.top, ar.bottom - 8));
-    pop.style.maxHeight = Math.round(Math.max(160, Math.min(520, anchor - ar.top - gap - 8))) + "px";
-    // Anchor the compose row while asynchronous content or native details expand above it.
-    pop.style.top = "auto";
-    pop.style.bottom = Math.round(ar.bottom - anchor + gap) + "px";
   };
   const shortWeek = (id) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(id + "T12:00:00"));
   const renderDates = () => {
@@ -214,18 +180,18 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       }
       // An empty day keeps the ways to start something; another day also offers the way back to today.
       const otherDay = !day?.today;
-      const starts = [
-        { plugin: 'goals', title: '推进一个目标', copy: '明确要做成什么，接着往下走。', icon: 'target' },
-        { plugin: 'pages', title: '写一份文档', copy: '把思路写下来，逐步整理成作品。', icon: 'file' },
-        { plugin: 'lingguang', title: '记下一点灵感', copy: '还没想清楚，也可以先留下。', icon: 'idea' },
-      ].filter(item => document.querySelector('[data-plugin-id="' + item.plugin + '"]'));
+      // The plugins the project shows say how to start with them (the start of their views); the page carries the list in order.
+      const starts = (() => {
+        try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
+        catch (error) { return []; }
+      })();
       // The ways to start are one row of small buttons; the sentence of each is its hint.
       const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(L(hint)) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(L(label)) + '</span></button>';
       paint('<div class="home-start"><p class="home-start__lead">' + (otherDay
           ? '<b>' + L('这一天还没有事件') + '</b>' + L('已有工作仍在，可以从当前目标继续，或从这里开始一件新的事。')
           : L('选一件想做的事，或继续已有的工作。')) + '</p><div class="home-start-actions">' +
         (otherDay ? chip('data-home-today', 'back', '回到今天') : '') +
-        starts.map(item => chip('data-home-start="' + item.plugin + '"', item.icon, item.title, item.copy)).join('') +
+        starts.map(item => chip('data-home-start="' + esc(item.id) + '"', item.glyph, item.title, item.hint)).join('') +
         chip('data-home-start="market"', 'grid', '浏览更多工具') + '</div></div>');
       return;
     }
@@ -272,24 +238,21 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       '<p class="home-detail__text">' + esc(event.text) + "</p>" +
       '<dl class="home-detail__facts">' + event.facts.map((fact) =>
         "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>");
-    const talkOn = home.dataset.dock === "open";
     const left = event.open ? '<button class="mw-btn mw-btn--primary" type="button" data-home-open-target' + (opening === event.id ? ' disabled' : '') + '>' + ico("arrow") +
       esc(opening === event.id ? L('正在打开…') : L(event.open.label)) + '</button>' : '';
     const footer = $("[data-home-detail-act]", detailNode);
     if (!$(".home-detail__primary", footer)) footer.innerHTML =
       '<div data-home-offers></div><p data-home-navigation-error role="alert" hidden></p><div class="home-detail__primary"><div class="home-detail__act-left"></div>' +
-      '<button class="mw-btn mw-btn--ghost" type="button" data-home-open-talk>' + ico("message") + L("说一句") + "</button></div>";
+      "</div>";
     const leftNode = $(".home-detail__act-left", footer);
     const mode = JSON.stringify([event.id, event.open, opening === event.id]);
     if (leftNode.dataset.mode !== mode) { leftNode.innerHTML = left; leftNode.dataset.mode = mode; }
-    $("[data-home-open-talk]", footer).setAttribute("aria-pressed", String(talkOn));
     const error = $('[data-home-navigation-error]', footer); error.hidden = !navigationError; error.innerHTML = navigationError ? esc(issueText(navigationError)) + ' <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '';
     if(navigationError && typeof navigationError!=='string'){const retry=error.querySelector('button');molisWorkRequest.show(error,navigationError);if(retry)error.append(retry);}
     offers.render();
-    $("[data-home-talk-ctx]").textContent = event.title ? "· " + event.title : "";
   };
   // The things at hand: the plugins kept in the Dock, then the person's own shortcuts.
-  const QUICK_CAPTIONS = { goals: "找到下一步", feed: "阅读与留下", inbox: "处理待办", sessions: "回到会话", pages: "继续写作", schedule: "看看安排", lingguang: "记下灵感" };
+  const QUICK_CAPTIONS = { goals: "找到下一步", feed: "阅读与留下", inbox: "处理待办", pages: "继续写作", schedule: "看看安排", lingguang: "记下灵感" };
   const renderQuick = () => {
     const list = $("[data-home-quick]");
     const seen = new Set();
@@ -315,7 +278,6 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     renderList();
     if (eventId) renderDetail();
     renderQuick();
-    if (home.dataset.dock === "open") requestAnimationFrame(placeTalk);
   };
   const openEvent = (id) => {
     if (!events.some((event) => event.id === id)) return;
@@ -323,17 +285,6 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     navigationError = '';
     home.dataset.event = "on";
     render();
-  };
-  const openTalk = () => {
-    if (!current()) return;
-    if (home.dataset.dock === "open") { closeTalk(); renderDetail(); return; }
-    home.dataset.dock = "open";
-    renderDetail();
-    talk.open();
-    requestAnimationFrame(() => {
-      placeTalk(true);
-      $("[data-home-talk-form] textarea")?.focus();
-    });
   };
   const openEventTarget = async () => {
     const event = current(); if (!event?.open || !eventWindow || opening) return;
@@ -344,12 +295,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     } catch (error) { if (current()?.id === event.id) navigationError=error; }
     finally { opening = ''; if (current()?.id === event.id) renderDetail(); }
   };
-  const talk = (${HOME_TALK_FACTORY_SCRIPT})({ root: home, current, translate: L, prepareApi: api, messageApi,
-    projectKey, openItem, openPlugin, layout: placeTalk });
   const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: api,
     projectKey, refresh: () => sync() });
-  new ResizeObserver(placeTalk).observe($("[data-home-detail-act]"));
-  scroller?.addEventListener("scroll", () => { if (home.dataset.dock === "open") placeTalk(); }, { passive: true });
   home.addEventListener("click", async (event) => {
     const start = event.target.closest('[data-home-start]');
     if (start) { openPlugin?.(start.dataset.homeStart); return; }
@@ -387,22 +334,12 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       $$("[data-home-open-event]").find((row) => row.dataset.homeOpenEvent === id)?.focus({ preventScroll: true });
       return;
     }
-    if (event.target.closest("[data-home-open-talk]")) { openTalk(); return; }
-    if (event.target.closest("[data-home-close-talk]")) { closeTalk(true); renderDetail(); return; }
     if (event.target.closest("[data-home-open-target]")) { await openEventTarget(); return; }
-    if (!event.composedPath().includes($("[data-home-talk]")) && !event.target.closest("[data-home-open-talk]") && home.dataset.dock === "open") {
-      closeTalk();
-      if (eventId) renderDetail();
-    }
   });
   document.addEventListener("keydown", (event) => {
     if (home.hidden) return;
-    if (event.key === "Escape") {
-      if (home.dataset.dock === "open") { closeTalk(true); if (eventId) renderDetail(); }
-      else if (eventId) { closeEvent(); render(); }
-    }
+    if (event.key === "Escape" && eventId) { closeEvent(); render(); }
   });
-  addEventListener("resize", () => { if (home.dataset.dock === "open") placeTalk(true); });
   // Leaving Home folds the open event away; coming back shows the day as a list again.
   new MutationObserver(() => { if (document.body.dataset.desktopSurface !== "home" && eventId) { closeEvent(); render(); } })
     .observe(document.body, { attributes: true, attributeFilter: ["data-desktop-surface"] });

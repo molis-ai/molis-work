@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** What a baseline needs from a connection: `node:sqlite` and better-sqlite3 both fit. */
 export interface SqliteBaselineDatabase {
@@ -24,17 +25,99 @@ export interface SqliteBaseline {
   readonly schema: string;
 }
 
+/** A baseline's expected shape, described once from its creation statements (the memory reference is not rebuilt per open). */
+const expectedShapes = new WeakMap<SqliteBaseline, SqliteSchemaShape>();
+function expectedShape(baseline: SqliteBaseline): SqliteSchemaShape {
+  let shape = expectedShapes.get(baseline);
+  if (!shape) { shape = describeSqliteBaseline(baseline); expectedShapes.set(baseline, shape); }
+  return shape;
+}
+
+/**
+ * Whether an open store carries the baseline's structure: every table of the baseline is there with the baseline's shape. Extra tables
+ * are a plugin's own (a project library gets the built-in plugins' tables on top of the platform baseline), so they are not a mismatch;
+ * a baseline table that changed or disappeared is.
+ */
+const expectedTriggers = new WeakMap<SqliteBaseline, ReadonlyMap<string,string>>();
+function baselineTriggers(baseline: SqliteBaseline): ReadonlyMap<string,string> {
+  let result=expectedTriggers.get(baseline);
+  if(!result){const reference=new DatabaseSync(':memory:');try{reference.exec(baseline.schema);result=sqliteTriggers(reference);expectedTriggers.set(baseline,result);}finally{reference.close();}}
+  return result;
+}
+function sqliteTriggers(db: SqliteBaselineDatabase): ReadonlyMap<string,string> {
+  return new Map((db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all() as {name:string;sql:string}[]).map(row=>[row.name,row.sql.trim()]));
+}
+function baselineShapePresent(db: SqliteBaselineDatabase, baseline: SqliteBaseline): boolean {
+  const found = describeSqliteSchema(db), expected = expectedShape(baseline);
+  const triggers=sqliteTriggers(db);
+  if([...baselineTriggers(baseline)].some(([name,sql])=>triggers.get(name)!==sql))return false;
+  return Object.entries(expected.tables).every(([name, table]) => found.tables[name] !== undefined
+    && JSON.stringify(found.tables[name]) === JSON.stringify(table));
+}
+
+/** A same-version store whose structure is not the baseline's: refused, never repaired in place (repository-anti-corruption §4.1). */
+const storageErrors = defineErrorCodes("storage", { schema_structure_mismatch: "invalid" });
+const structureMismatch = (path: string) => storageErrors.schema_structure_mismatch(
+  `${path} 的结构与当前完整基线不符，不会就地修补。请用与它相符的版本打开，或备份后移走这个库让它重建。`);
+
+/** Whether an error is the refusal above, for callers that give this store its own name and recovery page. */
+export const isSqliteSchemaStructureMismatch = (error: unknown): error is ActionError =>
+  error instanceof ActionError && error.code === "storage.schema_structure_mismatch";
+
+/**
+ * Refuse an existing store before a writable connection can change it: another version (or tables without one) is refused with both
+ * versions, and a same-version store whose structure is not the baseline's is refused too. A missing or empty file is left for the
+ * writable open to create. Everything here runs read-only: bytes, mode and journal files are exactly as they were when it returns.
+ * Returns whether the read-only check could prove the file's version and structure; a hot journal (a write killed before commit) makes
+ * a read-only connection fail with SQLITE_READONLY_ROLLBACK, and that crash recovery is left to the writable open — the caller then
+ * checks the recovered database's version and structure in full.
+ */
+function inspectSqliteBaseline(path: string, baseline: SqliteBaseline): boolean {
+  if (!existsSync(path)) return true;
+  try {
+    const inspection = new DatabaseSync(path, { readOnly: true });
+    try {
+      const found = Number((inspection.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+      const empty = !inspection.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
+      if (found !== baseline.version) {
+        if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
+        return true;
+      }
+      // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
+      // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
+      if (!baselineShapePresent(inspection, baseline)) throw structureMismatch(path);
+      return true;
+    } finally { inspection.close(); }
+  } catch (error) {
+    // SQLITE_READONLY_ROLLBACK: the file has a hot journal, and a read-only connection cannot roll it back. The writable open recovers
+    // it (SQLite's own crash recovery, not the caller's business write) and the baseline check runs there instead.
+    if ((error as { errcode?: unknown }).errcode === 776) return false;
+    throw error;
+  }
+}
+
 /**
  * Give a database exactly one current schema (repository-anti-corruption §4.1): an empty file gets `schema` and
- * `version` in one transaction; the same version is left as it is; anything else — another version, or tables without a
- * version — is refused with the path and both versions, never upgraded in place.
+ * `version` in one transaction; the same version is left as it is (its structure is compared too); anything else — another
+ * version, or tables without a version — is refused with the path and both versions, never upgraded in place.
  */
 export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline): void {
+  applyBaseline(db, path, baseline, false);
+}
+
+/**
+ * The one place that applies a baseline. `shapeChecked` says the read-only inspection just before a writable open already compared this
+ * file's structure, so a still-valid file is not described twice; it never skips a check the inspection could not make (a hot journal
+ * leaves the file to the writable open, and this function then compares version and structure in full).
+ */
+function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, shapeChecked: boolean): void {
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
   const found = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
-  if (found === baseline.version) return;
-  // Opening a Home connection can bind its immutable owner before a business store is first used.
-  // This platform metadata is not a business schema; any other unversioned table still refuses initialization.
+  if (found === baseline.version) {
+    // The version mark claims the baseline's schema; missing baseline tables are damage even when no business table is left.
+    if (!shapeChecked && !baselineShapePresent(db, baseline)) throw structureMismatch(path);
+    return;
+  }
   const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'molis_storage_space' LIMIT 1").get();
   if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
   db.exec("BEGIN IMMEDIATE");
@@ -48,10 +131,22 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
   }
 }
 
-/** `openHomeSqliteDatabase` with one current schema: the store is created at, or must already be at, `baseline.version`. */
+/**
+ * `openHomeSqliteDatabase` with one current schema: the store is created at, or must already be at, `baseline.version`. An existing
+ * store is inspected read-only first (version and structure), so a wrong one is refused before a writable connection, its chmod or a
+ * journal file can change anything.
+ */
 export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline, projectId?: string): DatabaseSync {
-  return openHomeSqliteDatabase(homeDirectory, storeName, projectId, db =>
-    applySqliteBaseline(db, homeSqlitePath(homeDirectory, storeName, projectId), baseline));
+  const path = homeSqlitePath(homeDirectory, storeName, projectId);
+  const inspected = inspectSqliteBaseline(path, baseline);
+  const db = openHomeSqliteDatabase(homeDirectory, storeName, projectId, db => applyBaseline(db, path, baseline, inspected));
+  try {
+    applyBaseline(db, path, baseline, inspected);
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
 /** What makes two schemas the same: tables, their columns in order, indexes, foreign keys and CHECK clauses. */

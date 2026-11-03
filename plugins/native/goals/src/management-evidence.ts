@@ -1,8 +1,4 @@
-import { LOCAL_PERSON_ACTOR_ID, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-
-import type { GoalEventTrustedAuthority } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { hostEventDecisionAuthority } from "./goal-event-application.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const IDENTITY_FIELDS = ["actor_id", "actor_kind", "authority_source"] as const;
 
@@ -23,22 +19,4 @@ export function managementEvidence(evidence: unknown, code: string): Record<stri
 /** A reference the caller gave, when it is a non-blank string; anything else falls back to the Host's default. */
 export function evidenceText(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
-}
-
-/** The Host supplies the local person and management origin; input supplies only conversation evidence. */
-export function managementEventDecisionAuthority(projectId: string, idempotencyKey: string, evidence?: unknown): GoalEventTrustedAuthority {
-  const given = managementEvidence(evidence, "goals.event_decision_authority_invalid");
-  const fixed = hostEventDecisionAuthority("management", projectId, LOCAL_PERSON_ACTOR_ID, idempotencyKey);
-  return { ...fixed, conversation_ref: evidenceText(given.conversation_ref) ?? fixed.conversation_ref,
-    message_ref: evidenceText(given.message_ref) ?? fixed.message_ref };
-}
-
-/** The same evidence boundary for a management structure decision. */
-export function managementTreeAuthority(projectId: string, idempotencyKey: string, evidence?: unknown): GoalTreeProposalDecisionAuthority {
-  const given = managementEvidence(evidence, "goals.goal_tree_proposal.authority_source_invalid");
-  return { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", authority_source: "management",
-    conversation_ref: evidenceText(given.conversation_ref) ?? `management:${projectId}`,
-    message_ref: evidenceText(given.message_ref) ?? `management-tree-decision:${idempotencyKey}`,
-    ...(given.whole_confirmation_prompted === true ? { whole_confirmation_prompted: true } : {}),
-    ...(evidenceText(given.prompted_proposal_id) ? { prompted_proposal_id: evidenceText(given.prompted_proposal_id) } : {}) };
 }

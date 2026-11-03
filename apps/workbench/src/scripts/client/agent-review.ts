@@ -13,7 +13,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
   const current=(state,control)=>state.lifetime.alive && control.lifetime.alive && control.lifetime.visible && !control.signal?.aborted && state.control.lifetime===control.lifetime && state.control.signal===control.signal;
   const read=async(path,body,control) => {
     const {lifetime,signal}=control;
-    const data=await molisWorkRequest(host.route(path),{body,scope:control.requestLifetime,signal:body?lifetime.signal:signal,fallback:'审查暂不可用'});
+    const data=await molisWorkRequest(host.route(path),{body,headers:host.headers?.(),scope:control.requestLifetime,signal:body?lifetime.signal:signal,fallback:'审查暂不可用'});
     lifetime.assertCurrent(body?undefined:signal);return data;
   };
   // scope.runSession lists every run of one runtime session; scope.limit keeps open items plus that much settled history.
@@ -34,6 +34,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         recoveryDrafts.set(row.dataset.agentReviewItem,{reason:row.querySelector('[data-review-recovery-reason]')?.value || '',confirmed:row.querySelector('[data-review-recovery-confirm]')?.checked===true});
       });
       state.lifetime.listen(container,'click',async event=>{
+        if(!event.isTrusted || !state.control.lifetime.visible)return;
         const recoveryButton=event.target.closest('[data-agent-review-inspect],[data-review-recheck],[data-review-confirm-not]');
         if(recoveryButton && container.contains(recoveryButton)) {
           const row=recoveryButton.closest('[data-agent-review-item]'), review_id=row.dataset.agentReviewItem;
@@ -50,6 +51,8 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
               const confirmed=row.querySelector('[data-review-recovery-confirm]')?.checked===true;
               const reason=row.querySelector('[data-review-recovery-reason]')?.value || '';
               if(confirm && (!confirmed || !reason.trim()))throw new Error('请填写具体依据并确认原操作未发生');
+              if(confirm && host.confirm && !await host.confirm(row.textContent))return;
+              if(!current(state,control))return;
               data=await read('/api/agent/reviews/recovery',{review_id,action:confirm?'not-happened':'refresh',confirmed,reason,revision:panel?.dataset.reviewRevision},control);
             }
             if(!current(state,control) || scopeKey!==state.key || !container.contains(row))return;
@@ -80,9 +83,9 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         const row=button.closest('[data-agent-review-item]'),note=row.querySelector('[data-agent-review-feedback]')?.value.trim() || '';
         if(button.dataset.agentReviewApprove && note)return;
         busy.add(review_id); syncActions(row);
-        const control=state.control,scopeKey=state.key,scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null;
+        const control=state.control,scopeKey=state.key,scope={workspaceId:state.workspaceId,sessionId:state.sessionId};let receipt=null,decisionError=null,attempted=false;
         const remember=Boolean(button.dataset.agentReviewApprove && row.querySelector('[data-agent-review-remember]')?.checked);
-        try { ({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})},control));if(!receipt.delivery_error)saveFeedback(review_id,''); }
+        try { if(host.confirm && !await host.confirm(button.textContent+'\\n'+row.textContent))return;if(!current(state,control))return;attempted=true;({receipt}=await read('/api/agent/reviews/decide',{review_id,decision:button.dataset.agentReviewApprove ? 'approve' : 'reject',...(note?{note}: {}),...(remember?{remember:'session'}:{})},control));if(!receipt.delivery_error)saveFeedback(review_id,''); }
         catch(error) {
           decisionError=error.message;
           if(!current(state,control) || scopeKey!==state.key)return;
@@ -90,7 +93,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
           let note=row.querySelector('[data-review-error]');
           if(!note){note=document.createElement('p');note.dataset.reviewError='';note.className='agent-review-error';note.setAttribute('role','alert');row.append(note);}
           molisWorkRequest.show(note,error);
-        } finally {busy.delete(review_id);if(current(state,control) && scopeKey===state.key){syncActions(row);await host.onDecision?.({...scope,receipt,error:decisionError});if(current(state,control))void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}else if(current(state,state.control)){void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}}
+        } finally {busy.delete(review_id);if(current(state,control) && scopeKey===state.key){syncActions(row);if(attempted)await host.onDecision?.({...scope,receipt,error:decisionError});if(current(state,control))void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}else if(current(state,state.control)){void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);}}
       });
     }
     control={...control,requestLifetime:state.lifetime};state.control=control;

@@ -1,5 +1,5 @@
-import { fencedMaterials, instructed, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { TodoCandidate, TodoCandidateKind, TodoItem, TodoPlacement } from "@molis-ai/molis-work-contracts/modules/todo";
+import { fencedMaterials, instructed, MODEL_DATA_MAX_CHARS, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidate, type TodoCandidateKind, type TodoItem, type TodoPlacement } from "./contract.js";
 import { isTodoDate, isTodoTime, localDate } from "./dates.js";
 import { parseTodoQuickText } from "./quick-parse.js";
 
@@ -24,10 +24,13 @@ export interface TodoOrganizeParse {
   readonly unverified: number;
 }
 
-/** One model call reads at most this much material; longer sets are read in parts. */
+/** One model call reads at most this many characters of material; longer sets are read in parts (one material longer than this has a part of its own). */
 const TODO_ORGANIZE_PART_CHARS = 40_000;
-/** A single material is cut here; the batch says so. */
-export const TODO_ORGANIZE_MATERIAL_CHARS = 60_000;
+
+/** The Host prompt limit's data position, from the contract's one number (`MODEL_DATA_MAX_CHARS`): each model call's data (its part of the
+ * materials, the existing todos, the request) must stay within it; a call over it is refused before any model call, saying how much,
+ * instead of letting the Host refuse it after dispatch as a model failure. */
+export const TODO_ORGANIZE_DATA_MAX_CHARS = MODEL_DATA_MAX_CHARS;
 
 const KINDS: readonly TodoCandidateKind[] = ["request", "commitment", "waiting", "suggestion"];
 const PLACEMENTS: readonly TodoPlacement[] = ["project", "personal", "unassigned"];
@@ -97,13 +100,35 @@ export function phraseWrittenAt(material: Pick<TodoOrganizeMaterial, "text" | "r
   return top ? stamp(top) : null;
 }
 
-/** Group materials so each model call stays within the part size; a long material gets a part of its own. */
+/** What organizing reads of a material: its first TODO_ORGANIZE_MATERIAL_CHARS characters, cut between whole characters (a 🟢 is one character but two UTF-16 units). */
+export function materialReadText(text: string): string {
+  if (text.length <= TODO_ORGANIZE_MATERIAL_CHARS) return text;
+  let end = 0, count = 0;
+  for (const character of text) {
+    if (count === TODO_ORGANIZE_MATERIAL_CHARS) return text.slice(0, end);
+    end += character.length;
+    count += 1;
+  }
+  return text;
+}
+
+/** How many characters organizing reads of a material, counted as `materialReadText` cuts it: whole characters, at most TODO_ORGANIZE_MATERIAL_CHARS (a 🟢 is one character but two UTF-16 units). */
+function materialReadChars(text: string): number {
+  let count = 0;
+  for (const _ of text) {
+    if (count === TODO_ORGANIZE_MATERIAL_CHARS) break;
+    count += 1;
+  }
+  return count;
+}
+
+/** Group materials so each model call stays within the part size, each counted as organizing reads it (`materialReadChars`); a long material gets a part of its own. */
 export function organizeParts(materials: readonly TodoOrganizeMaterial[]): number[][] {
   const parts: number[][] = [];
   let current: number[] = [], size = 0;
   materials.forEach((material, index) => {
     if (material.read === "failed" || !material.text.trim()) return;
-    const length = Math.min(material.text.length, TODO_ORGANIZE_MATERIAL_CHARS);
+    const length = materialReadChars(material.text);
     if (current.length && size + length > TODO_ORGANIZE_PART_CHARS) { parts.push(current); current = []; size = 0; }
     current.push(index);
     size += length;
@@ -120,7 +145,7 @@ export function organizePrompt(instruction: InstructionPrompt, input: {
     me: ["你", ...(input.me ?? [])],
     materials: input.indexes.map(index => {
       const material = input.materials[index]!;
-      return { material: index + 1, title: material.title, received_at: material.received_at ?? null, text: material.text.slice(0, TODO_ORGANIZE_MATERIAL_CHARS) };
+      return { material: index + 1, title: material.title, received_at: material.received_at ?? null, text: materialReadText(material.text) };
     }),
     existing: input.existing.map(item => ({ id: item.id, title: item.title, status: item.status, due_date: item.due_date, planned_date: item.planned_date,
       waiting: item.waiting, edited_by_you: item.edited_fields })),
@@ -153,7 +178,7 @@ export function organizeJson(raw: string): { candidates?: unknown; reference_onl
   throw new Error("整理结果不是有效 JSON");
 }
 
-const text = (value: unknown, max: number): string => typeof value === "string" ? value.replace(/\s+/gu, " ").trim().slice(0, max) : "";
+const text = (value: unknown, max: number): string => typeof value === "string" ? [...value.replace(/\s+/gu, " ").trim()].slice(0, max).join("") : "";
 
 /**
  * Keep only what the materials support: a passage that is really there, a due date only when its phrase is in the

@@ -1,5 +1,5 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DATASET_PROJECT_PLUGIN_ID, type DatasetRecord } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { DATASET_PROJECT_PLUGIN_ID, type DatasetRecord } from "./contract.js";
 import type { DatasetStore } from "./store.js";
 import { datasetErrors } from "./error.js";
 
@@ -48,7 +48,7 @@ export function createDatasetSearchHandlers(withStore: <T>(run: (store: DatasetS
         if ((error as { code?: string })?.code === "dataset.not_found") throw datasetErrors.not_found("数据表已删除");
         throw error;
       }
-      return subjectContext({ subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: dataset.title, content: datasetSearchContent(dataset), goal_ids: [], session_id: null, open: { surface: DATASET_PROJECT_PLUGIN_ID, id: dataset.id } });
+      return subjectContext({ subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: dataset.title, content: datasetSearchContent(dataset), open: { surface: DATASET_PROJECT_PLUGIN_ID, id: dataset.id } });
     }) },
   ];
 }

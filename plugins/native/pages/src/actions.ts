@@ -4,9 +4,10 @@ import { ActionError, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPr
 import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createPagesCommentHandlers, pagesCommentActions } from "./comment-actions.js";
 import { createPagesLandingHandlers, definePagesLandingActions } from "./landing-actions.js";
-import { parsePagesBody } from "./document.js";
+import { MAX_BODY_CHARS, parsePagesBody } from "./document.js";
+import { blocksFromMarkdown } from "./paste-markdown.js";
 import { pagesErrors } from "./error.js";
-import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "./contract.js";
 import { PAGES_AI_COMMANDS, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { runPagesAi } from "./ai-run.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";
@@ -23,6 +24,28 @@ import { PAGES_DOCUMENT_INTAKE, preparePagesIntakeOffers } from "./intake-offers
 import { createPagesDocument, type CreatedPagesDocument } from "./create-document.js";
 
 const text = { type: "string" };
+
+/** The materials' JSON in the prompt, in characters as the Host counts them: 180,000 for the prompt's data, less the fixed 4,109
+ * characters around it (`标题：` + an 80-character title + `\n用户要求：` + 4,000-character requirements + two `\n\n` + the 16-character line
+ * before the JSON), rounded down to leave room. The Host also leaves its own 98 characters of slack above 180,000. */
+const PAGES_MATERIALS_JSON_MAX_CHARS = 175_800;
+
+/** The materials' JSON is part of the prompt the model port measures in characters: it would refuse this generation anyway when that
+ * JSON pushes the prompt over its limit, so the same check is made here, before the request is taken and a generation record is written.
+ * Units are never fewer than characters and never more than twice as many, so only the band in between needs its characters counted once. */
+function materialsJsonFits(inputs: readonly PagesInputSnapshot[]) {
+  const json = JSON.stringify(inputs);
+  return json.length <= 2 * PAGES_MATERIALS_JSON_MAX_CHARS && (json.length <= PAGES_MATERIALS_JSON_MAX_CHARS || [...json].length <= PAGES_MATERIALS_JSON_MAX_CHARS);
+}
+
+/** The materials the prompt will actually carry: the request's own, unless an earlier record of the same request (same hash) keeps the
+ * snapshot it started with; a completed record replays without any prompt, and a changed hash is refused by beginGeneration. Null means
+ * there is no prompt length to check. */
+function promptMaterialsOf(inputs: readonly PagesInputSnapshot[], prior: PagesGenerationRecord | null, requestHash: string): readonly PagesInputSnapshot[] | null {
+  if (!prior) return inputs;
+  if (prior.request_hash && prior.request_hash !== requestHash) return null;
+  return prior.status === "completed" && prior.document_id ? null : prior.inputs;
+}
 const id = { type: "string", minLength: 1, pattern: "\\S" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const array = (items: unknown) => ({ type: "array", items });
@@ -51,7 +74,8 @@ type WrittenFields = Fields & { markdown?: string };
 /** The object kind every Pages action and surface names. */
 export const PAGES_SUBJECT_KIND = "pages_document";
 /** What Pages can start documents from: text it reads, and the Word, CSV and ZIP (e.g. Notion export) files it parses. */
-export const PAGES_READABLE_FILE = /\.(?:md|markdown|txt|html?|csv|docx|zip)$/iu;
+export const PAGES_READABLE_EXTENSIONS = [".md", ".markdown", ".txt", ".html", ".htm", ".csv", ".docx", ".zip"];
+export const PAGES_READABLE_FILE = new RegExp(`(?:${PAGES_READABLE_EXTENSIONS.map(extension => extension.replace(".", "\\.")).join("|")})$`, "iu");
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], scheduling?: ActionDefinition["action"]["scheduling"]): ActionDefinition<I, O> {
   return { capability_id: `pages.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
@@ -121,6 +145,13 @@ export const pagesActions = {
     object({ files, selected_keys: { ...array(id), minItems: 1, maxItems: 100, uniqueItems: true }, request_id: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }, folder_id: text }, ["files", "selected_keys", "request_id"]), object({ documents: array(page), warnings: array(text) }), [...write, MATERIALS_READ], undefined, "concurrent"),
   importDocuments: define<{ request_id: string; request_hash: string; documents: { title: string; body: PagesBody }[]; folder_id?: string }, { documents: PagesRecord[] }>("documents.import", "保存材料文档", "批量保存已解析的文档；调用方提供已确认意图的稳定请求标识与摘要，重试返回原文档且不覆盖后续编辑", "command",
     object({ ...requestIdentity, documents: { ...array(object({ title: fields.title, body })), minItems: 1, maxItems: 1000 }, folder_id: text }, ["request_id", "request_hash", "documents"]), object({ documents: array(page) }), write),
+  /**
+   * Markdown as a Pages body, and nothing else: no document is read or written. The person's first-run flow converts the text it
+   * adopts with it, so it needs none of Pages' internals; it is offered to the person only (not to workflows, agents or MCP). The
+   * result never passes one document's limit: a text that converts to more gets `pages.body_too_large`, not a cut or a huge body.
+   */
+  bodyFromMarkdown: withAction(define<{ markdown: string }, { body: PagesBody }>("documents.body_from_markdown", "Markdown 转文档正文", "把 Markdown 转成 Pages 的文档正文；只转换，不读取也不写入任何文档。转换结果超过一篇文档能存的大小时返回 pages.body_too_large", "query",
+    object({ markdown: { type: "string", minLength: 1, maxLength: 1_000_000 } }), object({ body }), read), { audiences: ["user"], subject_kinds: [] }),
   generations: define<Record<string, never>, { records: PagesGenerationRecord[] }>("generations.list", "文稿生成记录", "查看当前项目生成任务的输入快照、状态和文档引用", "query", object({}), object({ records: array(generation) }), read),
   generation: define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", "读取文稿生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read),
   generate: define<{ request_id: string; request_hash: string; inputs: PagesInputSnapshot[]; title: string; instructions: string }, { document: PagesRecord; replayed: boolean }>("generate", "材料生成文稿", "按调用方提供的材料快照生成文稿并保存；同一请求重试使用原快照，保留已生成后的手工编辑", "command",
@@ -132,6 +163,13 @@ export const pagesActions = {
   promote: define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]),
   extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write]),
 };
+/** The body of a Markdown text: Pages' own reader, else one paragraph; never one a document could not hold. */
+function bodyFromMarkdown(markdown: string): PagesBody {
+  const blocks = blocksFromMarkdown(markdown);
+  const body = { type: "doc", content: blocks ? blocks.map(block => block.toJSON()) : [{ type: "paragraph", content: [{ type: "text", text: markdown }] }] } as PagesBody;
+  if (JSON.stringify(body).length > MAX_BODY_CHARS) throw pagesErrors.body_too_large("转换后的正文超过一篇文档能存的大小");
+  return body;
+}
 export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesLandingActions), ...Object.values(pagesActions)];
 export const PAGES_ACTION_PERMISSIONS = [...new Set(PAGES_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface PagesActionPorts extends PagesStores {
@@ -146,6 +184,17 @@ export interface PagesActionPorts extends PagesStores {
   readArtifact?: (input: Parameters<PagesReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesReadArtifactPort>;
   lineHead?: PagesLineHeadPort;
 }
+
+/**
+ * The file Pages reads to continue from an imported 成果 version. An original the 成果库 keeps in its store (over 6 MB) continues from
+ * the text read out of it, as Markdown.
+ */
+function continuedFiles(file: ReturnType<typeof importedDocumentFile>): { name: string; data: string }[] {
+  if (!file || !(file.stored ? file.text?.trim() : PAGES_READABLE_FILE.test(file.filename))) throw pagesErrors.unsupported("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP");
+  return [file.stored ? { name: file.filename.replace(/\.[^.]*$/u, "") + ".md", data: Buffer.from(file.text!, "utf8").toString("base64") }
+    : { name: file.filename, data: file.data_base64 ?? Buffer.from(file.text ?? "", "utf8").toString("base64") }];
+}
+
 export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandlerBinding[] {
   const prepareImport = async (files: readonly PagesImportFile[], caller: ActionExecutionContext) => {
     await caller.beforeEffect(); caller.signal?.throwIfAborted();
@@ -184,7 +233,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       try { document = store.get(input.subject_id, project(caller)); }
       catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? pagesErrors.not_found("文档不存在或已删除") : error; }
       return subjectContext({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
-        content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], session_id: null, open: { surface: "pages", id: document.id } }, input);
+        content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], open: { surface: "pages", id: document.id } }, input);
     })),
     bindSearchEntriesHandler(pagesActions.searchEntries, caller => ports.read(store => store.list(project(caller)).map(document => ({
       subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档", summary: "",
@@ -255,9 +304,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
         return { surface: "pages", id: document.id, title: document.title };
       }
       // An imported file Pages can read is parsed the way Pages imports files.
-      const file = importedDocumentFile(artifact);
-      if (!file || !PAGES_READABLE_FILE.test(file.filename)) throw pagesErrors.unsupported("Pages 读不了这一版：支持 Markdown、TXT、HTML、CSV、Word 与 ZIP");
-      const files = [{ name: file.filename, data: file.data_base64 ?? Buffer.from(file.text ?? "", "utf8").toString("base64") }];
+      const files = continuedFiles(importedDocumentFile(artifact));
       const prepared = await prepareImport(files, caller);
       const documents = prepared.documents;
       if (!documents.length) throw pagesErrors.invalid("这一版没有可以继续的正文");
@@ -268,11 +315,14 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.artifactReferrers, (input, caller) => ports.read(store => ({ referrers: store.list(project(caller))
       .filter(document => linksToArtifactVersion(document.body, input.reference))
       .map(document => ({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, title: document.title || "未命名文档", open: { surface: "pages", id: document.id } })) }))),
+    bind(pagesActions.bodyFromMarkdown, ({ markdown }) => ({ body: bodyFromMarkdown(markdown) })),
     bind(pagesActions.importDocuments, (input, caller) => ports.write(caller, store => ({ documents: store.importDocuments({ ...input, project_id: project(caller) }) }))),
     bind(pagesActions.generations, (_, caller) => ports.read(store => ({ records: store.generations(project(caller)) }))),
     bind(pagesActions.generation, (input, caller) => ports.read(store => ({ record: store.generation(project(caller), input.request_id) }))),
     bind(pagesActions.generate, (input, caller) => {
-      if (input.inputs.reduce((sum, item) => sum + item.body.length, 0) > 100_000) throw pagesErrors.invalid("材料过长，请减少所选条目");
+      const units = input.inputs.reduce((sum, item) => sum + item.body.length, 0), promptMaterials = promptMaterialsOf(input.inputs, ports.read(store => store.generation(project(caller), input.request_id)), input.request_hash);
+      // A character is at most two UTF-16 units, so over 200,000 units is always over 100,000 characters: only the middle band is expanded and counted.
+      if (units > 200_000 || (units > 100_000 && input.inputs.reduce((sum, item) => sum + [...item.body].length, 0) > 100_000) || (promptMaterials !== null && !materialsJsonFits(promptMaterials))) throw pagesErrors.invalid("材料过长，请减少所选条目");
       const record: PagesGenerationRecord = { ...input, project_id: project(caller), status: "running", document_id: null, error: null, updated_at: new Date().toISOString() };
       return generatePagesFromMaterials(ports, caller, record, ports.complete ? prompt => ports.complete!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined);
     }, () => ports.modelAvailability()),
@@ -308,7 +358,7 @@ function written<T extends WrittenFields>(input: T, caller: ActionCallContext, c
     if (rest.body !== undefined) throw pagesErrors.invalid("markdown 与 body 只给一个");
     const converted = convertImportContent({ name: rest.title || "未命名文档", format: "markdown", content: markdown });
     // Only a new document takes its title from the Markdown; rewriting a body must not rename what the person titled.
-    return { ...rest, ...(rest.title || !creating ? {} : { title: converted.title.slice(0, 80) }), body: converted.body };
+    return { ...rest, ...(rest.title || !creating ? {} : { title: [...converted.title].slice(0, 80).join("") }), body: converted.body };
   }
   if (rest.body === undefined || caller.audience === "user" || !rest.body.content?.length) return rest;
   try { pagesSchema.nodeFromJSON(rest.body).check(); }

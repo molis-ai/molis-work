@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import type { Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { finishMcpWebStartup, hostLog, reportMcpWebStartupFailure, watchMcpWebStartup } from "@molis-ai/molis-work-app-local-host";
 export type { WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 
@@ -40,22 +42,72 @@ if (isMain) {
     console.error(`Molis Work Web 只按项目启动；${unsupported} 已不支持。请先在当前 Runtime 使用 Molis Work Skill 创建、连接或迁移项目。`);
     process.exitCode = 1;
   } else {
+    try {
+    const mcpStartup = process.env.MOLIS_WORK_MCP_WEB_STARTUP === "1";
+    if (mcpStartup && (!homeArgument || !Number.isInteger(port) || port < 1 || port > 65535)) throw new Error("Invalid MCP startup configuration");
     const server = createMolisWorkWebServer({
       ...(homeArgument ? { homeDirectory: path.resolve(homeArgument) } : {}),
     });
+    const connections = new Map<Socket, Promise<void>>();
+    server.on("connection", socket => {
+      const closed = new Promise<void>(resolve => {
+        socket.once("close", () => { connections.delete(socket); resolve(); });
+      });
+      connections.set(socket, closed);
+    });
+    let shutdownStarted = false;
+    let stopStartupWatch = () => {};
     const shutdown = () => {
-      server.close(() => process.exit(0));
-      setTimeout(() => process.exit(0), 2000).unref();
+      if (shutdownStarted) return;
+      shutdownStarted = true;
+      stopStartupWatch();
+      const deadline = setTimeout(() => {
+        hostLog.error("web", "shutdown_timed_out", undefined, { deadline_ms: 2000, remaining_cleanup_skipped: true });
+        process.exit(1);
+      }, 2000);
+      let drain: NodeJS.Immediate | undefined;
+      const finish = (success: boolean, error?: unknown) => {
+        clearTimeout(deadline);
+        clearImmediate(drain);
+        if (!success) hostLog.error("web", "shutdown_failed", error);
+        process.exit(success ? 0 : 1);
+      };
+      try {
+        server.close((error) => {
+          if (error) { finish(false, error); return; }
+          // Node's listener-close callback may precede the sockets' cancellation/close hooks.
+          void Promise.all(connections.values()).then(() => finish(true), error => finish(false, error));
+        });
+        server.closeIdleConnections();
+        // Let the owners' early stream stops finish first. Active HTTP and upgraded sockets must not block close/Host cleanup.
+        drain = setImmediate(() => {
+          try {
+            server.closeAllConnections();
+            for (const socket of connections.keys()) socket.destroy();
+          } catch (error) { finish(false, error); }
+        });
+      } catch (error) {
+        finish(false, error);
+      }
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
+    if (mcpStartup) {
+      server.once("error", error => { reportMcpWebStartupFailure(error); shutdown(); });
+      stopStartupWatch = watchMcpWebStartup(path.resolve(homeArgument!), `http://127.0.0.1:${port}`, shutdown);
+    }
     // Loopback only (security invariant S-01). The line below names the address the socket really got, so a launcher that
     // ever bound wider would say so, and tests/security-invariants-local-entry.test.ts reads it.
     server.listen(port, "127.0.0.1", () => {
+      if (mcpStartup) finishMcpWebStartup();
       const bound = server.address();
       const host = bound && typeof bound === "object" ? (bound.family === "IPv6" ? `[${bound.address}]` : bound.address) : "127.0.0.1";
       console.log(`Molis Work Web: http://${host}:${bound && typeof bound === "object" ? bound.port : port}`);
       console.log("项目列表（网页不会修改 Runtime Session 绑定）");
     });
+    } catch (error) {
+      if (!reportMcpWebStartupFailure(error)) throw error;
+      process.exitCode = 1;
+    }
   }
 }

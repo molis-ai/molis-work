@@ -1,9 +1,8 @@
 import type { ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginModelConfigurationInput, PluginModelConfigurationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { defineJellyAction as define } from "./command-actions.js";
 import * as s from "./action-schema.js";
 
-export type JellyModelSelection = PluginModelSelection;
 export type JellyModelSettings = PluginModelConfigurationView;
 export type JellyModelInput = PluginModelConfigurationInput;
 const selection = s.object({ provider_id: s.id, model_id: s.id });

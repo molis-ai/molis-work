@@ -134,7 +134,6 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
     expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
   { rule: "W4-6-01 a receive that names the v2 input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, { operation: "command" })],
     expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输出合同`] },
-  { rule: "a command whose kind is query", actions: [defined({}, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is operation", actions: [defined({ kind: "operation" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is judgment", actions: [defined({ kind: "judgment" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a navigation whose operation is command", actions: [defined({ kind: "navigation" }, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
@@ -324,23 +323,19 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a method with a name over 80 characters", manifest: declarationManifest({ methods: [method({ name: "n".repeat(81) })] }), expected: "方法 summarize 需要名称（80 字以内）" },
   { rule: "a method without a summary", manifest: declarationManifest({ methods: [method({ summary: "" })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
   { rule: "a method with a summary over 300 characters", manifest: declarationManifest({ methods: [method({ summary: "s".repeat(301) })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
-  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
+  // RAC-1757: renaming METHOD_TOOLS to SKILL_TOOLS and the SDK check to inspectSkillDeclarations (T-111) leaves these refusals word for word.
+  { rule: "RAC-2636: a text-only method explicitly declares an empty tools array", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "" },
+  { rule: "a method omitting its tools array", manifest: declarationManifest({ methods: [method({ tools: undefined })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
   { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
   { rule: "ASC-19: a business method can declare persistent waiting", manifest: declarationManifest({ methods: [method({ tools: ["board-wait"] })] }), expected: "" },
-  // views and commands
-  { rule: "conforming views and commands", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
-  { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {}, commands: undefined }) }), expected: "ui.views 必须为数组" },
-  { rule: "a view without an id", manifest: declarationManifest({ ui: uiOf({ views: [{ slot: "stage", title: "Main" }] }) }), expected: "视图缺少 ID；命令 open 打开的视图 main 未声明" },
+  // views
+  { rule: "conforming views", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
+  { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {} }) }), expected: "ui.views 必须为数组" },
+  { rule: "a view without an id", manifest: declarationManifest({ ui: uiOf({ views: [{ slot: "stage", title: "Main" }] }) }), expected: "视图缺少 ID" },
   { rule: "a view twice", manifest: declarationManifest({ ui: uiOf({ views: [view(), view()] }) }), expected: "视图重复：main" },
   { rule: "a view with an unknown slot", manifest: declarationManifest({ ui: uiOf({ views: [view({ slot: "floating" })] }) }), expected: "视图 main 的 slot 不合法" },
   { rule: "a view without a title", manifest: declarationManifest({ ui: uiOf({ views: [view({ title: " " })] }) }), expected: "视图 main 缺少标题" },
   { rule: "a view whose contribution is not declared", manifest: declarationManifest({ ui: uiOf({ contributions: [] }) }), expected: `视图 main 的 contribution ${NAMESPACE}.main 未在 ui.contributions 声明` },
-  { rule: "a command without an id", manifest: declarationManifest({ ui: uiOf({ commands: [command({ command_id: undefined })] }) }), expected: "命令缺少 ID" },
-  { rule: "a command twice", manifest: declarationManifest({ ui: uiOf({ commands: [command(), command()] }) }), expected: "命令重复：open" },
-  { rule: "a command without a title", manifest: declarationManifest({ ui: uiOf({ commands: [command({ title: "" })] }) }), expected: "命令 open 缺少标题" },
-  { rule: "a command without input kinds", manifest: declarationManifest({ ui: uiOf({ commands: [command({ input_kinds: [] })] }) }), expected: "命令 open 必须声明输入种类" },
-  { rule: "a command with an unknown input kind", manifest: declarationManifest({ ui: uiOf({ commands: [command({ input_kinds: ["current", "weird"] })] }) }), expected: "命令 open 的输入种类 weird 不合法" },
-  { rule: "a command opening a view that is not declared", manifest: declarationManifest({ ui: uiOf({ commands: [command({ opens_view_id: "missing" })] }) }), expected: "命令 open 打开的视图 missing 未声明" },
   // routes
   { rule: "conforming routes", manifest: declarationManifest({ routes: [route()] }), expected: "" },
   { rule: "a route without an id", manifest: declarationManifest({ routes: [route({ route_id: undefined })] }), expected: "路由缺少 ID" },
@@ -351,9 +346,9 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a route path twice under another id", manifest: declarationManifest({ routes: [route(), route({ route_id: "example.again" })] }), expected: "路由路径重复：GET /items" },
   { rule: "a route permission the Manifest never declared", manifest: declarationManifest({ routes: [route({ permission: "storage:private" })] }), expected: "路由 example.list 要求未声明的权限 storage:private" },
   // RAC-21 / RAC-37: explicit limits may reach 45,000,000 bytes, preserving Cognia batch uploads (user decision 2026-10-17).
-  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_000 })] }), expected: "" },
-  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_001 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
-  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
+  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 96 * 1024 * 1024 })] }), expected: "" },
+  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 96 * 1024 * 1024 + 1 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 100663296 字节）" },
+  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 100663296 字节）" },
   // required capabilities
   { rule: "a conforming requirement", manifest: declarationManifest({ capabilities: { provides: [], consumes: ["projects.read.v1"] }, requires: [requirement()] }), expected: "" },
   { rule: "a requirement without a capability id", manifest: declarationManifest({ requires: [requirement({ capability_id: undefined })] }), expected: "依赖缺少 Capability ID" },
@@ -367,9 +362,8 @@ function method(over: Part = {}): Part {
   return { skill_id: "summarize", version: 1, name: "Summarize", summary: "Summarizes what the person selected", tools: ["find-capabilities"], ...over };
 }
 function view(over: Part = {}): Part { return { view_id: "main", slot: "stage", title: "Main", ...over }; }
-function command(over: Part = {}): Part { return { command_id: "open", title: "Open", input_kinds: ["current"], opens_view_id: "main", ...over }; }
 function uiOf(over: Part = {}): Part {
-  return { contributions: [`${NAMESPACE}.main`], views: [view()], commands: [command()], ...over };
+  return { contributions: [`${NAMESPACE}.main`], views: [view()], ...over };
 }
 function route(over: Part = {}): Part { return { route_id: "example.list", method: "GET", path: "/items", ...over }; }
 function requirement(over: Part = {}): Part { return { capability_id: "projects.read.v1", version: 1, reason: "Read the current project", ...over }; }
@@ -491,7 +485,7 @@ test("Manifest declarations: a v2 Manifest that breaks every section reports the
     events: { publishes: [{ event_type_id: "host.stopped", type_version: 1 }] },
     agent: { roles: [], prompts: [] },
     methods: {},
-    ui: uiOf({ contributions: [], commands: [command({ opens_view_id: "missing" })] }),
+    ui: uiOf({ contributions: [] }),
     routes: [route({ method: "TRACE" })],
     requires: [requirement()],
   });
@@ -505,7 +499,6 @@ test("Manifest declarations: a v2 Manifest that breaks every section reports the
     "Agent 至少需要一个角色",
     "方法声明必须是列表",
     `视图 main 的 contribution ${NAMESPACE}.main 未在 ui.contributions 声明`,
-    "命令 open 打开的视图 missing 未声明",
     "路由 example.list 的方法不合法",
     "依赖 projects.read.v1@1 未列入 capabilities.consumes",
     "声明了输入端口就必须声明 artifact:read 权限",
@@ -526,7 +519,6 @@ const V1_BLOCKS: ReadonlyArray<readonly [string, (manifest: V1Manifest) => void]
   ["action_scenes", manifest => { manifest.action_scenes = []; }],
   ["ui.embedded_plugins", manifest => { manifest.ui.embedded_plugins = ["io.molis.work.other"]; }],
   ["ui.views", manifest => { manifest.ui.views = []; }],
-  ["ui.commands", manifest => { manifest.ui.commands = []; }],
 ];
 
 function v1Manifest(): V1Manifest {
@@ -549,6 +541,13 @@ test("a v1 Manifest is refused for each v2 block, naming the first block it carr
     if (nested) delete everything.ui[nested]; else delete everything[field!];
   }
   assert.equal(manifestProblems(everything), "");
+});
+
+test("a Manifest of either version that still declares ui.commands is refused: nothing calls them any more (BL-363)", () => {
+  for (const manifest of [v1Manifest(), { ...declarationManifest({}), ui: { contributions: [] } } as V1Manifest]) {
+    manifest.ui.commands = [];
+    assert.match(manifestProblems(manifest), /^ui\.commands 已取消/);
+  }
 });
 
 // ---- (e) the shape checks that run before any declaration is read ---------------------------------------------------------
@@ -594,7 +593,7 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
   { rule: "embedded plugins naming something that is not a plugin id", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["other"] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
   { rule: "background that is not an object", input: declarationManifest({ background: [] }), code: "plugin.declaration_invalid", message: "background 必须为对象" },
   { rule: "background with a field it does not know", input: declarationManifest({ background: { jobs: [JOB], extra: 1 } }), code: "plugin.declaration_invalid", message: "background 不认这些字段：extra" },
-  { rule: "background without jobs", input: declarationManifest({ background: { jobs: [] } }), code: "plugin.declaration_invalid", message: "background.jobs 必须是至少有一项的数组" },
+  { rule: "background without jobs", input: declarationManifest({ background: { jobs: [] } }), code: "plugin.declaration_invalid", message: "background.jobs 或 background.wakeups 至少要声明一项" },
   { rule: "a job_id that is not a lowercase name", input: declarationManifest({ background: { jobs: [{ ...JOB, job_id: "Follow" }] } }), code: "plugin.declaration_invalid", message: "后台作业的 job_id 必须是小写字母开头、只含小写字母、数字和连字符的名字" },
   { rule: "a job declared twice", input: declarationManifest({ background: { jobs: [JOB, JOB] } }), code: "plugin.declaration_invalid", message: "后台作业重复：follow" },
   { rule: "a job with a field it does not know", input: declarationManifest({ background: { jobs: [{ ...JOB, schedule: "hourly" }] } }), code: "plugin.declaration_invalid", message: "后台作业 follow 不认这些字段：schedule" },

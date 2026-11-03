@@ -8,10 +8,11 @@ import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-c
 import { imagesActions as actions, IMAGES_ACTION_PERMISSIONS, type ImageJob } from "@molis-ai/molis-work-plugin-images";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, createFileSecretStore, peekSealedEntry, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { readdirSync } from "node:fs";
 const PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
-async function fixture(t:test.TestContext) {
-  const home=await mkdtemp(join(tmpdir(),'images-actions-'));
+async function fixture(t:test.TestContext,directory?:string) {
+  const home=directory??await mkdtemp(join(tmpdir(),'images-actions-'));
   const hosts:MolisWorkLocalHost[]=[];
   const open=()=>{const host=new MolisWorkLocalHost({homeDirectory:home});hosts.push(host);return host;};
   const host=open(), ref=molisWorkHostProjectReference({databasePath:join(home,'project.sqlite'),projectId:'a'});
@@ -45,7 +46,10 @@ test('Images actions use real provider bytes, original jobs, retry identity and 
   const image=await f.client.invoke(actions.image,{id:job.id,image_id:finished.images[0]!.id});assert.equal(image.mime_type,'image/png');assert.deepEqual(Buffer.from(image.base64,'base64'),Buffer.from(PNG,'base64'));
   assert.deepEqual((await f.bind(f.host,'b').invoke(actions.list,{})).jobs,[]);
   await assert.rejects(f.bind(f.host,'b').invoke(actions.image,{id:job.id,image_id:finished.images[0]!.id}),{code:'images.not_found'});
-  assert.throws(() => f.open(), { code: 'agent.inference.home_in_use' }, 'one Home cannot silently acquire a second Runtime owner');
+  // RAC-105-A-18: the second Host is refused at Home acquisition, before an inference service can be constructed.
+  const kept=(await f.client.invoke(actions.list,{})).jobs;
+  assert.throws(() => f.open(), { code: 'storage.owner.busy' }, 'one Home cannot silently acquire a second Host owner');
+  assert.deepEqual((await f.client.invoke(actions.list,{})).jobs,kept);assert.equal(calls,1);
   await f.host.close();
   const other=f.open(),otherClient=f.bind(other);assert.equal((await otherClient.invoke(actions.get,{id:job.id})).job.id,job.id);
   assert.equal((await otherClient.invoke(actions.start,input)).job.id,job.id);assert.equal(calls,1);
@@ -145,19 +149,23 @@ test('Images discovery never decrypts the chosen connection key, and generation 
 
 });
 
-test('Images names a busy Home execution service instead of blaming the provider or network',async t=>{
-  const f=await fixture(t);let calls=0;
+test('RAC-105-A-18 Images refuses an occupied Home before business initialization and works after its owner releases',async t=>{
+  const home=await mkdtemp(join(tmpdir(),'images-busy-home-')),owner=acquireStorageOwner(join(home,'agent-runtime'));
+  let opened=false;
+  t.after(async()=>{owner.release();if(!opened)await rm(home,{recursive:true,force:true});});
+  let calls=0;
   const server=createServer(async(req,res)=>{for await(const _ of req);calls++;res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:[{b64_json:PNG}]}));});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
   const address=server.address();assert.ok(address&&typeof address==='object');
-  // Another process owns this Home's Agent runtime: the exclusive lock a second Web or MCP host would hold.
-  const {mkdirSync}=await import('node:fs');const {DatabaseSync}=await import('node:sqlite');
-  mkdirSync(join(f.home,'agent-runtime'),{recursive:true});
-  const lock=new DatabaseSync(join(f.home,'agent-runtime','.molis-runtime-owner.db'));lock.exec('BEGIN EXCLUSIVE');t.after(()=>lock.close());
+  // This is the same genuine owner an offline operation or another Host holds, before the Images Host can start.
+  const before=readdirSync(home).sort();
+  assert.throws(()=>new MolisWorkLocalHost({homeDirectory:home}),{code:'storage.owner.busy'});
+  assert.deepEqual(readdirSync(home).sort(),before,'the refused Host creates no business store');assert.equal(calls,0);
+  owner.release();
+  const f=await fixture(t,home);opened=true;
   const {connection}=await f.global.invoke(actions.saveConnection,{name:'Busy images',api_format:'openai-images',base_url:`http://127.0.0.1:${address.port}/v1`,model:'fixture-images'});
   const {job}=await f.client.invoke(actions.start,{request_id:'busy',connection_id:connection.id,prompt:'被占用时'});
-  const failed=await terminal(f.client,job.id);
-  assert.equal(failed.status,'failed');assert.equal(calls,0);
-  assert.match(failed.error??'',/另一个 Molis Work 进程正在使用 AI 执行服务/);
-  assert.doesNotMatch(failed.error??'',/无法连接厂商|网络/);
+  const finished=await terminal(f.client,job.id);
+  assert.equal(finished.status,'succeeded');assert.equal(calls,1);
+  assert.doesNotMatch(finished.error??'',/无法连接厂商|网络/);
 });

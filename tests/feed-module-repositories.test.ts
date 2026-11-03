@@ -8,11 +8,23 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { callAttention } from "@molis-ai/molis-work-plugin-feed";
 
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { fromBetterSqlite, FeedModule, type FeedModuleOptions } from "@molis-ai/molis-work-plugin-feed/store";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import type { ContextAccess } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+
+/** Feed's edges in the ledger, as the Host hands them to Feed: the project is the scope of every call. */
+function feedLedger(ledger: ReturnType<typeof createContextLedger>): FeedModuleOptions["ledger"] {
+  const access = (projectId: string): ContextAccess => ({ actor_id: "module:feed", scope: { kind: "personal", id: projectId } });
+  return {
+    get: (projectId, key) => ledger.query.get(access(projectId), key),
+    list: (projectId, query) => ledger.query.list(access(projectId), query),
+    put: (projectId, input) => ledger.commands.put(access(projectId), input),
+    remove: (projectId, key, cause, recordedAt) => ledger.commands.remove(access(projectId), key, cause, recordedAt),
+  };
+}
 
 function feedModules(store: LocalProjectDatabase): {
   attention: AttentionModule;
@@ -23,17 +35,17 @@ function feedModules(store: LocalProjectDatabase): {
     exists: (projectId, subjectType, subjectId) =>
       subjectType === "feed_item" && feed.query.exists(projectId, subjectId),
   });
-  feed = new FeedModule(store.db, attention, {
-    ledger: createContextLedger(store.db, { authorize: (access) => access.scope.kind === "personal" }),
+  feed = new FeedModule(fromBetterSqlite(store.db), attention, {
+    ledger: feedLedger(createContextLedger(store.db, { authorize: (access) => access.scope.kind === "personal" })),
   });
   return { attention, feed };
 }
 
-test("Feed and Attention repositories preserve Signal revisions and state across restart", () => {
+test("Feed and Attention repositories preserve Signal revisions and state across restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-modules-"));
   const databasePath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const firstStore = new LocalProjectDatabase(databasePath);
     let itemId = "";
     try {

@@ -7,7 +7,7 @@ import {
 } from "@adeptify/search-evidence-layer/host/node";
 import { createAnySearchProvider } from "@adeptify/search-evidence-layer/providers/anysearch";
 import {
-  createEvidenceContentStore, createFileSecretStore,
+  createEvidenceContentStore, createFileSecretStore, evidenceContentRef,
   type EvidenceContentStore, type SecretStore, type SqliteDatabase,
 } from "@molis-ai/molis-work-storage";
 import { createIntelligenceCollectAdapter, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
@@ -30,6 +30,8 @@ export function createSearchEvidenceRuntime(options: {
   assertCurrent?: () => void;
   secretStore?: SecretStore;
   content?: EvidenceContentStore;
+  /** Told each evidence body's reference before the body is written; see `createSearchContentPort`. */
+  beforeContentWrite?: (contentRef: string) => Promise<void>;
   /** Test seam. Production never passes it: the one way to reach AnySearch is `anysearch-transport.ts`. */
   queryTransport?: SearchHostTransportPort;
   /** Lifecycle ownership is transferred to this composition. */
@@ -40,7 +42,7 @@ export function createSearchEvidenceRuntime(options: {
   }
   const secretStore = options.secretStore ?? createFileSecretStore();
   const content = options.content ?? createEvidenceContentStore({ secretStore });
-  const hostContent = createSearchContentPort(content, options.assertCurrent);
+  const hostContent = createSearchContentPort(content, options.assertCurrent, options.beforeContentWrite);
   const transport = options.queryTransport ?? createAnySearchTransport(options);
   // Own fallible transport cleanup here: SEL memoizes a rejected host shutdown permanently.
   const queryHost = createPortBackedNodeSearchHost({
@@ -99,13 +101,18 @@ function createAnySearchRuntime(
   });
 }
 
-export function createSearchContentPort(store: EvidenceContentStore, assertCurrent?: () => void): SearchHostContentPort {
+/**
+ * `beforeWrite` is told each body's reference before the body is written and the write waits for it: the caller records that it holds
+ * the body first (the Feed content ledger's order, so a body is never on disk with nobody having said it holds it).
+ */
+export function createSearchContentPort(store: EvidenceContentStore, assertCurrent?: () => void, beforeWrite?: (contentRef: string) => Promise<void>): SearchHostContentPort {
   return {
     async write({ appId, markdown }) {
       if (appId !== APP_ID || typeof markdown !== "string") {
         throw new Error("search evidence content rejected");
       }
       assertCurrent?.();
+      if (beforeWrite) { await beforeWrite(evidenceContentRef(markdown)); assertCurrent?.(); }
       return store.write(markdown);
     },
     async read({ appId, contentRef }) {

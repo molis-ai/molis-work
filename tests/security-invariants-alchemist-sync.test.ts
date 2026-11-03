@@ -8,7 +8,7 @@ import {openAlchemistSyncStore,createAlchemistStudioRuntime,alchemistActions as 
 import {ensureStorageSpace,personalStorageSpace,describeSqliteSchema} from '@molis-ai/molis-work-storage';
 import {personalStudio,savedStudio} from './fixtures/alchemist-sync.js';
 
-test('S-78 PCSYNC-ALC-ACTOR-01 Studio retains real authors, reports, evidence, methods and decisions without restoring execution or credentials',async t=>{
+test('S-130 PCSYNC-ALC-ACTOR-01 Studio retains real authors, reports, evidence, methods and decisions without restoring execution or credentials',async t=>{
  const root=mkdtempSync(join(tmpdir(),'studio-sync-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
  const left=personalStudio(join(root,'a')),saved=await savedStudio(left);t.after(()=>left.runtime.close());
  const {annotation}=await left.runtime.actionsFor('assistant:reviewer').invoke(a.annotationCreate,{target:{kind:'lens_report',objectId:saved.report.id,revision:saved.report.revision,blockId:'summary'},quotedSnapshot:saved.report.summary,comment:'Independent review'});
@@ -41,7 +41,7 @@ test('S-78 PCSYNC-ALC-ACTOR-01 Studio retains real authors, reports, evidence, m
  const schema=new DatabaseSync(':memory:');try{schema.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v2.sql',import.meta.url),'utf8'));assert.deepEqual(describeSqliteSchema(right.runtime.database),describeSqliteSchema(schema));}finally{schema.close();}
 });
 
-test('S-78 PCSYNC-ALC-ACTOR-02 Studio refuses invalid authors, injected scope, task execution and broken references atomically',async t=>{
+test('S-130 PCSYNC-ALC-ACTOR-02 Studio refuses invalid authors, injected scope, task execution and broken references atomically',async t=>{
  const root=mkdtempSync(join(tmpdir(),'studio-sync-invalid-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const f=personalStudio(join(root,'source'));t.after(()=>f.runtime.close());await savedStudio(f);
  const home=join(root,'target');ensureStorageSpace(home,f.space);const source=openAlchemistSyncStore(join(root,'source'),'project'),target=openAlchemistSyncStore(home,'project');t.after(()=>{source.close();target.close();});
  const context={spaceId:f.space.spaceId,projectId:'project',title:'Research',authorize(){}};const x=source.replica(context),y=target.replica(context),m=x.next()!;
@@ -58,7 +58,7 @@ test('S-78 PCSYNC-ALC-ACTOR-02 Studio refuses invalid authors, injected scope, t
  let revoked=true;const fenced=target.replica({...context,authorize(){if(revoked)throw Error('Withdrawn');}});assert.throws(()=>fenced.receive({...m,revision:++revision}),/Withdrawn/);revoked=false;assert.equal(fenced.cursor(),revision-1);
 });
 
-test('S-78 PCSYNC-12/15 Studio refuses old schema intact and cannot overwrite a foreground model wait or follow a project symlink',async t=>{
+test('S-130 PCSYNC-12/15 Studio refuses old schema intact and cannot overwrite a foreground model wait or follow a project symlink',async t=>{
  const root=mkdtempSync(join(tmpdir(),'studio-sync-active-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const f=personalStudio(join(root,'active'));t.after(()=>f.runtime.close());const {direction}=await f.call(a.directionCreate,{description:'保存方向并等待模型'});
  const editing=await f.call(a.directionEditing,{id:direction.id});assert.equal(a.directionUpdate.version,2);assert.equal(a.playbookRevise.version,2);
  await assert.rejects(f.runtime.actions.invoke(a.directionUpdate,{id:direction.id,description:'No precondition'} as never),{code:'alchemist.direction_input_invalid'});

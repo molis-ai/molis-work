@@ -1,4 +1,4 @@
-import type { GoalProgressArtifactSource, GoalEventScope, GoalEventSystemPayload, GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalProgressArtifactSource, GoalEventScope, GoalEventSystemPayload, GoalWorkEventRecord } from "./contract/goals.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import { renderAcknowledgementBody, type AcknowledgementContext } from "./event-acknowledgement-body.js";

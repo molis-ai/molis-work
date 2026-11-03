@@ -1,10 +1,12 @@
+import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { timingSafeEqual } from "node:crypto";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { isLoopbackHostname, isLoopbackHttpOrigin, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
+import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
 
 /**
@@ -34,6 +36,33 @@ export function sendLocalWebJson(response: ServerResponse, status: number, value
   response.end(JSON.stringify(answer.body));
 }
 
+/**
+ * A refusal answers by its kind and with its code (SDK `actionErrorResponse`), the same as every other exit. Anything that is not
+ * an ActionError is not a refusal: it goes on to the Host's unhandled answer (`sendUnhandledWebError`), logged, without its message.
+ */
+export function respondLocalWebRefusal(exit: { respond(status: number, body: unknown): void }, error: unknown): void {
+  if (!(error instanceof ActionError)) throw error;
+  const answer = actionErrorResponse(error);
+  exit.respond(answer.status, answer.body);
+}
+
+/** One part of a request path, decoded. A part that is not valid percent-encoding is the caller's mistake, so it is refused as invalid. */
+export function decodeLocalWebPathPart(part: string): string {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    throw hostErrors.request_path_invalid("请求路径里有无效的编码");
+  }
+}
+
+/** Unexpected route failures retain a diagnostic call id, never their raw message or stack. */
+export function sendUnhandledWebError(response: ServerResponse, error: unknown): void {
+  hostLog.error("web", "request_failed", error);
+  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", L("请求未能完成，请重试。"));
+  const answer = actionErrorResponse(failed);
+  sendLocalWebJson(response, answer.status, { ...answer.body, diagnostic_id: currentCallId() });
+}
+
 export type LocalMutationState = "in_flight" | "complete";
 
 /** Every refusal of the Host, Origin and control-token checks is this one answer, so a refused caller cannot tell which check it failed. Returns false: the request is not allowed. */
@@ -44,18 +73,44 @@ function refuse(response: ServerResponse): false {
 }
 
 export { refuse as refuseLocalWebRequest };
-
-function isEventCommandReplayPath(pathname: string): boolean {
-  return /(?:^|\/)api\/goals\/[^/]+\/event-(?:configure|report|progress|concern|decision-request|decision|agree|close|resume|continue|note)$/.test(pathname)
-    || /(?:^|\/)api\/goals\/[^/]+\/relations$/.test(pathname)
-    || /(?:^|\/)api\/relations\/[^/]+\/deactivate$/.test(pathname)
-    || /(?:^|\/)api\/goals$/.test(pathname)
-    || /(?:^|\/)api\/goal-tree-proposals\/[^/]+\/decision$/.test(pathname);
-}
-
 /** The `host:port` the request was addressed to when that is this machine, else null (DNS rebinding; security invariant S-02). */
 export function requestHost(request: IncomingMessage): string | null {
   return loopbackHost(request.headers.host);
+}
+
+/**
+ * A sandboxed plugin frame (srcdoc, no allow-same-origin) inherits this page policy. In that opaque frame WebKit does not
+ * treat 'self' as this page's origin, so the frame's scripts and styles never load and the surface stays on "无法加载界面".
+ * Naming the same loopback origin explicitly does not widen what the parent page can load. Chrome already treats 'self' as
+ * the parent origin there, which is why the same page opens in Chrome.
+ */
+export function opaquePluginFramePolicy(policy: string, origin: string): string {
+  const parsed = URL.canParse(origin) ? new URL(origin) : null;
+  if (!parsed || !isLoopbackHttpOrigin(parsed) || parsed.origin !== origin || policy.includes(origin) || !policy.includes("script-src 'self'")) return policy;
+  let next = policy;
+  for (const name of ["img-src", "style-src", "script-src"]) next = next.replace(`${name} 'self'`, `${name} 'self' ${origin}`);
+  if (!next.includes("font-src ")) next += `; font-src 'self' ${origin}`;
+  return next;
+}
+
+function headerMap(value: unknown): OutgoingHttpHeaders | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as OutgoingHttpHeaders;
+}
+
+function allowOpaquePluginFrame(response: ServerResponse, origin: string): void {
+  const writeHead = response.writeHead;
+  const patched = function (this: ServerResponse, ...args: unknown[]) {
+    const headers = headerMap(args.length >= 3 ? args[2] : args[1]);
+    const key = headers ? Object.keys(headers).find(name => name.toLowerCase() === "content-security-policy") : undefined;
+    if (headers && key && typeof headers[key] === "string") headers[key] = opaquePluginFramePolicy(headers[key], origin);
+    else {
+      const current = this.getHeader("content-security-policy");
+      if (typeof current === "string") this.setHeader("content-security-policy", opaquePluginFramePolicy(current, origin));
+    }
+    return Reflect.apply(writeHead, this, args) as ServerResponse;
+  };
+  response.writeHead = patched as ServerResponse["writeHead"];
 }
 
 /**
@@ -65,7 +120,12 @@ export function requestHost(request: IncomingMessage): string | null {
  */
 export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse): boolean {
   response.setHeader("x-frame-options", "SAMEORIGIN");
-  if (requestHost(request)) return false;
+  const host = requestHost(request);
+  const opaqueFrame = requestHeader(request, "sec-fetch-dest") === "iframe" && requestHeader(request, "sec-fetch-site") === "cross-site";
+  if (host && !opaqueFrame) {
+    allowOpaquePluginFrame(response, `http://${host}`);
+    return false;
+  }
   refuse(response);
   return true;
 }
@@ -125,7 +185,7 @@ export function authorizeLocalWebRequest(
     sendLocalWebJson(response, 409, { error: L("这次操作正在提交"), code: "request.in_flight" });
     return false;
   }
-  if (prior === "complete" && !isEventCommandReplayPath(url.pathname)) {
+  if (prior === "complete") {
     sendLocalWebJson(response, 409, { error: L("这次操作已经提交，不会重复执行") });
     return false;
   }

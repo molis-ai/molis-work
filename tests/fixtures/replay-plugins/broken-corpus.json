@@ -1,0 +1,20 @@
+{
+  "about": "tests/replay-plugins.test.ts: samples the replay must fail, each for one reason.",
+  "samples": [
+    {
+      "id": "undeclared-permission",
+      "source": { "kind": "directory", "path": "broken", "entry": "index.mjs", "export": "default" },
+      "action": { "capability_id": "io.molis.work.example.broken.read", "version": 1, "input": {} }
+    },
+    {
+      "id": "action-not-offered",
+      "source": { "kind": "directory", "path": "../../../examples/plugin-sample", "entry": "index.mjs", "export": "default" },
+      "action": { "capability_id": "io.molis.work.example.notes.missing", "version": 1, "input": {} }
+    },
+    {
+      "id": "different-answer",
+      "source": { "kind": "directory", "path": "../../../examples/plugin-sample", "entry": "index.mjs", "export": "default" },
+      "action": { "capability_id": "io.molis.work.example.notes.results.read", "version": 1, "input": {}, "expect": { "count": 1, "latest": null } }
+    }
+  ]
+}

@@ -3,6 +3,9 @@ import test from "node:test";
 import { AgentHost, emptyCapabilityMatrix, registerAgentHostCapabilities, runViewVersion } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities, type AgentRunView, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 
+/** The plugin whose session the fixtures' round is in, as the Host issued its caller. */
+const owningPlugin = { project_id: "b", plugin_id: "p", install_id: "i", actor_id: "user", assertActive() {}, declaration: {} };
+
 test("following a live round: answers at once when behind, gathers quick deltas, waits until a change or the timeout", async () => {
   const session = { runtime_id: "live", session_id: "s" }, run = { session_id: "s", run_id: "r" };
   let view = { ref: run, phase: "running", turns: [{ turn_id: "a", kind: "assistant", text: "Hel", at: null }], activity: [], usage: { tokens: { input: 1, output: 1 } }, awaiting_input: [] } as unknown as AgentRunView;
@@ -21,7 +24,9 @@ test("following a live round: answers at once when behind, gathers quick deltas,
   const handlers = new Map<string, Function>();
   registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => host, projectId: () => "b", authority: () => ({ manifest: { roles: [], prompts: [] }, authorizedDirectories: [] }) });
-  const wait = (since: string | null, timeout: number) => handlers.get(agentHostCapabilities.waitRun.capability_id)!({ project_id: "b" }, [session, run, since, timeout]);
+  // Following a round is a plugin's own action (R8): the call carries the caller the Host issued the session's plugin.
+  const asPlugin = { consumer: "plugin", plugin: owningPlugin, beforeEffect: async () => {}, assertAuthorityCurrent: () => {} };
+  const wait = (since: string | null, timeout: number) => handlers.get(agentHostCapabilities.waitRun.capability_id)!({ project_id: "b" }, [session, run, since, timeout], asPlugin);
   const publish = (text: string) => { view = { ...view, turns: [{ ...view.turns[0]!, text }] }; for (const listener of listeners) listener(view); };
 
   const first = await wait(null, 5_000);
@@ -77,7 +82,7 @@ test("a cancelled wait lets go at once: following a round and waiting for contin
   registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => host, projectId: () => "b", authority: () => ({ manifest: { roles: [], prompts: [] }, authorizedDirectories: [] }) });
   // As the Host's typed invocation does: a call whose signal aborted is no longer current.
-  const invocation = (signal: AbortSignal) => ({ signal, beforeEffect: async () => {}, assertAuthorityCurrent: () => signal.throwIfAborted() });
+  const invocation = (signal: AbortSignal) => ({ signal, consumer: "plugin", plugin: owningPlugin, beforeEffect: async () => {}, assertAuthorityCurrent: () => signal.throwIfAborted() });
   const closing = new Error("project closing");
 
   const following = new AbortController(), started = Date.now();

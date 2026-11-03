@@ -1,3 +1,5 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { githubAccountIdentity, grantedScopes, type GithubAccountIdentity } from "./account-identity.js";
 /**
  * GitHub Connector — live mode by default.
@@ -131,12 +133,14 @@ export function createGithubProvider(opts?: {
   const allowFixture = opts?.allowFixture ?? false;
   const resolveToken = () =>
     opts?.token ?? opts?.resolveToken?.() ?? undefined;
-  const fetchImpl = opts?.fetchImpl ?? globalThis.fetch?.bind(globalThis);
+  const request = opts?.fetchImpl ?? globalThis.fetch?.bind(globalThis);
   const now = opts?.now ?? (() => new Date());
 
   return {
     type: "github",
-    async health(): Promise<ConnectorHealth> {
+    async health(control: ConnectorCallControl): Promise<ConnectorHealth> {
+      control.current();
+      const fetchImpl = request ? controlledConnectorFetch(request, control) : undefined;
       const token = resolveToken();
       if (!token) {
         if (!allowFixture) {
@@ -164,6 +168,7 @@ export function createGithubProvider(opts?: {
       }
       try {
         const identity = await fetchGithubIdentity(fetchImpl, token, now());
+        await control.beforeEffect(); control.current();
         const scopeCopy = identity.scopes.length ? ` · scopes: ${identity.scopes.join(", ")}` : " · scope 将在首次通知拉取时验证";
         return {
           ok: true,
@@ -171,6 +176,7 @@ export function createGithubProvider(opts?: {
           message: `GitHub live as @${identity.login}${scopeCopy}`, account: { login: identity.login, ...(identity.account_id ? { account_id: identity.account_id } : {}) },
         };
       } catch (error) {
+        await control.beforeEffect(); control.current();
         const failure = classifyGithubLiveError(error);
         return {
           ok: false,
@@ -180,7 +186,9 @@ export function createGithubProvider(opts?: {
         };
       }
     },
-    async sync({ cursor }): Promise<ConnectorSyncResult> {
+    async sync({ cursor }, control: ConnectorCallControl): Promise<ConnectorSyncResult> {
+      control.current();
+      const fetchImpl = request ? controlledConnectorFetch(request, control) : undefined;
       const token = resolveToken();
       if (!token) {
         if (!allowFixture) {
@@ -216,6 +224,7 @@ export function createGithubProvider(opts?: {
           );
         }
         const synced = await liveSyncNotifications(fetchImpl, token, previous, syncAt);
+        await control.beforeEffect(); control.current();
         const authorizationKind = identity.scopes.includes("repo")
           ? "classic_pat_or_oauth_repo"
           : identity.scopes.includes("notifications")
@@ -233,6 +242,7 @@ export function createGithubProvider(opts?: {
           } satisfies GithubNotificationCursor,
         };
       } catch (e) {
+        await control.beforeEffect(); control.current();
         return classifyGithubLiveError(e);
       }
     },

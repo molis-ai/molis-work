@@ -119,39 +119,42 @@ export type BuiltinSyncBinding = ({
     readonly locate?: (key: string) => string | null;
 };
 
+export interface PluginBoardSpecimen {
+    readonly id: string;
+    readonly title: string;
+    readonly place: "column" | "page";
+    readonly html: string;
+}
+
+export interface PluginBoardSpecimenPorts {
+    escape(value: unknown): string;
+    text(value: string, values?: Record<string, string | number>): string;
+    icon(name: string): string;
+    formatDate(value: string): string;
+    readonly sample: "zh" | "en" | "mixed";
+}
+
 export interface PluginRegistration {
     readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
     readonly project_plugin_id: string;
     readonly catalog_order: number;
     readonly manifest: PluginManifest;
-    readonly summary: string;
-    readonly developer?: true;
     readonly personal?: true;
+    readonly default_enabled?: true;
     readonly companions?: readonly string[];
     readonly runtime?: {
-        readonly scope: "home";
         readonly create: () => PluginDefinition;
-        readonly database?: HomePluginDatabaseDeclaration;
-        readonly files?: PluginFilesDeclaration;
-        readonly model_configuration?: PluginModelConfigurationDeclaration;
-        readonly image_generation?: PluginImageGenerationDeclaration;
         readonly package_name: string;
         readonly factory_export: string;
         readonly keys?: string;
         readonly dual_instance?: true;
     };
-    readonly project_data?: ProjectDataDeclaration;
-    readonly home_store?: HomeStoreDeclaration;
-    readonly messages?: Readonly<Record<string, {
-        readonly zh: string;
-        readonly en: string;
-    }>>;
-    readonly instructions?: readonly InstructionPrompt[];
-    readonly agent?: {
-        readonly prompts: readonly AgentPromptText[];
-        readonly skills?: readonly AgentSkillDefinition[];
+    readonly project_runtime?: {
+        readonly create: () => PluginDefinition;
+        readonly package_name: string;
+        readonly factory_export: string;
     };
-    readonly methods?: readonly AgentSkillDefinition[];
+    readonly home_store?: HomeStoreDeclaration;
     readonly workbench: PluginWorkbenchRegistration;
 }
 
@@ -161,17 +164,27 @@ export interface PluginSearchRow {
 }
 
 export interface PluginWorkbenchRegistration {
+    readonly pageRequests?: readonly {
+        readonly method: string;
+        readonly path: string;
+    }[];
     readonly order: number;
     readonly contributions: readonly UiContribution[];
     readonly stylesheet?: string;
+    readonly stylesheetLayer?: "over-shell" | "beneath-shell";
+    readonly stylesheetShared?: readonly string[];
+    readonly stylesheetPrefixes?: readonly string[];
+    readonly stylesheetUses?: readonly string[];
     readonly clientFactory?: string;
     readonly clientServed?: true;
-    readonly clientFrom?: string;
     readonly clientUses?: readonly string[];
     readonly clientAssets?: readonly string[];
     readonly settingsClient?: string;
+    readonly settingsStylesheet?: string;
+    readonly pageClients?: Readonly<Record<string, string>>;
     readonly searchRow?: PluginSearchRow;
     readonly recordRow?: PluginSearchRow;
+    readonly specimens?: (ports: PluginBoardSpecimenPorts) => readonly PluginBoardSpecimen[];
 }
 
 export type ProjectSyncContentOwner = string | {

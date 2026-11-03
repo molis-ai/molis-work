@@ -134,5 +134,33 @@ export function buildTestIndex(root, files, packages) {
     containingAll(chunks) {
       return testsOf([...analysed].filter(([, info]) => chunks.every((chunk) => info.text.includes(chunk))).map(([file]) => file));
     },
+
+    /**
+     * Tests whose file (or helper) has text matching the pattern asked for: `patterns` is a Map of key -> RegExp, and the result
+     * is a Map of key -> Map<test file, the helper that holds the match or null when the test file does>. A stylesheet's
+     * selectors and custom properties are not words the identifier index can hold, so they are searched directly: one union of
+     * all the patterns over each text, then the pattern that took the matched fragment.
+     */
+    matchingAny(patterns) {
+      const result = new Map();
+      const entries = [...patterns];
+      if (entries.length === 0) return result;
+      const union = new RegExp(entries.map(([, pattern]) => `(?:${pattern.source})`).join("|"), "g");
+      for (const [file, info] of analysed) {
+        union.lastIndex = 0;
+        const found = new Set();
+        for (let match = union.exec(info.text); match !== null; match = union.exec(info.text)) {
+          for (const [key, pattern] of entries) if (pattern.test(match[0])) { found.add(key); break; }
+          if (match[0] === "") union.lastIndex += 1;
+        }
+        for (const key of found) for (const test of owners.get(file) ?? []) {
+          if (!result.has(key)) result.set(key, new Map());
+          const current = result.get(key);
+          const via = file === test ? null : file;
+          if (!current.has(test) || (current.get(test) !== null && via === null)) current.set(test, via);
+        }
+      }
+      return result;
+    },
   };
 }

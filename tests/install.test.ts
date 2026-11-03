@@ -1,4 +1,6 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { memoryActions, MEMORY_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/memory";
+import { homeSqlitePath, MEMORY_LEDGER_STORE, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -6,7 +8,7 @@ import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, readlink, realpath, r
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { installMolisWorkHome } from "@molis-ai/molis-work-app-local-host";
+import { installMolisWorkHome, MolisWorkLocalHost, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { writeMolisWorkBuildManifest } from "@molis-ai/molis-work-app-local-host";
 
 const execFileAsync = promisify(execFile);
@@ -212,6 +214,8 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     assert.equal(await readFile(projectFile, "utf8"), "do-not-touch");
     assert.equal(await readFile(runtimeConfig, "utf8"), "{\"runtime\":\"unchanged\"}");
     assert.equal(await readFile(join(home, "notes.txt"), "utf8"), "user-owned");
+    await assert.rejects(stat(homeSqlitePath(home, MEMORY_LEDGER_STORE)), { code: "ENOENT" });
+    assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "memory.unavailable" });
     assert.ok((await stat(join(first.release_directory, "dist", "mcp", "server.js"))).isFile());
     assert.ok((await stat(join(first.skill_directory, "goal-advance", "SKILL.md"))).isFile());
     assert.ok((await stat(join(first.skill_directory, "molis-plugin-dev", "SKILL.md"))).isFile());
@@ -223,6 +227,40 @@ test("home install is scoped, idempotent, and produces an owned release layout",
     const second = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
     assert.equal(second.status, "unchanged");
     assert.deepEqual(second.written_paths, []);
+  });
+});
+
+test("new Home installation records reviewed prefs, and an interrupted install preserves them for retry", async () => {
+  await withTemporaryDirectory(async directory => {
+    const source = await fixtureSource(directory, "1.0.0");
+    for (const interrupted of [false, true]) {
+      const home = join(directory, interrupted ? "empty-home" : "missing-home");
+      if (interrupted) {
+        await mkdir(home);
+        await assert.rejects(installMolisWorkHome({ homeDirectory: home, sourceDirectory: source,
+          beforeStep(step) { if (step === "before_write_install_manifest") throw new Error("new install interrupted"); },
+        }), /new install interrupted/);
+        await assert.rejects(stat(join(home, "releases", "molis-work-1.0.0")), { code: "ENOENT" });
+        await assert.rejects(stat(join(home, "config", "installation.json")), { code: "ENOENT" });
+      }
+      const memoryPath = homeSqlitePath(home, MEMORY_LEDGER_STORE);
+      const beforeRetry = interrupted ? await readFile(memoryPath) : null;
+      const installed = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: source });
+      assert.equal(installed.written_paths.includes(memoryPath), !interrupted);
+      if (beforeRetry) assert.deepEqual(await readFile(memoryPath), beforeRetry, "retry leaves initialized prefs untouched");
+      else assert.match(installed.next_steps.message, /初始化了需确认后记住的记忆偏好/);
+      const ledger = openMemoryLedger({ homeDirectory: home });
+      try {
+        assert.equal(ledger.prefs(LOCAL_PERSON_ACTOR_ID, "project-default")?.auto, false);
+      } finally { ledger.close(); }
+      const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+      try {
+        await ensureSystemAgentService(host, home).ready;
+        const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID,
+          project_id: null, audience: "user" as const, permissions: [...MEMORY_PERMISSIONS] }));
+        assert.equal((await actions.invoke(memoryActions.prefs, { scope: "personal" })).prefs.auto, false);
+      } finally { await host.close(); }
+    }
   });
 });
 
@@ -463,6 +501,7 @@ test("home install refuses to overwrite unknown launcher files", async () => {
       (error: unknown) => (error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code)) && error.code === "installer.home.unknown_file",
     );
     assert.equal(await readFile(unknownLauncher, "utf8"), "user launcher");
+    await assert.rejects(stat(homeSqlitePath(home, MEMORY_LEDGER_STORE)), { code: "ENOENT" });
   });
 });
 
@@ -715,7 +754,8 @@ test("public install command is human-readable by default and JSON when requeste
       { cwd: directory },
     );
     assert.match(output.stdout, /Molis Work 安装完成/);
-    assert.match(output.stdout, /没有创建项目，也没有修改 Runtime 配置或用户项目文件/);
+    assert.match(output.stdout, /初始化了需确认后记住的记忆偏好/);
+    assert.match(output.stdout, /没有创建项目，也没有修改外部 Runtime 配置或用户项目文件/);
     assert.doesNotMatch(output.stdout, /^\s*\{/);
 
     const jsonOutput = await execFileAsync(

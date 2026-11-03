@@ -15,6 +15,7 @@ import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
 import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { asideReply } from "./fixtures/ending-review.js";
+import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 
 const listen = async (server: Server) => {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -36,7 +37,8 @@ async function fixture(run: (f: {
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw), aside = asideReply(raw);
     // The Home's background knowledge cards for what a case writes into its project are answered aside: `requests` are the case's own.
     if (aside === undefined) requests.push({ url: request.url!, headers: request.headers, body });
@@ -94,6 +96,22 @@ test("configured image input requires declared vision and refuses a late result 
   f.answer(async () => { setVision(false); return { choices: [{ message: { content: "late answer" } }] }; });
   await assert.rejects(complete("Describe the original.", options), { code: "actions.configuration_changed" });
   assert.equal(f.requests.length, 2);
+}));
+
+test("RAC-1880 the configured-model entrance counts a prompt in characters too: 180000 two-unit characters reach the model, a prompt over the limit and a blank one are refused", async () => fixture(async f => {
+  configure(f);
+  const seen: string[] = [], limit = 180_000 + AGENT_PROMPT_MAX_CHARS + 100, refusal = { message: "写作输入为空或过长，请减少材料后重试" };
+  const complete = hostCompleteText({ homeDirectory: f.home, selection: { provider_id: "configured", model_id: "configured-model" },
+    resolveInference: (async () => ({ completeTextResult: async (input: { prompt: string; model: string }) => {
+      seen.push(input.prompt);
+      return { value: "ok", configuredModel: input.model, state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, reportedModels: [], usage: [] };
+    } })) as never })!;
+  const sent = "\u{1F7E2}".repeat(180_000);
+  assert.equal(await complete(sent), "ok");
+  assert.ok(seen.length === 1 && seen[0] === sent, "the model got the prompt as written");
+  await assert.rejects(complete("a".repeat(limit + 1)), refusal);
+  await assert.rejects(complete(" \n"), refusal);
+  assert.equal(seen.length, 1);
 }));
 
 test("production settings HTTP -> shared connection -> Lingguang action actually calls the configured server", async () => fixture(async f => {

@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-schedule",
-  packagePath: "plugins/native/schedule",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["schedule.ui-contribution.v1", "schedule.http-routes.v1", "schedule.conversation-tasks.v1", "schedule.actions.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export * from "./reminders.js";
 export * from "./reminder-actions.js";
 export * from "./reminder-management.js";
@@ -18,6 +5,7 @@ export * from "./operations.js";
 export * from "./operation-actions.js";
 export * from "./operation-management.js";
 
+export { createSchedulePlugin } from "./plugin.js";
 export * from "./ui.js";
 export * from "./routes.js";
 export { createScheduleRouteHandlers } from "./route-handlers.js";
@@ -34,6 +22,7 @@ export {
 } from "./actions.js";
 export { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SCHEDULE_EN } from "./en.js";
+export { SCHEDULE_MESSAGES } from "./messages.js";
 export { SCHEDULE_STYLES } from "./styles.js";
 export {
   SCHEDULE_PLUGIN_ID,
@@ -48,13 +37,12 @@ export {
   formatClockTime,
 } from "./calendar.js";
 export { scheduleErrors } from "./error.js";
-export { installScheduleReplication, createScheduleTaskReplica } from "./replication.js";
+export { scheduleCollection } from "./replication.js";
 export {
   parseScheduledAgentReply,
   composeScheduledTaskPrompt,
 } from "./reply.js";
 export {
-  scheduleConversationFingerprint,
   listScheduleConversationTasks,
   getScheduleConversationTask,
   createScheduleConversationTask,

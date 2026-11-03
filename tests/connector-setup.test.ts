@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { MolisWorkLocalHost, connectorSetupAction, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFileSecretStore, readSecretsFileMeta, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome, serveTestHost, type TestHome } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "assistant:setup", runtime_session_id: "setup-session", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE] };
@@ -12,21 +13,22 @@ type Prepared = { authorization_id: string; status: string; url: string; possibl
 const prepare = (home: TestHome, service = "github", method = "token", context = caller) => home.host.homeActionClient().invoke(context, connectorSetupAction,
   { service_id: service, method, display_name: "Work account", expected_revision: null }) as Promise<Prepared>;
 const status = (home: TestHome, id: string) => home.host.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: id }) as Promise<{ status: string; connection_id: string }>;
-const cancel = (home: TestHome, id: string) => home.host.homeActionClient().invoke(caller, connectorManagementActions.cancel, { authorization_id: id });
+const cancel = (home: TestHome, id: string, context = caller) => home.host.homeActionClient().invoke(context, connectorManagementActions.cancel, { authorization_id: id });
 
 for (const service of ["asana", "gmail", "notion"]) test(`ASC-08 ASC-20 ASC-35: cancel ${service} clears only its pending protocol material without requiring a callback`, async t => {
   const home = await openTestHome(t), request = await prepare(home, service, "oauth");
   const input = { service_id: service, display_name: "Pending account", client_id: "fixture-client", client_secret: "fixture-client-material", setup_id: request.authorization_id };
-  const path = service === "asana" ? "/api/settings/connectors/methods/oauth/start" : `/api/settings/connectors/${service}/oauth/start`;
+  const generic = service !== "notion";
+  const path = generic ? "/api/settings/connectors/methods/oauth/start" : `/api/settings/connectors/${service}/oauth/start`;
   const started = await home.web.post<{ authorization_url?: string; authorizationUrl?: string }>(path, input);
   const state = new URL(started.authorization_url ?? started.authorizationUrl!).searchParams.get("state")!;
   const readSecret = (ref: string) => runWithMolisWorkHome(home.home, () => createFileSecretStore().get(ref));
   assert.ok(readSecret(`connector-authorization:${request.authorization_id}:presentation`));
-  if (service !== "asana") assert.ok(readSecret(`connector:${service}:oauth:pending:${state}`));
+  if (!generic) assert.ok(readSecret(`connector:${service}:oauth:pending:${state}`));
   await cancel(home, request.authorization_id);
   assert.equal((await status(home, request.authorization_id)).status, "cancelled");
   assert.equal(readSecret(`connector-authorization:${request.authorization_id}:presentation`), null);
-  if (service === "asana") assert.equal(runWithMolisWorkHome(home.home, () => readSecretsFileMeta().entryCount), 0, "staged client and PKCE secrets are deleted");
+  if (generic) assert.equal(runWithMolisWorkHome(home.home, () => readSecretsFileMeta().entryCount), 0, "staged client and PKCE secrets are deleted");
   else {
     assert.equal(readSecret(`connector:${service}:oauth:pending:${state}`), null);
     assert.equal(readSecret(`connector:${service}:oauth:connection-target:${state}`), null);
@@ -38,9 +40,12 @@ for (const service of ["asana", "gmail", "notion"]) test(`ASC-08 ASC-20 ASC-35: 
     if (String(url).startsWith(home.origin)) return realFetch(url, init);
     externalCalls++; throw new Error("cancelled OAuth must not reach its provider");
   });
+  // The generic flow's requests leave by `sendPublicHttps` (W5-11 slice 4).
+  const sent = oauthNetwork(t, () => { throw new Error("cancelled OAuth must not reach its provider"); });
   if (service === "asana") await assert.rejects(home.web.post("/api/settings/connectors/methods/oauth/complete", { returned_url: `${home.origin}/api/settings/connectors/methods/oauth/callback?state=${state}&code=fixture-code` }), { status: 400 });
   else await fetch(`${home.origin}${service === "gmail" ? "/api/feed/connectors/gmail/oauth/callback" : "/api/settings/connectors/notion/oauth/callback"}?state=${state}&code=fixture-code`, { redirect: "manual" });
   assert.equal(externalCalls, 0);
+  assert.deepEqual(sent, []);
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
 });
 
@@ -83,7 +88,7 @@ test("ASC-03 ASC-07 ASC-08 ASC-19 ASC-37: prepare before any project, reuse this
   assert.equal((await status(home, first.authorization_id)).connection_id, saved.connection.connection_id);
   assert.equal((await status(home, first.authorization_id)).status, "connected");
   await assert.rejects(home.web.post("/api/settings/connectors/connections", { service_id: "github", display_name: "Duplicate", token: "fixture-work-setup", setup_id: first.authorization_id }), { status: 400 });
-  await cancel(home, other.authorization_id);
+  await cancel(home, other.authorization_id, { ...caller, runtime_session_id: "independent-session" });
   await assert.rejects(home.web.post("/api/settings/connectors/connections", { service_id: "github", display_name: "Cancelled", token: "fixture-work-setup", setup_id: other.authorization_id }), { status: 400 });
   assert.equal(withConnectorConnections(home.home, store => store.list()).length, 2);
   assert.equal(withConnectorConnections(home.home, store => store.resolveToken(existing.connection_id, "github")), "fixture-personal-setup");
@@ -103,8 +108,8 @@ test("ASC-08 ASC-09 ASC-35: OAuth binds the prepared id, can reopen, and a cance
   assert.doesNotMatch(html, /fixture-private-client/);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let identities = 0;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
-    if (String(input).includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-setup" }); }
+  oauthNetwork(t, async url => {
+    if (url.includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-setup" }); }
     identities++; return Response.json({ data: { gid: "work", name: "Work" } });
   });
   const returned = new URL(home.origin + "/api/settings/connectors/methods/oauth/callback");

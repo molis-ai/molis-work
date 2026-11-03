@@ -9,6 +9,7 @@ import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/m
 import { MolisWorkLocalHost, alchemistPulseGithub, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { alchemistFixture, controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // W2-18 decision 7: the market pulse's GitHub source uses a Settings GitHub connection the person bound to it, and
 // searches anonymously when none is bound. The plugin never receives the token: the Host adds the header.
@@ -183,7 +184,7 @@ test("a live market pulse: the person picks the account through the actions, the
   const ref = molisWorkHostProjectReference({ databasePath: join(directory, "project.sqlite"), projectId: "project-a" });
   const host = new MolisWorkLocalHost({ homeDirectory: directory, alchemist: { ai: () => ai } });
   t.after(() => host.close());
-  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "setup", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "setup", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "alice", project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
   const bound = bindActionClient(host.actionClient(ref), () => caller);
 

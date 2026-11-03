@@ -10,6 +10,7 @@ import { LocalHost, MolisWorkLocalHost, ProjectDeletionService, molisWorkHostPro
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 async function setup(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "alchemist-host-lifecycle-")), hosts: MolisWorkLocalHost[] = [];
@@ -18,7 +19,7 @@ async function setup(t: test.TestContext) {
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
   const open = async (actor: string) => {
     const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" } }); hosts.push(host);
-    await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "setup", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "setup", idempotency_key: "init" });
     return as(host, actor);
   };
   /** Another caller on the same Host, as separate MCP clients forwarded to the resident service are. */
@@ -183,7 +184,7 @@ for (const operation of ["conversation", "settings"] as const) {
 test("Alchemist discovery is inert; on the Home's one Host a job keeps its caller, others' activity cannot stop it, and concurrent callers stay separate", { timeout: 30_000 }, async t => {
   const f = await setup(t), first = await f.open("alice"), second = f.as(first.host, "bob");
   // R4C2-01: a second Host still refuses the same Home instead of acquiring another model executor.
-  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: f.home }), { code: "agent.inference.home_in_use" });
+  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: f.home }), { code: "storage.owner.busy" });
   const catalog = await first.bound.discover();
   assert.ok(catalog.some(item => item.capability_id === a.directionCreate.capability_id && item.availability.available));
   await assert.rejects(access(f.path), { code: "ENOENT" }); assert.equal(f.requests.length, 0);
@@ -275,14 +276,14 @@ test("W5-01-ALC-LIFE-03/05: public Host close retries the retained studio databa
     if (++attempts === 1) throw new Error("database close failed once");
     return closeDatabase();
   });
-  const sessions = Reflect.get(first.host, "sessions") as { close(): Promise<void> };
-  const sessionClose = t.mock.method(sessions, "close");
+  const search = Reflect.get(first.host, "search") as { close(): Promise<void> };
+  const searchClose = t.mock.method(search, "close");
   const failed = first.host.close(), concurrent = first.host.close();
   await Promise.all([failed, concurrent].map(closing => assert.rejects(closing, /database close failed once/)));
   assert.equal(concurrent, failed, "concurrent close callers share the same failed attempt");
   assert.equal(studio.database.open, true);
   await assert.rejects(studio.actions.invoke(a.bootstrap, {}));
-  const completed = sessionClose.mock.callCount();
+  const completed = searchClose.mock.callCount();
   const retry = first.host.close(), repeated = first.host.close();
   assert.notEqual(retry, failed, "explicit retry starts a new close attempt after failure");
   await Promise.all([retry, repeated]);
@@ -290,7 +291,7 @@ test("W5-01-ALC-LIFE-03/05: public Host close retries the retained studio databa
   assert.equal(first.host.close(), retry, "successful close retains its Promise identity");
   assert.equal(attempts, 2);
   assert.equal(studio.database.open, false);
-  assert.equal(sessionClose.mock.callCount(), completed, "successful non-Alchemist shutdown is not repeated");
+  assert.equal(searchClose.mock.callCount(), completed, "successful non-Alchemist shutdown is not repeated");
 });
 
 test("W5-01-ALC-LIFE-06: deletion hook stays live throughout close and waits for the actual foreground executor", async t => {

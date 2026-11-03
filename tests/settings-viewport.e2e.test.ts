@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 for (const [width, height] of [[1024, 400], [390, 500]]) {
   test(`Settings ${width}×${height}: fixed actions, cancel, failed retry and pending save`, { timeout: 60000 }, async t => {
@@ -40,15 +41,15 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     const loaded = (selector: string) => waitFor(`!!document.querySelector('[data-work-surface=project-settings] ${selector}')`, 15000);
     await navigate(() => command('Page.navigate', { url: prefix + '/settings/rules' }, sessionId));
     await loaded('[data-policy-form]');
-    const cursor = b.store.snapshot(DEMO_PROJECT_ID).cursor;
+    const cursor = boardSnapshot(b.store, DEMO_PROJECT_ID).cursor;
     const accepted = "document.querySelector('[name=human_approval]').checked";
     const original = await evaluate<boolean>(accepted);
     await evaluate(accepted + " = " + String(!original));
     await click('[data-policy-cancel]');
     assert.equal(await evaluate(accepted), original);
-    assert.equal(b.store.snapshot(DEMO_PROJECT_ID).cursor, cursor);
+    assert.equal(boardSnapshot(b.store, DEMO_PROJECT_ID).cursor, cursor);
     await evaluate(accepted + " = " + String(!original));
-    await command('Network.setBlockedURLs', { urls: [prefix + '/api/policy-bindings'] }, sessionId);
+    await command('Network.setBlockedURLs', { urls: [prefix + '/api/plugins/io.molis.work.goals/policy-bindings'] }, sessionId);
     await click('[data-policy-form] button[type=submit]');
     await waitFor("!document.querySelector('[data-policy-error]').hidden");
     await contained('[data-policy-error]');
@@ -65,7 +66,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await command('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }, sessionId);
     await loaded('[data-policy-form]');
     assert.equal(await evaluate(accepted), !original);
-    assert.ok(b.store.snapshot(DEMO_PROJECT_ID).cursor > cursor);
+    assert.ok(boardSnapshot(b.store, DEMO_PROJECT_ID).cursor > cursor);
     await b.reloadPage();
     await loaded('[data-policy-form]');
     assert.equal(await evaluate(accepted), !original);
@@ -79,7 +80,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await fill('[name=content]', '不应保存的说明草稿');
     await click('[data-guidance-editor-close]');
     assert.equal(await evaluate(`document.activeElement.matches('${trigger}')`), true);
-    const guidance = async () => (await (await fetch(prefix + '/api/project-guidance')).json());
+    const guidance = async () => (await (await fetch(prefix + '/api/plugins/io.molis.work.goals/project-guidance')).json());
     assert.equal((await guidance()).entries.length, 0);
     await click(trigger);
     await waitFor("document.activeElement.name === 'content'");
@@ -87,7 +88,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     const content = '用户数据和备份只保存在本机。\n' + '保留原始文件，所有导出均由用户主动发起。\n'.repeat(12);
     await fill('[name=content]', content);
     await fill('[name=reason]', '明确项目的数据边界，并验证失败时草稿完整保留。');
-    await command('Network.setBlockedURLs', { urls: [prefix + '/api/project-guidance'] }, sessionId);
+    await command('Network.setBlockedURLs', { urls: [prefix + '/api/plugins/io.molis.work.goals/project-guidance'] }, sessionId);
     await click('[data-guidance-form] button[type=submit]');
     await waitFor("!document.querySelector('[data-guidance-editor-error]').hidden");
     assert.equal(await evaluate("document.querySelector('[name=content]').value"), content);

@@ -45,7 +45,7 @@ function page(replies: Array<() => Promise<unknown>>) {
   const ask = new Element(), button = new Element(), prompt = { value: PROMPT };
   const noteLine = new NoteLine(), editor = { note: noteLine, noteScope: "" };
   const { showNote, draftNote } = vm.runInNewContext(`${STATUS};FormStatus`, {}) as Status;
-  const { formDraft } = vm.runInNewContext(`${DRAFT};FormDraft`, { document: { createElement: () => new Template() }, requestAnimationFrame: (run: () => void) => frames.push(run) });
+  const { formDraft } = vm.runInNewContext(`${DRAFT};FormDraft`, { HTMLElement: Element, document: { createElement: () => new Template() }, requestAnimationFrame: (run: () => void) => frames.push(run) });
   const draft = formDraft({
     host: { interaction: (card: Element, { onSubmit }: { onSubmit: () => void }) => {
       const bound = { card, submit: onSubmit, focused: [] as string[], shown: [] as Array<{ errors: unknown; focus: unknown }>, destroyed: false, read: () => ({ q0: ["1"], q1: ["0"] }),

@@ -37,7 +37,7 @@ export interface DeleteProjectInput {
 export interface ProjectDataDeclaration {
     readonly label: string;
     readonly order?: number;
-    purge?(homeDirectory: string, projectId: string): void | Promise<void>;
+    purge(homeDirectory: string, projectId: string): void | Promise<void>;
 }
 
 export interface ProjectDeletionReceipt {
@@ -77,9 +77,10 @@ export interface ProjectPluginMembership {
 
 export interface ProjectPluginRegistry {
     has(pluginId: ProjectPluginId): boolean;
+    initial?(): readonly ProjectPluginId[];
     companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
     isPersonal?(pluginId: ProjectPluginId): boolean;
-    isAlwaysOn?(pluginId: ProjectPluginId): boolean;
+    alwaysOn?(): readonly ProjectPluginId[];
 }
 
 export interface ProjectRecord {
@@ -140,6 +141,8 @@ export interface ProjectsCommandApi {
 
 export interface ProjectsQueryApi {
     wasProjectPluginRemoved(projectId: string, pluginId: ProjectPluginId): boolean;
+    storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
+    projectPluginMembership(projectId: string): ProjectPluginMembership;
     listProjectPlugins(projectId: string): ProjectPluginId[];
     listHiddenPlugins(projectId: string): ProjectPluginId[];
     listProjects(): ProjectRecord[];
@@ -187,6 +190,8 @@ export declare const projectSettingsCapabilities: {
     readonly workspaces: ActionDefinition<[], readonly ProjectWorkspaceRef[]>;
     readonly browsingWorkspace: ActionDefinition<[], ProjectWorkspaceRef | null>;
     readonly selectBrowsingWorkspace: ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>;
+    readonly runtime: ActionDefinition<[], string | null>;
+    readonly selectRuntime: ActionDefinition<[runtimeId: string | null], string | null>;
 };
 
 export declare const projectWorkspaceActions: {
@@ -200,13 +205,11 @@ export declare const projectWorkspaceActions: {
         workspace_path: string;
     }, {
         workspace: ProjectWorkspaceDirectoryRecord;
-        updated_session_count: number;
     }>;
     unlink: ActionDefinition<{
         workspace_id: string;
     }, {
         changed: boolean;
-        updated_session_count: number;
     }>;
 };
 

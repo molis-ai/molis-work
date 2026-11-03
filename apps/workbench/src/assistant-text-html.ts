@@ -1,4 +1,4 @@
-import type { AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantNotice, AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantCodeHtml, assistantEscape, assistantInlineHtml, assistantListHtml, ASSISTANT_LIST_ITEM, type AssistantTextPorts } from "./assistant-text-parts.js";
 
 /** Assistant-only Markdown projection, with the same block rules as its original browser renderer. */
@@ -75,4 +75,11 @@ export function renderAssistantReviewHtml(review: AssistantPendingReview, ports:
   const exact = review.fields.filter(field => field.label === "完整参数" || field.label === "能力");
   if (exact.length) html += `<details class="assistant-exact"><summary>${say("准确参数与能力")}</summary>${exact.map(field => `<p class="assistant-muted">${say(field.label)}</p><pre>${assistantEscape(field.value)}</pre>`).join("")}</details>`;
   return html + `<div class="assistant-card-actions"><button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-decision="approve">${say("允许执行")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-assistant-decision="reject">${say("拒绝")}</button></div><p class="assistant-card-hint">${say("允许只执行这一次；拒绝就不执行，助理会知道你拒绝了。")}</p>`;
+}
+
+/** Saved notice templates use the current UI language; names are filled once as literal text. Self-contained for the client. */
+export function renderAssistantNoticeText(notice: AssistantNotice, say: (key: string, vars?: Record<string, string>) => string): string {
+  if (notice.kind !== "directory-read") return notice.text;
+  const params = notice.text_params;
+  return params ? say(notice.text, { ...params, origin: say(params.origin) }) : say("目录读取通知的数据不完整。");
 }

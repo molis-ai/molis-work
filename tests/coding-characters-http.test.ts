@@ -1,15 +1,15 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, charactersProvider, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { AGENT_RUNTIME_CAPABILITIES, agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -17,10 +17,11 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("Coding saves exact Character versions, blocks unavailable selection before SDK creation, and preserves task drafts across reopen", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-characters-")), dbPath = join(home, "board.db");
-  seedDemoBoard(dbPath); await seedConfiguredModels(home); let store = new LocalProjectDatabase(dbPath);
+  await seedConfiguredModels(home); seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   const personal = openCharacters(home, "web-user"), draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: "原角色", instructions: "旧的固定要求", host_tools: null });
-  const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
+  const ports = () => ({ db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) });
+  const artifacts = () => new ArtifactsModule(ports());
   const publish = (version: number) => personal.service.publish(draft.character_id, version + 1, content => artifacts().commands.registerVersion({ ...pinnedArtifact(content.title, { kind: "character", id: content.character_id }),
     project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version,
     artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1,
@@ -33,9 +34,25 @@ test("Coding saves exact Character versions, blocks unavailable selection before
   const sessions = codingSessions(store);
   for (const id of ["app", "new"]) await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
+  // Characters is the Host's own provider since CHR-1 (project-host.ts registers it for each project); this harness has no Host,
+  // so it registers the same provider in each project registry it builds, over the person's drafts and the project's 成果库.
+  const withCharacters = new WeakSet<object>();
+  const actions = () => {
+    const project = pluginActions(store, DEMO_PROJECT_ID);
+    if (withCharacters.has(project.registry)) return project;
+    withCharacters.add(project.registry);
+    const library = artifacts();
+    project.registry.registerProvider(charactersProvider({ project_id: DEMO_PROJECT_ID, artifacts: library, processItems: new ProcessItemsModule(ports()) }, {
+      actorId: "web-user", drafts: personal.service, publish: (id, revision, publisher) => personal.service.publish(id, revision, publisher),
+      references: () => library.query.listArtifacts(DEMO_PROJECT_ID, { artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }).map(({ artifact_id, version }) => ({ artifact_id, version })) }));
+    return project;
+  };
+  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: actions(), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+      // The Runtime directory says the session's Runtime has verified a Character's tool limits (PG-054): the Runtime's declaration, not its id.
+      if (definition.capability_id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", supports_character_limits: true,
+        capabilities: Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(name => [name, "supported"])) }] as Output;
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
@@ -45,7 +62,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host())).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown, id = "app") => {

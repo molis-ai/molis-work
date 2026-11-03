@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "plugin_id": "io.molis.work.integration.github",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "name": "GitHub",
   "kind": "integration",
   "publisher": {
@@ -21,5 +21,55 @@
     "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
   },
   "artifacts": { "produces": [], "consumes": [] },
-  "ui": { "contributions": ["settings.integration.github"] }
+  "ui": { "contributions": ["settings.integration.github"] },
+  "connection_services": [
+    {
+      "service_id": "github",
+      "title": "GitHub",
+      "group_id": "code",
+      "summary": "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
+      "auth_kind": "github",
+      "auth": {
+        "methods": [
+          {
+            "kind": "oauth",
+            "grant": "authorization_code",
+            "authorize_url": "https://github.com/login/oauth/authorize",
+            "token_url": "https://github.com/login/oauth/access_token",
+            "scopes": ["notifications", "read:user"],
+            "pkce": "S256",
+            "identity": { "url": "{service}/user", "account_id": [["identity:/id"]], "label": ["identity:/login"] }
+          }
+        ]
+      },
+      "capabilities": [
+        {
+          "label": "Feed 拉未读通知",
+          "fulfillment": "live"
+        },
+        {
+          "label": "在连接设置中检查当前账号",
+          "fulfillment": "live"
+        }
+      ],
+      "outbound_note": "连接设置可检查当前 GitHub 账号。Agent 可用能力以能力库为准。",
+      "setup_links": [
+        {
+          "label": "创建 Personal Access Token",
+          "url": "https://github.com/settings/tokens/new?scopes=notifications,read:user&description=Molis%20Work"
+        },
+        {
+          "label": "注册 OAuth App",
+          "url": "https://github.com/settings/applications/new"
+        }
+      ]
+    }
+  ],
+  "integrations": [
+    {
+      "integration_id": "github",
+      "kind": "source",
+      "service_id": "github"
+    }
+  ]
 }

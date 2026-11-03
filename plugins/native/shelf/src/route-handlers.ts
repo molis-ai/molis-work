@@ -1,6 +1,6 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ShelfRecipeId } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { hashBytes, shelfErrors } from "@molis-ai/molis-work-module-shelf";
+import type { ShelfRecipeId } from "@molis-ai/molis-work-module-shelf/contract";
+import { isHttpUrl, shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions, shelfProjectActions, type ShelfAdmitActionInput } from "./actions.js";
 import type { ShelfPluginRouteHandler, ShelfPluginRouteResponse } from "./routes.js";
@@ -23,6 +23,7 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
     return options.project;
   };
   return {
+    "shelf.terminal": async () => ({ status: 200, body: await call(shelfActions.terminal, {}) }),
     "shelf.material.preview": async ({ params }) => {
       const scoped = project();
       const preview = await scoped.actions.invoke(shelfProjectActions.previewMaterial, { item_id: params.item_id! });
@@ -36,13 +37,19 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
     "shelf.sample": async () => withShelf(await call(shelfActions.sample, {})),
     "shelf.admit": async ({ request }) => {
       const body = request.body;
+      const text = stringValue(body.text);
+      // A pasted link is fetched as a page unless the panel asks for the link itself (发给终端 sends `capture_pages: false`).
+      if (text && isHttpUrl(text) && body.capture_pages !== false) return withShelf(await call(shelfActions.capture, { url: text }));
       const input: ShelfAdmitActionInput = {};
-      for (const key of ["text", "title", "filename", "bytes_base64", "mime", "origin_realpath"] as const) {
+      for (const key of ["text", "title", "filename", "bytes_base64", "mime"] as const) {
         const value = stringValue(body[key]);
         if (value) input[key] = value;
       }
-      if (body.capture_pages === false) input.capture_pages = false;
-      return withShelf(await call(shelfActions.admit, input));
+      const admitted = await call(shelfActions.admit, input);
+      // The desktop shell hands the original's path to the Host beside the copy; the copy stays on the shelf if registering it fails.
+      if (body.original !== true || !input.filename) return withShelf(admitted);
+      const registered = await call(shelfActions.original, { item_id: admitted.item.item_id }).then(() => true, () => false);
+      return withShelf({ ...admitted, original_registered: registered });
     },
     "shelf.folder": async ({ request }) => {
       const name = stringValue(request.body.name);
@@ -58,8 +65,7 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
         return [{ relative, bytes_base64: encoded, ...(mime ? { mime } : {}) }];
       });
       if (!entries.length) return { status: 400, body: { error: "这个文件夹里没有可以加入的文件" } };
-      const origin = stringValue(request.body.origin_realpath);
-      return withShelf(await call(shelfActions.admitFolder, { name, entries, ...(origin ? { origin_realpath: origin } : {}) }));
+      return withShelf(await call(shelfActions.admitFolder, { name, entries }));
     },
     "shelf.hide": async ({ params }) => {
       if (!params.item_id) return { status: 404, body: { error: "这份材料不在架子上" } };
@@ -126,7 +132,7 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
       const child = request.query.get("child")?.trim();
       const file = await call(shelfActions.file, { item_id: params.item_id, ...(child ? { child } : {}) });
       const bytes = Buffer.from(file.bytes_base64, "base64");
-      return { status: 200, bytes, filename: file.name, mime: file.mime, headers: { ETag: '"' + hashBytes(bytes) + '"' } };
+      return { status: 200, bytes, filename: file.name, mime: file.mime };
     },
   };
 }

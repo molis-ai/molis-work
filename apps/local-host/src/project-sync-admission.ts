@@ -14,7 +14,7 @@ export async function admitProjectSync<T>(withCatalog:LocalWebCatalogRunner,port
    check();
    if(!ports.isProjectBusy)throw catalogErrors.project_storage_invalid('项目运行状态尚未接入，原件已保留');
    if(observed&&ports.isProjectBusy(observed.database_path))throw catalogErrors.project_task_live('项目仍有运行或排队的任务，请结束后重试',{sync_waiting:true});
-   if(catalog.listDesktopPanels(projectId).some(panel=>ports.isPanelAlive(panel.panel_id)))throw catalogErrors.project_terminal_live('请先关闭这个项目中正在运行的终端，再接收项目状态');
+   if(catalog.terminalPanels.listIds(projectId).some(panelId=>ports.isPanelAlive(panelId)))throw catalogErrors.project_terminal_live('请先关闭这个项目中正在运行的终端，再接收项目状态');
    assertChildrenSettled();check();
   };
   ready();

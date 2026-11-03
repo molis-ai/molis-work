@@ -1,11 +1,10 @@
-import { INBOX_PLUGIN_ID } from "./identity.js";
-import { retainActionAuthority, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, type SearchEntry, type ActionSubject, type ActionSubjectContext, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionAudience, type ActionCallContext,
+import { defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, type SearchEntry, type ActionSubject, type ActionSubjectContext, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext,
   type WorkflowPayload, type WorkflowReceiveInput, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { createInboxHomeEventsHandler } from "./home-events.js";
 
 export const inboxContentActions = defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subject_kind: "inbox_entry",
-  read_permissions: ["inbox:read", "feed:read"], write_permissions: ["inbox:write", "feed:write"], receive_scheduling: "concurrent" });
+  read_permissions: ["inbox:read", "feed:read"], write_permissions: ["inbox:write", "feed:write", "feed:read"], receive_scheduling: "concurrent" });
 
 export const inboxSubjectAction = defineSubjectContextAction("inbox.subject.read", "inbox_entry", "Inbox 事项", ["inbox:read"]);
 /** System search: open entries by title, reason and source. The related material's body stays with its owner (Feed keeps it encrypted). */
@@ -14,33 +13,34 @@ const REASON_TEXT: Readonly<Record<string, string>> = { manual: "手动加入", 
 
 type ContentEntry = Omit<AttentionEntryRecord, "project_id">;
 
-/**
- * Who added an entry that was handed in, as the entry records it. It comes from the trusted audience of the call, never from the input:
- * a workflow's handoff is `workflow`, a person's own act is `web_user` (what Feed's own 「加入 Inbox」 records), anything else is
- * named by its audience.
- */
-function addedByOf(audience: ActionAudience): string {
-  return audience === "workflow" ? "workflow" : audience === "user" ? "web_user" : audience;
+/** What Feed shows an item an entry points at (`feed.briefs.read`): its name and where it came from, never its text. */
+export interface InboxItemBrief { item_id: string; title: string; source_label: string | null; source_kind: string | null; summary: string; disposition: string }
+export interface InboxBriefs { items: ReadonlyMap<string, InboxItemBrief>; sources: ReadonlyMap<string, { source_id: string; name: string }> }
+
+/** The items and sources the open entries point at, asked of Feed once for all of them. */
+async function briefsOf(ports: InboxContentPorts, caller: ActionCallContext, entries: readonly ContentEntry[]): Promise<InboxBriefs> {
+  const item_ids = [...new Set(entries.filter(entry => entry.subject_type === "feed_item").map(entry => entry.subject_id))];
+  const source_ids = [...new Set(entries.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id))];
+  return ports.briefs(caller, { item_ids, source_ids });
 }
+const openEntries = (ports: InboxContentPorts) => ports.entries().filter(entry => entry.status === "open" || entry.status === "in_progress");
 
 export interface InboxContentPorts {
   entries(): readonly ContentEntry[];
   entry(id: string): ContentEntry;
-  items(): readonly { item_id: string; title: string; source_label: string | null; source_kind?: string; summary?: string }[];
-  sources(): readonly { source_id: string; name: string }[];
+  /** Feed's names for the items and sources asked about; one that Feed no longer has is left out. */
+  briefs(caller: ActionCallContext, ids: { item_ids: readonly string[]; source_ids: readonly string[] }): Promise<InboxBriefs>;
   readSubject?(subject: ActionSubject, caller: ActionCallContext): Promise<ActionSubjectContext>;
   readFeed(id: string, caller: ActionCallContext): Promise<WorkflowPayload>;
   receiveFeed(input: WorkflowReceiveInput, caller: ActionCallContext): Promise<WorkflowItemRef>;
-  ensure(itemId: string, addedBy: string): ContentEntry;
-  reopen(entry: ContentEntry): ContentEntry;
-  flush(caller: ActionCallContext, entryId: string): Promise<void>;
+  /** The item's entry, open and judged: Feed adds it, or reopens the one that was done or dismissed (`feed.items.admit`); who added it is Feed's reading of the caller. */
+  admit(itemId: string, caller: ActionCallContext): Promise<{ entry_id: string }>;
 }
 export function createInboxContentHandlers(ports: InboxContentPorts) {
-  return [createInboxHomeEventsHandler(ports), ...bindWorkflowContentHandlers(inboxContentActions, {
-    list: () => {
-      const items = new Map(ports.items().map(item => [item.item_id, item]));
-      const sources = new Map(ports.sources().map(source => [source.source_id, source]));
-      return ports.entries().filter(entry => entry.status === "open" || entry.status === "in_progress").flatMap(entry => {
+  return [createInboxHomeEventsHandler(ports, (caller, entries) => briefsOf(ports, caller, entries)), ...bindWorkflowContentHandlers(inboxContentActions, {
+    list: async caller => {
+      const entries = openEntries(ports), { items, sources } = await briefsOf(ports, caller, entries);
+      return entries.flatMap(entry => {
         if (entry.subject_type === "feed_item") {
           const item = items.get(entry.subject_id);
           return item ? [{ item_id: entry.entry_id, title: item.title, caption: item.source_label || "Feed", at: entry.updated_at }] : [];
@@ -56,7 +56,7 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
       const entry = ports.entry(item_id);
       if (entry.subject_type === "feed_item") return ports.readFeed(entry.subject_id, caller);
       if (entry.subject_type === "source_fault") {
-        const source = ports.sources().find(source => source.source_id === entry.subject_id);
+        const source = (await briefsOf(ports, caller, [entry])).sources.get(entry.subject_id);
         if (!source) throw new ActionError("actions.missing", "来源已经不存在");
         const detail = typeof entry.detail?.message === "string" ? entry.detail.message : "";
         return { title: `来源「${source.name}」需要处理`, body: detail || `来源「${source.name}」需要人工恢复。`, source: source.name, feed_item_id: null };
@@ -64,19 +64,13 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
       throw new ActionError("actions.input_invalid", "这条 Inbox 事项没有可以交接的正文");
     },
     receive: async (input, caller) => {
-      const origin = { ...inboxContentActions.receive, provider_id: INBOX_PLUGIN_ID };
-      const nestedCaller = retainActionAuthority(caller, origin);
-      const itemId = input.feed_item_id ?? (await ports.receiveFeed(input, nestedCaller)).item_id;
-      await nestedCaller.validate_authority?.(origin);
-      const stored = ports.ensure(itemId, addedByOf(caller.audience));
-      const entry = stored.status === "done" || stored.status === "dismissed" ? ports.reopen(stored) : stored;
-      await ports.flush(nestedCaller, entry.entry_id);
+      const itemId = input.feed_item_id ?? (await ports.receiveFeed(input, caller)).item_id;
+      const entry = await ports.admit(itemId, caller);
       return { plugin: "inbox", item_id: entry.entry_id, title: input.title };
     },
-  }), bindSearchEntriesHandler(inboxSearchEntriesAction, () => {
-    const items = new Map(ports.items().map(item => [item.item_id, item]));
-    const sources = new Map(ports.sources().map(source => [source.source_id, source]));
-    return ports.entries().filter(entry => entry.status === "open" || entry.status === "in_progress").map((entry): SearchEntry => {
+  }), bindSearchEntriesHandler(inboxSearchEntriesAction, async caller => {
+    const entries = openEntries(ports), { items, sources } = await briefsOf(ports, caller, entries);
+    return entries.map((entry): SearchEntry => {
       const item = entry.subject_type === "feed_item" ? items.get(entry.subject_id) : undefined;
       const source = entry.subject_type === "source_fault" ? sources.get(entry.subject_id) : undefined;
       const title = item?.title ?? (source ? `来源「${source.name}」需要处理` : typeof entry.detail?.title === "string" ? entry.detail.title : "Inbox 事项");
@@ -92,6 +86,6 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
     const current = ports.entry(entry.entry_id);
     if (current.revision !== entry.revision || current.subject_id !== entry.subject_id || current.status !== entry.status) throw new ActionError("actions.subject_changed", "事项在读取期间已变化");
     return subjectContext({ subject: { kind: "inbox_entry", id: entry.entry_id }, revision: `${entry.revision}:${related.revision}`,
-      title: related.title, content: related.content, truncated: related.truncated, goal_ids: related.goal_ids, session_id: related.session_id });
+      title: related.title, content: related.content, truncated: related.truncated, ...(related.goal_ids ? { goal_ids: related.goal_ids } : {}) });
   } }];
 }

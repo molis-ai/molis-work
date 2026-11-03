@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody } from "./contract.js";
 import type { MaterialDocumentBatch } from "@molis-ai/molis-work-contracts/services/materials";
 import { pagesErrors } from "./error.js";
 import { convertImportContent } from "./import-content.js";

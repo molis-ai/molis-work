@@ -8,9 +8,6 @@ export type AsyncApplicationMethods<Application> = {
     ? (...args: Args) => Promise<Awaited<Result>> : never;
 };
 
-export type HostMethodCapability<Method> = Method extends (...args: infer Args) => infer Result
-  ? HostCapabilityDefinition<Args, Result> : never;
-
 export const platformAppHostContract = {
   contractId: "io.molis.work.platform.app-host.v1",
   kind: "platform",
@@ -19,91 +16,18 @@ export const platformAppHostContract = {
   ssot: "docs/system/ARCHITECTURE.md",
 } as const satisfies ContractDescriptor;
 
-/**
- * `wait` is a read that may hold until something changes, such as following a live round. The Host runs it beside
- * the project's queued operations rather than in line with them, so a held wait never delays a stop, an answer or a read.
- */
-export type HostCapabilityOperation = "query" | "command" | "wait";
-
-export interface DesktopPanelRecord {
-  panel_id: string;
-  project_id: string;
-  goal_id: string;
-  runtime_kind: string;
-  launch_command: string;
-  launch_args: string[];
-  cwd: string | null;
-  work_context_id: string;
-  host_session_id: string | null;
-  tab_index: number;
-  title: string;
-  status: "open" | "exited";
-  created_at: string;
-  updated_at: string;
-}
-
-export interface OpenDesktopPanelInput {
-  project_id: string;
-  goal_id: string;
-  runtime_kind: string;
-  launch_command: string;
-  launch_args?: string[];
-  cwd?: string | null;
-  title?: string;
-  actor_id: string;
-  host_session_id?: string | null;
-  user_confirmed: boolean;
-}
-
-export interface AliasDesktopPanelSessionInput {
-  panel_id: string;
-  runtime_id: string;
-  host_session_id: string;
-  actor_id: string;
-}
-
-/** Public panel lifecycle used by Work; repositories remain private to the app implementation. */
-export interface DesktopPanelApi {
-  list(projectId: string, goalId?: string): DesktopPanelRecord[];
-  get(panelId: string): DesktopPanelRecord;
-  open(input: OpenDesktopPanelInput): DesktopPanelRecord;
-  close(panelId: string, actorId: string): void;
-  markOpen(panelId: string): DesktopPanelRecord;
-  markExited(panelId: string): DesktopPanelRecord;
-}
+/** A read that may hold until something changes (following a live round) is a query declared `scheduling: "concurrent"`. */
+export type HostCapabilityOperation = "query" | "command";
 
 export interface HostCapabilityDescriptor {
   capability_id: string;
   version: number;
   operation: HostCapabilityOperation;
-  /**
-   * The call touches no project state (a model draft written in a directory of its own, say): it runs beside the
-   * project's operation queue instead of holding every later operation until it answers. The Host reads this from the
-   * registered descriptor, so a caller cannot claim it for a queued operation.
-   */
-  readonly scheduling?: "concurrent";
-  /** Optional transport-neutral metadata for discoverable system actions. */
+  /** Transport-neutral metadata for discoverable system actions. */
   readonly action?: import("./actions.js").ActionMetadata;
   /** Injected by the registration owner, not supplied by tool callers. */
   readonly action_provider?: import("./actions.js").ActionProvider;
 }
-
-/**
- * Stable, transport-neutral capability identity. The optional type member is
- * compile-time only; JSON transports use the three public descriptor fields.
- */
-export interface HostCapabilityDefinition<Input = unknown, Output = unknown>
-  extends HostCapabilityDescriptor {
-  readonly __types__?: { input: Input; output: Output };
-}
-
-export type HostCapabilityInput<Capability> = Capability extends HostCapabilityDefinition<infer Input, unknown>
-  ? Input
-  : never;
-
-export type HostCapabilityOutput<Capability> = Capability extends HostCapabilityDefinition<unknown, infer Output>
-  ? Output
-  : never;
 
 /** Opaque local storage locator. It is never a Project business identity. */
 export interface LocalHostProjectReference {
@@ -129,7 +53,7 @@ export interface HostPluginCaller {
   readonly actor_id: string;
   readonly project_id: string | null;
   readonly declaration: Pick<import("./plugin.js").PluginDefinition, "manifest" | "agent_prompts" | "agent_skills">;
-  /** Installation lifetime, also usable by the original Agent after this typed call ends. */
+  /** Installation lifetime, also usable by the original Agent after this call ends. */
   readonly assertActive: () => void;
 }
 
@@ -139,13 +63,9 @@ export interface HostCapabilityCallOptions {
   query_only?: true;
   /** Cancellation narrows this invocation; it never grants caller authority. */
   signal?: AbortSignal;
-  /** Host-only binding. The Plugin SDK executor always overrides a supplied value. */
-  plugin_caller?: HostPluginCaller;
   before_effect?: () => void | Promise<void>;
-  /** A stricter original-call fence, invoked synchronously without borrowing this typed target's authority. */
+  /** A stricter original-call fence, invoked synchronously without borrowing the target's authority. */
   assert_authority_current?: () => void;
-  /** SDK-enforced restriction, not caller authority; plugins cannot remove it through invocation options. */
-  consumer?: "plugin";
 }
 export interface HostCapabilityInvocation extends ActionCallOrigin {
   readonly signal?: AbortSignal;
@@ -161,67 +81,16 @@ export interface LocalHostProjectClient {
   readonly host_instance_id: string;
   readonly project: LocalHostProjectReference;
   /** Synchronous registry/readiness facts only; never opens a runtime or grants invocation. */
-  availability(capability: import("./actions.js").ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">): import("./actions.js").ActionAvailability;
+  /** `consumer: "plugin"`: asked for a plugin, so an action offered to plugins is checked as the plugin audience. Not caller authority. */
+  availability(capability: import("./actions.js").ActionReference, options?: { readonly consumer?: "plugin" }): import("./actions.js").ActionAvailability;
   /** Open before adapting the request and retain resources through response composition; exposes no Runtime. */
   withScope<Result>(operation: (client: LocalHostProjectClient) => Result | Promise<Result>): Promise<Result>;
+  /** Calls a registered action through the action service, in this project's operation queue. */
   invoke<Input, Output>(
-    capability: HostCapabilityDefinition<Input, Output>,
+    capability: import("./actions.js").ActionDefinition<Input, Output>,
     input: Input,
     options?: HostCapabilityCallOptions,
   ): Promise<Output>;
 }
 
 export { SUPPORTED_RUNTIME_IDS, RUNTIME_DISPLAY_NAMES, type SupportedRuntimeId, type RuntimeConnectionState, type RuntimeIntegrationDetection, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection } from "./installation-detection.js";
-
-export type DesktopPanelErrorCode =
-  | "catalog.invalid_name"
-  | "catalog.project_not_found"
-  | "catalog.panel_not_found"
-  | "catalog.panel_confirmation_required"
-  | "catalog.context.stable_identity_required"
-  | "catalog.context.user_confirmation_required";
-
-export interface DesktopPanelRepository {
-  transaction<T>(operation: () => T): T;
-  nextTabIndex(projectId: string, goalId: string): number;
-  insert(record: DesktopPanelRecord): void;
-  addAlias(panelId: string, runtimeId: string, workContextId: string, createdAt: string): void;
-  list(projectId: string, goalId?: string): DesktopPanelRecord[];
-  get(panelId: string): DesktopPanelRecord | null;
-  updateStatus(panelId: string, status: DesktopPanelRecord["status"], updatedAt: string): void;
-  updateHostSession(panelId: string, hostSessionId: string, updatedAt: string): void;
-  delete(panelId: string): void;
-  findByWorkContext(runtimeId: string, workContextId: string): DesktopPanelRecord | null;
-  deleteForProject(projectId: string): void;
-}
-
-export interface DesktopPanelContextPort {
-  assertProject(projectId: string): void;
-  bind(input: {
-    runtime_id: string;
-    stable_work_context_id: string;
-    project_id: string;
-    actor_id: string;
-    cwd?: string;
-  }): void;
-  appendProjectEvent(
-    projectId: string,
-    type: "project.desktop_panel_opened" | "project.desktop_panel_closed",
-    actorId: string,
-    payload: Record<string, unknown>,
-  ): void;
-}
-
-export interface DesktopPanelServiceOptions {
-  repository: DesktopPanelRepository;
-  context: DesktopPanelContextPort;
-  errorFactory: (code: DesktopPanelErrorCode, message: string) => Error;
-  now?: () => string;
-  createId?: () => string;
-}
-
-export interface DesktopPanelCatalogApi extends DesktopPanelApi {
-  aliasSession(input: AliasDesktopPanelSessionInput): DesktopPanelRecord;
-  findByWorkContext(runtimeId: string, workContextId: string): DesktopPanelRecord | null;
-  deleteForProject(projectId: string): void;
-}

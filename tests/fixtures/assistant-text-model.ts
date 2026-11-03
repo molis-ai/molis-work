@@ -16,7 +16,8 @@ export async function assistantTextModel(t: TestContext, home: string, text: str
   const finish = Promise.withResolvers<void>();
   let first = true, nextReview: string | null = null;
   const model = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     // The ending review (D1②) and knowledge's background cards are answered aside: neither is held as the first reply nor spends a scripted turn.
     const review = asideReply(raw);
     const title = review ? null : nextReview; if (!review) nextReview = null;

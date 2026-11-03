@@ -1,3 +1,4 @@
+import {openFormCopyOwner, openFormStore} from "./fixtures/plugin-sync-stores.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,readFileSync,readdirSync,writeFileSync,rmSync,renameSync,symlinkSync} from 'node:fs';
@@ -6,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {createProjectCopyJournal,previewProjectCopy,executeProjectCopy,projectCopyIdentities,type ProjectCopyPlan,type ProjectCopyExecution} from '@molis-ai/molis-work-service-placement';
 import {openProjectCopyJournal} from '@molis-ai/molis-work-app-local-host';
 import {ensureStorageSpace,personalStorageSpace,createAtomicFileDocument,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import {openFormStore,openFormCopyOwner} from '@molis-ai/molis-work-plugin-form';
+
 import {ActionError} from '@molis-ai/molis-work-contracts/platform/actions';
 
 function fixture(t:import('node:test').TestContext){

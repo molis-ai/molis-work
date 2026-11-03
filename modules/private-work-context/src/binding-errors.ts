@@ -8,6 +8,6 @@ export const bindingErrors = defineErrorCodes("work.context", {
   idempotency_conflict: "invalid",
   rebind_confirmation_required: "invalid",
   stable_identity_required: "invalid",
-  identity_required: "invalid",
   idempotency_key_required: "invalid",
+  project_relation_missing: "invalid",
 });

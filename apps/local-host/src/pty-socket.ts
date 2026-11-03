@@ -5,22 +5,16 @@ import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
+import { pageTerminalOwnership, type PageTerminalAccess } from "./pty-page-access.js";
 
 type ClientMessage =
   | { type: "auth"; token: string }
-  | (PtySpawnRequest & { type: "spawn" })
+  | { type: "page-auth"; pageId: string }
+  /** Attach only (S-103 ⑦): a terminal is started by the Host, never by a message on this channel. */
+  | { type: "spawn"; panelId: string; attachOnly: true; cols?: number; rows?: number }
   | { type: "write"; panelId: string; data: string }
   | { type: "resize"; panelId: string; cols: number; rows: number }
   | { type: "kill"; panelId: string };
-
-export interface MolisWorkPtySocketHandlers {
-  /** Trusted synchronous final lifecycle check, including direct Host spawns. */
-  beforeSpawn?(request: PtySpawnRequest): void;
-  /** Trusted Host scope overrides caller-supplied environment variables. */
-  environment?: Record<string,string>;
-  onData?: (panelId: string, sessionId: string, data: string) => void;
-  onExit?: (panelId: string, sessionId: string, exit: { exitCode: number; signal: number }) => void;
-}
 
 function tokenMatches(expected: string, actual: unknown): boolean {
   // The message is JSON from the page: anything but a string (a number, an object Buffer.from would accept) is a failed login.
@@ -54,47 +48,7 @@ function rejectUpgrade(socket: Duplex): void {
   socket.destroy();
 }
 
-export function attachMolisWorkPtySocket(
-  server: http.Server,
-  controlToken: string,
-  handlers: MolisWorkPtySocketHandlers = {},
-): MolisWorkPtyHost {
-  const sockets = new Set<WebSocket>();
-  const panelSessionIds = new Map<string, string>();
-  class RecordedPtyHost extends MolisWorkPtyHost {
-    override spawn(request: PtySpawnRequest) {
-      handlers.beforeSpawn?.(request);
-      if (request.sessionId) panelSessionIds.set(request.panelId, request.sessionId);
-      return super.spawn({...request,env:{...request.env,...handlers.environment}});
-    }
-    override kill(panelId: string) {
-      const wasAlive = this.alive(panelId);
-      super.kill(panelId);
-      // Runtime Host suppresses the later process exit after an explicit kill.
-      if (wasAlive) {
-        const sessionId = panelSessionIds.get(panelId);
-        if (sessionId) handlers.onExit?.(panelId, sessionId, { exitCode: -1, signal: 15 });
-        for (const socket of sockets) send(socket, { type: "exit", panelId, exitCode: -1, signal: 15 });
-      }
-    }
-  }
-  const host = new RecordedPtyHost({
-    onData: (panelId, data) => {
-      const sessionId = panelSessionIds.get(panelId);
-      if (sessionId) handlers.onData?.(panelId, sessionId, data);
-      for (const socket of sockets) send(socket, { type: "data", panelId, data });
-    },
-    onExit: (panelId, exit) => {
-      const sessionId = panelSessionIds.get(panelId);
-      if (sessionId) handlers.onExit?.(panelId, sessionId, exit);
-      for (const socket of sockets) {
-        send(socket, { type: "exit", panelId, exitCode: exit.exitCode, signal: exit.signal });
-      }
-    },
-  });
-  const wss = new WebSocketServer({ noServer: true });
-
-  server.on("upgrade", (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+function upgradeTerminal(wss: WebSocketServer, request: IncomingMessage, socket: Duplex, head: Buffer): void {
     let pathname = "";
     try {
       pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
@@ -124,15 +78,57 @@ export function attachMolisWorkPtySocket(
     wss.handleUpgrade(request, socket, head, (ws) => {
       wss.emit("connection", ws, request);
     });
+}
+
+export function attachMolisWorkPtySocket(
+  server: http.Server,
+  controlToken: string,
+  homeDirectory?: string,
+): MolisWorkPtyHost {
+  const sockets = new Set<WebSocket>();
+  const pageSockets = new Map<WebSocket, { access: PageTerminalAccess; panels: Set<string>; sending: Promise<void> }>();
+  const ownership = pageTerminalOwnership(homeDirectory);
+  const broadcast = (panelId: string, value: unknown) => {
+    for (const socket of sockets) send(socket, value);
+    for (const [socket, page] of pageSockets) if (page.panels.has(panelId)) {
+      page.sending = page.sending.then(async () => { await page.access.assertPanel(panelId); send(socket, value); })
+        .catch(() => { pageSockets.delete(socket); socket.close(); });
+    }
+  };
+  class RecordedPtyHost extends MolisWorkPtyHost {
+    override spawn(request: PtySpawnRequest) {
+      ownership.record(request.panelId, request.attachOnly === true, this.alive(request.panelId));
+      return super.spawn(request);
+    }
+    override kill(panelId: string) {
+      const wasAlive = this.alive(panelId);
+      super.kill(panelId);
+      // Runtime Host suppresses the later process exit after an explicit kill.
+      if (wasAlive) broadcast(panelId, { type: "exit", panelId, exitCode: -1, signal: 15 });
+    }
+  }
+  const host = new RecordedPtyHost({
+    onData: (panelId, data) => broadcast(panelId, { type: "data", panelId, data }),
+    onExit: (panelId, exit) => broadcast(panelId, { type: "exit", panelId, exitCode: exit.exitCode, signal: exit.signal }),
   });
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (request, socket, head) => upgradeTerminal(wss, request, socket, head));
 
   wss.on("connection", (ws) => {
     let authed = false;
-    ws.on("close", () => sockets.delete(ws));
-    ws.on("message", (raw) => {
+    let pageAccess: PageTerminalAccess | undefined;
+    let receiving = Promise.resolve();
+    ws.on("close", () => { sockets.delete(ws); pageSockets.delete(ws); });
+    const receive = async (raw: RawData) => {
       try {
         const message = parseMessage(raw);
         if (!authed) {
+          if (message.type === "page-auth" && typeof message.pageId === "string") {
+            pageAccess = ownership.connect(message.pageId);
+            pageSockets.set(ws, { access: pageAccess, panels: new Set(), sending: Promise.resolve() });
+            authed = true; send(ws, { type: "ready" }); return;
+          }
           if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) {
             send(ws, { type: "error", message: "本地终端通道校验失败" });
             ws.close();
@@ -143,11 +139,22 @@ export function attachMolisWorkPtySocket(
           send(ws, { type: "ready" });
           return;
         }
+        // Every connection, the control token's included, only attaches to, writes to, resizes and ends what the Host started.
+        if (!("panelId" in message) || typeof message.panelId !== "string" || !message.panelId) throw new Error("终端请求无效");
+        // A refusal names its panel, so the page can tell which terminal it was about.
+        const refuse = (text: string) => Object.assign(new Error(text), { panelId: message.panelId });
+        if (message.type === "spawn" && (message.attachOnly !== true || Object.keys(message).some(key => !["type", "panelId", "attachOnly", "cols", "rows"].includes(key))))
+          throw refuse("只能连接已经创建的终端");
+        if (message.type === "write" && (typeof message.data !== "string" || message.data.length > 65536)) throw refuse("终端输入无效");
+        if ((message.type === "resize" || message.type === "spawn") && [message.cols, message.rows].some(value => value !== undefined && (!Number.isInteger(value) || value < 1 || value > 1000))) throw refuse("终端尺寸无效");
+        if (pageAccess) {
+          await pageAccess.assertPanel(message.panelId);
+          pageSockets.get(ws)?.panels.add(message.panelId);
+        }
         if (message.type === "spawn") {
-          if (!message.panelId) throw new Error("缺少面板标识");
-          if (!message.attachOnly && !message.command?.trim()) throw new Error("缺少启动命令");
           try {
-            const result = host.spawn(message);
+            const result = host.spawn({ panelId: message.panelId, attachOnly: true, ...(message.cols === undefined ? {} : { cols: message.cols }),
+              ...(message.rows === undefined ? {} : { rows: message.rows }) });
             send(ws, {
               type: "spawned",
               panelId: message.panelId,
@@ -182,7 +189,6 @@ export function attachMolisWorkPtySocket(
         }
         if (message.type === "kill") {
           host.kill(message.panelId);
-          panelSessionIds.delete(message.panelId);
         }
       } catch (error) {
         send(ws, {
@@ -193,12 +199,15 @@ export function attachMolisWorkPtySocket(
           message: error instanceof Error ? error.message : String(error),
         });
       }
-    });
+    };
+    ws.on("message", raw => { receiving = receiving.then(() => receive(raw)); });
   });
 
   server.on("close", () => {
     host.killAll();
-    panelSessionIds.clear();
+    ownership.clear();
+    for (const socket of pageSockets.keys()) socket.close();
+    pageSockets.clear();
   });
   return host;
 }

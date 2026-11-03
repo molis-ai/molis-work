@@ -9,6 +9,9 @@ import {
   CODING_REVIEWER,
   GATE_PATHS,
   LEAD,
+  MATURITY_COLUMN,
+  MATURITY_WORDS,
+  maturityErrors,
   NO_OWNER,
   OWNER_COLUMN,
   ownerErrors,
@@ -27,6 +30,7 @@ const errorsFor = (overrides) => ownerErrors({ codeowners: codeowners(), ssot: s
 const rowFor = (text, packagePath) => text.split("\n").find((line) => line.startsWith(`| \`${packagePath}\` |`));
 const reviewedBy = (handle) => WORKSPACE_PACKAGES.filter((item) => item.owner.handles.includes(handle)).map((item) => item.path).sort();
 
+// RAC-2843 / RA4-01 and RAC-2847 / RA4-05: registry ownership follows the migrated implementation and workbench directory.
 test("the committed CODEOWNERS and the SSOT 归属 column are what the owner rules produce", () => {
   assert.deepEqual(checkPackageOwners(root, WORKSPACE_PACKAGES), []);
   assert.equal(codeowners(), renderCodeowners(WORKSPACE_PACKAGES));
@@ -108,6 +112,27 @@ test("the owner check rejects a SSOT whose 归属 column drifted from the rules"
   assert.match(errorsFor({ ssot: text.replace(absent, absent.replace(`| ${NO_OWNER} |`, `| 内置插件：${LEAD} |`)) }), /归属 of `plugins\/native\/actions`/);
 });
 
+test("W5-15: the 包成熟度 column carries the registry's words from the four-word vocabulary", () => {
+  const text = ssot();
+  const errors = (mutated) => maturityErrors({ ssot: mutated, packages: WORKSPACE_PACKAGES }).join("\n");
+  assert.equal(errors(text), "");
+  assert.deepEqual(MATURITY_WORDS, ["production", "experimental", "slice", "absent"]);
+  const shelf = rowFor(text, "modules/shelf");
+  assert.match(errors(text.replace(shelf, shelf.replace("`slice`", "`production`"))), /包成熟度 of modules\/shelf is "production", the registry says "slice"/);
+  // The retired migration words are not accepted, even when they name no live package.
+  assert.match(errors(text.replace(shelf, shelf.replace("`slice`", "`partial`"))), /包成熟度 of modules\/shelf is "partial"/);
+  // Every target path without a package yet says absent, and nothing else.
+  const absent = rowFor(text, "packages/exchange");
+  assert.match(errors(text.replace(absent, absent.replace("`absent`", "`slice`"))), /包成熟度 of packages\/exchange is "slice", the registry says "absent"/);
+  // A cell without a word in backticks is a hand edit, not a value.
+  assert.match(errors(text.replace(shelf, shelf.replace("`slice`", "slice"))), /names no word in backticks, expected "slice"/);
+  // A target row inside a package follows that package: apps/workbench/src/judgment-rules carries apps/workbench's word.
+  const functions = rowFor(text, "apps/workbench/src/judgment-rules");
+  assert.match(errors(text.replace(functions, functions.replace("`production`", "`slice`"))), /包成熟度 of apps\/workbench\/src\/judgment-rules is "slice", the registry says "production"/);
+  // The column itself must stay in every package table.
+  assert.match(errors(text.replace(`| ${MATURITY_COLUMN} | 迁移 / 实现 Goal |`, "| 迁移 / 实现 Goal |")), /has no "包成熟度" column/);
+});
+
 test("a package added to the workspace needs a SSOT row, and a row inside a package takes its owner", () => {
   const added = { path: "plugins/native/probe", kind: "native-plugin", owner: packageOwner("plugins/native/probe", "native-plugin") };
   assert.match(
@@ -118,7 +143,7 @@ test("a package added to the workspace needs a SSOT row, and a row inside a pack
   const row = `| \`plugins/native/probe\` | 探针 | 来源 | \`partial\` | 目标 |`;
   const written = renderSsot(ssot().replace(rowFor(ssot(), "plugins/native/todo"), `${rowFor(ssot(), "plugins/native/todo")}\n${row}`), [...WORKSPACE_PACKAGES, added]);
   assert.ok(rowFor(written, "plugins/native/probe").endsWith(`| 内置插件：${LEAD} |`));
-  assert.equal(rowFor(ssot(), "apps/workbench/src/functions").split("|").at(-2).trim(), "共享核心：@yijunw0212");
+  assert.equal(rowFor(ssot(), "apps/workbench/src/judgment-rules").split("|").at(-2).trim(), "共享核心：@yijunw0212");
 });
 
 test("the command checks without arguments and exits 0 on the committed files", () => {

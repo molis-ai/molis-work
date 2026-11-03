@@ -1,5 +1,5 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginCapabilityClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingFixedPlan } from "./plans.js";
 import type { CodingSessionRecord } from "./store.js";
@@ -7,7 +7,7 @@ import type { CodingSessionRecord } from "./store.js";
 const errors = defineErrorCodes("coding", { plan_origin_unavailable: "unavailable", plan_workspace_changed: "conflict" });
 
 /** Portable plan provenance is not execution authority. Only this device's original planning Run binds its directory. */
-export async function requireLocalPlanningRun(api: PluginCapabilityClient, record: CodingSessionRecord, plan: CodingFixedPlan, path: string): Promise<void> {
+export async function requireLocalPlanningRun(api: PluginActionClient, record: CodingSessionRecord, plan: CodingFixedPlan, path: string): Promise<void> {
   const unavailable = () => errors.plan_origin_unavailable("此设备没有原规划执行，请在已授权工作区重新规划");
   if (!record.runtime_session_id) throw unavailable();
   const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };

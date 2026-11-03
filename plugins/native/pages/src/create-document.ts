@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesRecord } from "./contract.js";
 import type { PagesStore } from "./store.js";
 
 type NewDocument = Parameters<PagesStore["create"]>[0];

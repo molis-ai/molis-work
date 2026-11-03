@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { JellyItem, JellyNote, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyItem, JellyNote, JellySeries, JellyWorkspace } from "./contract.js";
 import type { JellyStores } from "./store.js";
 import * as s from "./action-schema.js";
 import { JELLY_ITEM_SUBJECT_KIND, JELLY_NOTE_SUBJECT_KIND } from "./search.js";

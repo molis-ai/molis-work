@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const captures = reviewEvidenceUrl("home-start/");
 const homeHasQuotes = "!!document.querySelector('[data-home-quote], [data-home-quotes], .home-reflection, .home-quote-pages, .immersive-home blockquote, .immersive-home figure') || /千里之行|Stephen Hawking|Intelligence is the ability/.test(document.querySelector('.immersive-home')?.textContent || '')";
@@ -81,7 +83,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
-  const before = store.snapshot(projectId!);
+  const before = boardSnapshot(store, projectId!);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
     window.__homeErrors=[];addEventListener('error',e=>window.__homeErrors.push(e.message));
     window.__clock=new Date(2028,1,29,23,59).getTime();const RealDate=Date;
@@ -113,7 +115,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   assert.equal(await evaluate(homeHasQuotes), false, "home has no quotation carousel or famous-quote copy");
   assert.equal(await evaluate("window.__homeTimers[8000]"), undefined, "no quote autoplay timer");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   // Soft Workbench home (DESIGN.md → Home): the day strip runs across the top of the day column, and the margin
@@ -150,11 +152,11 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   const dialog = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(new URL("dialog-mobile.png", captures), Buffer.from(dialog.data, "base64"));
   assert.deepEqual(await evaluate("window.__homeErrors"), []);
-  assert.deepEqual(store.snapshot(projectId!).goals, before.goals);
-  assert.deepEqual(store.snapshot(projectId!).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, projectId!).runs, before.runs);
 });
 
-test("Home opens original Inbox items and source groups, completes Inbox, and keeps an empty message unsent", { timeout: 90_000 }, async t => {
+test("Home opens original Inbox items and source groups and completes Inbox", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
@@ -180,15 +182,17 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
       document.querySelector('[data-home-day="' + CSS.escape(id) + '"]')?.click();
       days.push({ id, events: [...document.querySelectorAll("[data-home-open-event]")].map((row) => row.dataset.homeOpenEvent) });
     }
-    const response = await fetch((document.body.dataset.routePrefix || "") + "/api/feed", {
+    const read = (path) => fetch((document.body.dataset.routePrefix || "") + path, {
       cache: "no-store",
       headers: globalThis.molisWorkControlHeaders?.() || {},
     });
-    const snapshot = await response.json();
+    // Feed's sources are Feed's route, the entries the Inbox's (FI-7).
+    const [response, entries] = await Promise.all([read("/api/plugins/io.molis.work.feed/snapshot"), read("/api/plugins/io.molis.work.inbox/entries")]);
+    const snapshot = await response.json(), inbox = await entries.json();
     return JSON.stringify({
-      status: response.status,
+      status: [response.status, entries.status],
       days,
-      inbox: (snapshot.inbox_entries || []).map((entry) => [entry.status, entry.created_at, entry.subject_type]),
+      inbox: (inbox.entries || []).map((entry) => [entry.status, entry.created_at, entry.subject_type]),
       sources: (snapshot.sources || []).map((source) => [source.status, source.last_error_code]),
     });
   })()`;
@@ -202,9 +206,6 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
   })`);
   if (!inboxId) assert.fail(await evaluate(dumpHome));
   await waitFor("document.querySelector('[data-work-surface=home]').dataset.event==='on' && document.querySelector('[data-home-open-target]') && [...document.querySelectorAll('[data-home-offer]')].some(button=>button.textContent==='做完了' && !button.disabled)");
-  const dock = await evaluate<{ wrap: boolean; talkRight: boolean }>("(()=>{const act=document.querySelector('.home-detail__primary');const buttons=[...act.querySelectorAll('.mw-btn')];const tops=buttons.map(b=>Math.round(b.getBoundingClientRect().y));const talk=act.querySelector('[data-home-open-talk]');const last=buttons.at(-1);return {wrap:new Set(tops).size!==1,talkRight:last===talk && talk.getBoundingClientRect().left>buttons[0].getBoundingClientRect().left}})()");
-  assert.equal(dock.wrap, false, "open and talk controls stay on one row below plugin actions");
-  assert.equal(dock.talkRight, true, "say-something sits on the right");
   await click("[data-home-open-target]");
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
@@ -234,11 +235,6 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await evaluate("document.querySelector('[data-home-open-event]')?.click()");
-  await waitFor("document.querySelector('[data-home-open-talk]')");
-  await click("[data-home-open-talk]");
-  await waitFor("document.querySelector('[data-work-surface=home]').dataset.dock==='open'");
-  assert.equal(await evaluate("document.querySelector('[data-home-talk-form] [type=submit]').disabled"), true);
-  await evaluate("document.querySelector('[data-home-talk-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
 
@@ -301,7 +297,7 @@ test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are
 test("Home shortcuts persist per project, open their destination, and preserve edits on failure", { timeout: 90_000 }, async t => {
   const browser=await openGoalBrowser(t,"seeded");if(!browser)return;
   const {command,sessionId,evaluate,waitFor,navigate,click,origin,projectId,reloadPage,store}=browser;
-  const before=store.snapshot(projectId!);
+  const before=boardSnapshot(store, projectId!);
   await command("Emulation.setDeviceMetricsOverride",{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);
   const url=origin+"/projects/"+projectId+"/";
   const key="molis-work:home-shortcuts:"+projectId;
@@ -331,7 +327,7 @@ test("Home shortcuts persist per project, open their destination, and preserve e
   await reloadPage();await waitFor("document.querySelector('[data-home-shortcut-link]')");
   assert.equal(await evaluate("document.querySelector('[data-home-shortcut-name]').textContent"),"项目文档");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   assert.equal(await evaluate("document.querySelector('[data-directory-shortcuts]')"),null);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
@@ -369,8 +365,8 @@ test("Home shortcuts persist per project, open their destination, and preserve e
   await click('[data-home-shortcut-edit]');await click('[data-home-shortcut-remove]');
   assert.deepEqual(await saved(),[]);await reloadPage();
   assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
-  assert.deepEqual(store.snapshot(projectId!).goals,before.goals);
-  assert.deepEqual(store.snapshot(projectId!).runs,before.runs);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals,before.goals);
+  assert.deepEqual(boardSnapshot(store, projectId!).runs,before.runs);
 });
 
 test("QHR-01 a background home refresh keeps the day and heading in place", { timeout: 45_000 }, async t => {

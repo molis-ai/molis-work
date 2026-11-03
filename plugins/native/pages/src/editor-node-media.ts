@@ -1,8 +1,8 @@
 // Media node views and the code-highlighting plugin they use.
 // The type brings `window.molisCopy`, which the workbench page provides; nothing of the package is bundled.
-import type { CopyLabels } from "@molis-ai/molis-work-design-system";
+import type { CopyLabels } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { Node } from "prosemirror-model";
-import { Plugin, PluginKey } from "prosemirror-state";
+import { NodeSelection, Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView, ViewMutationRecord } from "prosemirror-view";
 import { setImageWidth, setImageCaption, setBookmarkTitle } from "./commands.js";
 import {
@@ -19,8 +19,8 @@ import { highlightRanges } from "./code-highlight.js";
 import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 import { pagesSchema } from "./schema.js";
 import type { Translate } from "./editor-types.js";
-import { t, dsIcon } from "./editor-view-ui.js";
-import { SIZE_KEYS } from "./editor-size-keys.js";
+import { t, dsIcon, keepFocus, keepOut } from "./editor-view-ui.js";
+import { SIZE_KEYS, sizeHandle } from "./editor-size-keys.js";
 
 const codeHighlightKey = new PluginKey<DecorationSet>("pages-code-highlight");
 
@@ -53,7 +53,7 @@ export function bookmarkNodeView(node: Node, view: EditorView, getPos: () => num
     if (href) url.href = href;
     else url.removeAttribute("href");
   };
-  titleInput.addEventListener("mousedown", (event) => event.stopPropagation());
+  titleInput.addEventListener("mousedown", keepOut);
   titleInput.addEventListener("keydown", (event) => {
     event.stopPropagation();
     if (event.key === "Enter") {
@@ -115,12 +115,20 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
   handle.className = "pages-image-resize";
   handle.setAttribute("aria-label", t(translate, "调整宽度"));
   handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
+  const value = sizeHandle(handle, view, getPos, (text) => t(translate, text), (at) => NodeSelection.create(view.state.doc, at));
+  // An image without its own width fills its line, and says so.
+  const read = () => {
+    const n = safePagesImageWidth(current.attrs.width);
+    value(n || (media.querySelector("img") ?? frame).getBoundingClientRect().width, safePagesImageWidth(1), safePagesImageWidth(1e9),
+      n ? t(translate, "宽度 {n} 像素").replace("{n}", String(n)) : t(translate, "占满一行"));
+  };
+  handle.addEventListener("focus", read);
   const caption = document.createElement("input");
   caption.type = "text";
   caption.className = "pages-image-caption";
   caption.placeholder = t(translate, "说明");
   caption.maxLength = 200;
-  caption.addEventListener("mousedown", (event) => event.stopPropagation());
+  caption.addEventListener("mousedown", keepOut);
   caption.addEventListener("keydown", (event) => {
     event.stopPropagation();
     if (event.key === "Enter") {
@@ -162,8 +170,9 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
       media.append(img);
     }
     syncCaption();
+    read();
   };
-  handle.addEventListener("mousedown", (event) => event.preventDefault());
+  handle.addEventListener("mousedown", keepFocus);
   handle.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -244,7 +253,7 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
   pre.append(code);
   dom.append(bar, pre);
 
-  select.addEventListener("mousedown", (event) => event.stopPropagation());
+  select.addEventListener("mousedown", keepOut);
   select.addEventListener("change", () => {
     const pos = getPos();
     if (pos === undefined) return;
@@ -254,7 +263,7 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
     view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...current.attrs, language }));
     view.focus();
   });
-  copy.addEventListener("mousedown", (event) => event.preventDefault());
+  copy.addEventListener("mousedown", keepFocus);
   // The design system's one copy feedback (VUX-19): a check only once the clipboard took it, a cross when it did not.
   copy.addEventListener("click", () => {
     const pos = getPos();

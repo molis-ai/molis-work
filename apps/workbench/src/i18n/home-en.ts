@@ -1,5 +1,12 @@
 /** English for the project home: heading, day strip, the Goal in progress, the note and the things at hand. */
 export const HOME_EN: Record<string, string> = {
+  "Home 插件运行库不可用": "Home plugin store unavailable",
+  "请查看插件状态，恢复运行库后重新加载页面。": "Check the plugin status, then reload this page after restoring the store.",
+  "重新加载页面": "Reload page",
+  "已保存的项目插件": "Saved project plugins",
+  "没有已保存的项目插件": "No saved project plugins",
+  "返回项目列表": "Back to projects",
+  "已隐藏": "Hidden",
   "今天的工作": "Today's work",
   "{date}的工作": "Work on {date}",
   "{week}，{date}": "{week}, {date}",
@@ -15,6 +22,7 @@ export const HOME_EN: Record<string, string> = {
   "回到手边的内容": "Back to what's at hand",
   "你的节奏，你的工作空间。": "Your pace, your workspace.",
   "找到下一步": "Find the next step",
+  "自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断": "Automatic judgment only considers the actions Feed has been granted; grant more in permissions or judge manually if you need them.",
   "阅读与留下": "Read and keep",
   "处理待办": "Handle what's waiting",
   "回到会话": "Back to your sessions",

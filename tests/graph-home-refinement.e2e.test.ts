@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 const captures = reviewEvidenceUrl("home/");
 
@@ -11,7 +12,7 @@ test("Graph separates lineage selection from opening and starts centered at 100 
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, reloadPage, store } = browser;
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
@@ -66,8 +67,8 @@ test("Graph separates lineage selection from opening and starts centered at 100 
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).runs, before.runs);
   await click('[data-goal-collapse]');
   await click(node + ' [data-graph-frame]');
   await waitFor("document.querySelector('[data-container-tab=" + JSON.stringify(targetId) + "][aria-current=\"page\"]')");

@@ -1,22 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { HOST_EVENT_SOURCE, HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type HostReviewSettledPayload, type HostWorkspaceChangedPayload,
+  type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
+import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import {
   EMPTY_DRAFT,
-  GitStatusError,
   conflictKey,
+  createGitPlugin,
   draftIsEmpty,
   gitManifest,
   headLabel,
   mayHaveChangedFiles,
   parseGitFileChanged,
   parseGitResult,
-  parsePorcelainStatus,
   parseStoredDrafts,
-  projectAcceptance,
   projectGit,
   serializeStoredDrafts,
 } from "@molis-ai/molis-work-plugin-git";
+import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 
 const NUL = String.fromCharCode(0);
 
@@ -24,68 +27,10 @@ function porcelain(...records: string[]): string {
   return records.join(NUL) + NUL;
 }
 
-test("重命名是两条记录，读错就会把后面所有条目都错开", () => {
-  const status = parsePorcelainStatus({
-    stdout: porcelain("## main...origin/main", "R  new/name.ts", "old/name.ts", "M  after.ts"),
-  });
-  assert.equal(status.staged.length, 2);
-  assert.deepEqual(status.staged[0]?.path, ["new", "name.ts"]);
-  assert.deepEqual(status.staged[0]?.orig_path, ["old", "name.ts"]);
-  assert.deepEqual(status.staged[1]?.path, ["after.ts"], "原路径那条不能被当成下一个条目");
-});
-
-test("同时有暂存与未暂存改动的文件两边都出现", () => {
-  const status = parsePorcelainStatus({ stdout: porcelain("## main", "MM both.ts") });
-  assert.deepEqual(status.staged[0]?.path, ["both.ts"]);
-  assert.deepEqual(status.unstaged[0]?.path, ["both.ts"]);
-});
-
-test("每种未合并状态都算冲突，而不是只认 UU", () => {
-  for (const code of ["UU", "AA", "DD", "AU", "UD", "DU", "UA"]) {
-    const status = parsePorcelainStatus({ stdout: porcelain("## main", `${code} c.ts`) });
-    assert.equal(status.conflicted.length, 1, `${code} 应当算冲突`);
-    assert.equal(status.staged.length, 0, `${code} 不该同时进暂存列表`);
-  }
-});
-
-test("未跟踪与被忽略分得清，忽略的不进任何列表", () => {
-  const status = parsePorcelainStatus({ stdout: porcelain("## main", "?? new.ts", "!! ignored.ts") });
-  assert.deepEqual(status.untracked[0]?.path, ["new.ts"]);
-  assert.equal(status.staged.length + status.unstaged.length + status.conflicted.length, 0);
-});
-
-test("分支行读出 HEAD 与领先/落后", () => {
-  const ahead = parsePorcelainStatus({ stdout: porcelain("## main...origin/main [ahead 2, behind 1]") });
-  assert.deepEqual(ahead.upstream, { name: "origin/main", ahead: 2, behind: 1 });
-  assert.equal(headLabel(ahead.head), "main");
-
-  const behind = parsePorcelainStatus({ stdout: porcelain("## main...origin/main [behind 3]") });
-  assert.deepEqual(behind.upstream, { name: "origin/main", ahead: 0, behind: 3 });
-
-  const detached = parsePorcelainStatus({ stdout: porcelain("## HEAD (no branch)") });
-  assert.equal(detached.head.kind, "detached");
-
-  const unborn = parsePorcelainStatus({ stdout: porcelain("## No commits yet on main") });
-  assert.equal(unborn.head.kind, "unborn");
-  assert.match(headLabel(unborn.head), /还没有提交/);
-});
-
-test("越界或含控制字符的路径被拒，而不是照单全收", () => {
-  assert.throws(
-    () => parsePorcelainStatus({ stdout: porcelain("## main", "M  ../outside.ts") }),
-    (error: unknown) => error instanceof GitStatusError && error.code === "git.path_unsafe",
-  );
-  assert.throws(
-    () => parsePorcelainStatus({ stdout: porcelain("## main", `M  a${String.fromCharCode(7)}b.ts`) }),
-    GitStatusError,
-  );
-});
-
-test("重命名缺了原路径时报错，而不是安静地少一条", () => {
-  assert.throws(
-    () => parsePorcelainStatus({ stdout: "## main" + NUL + "R  new.ts" + NUL }),
-    (error: unknown) => error instanceof GitStatusError && error.code === "git.status_unreadable",
-  );
+test("分支名之外，没有提交和游离 HEAD 也各有一句看得懂的标签", () => {
+  assert.equal(headLabel(parsePorcelainStatus({ stdout: porcelain("## main...origin/main [ahead 2, behind 1]") }).head), "main");
+  assert.match(headLabel(parsePorcelainStatus({ stdout: porcelain("## No commits yet on main") }).head), /还没有提交/);
+  assert.match(headLabel({ kind: "detached", commit: "0123456789abcdef" }), /^游离于 01234567$/);
 });
 
 test("有冲突时不能提交，干净时也不能", () => {
@@ -133,71 +78,6 @@ test("草稿坏了就当没有，不会把 Git 挡在外面", () => {
   assert.equal(draftIsEmpty(EMPTY_DRAFT), true);
 });
 
-function runChange(paths: string[], applied = false) {
-  return {
-    scope: "run-frozen" as const,
-    run_id: "run-1",
-    applied,
-    files: paths.map((path) => ({
-      path, kind: "modified" as const, added_lines: 1, removed_lines: 0, diff: "@@ -1 +1,2 @@\n a\n+b\n",
-    })),
-  };
-}
-
-test("这轮改动之后文件又动过，就不给接受", () => {
-  const view = projectAcceptance({
-    change: runChange(["a.ts", "b.ts"]),
-    dirty: [["b.ts"]],
-    conflicted: [],
-    same_workspace: true,
-  });
-  assert.equal(view.offerable, false);
-  assert.equal(view.blocked?.kind, "stale");
-  assert.match(view.message, /又改过/);
-});
-
-test("已经写进工作区的改动不会被再接受一次", () => {
-  const view = projectAcceptance({
-    change: runChange(["a.ts"], true),
-    dirty: [],
-    conflicted: [],
-    same_workspace: true,
-  });
-  assert.equal(view.offerable, false);
-  assert.equal(view.blocked?.kind, "already-applied");
-});
-
-test("冲突优先于“又改过”，因为它才是得先做的事", () => {
-  const view = projectAcceptance({
-    change: runChange(["a.ts"]),
-    dirty: [["a.ts"]],
-    conflicted: [["a.ts"]],
-    same_workspace: true,
-  });
-  assert.equal(view.blocked?.kind, "conflicted");
-});
-
-test("别的工作目录的变更不会被接受进来", () => {
-  const view = projectAcceptance({
-    change: runChange(["a.ts"]),
-    dirty: [],
-    conflicted: [],
-    same_workspace: false,
-  });
-  assert.equal(view.blocked?.kind, "other-workspace");
-});
-
-test("干净时才给接受，并说清要放几个文件", () => {
-  const view = projectAcceptance({
-    change: runChange(["a.ts", "b.ts"]),
-    dirty: [],
-    conflicted: [],
-    same_workspace: true,
-  });
-  assert.equal(view.offerable, true);
-  assert.match(view.message, /2 个文件/);
-});
-
 test("回执里只有 reconcile / conflict / succeeded 说明文件可能动了", () => {
   assert.equal(mayHaveChangedFiles("succeeded"), true);
   assert.equal(mayHaveChangedFiles("reconcile"), true, "说不清有没有落地，就得当成可能落地了");
@@ -224,4 +104,85 @@ test("Run 变更集是可选输入：没有 Coding 的项目里 Git 照样起得
   assert.equal(runPort?.optional, true);
   const workspacePort = gitManifest.ports?.inputs.find((port) => port.port === "workspace");
   assert.equal(workspacePort, undefined, "工作目录从当前项目设置读取，不使用输入端口");
+});
+
+test("PG061-GIT-01 Git's own pages read again after a delivery or a settled operation; a refused one moves nothing, and nothing calls Git after stop", async () => {
+  // G2a: the Host's `onWorkingTreeChanged` port is gone; Git moves its own revision through `services.ui.invalidate()` (PG-061).
+  // G2b: so is the Host's settlement port; a settled operation arrives as the host event `host.review.settled@1` (PG-044, S-54).
+  let invalidated = 0, refusal: Error | null = null;
+  const published: unknown[] = [];
+  const context: PluginStartContext = { install_id: "git-invalidate", installation_generation: "1", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
+    deployment: "local", grants: gitManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
+    requireGrant: () => {}, services: {
+      ui: { register: () => {}, unregister: () => {}, invalidate: () => { if (refusal) throw refusal; invalidated++; } },
+      events: { publish: input => { published.push(input); return { accepted: true, ref: { event_id: `event-${published.length}`, project_id: "project", sequence: published.length,
+        event_type_id: input.event_type_id, type_version: input.type_version, source_plugin_id: gitManifest.plugin_id, source_install_id: "git-invalidate" } }; } },
+    } };
+  const plugin = createGitPlugin();
+  assert.ok(gitManifest.events?.subscribes.some(item => item.event_type_id === HOST_REVIEW_SETTLED_EVENT && item.type_version === 1 && item.from_plugin_ids === undefined),
+    "Git subscribes to the Host's settlement by type and version only");
+  const contribution = await plugin.start(context);
+  const record: PluginEventRecord = { event_id: "event-1", project_id: "project", sequence: 1, event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: "io.molis.work.coding", source_install_id: "coding", payload: {}, correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: gitManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${gitManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+  const stale = new Error("the subscriber's installation is no longer current");
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(invalidated, 0, "starting and idling move nothing: Git keeps no timer that calls it (BL-411)");
+
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.equal(invalidated, 1, "a Coding event makes Git's own pages read again");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { throw stale; })), error => error === stale);
+  await contribution.onUpstreamReady!({}, { signal: new AbortController().signal, beforeEffect: () => {} });
+  await assert.rejects(async () => contribution.onUpstreamReady!({}, { signal: new AbortController().signal, beforeEffect: () => { throw stale; } }), error => error === stale);
+  await contribution.onUpstreamUnavailable!({ binding_id: "binding", code: "binding_removed", message: "the Run's change set is gone" });
+  assert.equal(invalidated, 3, "a new or withdrawn Run change set reads again; a delivery no longer current is refused before it moves anything");
+
+  assert.equal(published.length, 0, "only a settled operation is published");
+
+  const settled = (payload: HostReviewSettledPayload): PluginEventRecord => ({ event_id: `host-${payload.review_id}`, project_id: "project", sequence: 0,
+    event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload,
+    correlation_id: payload.review_id, occurred_at: new Date(0).toISOString() });
+  await contribution.onEvent!(settled({ review_id: "review-1", kind: "git-operation", workspace_id: "ws-1", operation_id: "op-1", outcome: "unknown" }), delivery(() => {}));
+  assert.deepEqual(published, [{ event_type_id: "io.molis.work.git.operation-updated", type_version: 1, payload: { workspace_id: "ws-1", operation_id: "op-1", outcome: "unknown" } }],
+    "a settled operation is published in Git's own shape, outcome as the Host recorded it, and nothing else of the review");
+  assert.equal(invalidated, 4, "then Git's pages read again");
+  await assert.rejects(async () => contribution.onEvent!(settled({ review_id: "review-2", kind: "git-index", workspace_id: "ws-1", operation_id: "op-2", outcome: "succeeded" }),
+    delivery(() => { throw stale; })), error => error === stale);
+  assert.deepEqual([published.length, invalidated], [1, 4], "a settlement no longer current for this activation publishes nothing and reads nothing again");
+  refusal = new Error("Plugin 已停止，不能再让页面重新读取");
+  await assert.rejects(async () => contribution.onEvent!(settled({ review_id: "review-3", kind: "git-index", workspace_id: "ws-1", operation_id: "op-3", outcome: "succeeded" }),
+    delivery(() => {})), error => error === refusal, "a refusal reaches the Host's delivery, which reports it once and does not retry (S-54)");
+
+  refusal = null;
+  await plugin.stop!(context);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(invalidated, 4, "after stop nothing is left to call it (BL-411)");
+});
+
+test("BL-379 any person-approved workspace operation makes Git's pages read again, whoever asked; Git publishes nothing for it", async () => {
+  // Coding's worktree and integration reviews settle only to Coding (S-54); the Host's broadcast reaches Git all the same.
+  assert.ok(gitManifest.events?.subscribes.some(item => item.event_type_id === HOST_WORKSPACE_CHANGED_EVENT && item.type_version === 1 && item.from_plugin_ids === undefined),
+    "Git subscribes to the Host's broadcast by type and version only");
+  assert.ok(gitManifest.permissions.some(item => item.permission === "workspace:read" && item.required), "and declares the permission it is broadcast under");
+  let invalidated = 0;
+  const published: unknown[] = [];
+  const context: PluginStartContext = { install_id: "git-changed", plugin_id: gitManifest.plugin_id, version: gitManifest.version,
+    deployment: "local", grants: gitManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
+    requireGrant: () => {}, services: {
+      ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } },
+      events: { publish: input => { published.push(input); throw new Error("Git publishes nothing for a workspace change"); } },
+    } };
+  const plugin = createGitPlugin(), contribution = await plugin.start(context);
+  const payload: HostWorkspaceChangedPayload = { workspace_id: "ws-1", cause: "plugin-operation" };
+  const record: PluginEventRecord = { event_id: "host-changed-1", project_id: "project", sequence: 0, event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: HOST_EVENT_SOURCE, source_install_id: HOST_EVENT_SOURCE, payload, correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: gitManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${gitManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.deepEqual([invalidated, published.length], [1, 0], "Git's pages read again; nothing of the operation is Git's to publish");
+  const stale = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { throw stale; })), error => error === stale);
+  assert.equal(invalidated, 1, "a delivery no longer current moves nothing");
+  await plugin.stop!(context);
 });

@@ -1,11 +1,13 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+
+
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 for (const width of [1440, 390]) {
   test(`Inbox ${width}px: select actual material, recover failed generation and edit the persisted Pages result`, { timeout: 90_000 }, async t => {
@@ -16,6 +18,7 @@ for (const width of [1440, 390]) {
       return "本次观察来自研究摘要，全文仍待核对。[材料 1]";
     });
     if (!browser) return;
+    const child=await pluginFrameBrowser(t,browser,"pages");
     const { store, command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, homeDirectory } = browser;
     const projectId = browser.projectId!;
     const feed = createLocalFeedApplication(store.db);
@@ -51,13 +54,13 @@ for (const width of [1440, 390]) {
       await click('[data-inbox-compose-results] .inbox-compose-result button');
       assert.equal(await evaluate("document.querySelector('[data-inbox-compose-form]').elements.title.value"), "研究观察草稿");
       await click('[data-inbox-compose-submit]');
-      await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('全文仍待核对')", 12_000);
+      await child.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('全文仍待核对')", 12_000);
       assert.equal(calls, 2);
       const record = pages.generation(projectId!, failed.request_id)!;
       assert.equal(record.status, "completed"); assert.equal(pages.list(projectId!).length, 1);
       assert.equal(feed.getInboxEntry(projectId, entry.entry_id).status, "open");
-      await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '人工补充后的研究草稿'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
-      await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
+      await child.evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '人工补充后的研究草稿'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
+      await child.waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
       assert.equal(pages.get(record.document_id!, projectId!).title, "人工补充后的研究草稿");
       assert.match(JSON.stringify(pages.get(record.document_id!, projectId!).body), new RegExp(`/projects/${projectId}/`));
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);

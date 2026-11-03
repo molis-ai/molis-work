@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
-import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
+import { LocalMcpServer, MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * The five connection tools (bind, unbind, reject a suggestion, create and bind, delete a project) name no actor: the Host

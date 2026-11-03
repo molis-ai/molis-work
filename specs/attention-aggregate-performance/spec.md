@@ -1,0 +1,122 @@
+# attention / Home 聚合性能
+
+状态：本地实现与定向验证完成，[PR #1073](https://github.com/molis-ai/molis-work/pull/1073) 的 CI 与评审跟进中（2026-10-23）。负责人：Codex。目标完成程度：功能可用，并有真实隔离负载的修复前后对比；不包含真实 Home 安装、发布或一骏本人验收。
+
+## 目标与证据
+
+首页和项目页的 attention 读取后台任务时，`homeAggregatePorts` 只需项目状态，却通过 `status()` 复制所有能力描述。基线 `91c24d8f5` 仍在每次聚合中调用 N+1 次，描述数量随项目数增加，造成平方级复制开销。主线已有并发聚合和两秒超时，保留其语义。
+
+来源：[Molis Work 服务性能根因 · 2026-10-22](https://kcn8ld2n1dh4.feishu.cn/docx/LTP8dKs9DoGHNxxEHLvchAMtnBd)。报告基于 `a1e9f5314` 的历史测量只作为线索；Files/Git Reading 和 Goal 正在保存的具体症状并未在报告中复现，本任务不把它们作为已验证结论。
+
+## 行为、边界与方案
+
+从 LocalHost 的当前 entries 投影出独立的项目状态数组，经 MolisWorkLocalHost 暴露轻量 `projects()` 查询。完整 `status()` 继续给调用方自己的能力描述副本。聚合开始枚举候选项目，进入 `whileOpen` 时仍读取最新状态；随后 `withProject` 保持资源存活，关闭、取消、撤权及 beforeEffect 继续走原生命周期与动作网关。
+
+将报告点名的 `home-aggregate`、`project-host`、`plugin-actions-client`、`agent-reference-kinds`、`memory/memory-upkeep`、`project-deleted-runtime` 及当前主线同类的 `project-plugin-enablement` 中只消费 `.projects` 的调用迁到轻量入口。保留各调用方原来的 closing 筛选条件，不更改打开项目策略。完整诊断入口仍使用 `status()`。不引入缓存、single-flight、调度退避或轮询频率变化，不做全仓性能重构。
+
+输入是宿主当前项目 entries；输出为排序后的项目标识、storage_key 和 opening/ready/closing 状态，数组及行对象不共享可变引用。新增方法属于内部 app-local-host 的公开入口，不改 contracts/SDK、动作 schema、存储格式或外部插件合同。必要时将完整状态快照组装移到同文件函数，避免巨大 LocalHost 类继续增长。
+
+2026-10-23 实测补充：移除 clone 后，首轮 7/14 项目三标签各一次触发原有两秒超时。14 项目 profile 将最长 9.4 秒停顿定位到 `prepareHomeActions → SystemFunctionsActions.refresh → withFunctionsService → store.close`。这一读取路径反复开关同一个 Functions 库。追加的最小修复让 SystemFunctionsActions 持有自己的服务连接，在首次使用时打开、宿主关闭时释放，聚合发现目录时 Home/Inbox 的场景绑定也经这个连接读取；每次仍读取数据库，保留外部写入可见性，不缓存规则、不更改轮询或超时。独立短期 withFunctionsService 及独立场景调用仍按原方式关闭，模型等待后的授权与版本复查保持原合同。
+
+## 验收标准
+
+- **AAP-01** 项目枚举及 attention/Home 聚合不再触发全量能力描述 clone；新增轻量查询返回独立、排序、及时的状态，完整 status 的能力副本仍隔离。
+- **AAP-02** 真实插件的非空聚合结果保持项目、来源、任务内容与排序；未打开或已关闭项目不被隐式打开，关闭中的项目不接纳新工作。
+- **AAP-03** 枚举后项目关闭或关闭在异步等待中发生时，调用不能复活项目或提交过期副作用；撤权、取消、超时和恢复保持原合同。
+- **AAP-04** 报告点名的同类项目查询改用轻量入口，相关插件调用、项目删除、记忆维护和引用解析的定向回归通过。
+- **AAP-05** [人工] 在同一 Node、同一份隔离数据与相同请求计划下，比较 1/7/14 项目、1/3 标签页等效负载的 attention、/health、board/cursor、ELD 和 CPU。记录样本数、p50/p90/max、错误及结果完整性，性能曲线和主线程阻塞明显改善；采集 CPU profile 检查根因消失，不只报告均值。
+- **AAP-06** Functions 目录刷新与 Home/Inbox 场景绑定复用宿主拥有的连接，聚合热路径不反复关闭 Functions 库；外部连接发布的规则下一次查询可见，宿主关闭释放连接且不接受等待中的过期写入。
+
+PR 跟进补充（2026-10-23）：复核关闭时序时，用真实 Home 插件启动门制造“查询等待启动 → Host 关闭并释放 Functions → 启动等待返回”的交错。修复前查询最终虽以 `host.closed` 拒绝，但关闭后仍调用一次 Functions list，新开的连接未被关闭。`prepareHomeActions` 在等待 Home ready 返回后再次检查宿主生命周期，再刷新 Functions；AAP-06 增加这一真实交错的回归，避免关闭后重新打开连接。负对照在旧产物上准确失败（1 次晚到读取，预期 0）；修复后整体构建、8 个相关文件的 57 项测试、健康门禁和包边界检查通过。
+
+CI 跟进发现：首轮 Full suite 停在主线 #1057 新增的 `assistant-repeat-no-accumulation.e2e.test.ts`（数组 480 → 724）。干净 `f8c9b4246` 与合并该主线的本分支在 Chrome 153/155 的原速用例均为 480 → 480；延长切换以跨过轮询后，干净主线也能出现 480 → 602。数组来源诊断指向状态环的点坐标：每个新增未读标记占 122 个数组和 15 个节点，且闲置后数量不继续增长。完成通知在测量中首次到达，导致前后页面内容不同。测试修复仅在测量前通过真实通知接口将种入工作的完成通知标为已读，并主动经过真实 attention 刷新；重复切换、GC、节点/监听器/数组阈值保持原样，测量期间也强制刷新 attention，不能靠快于轮询而避开原失败。
+
+这一修正的负对照在干净主线中主动刷新 attention，观察到图标从 3 个变为 4 个（新增 `unread`），节点 3804 → 3819、数组 480 → 602，原断言失败。相同刷新条件下，修正后的干净主线慢速场景（每次间隔 450 ms）与本分支场景均保持节点 3804、监听器 402、数组 480。该测试修正的健康门禁通过；Linux Full suite 仍须在推送后的 head 重新完成。
+
+第二轮 CI（`1402e54b2`，[运行 39936897195](https://github.com/molis-ai/molis-work/actions/runs/39936897195)）：常规 Verify 通过，Full suite 的 1–8 分片通过，第 9 分片停在 `host-pages-error-model.test.ts`，其余 7 片取消。两处失败都来自组合主线 #1041：错误码表新增 `original_not_offered` 而测试状态表未更新；`offeredOriginal` 中立即被 catch 转为业务错误的裸 Error 触发现有源码检查，没有证据表明它会泄漏为 HTTP 500。已存在的 [PR #1082](https://github.com/molis-ai/molis-work/pull/1082) `83ae7ebea` 同时修复这两处及同批已知的英文批数、Home 存储清单问题，常规 CI 通过。本分支直接合入该原提交，保留作者与依赖关系，不另写重复补丁；#1082 应先于本 PR 合入 main。组合包含主线 `24156e6b8`，无文本冲突。最终组合的整体构建、门禁与全量交由新一轮 CI，未用上轮结果冒充通过，也未放宽断言。本机的统一验证窗口正占用构建和浏览器槽位，此次不另起重复重型验证。
+
+第三轮 CI（`a1c1e0bbe`，[运行 39946362515](https://github.com/molis-ai/molis-work/actions/runs/39946362515)）：常规 Verify 通过，全量第 1 分片在 `visual-review-consumers.e2e.test.ts` 的 VUX-27 窄屏测量失败（预期溢出大于 1 px，实际 0 px），第 4/5 分片通过，其余取消。#1082 已于 2026-10-23 合入 main（`1ded3c218`），相同修复已在本分支，不重复添加；当前主线组合预检无冲突。
+
+VUX-27 的原准备只等待 DOM 存在，但插件文档在桥接完成前仍为 hidden。将真实 `molis:plugin-connect` 消息延迟 600 ms 的隔离负对照，在本分支和干净 `f8c9b4246` 基线都读到 clientWidth/scrollWidth 为 0/0、祖先 hidden，随后自然变为 296/376 px，原断言准确失败。测试现先等待可见宽度，再等 `document.fonts.ready`，随后仍执行原来的 `more > 1`、渐隐和动态条带断言；相同延迟条件在两棵树上都通过。没有等待预期溢出值、改阈值或改产品源码。两棵树整体构建通过；基线原文件与修正后的本分支完整文件均 3/3 通过，修正的健康门禁通过。证据在 `validation/visual-{baseline-negative,baseline-fixed,candidate-fixed}.log`（下文证据目录）；Linux 最终全量仍须重新运行。本轮用指向最终 PR head 的 `integration/attention-1073-20261023` 验证分支触发已有 Full suite，让所有分片执行完，避免一个失败取消其余分片；不修改工作流或重复启动另一轮全量。
+
+## 验证与交付
+
+`4a54c9476` 的常规 CI 全部通过，Codex 评审无重大问题；[Full suite 39965124150](https://github.com/molis-ai/molis-work/actions/runs/39965124150) 15/16 分片通过，第 16 分片剩 `coding-rich-html.test.ts` 的报告请求持续返回 400。本地也复现，原有报告持久化用例通过。测试缺少 #1048 已要求的成果与过程项存储端口；主线已合入 #1089（`62f76db72`），只改 import 和夹具两行，按已有报告测试提供 `openProjectVersionStores(store)`。直接摘取这份上游提交并保留来源，不另写实现，不放宽 HTML 清洗、语言、指纹和返回原文的断言。干净基线改用包含此测试的 `df7a3bdba`，整体构建后准确复现相同 400；应用同一上游补丁后，基线和本分支的富文本与报告持久化两文件均为 4/4 通过，健康门禁通过。证据在 `validation/rich-html-{before,fixed,baseline-before,baseline-fixed,health}.log`。同分片的 `scroll-follow.e2e.test.ts` 首跑失败、自动重试通过，保留为波动证据，不混称持续失败，也不因此修改产品。
+
+此前 `2b28ca2bb` 的第 12 分片在 `workflows-save-ownership.e2e.test.ts` 刷新后的直接子页面读取处失败，错误为 `Missing child execution context`。顶层 DOM 就绪不保证隔离子页面的 DevTools 环境已经登记；本机原文件 5/5 通过，将刷新后的环境登记通知延迟 700 ms 则准确复现原行的失败。干净 `f8c9b4246` 也复现相同负对照。修正先点击宿主的工作流导航、等待页面准备，再读取草稿；保留真实 CAS 拒绝、跨流程隔离、刷新后草稿/错误保留和显式重试的全部断言，不修改产品或共享浏览器等待。修正后当前分支的原场景及延迟场景共 10 项通过，干净基线延迟场景 5/5 通过，健康门禁通过；证据在 `validation/workflows-{delayed-original,fixed,baseline-original,baseline-fixed,health}.log`。旧全量 16 个分片已跑完，14 个通过，失败仅为第 7/12 分片的这两项准备时序；最终提交须重新跑全量。
+
+旧 head `2b28ca2bb` 的全量第 7 分片在 `workbench-deferred-clients.e2e.test.ts` 连续两次未等到 Pages 的资源重试按钮，其余分片仍在继续。原测试在 DevTools 接入隔离 iframe 后才拦截资源，资源可能已完成加载。Chrome 155 的延迟接入负对照在干净 `f8c9b4246` 和本分支均复现相同失败：拦截前 editor 已加载，父页面已为 ready，因而不会出现重试按钮。修正只在测试服务器拦截 editor 请求并返回 503，点击重试前恢复真实资源响应；补充断言确认错误请求确实发生，原挂载、重试、保留页面和资源只加载一次的断言全部保留。未修改产品行为、等待上限或公共浏览器接入时序。修正后的完整文件在干净基线和本分支的独立 Chrome 155 中各 3/3 通过，健康门禁通过；日志在 `validation/deferred-{baseline-server-fixed,server-fixed,health}.log`，负对照在 `deferred-baseline-negative.log` 和 `deferred-chrome155-probe.log`，Linux 全量仍待最终 head 验证。
+
+主线在 2026-10-23 合入 #1086（`df7a3bdba`），同样修正 VUX-36 的首次轮询测量时点，与本分支的通知准备相冲突。组合保留本分支对种子通知的确认、已读及显式 attention 刷新，同时保留主线在预热与测量中各跨过一次 15 秒自然轮询；45 次切换、GC 和计数阈值不变。组合后的整体构建、11 个文件 72 项测试及包边界通过，包含两个相关浏览器文件、Functions 生命周期、attention 聚合及自动合并的插件数据库用例；证据在 `validation/main1086-{build,tests,boundary}.log`。已启动的 `2b28ca2bb` 全量先跑完，不能将其结果当作新合并提交的通过；下一轮全量等待这一轮结束后再启动。
+
+先整体 `pnpm build`，用独立子进程运行真实 Web Host 与 HTTP 负载客户端，Home、端口与凭据均为临时测试数据，模型关闭。每项目启用 Coding/Goals，准备等待中的会话及已完成会话；查询必须返回应见任务且排除已完成项。基线和修复使用相同种子副本，保留测量与代表性完整回答，每次回答逐项校验，结束关闭自己的进程和数据目录。
+
+定向用例包含 local-host、local-host-close、local-host-actions、security-invariants-home-aggregate、coding-background-tasks、attention-route、插件原调用者/beforeEffect 及受影响调用点。运行 `node scripts/affected-tests.mjs` 与包 README 的必跑集合；`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check` 和 spec 编号检查。共享装配改动的全量按仓库规则由集成/CI 执行；2026-10-23 已获推送、PR 与 CI/评审修复授权，交付时明确未跑项。基线已有失败单独记录，不放宽门禁。
+
+## 实际结果
+
+基线已在 Apple M5 / 16 GiB、Node 24.14.0 上完成。每格 60 秒，可见标签每 15 秒请求 attention（3 标签分别错开 0/5/10 秒，中间标签读 Home），单标签最多一个在途和一个排队请求；独立客户端每 250 ms 读 health、每秒读 board/cursor。每格另有 5 次串行 attention 测量。1/7/14 项目分别注册 906/4080/7783 项能力，每项目种入 queued、waiting-approval、done 三条 Coding 会话，前两条完整返回，done 排除；所有基线请求内容校验通过。Goals 随项目默认启用，未调用模型。
+
+14 项目、3 标签基线：attention p50 2387 ms，Home attention p50 2480 ms，health p90/max 213/2930 ms，cursor p90/max 2154/2935 ms，ELD max 3062 ms；10 个延迟采样窗口超过 1 秒（采样计时器本身会延迟，所以不等同 10 秒）。一个核心的 CPU 平均占用 64.5%；180 次完整 status 共复制 1,400,940 项描述；CPU profile 中 structuredClone 占非 idle 样本时间 65.2%。这是当前 Mac、当前主线与当前请求计划的测量，不与来源报告的绝对数字混用。
+
+负对照：在尚未重建的主线产物上运行新增 AAP-01/AAP-02 用例，准确在 `homeAggregatePorts.openProjects → status()` 处失败，证明用例能抓住这次回归；随后才构建修复版。
+
+第一阶段回归：整体构建通过；affected-tests 选择及补充的 111 个文件、1431 项测试通过（首次 110 个文件通过，聚合文件的新增等待探针缺少约定的 beforeEffect，补齐后该文件 6 项全部通过；拒绝/恢复断言保持不变）。覆盖项目状态、关闭、删除、插件原调用者、beforeEffect、记忆维护、引用解析、attention 路由与非空 Coding 聚合。这批结果对应只移除 clone 的版本，后续 Functions 改动的最终证据另列。
+
+第一版只移除 descriptor clone 的测量原样保留：7 项目/3 标签的一次 Home 请求耗时 2424 ms 后返回空任务，14 项目/3 标签的一次项目 attention 耗时 10165 ms 后返回空任务，完整性断言均失败。后者 profile 的最长 9392 ms 采样间隔位于 Functions 数据库 close，完整 status 调用已为零；因此未把该版当作最终通过，并补充 AAP-06。该现象属于当前 Mac 的实测，不用历史 Linux 报告替代当前证据。
+
+第二个负对照：在第一版构建产物上运行 AAP-06 连接测试，两次目录读取实际关闭 Functions 库 2 次，断言预期 0 次而失败。补充实现后继续构建和验证。
+
+最终版本：整体构建、28 个服务端文件的 197 项测试、boundary 检查及针对 merge-base 的健康门禁通过。包含 AAP-06 外部发布可见、宿主关闭拒绝等待中的写入，以及完整聚合零 Functions 关闭断言。中间批次 5 个浏览器文件已通过，最后两处场景读取接线后未重复浏览器回归；最终矩阵通过真实 HTTP 验证这些接线，但不等同页面实操。
+
+最终矩阵六组均无错误，每次任务列表与预期完整相等；前后代表性 attention、Home attention 与 cursor 的完整 JSON 逐项相等，项目 attention 与 cursor 的事件游标一致。六组聚合期间完整 status 调用、复制的描述总数、Functions 关闭次数均为 0。14 项目三标签 profile 中 structuredClone 的非 idle 时间占比从 65.21% 降到 0.21%（21,924 ms → 17.8 ms），剩余 clone 为其他原有调用。相同格子的 attention 中位延迟降低 82.4%，Host CPU 从单核的 64.5% 降到 12.6%，ELD 最大值从 3062 ms 降到 271 ms；超过一秒的延迟窗口从 10 个降到 0 个。
+
+测量限制：最终 HTTP 负载持有构建槽位，本机仍有其他工作树的浏览器测试，绝对延迟包含环境负载影响。数据、Node、请求计划及 14 项目三标签 profile 采样方式与基线相同，以进程 CPU 和实际调用次数交叉验证根因消失。1 项目单标签的负载延迟、7 项目三标签 Home 的最大延迟没有改善，不能宣称所有分位数都变快。每格只有 4/8 个 attention 样本，所以 p90 等于 max；此矩阵证明目标开销与多项目阻塞改善，不作为稳定容量或尾延迟承诺。ELD 表中的 p50/p90/max 是每秒采样窗口最大值的分布，按表顺序窗口数前→后为 60→60、59→60、58→60、59→60、50→59、37→60；阻塞时采样计时器也会延迟。
+
+集成边界：性能测量基线为 `91c24d8f5`。CI 跟进期间已将 `f8c9b4246` 合入本分支，包含 #1048 的 Goals 运行时装配、#1069 的 Coding/Git 文字、#1049 的页面动作及 #1070 的 Prologue 换包，整体构建、8 个服务端文件的 57 项测试、健康门禁和包边界通过；上述 Assistant 浏览器对比也在这个组合上进行。性能矩阵保持原基线，不宣称是后续主线新版本的性能测量。之后主线又合入 #1041 至 `a259350ac`，未与本分支修改同一文件，最终组合由 PR CI 验证。此前排查到 #1051 涉及 project-host、#1064 涉及 plugin-actions-client，继续以最终远端 head 核对。2026-10-23 一骏授权推送、创建 PR、持续跟进 CI 与评审并直接修复问题，已创建 #1073 并触发 Full suite；尚未合入、安装到真实 Home 或进行一骏本人验收。
+
+| 验收 | 结果与证据 |
+| --- | --- |
+| AAP-01 | 通过：local-host 状态隔离及完整快照回归；完整聚合禁用 status 的负对照先失败、修复后通过；六格 status 次数为 0。 |
+| AAP-02 | 通过：真实 Coding 非空任务逐项校验；六格前后完整响应相等；聚合调用范围测试。 |
+| AAP-03 | 通过：枚举后关闭、等待中关闭/撤权、取消、超时与恢复测试。 |
+| AAP-04 | 通过：各轻量调用点的第一阶段定向回归及最终涉及范围复测。 |
+| AAP-05 | 通过：下表六格测量、完整性校验与 CPU profile；环境和小样本限制如上。 |
+| AAP-06 | 通过：反复关闭连接的负对照先失败，最终 Functions 连接生命周期测试及完整聚合断言通过。 |
+
+复现入口：先在各版本执行 `pnpm build`，再从仓库根运行 `node --import tsx specs/attention-aggregate-performance/benchmark.mjs <baseline或fixed> /private/tmp/molis-attention-benchmark-<本次标识> <结果目录> 60`。两版本使用同一临时数据根，逐格恢复同一种子；基线工作树需放入本目录两份测量脚本。模型禁用，测试进程自行关闭，确认进程已退出后可删除这一个临时数据根。
+
+原始结果与 profile 保留在本工作树已忽略的 `.impeccable/qa/review/attention-aggregate-performance/`：根目录为基线和第一次失败的 fixed；`final/` 为最终修复、逐项比较及下表来源；`validation/` 保留构建、测试和门禁日志。这些文件不入库，需求、复现脚本和关键数字随提交保留。
+
+| 项目/标签 | 路径 | 样本数 前→后 | p50 前→后 ms | p90 前→后 ms | max 前→后 ms |
+| --- | --- | --- | --- | --- | --- |
+| 1/1 | attention | 4→4 | 74.3→203.7 | 421.0→815.4 | 421.0→815.4 |
+| 1/1 | health | 240→239 | 1.1→1.2 | 2.2→3.9 | 244.0→607.2 |
+| 1/1 | cursor | 60→60 | 2.2→3.9 | 5.6→9.6 | 214.4→611.9 |
+| 1/3 | attention | 8→8 | 102.4→64.9 | 206.6→434.2 | 206.6→434.2 |
+| 1/3 | home_attention | 4→4 | 127.7→44.7 | 1980.5→87.3 | 1980.5→87.3 |
+| 1/3 | health | 235→239 | 1.1→0.9 | 2.1→2.2 | 1203.9→514.0 |
+| 1/3 | cursor | 60→60 | 1.9→1.8 | 6.5→4.5 | 1765.4→193.9 |
+| 7/1 | attention | 4→4 | 1037.4→191.9 | 1358.1→794.3 | 1358.1→794.3 |
+| 7/1 | health | 234→240 | 1.0→0.9 | 2.2→1.8 | 1162.9→466.7 |
+| 7/1 | cursor | 60→60 | 2.0→1.7 | 7.5→8.2 | 1035.3→90.4 |
+| 7/3 | attention | 8→8 | 690.7→359.7 | 1142.6→636.0 | 1142.6→636.0 |
+| 7/3 | home_attention | 4→4 | 699.5→368.4 | 853.7→1307.7 | 853.7→1307.7 |
+| 7/3 | health | 234→239 | 1.0→1.1 | 12.3→12.4 | 968.8→491.2 |
+| 7/3 | cursor | 60→60 | 2.1→2.6 | 523.8→208.2 | 863.5→681.6 |
+| 14/1 | attention | 4→4 | 2410.5→430.1 | 6333.0→1395.0 | 6333.0→1395.0 |
+| 14/1 | health | 196→238 | 1.0→1.0 | 3.1→2.1 | 6107.3→878.0 |
+| 14/1 | cursor | 54→60 | 2.1→1.7 | 138.9→6.2 | 5990.7→842.7 |
+| 14/3 | attention | 8→8 | 2387.3→420.3 | 3970.7→525.6 | 3970.7→525.6 |
+| 14/3 | home_attention | 4→4 | 2480.2→376.1 | 3087.7→480.4 | 3087.7→480.4 |
+| 14/3 | health | 148→240 | 1.0→0.9 | 212.5→2.6 | 2930.0→374.8 |
+| 14/3 | cursor | 52→60 | 3.1→2.0 | 2153.5→229.8 | 2935.1→349.4 |
+
+| 项目/标签 | 串行 attention p50 前→后 ms（各 5 次） | CPU 前→后（单核 %） | ELD p50 / p90 / max 前→后 ms | >1 秒窗口数 前→后 | status 调用 前→后 |
+| --- | --- | --- | --- | --- | --- |
+| 1/1 | 49.0→29.0 | 1.9→1.8 | 11.6→12.4 / 21.5→55.2 / 372.5→672.1 | 0→0 | 8→0 |
+| 1/3 | 41.5→14.9 | 3.3→1.9 | 11.8→11.6 / 93.4→46.0 / 1311.8→569.9 | 1→0 | 24→0 |
+| 7/1 | 641.4→112.8 | 8.5→4.4 | 11.7→11.7 / 138.4→46.7 / 1103.1→457.4 | 2→0 | 32→0 |
+| 7/3 | 584.0→196.1 | 17.8→8.1 | 11.9→12.2 / 613.9→191.1 / 1014.0→641.2 | 1→0 | 96→0 |
+| 14/1 | 2109.0→426.8 | 22.6→6.1 | 11.7→11.8 / 119.3→50.0 / 6144.7→277.1 | 3→0 | 60→0 |
+| 14/3 | 2205.8→209.9 | 64.5→12.6 | 21.5→11.1 / 2426.4→224.8 / 3061.8→270.8 | 10→0 | 180→0 |

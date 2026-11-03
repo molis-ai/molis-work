@@ -1,6 +1,6 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
-import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./index.js";
+import { builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -12,14 +12,26 @@ export const registration: PluginRegistration = {
   sync:{authoring:{scope:'project-private-values',kind:BUILDER_CONTENT_REPLICA_ID,namespace:'builder',owner:builderPrivateValueReplicationOwner,content:context=>createSyncJsonContent({...context,...builderSyncProjection})}},
   project_plugin_id: "plugin-builder", catalog_order: 3,
   manifest: builderManifest,
-  instructions: BUILDER_CHOICE_INSTRUCTIONS,
   personal: true,
-  summary: "用自然语言设计、构建并使用自己的插件。",
   workbench: {
+    pageRequests: [
+      { method: "GET", path: "/api/plugin-builder/studio/state" },
+      { method: "POST", path: "/api/plugin-builder/studio/settings" },
+      { method: "POST", path: "/api/plugin-builder/studio/builds" },
+      { method: "GET", path: "/api/plugin-builder/studio/builds/:id" },
+      { method: "GET", path: "/api/plugin-builder/studio/builds/:id/events" },
+      { method: "GET", path: "/api/plugin-builder/studio/builds/:id/mockups/:picture" },
+      { method: "POST", path: "/api/plugin-builder/studio/builds/:id/action" },
+      { method: "POST", path: "/api/plugin-builder/studio/builds/:id/call" },
+    ],
     order: 1,
     contributions: [builderUiContribution],
     // The studio is drawn in the plugin's stage; generated plugin parts in its canvas use the plugin components.
     stylesheet: AGENT_STUDIO_STYLES + PLUGIN_COMPONENT_STYLES,
+    // The studio's own classes predate its id (`as-`, `pb-`); the components every generated plugin shares (`pc-`) are not its
+    // own and stay in the shared sheet, as do the two classes the Host's preview page draws (PG-070).
+    stylesheetPrefixes: ["as-", "pb-"],
+    stylesheetShared: ["as-preview-page", "pb-surface"],
     clientFactory: AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT,
   },
 };

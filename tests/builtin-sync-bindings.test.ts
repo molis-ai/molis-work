@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Script } from 'node:vm';
-import {builtinSyncBindings,BUILTIN_PLUGIN_CATALOG,type BuiltinPluginEntry} from '@molis-ai/molis-work-app-workbench';
+import {builtinSyncBindings} from '@molis-ai/molis-work-app-local-host';
+import {BUILTIN_PLUGIN_CATALOG} from '@molis-ai/molis-work-app-workbench';
+import type {PluginRegistration as BuiltinPluginEntry} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 
 test('every registered browser factory parses after composing its shared helpers',()=>{
  for(const entry of BUILTIN_PLUGIN_CATALOG){
@@ -31,7 +33,8 @@ test('PCSYNC-03/25 each declared collection resolves its own explicit factory, i
 });
 
 test('PCSYNC-22 current built-in bindings all name a declared collection exactly once',()=>{
- const bindings=builtinSyncBindings();assert.equal(bindings.length,23);
+ const bindings=builtinSyncBindings();assert.deepEqual(bindings.map(({entry,collection})=>[entry.manifest.plugin_id,collection.id]).sort(),[['io.molis.work.alchemist','studio'],['io.molis.work.plugin-builder','authoring'],['io.molis.work.shelf','copies']]);
  const identities=bindings.map(({entry,collection})=>JSON.stringify([entry.manifest.plugin_id,collection.id]));assert.equal(new Set(identities).size,identities.length);
+ for(const entry of BUILTIN_PLUGIN_CATALOG)for(const collection of entry.manifest.sync?.collections??[])assert.ok(Object.hasOwn(entry.sync??{},collection.id)||collection.sections||collection.tracking||collection.aggregates,`${entry.manifest.plugin_id}.${collection.id} declares a Runtime binding`);
  for(const entry of BUILTIN_PLUGIN_CATALOG)for(const id of Object.keys(entry.sync??{}))assert.ok(entry.manifest.sync?.collections.some(c=>c.id===id),`${entry.project_plugin_id}.${id}`);
 });

@@ -8,43 +8,47 @@ import Database from 'better-sqlite3';
 import {ArtifactsModule,createArtifactsSchema,createArtifactReplication,createArtifactSyncContent} from '@molis-ai/molis-work-module-artifacts';
 import {createSqliteReplica,initializeReplica,replicaSchemaSql,queueReplicaChange,ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
-import {LocalProjectDatabase,GoalProjectApplication,createPersonalGoalRegistration} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
+import {GoalProjectApplication,boardSnapshot} from '../../tests/fixtures/goal-application.ts';
+import {runtimeGoalSync,goalSyncSelection} from '../../tests/fixtures/runtime-goal-sync.ts';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {cloudFixture} from './testing.mjs';
 
 test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WASM D1/R2',async t=>{
   const f=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-large-goal-'));
-  t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const runtimes=[],clients=[];t.after(async()=>{clients.forEach(client=>client.close());for(const runtime of runtimes)await runtime.close();rmSync(root,{recursive:true,force:true});});
   const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b','damaged'].map(n=>join(root,n));homes.forEach(home=>ensureStorageSpace(home,space));
   const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},c=>c.createProject({display_name:'Large Goals',actor_id:'alice'}));
+  for(const home of homes.slice(1))await withMolisWorkProjectCatalog({homeDirectory:home},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{}));
+  runtimes.push(...homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',()=>{})));for(const runtime of runtimes)await runtime.registration.refresh();
   const store=new LocalProjectDatabase(project.database_path);
   try {
     const app=new GoalProjectApplication(store);
     for(let i=0;i<12;i++)app.goalEvents.createIntent({project_id:project.project_id,goal_id:'large-'+i,title:'Goal '+i,outcome:'完整工作内容🙂'.repeat(6000),actor_id:'runtime',actor_kind:'runtime',idempotency_key:'intent-'+i});
   }finally{store.close();}
-  const make=(home,transport=f.transport)=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}},fetch:transport,registrations:[createPersonalGoalRegistration(home,space.spaceId,'alice',()=>{},withMolisWorkProjectCatalog,f.selection)]});
+  const make=(home,transport=f.transport)=>{const runtime=runtimes[homes.indexOf(home)],client=new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}},fetch:transport,registrations:[runtime.registration]});runtime.setPolicy(()=>client.policy());clients.push(client);return client;};
   let a=make(homes[0]),b=make(homes[1]);t.after(()=>{a.close();b.close();});
-  await a.save({spaceId:space.spaceId,revision:0,selections:[f.selection]});
+  await a.save({spaceId:space.spaceId,revision:0,selections:[goalSyncSelection]});
   const finish=async(client,home)=>{
     for(let round=0;round<12;round++){
       await client.run();if(client.status().error===null)return client;
       assert.match(client.status().error,/附件传输尚未完成/,'only the bounded cycle may interrupt healthy content');
-      if(home===homes[1])assert.equal(await withMolisWorkProjectCatalog({homeDirectory:home},c=>c.listProjects().length),0,'incomplete download does not create a project');
+      if(home===homes[1]){const target=await withMolisWorkProjectCatalog({homeDirectory:home},c=>c.getProject(project.project_id)),db=new LocalProjectDatabase(target.database_path);try{assert.equal(boardSnapshot(db,project.project_id).goals.length,0,'incomplete download never partially restores an owner');}finally{db.close();}}
       client.close();client=make(home);
     }
     client.close();assert.fail('Goal transfer did not finish within bounded resumed cycles');
   };
   a=await finish(a,homes[0]);assert.equal(a.status().error,null);
-  const row=await f.db.prepare('SELECT value,attachments FROM sync_events').first();assert.equal(JSON.parse(row.value).format,2);assert.ok(Buffer.byteLength(row.value)<4096);assert.ok(JSON.parse(row.attachments).length>1);
+  const row=await f.db.prepare('SELECT value,attachments FROM sync_events').first();assert.equal(JSON.parse(row.value).value.format,2);assert.ok(Buffer.byteLength(row.value)<4096);assert.ok(JSON.parse(row.attachments).length>1);
   b=await finish(b,homes[1]);assert.equal(b.status().error,null);
   const target=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.listProjects()[0]);
-  const read=path=>{const db=new LocalProjectDatabase(path);try{return db.snapshot(project.project_id);}finally{db.close();}};
+  const read=path=>{const db=new LocalProjectDatabase(path);try{return boardSnapshot(db,project.project_id);}finally{db.close();}};
   const source=read(project.database_path);assert.ok(Buffer.byteLength(JSON.stringify(source))>512*1024);
   const targetDb=new LocalProjectDatabase(target.database_path);
-  try{assert.equal(targetDb.snapshot(project.project_id).goals.length,12);assert.equal(new GoalProjectApplication(targetDb).goalQueries.getGoal(project.project_id,'large-0').outcome,'完整工作内容🙂'.repeat(6000));}finally{targetDb.close();}
+  try{assert.equal(boardSnapshot(targetDb,project.project_id).goals.length,12);assert.equal(new GoalProjectApplication(targetDb).goalQueries.getGoal(project.project_id,'large-0').outcome,'完整工作内容🙂'.repeat(6000));}finally{targetDb.close();}
   const objects=await f.bucket.list();await f.bucket.put(objects.objects[0].key,Buffer.from('damaged'));
   const c=make(homes[2]);t.after(()=>c.close());await c.run();assert.notEqual(c.status().error,null);
-  assert.equal(await withMolisWorkProjectCatalog({homeDirectory:homes[2]},c=>c.listProjects().length),0,'failed content does not even create an empty project');
+  const refused=await withMolisWorkProjectCatalog({homeDirectory:homes[2]},c=>c.getProject(project.project_id));assert.equal(read(refused.database_path).goals.length,0,'damaged bytes never restore any Goal into the explicitly provisioned destination');
   assert.deepEqual(read(project.database_path),source,'source content is never changed by failed restore');
 });
 

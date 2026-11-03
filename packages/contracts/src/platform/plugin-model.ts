@@ -54,7 +54,12 @@ export interface PluginModelRequest {
 export interface PluginModelResult {
   /** Original inference facts, absent only when the Host injected a text-only implementation. */
   readonly execution?: BoundedInferenceReceipt;
-  /** After beforeEffect, immediately before synchronous commit: rechecks this original call and model binding. */
+  /**
+   * After beforeEffect, immediately before synchronous commit: rechecks this original call and model binding. The platform also
+   * runs this check itself (PG-047): at every write the call makes through a platform service, at each nested call, and at the end
+   * of the call's every `beforeEffect`, the one its background work is given included; an answer that no longer stands is refused
+   * there with the same code, called or not, and so is every later write of the call, whatever it rests on.
+   */
   validateResult(): void;
   readonly text: string;
   /** Only with `output: "json"`: the decoded answer. The plugin checks its shape; the service checks only that it is JSON. */

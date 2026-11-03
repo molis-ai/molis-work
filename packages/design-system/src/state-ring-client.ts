@@ -1,6 +1,4 @@
-import { ringSegmentPath, stateRingGeometry } from "./state-ring-geometry.js";
-import { STATE_RING_FAMILIES, STATE_RING_ICON_STATES } from "./state-ring-states.js";
-import { STATE_RING_CORES } from "./state-ring.js";
+import { ringSegmentPath, STATE_RING_CORES, STATE_RING_FAMILIES, STATE_RING_ICON_STATES, stateRingGeometry } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** One renderer per document. Detached/hidden icons never keep an animation loop alive. A ring mounts already drawn in its
  * state; only a change of state settles into the new arrangement. Visibility only decides which rings draw frames, so a still
@@ -90,7 +88,7 @@ export const STATE_RING_CLIENT_SCRIPT = `(() => {
         if (state) { node.parentElement.dataset.mwState = state; mount(node.parentElement); }
       } else if (node.localName === 'svg') mount(node);
       else if (!node.querySelector(':scope > .mw-state-ring')) {
-        const svg = svgNode('svg'); svg.dataset.mwState = node.dataset.mwState || 'running'; svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('width', '20'); svg.setAttribute('height', '20');
+        const svg = svgNode('svg'); svg.dataset.mwState = node.dataset.mwState || 'running'; svg.setAttribute('aria-hidden', 'true');
         if (node.hasAttribute('data-ring-progress')) svg.dataset.ringProgress = node.dataset.ringProgress;
         node.dataset.ringMounted = ''; node.prepend(svg); mount(svg);
       }

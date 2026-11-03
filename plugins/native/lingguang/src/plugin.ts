@@ -1,3 +1,4 @@
+import { syncBindings } from './sync-binding.js';
 import { bindPluginActionRoute, decodeMaterialUpload } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -6,10 +7,11 @@ import { createLingguangActionHandlers, lingguangActions, type LingguangActionPo
 import { createLingguangContentHandlers } from "./content-actions.js";
 import { LingguangStore, type LingguangStores } from "./store.js";
 import { lingguangUiContribution } from "./ui.js";
+import { LINGGUANG_INSTRUCTIONS } from "./prompts.js";
 
 /** One instance per project, using the existing Home library and the Runtime's model, material and action services. */
 export function createLingguangPlugin(): PluginDefinition {
-  return { manifest: lingguangManifest, async start(context) {
+  return { manifest: lingguangManifest, instructions: LINGGUANG_INSTRUCTIONS, async start(context) {
     for (const permission of lingguangManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database, actions = context.services?.actions;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供灵光库");
@@ -33,7 +35,7 @@ export function createLingguangPlugin(): PluginDefinition {
         allowModelDownload: input.allow_model_download, signal: caller.signal,
       }) } : {}),
     };
-    return { kind: "app", views: [lingguangUiContribution],
+    return { kind: "app", sync: syncBindings(context), views: [lingguangUiContribution],
       actions: [...createLingguangActionHandlers(ports), ...createLingguangContentHandlers(actions)], routes: lingguangRoutes(context) };
   } };
 }

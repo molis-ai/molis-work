@@ -1,7 +1,8 @@
-import { GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { layoutFindings } from "./layout-audit.js";
 import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./text-wrap-audit.js";
 import { TRUNCATION_AUDIT, type TruncationIssue } from "./truncation-audit.js";
+import { GoalProjectApplication } from "./goal-application.js";
 
 /**
  * The Chinese walk (specs/visual-ui-experience VUX-40 in Chinese, with VUX-04 and VUX-05): what a person writes in Chinese
@@ -20,8 +21,8 @@ export const MARKS = "「为什么要分开写？」——因为《项目资料�
 export const TITLES = [LONG, MIXED, MARKS];
 
 /** The demo board, with three Goals whose titles are long Chinese, one under another. */
-export function seedLongChinese(databasePath: string, projectId?: string): void {
-  seedDemoBoard(databasePath, projectId);
+export async function seedLongChinese(databasePath: string, projectId?: string): Promise<void> {
+  await seedDemoGoals(databasePath, projectId);
   const store = new LocalProjectDatabase(databasePath);
   try {
     const goals = new GoalProjectApplication(store);

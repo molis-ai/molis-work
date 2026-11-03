@@ -16,6 +16,8 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   const caller: ActionCallContext = { actor_id: "assistant:protected-form", runtime_session_id: "protected-form", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ] };
   const prepare = (name: string, service = "model-api") => localHost.homeActionClient().invoke(caller, connectorSetupAction, { service_id: service, method: "token", display_name: name, expected_revision: null }) as Promise<{ authorization_id: string; url: string }>;
   const read = (id: string) => localHost.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: id }) as Promise<{ status: string; connection_id: string }>;
+  // The card's request was prepared on the person's own page, so the person's own route reads it; `read` stays for the requests `caller` prepares itself.
+  const readOwn = async (id: string) => { const response = await fetch(origin + "/api/settings/connectors/authorizations/" + id); assert.equal(response.status, 200, "the person's own page reads its request"); return await response.json() as { status: string; connection_id: string }; };
   const open = async (url: string) => {
     await navigate(() => command("Page.navigate", { url: origin + url }, sessionId));
     await waitFor("document.querySelector('[data-setup-id]')?.dataset.connectorsBound === '1'", 15_000);
@@ -52,7 +54,7 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   assert.equal(await evaluate("document.querySelectorAll('[data-connector-auth]').length"), 1);
   // Leaving the form does not cancel the authorization or persist any credential.
   await navigate(() => command("Page.navigate", { url: "about:blank" }, sessionId));
-  assert.equal((await read(request.authorization_id)).status, "prepared");
+  assert.equal((await readOwn(request.authorization_id)).status, "prepared");
   assert.deepEqual(withConnectorConnections(homeDirectory, store => store.list()), []);
   await open(request.url);
   const shots = reviewEvidenceUrl("assistant-service-connections/"); await mkdir(shots, { recursive: true });
@@ -71,7 +73,7 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r", windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("!document.querySelector('[data-connector-auth]') && /连接已保存/.test(document.querySelector('[data-connector-feedback]')?.textContent || '')", 15_000);
-  const completed = await read(request.authorization_id);
+  const completed = await readOwn(request.authorization_id);
   assert.equal(completed.status, "connected");
   assert.equal(withConnectorConnections(homeDirectory, store => store.resolveToken(completed.connection_id, "model-api")), fixtureValue);
   assert.equal(await evaluate(`document.documentElement.outerHTML.includes(${JSON.stringify(fixtureValue)})`), false);

@@ -4,7 +4,7 @@ import test from "node:test";
 import { AgentHost, PrologueAgentAdapter, emptyCapabilityMatrix, registerAgentHostCapabilities, runViewVersion, type PrologueEvent, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentRuntimeAdapter, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions, type AgentInputSend } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** What the runtime's own control is handed for a supplement. */
@@ -32,12 +32,13 @@ async function adapterFor(options: { steer: (input: Steer) => unknown; queue?: b
   };
   const adapter = new PrologueAgentAdapter({ runtime,
     modelConfiguration: async () => ({ protocol: "anthropic-messages", endpoint: "https://x.test", model: "m", credential_ref: "c" }) });
-  await adapter.createSession({ title: "t" });
+  const owner = { project_id: "project-1", actor_id: "person-1", plugin_id: "io.molis.work.coding", install_id: "coding-1" };
+  const directory = { canonical_path: "/tmp/ws", realpath_verified: true };
+  await adapter.createSession({ ...owner, title: "t", directory });
   const handle = await adapter.start({
-    plugin_id: "io.molis.work.coding", session: { session_id: "session-1", runtime_id: "prologue" }, task: "看看这段代码", role_id: "reader",
-    directory: { canonical_path: "/tmp/ws", realpath_verified: true },
+    ...owner, session: { session_id: "session-1", runtime_id: "prologue" }, task: "看看这段代码", role_id: "reader", directory,
     role: { role_id: "reader", version: 1, execution: "read-only", prompts: [{ prompt_id: "p", version: 1, body: "b" }], host_tools: [] },
-  } as AgentStartRequest);
+  });
   const send = (input: AgentInputSend, beforeQueue?: () => void) => adapter.inputs.send(handle.ref, input, beforeQueue);
   return { adapter, ref: handle.ref, send, steered, queued, taken, emit: (event: PrologueEvent) => { for (const listener of listeners) listener(event); } };
 }
@@ -68,7 +69,7 @@ test("RC-03: a supplement that arrives as the round ends waits in the session un
   const item = await adapterFor({ steer: () => { throw notRunning(); } });
   let checked = 0;
   const receipt = await item.send({ text: "顺便看注册接口", key: "send.2" }, () => { checked++; });
-  assert.equal(checked, 1, "the caller is asked once more, right before the session keeps it");
+  assert.equal(checked, 2, "the caller is checked before the live handoff, then again before the session keeps it");
   assert.deepEqual(item.queued, [{ session: "session-1", input: { text: "顺便看注册接口", key: "send.2" } }]);
   assert.deepEqual(receipt, { input_id: "steer-9", replayed: false, delivered: "queued" });
 });
@@ -97,7 +98,10 @@ test("RC-03: without a session queue a supplement to an ended round is refused; 
 
 test("RC-03: a call revoked while the round was ending keeps nothing in the session", async () => {
   const item = await adapterFor({ steer: () => { throw notRunning(); } });
-  await assert.rejects(item.send({ text: "还要这个", key: "send.5" }, () => { throw new Error("activation revoked"); }), /activation revoked/);
+  let checks = 0;
+  await assert.rejects(item.send({ text: "还要这个", key: "send.5" }, () => { if (++checks === 2) throw new Error("activation revoked"); }), /activation revoked/);
+  assert.equal(item.steered.length, 1, "the live round ended after the first check");
+  assert.equal(checks, 2);
   assert.deepEqual(item.queued, [], "the check before the queue write refused it, so the session holds nothing");
 });
 
@@ -164,7 +168,7 @@ test("RC-05: a cancelled or revoked call tells the round nothing and keeps nothi
   assert.deepEqual(late.sent, []);
   const fine = registered();
   assert.deepEqual(await fine.call({ ...input, key: "send.9" }, live()), { input_id: "steer-1", replayed: false, delivered: "queued" });
-  assert.deepEqual(fine.sent, [{ text: "顺便看日志", key: "send.9" }]);
+  assert.deepEqual(fine.sent, [{ text: "顺便看日志", key: "send.9", source: "host" }]);
 });
 
 test("RC-05: a round of another session is not reachable through this action", async () => {
@@ -224,4 +228,15 @@ test("RCPT-315: the check right before each request to give a supplement back st
   assert.deepEqual(await item.adapter.inputs.withdraw!(item.ref, "steer-9", () => { checks++; }), { input_id: "steer-9", from: "queued" });
   assert.deepEqual(item.taken, [{ from: "run", id: "steer-1" }, { from: "queued", id: "steer-9" }]);
   assert.equal(checks, 3, "once before the round's write, and again before the session's when the round did not hold it");
+});
+
+
+test("RAC-2642 S-105: the final live handoff guard refuses a withdrawn source before either runtime side effect", async () => {
+  const item = await adapterFor({ steer: () => ({ steerId: "must-not-accept", replayed: false }) });
+  let checks = 0;
+  await assert.rejects(item.send({ text: "来源已失效的正文", key: "signed.withdrawn" }, () => {
+    checks++; throw Object.assign(new Error("source withdrawn at handoff"), { code: "RUN_NOT_RUNNING" });
+  }), /source withdrawn at handoff/);
+  assert.equal(checks, 1, "a guard error is not the runtime saying the run ended, so it never falls back to the queue");
+  assert.deepEqual(item.steered, []); assert.deepEqual(item.queued, []);
 });

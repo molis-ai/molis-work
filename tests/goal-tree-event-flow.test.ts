@@ -4,9 +4,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { buildDecisionGroups, hostEventDecisionAuthority, pendingDecisionCount } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventHistory } from "./goal-event-history-fixture.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-tree-"));

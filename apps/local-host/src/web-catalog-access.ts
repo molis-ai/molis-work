@@ -66,7 +66,7 @@ export function createWebCatalogAccess(
         if (active) await new Promise<void>(resolve => idle.add(resolve));
         const catalog = await opening?.catch(() => undefined);
         catalog?.close(); current = undefined; ready = false;
-      })();
+      })().catch(error => { shutdown = undefined; throw error; });
     },
   };
 }
@@ -75,8 +75,8 @@ export function createWebCatalogAccess(
 export function assertTerminalProjectAvailable(access: ReturnType<typeof createWebCatalogAccess> | undefined, home: string, panelId: string): void {
   if (!access) throw new Error('项目目录尚未就绪，不能启动终端');
   access.read(catalog => {
-    const panel = catalog.getDesktopPanel(panelId);
-    catalog.getProject(panel.project_id);
-    assertPassiveProjectAvailable(home, panel.project_id);
+    const panel = catalog.terminalPanels.get(panelId);
+    if (!panel) throw new Error('终端记录已不存在');
+    if (panel.project_id) { catalog.getProject(panel.project_id); assertPassiveProjectAvailable(home, panel.project_id); }
   });
 }

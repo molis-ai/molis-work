@@ -10,7 +10,7 @@
 
 ## Observability
 
-`packages/observability` 尚未创建（`absent`）；结构化日志、trace 与脱敏目前由各入口自己处理。业务 owner 定义“成功/失败”的含义，Secret 与私人 Session 内容默认禁止进入日志。
+`packages/observability` 尚未创建（`absent`）。宿主的日志只有一份写法：`hostLog`（`apps/local-host/src/host-log.ts`，W5-13），每条一行 JSON 写到 stderr，带所在调用的编号；错误只留名字和码，字段只留数字、布尔、null 和像键的字符串，其余写成 `"[omitted]"`。像键只是形状检查，不是密钥识别，所以调用方只放自己选定的 id、枚举和计数。没有 trace：一次调用的调用记录和日志行靠同一个调用编号对上（`docs/system/EXTENSION-POINTS.md` 的 F6）。业务 owner 定义“成功/失败”的含义，Secret 与私人 Session 内容默认禁止进入日志。
 
 ## Test Kit
 

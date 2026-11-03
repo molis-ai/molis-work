@@ -1,9 +1,10 @@
+import { syncAggregateDeclaration } from "@molis-ai/molis-work-plugin-sdk";
 import { syncError } from './sync-errors.js';
-import type { AggregateDefinition } from '@molis-ai/molis-work-storage';
+import type { SyncAggregateDefinition } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export const pptSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'presentations',title:'演示稿',schema_version:1,requires:[]}]};
-export const pptAggregates:readonly AggregateDefinition[]=[{
+
+export const pptAggregates:readonly SyncAggregateDefinition[]=[{
   kind:'presentation',copy:{kind:'io.molis.work.ppt:presentation',references(value,projectId){return value.record.artifact_id?[{kind:'io.molis.work.artifacts:artifact',id:String(value.record.artifact_id),projectId}]:[];},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('io.molis.work.artifacts:artifact',String(value.record.artifact_id));}},table:'presentations',columns:['id','project_id','title','description','color_primary','color_background','color_text','slides_json','created_at','updated_at','artifact_id','artifact_version'],children:[],versionColumn:'version',busyColumn:'publication_pending_json',
   validate({record:r}){
     for(const k of ['id','project_id','title','description','slides_json','artifact_id'])check(typeof r[k]==='string');
@@ -23,3 +24,5 @@ export const pptAggregates:readonly AggregateDefinition[]=[{
   dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw syncError("dependencies",'等待演示稿关联的成果版本');},
 }];
 function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'演示稿同步数据不合法');}
+
+export const pptSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'presentations',title:'演示稿',schema_version: 2,requires:[],aggregates:syncAggregateDeclaration(pptAggregates)}]};

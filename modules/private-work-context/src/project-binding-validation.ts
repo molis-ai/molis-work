@@ -47,9 +47,8 @@ function requireRoutableRuntimeWorkContext(input: RuntimeWorkContext): Normalize
 
 function runtimeContextPersistenceId(context: NormalizedRuntimeWorkContext): string {
   if (context.stable_work_context_id) return context.stable_work_context_id;
-  if (context.workspace) return `workspace-request:${context.workspace.workspace_id}`;
-  throw bindingErrors.identity_required("当前 Runtime 没有可用于保存请求的 Session 或项目目录",
-  );
+  // Callers hold a context that passed requireRoutableRuntimeWorkContext: without a Session id it has a workspace.
+  return `workspace-request:${context.workspace!.workspace_id}`;
 }
 
 function requiredName(value: string): string {

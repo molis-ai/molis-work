@@ -1,6 +1,6 @@
 # Molis OAuth on Cloudflare Workers
 
-This Worker owns confidential OAuth application credentials. It reuses the Host's provider definitions and exchanges authorization codes and refresh tokens; it does not read user content or persist tokens in a cloud database. Official MCP dynamic-registration connections continue to authorize directly with their provider.
+This Worker owns confidential OAuth application credentials. It keeps its own provider definitions in `providers.ts` (the Host reads each service's OAuth flow from the plugin that declares it; `tests/connector-provider-contracts.test.ts` keeps the two the same) and exchanges authorization codes and refresh tokens; it does not read user content or persist tokens in a cloud database. Official MCP dynamic-registration connections continue to authorize directly with their provider.
 
 Origin: `https://auth.molis.ai`. The initial Worker is deployed in the configured Molis account; HTTPS health and provider discovery are verified; real provider grants remain pending. Deploy only in this account with control of this domain. The current configuration intentionally disables `workers.dev` and request observability. Do not log request/response bodies, authorization headers, callback query strings, or secrets.
 

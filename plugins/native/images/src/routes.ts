@@ -1,5 +1,5 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
-import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { shelfAdmit } from "./shelf-admit.js";
 import { ACTION_ERROR_CODE, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesActions } from "./actions.js";
@@ -32,14 +32,15 @@ export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] 
       if (result.status !== 200) return result;
       const file = result.body as { base64: string; mime_type: string; filename: string }, input = body(request);
       const filename = typeof input.filename === "string" && input.filename.trim() ? input.filename.trim() : file.filename;
-      return bindPluginActionRoute(context, SHELF_ADMIT_ACTION, () => ({ filename, mime: file.mime_type, bytes_base64: file.base64 }), "images.images.shelf").handle(request);
+      return bindPluginActionRoute(context, shelfAdmit, () => ({ filename, mime: file.mime_type, bytes_base64: file.base64 }), "images.images.shelf").handle(request);
     } },
   ];
 }
 
 function downloadName(request: PluginRouteRequest, stored: string): string {
   if (request.query.download !== "1") return stored;
-  const name = (request.query.name ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim().slice(0, 80);
+  // 80 whole characters, not UTF-16 units: unit 80 can fall inside an emoji, and encodeURIComponent on the Content-Disposition name throws on half of one.
+  const name = [...(request.query.name ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim()].slice(0, 80).join("");
   const extension = /\.[a-z0-9]{2,5}$/iu.exec(stored)?.[0] ?? "";
   return name ? name.toLowerCase().endsWith(extension.toLowerCase()) ? name : name + extension : stored;
 }

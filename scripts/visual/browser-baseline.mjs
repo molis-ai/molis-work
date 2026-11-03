@@ -17,7 +17,7 @@ process.env.MOLIS_WORK_HOME = home;
 process.env.MOLIS_WORK_SECRET_BACKEND = 'file';
 const { openMolisWorkProjectCatalog, createDesktopWebHost } = await import('@molis-ai/molis-work-app-desktop');
 const { seedDemoBoard } = await import('@molis-ai/molis-work-app-local-host');
-const { PROJECT_SCOPED_PLUGIN_IDS } = await import('@molis-ai/molis-work-app-workbench');
+const { PROJECT_SCOPED_PLUGIN_IDS } = await import('@molis-ai/molis-work-app-local-host');
 const { ChromeHarness } = await import('@molis-ai/molis-work-test-kit/browser');
 const round = value => Math.round(value * 100) / 100;
 const sockets = new Set();

@@ -3,7 +3,10 @@ import test, { type TestContext } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createPersonalGoalRegistration, LocalProjectDatabase, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { GoalProjectApplication } from './fixtures/goal-application.js';
+import { runtimeGoalSync, goalWire } from './fixtures/runtime-goal-sync.js';
+import { createProjectGoalContent } from '@molis-ai/molis-work-app-local-host';
 import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
 import type { SyncBlobReference, ProjectReplicaRows, ProjectReplicaRow } from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -13,8 +16,7 @@ function fixture(t: TestContext) {
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
   ensureStorageSpace(home, space); let active = true;
-  const selection = { plugin_id: 'io.molis.work.goals', publisher_id: 'molis', publisher_signature: 'official-goals-binding', collection_id: 'project_goals', schema_version: 1 };
-  const codec = createPersonalGoalRegistration(home, space.spaceId, 'alice', () => { if (!active) throw new Error('REVOKED'); }, withMolisWorkProjectCatalog, selection).content!;
+  const codec = createProjectGoalContent(space.spaceId, key => { const value=JSON.parse(key);if(!Array.isArray(value)||value.length!==3||value[1]!=='project_goals'||value[0]!==value[2])throw new Error('INVALID_KEY');return value[0]; }, () => { if (!active) throw new Error('REVOKED'); });
   const key = JSON.stringify(['project', 'project_goals', 'project']);
   const value = { format: 1, spaceId: space.spaceId, project: { id: 'project', title: '目标' }, facts: { goals: { text: '中文🙂'.repeat(300000) } }, journal: { events: [] } };
   const encoded = codec.encode(key, value);
@@ -22,7 +24,7 @@ function fixture(t: TestContext) {
   return { codec, key, value, encoded, read, revoke: () => { active = false; } };
 }
 
-test('S-74 PCSYNC-11 large Goal content preserves Unicode and exact bytes with small D1 metadata', async t => {
+test('S-126 PCSYNC-11 large Goal content preserves Unicode and exact bytes with small D1 metadata', async t => {
   const f = fixture(t);
   assert.ok(f.encoded.blobs.length > 1); assert.ok(Buffer.byteLength(JSON.stringify(f.encoded.value)) < 4096);
   assert.deepEqual(await f.codec.decode(f.key, f.encoded.value, f.read), f.value);
@@ -33,7 +35,7 @@ test('S-74 PCSYNC-11 large Goal content preserves Unicode and exact bytes with s
   await assert.rejects(() => f.codec.decode(f.key, f.value, f.read), { code: 'host.replica_limit' }, 'large values cannot bypass the content manifest');
 });
 
-test('S-74 PCSYNC-01 malformed or foreign Goal manifests are refused before any byte read', async t => {
+test('S-126 PCSYNC-01 malformed or foreign Goal manifests are refused before any byte read', async t => {
   const f = fixture(t);
   type Wire = { format: number; spaceId: string; project: { id: string; title: string }; content: { size: number; digest: string; parts: SyncBlobReference[] } };
   const edits: Array<(wire: Wire) => void> = [
@@ -49,7 +51,7 @@ test('S-74 PCSYNC-01 malformed or foreign Goal manifests are refused before any 
   await assert.rejects(() => f.codec.decode(JSON.stringify(['project', 'artifact', 'project']), f.encoded.value, f.read));
 });
 
-test('S-74 PCSYNC-06/12 Goal decode rejects damaged, reordered, relabelled and late content', async t => {
+test('S-126 PCSYNC-06/12 Goal decode rejects damaged, reordered, relabelled and late content', async t => {
   const f = fixture(t);
   await assert.rejects(() => f.codec.decode(f.key, f.encoded.value, async ref => { const bytes = Buffer.from(await f.read(ref)); bytes[0] ^= 1; return bytes; }));
   const wire = structuredClone(f.encoded.value) as { content: { parts: SyncBlobReference[] }; project: { title: string } };
@@ -61,20 +63,23 @@ test('S-74 PCSYNC-06/12 Goal decode rejects damaged, reordered, relabelled and l
   assert.throws(() => f.codec.encode(f.key, f.value), /REVOKED/);
 });
 
-test('S-63 PCSYNC-01/14 a complete Goal owner unit is validated before creating any target project',async t=>{
-  const root=mkdtempSync(join(tmpdir(),'goal-prepare-owner-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+test('S-115 PCSYNC-01/14 a complete Goal owner unit is validated before creating any target project',async t=>{
+  const root=mkdtempSync(join(tmpdir(),'goal-prepare-owner-'));
   const homes=[join(root,'source'),join(root,'target')],space=personalStorageSpace('https://auth.example.test','work','alice');
   homes.forEach(home=>ensureStorageSpace(home,space));let active=true;
   const authorize=()=>{if(!active)throw new Error('REVOKED');};
-  const selection={plugin_id:'io.molis.work.goals',publisher_id:'molis',publisher_signature:'official-goals-binding',collection_id:'project_goals',schema_version:1};
   const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},catalog=>catalog.createProject({display_name:'Actual Goal',actor_id:'alice'}));
   const database=new LocalProjectDatabase(project.database_path);
-  try{new GoalProjectApplication(database).goalEvents.createIntent({project_id:project.project_id,goal_id:'goal',title:'Portable Goal',actor_id:'runtime:fixture',actor_kind:'runtime',idempotency_key:'intent'});}finally{database.close();}
-  const [source,target]=homes.map(home=>createPersonalGoalRegistration(home,space.spaceId,'alice',authorize,withMolisWorkProjectCatalog,selection));
-  await source!.refresh();const next=source!.withReplica(replica=>replica.next());assert.ok(next);
+  try{const app=new GoalProjectApplication(database);app.initializeBoard({project_id:project.project_id,actor_id:'alice',idempotency_key:'fixture-board'});app.goalEvents.createIntent({project_id:project.project_id,goal_id:'goal',title:'Portable Goal',actor_id:'runtime:fixture',actor_kind:'runtime',idempotency_key:'intent'});}finally{database.close();}
+  const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',authorize));t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
+  const [source,target]=runtimes.map(runtime=>runtime.registration);
+  await source!.refresh();await target!.refresh();assert.equal(target!.available!(),false);
+  const catalogProjects=()=>withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects());
+  assert.deepEqual(await catalogProjects(),[]);
+  const next=source!.withReplica(replica=>replica.next());assert.ok(next);
   const event={...next,revision:1};
   type Unit={facts:Record<string,ProjectReplicaRows>;journal:{events:ProjectReplicaRow[];receipts:ProjectReplicaRow[]}};
-  const original=next.value as Unit;assert.ok(original.journal.events.length>0);
+  const original=goalWire(next.value) as Unit;assert.ok(original.journal.events.length>0);
   const mutations:((wire:Unit)=>void)[]=[
     wire=>{wire.facts.goals!.goals![0]!.project_id='foreign';},
     wire=>{wire.facts.goals!.goals![0]!.undeclared='not an owner column';},
@@ -83,12 +88,23 @@ test('S-63 PCSYNC-01/14 a complete Goal owner unit is validated before creating 
     wire=>{wire.journal.events[0]!.type='unrelated.owner.event';},
   ];
   for(const mutate of mutations){
-    const value=structuredClone(original);mutate(value);await assert.rejects(()=>target!.prepare({...event,value}));
+    const value=structuredClone(next.value);mutate(goalWire(value) as Unit);await assert.rejects(()=>target!.prepare({...event,value}));
     assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects()),[],'bad content creates neither a project nor an empty business database');
   }
   active=false;await assert.rejects(()=>target!.prepare(event),/REVOKED/);active=true;
   assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects()),[]);
-  await target!.prepare(event);await target!.refresh();target!.withReplica(replica=>replica.receive(event));
+  await assert.rejects(()=>target!.prepare(event),/SYNC_OWNER_NOT_INSTALLED/,'even valid Goal content cannot install a project owner');
+  await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},authorize));
+  await target!.refresh();
+  for(const [index,mutate] of mutations.entries()){
+    const value=structuredClone(next.value);mutate(goalWire(value) as Unit);
+    target!.withReplica(replica=>replica.receive({...event,operationId:'invalid-'+index,revision:index+1,value}));
+    assert.equal(target!.withReplica(replica=>replica.conflicts().length),1);
+    assert.throws(()=>target!.withReplica(replica=>replica.resolve(event.key,'remote')));
+    const database=new LocalProjectDatabase((await catalogProjects())[0]!.database_path);try{assert.throws(()=>new GoalProjectApplication(database).goalQueries.getGoal(project.project_id,'goal'));}finally{database.close();}
+  }
+  active=false;assert.throws(()=>target!.withReplica(replica=>replica.receive({...event,revision:10})),/REVOKED/);active=true;
+  await target!.prepare(event);target!.withReplica(replica=>{replica.receive({...event,revision:10});if(replica.conflicts().length)replica.resolve(event.key,'remote');});
   const received=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects());assert.equal(received.length,1);
   const restored=target!.withReplica(replica=>{assert.deepEqual(replica.conflicts(),[]);return replica.counts();});
   assert.deepEqual(restored,{pending:0,conflicts:0});

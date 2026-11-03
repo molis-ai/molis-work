@@ -4,6 +4,8 @@ import { assistantConnectionCheckers, retainConnectorSetupsForSession, MolisWork
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { isLocalHostHttpError } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome, serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
 type IntentServer = TestHostServer & { host: MolisWorkLocalHost };
@@ -12,7 +14,7 @@ const caller: ActionCallContext = { actor_id: "intent-user", runtime_session_id:
 type State = { status: string; connection_id: string; intent_revision?: string; commit_held?: boolean; completion_ready?: boolean };
 const prepare = (server: IntentServer, service = "model-api", method = "token", owner = caller) => server.host.homeActionClient().invoke(owner, connectorSetupAction,
   { service_id: service, method, display_name: "Intent account", expected_revision: null }) as Promise<{ authorization_id: string }>;
-const read = (server: IntentServer, id: string) => server.host.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: id }) as Promise<State>;
+const read = (server: IntentServer, id: string, owner = caller) => server.host.homeActionClient().invoke(owner, connectorManagementActions.authorization, { authorization_id: id }) as Promise<State>;
 const decide = (server: IntentServer, id: string, revision: string, decision = "retain", owner = caller) => server.host.homeActionClient().invoke(owner, connectorSetupIntentAction,
   { authorization_id: id, intent_revision: revision, decision }) as Promise<State>;
 const hold = (home: string, revision: string) => holdConnectorAuthorizationsForSession(home, caller.runtime_session_id!, caller.actor_id, revision);
@@ -55,7 +57,7 @@ test("S-37 ASC-34 ASC-35: a late token submission stays private across Host rest
 });
 
 test("S-37 ASC-34 ASC-36: stale or foreign intent cannot release a result; cancelling keeps independent requests", async t => {
-  const home = await openTestHome(t), first = await prepare(home), other = await prepare(home, "model-api", "token", { ...caller, runtime_session_id: "independent" });
+  const home = await openTestHome(t), first = await prepare(home), otherOwner = { ...caller, runtime_session_id: "independent" }, other = await prepare(home, "model-api", "token", otherOwner);
   hold(home.home, "before"); await saveToken(home, first.authorization_id); hold(home.home, "latest");
   await assert.rejects(decide(home, first.authorization_id, "before"), /已变化/);
   await assert.rejects(decide(home, first.authorization_id, "latest", "retain", { ...caller, runtime_session_id: "foreign" }), /本会话/);
@@ -64,7 +66,7 @@ test("S-37 ASC-34 ASC-36: stale or foreign intent cannot release a result; cance
   assert.equal((await decide(home, first.authorization_id, "latest", "cancel")).status, "cancelled");
   assert.equal(secret(home.home, first.authorization_id), null);
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
-  assert.equal((await read(home, other.authorization_id)).status, "prepared");
+  assert.equal((await read(home, other.authorization_id, otherOwner)).status, "prepared");
   await saveToken(home, other.authorization_id);
   assert.equal(withConnectorConnections(home.home, store => store.list()).length, 1);
 });
@@ -90,11 +92,10 @@ test("S-37 ASC-34: a held replacement cannot overwrite a connection changed else
 test("S-37 ASC-34: intent received during a real OAuth completion parks its result before activation", async t => {
   const home = await openTestHome(t), prepared = await prepare(home, "asana", "oauth");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-  const realFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    if (String(input).startsWith(home.origin)) return realFetch(input, init);
-    if (String(input).includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-held", refresh_token: "fixture-oauth-refresh", expires_in: 3600 }); }
-    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer fixture-oauth-held");
+  // The generic flow's requests leave by `sendPublicHttps` (W5-11 slice 4).
+  oauthNetwork(t, async (url, init) => {
+    if (url.includes("oauth_token")) { entered.resolve(); await release.promise; return Response.json({ access_token: "fixture-oauth-held", refresh_token: "fixture-oauth-refresh", expires_in: 3600 }); }
+    assert.equal(init.headers.authorization, "Bearer fixture-oauth-held");
     return Response.json({ data: { gid: "account-1", name: "Account", email: "account@example.test" } });
   });
   const start = await home.web.post<{ authorization_url: string }>("/api/settings/connectors/methods/oauth/start", {
@@ -117,14 +118,17 @@ for (const service of ["gmail", "notion"]) test(`S-37 ASC-34: ${service} dedicat
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token") return Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
-    if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: "work@example.test" });
     if (url === "https://api.notion.com/v1/users/me") return Response.json({ object: "user", id: "bot", type: "bot", bot: { owner: { type: "workspace", workspace: true } } });
     return realFetch(input, init);
   });
-  const started = await home.web.post<{ authorizationUrl: string }>(`/api/settings/connectors/${service}/oauth/start`, {
-    client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id,
-    redirect_uri: `${home.origin}/api/feed/connectors/gmail/oauth/callback` });
-  const consent = new URL(started.authorizationUrl), redirect = consent.searchParams.get("redirect_uri")!;
+  // Gmail runs the generic flow (W5-11 slice 6): its requests leave by `sendPublicHttps`, and its registered callback is the service's alias.
+  if (service === "gmail") oauthNetwork(t, url => url === "https://oauth2.googleapis.com/token" ? Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", expires_in: 3600 })
+    : Response.json({ sub: "google-account", email: "work@example.test" }));
+  const started = service === "gmail"
+    ? await home.web.post<{ authorization_url: string }>("/api/settings/connectors/methods/oauth/start", { service_id: "gmail", client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id })
+    : await home.web.post<{ authorizationUrl: string }>("/api/settings/connectors/notion/oauth/start", { client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id,
+      redirect_uri: `${home.origin}/api/feed/connectors/gmail/oauth/callback` });
+  const consent = new URL("authorization_url" in started ? started.authorization_url : started.authorizationUrl), redirect = consent.searchParams.get("redirect_uri")!;
   hold(home.home, "latest");
   const response = await fetch(`${redirect}?state=${consent.searchParams.get("state")}&code=fixture-code`, { redirect: "manual" });
   assert.equal(response.headers.get("location"), `/capabilities/connections?setup=${prepared.authorization_id}`);
@@ -194,9 +198,16 @@ const fs=require('node:fs');
 if(process.argv.includes('notifications')){fs.appendFileSync(${JSON.stringify(calls)},'read\\n');process.stdout.write('[]');}
 else{fs.writeFileSync(${JSON.stringify(entered)},'entered');const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(barrier)})){clearInterval(timer);process.stdout.write(JSON.stringify({id:1,login:'intent-cli'}));}},20);}`, { mode: 0o755 });
   process.env.PATH = `${home.home}:${previousPath}`;
+  const diagnostic: { connecting: "pending" | "resolved" | "rejected"; http_status: number | null; code: string | null } =
+    { connecting: "pending", http_status: null, code: null };
   try {
     const request = await prepare(home, "github", "cli");
     const connecting = home.web.post<{ awaiting_intent: boolean }>("/api/settings/connectors/methods/cli/connect", { service_id: "github", display_name: "Intent account", setup_id: request.authorization_id });
+    // R-19: observe immediately, while the original promise still propagates its refusal at the await below.
+    void connecting.then(() => { diagnostic.connecting = "resolved"; }, error => {
+      diagnostic.connecting = "rejected";
+      if (isLocalHostHttpError(error)) { diagnostic.http_status = error.status; diagnostic.code = error.code ?? null; }
+    });
     for (let attempt = 0; attempt < 150 && !existsSync(entered); attempt++) await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal(existsSync(entered), true); hold(home.home, "keep-cli"); unlinkSync(barrier);
     assert.equal((await connecting).awaiting_intent, true);
@@ -207,6 +218,9 @@ else{fs.writeFileSync(${JSON.stringify(entered)},'entered');const timer=setInter
     await home.host.homeActionClient().invoke({ ...caller, permissions: [...caller.permissions, CONNECTOR_RECORDS_READ] }, connectorRecordActions.read, { connection_id: kept.connection_id });
     assert.equal(readFileSync(calls, "utf8"), "read\n");
     assert.equal(secret(home.home, request.authorization_id), null);
+  } catch (error) {
+    t.diagnostic(`R-19 connector-intent ${JSON.stringify({ ...diagnostic, entered: existsSync(entered) })}`);
+    throw error;
   } finally { if (existsSync(barrier)) unlinkSync(barrier); process.env.PATH = previousPath; }
 });
 
@@ -222,7 +236,7 @@ test("S-37 ASC-36: explicitly retaining a stopped work's setups commits only its
   const retain = () => retainConnectorSetupsForSession(home.home, caller.runtime_session_id!, caller.actor_id, (...args) => home.host.connectorMcp!.remember(...args));
   await retain();
   assert.equal((await read(home, mine.authorization_id)).status, "connected");
-  const pending = await read(home, other.authorization_id);
+  const pending = await read(home, other.authorization_id, otherOwner);
   assert.equal(pending.status, "pending"); assert.equal(pending.commit_held, true); assert.equal(pending.completion_ready, true);
   assert.equal((await read(home, cancelled.authorization_id)).status, "cancelled");
   assert.equal(withConnectorConnections(home.home, store => store.list().length), 1);

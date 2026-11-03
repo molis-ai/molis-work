@@ -45,7 +45,9 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   const KIND = { agent: "角色组成", instruction: "模型调用指令" };
   const LAYER = { base: "产品约束", role: "角色", project: "项目", task: "任务" };
   const EXECUTION = { "read-only": "只读", "text-edit": "可改文字", "workspace-write": "可改文件、运行命令", operate: "可调用业务能力" };
+  const signedVersion = (ref) => ref ? ref.source.plugin_id + " · " + ref.source.plugin_version + " · " + ref.source.publisher_signature : "";
   const sourceTitle = (source) => source.kind === "system" ? L("系统") + " · " + L(source.title) : L("插件") + " · " + L(source.title) + (source.plugin_version ? " " + source.plugin_version : "")
+    + (source.publisher_signature ? " · " + source.publisher_signature : "")
     + (source.origin === "generated" ? " · " + L("插件创作台生成") : "") + (source.state === "disabled" ? " · " + L("已停用，暂不会被调用") : "");
   const matches = (prompt) => {
     const role = focusedRole();
@@ -92,7 +94,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
       // The shipped text stays readable beside the person's, so a newer default can be compared and taken over by hand.
       const shipped = el("details", "prompt-default");
       shipped.open = prompt.default_updated;
-      shipped.append(el("summary", "", prompt.default_updated ? L("默认已更新到版本") + " " + prompt.default_version + " · " + L("查看新的默认") : L("查看默认文字")));
+      shipped.append(el("summary", "", prompt.default_updated ? L("默认已更新到版本") + " " + (prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version) + " · " + L("查看新的默认") : L("查看默认文字")));
       shipped.append(el("pre", "prompt-default-text", prompt.default_body));
       box.append(shipped);
     }
@@ -105,8 +107,8 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         const data = await api("/prompt?key=" + encodeURIComponent(prompt.key));
         const list = el("ul", "prompt-history-list");
         if (!data.history.length) list.append(el("li", "settings-muted", L("还没有修改过")));
-        data.history.forEach((row) => list.append(el("li", "", "#" + row.revision + " · " + (row.action === "reset" ? L("恢复默认") : L("保存")) + " · " + new Date(row.at).toLocaleString())));
-        if (data.uses.length) list.append(el("li", "settings-muted", L("最近一次使用") + "：" + new Date(data.uses[0].at).toLocaleString() + " · " + (data.uses[0].user_revision ? L("你的版本") + " #" + data.uses[0].user_revision : L("默认"))));
+        data.history.forEach((row) => list.append(el("li", "", "#" + row.revision + " · " + (row.action === "reset" ? L("恢复默认") : L("保存")) + " · " + new Date(row.at).toLocaleString() + (row.default_ref ? " · " + signedVersion(row.default_ref) : ""))));
+        if (data.uses.length) list.append(el("li", "settings-muted", L("最近一次使用") + "：" + new Date(data.uses[0].at).toLocaleString() + " · " + (data.uses[0].user_revision ? L("你的版本") + " #" + data.uses[0].user_revision : L("默认")) + (data.uses[0].source_ref ? " · " + signedVersion(data.uses[0].source_ref) : "")));
         history.append(list);
       } catch (failure) { history.append(problem(failure)); }
     });
@@ -121,7 +123,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     copy.append(el("strong", "", L(prompt.title)), el("span", "settings-muted", L(prompt.purpose)));
     const meta = el("div", "prompt-row-meta");
     meta.append(el("span", "prompt-tag", L(prompt.kind === "agent" && prompt.layer ? LAYER[prompt.layer] || prompt.layer : KIND[prompt.kind] || prompt.kind)),
-      el("span", "prompt-tag", L("版本") + " " + prompt.default_version), stateBadge(prompt));
+      el("span", "prompt-tag", L("版本") + " " + (prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version)), stateBadge(prompt));
     const edit = el("button", "mw-btn mw-btn--secondary mw-btn--sm", open === prompt.key ? L("收起") : L("查看与修改")); edit.type = "button";
     edit.setAttribute("aria-expanded", String(open === prompt.key));
     edit.addEventListener("click", () => { open = open === prompt.key ? null : prompt.key; paint(); });

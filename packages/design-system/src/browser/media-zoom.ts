@@ -1,4 +1,5 @@
-import { mediaAxis, type MediaZoom, type MediaZoomOptions, type MediaZoomState } from "../media-zoom.js";
+import type { MediaZoom, MediaZoomOptions, MediaZoomState } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { mediaAxis } from "../media-zoom.js";
 
 /**
  * Zoom about the point looked at, and bounded panning, for one image in a clipping viewport (specs/visual-ui-experience

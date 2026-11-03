@@ -5,10 +5,10 @@ import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-ho
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { commitDraftMaterial, commitMessageFrom, CODING_COMMIT_DRAFT, CODING_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-coding";
-import { draftText } from "@molis-ai/molis-work-app-local-host";
-import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
+import { commitDraftMaterial, commitMessageFrom, createCodingPlugin, CODING_COMMIT_DRAFT, CODING_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-coding";
+import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
+import { draftText, homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const run = (task: string, answer: string) => ({ turns: [{ turn_id: "u", kind: "user", text: task, at: null }, { turn_id: "a", kind: "assistant", text: answer, at: null }] }) as unknown as AgentRunView;
@@ -20,7 +20,7 @@ test("提交说明的材料：计划标题、每轮的要求与结论、实际�
     { number: 4, run: run("按计划执行", "改了 mentionedPaths"), change: change("src/mentions.ts", "a\nfilter(/[./]/)\nc\n", "a\nfilter(none)\nc\n") },
     { number: 9, run: run("只提到裸名字又读不到时不要留空标题", "加了 parts 为空时原样返回"), change: change("src/rejected.ts", "x\n", "y\n", "not-applied") },
   ] });
-  assert.match(material, /^这些改动服务的计划：让 @ 引用支持无扩展名文件/);
+  assert.match(material, /^提交说明用中文写。\n这些改动服务的计划：让 @ 引用支持无扩展名文件/, "without a page the draft is written in Chinese");
   assert.match(material, /### 第 4 轮\n要求：按计划执行\n结论：改了 mentionedPaths/);
   assert.match(material, /#### src\/mentions\.ts（修改，\+1 −1）\n.*- filter\(\/\[\.\/\]\/\)\n\+ filter\(none\)/s);
   assert.doesNotMatch(material, /rejected\.ts/, "a write that never landed is not described as a change");
@@ -29,12 +29,20 @@ test("提交说明的材料：计划标题、每轮的要求与结论、实际�
   assert.doesNotMatch(long, /### 第 1 轮\n/, "the oldest round goes first"); assert.match(long, /### 第 20 轮/);
   assert.equal(commitMessageFrom("```text\nfix: 标题\n\n- 要点\n```"), "fix: 标题\n\n- 要点");
   assert.match(CODING_COMMIT_DRAFT.body, /不编造/);
+  // VUX-40: in the English page the draft is asked for in English, and its frame reads in English too, even when the
+  // person's requests were written in Chinese.
+  const english = commitDraftMaterial({ planTitle: "Bare names in @", locale: "en", rounds: [
+    { number: 4, run: run("按计划执行", "改了 mentionedPaths"), change: change("src/mentions.ts", "a\n", "b\n") }] });
+  assert.match(english, /^Write the commit message in English\.\nThe plan these changes serve: Bare names in @\n\n### Round 4\nRequest: 按计划执行\nConclusion: 改了 mentionedPaths\nChanges:\n#### src\/mentions\.ts \(modified, \+1 −1\)/);
+  assert.doesNotMatch(english, /[轮要求结论改动修改]：|（/, "no Chinese frame words around the person's own text");
+  assert.match(CODING_COMMIT_DRAFT.body, /材料第一行指定的语言/);
 });
 
 test("packed SDK: drafts share their owning Runtime, have no tools and leave no draft workspace", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-draft-")); const bodies: any[] = [];
   const server = createServer(async (request, response) => {
-    let raw = ""; for await (const chunk of request) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     bodies.push(JSON.parse(raw));
     const events: string[] = [], emit = (type: string, value: unknown) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value as object })}\n\n`);
     emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 120, output_tokens: 0 } } });
@@ -48,9 +56,11 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.draft-test", appVersion: "1.0.0" }, storageRoot: join(home, "owner-runtime") });
   const options = { homeDirectory: home, env: { MOLIS_WORK_TEXT_API_KEY: "test-only", MOLIS_WORK_TEXT_BASE_URL: `http://127.0.0.1:${address.port}`,
     MOLIS_WORK_TEXT_API_FORMAT: "anthropic-messages", MOLIS_WORK_TEXT_MODEL: "fixture" }, resolveInference: async () => adapter.inference };
-  // A draft's instruction is always one its plugin registered: here Form's, so Coding's own prompts stay unused below.
+  // A draft's instruction is always one its plugin registered, while it runs (PG-051): here Form's, so Coding's own prompts stay unused below.
+  const running = (directory: string) => { for (const definition of [createFormPlugin(), createCodingPlugin()]) registerPluginAgentDefinitions({ directory, completeText: () => undefined, stores: homeStores() }, definition, `${definition.manifest.plugin_id}-install`); };
+  running(home);
   const fixturePlugin = "io.molis.work.form", fixturePrompt = "form.draft-questions";
-  const rules = agentDefinitionsFor(home, builtinRegistrations).prompt(`${fixturePlugin}/${fixturePrompt}`).default_body.split("\n")[0]!.slice(0, 20);
+  const rules = homeAgentDefinitions(home).prompt(`${fixturePlugin}/${fixturePrompt}`).default_body.split("\n")[0]!.slice(0, 20);
   const before = await readdir(home), refs: string[] = [];
   try {
     for (let index = 0; index < 2; index++) {
@@ -69,7 +79,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     await assert.rejects(draftText(options, { purpose: "p", prompt: fixturePrompt, material: "" }, { pluginId: fixturePlugin }), /为空或过长/);
     assert.equal(bodies.length, 2);
 
-    const definitions = agentDefinitionsFor(home, builtinRegistrations), pluginId = "io.molis.work.coding";
+    const definitions = homeAgentDefinitions(home), pluginId = "io.molis.work.coding";
     const named = { purpose: "整理材料", prompt: "coding.commit-draft", material: "UNTRUSTED_MATERIAL" };
     const key = `${pluginId}/${named.prompt}`;
     assert.equal(definitions.uses(key).length, 0);
@@ -99,9 +109,10 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
       assert.ok(JSON.stringify(bodies.at(-1).system).includes(edited));
       assert.doesNotMatch(JSON.stringify(bodies.at(-1).system), /UNTRUSTED_MATERIAL/);
       assert.match(JSON.stringify(bodies.at(-1).messages), /UNTRUSTED_MATERIAL/);
-      assert.deepEqual(definitions.uses(promptKey).map(use => [use.version, use.user_revision, use.caller]), [[1, 1, pluginId]]);
+      assert.deepEqual(definitions.uses(promptKey).map(use => [use.version, use.user_revision, use.caller]), [[prompt.version, 1, pluginId]]);
     }
     const otherHome = join(home, "another-home");
+    running(otherHome);
     await draftText({ ...options, homeDirectory: otherHome }, named, { pluginId });
     assert.ok(JSON.stringify(bodies.at(-1).system).includes(CODING_COMMIT_DRAFT.body.split("\n")[0]!));
     assert.doesNotMatch(JSON.stringify(bodies.at(-1).system), /User instructions/);

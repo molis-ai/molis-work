@@ -15,7 +15,7 @@
 //                      aliases (including assignment/destructuring/bind), call/apply. browser-programs.mjs expands named
 //                      SCRIPT/CLIENT declarations, inline HTML scripts, constant concatenations/joins and function ASTs
 //                      used by toString. Relative/workspace imports retain original source attribution. Typed browser
-//                      entry dependencies include Workbench terminal-client and Work's terminal subpath. Three exact
+//                      entry dependencies include Workbench terminal-client and its terminal modules. Three exact
 //                      transport roles in ui-host admit only one original call site per role, not a directory. Unknown
 //                      recognized program syntax is a failure, never zero. Workbench is absolutely zero, including update;
 //                      plugin and other browser sites are per-file ratchets. See browser-fetch.mjs and the CLI tests.
@@ -48,9 +48,8 @@
 //                       (JSON examples, shell and Rust files). Closing it needs a rule per file type, not a regex.
 //                       What the baseline keeps today (tooling/gates/baseline.json, oldNames): the key-derivation
 //                       salt `goalboard-feed-secretstore-v1` in packages/storage/src/adapters/file-secret-store.ts (its code
-//                       comment: changing the string would invalidate existing ciphertext), and two unused `_boardId` names in
-//                       plugins/native/goals/src (a destructuring rename in document-collection.ts, a parameter in
-//                       goal-tree-materialization-order.ts). Each stays in the baseline like any other count; it can only fall.
+//                       comment: changing the string would invalidate existing ciphertext). The two unused `_boardId` names that
+//                       plugins/native/goals/src once had are gone (W5-14). That count stays in the baseline like any other; it can only fall.
 import ts from "typescript";
 import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";
 

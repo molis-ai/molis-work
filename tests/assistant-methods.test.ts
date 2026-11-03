@@ -11,10 +11,9 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
+import { registerPluginAgentDefinitions } from "../apps/local-host/dist/plugin-instructions.js";
+import { homeAgentDefinitions, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
@@ -37,16 +36,19 @@ function reply(text = "好的。"): Response {
 
 const PAGES_METHOD = "io.molis.work.pages/meeting-notes";
 
-test("a method a Plugin offers for business work is declared with business tools only and registered with the Host by id and version", async () => {
+test("a method a Plugin offers for business work is declared with business tools only and registered with the Host by id and version while it runs", async () => {
   const declared = (methods: unknown[]) => manifestProblems(declarationManifest({ methods }));
   assert.equal(declared([{ skill_id: "notes", version: 1, name: "纪要", summary: "整理纪要", tools: ["read-capability"] }]), "");
+  // RAC-1757: the same refusal after the T-111 renames (SKILL_TOOLS, inspectSkillDeclarations).
   assert.match(declared([{ skill_id: "edit", version: 1, name: "改代码", summary: "改文件", tools: ["edit-file"] }]), /只能使用业务工具/);
   assert.match(declared([{ skill_id: "x", version: 1, name: "无说明", summary: "", tools: ["read-capability"] }]), /适用说明/);
   const home = await mkdtemp(join(tmpdir(), "assistant-methods-registry-"));
   try {
-    const registry = agentDefinitionsFor(home, builtinRegistrations);
+    const registry = homeAgentDefinitions(home);
+    assert.equal(registry.methods().find(method => method.key === PAGES_METHOD), undefined, "nothing of Pages' until it runs (PG-051)");
+    registerPluginAgentDefinitions({ directory: home, completeText: () => undefined, stores: homeStores() }, createPagesPlugin(), "pages-install");
     const listed = registry.methods().find(method => method.key === PAGES_METHOD);
-    assert.ok(listed, "Pages' method is registered with the Host");
+    assert.ok(listed, "Pages' method is registered with the Host, from its running definition");
     assert.equal(listed.source.kind, "plugin");
     assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 2]);
     // ADH-14: whether writing the page asks first is the Host's, by the action's effect; the method no longer stops for it.
@@ -76,20 +78,20 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);
-  const registry = agentDefinitionsFor(home, builtinRegistrations);
+  const registry = homeAgentDefinitions(home);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agentHost,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),
     scopeActions: async work => {
       const ref = work.project_ref;
       const scoped = ref ? local.actionClient(ref) : local.homeActionClient();
-      return { discover: async () => scoped.discover(await localWebActionContext(local, ref, LOCAL_OWNER_PERMISSIONS)),
-        invoke: async (action, input) => scoped.invoke(await localWebActionContext(local, ref, LOCAL_OWNER_PERMISSIONS), action, input) };
+      return { discover: async () => scoped.discover(await local.localPersonContext(ref)),
+        invoke: async (action, input) => scoped.invoke(await local.localPersonContext(ref), action, input) };
     },
     methods: { list: () => registry.methods(), read: (owner, skill, version) => registry.method(owner, skill, version) },
     projectTitle: async () => project.display_name, timeZone: "Asia/Shanghai" }, "web-user");
   try {
-    const methods = await service.methods(null, { project_ref: reference });
+    const methods = await service.reads.methods(null, { project_ref: reference });
     assert.ok(methods.some(method => method.method_id === PAGES_METHOD && method.plugin_title === "Pages"), JSON.stringify(methods));
 
     // Chosen with “/”: its registered steps go with this round, said as the person's choice.
@@ -110,9 +112,9 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     assert.ok(second.includes("input 是对象，例如") && second.includes("method_id"), "and exactly how to read one (its input is an object)");
 
     // Reading one, as the round's own read action does; one that is not offered here is refused with why.
-    const read = await service.readMethod(service.workRecord(sent.work.work_id), PAGES_METHOD);
+    const read = await service.reads.readMethod(service.reads.workRecord(sent.work.work_id), PAGES_METHOD);
     assert.match(read.body, /每条结论和待办后面用括号注明原文依据/);
-    await assert.rejects(service.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
+    await assert.rejects(service.reads.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
   } finally {
     service.continuations.close(); await adapter.close();
     await local.close();

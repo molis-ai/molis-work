@@ -4,17 +4,19 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
-import { withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
+import { withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PROJECT = "project-judgment-link";
 
 test("a judgment link hands content on only for the ticked results and records why a run stopped", { timeout: 120_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "workflows-judgment-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const dbPath = join(home, "project.db");
   seedDemoBoard(dbPath, PROJECT);
   const db = new LocalProjectDatabase(dbPath);

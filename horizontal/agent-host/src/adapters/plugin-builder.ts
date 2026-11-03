@@ -56,32 +56,25 @@ export function createRunRecordWriter(directory: string): (record: BuilderAgentR
     return next;
   };
 }
-const registeredSkills = new WeakMap<Runtime, Map<string, Skill>>();
-/** Dedicated Builder sessions on the Home Runtime; no global grants or Coding policy changes. */
-export async function createPluginBuilderAgent(options: PluginBuilderAgentOptions, bindings: PluginBuilderRuntimeBindings) {
-  const root = await realpath(options.buildRoot);
-  const storage = await mkdir(options.storageRoot, { recursive: true }).then(() => realpath(options.storageRoot));
-  const inside = relative(root, storage);
-  if (!inside || (!inside.startsWith('..') && !isAbsolute(inside))) throw new Error('Agent execution history must be outside its build directory');
-  const records = join(storage, 'builder-runs');
-  await mkdir(records, { recursive: true });
-  const save = createRunRecordWriter(records);
-  // A process crash cannot make an old claim of "running" into a success. Host checks resume the build.
+type ActiveRun = { request: BuilderAgentRequest; abort: AbortController; record: BuilderAgentRecord; sessionId?: string; stop?: () => void };
+type HookContext = Parameters<Parameters<Runtime['hooks']['register']>[0]['handler']>[0];
+
+/** A process crash cannot make an old claim of "running" into a success. Host checks resume the build. */
+async function interruptStaleRuns(records: string, save: (record: BuilderAgentRecord) => Promise<void>) {
   for (const name of await readdir(records)) if (/^[a-f0-9-]+\.json$/.test(name)) {
     const record = JSON.parse(await readFile(join(records, name), 'utf8')) as BuilderAgentRecord;
     if (record.phase === 'running') { record.phase = 'interrupted'; record.error = 'Host restarted during this run; inspect current files and run host checks before continuing'; await save(record); }
   }
-  let current: { request: BuilderAgentRequest; abort: AbortController; record: BuilderAgentRecord; sessionId?: string; stop?: () => void } | undefined;
-  let closing = false;
-  const sdk = bindings.runtime;
-  // Builds come and go, the Home Runtime stays: a Skill version is registered once per Runtime and reused by every build.
-  const skills = registeredSkills.get(sdk) ?? new Map<string, Skill>(); registeredSkills.set(sdk, skills);
-  /**
-   * The code role's authority, bound to the one session a run creates. Registered for that session only: a
-   * Runtime-wide hook would be asked about every other session on the Home Runtime (another build, Home chat,
-   * Coding) and could only answer "later", which defers — and so blocks — every tool call they make.
-   */
-  const authority = (sessionId: string) => ({ id: 'builder-frozen-authority-' + sessionId, event: 'tool-before' as const, blocking: true, forSession: sessionId, handler: async (context: Parameters<Parameters<Runtime['hooks']['register']>[0]['handler']>[0]) => {
+}
+
+/**
+ * The code role's authority, bound to the one session a run creates. Registered for that session only: a
+ * Runtime-wide hook would be asked about every other session on the Home Runtime (another build, Home chat,
+ * Coding) and could only answer "later", which defers — and so blocks — every tool call they make.
+ */
+function frozenAuthority(sessionId: string, active: () => ActiveRun | undefined) {
+  return { id: 'builder-frozen-authority-' + sessionId, event: 'tool-before' as const, blocking: true, forSession: sessionId, handler: async (context: HookContext) => {
+    const current = active();
     const denied = (why: string) => ({ kind: 'deny' as const, why });
     if (context.origin?.session !== sessionId) return denied('This hook only answers for its own build session');
     if (!current || current.abort.signal.aborted || current.request.role !== 'coder' || context.origin?.session !== current.sessionId)
@@ -96,7 +89,101 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
       // Native SDK tools also check root realpaths and use no-follow handles, including existing ancestors.
     }
     return { kind: 'allow' as const };
-  } });
+  } };
+}
+
+/** `plugin-checks` for the code role: only this run's operations, cancelled with the run, the tool's deadline or the call. */
+function pluginChecks(request: BuilderAgentRequest, abort: AbortController, checkLifetime: AbortController, activeChecks: Set<Promise<unknown>>, activity: (entry: BuilderAgentActivity) => void): ToolRunner {
+  return async call => {
+    abort.signal.throwIfAborted();
+    if (request.role !== 'coder' || !request.checks) throw new Error('plugin-checks is only available to this build code role');
+    const args = call.args as { operations?: unknown };
+    if (!args || Object.keys(args).some(key => key !== 'operations')) throw new Error('Unexpected plugin-checks argument');
+    const allowed = request.operationIds ?? [];
+    const ids = args.operations === undefined ? [...allowed] : args.operations;
+    if (!Array.isArray(ids) || !ids.length || ids.some(id => typeof id !== 'string' || !allowed.includes(id))) throw new Error('Checks may only target this run\'s operations');
+    const timeout = new AbortController();
+    const signal = AbortSignal.any([abort.signal, checkLifetime.signal, timeout.signal, ...(call.signal ? [call.signal] : [])]);
+    let work: Promise<unknown> | undefined;
+    const unsubscribeAbort = call.abort?.subscribe(async () => { timeout.abort(new Error('plugin-checks tool deadline reached')); await work?.catch(() => undefined); });
+    if (call.abort?.requested()) timeout.abort(new Error('plugin-checks was cancelled'));
+    try {
+      signal.throwIfAborted();
+      work = request.checks(ids, signal); activeChecks.add(work);
+      const result = await work;
+      signal.throwIfAborted();
+      const detail = JSON.stringify(result);
+      activity({ type: 'check', name: 'plugin-checks', detail });
+      return detail;
+    } finally { unsubscribeAbort?.(); if (work) activeChecks.delete(work); }
+  };
+}
+
+/** The standard this stage works to: an exact Skill version in Prologue's registry, inlined once, as Home mounts methods. */
+function mountSkills(sdk: Runtime, skills: Map<string, Skill>, request: BuilderAgentRequest) {
+  const mounted: string[] = [];
+  for (const definition of request.skills ?? []) {
+    const key = definition.id + '@' + definition.version;
+    let skill = skills.get(key);
+    if (skill && skill.manifest.body !== definition.body) throw new Error('Skill 同版本正文发生变化：' + key);
+    if (!skill) { skill = sdk.skills.register({ id: definition.id, version: definition.version, label: definition.name, shape: 'bounded', tools: [], body: definition.body, humanInvocable: false }); skills.set(key, skill); }
+    const available = request.role === 'coder' ? [...TOOLS] : [];
+    prepareSkillIntent({ registry: sdk.skills, skillRef: skill.ref, parameters: {}, mode: 'inline', parentTools: available, hostTools: available });
+    mounted.push('本阶段遵循的规范：' + definition.name + '（' + key + '）\n' + fillSkillBody({ body: skill.manifest.body!, parameters: {} }));
+  }
+  return mounted;
+}
+
+/** Interface screenshots go in as resources of this run: PNG only, within the round's budget; the files on disk are removed at once. */
+async function stageImages(sdk: Runtime, rootRef: Awaited<ReturnType<Runtime['workspace']['authorize']>>['ref'], root: string, record: BuilderAgentRecord, request: BuilderAgentRequest, images: ExactRef<'resource'>[]) {
+  if ((request.images?.length ?? 0) > 9 || (request.images ?? []).reduce((total, image) => total + image.bytes.length, 0) > 12 * 1024 * 1024) throw new Error('界面截图超过本轮图片预算');
+  for (const [index, image] of (request.images ?? []).entries()) {
+    if (image.bytes.length < 8 || [137,80,78,71,13,10,26,10].some((byte, index) => image.bytes[index] !== byte)) throw new Error('界面截图必须是 PNG');
+    const name = '.preview-' + record.id + '-' + index + '.png', path = join(root, name), intake = sdk.beginIntake(rootRef);
+    try {
+      await writeFile(path, image.bytes, { mode: 0o600, flag: 'wx' });
+      await intake.add(name, image.label.slice(0, 160));
+      images.push(...(await intake.publish()).map(resource => resource.ref));
+    } catch (error) { await intake.cancel(); throw error; }
+    finally { await rm(path, { force: true }); }
+  }
+}
+
+/** What a run's events add to its record: the text, tool results as activity, models and usage; a question it cannot ask stops it. */
+function recordEvents(record: BuilderAgentRecord, activity: (entry: BuilderAgentActivity) => void, stop: () => void) {
+  const calls = new Map<string, { name: string; path?: string }>();
+  return (event: Parameters<NonNullable<Parameters<typeof collectRun>[1]['onEvent']>>[0]) => {
+    if (event.type === 'text-delta') record.output += event.text;
+    if (event.type === 'tool-call') { const value = event.call as unknown as { id: string; name: string; input?: { path?: unknown } };
+      calls.set(value.id, { name: value.name, ...(typeof value.input?.path === 'string' ? { path: value.input.path } : {}) }); }
+    if (event.type === 'tool-result') { const call = calls.get(event.callId);
+      activity({ type: ['write', 'edit'].includes(event.name) ? 'file' : 'tool', name: event.name, detail: event.text,
+        ...(call?.path ? { path: call.path } : {}) }); }
+    if (event.type === 'model-reported' && !record.reportedModels.includes(event.model)) record.reportedModels.push(event.model);
+    if (event.type === 'usage-recorded') record.usage.push(event.receipt);
+    if (event.type === 'awaiting-approval' || event.type === 'awaiting-input') {
+      record.error = 'This build requested an unavailable tool or decision; the host must revise the task'; stop();
+    }
+  };
+}
+
+const registeredSkills = new WeakMap<Runtime, Map<string, Skill>>();
+/** Dedicated Builder sessions on the Home Runtime; no global grants or Coding policy changes. */
+export async function createPluginBuilderAgent(options: PluginBuilderAgentOptions, bindings: PluginBuilderRuntimeBindings) {
+  const root = await realpath(options.buildRoot);
+  const storage = await mkdir(options.storageRoot, { recursive: true }).then(() => realpath(options.storageRoot));
+  const inside = relative(root, storage);
+  if (!inside || (!inside.startsWith('..') && !isAbsolute(inside))) throw new Error('Agent execution history must be outside its build directory');
+  const records = join(storage, 'builder-runs');
+  await mkdir(records, { recursive: true });
+  const save = createRunRecordWriter(records);
+  await interruptStaleRuns(records, save);
+  let current: ActiveRun | undefined;
+  let closing = false;
+  const sdk = bindings.runtime;
+  // Builds come and go, the Home Runtime stays: a Skill version is registered once per Runtime and reused by every build.
+  const skills = registeredSkills.get(sdk) ?? new Map<string, Skill>(); registeredSkills.set(sdk, skills);
+  const authority = (sessionId: string) => frozenAuthority(sessionId, () => current);
   let activeDone: Promise<BuilderAgentRecord> | undefined;
   return {
     async run(request: BuilderAgentRequest): Promise<BuilderAgentRecord> {
@@ -137,60 +224,18 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           await save(record);
           if (request.signal?.aborted) cancel();
           abort.signal.throwIfAborted();
-          const checks: ToolRunner = async call => {
-            abort.signal.throwIfAborted();
-            if (request.role !== 'coder' || !request.checks) throw new Error('plugin-checks is only available to this build code role');
-            const args = call.args as { operations?: unknown };
-            if (!args || Object.keys(args).some(key => key !== 'operations')) throw new Error('Unexpected plugin-checks argument');
-            const allowed = request.operationIds ?? [];
-            const ids = args.operations === undefined ? [...allowed] : args.operations;
-            if (!Array.isArray(ids) || !ids.length || ids.some(id => typeof id !== 'string' || !allowed.includes(id))) throw new Error('Checks may only target this run\'s operations');
-            const timeout = new AbortController();
-            const signal = AbortSignal.any([abort.signal, checkLifetime.signal, timeout.signal, ...(call.signal ? [call.signal] : [])]);
-            let work: Promise<unknown> | undefined;
-            const unsubscribeAbort = call.abort?.subscribe(async () => { timeout.abort(new Error('plugin-checks tool deadline reached')); await work?.catch(() => undefined); });
-            if (call.abort?.requested()) timeout.abort(new Error('plugin-checks was cancelled'));
-            try {
-              signal.throwIfAborted();
-              work = request.checks(ids, signal); activeChecks.add(work);
-              const result = await work;
-              signal.throwIfAborted();
-              const detail = JSON.stringify(result);
-              activity({ type: 'check', name: 'plugin-checks', detail });
-              return detail;
-            } finally { unsubscribeAbort?.(); if (work) activeChecks.delete(work); }
-          };
+          const checks = pluginChecks(request, abort, checkLifetime, activeChecks, activity);
           const pack = checkPack();
           session = await sdk.sessions.create(request.role === 'coder' ? { pack, executors: { 'plugin-checks': checks } } : undefined);
           current!.sessionId = session.ref.id; record.sessionId = session.ref.id;
           sdk.hooks.register(authority(session.ref.id)); hooked = session.ref.id;
           const authorized = await sdk.workspace.authorize({ path: root });
           const credentialRef = await bindings.credentialRefFor(model.credential_ref);
-          // The standard this stage works to: an exact Skill version in Prologue's registry, inlined once, as Home mounts methods.
-          const mounted: string[] = [];
-          for (const definition of request.skills ?? []) {
-            const key = definition.id + '@' + definition.version;
-            let skill = skills.get(key);
-            if (skill && skill.manifest.body !== definition.body) throw new Error('Skill 同版本正文发生变化：' + key);
-            if (!skill) { skill = sdk.skills.register({ id: definition.id, version: definition.version, label: definition.name, shape: 'bounded', tools: [], body: definition.body, humanInvocable: false }); skills.set(key, skill); }
-            const available = request.role === 'coder' ? [...TOOLS] : [];
-            prepareSkillIntent({ registry: sdk.skills, skillRef: skill.ref, parameters: {}, mode: 'inline', parentTools: available, hostTools: available });
-            mounted.push('本阶段遵循的规范：' + definition.name + '（' + key + '）\n' + fillSkillBody({ body: skill.manifest.body!, parameters: {} }));
-          }
+          const mounted = mountSkills(sdk, skills, request);
           const bytes = new TextEncoder().encode([request.instruction, ...mounted].join('\n\n'));
           const stage = sdk.resources.stage({ mediaKind: 'text', byteLength: bytes.length, label: request.promptVersion });
           stage.write(bytes); const instructions = await stage.publishDurable();
-          if ((request.images?.length ?? 0) > 9 || (request.images ?? []).reduce((total, image) => total + image.bytes.length, 0) > 12 * 1024 * 1024) throw new Error('界面截图超过本轮图片预算');
-          for (const [index, image] of (request.images ?? []).entries()) {
-            if (image.bytes.length < 8 || [137,80,78,71,13,10,26,10].some((byte, index) => image.bytes[index] !== byte)) throw new Error('界面截图必须是 PNG');
-            const name = '.preview-' + record.id + '-' + index + '.png', path = join(root, name), intake = sdk.beginIntake(authorized.ref);
-            try {
-              await writeFile(path, image.bytes, { mode: 0o600, flag: 'wx' });
-              await intake.add(name, image.label.slice(0, 160));
-              images.push(...(await intake.publish()).map(resource => resource.ref));
-            } catch (error) { await intake.cancel(); throw error; }
-            finally { await rm(path, { force: true }); }
-          }
+          await stageImages(sdk, authorized.ref, root, record, request, images);
           const tools = request.role === 'coder' ? [...TOOLS] : [];
           const character = sdk.characters.publish(sdk.characters.create({ id: 'builder-' + record.id, version: 1,
             name: request.role === 'coder' ? 'Plugin Code Agent' : 'Plugin Designer', role: 'builder-' + request.role,
@@ -205,21 +250,8 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
               characterRef: character.ref, toolNames: tools, budget: { maxTurns: request.role === 'coder' ? 30 : 1, maxWallClockMs: options.timeoutMs ?? 600_000 } } });
           record.runId = started.run.ref.id;
           stop = () => started.control.stop('cancelled'); current!.stop = stop;
-          const calls = new Map<string, { name: string; path?: string }>();
           const terminal = collectRun(started.run, { signal: abort.signal, maxTextChars: 180_000, maxEvents: 100_000,
-            onEvent: event => {
-              if (event.type === 'text-delta') record.output += event.text;
-              if (event.type === 'tool-call') { const value = event.call as unknown as { id: string; name: string; input?: { path?: unknown } };
-                calls.set(value.id, { name: value.name, ...(typeof value.input?.path === 'string' ? { path: value.input.path } : {}) }); }
-              if (event.type === 'tool-result') { const call = calls.get(event.callId);
-                activity({ type: ['write', 'edit'].includes(event.name) ? 'file' : 'tool', name: event.name, detail: event.text,
-                  ...(call?.path ? { path: call.path } : {}) }); }
-              if (event.type === 'model-reported' && !record.reportedModels.includes(event.model)) record.reportedModels.push(event.model);
-              if (event.type === 'usage-recorded') record.usage.push(event.receipt);
-              if (event.type === 'awaiting-approval' || event.type === 'awaiting-input') {
-                record.error = 'This build requested an unavailable tool or decision; the host must revise the task'; stop?.();
-              }
-            },
+            onEvent: recordEvents(record, activity, () => stop?.()),
           });
           // Persistence can await while the collector terminates; keep its rejection handled until the join below.
           void terminal.catch(() => {});

@@ -12,6 +12,7 @@ import { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginProje
 import { assertContract, createSandboxRunner, sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
 
 // S-46, the per-statement half (PLIB-06, PLIB-08; specs/plugin-project-database §2.4): a plugin given `services.project_database`
 // reaches its own tables in the project's library and nothing else. Every statement is read through `EXPLAIN` before it runs and
@@ -43,8 +44,8 @@ const notes = () => probe("libprobe", `
   CREATE TABLE libprobe_tags (id INTEGER PRIMARY KEY, note_id INTEGER NOT NULL REFERENCES libprobe_notes(id) ON DELETE CASCADE, tag TEXT NOT NULL);`);
 const items = () => probe("libother", "CREATE TABLE libother_items (id INTEGER PRIMARY KEY, text TEXT NOT NULL);");
 
-/** The project platform the Host builds over a project's library file, with both probes started. */
-async function platform(t: TestContext) {
+/** The project platform the Host builds over a project's library file, with both probes started; `sandbox` makes the first one a plugin the Host runs outside its own process. */
+async function platform(t: TestContext, sandbox = false) {
   const directory = mkdtempSync(join(tmpdir(), "plugin-project-library-")), file = join(directory, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
@@ -60,12 +61,14 @@ async function platform(t: TestContext) {
     } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
   });
   const mine = notes(), other = items();
-  assert.deepEqual((await running.start([{ definition: mine.definition, bundled: true }, { definition: other.definition, bundled: true }])).running.toSorted(),
-    [mine.id, other.id].toSorted());
+  const grants = ["storage:private", mine.declaration.read_permission, mine.declaration.write_permission];
+  const starting = sandbox ? { definition: { ...mine.definition, execution: "sandbox" as const }, grants } : { definition: mine.definition, trust: { level: "host" } as const };
+  assert.deepEqual((await running.start([starting, { definition: other.definition, trust: { level: "host" } }])).running.toSorted(), [mine.id, other.id].toSorted());
   const database = (plugin: Probe): PluginDatabase => plugin.services().project_database ?? assert.fail(`${plugin.id} was given no services.project_database`);
+  const statements = (plugin: Probe) => plugin.services().project_statements ?? assert.fail(`${plugin.id} was given no services.project_statements`);
   const count = (table: string) => Number((store.db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n);
   const installId = (plugin: Probe) => running.runtime.list().find(record => record.plugin_id === plugin.id)!.install_id;
-  return { store, file, running, mine, other, database, count, installId };
+  return { store, file, running, mine, other, database, statements, count, installId };
 }
 
 const write = (database: PluginDatabase, sql: string, parameters: Array<string | number | null> = []) =>
@@ -273,8 +276,9 @@ test("PLIB-06 a stopped plugin's client is refused, the same after it starts aga
   await running.runtime.stop(installId(mine));
   for (const phase of ["stopped", "restarted"] as const) {
     if (phase === "restarted") await running.runtime.start(installId(mine));
-    assert.throws(() => old.all("SELECT * FROM libprobe_notes"), { code: "actions.plugin_unavailable" }, phase);
-    await assert.rejects(write(old, "INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)", [DEMO_PROJECT_ID, phase]), { code: "actions.plugin_unavailable" }, phase);
+    // BL-411: outside every call the stopped activation's client is refused and does nothing: a read gives nothing, a write never settles.
+    assert.equal(old.all("SELECT * FROM libprobe_notes"), undefined, phase);
+    assert.equal(await within(write(old, "INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)", [DEMO_PROJECT_ID, phase])), PENDING, phase);
   }
   assert.equal(count("libprobe_notes"), 0);
   await write(database(mine), "INSERT INTO libprobe_notes (project_id, text) VALUES (?, ?)", [DEMO_PROJECT_ID, "这一次的"]);
@@ -305,7 +309,7 @@ test("PLIB-06 the check reads the library's tables again once the schema changes
 
 test("PLIB-08 one SQLite library per file: reads go through a read-only connection of the Host's SQLite, writes through the Host's own connection", async t => {
   const { store, file, mine, database } = await platform(t);
-  const library = openPluginProjectLibrary({ db: store.db, path: file }, mine.definition.manifest, () => {}, "plib-08");
+  const library = openPluginProjectLibrary({ db: store.db, path: file }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" });
   try {
     assert.equal(library.reader.constructor, store.db.constructor, "the reader is the Host's SQLite library, not node:sqlite");
     assert.equal(library.reader instanceof DatabaseSync, false);
@@ -319,7 +323,7 @@ test("PLIB-08 one SQLite library per file: reads go through a read-only connecti
     inside = store.db.inTransaction;
   });
   assert.equal(inside, true, "the write ran in a transaction on the Host's own connection");
-  assert.throws(() => openPluginProjectLibrary({ db: store.db, path: ":memory:" }, mine.definition.manifest, () => {}, "plib-08"), /不是文件/u);
+  assert.throws(() => openPluginProjectLibrary({ db: store.db, path: ":memory:" }, mine.definition.manifest, () => {}, { install_id: "plib-08", installation_generation: "1" }), /不是文件/u);
 });
 
 /** One operation of the sandboxed stand-in: it takes its call as JSON text and answers with what it got back, or the code it was refused with. */
@@ -328,7 +332,8 @@ const sandboxed = (id: string, kind: "query" | "command", effects: SandboxEffect
   examples: [{ input: "[]", outputIncludes: {} }] });
 
 test("PLIB-10 S-46 a sandboxed plugin reaches its own tables through the broker, under the same check as in the Host's process; a refused transaction writes none of its statements", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
-  const { file, mine, database, count, installId } = await platform(t);
+  const { file, mine, statements, count, installId } = await platform(t, true);
+  assert.equal(mine.services().project_database, undefined, "a plugin the Host runs outside its own process gets no client that runs on the Host's thread");
   const bundlePath = join(dirname(file), "sandboxed.mjs");
   writeFileSync(bundlePath, `const attempt=async work=>{try{return {value:JSON.stringify(await work())}}catch(error){return {refused:String(error.code)}}};
     export const operations={
@@ -340,7 +345,7 @@ test("PLIB-10 S-46 a sandboxed plugin reaches its own tables through the broker,
   const contract: SandboxPluginContract = { version: 1, pluginId: mine.id, revision: "one", entities: [], pages: [], acceptance: [], operations: [
     sandboxed("write", "command", { projectDatabase: ["write"] }), sandboxed("all", "query", { projectDatabase: ["read"] }),
     sandboxed("get", "query", { projectDatabase: ["read"] }), sandboxed("undeclared", "query", {})] };
-  const start = (grants: SandboxEffects) => createSandboxRunner({ bundlePath, contract, grants, services: { projectDatabase: sandboxDatabase(database(mine)) },
+  const start = (grants: SandboxEffects) => createSandboxRunner({ bundlePath, contract, grants, services: { projectDatabase: sandboxDatabase(statements(mine)) },
     identity: { projectId: DEMO_PROJECT_ID, installationId: installId(mine), pluginId: mine.id, namespace: "installed" } });
   const runner = await start({ projectDatabase: ["read", "write"] }), readOnly = await start({ projectDatabase: ["read"] });
   const call = async (operation: string, input: unknown, on = runner) => await on.call(operation, JSON.stringify(input)) as { value?: string; refused?: string };

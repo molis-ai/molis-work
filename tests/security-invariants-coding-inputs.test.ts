@@ -10,7 +10,7 @@ const data=<T>(result:Awaited<ReturnType<Fixture['call']>>):T=>{assert.equal(res
 const configuration={intent:'discuss',workspace_id:'work',provider_id:'fixture',model_id:'fixture'};
 type Saved={draft:string;question_drafts:Record<string,unknown>;input_revision:number;configuration:unknown};
 
-// S-65, PCS-S6: the normal Action/HTTP path refuses missing or old premises before changing other preferences.
+// S-117, PCS-S6: the normal Action/HTTP path refuses missing or old premises before changing other preferences.
 test('Coding input edits require the original revision and preserve independent settings on refusal',async t=>{
  const fixture=await codingSdkRuntime(t);await fixture.create('A');
  const url='/sessions/A',questions={question:{answers:[{question:1,indexes:[2]}]}};
@@ -37,7 +37,7 @@ test('Coding input edits require the original revision and preserve independent 
  const empty=data<Saved>(await fixture.call(url));assert.equal(empty.draft,'');assert.deepEqual(empty.question_drafts,questions);
 });
 
-// S-65, PCS-S6: use a real Runtime/SDK and local HTTP model. Only the accepted handle receipt is held back.
+// S-117, PCS-S6: use a real Runtime/SDK and local HTTP model. Only the accepted handle receipt is held back.
 for(const concurrentEdit of [false,true])test(`an accepted Coding Run clears only its original saved input (later typing: ${concurrentEdit})`,{timeout:30000},async t=>{
  let requests=0;const modelRequest=Promise.withResolvers<void>();
  const server=createServer((_request,response)=>{

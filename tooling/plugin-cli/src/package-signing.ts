@@ -1,4 +1,4 @@
-import { createPrivateKey, sign } from "node:crypto";
+import { createPrivateKey, createPublicKey, sign } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pluginPublisherIdentity, signPluginPackage, verifyPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
 import { readPluginPackageFile, writePluginPackageFile } from "./package-files.js";
@@ -13,6 +13,7 @@ export async function signPluginPackageFile(input: string, privateKeyFile: strin
   const privateKey = createPrivateKey(await readFile(privateKeyFile));
   const signed = signPluginPackage(bundle, {
     publisher_identity: pluginPublisherIdentity(privateKey),
+    public_key_spki_base64: createPublicKey(privateKey).export({ type: "spki", format: "der" }).toString("base64"),
     sign: payload => sign(null, payload, privateKey),
   });
   await writePluginPackageFile(output, signed);

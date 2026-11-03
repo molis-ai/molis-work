@@ -3,6 +3,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
     const inboxDirectory = document.querySelector("[data-inbox-directory]");
     const inboxList = document.querySelector("[data-inbox-list]");
     const inboxWorkbench = document.querySelector("[data-inbox-workbench]");
+    const inboxApi = "/api/plugins/io.molis.work.inbox";
 
     // Internal source links stay in the workbench; editor links otherwise open a browser window.
     document.addEventListener("click", event => {
@@ -91,7 +92,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
         const selectedId = list?.querySelector("[data-inbox-row].is-selected")?.dataset.inboxEntryId || "";
         const selectedGroup = list?.querySelector("[data-inbox-row].is-selected")?.closest("[data-inbox-stage-group]")?.dataset.inboxStageGroup;
         const filter = inboxDirectory?.dataset.inboxCurrentFilter || "active";
-        const html = await molisWorkRequest(route("/api/inbox/workbench"), {as:"text",fallback:L("无法更新 Inbox 列表")});
+        const html = await molisWorkRequest(route("/api/stage/inbox"), {as:"text",fallback:L("无法更新 Inbox 列表")});
         const template = document.createElement("template");template.innerHTML=html.trim();
         if (seq !== inboxStageRefreshSeq) return false;
         const nextList = template.content.querySelector("[data-inbox-list]");
@@ -143,7 +144,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       const section = inboxWorkbench?.querySelector('[data-inbox-entry-results="' + CSS.escape(entryId) + '"]');
       if (!section) return;
       try {
-        const payload = await api("/api/inbox/pages", "GET");
+        const payload = await api(inboxApi + "/pages", "GET");
         if (!section.isConnected) return;
         section.replaceChildren();
         const results = (payload.results || []).filter(result => result.entry_ids.includes(entryId));
@@ -163,7 +164,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
     const refreshComposeResults = async () => {
       const results = composeDialog?.querySelector("[data-inbox-compose-results]");
       if (!results) return;
-      const payload = await api("/api/inbox/pages", "GET");
+      const payload = await api(inboxApi + "/pages", "GET");
       results.replaceChildren();
       for (const result of (payload.results || []).slice(0, 12)) {
         const row = document.createElement("div"); row.className = "inbox-compose-result";
@@ -227,7 +228,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
         try {
           const ids = evaluate.dataset.inboxEvaluate ? [evaluate.dataset.inboxEvaluate]
             : [...inboxList.querySelectorAll('[data-inbox-row][data-inbox-status="open"], [data-inbox-row][data-inbox-status="in_progress"]')].slice(0, 20).map(row => row.dataset.inboxEntryId);
-          const result = await api("/api/inbox/judgment/evaluate", "POST", { entry_ids: ids });
+          const result = await api(inboxApi + "/judgment/evaluate", "POST", { entry_ids: ids });
           await refreshInboxStage();
           const nextStatus = inboxList?.querySelector("[data-inbox-evaluate-status]");
           if (nextStatus) { nextStatus.closest("details").open = true; nextStatus.textContent = (result.judgments || []).some(j => j.outcome === "needs_review")
@@ -267,7 +268,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       if (runningResult) runningResult.textContent = composeDraft.title + " · " + L("正在处理");
       status.textContent = L("正在整理材料，完成后可在 Pages 中继续编辑…");
       try {
-        const result = await api("/api/inbox/pages", "POST", composeDraft);
+        const result = await api(inboxApi + "/pages", "POST", composeDraft);
         status.textContent = L("文稿已保存到 Pages；原事项仍待你确认处理结果。");
         await refreshComposeResults();
         if (composeDialog.open) openComposedPage(result.document.id, result.document.title);

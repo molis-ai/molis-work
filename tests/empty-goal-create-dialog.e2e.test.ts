@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 function seedEmptyBoard(databasePath: string, projectId = ""): void {
   const store = new LocalProjectDatabase(databasePath);
@@ -44,10 +45,10 @@ test("EGCD-01 EGCD-02 EGCD-03 empty Goals opens the create dialog, a closed dial
   const dialogOpen = "document.querySelector('[data-create-dialog]')?.open === true && document.activeElement?.name === 'title'";
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor(dialogOpen);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goal");
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goals");
 
   await click("[data-create-dialog] [data-close-create]");
-  await waitFor("document.querySelector('[data-create-dialog]')?.open === false && document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.querySelector('[data-create-dialog]')?.open === false && document.body.dataset.desktopSurface === 'goals'");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("document.querySelector('[data-create-dialog]').open"), false, "closing the dialog stays on Goals");
 
@@ -58,13 +59,13 @@ test("EGCD-01 EGCD-02 EGCD-03 empty Goals opens the create dialog, a closed dial
 
   await click("[data-create-dialog] [data-close-create]");
   await waitFor("document.querySelector('[data-create-dialog]')?.open === false");
-  await post(origin, `/projects/${projectId}/api/goals`, {
+  await post(origin, `/projects/${projectId}/api/plugins/io.molis.work.goals/goals`, {
     title: "已经有一条", idempotency_key: "empty-goal-create-existing",
   }, "empty-goal-create-existing");
   await navigate(() => command("Page.navigate", { url: home }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.body.textContent.includes('已经有一条')");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.body.textContent.includes('已经有一条')");
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("document.querySelector('[data-create-dialog]').open"), false, "a Goal already in the list does not open the dialog");
 });

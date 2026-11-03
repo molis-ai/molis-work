@@ -12,7 +12,7 @@ export function validateIssueImages(images: IssueImage[]): void {
   if (!Array.isArray(images) || images.length > ISSUE_IMAGE_LIMIT) invalid("每条问题最多添加 6 张图片");
   let total = 0;
   for (const image of images) {
-    if (!image || typeof image.name !== "string" || !image.name.trim() || image.name.length > 200
+    if (!image || typeof image.name !== "string" || !image.name.trim() || [...image.name].length > 200
       || Object.keys(image).some(key => key !== "name" && key !== "data_url")
       || typeof image.data_url !== "string" || image.data_url.length > Math.ceil(ISSUE_IMAGE_BYTES / 3) * 4 + 32) invalid("图片名称或大小不正确，单张最多 2 MiB");
     const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/u.exec(image.data_url);

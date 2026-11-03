@@ -1,14 +1,13 @@
-import { GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { FRAME_CONTAINER_FACTORY_SCRIPT } from "./frame-container.js";
 import { TAB_WORKSPACE_FACTORY_SCRIPT } from "./tab-workspace.js";
-import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { pluginPageClients } from "../../plugin-workbench.js";
+
+const GOALS_PAGE = pluginPageClients("goals");
 /** AP3 Workbench client segment: editing-graph. */
 export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const { updateRelationPreviews, updateAllRelationFormPreviews, handleGoalRelationChange,
-      handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_RELATION_CLIENT_FACTORY_SCRIPT})({
-        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: L,
+      handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_PAGE.goalsRelation})({
+        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"),
         refreshBoard: (...args) => refreshBoard(...args),
         requireFormFacts: (...args) => requireFormFacts(...args),
         requireDecisionText: (...args) => requireDecisionText(...args),
@@ -37,8 +36,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     const showToast = (message,error=false) => {molisWorkRequest.toast(toast,typeof message==="string"?undefined:message,typeof message==="string"?message:undefined,{ms:2200});toast.dataset.mwState=error?"failed":"done";toast.classList.toggle("is-error",error);};
 
-    const { handleGoalPolicySubmit } = (${GOALS_POLICY_CLIENT_FACTORY_SCRIPT})({
-      route, controlHeaders: molisWorkControlHeaders, translate: L, requireFormFacts, showToast,
+    const { handleGoalPolicySubmit } = (${GOALS_PAGE.goalsPolicy})({
+      route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"), requireFormFacts, showToast,
       refreshBoard: (...args) => refreshBoard(...args),
       showFactorReceipt: (...args) => showFactorReceipt(...args),
       humanDecisionError: (...args) => humanDecisionError(...args),
@@ -48,15 +47,15 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const goalPageUrl = (goalId) => goalPageBase() + encodeURIComponent(goalId) + (document.body.dataset.nativeDesktop === "true" ? "?desktop=1" : "");
 
     const { readCreateDraft, refreshCreateChoices, openCreate, handleGoalDialogClick, handleGoalTrashSubmit,
-      bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT})({
+      bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_PAGE.goalsDialogs})({
         dialog, form, route, controlHeaders: molisWorkControlHeaders,
         refreshBoard: (...args) => refreshBoard(...args), updateRelationPreviews,
-        currentLocale: () => document.documentElement.lang, translate: L,
+        currentLocale: () => document.documentElement.lang, translate: LFor("io.molis.work.goals"),
         clearCollectionUiState: () => sessionStorage.removeItem(storageKey),
         clearCurrentGoalUiState: () => sessionStorage.removeItem(currentGoalUiStorageKey),
         navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
       });
-    const { handleGoalLifecycleClick } = (${GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT})({
+    const { handleGoalLifecycleClick } = (${GOALS_PAGE.goalsLifecycle})({
       route, controlHeaders: molisWorkControlHeaders, refreshBoard: (...args) => refreshBoard(...args),
       showToast, navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
     });
@@ -106,8 +105,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const { graphElement, loadGoalGraph, syncGoalWorkspace, updateGraphVisibility, readMomentumState,
       restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
       locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
-      (${GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT})({
-        workspace, documentCollection, route, translate: L,
+      (${GOALS_PAGE.goalsMomentum})({
+        workspace, documentCollection, route, translate: LFor("io.molis.work.goals"),
         projectId: state.project?.project_id || state.snapshot.board.project_id,
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),
@@ -130,7 +129,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       workspace.dataset.navigatorView = navigatorView;
       workspace.dataset.workspaceMode = nextMode;
       workspace.classList.toggle("is-graph-view", nextMode === "graph");
-      const canvasActive = Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goal";
+      const canvasActive = Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goals";
       if (canvasActive) {
         documentPane.hidden = false;
         if (tuiPane) tuiPane.hidden = false;
@@ -220,13 +219,5 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     }
     /** The desktop shell's entries (Shelf's hotkey, the menu bar) name a plugin; the tab workspace decides where it opens. */
     globalThis.molisWorkOpenPlugin = tabWorkspace?.openPlugin;
-    document.addEventListener("click", (event) => {
-      if (frameContainer?.isFrameTabActive()) return;
-      const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
-      const select = target?.closest("[data-operation-select]");
-      const directory = select?.closest("[data-operation-directory]");
-      if (!select || !directory) return;
-      openDirectorySurface(directory.dataset.operationDirectory, select.dataset.operationSelect, select.getAttribute("data-frame-asset-title"), event);
-    }, true);
 
 `;

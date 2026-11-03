@@ -1,36 +1,6 @@
 /// <reference lib="dom" />
+import type { InteractionValues, InteractionPicked, InteractionClientHost, InteractionClient } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 
-/** What a questionnaire holds, read from its controls by their `data-ix-*` hooks. */
-export interface InteractionValues {
-  /** `choice`: the picked option values; `other` is the free "other" text if the field has that slot. */
-  /** `reference`: the picked objects, each as the caller named it (`value`) and the label it was offered with. */
-  [fieldId: string]: string | string[] | { picked: string[]; other?: string } | { date: string; time: string } | InteractionPicked[];
-}
-export interface InteractionPicked { value: string; label: string }
-export interface InteractionClientHost {
-  /** The person changed something. A composition (Chinese input) reports once, when it ends. */
-  onChange?(change: { field: string; part?: string; value: InteractionValues[string] }): void;
-  /** A `data-ix-action` button was pressed. */
-  onAction?(id: string, button: HTMLButtonElement): void;
-  /** The form was submitted: its submit button, or ⌘/Ctrl+Enter. Never plain Enter in a single-line field. */
-  onSubmit?(): void;
-  /** The "next step" button beside a composer was pressed. */
-  onStep?(index: number, button: HTMLButtonElement): void;
-  /** Objects a reference field may take whose names match what the person typed; `source` is the field's own, untouched. */
-  references?(source: string, query: string): Promise<{ items: Array<{ value: string; label: string; meta?: string }> }>;
-}
-export interface InteractionClient {
-  /** True while a composition is in progress inside the card. */
-  readonly composing: boolean;
-  /** Every field's current value. */
-  read(): InteractionValues;
-  /** Write values the person is not editing: a focused control, and one in the middle of a composition, are left alone. */
-  write(values: InteractionValues): void;
-  /** Show per-field errors (`{ fieldId: text }`); every other field's error clears. Focuses the first when asked. */
-  showErrors(errors: Record<string, string>, options?: { focus?: boolean }): void;
-  focusField(fieldId: string): void;
-  destroy(): void;
-}
 
 /* The client is three self-contained functions (no imports, no module state), so a plugin's browser factory can embed
  * them as strings (INTERACTION_CLIENT_SCRIPT) the way the other design-system clients are; each stays under the

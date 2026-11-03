@@ -1,0 +1,268 @@
+{
+ "globalOnly": [
+  {
+   "runtime": "codex",
+   "label": "Codex",
+   "root": "~/.codex",
+   "project": null,
+   "rules": [
+    "global ~/.codex/AGENTS.override.md"
+   ],
+   "skills": [
+    "codex:~/.codex/skills/a portable",
+    "codex:~/.agents/skills/nested/deeper portable",
+    "codex:~/.agents/skills/shared portable"
+   ],
+   "warnings": [
+    "未找到已确认的 Codex 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  },
+  {
+   "runtime": "claude-code",
+   "label": "Claude Code",
+   "root": "~/.claude",
+   "project": null,
+   "rules": [
+    "global ~/.claude/CLAUDE.md",
+    "global ~/.claude/rules/one.md",
+    "global ~/.claude/rules/sub/two.md"
+   ],
+   "skills": [
+    "claude-code:~/.claude/skills/c portable"
+   ],
+   "warnings": [
+    "~/.claude/rules/.env：排除凭据、历史、依赖或生成目录",
+    "未找到已确认的 Claude Code 命令；可以导入配置，原生执行暂不可用。"
+   ]
+  },
+  {
+   "runtime": "cursor",
+   "label": "Cursor",
+   "root": "~/.cursor",
+   "project": null,
+   "rules": [
+    "global ~/.cursor/AGENTS.md"
+   ],
+   "skills": [
+    "cursor:~/.cursor/skills/cu portable",
+    "cursor:~/.agents/skills/nested/deeper portable",
+    "cursor:~/.agents/skills/shared portable"
+   ],
+   "warnings": [
+    "Cursor 的全局 User Rules 位于编辑器设置；没有稳定文件协议，本次未读取该设置。仅扫描显式规则文件与 Skills。",
+    "未找到已确认的 Cursor 命令；可以导入配置，原生执行暂不可用。"
+   ]
+  },
+  {
+   "runtime": "opencode",
+   "label": "OpenCode",
+   "root": "~/.config/opencode",
+   "project": null,
+   "rules": [
+    "global ~/.claude/CLAUDE.md"
+   ],
+   "skills": [
+    "opencode:~/.config/opencode/skills/o portable",
+    "opencode:~/.agents/skills/nested/deeper portable",
+    "opencode:~/.agents/skills/shared portable",
+    "opencode:~/.claude/skills/c portable"
+   ],
+   "warnings": [
+    "未找到已确认的 OpenCode 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  },
+  {
+   "runtime": "grok-build",
+   "label": "Grok Build",
+   "root": "~/.grok",
+   "project": null,
+   "rules": [
+    "global ~/.grok/GROK.md",
+    "global ~/.grok/AGENTS.md",
+    "global ~/.grok/Agents.md",
+    "global ~/.grok/rules/g.md"
+   ],
+   "skills": [
+    "grok-build:~/.grok/skills/g portable"
+   ],
+   "warnings": [
+    "未找到已确认的 Grok Build 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  }
+ ],
+ "withProject": [
+  {
+   "runtime": "codex",
+   "label": "Codex",
+   "root": "~/.codex",
+   "project": "~/project",
+   "rules": [
+    "global ~/.codex/AGENTS.override.md",
+    "project ~/project/AGENTS.md"
+   ],
+   "skills": [
+    "codex:~/.codex/skills/a portable",
+    "codex:~/.agents/skills/nested/deeper portable",
+    "codex:~/.agents/skills/shared portable",
+    "codex:~/project/.agents/skills/agents portable",
+    "codex:~/project/.codex/skills/codex portable"
+   ],
+   "warnings": [
+    "项目导入只读取所选根目录和固定规则/Skills 目录；父目录及其他子目录的指令未扫描，使用时仍须核对工作目录范围。",
+    "未找到已确认的 Codex 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  },
+  {
+   "runtime": "claude-code",
+   "label": "Claude Code",
+   "root": "~/.claude",
+   "project": "~/project",
+   "rules": [
+    "global ~/.claude/CLAUDE.md",
+    "global ~/.claude/rules/one.md",
+    "global ~/.claude/rules/sub/two.md",
+    "project ~/project/CLAUDE.md",
+    "project ~/project/.claude/CLAUDE.md",
+    "project ~/project/CLAUDE.local.md",
+    "project ~/project/.claude/rules/p.md (conditional)"
+   ],
+   "skills": [
+    "claude-code:~/.claude/skills/c portable",
+    "claude-code:~/project/.claude/skills/claude portable"
+   ],
+   "warnings": [
+    "~/.claude/rules/.env：排除凭据、历史、依赖或生成目录",
+    "项目导入只读取所选根目录和固定规则/Skills 目录；父目录及其他子目录的指令未扫描，使用时仍须核对工作目录范围。",
+    "未找到已确认的 Claude Code 命令；可以导入配置，原生执行暂不可用。"
+   ]
+  },
+  {
+   "runtime": "cursor",
+   "label": "Cursor",
+   "root": "~/.cursor",
+   "project": "~/project",
+   "rules": [
+    "global ~/.cursor/AGENTS.md",
+    "project ~/project/AGENTS.md",
+    "project ~/project/CLAUDE.md",
+    "project ~/project/.cursor/rules/t.mdc (conditional)"
+   ],
+   "skills": [
+    "cursor:~/.cursor/skills/cu portable",
+    "cursor:~/.agents/skills/nested/deeper portable",
+    "cursor:~/.agents/skills/shared portable",
+    "cursor:~/project/.cursor/skills/cursor portable",
+    "cursor:~/project/.agents/skills/agents portable"
+   ],
+   "warnings": [
+    "Cursor 的全局 User Rules 位于编辑器设置；没有稳定文件协议，本次未读取该设置。仅扫描显式规则文件与 Skills。",
+    "项目导入只读取所选根目录和固定规则/Skills 目录；父目录及其他子目录的指令未扫描，使用时仍须核对工作目录范围。",
+    "未找到已确认的 Cursor 命令；可以导入配置，原生执行暂不可用。"
+   ]
+  },
+  {
+   "runtime": "opencode",
+   "label": "OpenCode",
+   "root": "~/.config/opencode",
+   "project": "~/project",
+   "rules": [
+    "global ~/.claude/CLAUDE.md",
+    "project ~/project/AGENTS.md"
+   ],
+   "skills": [
+    "opencode:~/.config/opencode/skills/o portable",
+    "opencode:~/.agents/skills/nested/deeper portable",
+    "opencode:~/.agents/skills/shared portable",
+    "opencode:~/.claude/skills/c portable",
+    "opencode:~/project/.opencode/skills/opencode portable",
+    "opencode:~/project/.claude/skills/claude portable",
+    "opencode:~/project/.agents/skills/agents portable"
+   ],
+   "warnings": [
+    "项目导入只读取所选根目录和固定规则/Skills 目录；父目录及其他子目录的指令未扫描，使用时仍须核对工作目录范围。",
+    "未找到已确认的 OpenCode 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  },
+  {
+   "runtime": "grok-build",
+   "label": "Grok Build",
+   "root": "~/.grok",
+   "project": "~/project",
+   "rules": [
+    "global ~/.grok/GROK.md",
+    "global ~/.grok/AGENTS.md",
+    "global ~/.grok/Agents.md",
+    "global ~/.grok/rules/g.md",
+    "project ~/project/AGENTS.md",
+    "project ~/project/Agents.md",
+    "project ~/project/CLAUDE.md",
+    "project ~/project/Claude.md",
+    "project ~/project/CLAUDE.local.md",
+    "project ~/project/.grok/rules/pg.md",
+    "project ~/project/.claude/rules/p.md (conditional)"
+   ],
+   "skills": [
+    "grok-build:~/.grok/skills/g portable",
+    "grok-build:~/project/.grok/skills/grok portable"
+   ],
+   "warnings": [
+    "项目导入只读取所选根目录和固定规则/Skills 目录；父目录及其他子目录的指令未扫描，使用时仍须核对工作目录范围。",
+    "未找到已确认的 Grok Build 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  }
+ ],
+ "oneRuntime": [
+  {
+   "runtime": "opencode",
+   "label": "OpenCode",
+   "root": "~/.config/opencode",
+   "project": "~/project",
+   "rules": [
+    "global ~/.claude/CLAUDE.md",
+    "project ~/project/AGENTS.md"
+   ],
+   "skills": [
+    "opencode:~/.config/opencode/skills/o portable",
+    "opencode:~/.agents/skills/nested/deeper portable",
+    "opencode:~/.agents/skills/shared portable",
+    "opencode:~/.claude/skills/c portable",
+    "opencode:~/project/.opencode/skills/opencode portable",
+    "opencode:~/project/.claude/skills/claude portable",
+    "opencode:~/project/.agents/skills/agents portable"
+   ],
+   "warnings": [
+    "项目导入只读取所选根目录和固定规则/Skills 目录；父目录及其他子目录的指令未扫描，使用时仍须核对工作目录范围。",
+    "未找到已确认的 OpenCode 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  }
+ ],
+ "manualRoot": [
+  {
+   "runtime": "codex",
+   "label": "Codex",
+   "root": "~/manual",
+   "project": "~/project",
+   "rules": [
+    "global ~/manual/AGENTS.md",
+    "project ~/project/AGENTS.md"
+   ],
+   "skills": [
+    "codex:~/manual/skills/m portable",
+    "codex:~/project/.agents/skills/agents portable",
+    "codex:~/project/.codex/skills/codex portable"
+   ],
+   "warnings": [
+    "项目导入只读取所选根目录和固定规则/Skills 目录；父目录及其他子目录的指令未扫描，使用时仍须核对工作目录范围。",
+    "未找到已确认的 Codex 命令；可以导入配置，原生执行暂不可用。",
+    "本次只读取固定规则与 Skills 路径；配置中自定义 instructions、额外 skills 路径或禁用项尚未解析，请核对预览。 "
+   ]
+  }
+ ]
+}

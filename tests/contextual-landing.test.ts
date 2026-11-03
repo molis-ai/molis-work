@@ -133,3 +133,64 @@ test("W1-03: the same thing in hand judged against another landing is asked agai
   assert.equal(states.length, 4, "no landing at all is not the same question as a landing");
   assert.equal(states[3]!.includes("【落点】"), false);
 });
+
+// RAC-1956 to RAC-1959: the Host cuts what a page claims by UTF-16 units; a cut between the two halves of a character drops the lone half.
+const PAIR = "\u{1F600}"; // 😀: two UTF-16 units (a high and a low half), one character
+const a = (count: number) => "a".repeat(count);
+const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/; // a half with no other half beside it
+
+test("RAC-1956 a name or title is cut at 200 units without leaving half a character, and the whole character that fits is kept", () => {
+  // The same text goes to every place the Host cuts at 200: the object's title, the Goal's id and title, a heading, a recent line, a pinned and a dismissed key,
+  // a key of the previous plan, and the landing object's title.
+  const places = (text: string) => {
+    const request = read(focusBody({ object: { kind: "shelf_item", id: "i1", title: text }, goal: { id: text, title: text }, surroundings: { heading_path: [text] } }),
+      { recent: [text], pinned: [text], dismissed: [text], previous: { context_id: "ctx-0", primary: [text] }, landing: landingBody({ object: { kind: "pages_document", id: "d1", title: text } }) });
+    return { title: request.focus.object.title, goal_id: request.focus.goal?.id, goal_title: request.focus.goal?.title, heading: request.focus.surroundings?.heading_path[0],
+      recent: request.recent?.[0], pinned: request.pinned?.[0], dismissed: request.dismissed?.[0], primary: request.previous?.primary[0], landing: request.landing?.object.title };
+  };
+  const everywhere = (text: string) => ({ title: text, goal_id: text, goal_title: text, heading: text, recent: text, pinned: text, dismissed: text, primary: text, landing: text });
+  assert.deepEqual(places(a(199) + PAIR), everywhere(a(199)), "201 units, the cut at 200 falls between the halves: the half goes");
+  assert.deepEqual(places(a(198) + PAIR), everywhere(a(198) + PAIR), "exactly 200 units: untouched, the pair ends on the limit");
+  assert.deepEqual(places(a(198) + PAIR + PAIR), everywhere(a(198) + PAIR), "202 units, the cut falls between two whole characters: the first one stays whole");
+  assert.deepEqual(places(a(199) + "\uD83D"), everywhere(a(199) + "\uD83D"), "a half character the page itself sent, within the limit, is not the Host's cut: left as it came");
+});
+
+test("RAC-1957 a part's text is cut at 4000 units without leaving half a character, and it is still marked cut", () => {
+  const part = (text: string) => read(focusBody({ targets: [{ kind: "block", role: "paragraph", text }] })).focus.targets[0]!;
+  const split = part(a(3999) + PAIR);
+  assert.deepEqual([split.text.length, split.text === a(3999), split.truncated], [3999, true, true], "4001 units, the cut falls between the halves: the half goes, the part is still marked cut");
+  const fits = part(a(3998) + PAIR);
+  assert.deepEqual([fits.text.length, fits.text === a(3998) + PAIR, "truncated" in fits], [4000, true, false], "exactly 4000 units: untouched, not marked cut");
+  const whole = part(a(3998) + PAIR + "b");
+  assert.deepEqual([whole.text === a(3998) + PAIR, whole.truncated], [true, true], "4001 units, the cut falls after a whole character: it stays, the part is marked cut");
+  const selected = readLanding(landingBody({ position: "selection", targets: [{ kind: "text_range", text: a(3999) + PAIR, anchor: 10, head: 11 }] })).targets![0]!;
+  assert.deepEqual([selected.text === a(3999), selected.truncated], [true, true], "a landing's parts are read the same way");
+});
+
+test("RAC-1958 the text before and after is cut at 300 units without leaving half a character, and the judgment reads it whole", () => {
+  const around = (before: string, after: string) => read(focusBody({ surroundings: { heading_path: [], before, after } }), { landing: landingBody({ surroundings: { heading_path: [], before, after } }) });
+  const seen = (request: ReturnType<typeof around>) => [request.focus.surroundings?.before, request.focus.surroundings?.after, request.landing?.surroundings?.before, request.landing?.surroundings?.after];
+  const cut = around(PAIR + a(299), a(299) + PAIR);
+  assert.deepEqual(seen(cut), [a(299), a(299), a(299), a(299)], "301 units each: the tail starts inside a pair and the head ends inside one, both halves go");
+  assert.deepEqual(seen(around("b" + PAIR + a(298), a(298) + PAIR + "b")), [PAIR + a(298), a(298) + PAIR, PAIR + a(298), a(298) + PAIR], "301 units each, the cut falls on a whole character: it stays");
+  assert.deepEqual(seen(around("\uDE00" + a(299), a(299) + "\uD83D")), ["\uDE00" + a(299), a(299) + "\uD83D", "\uDE00" + a(299), a(299) + "\uD83D"],
+    "a half character the page itself sent, within the limit, is left as it came");
+  const lines = judgmentState(cut.focus, { landing: cut.landing! }).text.split("\n");
+  const labels = ["【前文】", "【后文】", "【落点前文】", "【落点后文】"];
+  assert.deepEqual(labels.map(label => lines.find(line => line.startsWith(label))), labels.map(label => label + a(299)), "the judgment reads the four lines whole");
+});
+
+test("RAC-1959 a request that hits every cut leaves no half character anywhere in what the Host read", () => {
+  const near = (limit: number) => a(limit - 1) + PAIR; // one unit over the limit: the cut falls between the halves
+  const request = read(
+    focusBody({ object: { kind: "shelf_item", id: "i1", title: near(200) }, targets: [{ kind: "block", role: "paragraph", text: near(4000), ref: { kind: "shelf_item", id: "i2", title: near(200) } }],
+      surroundings: { heading_path: [near(200)], before: PAIR + a(299), after: near(300) }, goal: { id: near(200), title: near(200), state: near(40) } }),
+    { recent: [near(200)], pinned: [near(200)], dismissed: [near(200)], previous: { context_id: near(240), primary: [near(200)] },
+      landing: landingBody({ object: { kind: "pages_document", id: "d1", title: near(200) }, position: "selection", targets: [{ kind: "text_range", text: near(4000), anchor: 1, head: 2 }],
+        surroundings: { heading_path: [near(200)], before: PAIR + a(299), after: near(300) } }) });
+  const strays = (value: unknown, path: string): string[] => typeof value === "string" ? (LONE.test(value) ? [path] : [])
+    : value && typeof value === "object" ? Object.entries(value).flatMap(([key, item]) => strays(item, `${path}.${key}`)) : [];
+  assert.deepEqual(strays(request, "request"), [], "no string of the request starts or ends on half a character");
+  assert.equal(request.focus.goal?.state, a(39), "the Goal's state, cut at 40");
+  assert.equal(request.previous?.context_id, a(239), "the previous plan's key, cut at 240");
+});

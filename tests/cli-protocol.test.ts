@@ -5,7 +5,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { cliFlagValue, cliGoalUrl, readCliJsonPayload } from "@molis-ai/molis-work-app-cli";
+import { cliFlagValue, cliGoalUrl, dispatchCli, printCliLine, readCliJsonPayload, type CliCommandPorts } from "@molis-ai/molis-work-app-cli";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,6 +23,32 @@ async function captureCli(operation: () => Promise<number>): Promise<string[]> {
     console.log = original;
   }
 }
+
+test("RAC-112: plugin dispatch keeps successful arguments and catches synchronous and asynchronous failures", async t => {
+  const errors: string[] = [];
+  const output: string[] = [];
+  t.mock.method(console, "error", (message: string) => { errors.push(message); });
+  t.mock.method(console, "log", (message: string) => { output.push(message); });
+  const unused = async () => assert.fail("a plugin command must not invoke a different port");
+  const ports: CliCommandPorts = { home: unused, plugin: unused, install: unused, service: unused, demo: unused, uninstall: unused, v1: unused };
+  const calls: string[][] = [];
+  ports.plugin = async args => { calls.push(args); printCliLine("plugin result"); return 7; };
+  assert.equal(await dispatchCli(["plugin", "list", "--json"], ports), 7);
+  assert.deepEqual(calls, [["list", "--json"]]);
+  assert.deepEqual(output, ["plugin result"]);
+  assert.deepEqual(errors, []);
+
+  ports.plugin = () => { throw new Error("sync failure"); };
+  assert.equal(await dispatchCli(["plugin", "list"], ports), 1);
+  assert.deepEqual(errors.splice(0), ["错误: sync failure"]);
+
+  const pending = Promise.withResolvers<number>();
+  ports.plugin = () => pending.promise;
+  const dispatched = dispatchCli(["plugin", "install"], ports);
+  pending.reject(new Error("async failure"));
+  assert.equal(await dispatched, 1);
+  assert.deepEqual(errors, ["错误: async failure"]);
+});
 
 test("CLI preserves first-flag and inline JSON precedence, file errors and Goal URL output", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-input-"));
@@ -47,7 +73,8 @@ test("CLI help and failed input retain storage side effects, error order and inj
   const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-storage-"));
   const databasePath = join(directory, "nested", "project.db");
   let opens = 0;
-  const host = createMolisWorkLocalHost({ onRuntimeOpen: () => { opens += 1; } });
+  // Goals runs in the Host as a plugin of the project, which needs the Home the Host belongs to.
+  const host = createMolisWorkLocalHost({ homeDirectory: join(directory, "home"), completeText: null, onRuntimeOpen: () => { opens += 1; } });
   try {
     const help = await captureCli(() => runV1Cli(["--help", "--db", databasePath, "--json", "{"], { localHost: host }));
     assert.match(help.join("\n"), /--db PATH is required[^\n]*There is no default path/);
@@ -68,14 +95,14 @@ test("CLI help and failed input retain storage side effects, error order and inj
     const output = await captureCli(() => runV1Cli(["init", "--db", databasePath, "--file", file], { localHost: host }));
     assert.match(output[0]!, /\n  "/, "JSON output remains indented");
     const reference = molisWorkHostProjectReference({ databasePath, projectId: input.project_id });
-    const snapshot = await managementGoals(host.actionClient(reference, false), input.project_id).invoke(goalsActions.snapshot, {});
+    const snapshot = await managementGoals(host.actionClient(reference), input.project_id).invoke(goalsActions.snapshot, {});
     assert.equal(snapshot.board.project_id, input.project_id);
     await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--project-id", input.project_id], { localHost: host }), {
       message: "未知 V1 operation: unknown",
     });
     assert.equal(host.status().state, "running");
     assert.equal(opens, 1);
-    assert.deepEqual(await managementGoals(host.actionClient(reference, false), input.project_id).invoke(goalsActions.snapshot, {}), snapshot);
+    assert.deepEqual(await managementGoals(host.actionClient(reference), input.project_id).invoke(goalsActions.snapshot, {}), snapshot);
   } finally {
     await host.close();
     rmSync(directory, { recursive: true, force: true });
@@ -116,7 +143,7 @@ class NumberedHost extends MolisWorkLocalHost {
 test("one CLI command is one operation: everything it calls shares a call number, and the next command has its own", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-cli-call-id-"));
   const databasePath = join(directory, "project.db");
-  const host = new NumberedHost();
+  const host = new NumberedHost({ homeDirectory: join(directory, "home"), completeText: null });
   try {
     const input = { project_id: "cli-call-id", actor_id: "user", idempotency_key: "init" };
     await captureCli(() => runV1Cli(["init", "--db", databasePath, "--json", JSON.stringify(input)], { localHost: host }));

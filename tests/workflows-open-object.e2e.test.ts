@@ -18,8 +18,8 @@ async function searchWorkflow(browser: Browser, workflow: Browser["a"]) {
 }
 
 async function assertOpen(browser: Browser, workflow: Browser["a"]) {
-  await browser.waitFor(`document.querySelector('.wf-editor')?.dataset.id === '${workflow.workflow_id}'`);
-  const visible = await browser.evaluate<{ title: string; stations: string[]; context: { object: { id: string; title: string; version: string } } }>(`(() => ({
+  await browser.frame.waitFor(`document.querySelector('.wf-editor')?.dataset.id === '${workflow.workflow_id}'`);
+  const visible = await browser.frame.evaluate<{ title: string; stations: string[]; context: { object: { id: string; title: string; version: string } } }>(`(() => ({
     title: document.querySelector('[data-wf-title]').value,
     stations: [...document.querySelectorAll('[data-wf-chain] [data-station-id]')].map(station => station.dataset.stationId),
     context: JSON.parse(document.querySelector('[data-workflows=workbench]').dataset.assistantContext),
@@ -31,7 +31,7 @@ async function assertOpen(browser: Browser, workflow: Browser["a"]) {
 
 test("W2-18-WF-OPEN-01: real search replaces B with A, object tabs reopen A, and the no-ID request returns to the directory", { timeout: 90_000 }, async t => {
   const browser = await openWorkflowsBrowser(t);
-  await browser.click(`[data-wf-open="${browser.b.workflow_id}"]`);
+  await browser.frame.click(`[data-wf-open="${browser.b.workflow_id}"]`);
   await assertOpen(browser, browser.b);
   await searchWorkflow(browser, browser.a);
   await assertOpen(browser, browser.a);
@@ -42,12 +42,12 @@ test("W2-18-WF-OPEN-01: real search replaces B with A, object tabs reopen A, and
   await browser.click(tab);
   await assertOpen(browser, browser.a);
   await browser.click("[data-plugin-strip] [data-plugin-id=workflows]");
-  await browser.waitFor("document.querySelector('[data-workflows=workbench]').dataset.wfMode === 'list'");
-  assert.equal(await browser.evaluate("JSON.parse(document.querySelector('[data-workflows=workbench]').dataset.assistantContext).object"), undefined);
+  await browser.frame.waitFor("document.querySelector('[data-workflows=workbench]').dataset.wfMode === 'list'");
+  assert.equal(await browser.frame.evaluate("JSON.parse(document.querySelector('[data-workflows=workbench]').dataset.assistantContext).object"), undefined);
   await browser.click(tab);
   await assertOpen(browser, browser.a);
   // The restored Workbench object tab must beat older plugin-local navigation memory.
-  await browser.evaluate(`sessionStorage.setItem('molis-workflows:/projects/${browser.projectId}/', JSON.stringify({ workflow: '${browser.b.workflow_id}', instance: null, step: 0 }))`);
+  await browser.frame.evaluate(`sessionStorage.setItem('molis-workflows:/projects/${browser.projectId}/', JSON.stringify({ workflow: '${browser.b.workflow_id}', instance: null, step: 0 }))`);
   await browser.reloadPage();
   await assertOpen(browser, browser.a);
   assert.deepEqual(browser.saved(browser.a.workflow_id), browser.a);
@@ -57,8 +57,9 @@ test("W2-18-WF-OPEN-01: real search replaces B with A, object tabs reopen A, and
 test("W2-18-WF-OPEN-01: the first search selection waits for the real lazy client/list and overrides remembered B", { timeout: 90_000 }, async t => {
   const browser = await openWorkflowsBrowser(t, { open: false });
   assert.equal(await browser.evaluate("document.querySelector('[data-work-surface=workflows]').hasAttribute('data-deferred-surface')"), true);
+  const grant = await browser.web.post<{ storage_scope: string }>(`/projects/${browser.projectId}/api/host/plugin-pages`, { plugin_id: "io.molis.work.native.workflows" });
   await browser.evaluate(`(() => {
-    sessionStorage.setItem('molis-workflows:/projects/${browser.projectId}/', JSON.stringify({ workflow: '${browser.b.workflow_id}', instance: null, step: 0 }));
+    sessionStorage.setItem('molis-plugin-page:${grant.storage_scope}:molis-workflows:/projects/${browser.projectId}/', JSON.stringify({ workflow: '${browser.b.workflow_id}', instance: null, step: 0 }));
     const original = window.fetch.bind(window); let first = true;
     window.__wfListHeld = false; window.__wfOpened = [];
     window.fetch = async (input, init) => {
@@ -73,11 +74,11 @@ test("W2-18-WF-OPEN-01: the first search selection waits for the real lazy clien
   })()`);
   await searchWorkflow(browser, browser.a);
   await browser.waitFor("window.__wfListHeld === true && document.querySelector('[data-work-surface=workflows]').dataset.uiClientState === 'ready'");
-  assert.equal(await browser.evaluate("document.querySelector('.wf-editor')"), null, "object loading waits for the initial directory metadata");
+  assert.equal(await browser.frame.evaluate("document.querySelector('.wf-editor')"), null, "object loading waits for the initial directory metadata");
   await browser.evaluate("window.__wfReleaseList()");
   await assertOpen(browser, browser.a);
   assert.deepEqual(await browser.evaluate("window.__wfOpened"), [browser.a.workflow_id], "the older B memory never gets opened");
-  assert.equal(await browser.evaluate("document.querySelectorAll('[data-wf-action=append][data-wf-plugin]').length > 0"), true, "the first object has the loaded station palette");
+  assert.equal(await browser.frame.evaluate("document.querySelectorAll('[data-wf-action=append][data-wf-plugin]').length > 0"), true, "the first object has the loaded station palette");
   assert.deepEqual(browser.saved(browser.a.workflow_id), browser.a);
   assert.deepEqual(browser.saved(browser.b.workflow_id), browser.b);
 });

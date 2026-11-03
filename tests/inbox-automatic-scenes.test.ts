@@ -1,34 +1,37 @@
-import { createFeedCaptureTrigger, feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
+import { FEED_ACTION_PERMISSIONS, createFeedCaptureTrigger, feedCaptureScene, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService,
-  createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, scheduleServiceFor, projectActionAvailability, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
-import { createScheduleReminders, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
-import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, listFeedSourceCatalog, scheduleServiceFor, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
+import { reminderActions, SCHEDULE_PLUGIN_ID, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
-import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
+import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxJudgmentTrigger, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
+import { createLocalFeedApplication, createLocalFeedSourceService, createLocalFeedConnectorSync, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
 
-test("HTTP admission, ingestion, workflow and scheduler events use the saved Inbox scene without a second judgment path", { timeout: 25_000 }, async () => {
+const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Product Signals</title><link>https://example.com/</link>
+<item><guid>https://example.com/posts/automatic-public</guid><title>公开来源材料</title><link>https://example.com/automatic-public</link>
+<description>需要核查</description><pubDate>Fri, 25 Sep 2026 00:00:00 GMT</pubDate></item></channel></rss>`;
+
+test("HTTP admission, ingestion, workflow and scheduler events use the saved Inbox scene without a second judgment path", { timeout: 25_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "automatic-inbox-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "自动判断", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
+  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
   const inputs: string[] = [];
   let failure = false;
   const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
@@ -61,7 +64,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const admit = async (item: { item_id: string; revision: number }) => {
-      const response = await fetch(`${origin}/projects/${project.project_id}/api/feed/items/${item.item_id}/inbox`, {
+      const response = await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`, {
         method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token,
           "x-molis-work-idempotency-key": `automatic-admit-${sequence++}` }, body: JSON.stringify({ expected_revision: item.revision }),
       });
@@ -108,7 +111,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     let captureCalls = 0;
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: captureDefinition.capability_id, kind: "plugin", title: "Feed fixture" }, definitions: [captureDefinition],
       handlers: [{ ...captureDefinition, handle: () => { captureCalls++; return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } }] });
-    const feedOptions = { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => ({ ...caller, permissions: [...caller.permissions, "feed:read", "feed:write"] }), projectId: runtime.project_id }), inboxJudgment: createInboxJudgmentTrigger({ scenes, context: () => caller, projectId: runtime.project_id }) };
+    const feedOptions = { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => ({ ...caller, permissions: [...caller.permissions, "feed:read", "feed:write"] }), projectId: runtime.project_id }), inboxJudgment: inboxJudgmentTrigger({ actions: host.actionClient(reference), context: () => caller, projectId: runtime.project_id }) };
     await assert.rejects(feedOptions.inboxJudgment({ project_id: "other", entry_id: entry.entry_id }), { code: "actions.scope_mismatch" });
     const automatic = createLocalFeedApplication(runtime.store.db, feedOptions);
     const direct = automatic.ingestItem({ source, externalId: "module-attention", title: "直接带入箱请求的材料", summary: "内容", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } });
@@ -123,12 +126,12 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     await automatic.flushPendingJudgments();
     assert.equal(localCalls, 1, "rolled-back module events cannot trigger a model call");
 
-    const ports = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow", permissions: NATIVE_CONTENT_PERMISSIONS })));
+    const ports = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow", permissions: [...NATIVE_CONTENT_PERMISSIONS, "judgments:write"] })));
     const handoff = await ports.receive("inbox", { title: "工作流交接", body: "需要核对的交接内容", feed_item_id: null }, "workflow:fixture-flow:1");
     assert.equal(localCalls, 2);
     assert.equal(history().find(record => record.subject.id === handoff.item_id)!.function_key, unknown.capability_id);
     const restricted = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, actor_id: "restricted-workflow", audience: "workflow",
-      permissions: NATIVE_CONTENT_PERMISSIONS.filter(permission => permission !== "model:invoke") })));
+      permissions: [...NATIVE_CONTENT_PERMISSIONS, "judgments:write"].filter(permission => permission !== "model:invoke") })));
     const withoutModel = await restricted.receive("inbox", { title: "只交接材料", body: "没有模型权限也可以保留材料", feed_item_id: null }, "workflow:restricted-flow:1");
     assert.ok(feed.getInboxEntry(runtime.project_id, withoutModel.item_id));
     assert.equal(localCalls, 2, "a workflow without model permission cannot borrow the native background caller to judge its entry");
@@ -140,7 +143,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
         async health() { return { ok: true, status: "connected", message: "fixture" }; },
         async sync() { return { ok: true, mode: "live", cursor: { fixture: 1 }, items: [{ externalId: "auto-issue", title: "连接器材料", summary: "需要处理", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } }] }; },
       }), connectorFeed, home);
-      const connector = connectorFeed.upsertSource(accountSourceRecord("github", { project_id: runtime.project_id, status: "active" }));
+      const connector = connectorFeed.sources.upsert(accountSourceRecord("github", { project_id: runtime.project_id, status: "active" }));
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
       assert.equal(localCalls, 3, "connector sync passes the trigger through its own application");
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
@@ -148,26 +151,16 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     });
 
     let now = new Date("2026-09-25T00:00:00Z");
-    const publicRuntime = (): FeedSourceRuntime => ({
-      intelligenceCollect: { async executeExact(request) {
-        const base = createCompletedIntentResultFixtureV1(request);
-        return { ...base, materials: [{ id: "material:automatic-public", candidateId: "automatic-public", title: "公开来源材料",
-          sourceName: "Example", preview: "需要核查", canonicalUrl: "https://example.com/automatic-public",
-          contentRef: "molis-work-feed/sha256/" + "a".repeat(64), contentHash: `sha256:${"a".repeat(64)}`,
-          contentHashProfile: "search-markdown-v1", contentType: "text/markdown", characterCount: 4,
-          capturedAt: now.toISOString(), provenance: { operationId: request.operationId, providerId: "rss", providerVersion: "1.0.0",
-            bindingRevision: 1, retrievedAt: now.toISOString(), matchedLaneIds: ["intent:exact"], rankProfile: "feed-v1",
-            transportProfileFingerprint: `sha256:${"b".repeat(64)}` },
-          extractorRef: { providerId: "rss", providerVersion: "1.0.0" }, truncated: false, availability: "available",
-        }] };
-      }, async shutdown() {} },
-      content: { write() { return { contentRef: "fixture" }; }, read() { return "需要核查"; }, has() { return true; }, inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; } }, async shutdown() {},
-    });
-    const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, publicRuntime, () => now, home, feedOptions);
+    // The pull runs as production runs it: Feed's own `feed.sources.sync` in the Runtime, its capture scene judging the items the action
+    // fetched and holds, only the RSS response stood in for.
+    const pull = t.mock.method(globalThis, "fetch", async () => new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
+    const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, () => now, home, feedOptions);
     const publicSource = publicSources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
-    publicSources.feed.createOutRule(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
+    publicSources.feed.outRules.create(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
+    const feedActions = bindActionClient(host.actionClient(reference), () => ({ ...caller, permissions: [...new Set([...caller.permissions, ...FEED_ACTION_PERMISSIONS])] }));
+    const syncPublic = () => feedActions.invoke(feedSourceActions.sync, { source_id: publicSource.source_id, idempotency_key: "auto-public-once" });
     localFailure = true;
-    const pulled = await publicSources.sync(publicSource.source_id, { idempotencyKey: "auto-public-once" });
+    const pulled = await syncPublic();
     assert.equal(pulled.created, 1);
     assert.equal(pulled.run.outcome, "completed", "a failed follow-up judgment does not falsify the source sync result");
     assert.equal(localCalls, 4, "public source admission uses the same scene");
@@ -176,9 +169,10 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     const publicEntry = publicSources.feed.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === publicItem.item_id)!;
     assert.equal(history().find(record => record.subject.id === publicEntry.entry_id)!.outcome, "needs_review");
     localFailure = false;
-    await publicSources.sync(publicSource.source_id, { idempotencyKey: "auto-public-once" });
+    assert.equal((await syncPublic()).replayed, true);
     assert.equal(localCalls, 4);
     assert.equal(captureCalls, 1, "replaying the collection receipt does not repeat a judgment");
+    pull.mock.restore();
     publicSources.configureSchedule(publicSource.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
     now = new Date("2026-09-25T00:05:00Z");
     const scheduler = createLocalFeedSourceScheduler(runtime.store.db, runtime.project_id, async () => {
@@ -192,7 +186,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     stop();
     const unavailable = await admit(addMaterial("提供方已停用"));
     assert.ok(!history().some(record => record.subject.id === unavailable.entry_id));
-    assert.equal((await scenes.usages(caller))[0]!.availability.available, false);
+    assert.equal((await scenes.usages(caller)).find(usage => usage.scene_id === inboxNextScene.scene_id)!.availability.available, false);
     assert.equal(localCalls, 5);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
@@ -206,8 +200,9 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
   const created = await catalog.createProject({ display_name: "提醒判断", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
+  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
   const inputs: string[] = [];
   let failure = false;
   const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
@@ -219,45 +214,31 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
     },
   } };
   const policy = projectActionAvailability(async (_options, run) => run(catalog as unknown as Parameters<typeof run>[0]), home);
-  const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy });
+  const owner = scheduledOwnerPlugin();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy, pluginFixtures: { project: [owner.definition] } });
   const history = () => withFunctionsService(home, service => service.listJudgments(), functions);
   try {
     await host.actionClient(reference).invoke(caller, inboxActions.writeJudgment, { function_key: "system_pick_inbox_next" });
     const runtime = await host.withProject(reference, runtime => runtime);
     const feed = createLocalFeedApplication(runtime.store.db);
-    const installedAt = "2026-01-01T00:00:00.000Z";
-    const installation: PluginInstanceRecord = { install_id: "install-1", installation_generation: "install-1@" + installedAt, plugin_id: "io.molis.work.generated.a",
-      version: "1.0.0", publisher_id: "test", publisher_signature: "test", manifest_digest: "test", deployment: "local", selected_entrypoint: "./plugin.mjs",
-      grants: ["storage:private"], execution: "sandbox", state: "running", recovery_count: 0, last_error_code: null, installed_at: installedAt, updated_at: installedAt,
-      uninstalled_at: null, retain_private_data: false };
-    new SqlitePluginRuntimeRepository(runtime.store.db).save(installation);
-    // The Host already opened this project, so scheduleServiceFor returns the service it cached with the real clock and ignores a
-    // clock passed here. The fixture therefore keeps its own times next to the real now: each tick happens now, and each reminder
-    // is added before its time and falls due before that tick, so the lease a tick takes is judged by the same clock.
-    const minutes = (count: number) => count * 60_000;
-    let clock = Date.now() - minutes(60);
-    const schedule = scheduleServiceFor(runtime.store.db, () => new Date(clock));
-    const reminders = createScheduleReminders({ db: runtime.store.db, projectId: runtime.project_id, schedule, now: () => clock,
-      describe: identity => ({ title: "论语日课", link: "/plugins/" + identity.pluginId, generation: installation.installation_generation }) });
-    const plugin = { projectId: runtime.project_id, installationId: installation.install_id, pluginId: installation.plugin_id, namespace: "installed" as const };
+    const schedule = scheduleServiceFor(runtime.store.db), reminders = owner.actions(project.project_id);
+    const due = new Date(Date.now() + 60_000);
     const entryOf = (text: string) => {
-      const item = feed.snapshot(runtime.project_id).feed_items.find(row => row.source_id === "plugin-reminders" && row.summary === text)!;
+      const item = feed.snapshot(runtime.project_id).feed_items.find(row => row.source_id === "plugin-notifications:" + SCHEDULE_PLUGIN_ID && row.summary === text)!;
       return feed.listInboxEntries(runtime.project_id).find(entry => entry.subject_id === item.item_id)!;
     };
 
-    reminders.add(plugin, { at: new Date(clock + minutes(30)).toISOString(), text: "复习《学而》" });
-    clock = Date.now();
-    await schedule.tick(new Date(clock));
+    await reminders.invoke(reminderActions.add, { at: due.toISOString(), text: "复习《学而》" });
+    await schedule.tick(new Date(due.getTime() + 1_000));
     const first = entryOf("复习《学而》");
     assert.equal(first.status, "open");
     assert.equal(history().filter(record => record.subject.id === first.entry_id).length, 1, "the reminder's Inbox entry got its next-step judgment");
     assert.deepEqual(history().find(record => record.subject.id === first.entry_id)!.suggested_behavior_ids, ["inbox.done"]);
 
     failure = true;
-    clock = Date.now() - minutes(20);
-    const second = reminders.add(plugin, { at: new Date(clock + minutes(10)).toISOString(), text: "复习《为政》" });
-    clock = Date.now();
-    await schedule.tick(new Date(clock));
+    const secondDue = new Date(Date.now() + 120_000);
+    const second = await reminders.invoke(reminderActions.add, { at: secondDue.toISOString(), text: "复习《为政》" });
+    await schedule.tick(new Date(secondDue.getTime() + 1_000));
     assert.equal(entryOf("复习《为政》").status, "open", "a judgment failure does not take the reminder out of the Inbox");
     assert.equal(getScheduleReminder(runtime.store.db, second.reminderId), null, "the one-off reminder was consumed by its delivery");
     assert.ok(inputs.length >= 2, "the failing judgment was attempted");

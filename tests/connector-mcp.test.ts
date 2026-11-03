@@ -14,6 +14,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/dist/connector-mcp.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { captureHostLog, larkMcpLaunch, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createAgentConnectorPorts } from "../apps/local-host/dist/agent-connector-ports.js";
 import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../apps/local-host/dist/connector-authorization-status.js";
@@ -994,4 +995,20 @@ test("S-37 ASC-08 ASC-14: anonymous execution does not collect credentials or re
   assert.equal((await client.invoke(caller, connectorSetupExecuteAction, prepared) as { awaiting_intent: boolean }).awaiting_intent, true);
   assert.equal(remote.stats().initializationCount, 0);
   assert.deepEqual(withConnectorConnections(local.home, store => store.list()), []);
+});
+
+// RAC-2416: `constructor` and `__proto__` are not official MCP services; the prototype chain must not answer for the server table, and
+// starting a connection under them is refused exactly as an unregistered service is (the host already imports this module).
+test("RAC-2416 a service id that names a prototype member has no official MCP address", async () => {
+  const host = createConnectorMcpHost(), directory = home();
+  const refusal = async (serviceId: string) => {
+    const error = await host.startMcpConnection(directory, { serviceId, displayName: "Prototype" }).then(() => null, (failure: unknown) => failure);
+    assert.ok(error instanceof ActionError, `an ActionError, not ${String(error)}`);
+    return { code: error.code, message: error.message };
+  };
+  try {
+    const missing = await refusal("no-such-service");
+    assert.deepEqual(await refusal("constructor"), missing);
+    assert.deepEqual(await refusal("__proto__"), missing);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

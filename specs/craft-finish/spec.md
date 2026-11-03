@@ -1,6 +1,6 @@
 # 工作室质感收尾（Craft finish）
 
-状态：现行规范（2026-10-01 合入后梳理确认）。界面设计规范，AGENTS.md 与 DESIGN.md 引用；视觉层已由 Soft Workbench 升级继承。
+状态：现行规范（2026-10-01 合入后梳理确认）。界面设计规范，AGENTS.md 与 DESIGN.md 引用；视觉层已由 Soft Workbench 升级继承。本文是四轮迭代的记录，后一轮推翻前一轮：现行布局以第四轮与 `DESIGN.md` 为准，第一至三轮只作历史，其中的「改动文件」不再对应现行代码。
 
 ## 背景与目标
 
@@ -53,7 +53,7 @@
 
 输入：既有 DOM、主题偏好、插件色表、本地时间。输出：一层 CSS、一段只做呈现的脚本、少量标记。
 
-改动文件：`packages/design-system/src/styles/craft-finish.ts`（新增）、`packages/design-system/src/monogram.ts`（新增）、`visual-foundation.ts` / `index.ts` 的导出、`primitives/catalog.ts` 的「质感 · 空间 · 动效」一节、`apps/workbench/src/page-assets.ts` 的拼接、`settings-navigation.ts` 与 `project-directory-renderer.ts` 的项目徽标、`scripts/client/tab-workspace.ts` 的位置芯片与独占芯片、`scripts/client/project-home.ts` 的问候与宽屏检查器、`i18n/gap-en.ts`、`plugins/native/goals/src/momentum-*-client.ts` 的首开视野与拖动态、`DESIGN.md`、`skills/molis-plugin-dev`。
+改动文件：`packages/design-system/src/styles/craft-finish.ts`（新增）、`packages/design-system/src/monogram.ts`（新增）、`visual-foundation.ts` / `index.ts` 的导出、`primitives/catalog.ts` 的「质感 · 空间 · 动效」一节、`apps/workbench/src/page-assets.ts` 的拼接、`settings-navigation.ts` 与 `project-directory-renderer.ts` 的项目徽标、`apps/workbench/src/scripts/client/tab-workspace.ts` 的位置芯片与独占芯片、`apps/workbench/src/scripts/client/project-home.ts` 的问候与宽屏检查器、`i18n/gap-en.ts`、`plugins/native/goals/src/momentum-*-client.ts` 的首开视野与拖动态、`DESIGN.md`、`skills/molis-plugin-dev`。
 
 脚本不写任何 Goal / Feed / Inbox 状态，不移动焦点，不取消其他处理器；没有它页面照常可用，只是少了提示、落地光与完成时刻。
 
@@ -84,7 +84,7 @@
 
 **取舍。** 这推翻了此前「个人区在项目区之上」「插件创作台领头」「市场与 Characters 在底部卡片」三条决定，是用户这次明确要求的重排。分组只点名「工作」「创作」「拓展」三组，其余全部归「更多」，以保持「加插件不改外壳」。相关测试（`characters-appearance`、`desktop-tui`、`immersive-directory`、`immersive-workbench`）改为守护新层级。
 
-**改动文件。** `apps/workbench/src/immersive-shell.ts`（分组、个人区位置、标题栏开关）、`goals-page-renderer.ts`（装配顺序）、`settings-directory.ts`（「能力」移入拓展组）、`settings-navigation.ts`（搜索框文字与快捷键）、`scripts/client/immersive-navigation.ts`（键盘漫游包含链接项）、`craft-finish.ts`（左栏样式）、`i18n/gap-en.ts`，以及上述测试。
+**改动文件。** `apps/workbench/src/immersive-shell.ts`（分组、个人区位置、标题栏开关）、`goals-page-renderer.ts`（装配顺序）、`settings-directory.ts`（「能力」移入拓展组）、`settings-navigation.ts`（搜索框文字与快捷键）、`apps/workbench/src/scripts/client/immersive-navigation.ts`（键盘漫游包含链接项）、`craft-finish.ts`（左栏样式）、`i18n/gap-en.ts`，以及上述测试。
 
 ## 第三轮：纯色与空间（2026-09-26）
 
@@ -111,7 +111,7 @@
 - 项目设置从齿轮挪进项目菜单，系统设置从齿轮挪进账号菜单：左栏没有单独的齿轮，换来的是各多一次点击。
 - e2e 夹具的点击会像人一样先展开 Dock 容器、「全部插件」或所在菜单再点；没有偏好时预设图标栏，保持原有用例对内容宽度的前提。
 
-**改动文件。** `packages/design-system/src/styles/craft-finish.ts`、`apps/workbench/src/immersive-shell.ts`（Dock、分区左栏）、`goals-page-renderer.ts`、`settings-navigation.ts`（项目设置进菜单）、`settings-directory.ts`（账号菜单）、`scripts/client/navigation-presentation.ts`（默认显示名称、Dock）、`scripts/client/tab-workspace.ts` 与 `global-search.ts`（认得 Dock 里的入口）、`scripts/client/initialization.ts`、`scripts/client/assistant-island.ts`（输入框可常驻）、`scripts/client/immersive-navigation.ts`（键盘漫游包含「全部工具」）、`styles/immersive-navigation.ts`（显示名称的判断反转为「除非关闭」）、`i18n/gap-en.ts`、`DESIGN.md`，以及 `tests/fixtures/goal-browser.ts` 与守结构的单测。
+**改动文件。** `packages/design-system/src/styles/craft-finish.ts`、`apps/workbench/src/immersive-shell.ts`（Dock、分区左栏）、`goals-page-renderer.ts`、`settings-navigation.ts`（项目设置进菜单）、`settings-directory.ts`（账号菜单）、`apps/workbench/src/scripts/client/navigation-presentation.ts`（默认显示名称、Dock）、`apps/workbench/src/scripts/client/tab-workspace.ts` 与 `apps/workbench/src/scripts/client/global-search.ts`（认得 Dock 里的入口）、`apps/workbench/src/scripts/client/initialization.ts`、`apps/workbench/src/scripts/client/assistant-island.ts`（输入框可常驻）、`apps/workbench/src/scripts/client/immersive-navigation.ts`（键盘漫游包含「全部工具」）、`styles/immersive-navigation.ts`（显示名称的判断反转为「除非关闭」）、`i18n/gap-en.ts`、`DESIGN.md`，以及 `tests/fixtures/goal-browser.ts` 与守结构的单测。
 
 ## 第四轮：去掉左栏，底栏统一（2026-09-26）
 
@@ -141,4 +141,4 @@
 - 常驻选择与最近用过都记在本机浏览器，是个人便利，不进项目数据。
 - 账号按钮目前仍没有目标页（之前也没有），只是位置移到了项目菜单。
 
-**改动文件。** `packages/design-system/src/styles/craft-finish.ts`（底栏、菜单、提示、动效）、`apps/workbench/src/immersive-shell.ts`（`renderWorkbenchBar`、宽按钮）、`goals-page-renderer.ts`、`settings-navigation.ts`（项目菜单顺序）、`settings-directory.ts`（Dock 菜单、`renderPersonalMenuItems`）、`scripts/client/navigation-presentation.ts`（Dock、+N、选择按钮、分屏多选）、`scripts/client/assistant-island.ts`（回答先写问题）、`scripts/client/global-search.ts`、`i18n/gap-en.ts`、`DESIGN.md`，以及守结构的单测与 e2e。
+**改动文件。** `packages/design-system/src/styles/craft-finish.ts`（底栏、菜单、提示、动效）、`apps/workbench/src/immersive-shell.ts`（`renderWorkbenchBar`、宽按钮）、`goals-page-renderer.ts`、`settings-navigation.ts`（项目菜单顺序）、`settings-directory.ts`（Dock 菜单、`renderPersonalMenuItems`）、`apps/workbench/src/scripts/client/navigation-presentation.ts`（Dock、+N、选择按钮、分屏多选）、`apps/workbench/src/scripts/client/assistant-island.ts`（回答先写问题）、`apps/workbench/src/scripts/client/global-search.ts`、`i18n/gap-en.ts`、`DESIGN.md`，以及守结构的单测与 e2e。

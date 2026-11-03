@@ -13,13 +13,21 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 产品控件、色板、图标、字体的用法和文件表在 [`packages/design-system/README.md`](../../packages/design-system/README.md)。视觉规范是 [`DESIGN.md`](../../DESIGN.md) 的 Soft Workbench：珍珠灰桌面上一张连续白色工作面，石墨主操作，铜色焦点与链接，字重 400/500/600，动效约 130/250/420ms。开发预览组件板是 `/__ui/catalog`（真实底栏标本在 `/__ui/catalog/bar`）。改共享控件、状态或微动效**要**对照这块板；达标标本**要**补进 Catalog。不准把系统下拉、系统色盘、系统确认框当产品控件。动效、图标色是切片内工作。过程说明见 [CLI 与开发](../cli-and-development.md#前端与控件板) 与 [ui-craft-floor](../../specs/ui-craft-floor/spec.md)。
 
-合同是 HTML Slot：从 `@molis-ai/molis-work-design-system` 导入 `render*` / `icon`，产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取 `palette.ts` 的共享 token，不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
+合同是 HTML Slot：部件由 Plugin SDK 公开，插件从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `render*` / `icon`（宿主一侧同样直接取它，design-system 不转出），产出 `mw-*` + `data-slot`。不迁 React，不另起 class 填充。颜色、圆角、高度和时长只取 `palette.ts` 的共享 token，不写 hex、不用 `!important` 或按插件覆盖去压前面的层。壳层选中走 `--nav-*`；石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）给焦点、链接和进行中；插件没有身份色。
 
 ### 全局导航
 
 没有全局左侧栏。全局入口只有一处：窗口底部的常驻栏——左侧 Dock 菜单与 Dock（项目首页 + 用户选定常驻的插件），中间统一对话栏（Assistant 输入胶囊，前面是插件切换器，⌘K 搜索也从这里开），右侧 Shelf / 灵光、讨论和项目按钮。插件贡献的 `navigator` Slot id 不变，含义是「出现在插件切换器、可被放进 Dock 的入口」；`island` 是底栏右侧的个人常驻入口。插件自己的目录（`workbench.directory`）是工作面里的一列，不是第二套全局导航。
 
 ## 3. 嵌入
+
+### 插件页面隔离与公共服务（SYS-15，迁移中）
+
+已迁移的插件客户端在不透明来源的 `sandbox="allow-scripts allow-forms"` iframe 中运行；表单由页面 JavaScript 处理，CSP 的 `form-action 'none'` 拒绝原生表单导航，`connect-src 'none'` 拒绝直接网络连接。可信外壳持有控制令牌、页面授权和 MessageChannel，子页面不能读父 DOM、原生 IPC 或其他插件页面。页面授权绑定实际激活、安装、项目与 actor，生命周期由 Host 撤销。当前迁移范围及未完成页面见 [系统修复 spec](../../specs/archive/system-review-fixes/spec.md)。
+
+客户端的 `host` 提供同一组受限服务（类型在 contracts 的 `platform/ui`，SDK 重导出）：`invokeAction(reference,input)` 调用自身或 Manifest 声明消费的动作，服务端使用实际定义、当前 grants 与 audience；`messages.send/listen` 承接已登记的主区与侧栏上下文消息；`download`、`printDocument`、`loadMedia` 负责导出、无脚本打印与经授权读取的图片/PDF；`terminal.send/listen` 只连接本安装、本项目在服务端创建的终端，返回事件确认结果，不能提交启动命令。直接读父窗口、拼接控制头、任意 URL 代理与从页面传入可信身份都不属于公共服务。
+
+`host.reviews.show` 在页面占位处显示宿主审查区；只回传尺寸和决定完成通知，正文、回执与决策入口留在宿主，批准经过真实宿主确认。
 
 被插入内容的 Plugin 必须显式开放 Slot，声明接受的 Contribution Contract。贡献方声明自己提供的 view/command 与权限；UI Host 决定是否装载、放在哪里、何时销毁，并隔离错误和权限。
 
@@ -36,7 +44,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 
 - **事件**（`DOM_EVENTS`，按名字排序）：名字、种类、主人、发在哪里、载荷、含义。种类只有两种：`announcement`（主人报告自己状态的变化或自己做的决定，主人发、别人听）和 `request`（别人请主人去改它的状态，主人听、别人发；一个界面把自己的情况报给持有共同状态的主人，也是 `request`，如 `molis:surface-focus`、`molis:assistant-surface-changed`）。发在哪里是 `window`、`document` 或某个元素（`bubbles` 说明它是否冒泡）；`window` 上的监听器听不到发在 `document` 上的、不冒泡的事件，两个模块对不上多半就是这一条。带 `cancelable` 的事件（登记里现在三个：请求 `molis:side-open`、`molis:context-panel-open`，公告 `molis:assistant-context-action-chosen`）由接住它的一方调用 `preventDefault()`，发的一方读结果决定要不要另想办法。代码里还有第三处这样用、却没有登记也没有人接住的：见「现状与例外」里的 `molis-work:open-settings-section`。
 - **页面状态的主人**（`PAGE_STATE_OWNERS`）：持有一块页面状态的客户端模块和它持有什么。工作台客户端由许多片段文件拼成一个程序，所以一个主人可以是几个文件。目标规则：一块状态一个主人，别的模块不去改它的内部变量，只发 request、听 announcement。门禁查的只有主人这一侧（announcement 从它的文件里发出、request 在它的文件里被听到），不查别的模块有没有绕过去。登记的范围是「别的模块要通过事件看到或请它改」的状态；模块内部的变量和存储键都不在其中（`state` 的描述里提到某个存储键，只是说明主人持有什么，那个键本身没有登记）。
-- **前缀**（`DOM_EVENT_PREFIXES`）：现在有四种写法（`molis-work:`、`molis:`、`molis-shelf-`、`workbench-`）。合成一种是后续单独的改动；在那之前，新名字必须落在列表里的某个前缀上，不会出现第五种。
+- **前缀**（`DOM_EVENT_PREFIXES`）：平台自己的前缀现在有三种写法（`molis-work:`、`molis:`、`workbench-`）。合成一种是后续单独的改动；在那之前，平台事件的名字必须落在列表里的某个前缀上。插件主人另用 `molis-<owner>-`，判定见 `dom-events.ts`：同一张 `PAGE_STATE_OWNERS` 表中，该主人的 `files` 全部属于同一个 `plugins/<组>/<目录>/` 包；跨插件与平台、或跨两个插件包的主人必须拆开登记。事件登记的 `owner` 须等于最长完整前缀中的 `<owner>`（`molis-shelf-notice` 的主人是 `shelf`）。平台主人不能用该通用前缀，平台表不再给某个插件开专用前缀（ac-artifacts A4，PG-096）；前缀和登记的主人对不上，门禁直接失败。
 
 加一个事件：在 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码在同一个改动里；浏览器代码里把名字写成字符串字面量，不拼接、不放进变量（浏览器程序是模板字符串，不能 import 这份合同，门禁只能读源码；TypeScript 的类型实参 `new CustomEvent<T>("名字")` 照常读）。合同的公开 API 快照随之变，跑 `pnpm api:update`，并在 PR 里说明新事件对插件和调用方意味着什么。
 
@@ -62,7 +70,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 门禁对公告也只查「主人的文件里有人发」，不查「只有主人发」，所以下面两条登记为公告、却有主人以外的文件在发的事件它拦不住（`--report` 会列出）。它们同样是待清的差距，不是批准的例外；清的时候改成经主人发，或者改登记的种类：
 
 - `molis-work:goal-document-loaded`（主人 `tab-workspace`）：`plugins/native/goals/src/navigation-client.ts` 在自己装完 Goal 文档后也直接发它，不经 `tab-workspace`。
-- `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/functions/client.ts`（判断规则页）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
+- `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/judgment-rules/client-events.ts`（判断规则页，`client.ts` 的一部分）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
 
 （`molis:surface-focus` 登记为 `request`，不是公告：发它的是各个界面，听它的是主人 `context-actions`。主人自己在 `context-actions.ts` 里也发它，那是替只声明了对象、不自己上报焦点的界面，按人的文字选区代发。）
 
@@ -85,7 +93,8 @@ Goals 的结构提案（新建 Goal 与关系）与最近结果是 Goals Native 
 
 - `apps/workbench` 已拥有稳定 HTML 文档 Shell 和 `workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side` 五个命名 Slot；插件视图按 Manifest 的 `navigator`、`stage`、`settings`、`island`、`side` 声明位置。`settings-page` contribution 只能挂到 `workbench.settings`，由全局设置目录列出；插件工作台仍走 directory/main/overlay。
   - 设置分类只有一张表（`apps/workbench/src/settings-sections.ts`）：宿主分类有固定 order（10–90），插件设置页按 Manifest 里 `settings` view 的 `order` 插入，并跟随它前面那个宿主分类的分组；不写 order（默认 100）的进「插件」组。宿主不按插件名排位置。
-  - 页面由项目里运行的插件渲染、又要作为设置页出现时（如 Characters 的「角色」），插件把工作台页面声明为 `stage` view（不进导航），在渲染出的根元素上标 `data-settings-page="<设置分类 id>"`，再另外声明一个 `settings` view；工作台的设置覆盖层会直接挂载这块已绑定的页面，独立设置页则由宿主转回带项目的工作台（`/projects/<id>/?settings=<id>`）。
+  - 一个插件在插件切换列表里归哪一组、在目标材料里能新建什么、在项目首页给什么起点、设置页用什么图标，都由它的视图声明（W5-06 第 2b 片，2026-10-23）：`navigator`/`island` 视图的 `group`、`creates`、`start`，`settings` 视图的 `icon`，都可选。宿主只管组名与组的顺序（`immersive-shell.ts` 的 `RAIL_GROUP_LABELS`，顺序是合同的 `UI_VIEW_GROUPS`）；没写分组的在「更多」，没写图标的设置页用 `settings`，没写 `creates`、`start` 的插件不出现在新建和首页起点里。工作台经 `plugin-catalog.ts` 的 `creatableKinds`、`homeStarts` 读，校验与拒绝在插件 SDK（`view-placement-declarations.ts`）。写法见 `skills/molis-plugin-dev/ui.md`。
+  - 页面由项目里运行的插件渲染、又要作为设置页出现时，插件把工作台页面声明为 `stage` view（不进导航），在渲染出的根元素上标 `data-settings-page="<设置分类 id>"`，再另外声明一个 `settings` view；工作台的设置覆盖层会直接挂载这块已绑定的页面，独立设置页则由宿主转回带项目的工作台（`/projects/<id>/?settings=<id>`）。目前没有插件这样用：「角色」原来是这个例子，现在是宿主自己的一节设置（`settings-sections.ts` 的 `HOST_SECTIONS`，`order: 35`），页面由 `apps/workbench/src/characters/ui.ts` 渲染，根元素同样标 `data-settings-page="characters"`；Characters 不再是插件（CHR-1，2026-10-22）。
 - `packages/ui-host` 在 mount 时校验 contribution、surface、目标 Slot 与 format；Plugin 不能向未声明或不兼容的 Slot 插入内容。
 - Feed Native Plugin 已按 surface 显式声明可装载位置，Workbench 通过 UI Host mount，不直接调用 Plugin renderer。
 - `packages/design-system` 已接管主题、密度、browser bootstrap 和分层视觉样式；旧 `src/web/visual-foundation.ts` 已删除。
@@ -109,7 +118,7 @@ UI Host 的 `UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT` 由 Workbench 或独立页面�
 
 轻量刷新提示可用 `scope.watchRevision(read, refresh)`：可见时每两秒查询 revision，首次进入、变化及断线恢复后重新读取事实，隐藏/卸载清理。`refresh` 在业务交互忙碌时返回 false，保留未消费 revision 待下次读取。Host 按项目提供当前运行插件的 `/api/plugins/<id>/view-revision`，进程更换 epoch；只含不透明 revision，不包含事件正文或授权。Files/Git 已实际接入，固定 Artifact 差异仍保留原版本。
 
-revision 由插件自己推动：服务端在改了页面显示的内容以后调 `services.ui.invalidate()`（PG-061）。它不带参数，只推自己这一个安装，插件 id 取自启动上下文。不要权限，只要 Manifest 声明了 `ui.views`，没声明就以 `ui_host.plugin_denied` 拒绝。动作、随激活的作业、事件回调、定时器里都能调；它不进调用记录，页面重读用的是读的人自己的授权。`start()` 里调用不做任何事：插件还没运行，启动完页面本来就会读一次。停用或重启开始以后，这次激活拿到的 client 再调一律被拒，版本号不动。被拒是同步抛错。激活在 `stop` 钩子之前就已撤下，所以会调它的定时器、监听器要在 `stop` 一开始就清掉；停用或重启以后再触发的回调里抛出的错没人接，宿主进程没有兜底，会整个退出（BL-411）。Home 实例推的是 Home 路由的 revision；双实例两半各推各的。宿主自己也还在推：Home 插件的命令成功以后推一次，另有 Files、Git 的两个宿主端口，迁移时由它们改成自己调 `invalidate()`。沙箱插件的 SDK 还没有 `ui`。
+revision 由插件自己推动：服务端在改了页面显示的内容以后调 `services.ui.invalidate()`（PG-061）。它不带参数，只推自己这一个安装，插件 id 取自启动上下文。不要权限，只要 Manifest 声明了 `ui.views`，没声明就以 `ui_host.plugin_denied` 拒绝。动作、随激活的作业、事件回调、定时器里都能调；它不进调用记录，页面重读用的是读的人自己的授权。`start()` 里调用不做任何事：插件还没运行，启动完页面本来就会读一次。停用或重启开始以后，这次激活拿到的 client 再调一律被拒，版本号不动。`stop` 钩子还在跑时，被拒照常同步抛错（激活在钩子之前就已撤下）；钩子返回以后，插件留下的定时器、监听器再调，什么也不做也不抛错（返回 `undefined`），宿主按安装与世代计数，每个方法第一次写一行 `stopped_service_call` 日志（BL-411，所有平台服务都这样，见 `skills/molis-plugin-dev/host.md`）。只有一种例外：调用发生在某个处理器还没返回的动作、消费场景、作业，或还没答复的路由里（BL-403）（停止前就在跑的那次调用，或重启后的新激活拿旧 client 调），被拒照常抛错，那次调用的发起方会收到。所以漏清的回调不会让宿主进程退出，但仍要在 `stop` 一开始清掉：它们白跑，日志里留下这个插件。Home 实例推的是 Home 路由的 revision；双实例两半各推各的。宿主自己只剩一处在推：Home 插件的命令成功以后推一次。Files 和 Git 都在事件回调里自己调；Git 另在宿主的操作回执监听里调，这个监听在 `stop` 一开始就清掉。沙箱插件的 SDK 还没有 `ui`。
 
 ### 浏览器请求
 
@@ -124,3 +133,15 @@ revision 由插件自己推动：服务端在改了页面显示的内容以后�
 - **谁拥有什么。** 键、头、错误形状、编号按钮归助手；错误文案、放在页面哪里、要不要保留输入仍归各界面。
 
 `molisWorkControlHeaders()` 留着，是同一助手只给头的入口，供还没迁的调用方使用（删除条件见 [UI Host README](../../packages/ui-host/README.md#浏览器请求)）。进度：W3-10-1a 把助手装到不进 `/assets/` 的内联页面（设置、项目设置、引导、新建项目旅程、选择页、侧栏独立页、创作台页）；W3-10-1b 让工作台主程序（`/assets/molis-work-workbench.js`）以助手开头，所以挂进工作台的页面（设置里的各页、侧栏）不用自带，并先迁了设置一组（模型、提示词、助理、记忆、诊断、常驻服务、项目与项目说明、Runtime 接入预览）、侧栏（含浏览器与文件）、设置目录、后台任务和插件通知；工作台的其余请求（导航、Feed、插件挂载、助理底栏、放置、搜索，W3-10-2～4）和插件客户端（W5-04）还在用各自的包装。挂进工作台的页面里的「诊断编号」按钮只有一个复制入口（`data-molis-call-id`，助手的点击处理），不再另挂 `data-copy-value`。
+
+隔离视图另可调用 `host.confirm(message)`、`host.prompt(message, initial)` 和 `host.copyText(text)`：前两者是当前视图内可取消的异步组件对话框，后者只在真实用户操作后复制文字，不提供系统剪贴板读取。模型设置更新的通知由外壳传给各视图，再由插件按自身权限重读状态。
+
+隔离页面的 `host.terminal.mount(element, { panelId, onEvent })` 按需加载平台已有终端资源。返回的视图提供 `focus()`、`fit()` 和 `dispose()`；卸载视图不停止已接受的进程，停止须显式发送 `kill`。共享滚动、流式文字与复制反馈在子页面中初始化；`navigator.clipboard.writeText` 也接到同一受限复制通道，宿主仍检查真实用户激活，不提供剪贴板读取。
+
+服务端投影的页面使用 `host.view.readDocument(): Promise<string>` 获取自己当前贡献的 HTML。宿主固定读取页面来源，提取该贡献的惰性内容，并在读取前后验证页面授权；页面不能请求其他贡献或宿主整页。普通业务变更仍走自身声明的动作或路由。
+
+页面要在自己的布局里展示另一个已启用插件的对象，使用 `host.view.embed(element, { surface, itemId, title? })`，得到 `ready` 与 `dispose()`。它只提交对象身份和区域坐标；宿主在该区域显示同项目的独立页面，内容 DOM、页面凭据和任意地址均不交给调用插件。区域受父页边界裁切，隐藏随父页隐藏，移除占位元素或关闭父页即释放；创建时复核父页授权，目标交互继续由目标页自己的授权处理。
+
+`host.workspaces.add(path)` 在宿主显示插件、项目与路径，真实确认后关联；`host.workspaces.select(id)` 只切换当前项目已经授权的浏览目录。页面须有 `workspace:read`，不能通过普通请求伪造确认、项目或通用设置权限；隐藏取消尚未完成的关联。
+
+页面收尾用 `host.view.onClosing({ reference, input })` 在页面活跃时登记，`null` 取消登记。宿主离开文档时以 keepalive 发送一次，先取消该页普通在途请求，再在同一激活、项目和权限下运行它自己声明的动作，最后撤销页面；消费别的插件动作不能登记为收尾。空白新建项使用原有带版本约束的撤销动作，任何待保存或非空输入都会取消登记。keepalive 仅保持浏览器传输，不延长撤权或项目删除后的写权限。

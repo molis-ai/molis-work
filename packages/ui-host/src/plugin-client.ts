@@ -1,6 +1,6 @@
 import { uiHostErrors } from "./ui-errors.js";
 import type { PluginManifest, PluginStartContext, PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { UiContribution, UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
+import { declaresOwner, ownedContribution, type UiContribution, type UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /** The Host's side of `PluginUiClient.invalidate` for one activation (PG-061). */
 export interface PluginUiViews {
@@ -31,11 +31,13 @@ export function createPluginUiClient(host: UiHostApi, context: PluginStartContex
     client: {
       register<TModel>(contribution: UiContribution<TModel>) {
         authorize();
+        // Whose it is comes from the Manifest the Host trusts, never from the contribution: one that names an owner is refused.
+        if (declaresOwner(contribution.descriptor)) throw uiHostErrors.plugin_denied("UI contribution 不能自己写插件身份，由平台按 Manifest 填写");
         const descriptor = structuredClone(contribution.descriptor);
-        if (descriptor.plugin_id !== context.plugin_id || !manifest.ui.contributions.includes(descriptor.contribution_id)) {
+        if (!manifest.ui.contributions.includes(descriptor.contribution_id)) {
           throw uiHostErrors.plugin_denied("只能注册 Manifest 声明的自身 UI contribution");
         }
-        host.register<TModel>({ descriptor, render(request) { authorize(); return contribution.render(request); } });
+        host.register<TModel>(ownedContribution({ descriptor, render(request) { authorize(); return contribution.render(request); } }, context.plugin_id));
         registrations.add(descriptor.contribution_id);
       },
       unregister(contributionId) {

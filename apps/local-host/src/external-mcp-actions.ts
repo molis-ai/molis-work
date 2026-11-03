@@ -40,9 +40,13 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
   };
   const restoring = new Map<string, Promise<void>>();
 
-  async function sync(place: Place, pluginId: string, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner): Promise<void> {
+  /**
+   * Re-registers the tools of `owner`'s servers, and no one else's: an unchanged tool keeps its registration, so syncing twice
+   * changes nothing. `check` (the call's final authority check) runs after the reads, before the directory or the copy is written.
+   */
+  async function sync(place: Place, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner, check?: () => void): Promise<void> {
     if (!library.tools || !library.call || !library.live) return;
-    const key = JSON.stringify([place.project_id, pluginId]);
+    const pluginId = owner.plugin_id, key = JSON.stringify([place.project_id, pluginId]);
     if (!lastSeen.has(key)) { const saved = readSeen()[key]; if (saved) lastSeen.set(key, saved.tools); }
     const live = await library.tools(owner);
     // A server still configured but not connected keeps what it offered, so references and the directory say why it cannot run.
@@ -50,6 +54,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     const configured = new Set(servers.keys());
     const connected = new Set([...servers.values()].filter(server => server.health === "connected").map(server => server.id));
     const tools = [...live, ...(lastSeen.get(key) ?? []).filter(tool => configured.has(tool.server) && !connected.has(tool.server))];
+    check?.();
     lastSeen.set(key, tools);
     remember(key, { ...place, plugin_id: pluginId, runtime_id: runtimeId, tools });
     const byServer = new Map<string, AgentMcpToolDescriptor[]>();
@@ -94,9 +99,9 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     }
   }
   return {
-    refresh(reference: Place, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) { return sync(reference, owner.plugin_id, runtimeId, library, owner); },
-    sync(runtime: MolisWorkProjectRuntime, pluginId: string, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) {
-      return sync({ project_id: runtime.project_id, storage_key: runtime.store.path }, pluginId, runtimeId, library, owner);
+    refresh(reference: Place, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) { return sync(reference, runtimeId, library, owner); },
+    sync(runtime: MolisWorkProjectRuntime, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner, check?: () => void) {
+      return sync({ project_id: runtime.project_id, storage_key: runtime.store.path }, runtimeId, library, owner, check);
     },
     /**
      * After a restart (or a project reopening) the directory is empty until someone lists the servers again. The first
@@ -109,7 +114,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
         const run = restoring.get(key) ?? (async () => {
           try {
             const library = await libraryFor(entry.runtime_id);
-            if (library && !registered.has(key)) await sync(entry, entry.plugin_id, entry.runtime_id, library, { project_id: entry.project_id, plugin_id: entry.plugin_id });
+            if (library && !registered.has(key)) await sync(entry, entry.runtime_id, library, { project_id: entry.project_id, plugin_id: entry.plugin_id });
           } catch (error) {
             // The directory stays as it is and the next list of the servers catches up; the failed restore is written.
             hostLog.warn("connections", "mcp_restore_failed", error, { runtime_id: entry.runtime_id });

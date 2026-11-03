@@ -1,3 +1,5 @@
+import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
+import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
 import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -110,8 +112,9 @@ test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accou
   remote=await listen(upstream);
   const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN','MOLIS_WORK_SYNC_LOCAL'];
   const previous=names.map(name=>process.env[name]);[remote,'web-test',remote,'1'].forEach((value,index)=>process.env[names[index]]=value);
-  let spaceId='';const original=fetch,historyKey=JSON.stringify(['project','document','page']);
-  const historySelection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};let syncSelections:typeof historySelection[]=[];const historyWrites:unknown[]=[];
+  let spaceId='',historyKey='';const original=fetch;
+  const historyCollection=pagesManifest.sync!.collections.find(row=>row.id==='documents')!;
+  const historySelection={plugin_id:pagesManifest.plugin_id,publisher_id:pagesManifest.publisher.publisher_id,publisher_signature:pagesManifest.publisher.signature,collection_id:historyCollection.id,schema_version:historyCollection.schema_version};let syncSelections:typeof historySelection[]=[];const historyWrites:unknown[]=[];
   t.mock.method(globalThis,'fetch',(async(input,init)=>{
     if(new URL(String(input)).origin!=='http://127.0.0.1:8788')return original(input,init);
     syncRequests++;const url=new URL(String(input));
@@ -129,13 +132,17 @@ test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accou
   const request=async(path:string,method='GET',body:object={})=>{
     const response=await fetch(origin+path,{method,headers:{Cookie:cookie,Origin:origin,'content-type':'application/json',...(method!=='GET'||path.startsWith('/api/sync')?{'x-molis-work-control-token':token}:{}),'x-molis-work-idempotency-key':'device-'+(++sequence)},...(method==='GET'?{}:{body:JSON.stringify(body)}),redirect:'manual'});
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
-    assert.ok(response.status<400,'unexpected HTTP '+response.status+' for '+path);return response;
+    assert.ok(response.status<400,'unexpected HTTP '+response.status+' for '+path+': '+(response.status>=400?await response.clone().text():''));return response;
   };
   const login=async()=>{
     await request('/api/personal/login','POST');await request('/account/callback?code=synthetic&state='+state);
     await request('/api/personal/space?kind=personal','POST');
     const scopes=await(await request('/api/spaces')).json();spaceId=scopes.current.spaceId;
     token=(await(await request('/api/personal/status')).json()).viewToken;
+    // Pages is a project Runtime owner on main; opening that project is the person's activation, not sync discovery.
+    const project=await withMolisWorkProjectCatalog({homeDirectory:join(home,'spaces',spaceId)},async catalog=>catalog.listProjects().find(row=>row.display_name==='History fixture')??await catalog.createProject({display_name:'History fixture',actor_id:'alice'}));
+    historyKey=JSON.stringify([null,JSON.stringify([project.project_id,'document','page'])]);
+    await request('/projects/'+encodeURIComponent(project.project_id)+'/');
   };
   try{
     await login();const initial=await(await request('/api/sync')).json();
@@ -155,7 +162,8 @@ test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accou
     }
     assert.equal(syncRequests,1,'history reads cannot bypass selection or create a remote request');
     syncSelections=[historySelection];await request('/api/sync/run','POST');
-    const ns=JSON.stringify([historySelection.plugin_id,historySelection.publisher_id,historySelection.publisher_signature,historySelection.collection_id,1]),query='?'+new URLSearchParams({namespace:ns,key:historyKey,revision:'2'});
+    const selectedStatus=await(await request('/api/sync')).json();assert.equal(selectedStatus.error,null,JSON.stringify(selectedStatus));
+    const ns=JSON.stringify([historySelection.plugin_id,historySelection.publisher_id,historySelection.publisher_signature,historySelection.collection_id,historySelection.schema_version]),query='?'+new URLSearchParams({namespace:ns,key:historyKey,revision:'2'});
     const listed=await(await request('/api/sync/history/keys?'+new URLSearchParams({namespace:ns}))).json();assert.equal(listed.items[0].key,historyKey);
     assert.equal((await(await request('/api/sync/history'+query)).json()).items[0].revision,2);
     const inspected=await(await request('/api/sync/history/version'+query)).json();assert.equal(inspected.value,null);assert.equal(inspected.currentRevision,1);

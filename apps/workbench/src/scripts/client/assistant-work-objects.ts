@@ -6,9 +6,9 @@
  *   (`GET /api/assistant/related`). What the current work holds is those, plus what the person added to its strip with +.
  * - A write chosen on the page asks where its card goes with `molis:assistant-card-target` (context-card-target.ts asks;
  *   dispatching is synchronous, so the answer is there when it returns). The Assistant answers with the current work when its panel is
- *   open, the work is its own (not Coding's) and holds the object. No answer (no Assistant here, panel closed, an object the
+ *   open, the work is its own (not a plugin's) and holds the object. No answer (no Assistant here, panel closed, an object the
  *   work does not hold): the page starts a new work, as before. The answer is a pointer only: the Host still refuses a work
- *   that is not the person's own, archived, Coding's or in another project (`offerFromPage`).
+ *   that is not the person's own, archived, a plugin's or in another project (`offerFromPage`).
  * - A result the work made can be picked up (§21.2 item 6, W3-A3b): `pickable(card, object, title)`. A click on the card
  *   (not on its title, which opens the object, nor on its buttons), Enter or Space picks it; Esc, or a press anywhere but
  *   the card and the bar, puts it down. A click that ends a text selection in the card is reading, not picking. Picked, the
@@ -37,7 +37,7 @@ export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, 
     document.addEventListener("molis:assistant-card-target", (event) => {
       const detail = event.detail, object = detail && detail.object, view = current();
       if (!detail || typeof detail.reply !== "function" || !object || typeof object.kind !== "string" || typeof object.id !== "string") return;
-      if (open() && view && view.work.executor?.kind !== "coding" && holds(object)) detail.reply(view.work.work_id);
+      if (open() && view && view.work.executor?.kind !== "plugin" && holds(object)) detail.reply(view.work.work_id);
     });
     let picked = null;
     const say = (node, focus) => node.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: focus }));

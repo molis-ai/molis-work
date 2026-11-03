@@ -9,11 +9,10 @@ export const PAGES_DOCUMENT_INTAKE = "document";
 
 const TITLE_MAX = 80;
 const SOURCE_MAX = 80;
-/** Cut to `max` UTF-16 units (the length Pages checks a title by), never between the two halves of a character such as an emoji. */
+/** Cut to `max` whole characters (the length Pages checks a title by), the last of them 「…」; an emoji is one character and is never cut in half. */
 const clip = (text: string, max: number) => {
-  if (text.length <= max) return text;
-  const head = text.slice(0, max - 1), last = head.charCodeAt(head.length - 1);
-  return `${last >= 0xd800 && last <= 0xdbff ? head.slice(0, -1) : head}…`;
+  const characters = [...text];
+  return characters.length <= max ? text : characters.slice(0, max - 1).join("") + "…";
 };
 /** A list marker, quote mark or heading hash is not part of a title (“1.”, “-”, “##”); a number that is content (“2026 年”) stays. */
 const MARKER = /^\s*(?:#{1,6}\s+|[-*•>]\s+|\d{1,2}[.、)）]\s*)/u;

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -15,10 +16,12 @@ import { gitActions, gitManifest, GIT_ACTIONS } from "@molis-ai/molis-work-plugi
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { PENDING, within } from "./fixtures/stopped-calls.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 /** The parts of the routes' JSON answers this test reads; a key a route does not send fails the assertion that reads it. */
 interface Reply {
@@ -51,7 +54,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   const contexts = new Map<string, PluginStartContext>();
   const pluginFor = (name: string, consumes: string[], ownAction = true): PluginDefinition => {
     const own: ActionDefinition = { capability_id: `${name}.list`, version: 1, operation: "query", action: { title: name, description: "Lists through the workspace read", kind: "query", scope: "project",
@@ -65,7 +68,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
   };
   try {
     const start = async (name: string, consumes: string[], grants: string[], ownAction = true) => {
-      const installed = runtime.install({ definition: pluginFor(name, consumes, ownAction), deployment: "local", grants }).install;
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition: pluginFor(name, consumes, ownAction), deployment: "local", grants }).install;
       await runtime.start(installed.install_id);
       return installed;
     };
@@ -83,7 +86,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     assert.equal(call.host_plugin?.plugin_id, "io.molis.work.example.reader");
     assert.equal(call.plugin_install_id, reader.install_id);
     assert.deepEqual(call.permissions, ["workspace:read"]);
-    assert.deepEqual(call.allowed_actions, [{ capability_id: readFile.capability_id, version: 1, provider_id: HOST_PROVIDER_ID }]);
+    assert.deepEqual(call.allowed_capability_ids, [readFile.capability_id, other.capability_id], "the dependency check is limited to exactly the Manifest consumption list");
     // The input schema is the action's own: a mode it does not have is refused before the handler runs.
     await assert.rejects(client.invoke(readFile, { ...query, kind: "everything" as never }));
     await assert.rejects(client.invoke(readFile, { ...query, extra: true } as never));
@@ -109,9 +112,9 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
     assert.deepEqual(await withoutGrant.discover(), [], "its own action needs the read permission it was never granted");
     assert.equal(reads.host, 1);
 
-    // A stopped instance holds nothing.
+    // A stopped instance holds nothing: outside every call (BL-411) the refusal throws nothing, and the call never answers.
     await runtime.stop(reader.install_id);
-    await assert.rejects(client.invoke(readFile, query), { code: "actions.forbidden" });
+    assert.equal(await within(client.invoke(readFile, query)), PENDING);
     assert.equal(reads.host, 1);
 
     // The client does not depend on having an action of one's own: a plugin that only consumes the Host action reaches it,
@@ -147,7 +150,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
   const bare = new MolisWorkLocalHost({ homeDirectory: join(root, "bare"), completeText: null });
   const bareReference = molisWorkHostProjectReference({ databasePath: join(root, "bare-project.sqlite"), projectId: "project-bare" });
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-one", actor_id: "web-user", idempotency_key: "init" }));
+    await initializeBoard(host, reference, { actor_id: "web-user", idempotency_key: "init" });
     const client = host.actionClient(reference);
     const text = { workspace_id: workspace.workspace_id, path: ["chart.png"] };
 
@@ -205,7 +208,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     assert.equal(status.summary?.branch, "main");
 
     // Without a workspace port on the Host there is no read to depend on: the dependents say so.
-    await bare.withProject(bareReference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-bare", actor_id: "web-user", idempotency_key: "init" }));
+    await initializeBoard(bare, bareReference, { actor_id: "web-user", idempotency_key: "init" });
     const bareDirectory = await bare.actionClient(bareReference).discover({ ...person(everything), project_id: "project-bare" });
     for (const definition of reading) {
       const row = bareDirectory.find(item => item.capability_id === definition.capability_id);
@@ -248,7 +251,9 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     const sources = (await request(`/projects/${id}/api/side/files/sources`)).body.sources as Array<{ id: string; plugin_id: string; kinds: Array<{ kind: string }> }>;
     const source = sources.find(item => item.kinds.some(kind => kind.kind === WORKSPACE_FILE_KIND));
     assert.ok(source, JSON.stringify(sources));
-    const entries = (await request(`/projects/${id}/api/side/files/entries?source=${encodeURIComponent(source.id)}`)).body.page.entries as Array<{ title: string; subject: { id: string } }>;
+    const entryReply = await request(`/projects/${id}/api/side/files/entries?source=${encodeURIComponent(source.id)}`);
+    assert.equal(entryReply.status, 200, JSON.stringify(entryReply.body));
+    const entries = entryReply.body.page.entries as Array<{ title: string; subject: { id: string } }>;
     assert.deepEqual(entries.map(entry => entry.title).sort(), ["chart.png", "note.txt", "streaks.ts"]);
     const picture = entries.find(entry => entry.title === "chart.png")!;
     const preview = await request(`/projects/${id}/api/side/files/content?source=${encodeURIComponent(source.id)}&kind=${WORKSPACE_FILE_KIND}&id=${encodeURIComponent(picture.subject.id)}`);
@@ -287,8 +292,10 @@ test("Files, Git and Coding read the linked folder through the one action in a r
 
 test("a Home that installed Files, Git and Coding before the read permission existed follows the new Manifest and holds it, without asking", () => {
   for (const manifest of [filesManifest, gitManifest, codingManifest] as readonly PluginManifest[]) {
-    // The Manifest as the Home last saw it: no read permission, no read dependency on any action, no read id consumed.
+    // The Manifest as the Home last saw it: no read permission, no read dependency on any action, no read id consumed, and no
+    // subscription to the Host's workspace broadcast, which needs that permission (BL-379).
     const before: PluginManifest = { ...manifest, permissions: manifest.permissions.filter(item => item.permission !== "workspace:read"),
+      ...(manifest.events ? { events: { ...manifest.events, subscribes: manifest.events.subscribes.filter(item => item.event_type_id !== HOST_WORKSPACE_CHANGED_EVENT) } } : {}),
       actions: (manifest.actions ?? []).map(({ action, ...rest }) => {
         const { required_actions: _required, ...kept } = action;
         return { ...rest, action: { ...kept, permissions: action.permissions.filter(permission => permission !== "workspace:read") } };
@@ -296,9 +303,9 @@ test("a Home that installed Files, Git and Coding before the read permission exi
       capabilities: { ...manifest.capabilities, consumes: manifest.capabilities.consumes.filter(id => id !== readFile.capability_id && id !== readGit.capability_id) } };
     // The Home outlives the process: the same records, read by the next start of the Host.
     const records = new MemoryPluginRuntimeRepository();
-    const installed = new PluginRuntime(records).install({ definition: { manifest: before, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local" }).install;
+    const installed = new PluginRuntime(records, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "host" }, definition: { manifest: before, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local" }).install;
     assert.ok(!installed.grants.includes("workspace:read"), manifest.plugin_id);
-    const followed = new PluginRuntime(records).install({ definition: { manifest, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local", bundled: true }).install;
+    const followed = new PluginRuntime(records, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: { manifest, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local", trust: { level: "host" } }).install;
     assert.equal(followed.install_id, installed.install_id, "the same installation, so its private data stays attached");
     assert.ok(followed.grants.includes("workspace:read"), manifest.plugin_id);
     for (const permission of installed.grants) assert.ok(followed.grants.includes(permission), `${manifest.plugin_id} keeps ${permission}`);

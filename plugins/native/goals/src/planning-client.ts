@@ -1,5 +1,7 @@
+// These scripts run in the Host page, where the page-wide `L` knows no word only Goals declares: each binds Goals' own translator (`LF`), so what Goals says is English from its own translations.
 export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
 (()=>{
+  const L = (key, vars) => LF("io.molis.work.goals", key, vars);
   const bindFilters = (root)=>{
     const scope = root && root.querySelector ? root : document;
     const board = scope.matches?.(".work-planning, .planning-catalog") ? scope : scope.querySelector(".work-planning, .planning-catalog");
@@ -125,6 +127,7 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
 `;
 export const PLANNING_ADOPTION_CLIENT_SCRIPT = `
 (()=>{
+  const L = (key, vars) => LF("io.molis.work.goals", key, vars);
   globalThis.molisWorkBindPlanningAdoption = (root)=>{
     const scope = root && root.querySelector ? root : document;
     const errorBox=scope.querySelector("[data-planning-adoption-error]");

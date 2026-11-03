@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createAlchemistStudioRuntime,openAlchemistSyncStore,alchemistActions as a,alchemistManifest} from '@molis-ai/molis-work-plugin-alchemist';
-import {builtinSyncBindings} from '@molis-ai/molis-work-app-workbench';
+import {builtinSyncBindings} from '@molis-ai/molis-work-app-local-host';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
 import {cloudFixture} from './testing.mjs';
@@ -23,7 +23,7 @@ test('PCSYNC-ALC-ACTOR-01 Studio real authors cross actual Rust WASM/D1/R2; stal
  source.database.prepare("UPDATE runtime_settings SET model_id='never-upload-device-model'").run();
  const entry=builtinSyncBindings().find(row=>row.entry.manifest.plugin_id===alchemistManifest.plugin_id&&row.collection.id==='studio'),binding=entry.binding;
  assert.equal(binding.scope,'project-library');
- const selection={plugin_id:alchemistManifest.plugin_id,publisher_id:alchemistManifest.publisher.publisher_id,publisher_signature:alchemistManifest.publisher.signature,collection_id:'studio',schema_version:1};
+ const selection={plugin_id:alchemistManifest.plugin_id,publisher_id:alchemistManifest.publisher.publisher_id,publisher_signature:alchemistManifest.publisher.signature,collection_id:'studio',schema_version:entry.collection.schema_version};
  const clients=homes.map(home=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}},fetch:cloud.transport,registrations:[{
   selection,title:'Studio',content:binding.content({spaceId:space.spaceId,authorize(){}}),async refresh(){},async prepare(){},withReplica(run){const store=openAlchemistSyncStore(home,'project');try{return run(store.replica({spaceId:space.spaceId,projectId:'project',title:'Portable research',authorize(){}}));}finally{store.close();}}
  }]}));t.after(()=>clients.forEach(c=>c.close()));

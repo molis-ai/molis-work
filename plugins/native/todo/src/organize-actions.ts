@@ -1,12 +1,13 @@
 import { ActionError, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PROJECT_PLUGIN_ID, type TodoBatch } from "./contract.js";
 import { localDate } from "./dates.js";
 import { todoErrors } from "./error.js";
-import { organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
+import { TODO_ORGANIZE_DATA_MAX_CHARS, organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { TodoOrganizer, validEdits, type TodoApplyResult, type TodoCandidateDecision } from "./organize.js";
 import { TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
 import type { TodoAccess, TodoStores } from "./store.js";
+import { withProjectReach } from "./reach.js";
 
 export const TODO_BATCH_SUBJECT_KIND = "todo_batch";
 
@@ -46,8 +47,8 @@ const decision = object({ candidate_id: id, action: choices([["add", "加入待�
 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   permissions: readonly string[], extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<I, O> {
-  return { capability_id: `todo.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input, output_schema: output, ...extra } };
+  return withProjectReach({ capability_id: `todo.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home",
+    audiences: ["user", "agent", "workflow", "mcp"], permissions: [...permissions], subject_kinds: [TODO_BATCH_SUBJECT_KIND], input_schema: input, output_schema: output, ...extra } });
 }
 const READ = ["todo:read"], WRITE = ["todo:read", "todo:write"];
 
@@ -79,7 +80,7 @@ export interface TodoOrganizePorts extends TodoStores {
   modelAvailability(): ActionAvailability;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   today?(): string;
-  access(caller: ActionCallContext, everything?: boolean): TodoAccess;
+  access(caller: ActionCallContext, reach?: "caller" | "listed" | "required"): TodoAccess;
 }
 
 const KIND: Record<string, string> = { request: "要你处理", commitment: "你的承诺", waiting: "在等别人", suggestion: "建议" };
@@ -114,13 +115,21 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       let unverified = 0;
       const method = input.method === "organizer" ? TODO_ORGANIZE_ORGANIZER : TODO_ORGANIZE_BASIC;
       const parts = organizeParts(input.materials);
-      for (const [part, indexes] of parts.entries()) {
+      const prompts = parts.map(indexes => organizePrompt(method, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }));
+      // One organizing call's data (its part of the materials, the existing todos, the request) over the data position would be refused by the
+      // Host only after dispatch, as a model failure; refuse it here, before any model call or batch record, saying how much over it is.
+      // Materials are split into parts by organizeParts, so a large batch still works unless one part's data cannot fit.
+      for (const prompt of prompts) {
+        const chars = [...prompt.data].length;
+        if (chars > TODO_ORGANIZE_DATA_MAX_CHARS) throw todoErrors.invalid(`这批材料与已有待办转成提示后 ${chars} 字，超过数据位 ${TODO_ORGANIZE_DATA_MAX_CHARS} 字，多 ${chars - TODO_ORGANIZE_DATA_MAX_CHARS} 个字；请减少材料，或先整理、归档一些已有待办后重试`);
+      }
+      for (const [part] of parts.entries()) {
         caller.signal?.throwIfAborted();
         caller.on_progress?.({ stage: "organizing", progress: part / Math.max(parts.length, 1) });
         let parsed;
         // A reply that is not the requested JSON is asked for once more before giving up.
         for (let attempt = 0; !parsed; attempt += 1) {
-          const raw = await ports.completeText(organizePrompt(method, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }), { signal: caller.signal });
+          const raw = await ports.completeText(prompts[part]!, { signal: caller.signal });
           try { parsed = parseOrganizeOutput(raw, input.materials, byId, today); }
           catch { if (attempt >= 1) throw todoErrors.model_invalid("模型没有给出可用的整理结果，请再试一次"); }
         }
@@ -131,19 +140,19 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       return writing(caller, value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: method.prompt_id,
         materials: input.materials, candidates: drafts, reference_only: reference, unverified, request_id: input.request_id }, access));
     }, () => ports.modelAvailability()),
-    bind(todoOrganizeActions.list, (input, caller) => reading(value => ({ batches: value.list(ports.access(caller, caller.audience === "user"), input.status ?? "open") }))),
-    bind(todoOrganizeActions.get, (input, caller) => reading(value => ({ batch: value.get(input.id, ports.access(caller, caller.audience === "user")) }))),
+    bind(todoOrganizeActions.list, (input, caller) => reading(value => ({ batches: value.list(ports.access(caller, "listed"), input.status ?? "open") }))),
+    bind(todoOrganizeActions.get, (input, caller) => reading(value => ({ batch: value.get(input.id, ports.access(caller, "listed")) }))),
     bind(todoOrganizeActions.apply, (input, caller) => writing(caller, value => {
       if (!input.decisions.every(entry => validEdits(entry.edits))) throw todoErrors.invalid("日期或时间写法不对");
-      return value.apply(input.id, input.decisions, input.expected_revision, ports.access(caller, caller.audience === "user"));
+      return value.apply(input.id, input.decisions, input.expected_revision, ports.access(caller, "listed"));
     })),
-    bind(todoOrganizeActions.close, (input, caller) => writing(caller, value => ({ batch: value.close(input.id, ports.access(caller, caller.audience === "user")) }))),
+    bind(todoOrganizeActions.close, (input, caller) => writing(caller, value => ({ batch: value.close(input.id, ports.access(caller, "listed")) }))),
     { ...todoOrganizeActions.subject, handle: (caller, input) => reading(value => {
       let found: TodoBatch;
       try { found = value.get((input as { subject_id: string }).subject_id, ports.access(caller)); }
       catch { throw todoErrors.not_found("这份整理结果不在当前范围内"); }
       return subjectContext({ subject: { kind: TODO_BATCH_SUBJECT_KIND, id: found.batch_id }, revision: String(found.revision), title: found.title, content: batchText(found),
-        goal_ids: [], session_id: null, open: { surface: TODO_PROJECT_PLUGIN_ID, id: "batch:" + found.batch_id } });
+        open: { surface: TODO_PROJECT_PLUGIN_ID, id: "batch:" + found.batch_id } });
     }) },
   ];
 }

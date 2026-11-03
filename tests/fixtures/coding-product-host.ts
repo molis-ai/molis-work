@@ -15,7 +15,7 @@ export type CodingProviderRequest = { messages: Array<{ content: string | Array<
 
 /** Real HTTP, catalog, workspace authorization, Agent Host and the installed SDK; only the provider response is controlled. */
 export async function codingProductHost(t: TestContext, respond: (request: CodingProviderRequest, turn: number) => Response | Promise<Response>) {
-  const home = await mkdtemp(join(tmpdir(), "coding-product-")), directory = join(home, "work"); await mkdir(directory);
+  const home = await mkdtemp(join(tmpdir(), "coding-product-")), directory = join(home, "work");
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   let release = async () => {};
   t.after(async () => { try { await release(); } finally {
@@ -23,6 +23,7 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     resetSecretStoreCache(); await rm(home, { recursive: true, force: true });
   } });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  await mkdir(directory);
   const project = await catalog.createProject({ display_name: "Coding product path", actor_id: "web-user" });
   const other = await catalog.createProject({ display_name: "Other material owner", actor_id: "web-user" });
   for (const row of [project, other]) catalog.addProjectPlugin({ project_id: row.project_id, plugin_id: "coding", actor_id: "web-user" });

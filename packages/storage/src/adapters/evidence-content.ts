@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { atomicWriteFileSync } from "./atomic-write.js";
-import { resolveFeedSecurityDirectory } from "./local-security-paths.js";
+import { resolveHomeSecurityDirectory } from "./local-security-paths.js";
 import { createFileSecretStore, type SecretStore } from "./file-secret-store.js";
 
 // Persisted names are deliberately unchanged so existing references and ciphertext remain readable.
@@ -24,6 +24,11 @@ interface SealedEvidenceBlob {
   iv: string;
   tag: string;
   ct: string;
+}
+
+/** The reference `write` gives a body, known before it is written: content-addressed, so a caller can record that it holds a body before the body exists. */
+export function evidenceContentRef(markdown: string): string {
+  return `molis-work-feed/sha256/${createHash("sha256").update(markdown).digest("hex")}`;
 }
 
 export interface EvidenceContentStore {
@@ -54,7 +59,7 @@ export function createEvidenceContentStore(options: {
   rootDirectory?: string;
 } = {}): EvidenceContentStore {
   const secretStore = options.secretStore ?? createFileSecretStore();
-  const root = options.rootDirectory ?? path.join(resolveFeedSecurityDirectory(), "evidence");
+  const root = options.rootDirectory ?? path.join(resolveHomeSecurityDirectory(), "evidence");
   const recoveryRoot = `${root}-recovered-v2`;
 
   const readKey = (keyRef: string): Buffer | null => {
@@ -113,8 +118,7 @@ export function createEvidenceContentStore(options: {
       if (Buffer.byteLength(markdown, "utf8") > MAX_CONTENT_BYTES) {
         throw new Error("feed evidence content exceeds local retention limit");
       }
-      const digest = createHash("sha256").update(markdown).digest("hex");
-      const contentRef = `molis-work-feed/sha256/${digest}`;
+      const contentRef = evidenceContentRef(markdown);
       const destination = blobPath(root, contentRef);
       if (fs.existsSync(destination)) {
         let existing: string | null = null;

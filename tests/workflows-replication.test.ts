@@ -1,3 +1,4 @@
+import {openWorkflowsStore} from "./fixtures/plugin-sync-stores.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,10 +7,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { ensureStorageSpace, homeSqlitePath, personalStorageSpace, type AggregateReplicaContext } from "@molis-ai/molis-work-storage";
 import type { SyncEvent, SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import {
-  createWorkflowsActionHandlers, manualLink, newStation, openWorkflowsStore, workflowsActions,
-  type WorkflowsActionPorts,
-} from "@molis-ai/molis-work-plugin-workflows";
+import {createWorkflowsActionHandlers, manualLink, newStation, workflowsActions, type WorkflowsActionPorts, } from "@molis-ai/molis-work-plugin-workflows";
 
 function fixture(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), "workflows-sync-"));

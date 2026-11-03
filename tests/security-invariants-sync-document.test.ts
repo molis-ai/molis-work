@@ -12,7 +12,7 @@ const errors = defineErrorCodes('fixture', { invalid: 'invalid', waiting: 'confl
 function fixture(storage?: SyncDocumentStorage) {
   let text: string | null = null, active = true, missing = false, bad = false, unavailable = false;
   const port = storage ?? { read: () => text, compareAndSet(expected, value) { if (expected !== text) return false; text = value; return true; } };
-  const open = () => createSyncDocument<Data>({ spaceId: 'personal:alice', storage: port,
+  const open = () => createSyncDocument<Data>({ spaceId: 'personal:alice', storage: port,authorizeKey(){},
     authorize() { if (!active) throw errors.revoked('revoked'); }, initial: () => ({ items: [] }),
     validate(value) {
       if (!value || typeof value !== 'object' || !('items' in value) || !Array.isArray(value.items)
@@ -85,7 +85,7 @@ test('PCSYNC-14 document isolates unavailable reads, waits for dependencies and 
   assert.equal(f.raw(), before);
 });
 
-test('S-83 PCSYNC-14 explicit temporary byte unavailability keeps the original queue and never exposes private diagnostics', () => {
+test('S-135 PCSYNC-14 explicit temporary byte unavailability keeps the original queue and never exposes private diagnostics', () => {
   const f=fixture();f.edit('one','original');f.edit('healthy','another item');f.unavailable(true);const before=f.raw();
   assert.throws(()=>f.doc.replica.next(),error=>{
     assert.ok(error&&typeof error==='object'&&'code' in error&&'kind' in error&&'details' in error);
@@ -96,7 +96,7 @@ test('S-83 PCSYNC-14 explicit temporary byte unavailability keeps the original q
   f.doc.replica.acknowledge(healthy.key,healthy.operationId,1);f.unavailable(false);assert.equal(f.open().replica.next()!.value,'original');
 });
 
-test('S-83 PCSYNC-15/16 JSON comparison rejects newer local text even when the remote revision is unchanged', () => {
+test('S-135 PCSYNC-15/16 JSON comparison rejects newer local text even when the remote revision is unchanged', () => {
   const f=fixture();f.edit('one','before');f.doc.replica.receive({operationId:'remote',key:'one',base:0,revision:1,value:'remote'});
   const shown=f.doc.replica.inspectConflict!('one')!;f.edit('one','new local');
   assert.throws(()=>f.doc.replica.resolve('one','remote',shown.revision,shown.state),/比较内容已变化/);
@@ -105,7 +105,7 @@ test('S-83 PCSYNC-15/16 JSON comparison rejects newer local text even when the r
   assert.equal(f.doc.replica.inspectRecovery!(f.doc.replica.recoveries!()[0]!.id)!.local,'new local');
 });
 
-test('S-83 PCSYNC-06/25 public document uses real private-KV CAS and rejects revoked and contended writes without replay', () => {
+test('S-135 PCSYNC-06/25 public document uses real private-KV CAS and rejects revoked and contended writes without replay', () => {
   const db = new DatabaseSync(':memory:');
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: 'example.notes', name: 'Notes', version: '1.0.0', kind: 'app',
     publisher: { publisher_id: 'example', signature: 'signed-notes' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }], permissions: [{ permission: 'storage:private', required: true, reason: 'notes' }] };
@@ -113,7 +113,7 @@ test('S-83 PCSYNC-06/25 public document uses real private-KV CAS and rejects rev
   const context = { plugin_id: manifest.plugin_id, version: manifest.version, install_id: 'notes-install', deployment: 'local' as const, grants: ['storage:private'], requireGrant() { if (!active) throw errors.revoked('revoked'); } };
   try {
     const absent = { read: () => null } as SyncDocumentStorage;
-    assert.throws(() => createSyncDocument({ spaceId: 'personal:alice', storage: absent, authorize() {}, initial: () => ({}), validate: value => value,
+    assert.throws(() => createSyncDocument({ spaceId: 'personal:alice', storage: absent, authorize() {},authorizeKey(){}, initial: () => ({}), validate: value => value,
       observe: () => new Map(), read: () => null, apply() {} }), { code: 'plugin.sync_unsupported' });
     const kv = new SqlitePluginPrivateStorage(db).forPlugin(context, manifest);
     const f = fixture({ read: () => kv.get('notes'), compareAndSet: (before, after) => kv.compareAndSet!('notes', before, after) });
@@ -139,7 +139,7 @@ test('PCSYNC-16/25 owner location is read-only, unavailable for deleted content 
 
 test('PCSYNC-20/25 document project inspection includes retained old ownership and deleted current ownership until ACK',()=>{
  type ScopeData={items:Record<string,{project:string}>;deleted:Record<string,string>};let raw:string|null=null;
- const doc=createSyncDocument<ScopeData>({spaceId:'personal:alice',authorize(){},storage:{read:()=>raw,compareAndSet(expected,next){if(expected!==raw)return false;raw=next;return true;}},initial:()=>({items:{},deleted:{}}),validate:value=>value as ScopeData,
+ const doc=createSyncDocument<ScopeData>({spaceId:'personal:alice',authorize(){},authorizeKey(){},storage:{read:()=>raw,compareAndSet(expected,next){if(expected!==raw)return false;raw=next;return true;}},initial:()=>({items:{},deleted:{}}),validate:value=>value as ScopeData,
   observe:data=>new Map(Object.entries(data.items).map(([id,value])=>[id,JSON.stringify(value)])),read:(data,key)=>data.items[key]??null,
   apply(data,key,value){if(value===null)delete data.items[key];else data.items[key]=value as {project:string};},
   belongsToProject(data,key,projectId,retained){return (data.items[key]?.project??data.deleted[key])===projectId||retained.some(row=>!!row.value&&(row.value as {project:string}).project===projectId);}
@@ -162,4 +162,39 @@ test('local document deletion retains an unfrozen original atomically and can un
 
 test('actual prior SDK document v1 is refused without rewriting its original bytes',()=>{
  const bytes=readFileSync(new URL('./fixtures/sync-document-v1.json',import.meta.url),'utf8');const f=fixture();f.setRaw(bytes);assert.throws(()=>f.doc.read(),{code:'plugin.sync_invalid'});assert.equal(f.raw(),bytes);
+});
+
+test('S-137 SDK documents require explicit pure key authority and retain historical project scope',()=>{
+ type Row={project:string;body:string};type Scoped={items:Record<string,Row>};
+ let raw:string|null=null,active=true,hidden=false,reads=0,failDuringKey=false,unknownFailure=false;
+ const authorize=()=>{if(!active)throw errors.revoked('ACCOUNT_STOPPED');};
+ const owner={spaceId:'personal:alice',authorize,storage:{read:()=>raw,compareAndSet(expected:string|null,value:string){if(expected!==raw)return false;raw=value;return true;}},
+  authorizeKey(data:Scoped,key:string,value?:unknown){
+   if(failDuringKey){active=false;throw errors.revoked('key refused');}if(unknownFailure)throw new Error('OWNER_FAILED');
+   const candidate=value&&typeof value==='object'&&'project' in value?value.project:null;
+   if(hidden&&(data.items[key]?.project==='a'||candidate==='a'))throw errors.revoked('hidden project');
+  },
+  initial:():Scoped=>({items:{}}),validate:(value:unknown)=>value as Scoped,observe:(data:Scoped)=>new Map(Object.entries(data.items).map(([key,value])=>[key,JSON.stringify(value)])),
+  read(data:Scoped,key:string){reads++;return data.items[key]??null;},apply(data:Scoped,key:string,value:unknown){if(value===null)delete data.items[key];else data.items[key]=value as Row;},
+ };
+ const {authorizeKey:_missing,...undeclared}=owner;
+ assert.throws(()=>createSyncDocument(undeclared as typeof owner),{code:'plugin.sync_unsupported'},'missing authority is never an implicit global grant');
+ const doc=createSyncDocument(owner);doc.replica.authorizeKey!('one');assert.equal(reads,0,'key authorization does not export a snapshot');assert.equal(raw,null,'authorization does not initialize or commit a document');
+ assert.throws(()=>doc.replica.authorizeKey!(''),{code:'plugin.sync_invalid'});
+ doc.update(data=>{data.items.one={project:'a',body:'local A'};});const frozen=doc.replica.next()!;
+ doc.replica.receive({...frozen,operationId:'remote-1',revision:1,value:{project:'b',body:'remote B'}});doc.replica.resolve('one','remote',1);
+ const retained=doc.replica.recoveries!()[0]!;
+ doc.update(data=>{data.items.one={project:'b',body:'new local B'};});
+ doc.replica.receive({key:'one',operationId:'remote-2',base:1,revision:2,value:{project:'a',body:'remote A'}});
+ hidden=true;const before=raw;
+ assert.deepEqual(doc.replica.recoveries!(),[],'a saved hidden local branch remains hidden after the current row moves');assert.deepEqual(doc.replica.conflicts(),[],'a saved remote branch cannot borrow the current row scope');
+ const forbidden=(error:unknown)=>!!error&&typeof error==='object'&&'kind' in error&&error.kind==='forbidden';
+ assert.throws(()=>doc.replica.inspectRecovery!(retained.id),forbidden);assert.throws(()=>doc.replica.inspectConflict!('one'),forbidden);
+ assert.throws(()=>doc.replica.resolve('one','local',2),forbidden);
+ for(const choice of ['local','remote'] as const)assert.throws(()=>doc.replica.restoreRecovery!(retained.id,choice,1),forbidden);
+ assert.throws(()=>doc.replica.receive({key:'one',operationId:'late',base:2,revision:3,value:{project:'a',body:'late'}}),forbidden);assert.equal(raw,before,'denied history operations never reach document CAS');
+ hidden=false;doc.update(data=>{data.items.frozen={project:'a',body:'frozen A'};});const pending=doc.replica.next()!;assert.equal(pending.key,'frozen');
+ doc.update(data=>{data.items.frozen={project:'b',body:'moved B'};});hidden=true;const queued=raw;
+ assert.throws(()=>doc.replica.next(),forbidden);assert.throws(()=>doc.replica.acknowledge(pending.key,pending.operationId,4),forbidden);assert.equal(raw,queued,'frozen payload scope governs retries and late receipts');
+ failDuringKey=true;assert.throws(()=>doc.replica.recoveries!(),/ACCOUNT_STOPPED/);failDuringKey=false;active=true;unknownFailure=true;assert.throws(()=>doc.replica.recoveries!(),/OWNER_FAILED/);
 });

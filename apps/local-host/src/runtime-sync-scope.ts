@@ -28,9 +28,15 @@ export function scopeRuntimeReplica(source: SyncReplicaAdapter, scope: RuntimeSy
   const localKey = (key: string) => { const parsed = runtimeSyncKey(key); if (parsed.projectId !== scope.projectId) throw invalid(); return parsed.key; };
   const mutation = (value: SyncMutation) => ({ ...value, key: wrapKey(value.key), value: runtimeSyncValue(scope, value.value) });
   return {
+    authorizeKey(key,value){if(!source.authorizeKey)throw invalid();source.authorizeKey(localKey(key),value===undefined?undefined:readRuntimeSyncValue(scope,value));},
     next(options) {
       const excludeKeys = options?.excludeKeys?.flatMap(key => { const parsed = runtimeSyncKey(key); return parsed.projectId === scope.projectId ? [parsed.key] : []; });
-      const next = source.next({ ...options, excludeKeys }); return next ? mutation(next) : null;
+      try { const next = source.next({ ...options, excludeKeys }); return next ? mutation(next) : null; }
+      catch(error) {
+        if(error instanceof ActionError && typeof error.details?.sync_key==='string')
+          throw new ActionError(error.code,error.message,{kind:error.kind,details:{...error.details,sync_key:wrapKey(error.details.sync_key)},cause:error});
+        throw error;
+      }
     },
     ...(source.maintain?{maintain:()=>source.maintain!()}:{}),
     ...(source.locate?{locate:(key:string)=>source.locate!(localKey(key))}:{}),

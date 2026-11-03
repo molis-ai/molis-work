@@ -31,8 +31,17 @@ export interface AssistantActivity {
     capability_id?: string;
     reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
     detail?: string;
+    failure?: AssistantActivityFailure;
     answer?: string;
     sequence?: number;
+}
+
+export interface AssistantActivityFailure {
+    kind: ActionErrorKind;
+    fields?: {
+        path: string;
+        rule: string;
+    }[];
 }
 
 export interface AssistantBackgroundJob {
@@ -159,11 +168,35 @@ export interface AssistantEffectDetail {
 export type AssistantExecutor = {
     kind: "assistant";
 } | {
-    kind: "coding";
+    kind: "plugin";
+    plugin_id: string;
     title: string;
     session_id: string | null;
     mode?: string;
 };
+
+export type AssistantExecutorChoice = {
+    kind: "assistant";
+} | {
+    kind: "plugin";
+    plugin_id: string;
+};
+
+export interface AssistantExecutorOffer {
+    plugin_id: string;
+    title: string;
+    modes: Array<{
+        id: string;
+        title: string;
+    }>;
+    default_mode: string;
+    session_kind: string;
+    capability_ids: {
+        "session.update": string;
+        "run.start": string;
+    };
+    problem?: string;
+}
 
 export interface AssistantFollowUp {
     followup_id: string;
@@ -184,7 +217,7 @@ export interface AssistantFollowUp {
 }
 
 export interface AssistantHandover {
-    to: "coding" | "assistant";
+    to: AssistantExecutorChoice;
     mode?: string;
 }
 
@@ -220,11 +253,11 @@ export interface AssistantMaterial {
             id: string;
         };
     };
-    method?: {
-        method_id: string;
-        version?: number;
+    method?: AssistantMethodSelection & {
         name?: string;
         plugin_title?: string;
+        effective?: "default" | "user";
+        user_revision?: number | null;
     };
     image?: {
         resource_id: string;
@@ -270,7 +303,7 @@ export interface AssistantMemoryCandidate {
     text: string;
     why: string;
     applies: string;
-    state: "pending" | "accepted" | "discarded" | "expired";
+    state: "pending" | "accepted" | "discarded" | "expired" | "cancelled";
     created_at: string;
     memory_id?: string;
     held?: string;
@@ -286,7 +319,8 @@ export interface AssistantMemoryPrefs {
 
 export type AssistantMessagePurpose = "background" | "change" | "suggest" | "delegate" | "reply";
 
-export interface AssistantMethod {
+export interface AssistantMethod extends AssistantMethodSelection {
+    kind?: "role" | "method";
     method_id: string;
     plugin_id: string;
     plugin_title: string;
@@ -295,12 +329,24 @@ export interface AssistantMethod {
     summary: string;
 }
 
+export interface AssistantMethodSelection {
+    method_id: string;
+    version?: number;
+    default_ref?: SignedAgentReference;
+    installation?: SignedAgentInstallation;
+}
+
 export interface AssistantNotice {
     notice_id: string;
     kind: AssistantNoticeKind;
     work_id: string;
     work_title: string;
     text: string;
+    text_params?: {
+        plugin: string;
+        folder: string;
+        origin: string;
+    };
     created_at: string;
     open?: {
         surface: string;
@@ -314,7 +360,7 @@ export interface AssistantNotice {
     };
 }
 
-export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder";
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder" | "directory-read";
 
 export interface AssistantObjectRef {
     kind: string;
@@ -353,6 +399,7 @@ export interface AssistantPluginMessage {
     source: {
         surface: string;
         title?: string;
+        plugin_id?: string;
     };
     object?: {
         kind: string;
@@ -367,6 +414,14 @@ export interface AssistantPluginMessage {
     }>;
     work_id?: string;
     card?: AssistantPreparedCard;
+    thread?: {
+        thread_id: string;
+        message_id: string;
+        draft?: {
+            text: string;
+            revision: string;
+        };
+    };
 }
 
 export interface AssistantPreparedCard {
@@ -439,7 +494,7 @@ export interface AssistantReplyTarget {
 
 export interface AssistantRound {
     run_id: string;
-    executor?: "assistant" | "coding";
+    executor?: "assistant" | "plugin";
     character?: AssistantCharacter;
     text: string;
     written_by?: "host";
@@ -462,12 +517,16 @@ export interface AssistantRound {
         window_tokens?: number;
     };
     stop_reason?: string;
+    retry_wait?: AgentRetryWait;
     ended_at: string | null;
     memories_used?: {
         used: AssistantRoundMemory[];
         omitted: Array<AssistantRoundMemory & {
             reason: "budget" | "limit";
         }>;
+        uncertain?: AssistantRoundMemory[];
+        unverified?: true;
+        recording_error?: "memory.receipt_unrecorded";
     };
 }
 
@@ -513,10 +572,7 @@ export interface AssistantRoundDiagnostics {
             version: number;
             provider_id: string;
         };
-        method?: {
-            method_id: string;
-            version?: number;
-        };
+        method?: AssistantMaterial["method"];
     }>;
     usage: {
         input: number;
@@ -528,6 +584,7 @@ export interface AssistantRoundDiagnostics {
         target: string;
         state: "failed" | "unknown";
         summary: string;
+        detail?: string;
     }>;
 }
 
@@ -536,6 +593,8 @@ export interface AssistantRoundMemory {
     scope: MemoryScope;
     text: string;
     origin: string;
+    version?: number;
+    content_changed?: true;
 }
 
 export interface AssistantRule {
@@ -563,9 +622,9 @@ export type AssistantScope = {
 
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     work_id?: string;
-    executor?: "assistant" | "coding";
+    executor?: AssistantExecutorChoice;
     mode?: string;
-    coding_session_id?: string;
+    executor_session_id?: string;
     character?: AssistantCharacterRef | null;
     scope?: AssistantScope;
     text: string;
@@ -723,7 +782,7 @@ export interface AssistantWorkSurroundings {
             project_id: string;
             title: string | null;
         };
-        coding?: {
+        executor?: {
             workspace: {
                 name: string;
                 path: string;
@@ -735,7 +794,7 @@ export interface AssistantWorkSurroundings {
     connections: AssistantWorkConnection[];
     connections_problem?: string;
     tools: {
-        executor: "assistant" | "coding";
+        executor: "assistant" | "plugin";
         callable: Array<{
             provider: string;
             count: number;

@@ -3,19 +3,21 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, connectorProtocolSecrets, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
-import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
+import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
+import { refreshFeedConnectionState } from "./fixtures/feed-library.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 
@@ -79,7 +81,7 @@ test("Images uses the chosen Connector credential for each generation and surviv
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const registry = new ActionService();
   const imageHost = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry, client: registry, entries: [{ scope: "home", manifest: imagesManifest, create: createImagesPlugin,
-    database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION, project_data: { owner_id: "images", declaration: imagesProjectData }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
+    project_data: { owner_id: "images" }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
   const seen: string[] = [];
   const unbind = bindPrologueInference(home, {
     completeText: async () => { throw new Error("Unexpected text inference"); },
@@ -133,15 +135,16 @@ test("Images uses the chosen Connector credential for each generation and surviv
 test("Feed switching account creates a separate source and keeps the old history, plan and capture rule", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-connector-source-"));
   const home = join(directory, "home");
-  const databasePath = join(home, "projects", "board.db");
+  const databasePath = join(home, "projects", "board", "molis-work.db");
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   try {
     process.env.MOLIS_WORK_SECRET_BACKEND = "file";
     resetSecretStoreCache();
     mkdirSync(join(home, "projects"), { recursive: true });
     const catalog = new DatabaseSync(join(home, "projects", "catalog.db"));
-    catalog.exec("CREATE TABLE projects (database_path TEXT NOT NULL)");
-    catalog.prepare("INSERT INTO projects (database_path) VALUES (?)").run(databasePath);
+    catalog.exec("CREATE TABLE projects (project_id TEXT NOT NULL)");
+    catalog.prepare("INSERT INTO projects (project_id) VALUES (?)").run("board");
+    mkdirSync(dirname(databasePath), { recursive: true });
     catalog.close();
     seedDemoBoard(databasePath);
     const board = new LocalProjectDatabase(databasePath);
@@ -151,7 +154,7 @@ test("Feed switching account creates a separate source and keeps the old history
         store.createToken({ serviceId: "github", displayName: "账号 B", token: "github-token-account-b" }),
       ]);
       const feed = createLocalFeedApplication(board.db);
-      const source = feed.upsertSource({
+      const source = feed.sources.upsert({
         project_id: DEMO_PROJECT_ID, source_id: "github-source-original", kind: "github", definition_id: "github",
         sync_kind: "github", name: "GitHub A", description: "通知", status: "active", enabled: true,
         item_count: 0, origin: "molis_work", config: { connection_id: first!.connection_id },
@@ -164,7 +167,7 @@ test("Feed switching account creates a separate source and keeps the old history
         source, externalId: "account-a-message", title: "Old account message", summary: "Saved history",
         occurredAt: "2026-09-24T09:30:00.000Z", attention: false,
       }).item;
-      const rule = feed.createOutRule(DEMO_PROJECT_ID, {
+      const rule = feed.outRules.create(DEMO_PROJECT_ID, {
         name: "需要回应", match: { source_id: source.source_id, contains: "review" },
         enabled: true, admission: "suggest",
       });
@@ -175,26 +178,26 @@ test("Feed switching account creates a separate source and keeps the old history
       assert.deepEqual(switched.cursor, {});
       assert.equal(switched.schedule.mode, "interval");
       assert.equal(switched.item_count, 0);
-      const old = feed.getSource(DEMO_PROJECT_ID, source.source_id);
+      const old = feed.sources.get(DEMO_PROJECT_ID, source.source_id);
       assert.equal(old.status, "paused");
       assert.deepEqual(old.cursor, { after: "old-checkpoint" });
       assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.find((item) => item.item_id === historical.item_id)?.source_id, old.source_id);
-      assert.equal(feed.listOutRules(DEMO_PROJECT_ID).filter((item) => item.match.source_id === switched.source_id).length, 1);
-      assert.equal(feed.listOutRules(DEMO_PROJECT_ID).find((item) => item.rule_id === rule.rule_id)?.match.source_id, source.source_id);
+      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).filter((item) => item.match.source_id === switched.source_id).length, 1);
+      assert.equal(feed.outRules.list(DEMO_PROJECT_ID).find((item) => item.rule_id === rule.rule_id)?.match.source_id, source.source_id);
       assert.equal(service.update(switched.source_id, { connection_id: second!.connection_id }).source_id, switched.source_id);
       withConnectorConnections(home, store => store.disconnect(second!.connection_id));
       refreshFeedConnectionState(home, second!.connection_id);
       // J3C-01: disconnection changes the error fact; reconnect clears it.
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, source.source_id).status, "paused");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, source.source_id).status, "paused");
       withConnectorConnections(home, store => store.replaceToken(second!.connection_id, "github-token-account-b-rotated"));
       assert.equal(withConnectorConnections(home, store => store.state(store.require(second!.connection_id))), "connected");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).enabled, true);
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).enabled, true);
       refreshFeedConnectionState(home, second!.connection_id);
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "active");
-      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
-      assert.deepEqual(feed.getSource(DEMO_PROJECT_ID, switched.source_id).cursor, {});
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).status, "active");
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
+      assert.deepEqual(feed.sources.get(DEMO_PROJECT_ID, switched.source_id).cursor, {});
     } finally { board.close(); }
   } finally {
     resetSecretStoreCache();
@@ -204,7 +207,7 @@ test("Feed switching account creates a separate source and keeps the old history
   }
 });
 
-test("managed Gmail OAuth creates a named connection and refuses reauthorizing it as another mailbox", async t => {
+test("managed Gmail OAuth creates a named connection and refuses reauthorizing it as another Google account", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-managed-gmail-"));
   const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
   process.env.MOLIS_WORK_HOME = home;
@@ -216,21 +219,21 @@ test("managed Gmail OAuth creates a named connection and refuses reauthorizing i
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   let mailbox = "a@example.com";
-  const actualFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
+  // Gmail signs in through the generic flow (W5-11 slice 6): its requests leave by the Host's own sender, and the account is Google's `sub`.
+  oauthNetwork(t, async url => {
     if (url === "https://oauth2.googleapis.com/token") return Response.json({ access_token: mailbox.startsWith("a") ? "access-token-a" : "access-token-b", refresh_token: "refresh-token", expires_in: 3600 });
-    if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: mailbox });
-    return actualFetch(input, init);
+    assert.equal(url, "https://openidconnect.googleapis.com/v1/userinfo");
+    return Response.json({ sub: `sub-${mailbox}`, email: mailbox });
   });
   const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken,
     "x-molis-work-idempotency-key": crypto.randomUUID() });
   async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/gmail/oauth/start`, { method: "POST", headers: headers(),
-      body: JSON.stringify({ client_id: "test-client-id", redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback`,
-        manage_connection: true, display_name: "工作 Gmail", ...(connectionId ? { connection_id: connectionId } : {}) }) });
+    const response = await fetch(`${origin}/api/settings/connectors/methods/oauth/start`, { method: "POST", headers: headers(),
+      body: JSON.stringify({ service_id: "gmail", client_id: "test-client-id", client_secret: "test-client-secret", redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback`,
+        display_name: "工作 Gmail", ...(connectionId ? { connection_id: connectionId } : {}) }) });
     assert.equal(response.status, 200);
-    return response.json() as Promise<{ state: string; connection_id: string }>;
+    const started = await response.json() as { authorization_url: string; connection_id: string };
+    return { state: new URL(started.authorization_url).searchParams.get("state")!, connection_id: started.connection_id };
   }
   try {
     const first = await start();
@@ -360,24 +363,29 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
   let hold = false, generation = 0, reached!: () => void, release!: () => void;
   let entered: Promise<void>, waiting: Promise<void>;
   function block() { hold = true; entered = new Promise<void>(resolve => { reached = resolve; }); waiting = new Promise<void>(resolve => { release = resolve; }); }
-  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+  // Gmail signs in through the generic flow (W5-11 slice 6), whose requests leave by the Host's own sender; Notion's flow is still its own.
+  const generic = service === "gmail";
+  const issue = async () => {
+    const issued = ++generation; if (hold) { reached(); await waiting; }
+    return Response.json({ access_token: `fixture-access-${issued}`, refresh_token: `fixture-refresh-${issued}`, expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
+  };
+  if (generic) oauthNetwork(t, async url => url === "https://oauth2.googleapis.com/token" ? issue()
+    : (assert.equal(url, "https://openidconnect.googleapis.com/v1/userinfo"), Response.json({ sub: "work-sub", email: "work@example.test" })));
+  else t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
-    if (url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token") {
-      const issued = ++generation; if (hold) { reached(); await waiting; }
-      return Response.json({ access_token: `fixture-access-${issued}`, refresh_token: `fixture-refresh-${issued}`, expires_in: 3600,
-        workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
-    }
-    if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: "work@example.test" });
+    if (url === "https://api.notion.com/v1/oauth/token") return issue();
     return actualFetch(input, init);
   });
+  const secret = (id: string, kind: "access" | "refresh") => generic ? connectorProtocolSecrets(home, id).get(kind === "refresh" ? "oauth" : kind) ?? null
+    : runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${id}:${kind}`));
   const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   async function start(connectionId?: string) {
-    const response = await fetch(`${origin}/api/settings/connectors/${service}/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
-      client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work", manage_connection: true,
-      redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback`, ...(connectionId ? { connection_id: connectionId } : {}) }) });
+    const response = await fetch(`${origin}/api/settings/connectors/${generic ? "methods" : service}/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
+      ...(generic ? { service_id: service } : { manage_connection: true }), client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work",
+      ...(generic ? {} : { redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback` }), ...(connectionId ? { connection_id: connectionId } : {}) }) });
     assert.equal(response.status, 200);
-    const result = await response.json() as { authorizationUrl: string; authorization_id: string; connection_id: string };
-    const consent = new URL(result.authorizationUrl), redirect = new URL(consent.searchParams.get("redirect_uri")!);
+    const result = await response.json() as { authorizationUrl?: string; authorization_url?: string; authorization_id: string; connection_id: string };
+    const consent = new URL((generic ? result.authorization_url : result.authorizationUrl)!), redirect = new URL(consent.searchParams.get("redirect_uri")!);
     return { ...result, callback: redirect.href + `?state=${consent.searchParams.get("state")}&code=fixture-code` };
   }
   const complete = (attempt: Awaited<ReturnType<typeof start>>) => fetch(attempt.callback, { redirect: "manual" });
@@ -394,12 +402,12 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
     const response = complete(reauth); await entered!;
     assert.equal((await cancel(reauth)).status, "cancelled"); release(); await response;
     assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connection_id, service)), "fixture-access-1");
-    assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${first.connection_id}:refresh`)), "fixture-refresh-1");
+    assert.equal(secret(first.connection_id, "refresh"), "fixture-refresh-1");
     const beforeReplay = generation; await complete(reauth); assert.equal(generation, beforeReplay);
     const fresh = await start(); block();
     const freshResponse = complete(fresh); await entered!; await cancel(fresh); release(); await freshResponse;
     assert.equal(withConnectorConnections(home, store => store.get(fresh.connection_id)), null);
-    assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${fresh.connection_id}:access`)), null);
+    assert.equal(secret(fresh.connection_id, "access"), null);
     for (const phase of ["consent", "exchange"]) {
       hold = false;
       const stale = await start(first.connection_id);
@@ -410,12 +418,12 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
       const accepted = await complete(newer);
       assert.match(accepted.headers.get("location") ?? "", /connected=/);
       const current = withConnectorConnections(home, store => store.require(first.connection_id));
-      const credentials = runWithMolisWorkHome(home, () => ["access", "refresh"].map(kind => createFileSecretStore().get(`connector-connection:${first.connection_id}:${kind}`)));
+      const credentials = (["access", "refresh"] as const).map(kind => secret(first.connection_id, kind));
       release();
       const rejected = await (staleResponse ?? complete(stale));
       assert.match(rejected.headers.get("location") ?? "", /connection_error=failed/, `${phase}: stale authorization must be rejected`);
       assert.deepEqual(withConnectorConnections(home, store => store.require(first.connection_id)), current);
-      assert.deepEqual(runWithMolisWorkHome(home, () => ["access", "refresh"].map(kind => createFileSecretStore().get(`connector-connection:${first.connection_id}:${kind}`))), credentials);
+      assert.deepEqual((["access", "refresh"] as const).map(kind => secret(first.connection_id, kind)), credentials);
     }
   } finally {
     release?.(); await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();
@@ -423,4 +431,34 @@ for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${s
     if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+// RAC-2421: the port admits a usage id by characters (81–128 wide characters, up to 256 UTF-16 units), so the connection binding has
+// to count the same way; 100 😀 is 100 characters but 200 UTF-16 units, and the old check refused it before anything was written.
+test("RAC-2421 a binding counts its usage and plugin ids in characters, not UTF-16 units", () => {
+  const db = new DatabaseSync(":memory:");
+  db.exec(CONNECTOR_CONNECTIONS_SCHEMA);
+  const values = new Map<string, string>();
+  const store = new ConnectorConnectionStore(db, {
+    get: (ref) => values.get(ref) ?? null,
+    put: (ref, value) => { values.set(ref, value); },
+    delete: (ref) => { values.delete(ref); },
+  }, () => new Date("2026-10-16T09:00:00.000Z"));
+  try {
+    const connection = store.createToken({ serviceId: "gmail", displayName: "工作邮箱", token: "gmail-work-token" });
+    const wide = "😀".repeat(100);
+    assert.equal(wide.length, 200, "100 characters, 200 UTF-16 units");
+    store.bind({ scopeId: "project-a", pluginId: "feed", slotId: wide, serviceId: "gmail", connectionId: connection.connection_id });
+    assert.equal(store.binding("project-a", "feed", wide)?.connection_id, connection.connection_id, "the id the port admitted reads back");
+    store.unbind("project-a", "feed", wide);
+    assert.equal(store.binding("project-a", "feed", wide), null);
+    // The plugin id is counted the same way.
+    store.bind({ scopeId: "project-a", pluginId: wide, slotId: "inbox", serviceId: "gmail", connectionId: connection.connection_id });
+    assert.equal(store.binding("project-a", wide, "inbox")?.connection_id, connection.connection_id);
+    // A 161st character is refused, and the old 160-unit boundary keeps working for ASCII ids.
+    assert.throws(() => store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "😀".repeat(161), serviceId: "gmail", connectionId: connection.connection_id }), { code: "connector.connection.invalid" });
+    store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "a".repeat(160), serviceId: "gmail", connectionId: connection.connection_id });
+    assert.equal(store.binding("project-a", "feed", "a".repeat(160))?.connection_id, connection.connection_id);
+    assert.throws(() => store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "a".repeat(161), serviceId: "gmail", connectionId: connection.connection_id }), { code: "connector.connection.invalid" });
+  } finally { db.close(); }
 });

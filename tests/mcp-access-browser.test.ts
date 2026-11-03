@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -19,11 +20,14 @@ test("MCP access UI saves real grants, drives standard MCP calls, handles lost r
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
   const { evaluate, command, sessionId, waitFor, click, navigate, reloadPage, homeDirectory, projectId, localHost } = b;
   assert.ok(projectId && localHost);
+  // This browser harness injects its token instead of persisting it. A stdio process reads the Home's same credential.
+  await mkdir(join(homeDirectory, "config"), { recursive: true });
+  await writeFile(join(homeDirectory, "config", "web-control-token"), `${b.controlToken}\n`, { mode: 0o600 });
   const ref = { project_id: projectId, storage_key: b.databasePath };
   const clients: Client[] = []; t.after(async () => { await Promise.all(clients.map(client => client.close())); });
   const connect = async (identity: string) => {
     const client = new Client({ name: "browser-grant-test", version: "1" }); clients.push(client);
-    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), homeDirectory, projectId, identity, b.databasePath], stderr: "pipe" });
+    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), homeDirectory, projectId, identity, b.databasePath, b.origin], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;

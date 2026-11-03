@@ -22,7 +22,8 @@ export interface ProjectDeletionPorts {
 
 /**
  * Deleting a project, for every door: the settings page and the MCP tool run this one service, in the process that has the
- * terminals and the runtime (the resident Host; a process with no Host to forward to has none of either). It refuses while
+ * terminals and the runtime (production stdio forwards through the resident context handler; embedded MCP uses its explicitly
+ * supplied Host). It refuses while
  * one of the project's terminals is alive, lets go of the project's runtime, and only then has the catalog delete: the
  * catalog's receipt (one step for each owner of project data) and its retry stay the catalog's. The caller says who asks;
  * the arguments of a person's or a Runtime's request never do.
@@ -49,7 +50,7 @@ export class ProjectDeletionService {
         beforeEffect();
         if (!this.ports.isProjectBusy) throw catalogErrors.project_storage_invalid('项目运行状态尚未接入，原件已保留');
         if (this.ports.isProjectBusy(observed.database_path)) throw catalogErrors.project_task_live('项目仍有运行或排队的任务，请结束后重试', {sync_waiting:true});
-        if (input.recycled && catalog.listDesktopPanels(input.project_id).some(panel => this.ports.isPanelAlive(panel.panel_id))) {
+        if (input.recycled && catalog.terminalPanels.listIds(input.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {
           throw catalogErrors.project_terminal_live(L('请先关闭这个项目中正在运行的终端，再删除项目。'));
         }
       };
@@ -74,7 +75,7 @@ export class ProjectDeletionService {
       const project = catalog.listProjects().find(item => item.project_id === input.project_id.trim());
       if (project) {
         const assertNoLiveTerminal = () => {
-          if (catalog.listDesktopPanels(project.project_id).some(panel => this.ports.isPanelAlive(panel.panel_id))) {
+          if (catalog.terminalPanels.listIds(project.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {
             throw catalogErrors.project_terminal_live(L("请先关闭这个项目中正在运行的终端，再删除项目。"));
           }
         };
@@ -94,21 +95,17 @@ export class ProjectDeletionService {
  */
 export function webProjectDeletionPorts(web: {
   isPanelAlive(panelId: string): boolean;
-  feedSchedulers: Map<string, unknown>;
+  projectSchedules: Map<string, unknown>;
   webViewCache: Map<string, unknown>;
-  localHost: Pick<MolisWorkLocalHost, "closeProject" | "isProjectBusy">;
+  localHost: Pick<MolisWorkLocalHost, "closeProject" | "synchronization">;
 }): ProjectDeletionPorts {
   return {
     isPanelAlive: panelId => web.isPanelAlive(panelId),
-    isProjectBusy: databasePath => web.localHost.isProjectBusy(databasePath),
+    isProjectBusy: databasePath => web.localHost.synchronization.isProjectBusy(databasePath),
     async releaseProject(databasePath) {
-      web.feedSchedulers.delete(databasePath);
+      web.projectSchedules.delete(databasePath);
       web.webViewCache.delete(databasePath);
       await web.localHost.closeProject(databasePath);
     },
   };
 }
-
-/** What the resident Web Host runs when a process that only forwards (the stdio MCP) hands it a deletion: this server's own terminals and runtimes. */
-export const webProjectDeletion = (withCatalog: LocalWebCatalogRunner, web: Parameters<typeof webProjectDeletionPorts>[0]): ProjectDeletionService =>
-  new ProjectDeletionService(withCatalog, webProjectDeletionPorts(web));

@@ -12,7 +12,7 @@ const title = "切换页面后输入消失";
 async function manual(t: TestContext) {
   const b = await openGoalBrowser(t, "empty"); if (!b) return;
   await issueModel(t, b.homeDirectory, { question: "free-text" });
-  const v = issueView(b);
+  const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/plugins/issues");
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.paste();
@@ -30,7 +30,7 @@ function stored(b: IssueBrowser) {
   finally { db.close(); }
 }
 
-async function recordIsIntact(b: IssueBrowser, v: ReturnType<typeof issueView>, image: string) {
+async function recordIsIntact(b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>, image: string) {
   const records = stored(b);
   assert.equal(records.length, 1, "the real Issue database must contain exactly one record");
   const row = records[0]!;
@@ -60,7 +60,7 @@ test("W2-18-ISSUE-01 ISSUE-15 ISSUE-37 repeated save clicks and shortcuts with a
       } finally { w.issueFlight--; }
     }; return true;
   })()`);
-  const point = await v.ask<{ x: number; y: number }>("(() => { const r = $('[data-issue-save]').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()");
+  const point = await v.point("[data-issue-save]");
   await v.press("[data-issue-save]"); await v.until("d.defaultView.issueAnswers.length === 1");
   assert.equal(stored(b).length, 1, "first write committed while its answer is held");
   // Hit the same button again even when the editor is inert: do not make the test depend on disabled styling.
@@ -75,8 +75,8 @@ test("W2-18-ISSUE-01 ISSUE-15 ISSUE-37 repeated save clicks and shortcuts with a
   assert.deepEqual(await v.ask("d.defaultView.issueCaptures"), [id]);
 });
 
-for (const recovery of ["retry", "reload"] as const) {
-  test(`W2-18-ISSUE-02 ISSUE-15 ISSUE-37 ${recovery} checks the same record after a committed capture loses its receipt`, { timeout: 90_000 }, async t => {
+for (const [recovery, receipt] of [["retry", "lost"], ["reload", "lost"], ["retry", "malformed"]] as const) {
+  test(`RAC-139 W2-18-ISSUE-02 ISSUE-15 ISSUE-37 ${recovery} checks the same record after a committed capture has a ${receipt} receipt`, { timeout: 90_000 }, async t => {
     const setup = await manual(t); if (!setup) return;
     const { b, v, image } = setup;
     await v.ask(`(() => {
@@ -85,7 +85,11 @@ for (const recovery of ["retry", "reload"] as const) {
         const capture = String(url).endsWith('/capture');
         if (capture) w.issueCaptures.push(JSON.parse(init.body).draft_id);
         const response = await fetch(url, init);
-        if (capture && w.issueCaptures.length === 1) { await response.clone().json(); throw new TypeError('receipt lost after commit'); }
+        if (capture && w.issueCaptures.length === 1) {
+          await response.clone().json();
+          if (${JSON.stringify(receipt)} === 'malformed') return new w.Response('{broken', { status: 200 });
+          throw new TypeError('receipt lost after commit');
+        }
         return response;
       }; return true;
     })()`);
@@ -94,7 +98,7 @@ for (const recovery of ["retry", "reload"] as const) {
     assert.equal(await v.ask("$('[data-issue-editor] [name=description]').value"), description);
     assert.equal(await v.ask("$('[data-issue-edit-shots] img').src"), image);
     // The pending identity is durable before the write is dispatched, not reconstructed from a title match.
-    const pendingId = await b.evaluate("JSON.parse(localStorage.getItem('molis:issue-unsent'))[0].id");
+    const pendingId = await v.ask("JSON.parse(localStorage.getItem('molis:issue-unsent'))[0].id");
     if (recovery === "retry") {
       // The Runtime no longer holds the saved draft: its persistent row still settles the request.
       await v.api("/api/plugins/io.molis.work.issues/cancel-capture", { draft_id: id });
@@ -108,7 +112,7 @@ for (const recovery of ["retry", "reload"] as const) {
     }
     assert.equal(await recordIsIntact(b, v, image), id);
     assert.equal(pendingId, id, "the pending request keeps the actual captured identity");
-    assert.deepEqual(await b.evaluate("JSON.parse(localStorage.getItem('molis:issue-unsent'))"), []);
+    assert.deepEqual(await v.ask("JSON.parse(localStorage.getItem('molis:issue-unsent'))"), []);
     await v.press(`[data-issue-id="${id}"]`);
     await v.until("!$('[data-issue-view]').hidden && $('[data-issue-text]').textContent === " + JSON.stringify(description));
     assert.equal(await v.ask("$('[data-issue-view-shots] img').src"), image);
@@ -129,11 +133,53 @@ test("W2-18-ISSUE-02 ISSUE-15 an uncommitted capture is checked before an explic
   })()`);
   await v.press("[data-issue-save]"); await v.until("$('[data-issue-toast] span').textContent.includes('可能已经生效')");
   assert.equal(stored(b).length, 0);
-  const id = await b.evaluate<string>("JSON.parse(localStorage.getItem('molis:issue-unsent'))[0].id");
+  const id = await v.ask<string>("JSON.parse(localStorage.getItem('molis:issue-unsent'))[0].id");
   await v.press("[data-issue-save]"); await v.until("$('[data-issue-detail]').hidden && !$('[data-state]')");
   assert.equal(await recordIsIntact(b, v, image), id);
   const calls = await v.ask<Array<{ path: string; body?: { draft_id: string } }>>("d.defaultView.issueCalls");
   const captures = calls.map((call, index) => ({ ...call, index })).filter(call => call.path.endsWith('/capture'));
   assert.deepEqual(captures.map(call => call.body!.draft_id), [id, id]);
   assert.ok(calls.slice(captures[0]!.index + 1, captures[1]!.index).some(call => call.path.endsWith('read?id=' + id)), "retry reads the previous identity before any new capture");
+});
+
+
+test("RAC-139 background naming with a malformed receipt reads the committed record instead of keeping a failed draft", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const { namings } = await issueModel(t, b.homeDirectory);
+  const v = await issueView(t, b);
+  await v.viewport(1440); await v.go("/plugins/issues");
+  await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
+  await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.paste();
+  await v.until("d.querySelectorAll('[data-issue-thumbs] img').length === 1 && !$('[data-issue-submit]').disabled");
+  const image = await v.ask<string>("$('[data-issue-thumbs] img').src");
+  await v.ask(`(() => {
+    const w = d.defaultView, fetch = w.fetch.bind(w); w.issueCalls = []; w.issueNamed = null;
+    w.fetch = async (url, init) => {
+      w.issueCalls.push({ path: String(url), body: init?.body && JSON.parse(init.body) });
+      const response = await fetch(url, init);
+      if (String(url).endsWith('/name-draft')) {
+        w.issueNamed = await response.clone().json();
+        return new w.Response('{broken', { status: 200 });
+      }
+      return response;
+    }; return true;
+  })()`);
+  await v.send();
+  await v.until("d.defaultView.issueNamed && !$('[data-state]') && $('[data-issue-list] .issues-row')", 30_000);
+  const records = stored(b);
+  assert.equal(records.length, 1);
+  const id = String(records[0]!.id);
+  assert.equal(records[0]!.description, description);
+  assert.deepEqual(JSON.parse(String(records[0]!.images_json)), [{ name: "shot.png", data_url: image }]);
+  const issue = await v.read(id);
+  assert.equal(issue.entered_via, "assistant");
+  assert.equal(namings.length, 1);
+  assert.deepEqual(await v.ask("JSON.parse(localStorage.getItem('molis:issue-unsent'))"), []);
+  const calls = await v.ask<Array<{ path: string; body?: { draft_id: string } }>>("d.defaultView.issueCalls");
+  const naming = calls.findIndex(call => call.path.endsWith('/name-draft'));
+  assert.equal(calls[naming]!.body!.draft_id, id);
+  assert.ok(calls.slice(naming + 1).some(call => call.path.endsWith('read?id=' + id)), "malformed JSON must trigger a read of the actual saved identity");
+  assert.equal(calls.filter(call => call.path.endsWith('/name-draft')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/capture')).length, 0, "recovery must not issue another capture");
+  assert.match(await v.ask<string>("$('[data-issue-toast] span').textContent"), /已记录：/);
 });

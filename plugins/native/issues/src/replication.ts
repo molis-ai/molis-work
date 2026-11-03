@@ -1,19 +1,9 @@
-import {queueReplicaChange} from "@molis-ai/molis-work-storage";
 import { syncError } from './sync-errors.js';
-import type { DatabaseSync } from "node:sqlite";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import {
-  createSqliteReplica, initializeReplica, openBaselineHomeSqlite, readDatabaseSpace,
-  replicaMarkSql, replicaTransaction, type AggregateReplicaContext,
-} from "@molis-ai/molis-work-storage";
+import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 import { validateIssueImages, type IssueImage } from "./images.js";
-import { ISSUES_DATABASE } from "./store.js";
 
-export const issuesSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "issues", title: "Issue 记录", schema_version: 1, requires: [] }],
-};
+
 const columns = [
   "id", "title", "type", "description", "context_json", "images_json",
   "submitter_id", "entered_via", "created_at", "updated_at", "version",
@@ -21,44 +11,12 @@ const columns = [
 const LIMIT = 100000000;
 type Row = Record<string, string | number | null>;
 
-/** A sync-only view of Issue's existing Host-owned PluginDatabase file. */
-export function openIssuesSyncStore(home: string, owner: string): {
-  close(): void; replica(context: AggregateReplicaContext): SyncReplicaAdapter;
-} {
-  const db = openBaselineHomeSqlite(home, ISSUES_DATABASE.store_name, ISSUES_DATABASE);
-  try {
-    db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-    initializeIssuesReplication(db, owner);
-    return { close: () => db.close(), replica: context => createIssuesReplica(db, owner, context) };
-  } catch (error) { db.close(); throw error; }
-}
-
-export function initializeIssuesReplication(db: DatabaseSync, owner: string): void {
-  const space = readDatabaseSpace(db);
-  if (space?.kind !== "personal" || space.ownerUserId !== owner) return;
-  replicaTransaction(db, () => {
-    initializeReplica(db);
-    db.prepare("INSERT OR IGNORE INTO issue_sync_owner(id,owner_id) VALUES (1,?)").run(owner);
-    const saved = db.prepare("SELECT owner_id FROM issue_sync_owner WHERE id=1").get() as { owner_id: string };
-    if (saved.owner_id !== owner) invalid("Issue 同步所有者不匹配", "scope");
-    db.prepare("SELECT id,version FROM issue_editor_versions LIMIT 0").all();
-    db.exec("INSERT INTO issue_editor_versions SELECT id,version FROM issues WHERE 1 ON CONFLICT(id) DO UPDATE SET version=MAX(version,excluded.version)");
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='issues_replica_insert'").get()) {
-      for(const row of db.prepare("SELECT id FROM issues WHERE submitter_id=? ORDER BY id").all(owner))queueReplicaChange(db,JSON.stringify(["issue",row.id]));
-      for (const event of ["INSERT", "UPDATE", "DELETE"] as const) {
-        const row = event === "DELETE" ? "OLD" : "NEW";
-        db.exec("CREATE TRIGGER issues_replica_" + event.toLowerCase() + " AFTER " + event + " ON issues BEGIN " +
-          replicaMarkSql("json_array('issue'," + row + ".id)", row + ".submitter_id=(SELECT owner_id FROM issue_sync_owner WHERE id=1)") +
-          (event === "DELETE" ? "" : "INSERT INTO issue_editor_versions VALUES (" + row + ".id," + row + ".version) ON CONFLICT(id) DO UPDATE SET version=MAX(version,excluded.version);") +
-          " END");
-      }
-    }
-  });
-}
-
-export function createIssuesReplica(db: DatabaseSync, owner: string, context: AggregateReplicaContext): SyncReplicaAdapter {
-  const space = readDatabaseSpace(db);
-  if (space?.kind !== "personal" || space.spaceId !== context.spaceId || space.ownerUserId !== owner) invalid("Issue 同步空间不匹配", "scope");
+export const issuesCollection: PluginSyncCollectionDefinition = {
+  tracking: [{table:"issues", key:[{literal:"issue"},{column:"id"}],
+    where:[{column:"submitter_id",op:"eq",value:{actorId:true}}],
+    revision:{table:"issue_editor_versions",key:[{column:"id",rowColumn:"id"}],column:"version",rowColumn:"version"}}],
+  create(db, context) {
+  const owner=context.actorId;
   const decode = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
@@ -66,9 +24,8 @@ export function createIssuesReplica(db: DatabaseSync, owner: string, context: Ag
       typeof parts[1] !== "string" || !parts[1] || parts[1].length > 100) invalid();
     return parts[1] as string;
   };
-  return createSqliteReplica(db, {
-    authorize: context.authorize,
-    conflictState: context.conflictState,
+  return {
+    authorizeKey(key){decode(key);context.authorize();},
     belongsToProject(key) { decode(key); return false; },
     read(key) {
       const id = decode(key);
@@ -95,8 +52,8 @@ export function createIssuesReplica(db: DatabaseSync, owner: string, context: Ag
         ") ON CONFLICT(id) DO UPDATE SET " + columns.filter(column => column !== "id").map(column => column + "=excluded." + column).join(","))
         .run(...columns.map(column => row[column] as string | number | null));
     },
-  });
-}
+  };
+} };
 
 function validate(value: unknown, id: string, owner: string, spaceId: string): Row {
   const envelope = object(value);
@@ -146,3 +103,8 @@ function size(value: unknown): void {
 function invalid(message = "Issue 同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
   throw syncError(code, message);
 }
+
+export const issuesSync: PluginSyncDeclaration = {
+  protocol_version: 1,
+  collections: [{ id: "issues", title: "Issue 记录", schema_version: 2, requires: [], tracking: issuesCollection.tracking }],
+};

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 const SNAPSHOT = `(() => {
   const workspace = document.querySelector("[data-workspace]");
@@ -162,7 +163,7 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   assert.equal(state.hasMobileSwitch, false);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-goal-work-mode=\"terminal\"]'))"), true);
 
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);
@@ -235,7 +236,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(state.hit, "graph");
   assert.equal(state.hasMobileSwitch, false);
 
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);

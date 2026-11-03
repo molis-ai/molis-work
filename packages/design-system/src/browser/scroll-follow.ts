@@ -1,4 +1,5 @@
-import { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, followDistance, type FollowState as State, type ScrollFollower as Follower } from "../scroll-follow.js";
+import type { FollowState as State, ScrollFollower as Follower } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, followDistance } from "../scroll-follow.js";
 
 /**
  * One owner for a growing conversation's scroll (specs/visual-ui-experience §scroll-ownership, VUX-26):

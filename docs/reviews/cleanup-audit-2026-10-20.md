@@ -189,9 +189,9 @@
 | 重复体 | 位置 | 大小 | 建议 |
 | --- | --- | ---: | --- |
 | `canonicalize` | `modules/goals` 3 份 + `plugins/native/goals` 4 份（`modules/goals/src/command-support.ts:86`、`plugins/native/goals/src/goal-tree-check.ts:106` 等） | 299 字符 × 7 | 收进 Plugin SDK，作为共享的规范化 JSON 工具；两处变体（`canonicalizeValue`、`proposal-baselines.ts`）一起评估 |
-| 路由 `handle` | [`apps/local-host/src/functions-http/routes.ts:66`](../../apps/local-host/src/functions-http/routes.ts#L66)、[`plugins/native/feed/src/routes.ts:69`](../../plugins/native/feed/src/routes.ts#L69)、`inbox`、`pages`、`schedule`、`shelf` 各一份 | 435 字符 × 6 | 抽成 SDK 的通用路由表（`createRouteTable` 一类）；或先做宿主/插件内的共享 helper，避免改公开 API |
+| 路由 `handle` | [`apps/local-host/src/functions-http/routes.ts:66`](../../apps/local-host/src/judgment-rules-http/routes.ts#L66)、[`plugins/native/feed/src/routes.ts:69`](../../plugins/native/feed/src/routes.ts#L69)、`inbox`、`pages`、`schedule`、`shelf` 各一份 | 435 字符 × 6 | 抽成 SDK 的通用路由表（`createRouteTable` 一类）；或先做宿主/插件内的共享 helper，避免改公开 API |
 | `ledgerDatabase` | [`apps/local-host/src/assistant/assistant-relations.ts:16`](../../apps/local-host/src/assistant/assistant-relations.ts#L16)、[`apps/local-host/src/placement-actions.ts:39`](../../apps/local-host/src/placement-actions.ts#L39) | 485 字符 × 2 | 抽到宿主内一个 `context-ledger-database.ts`；两处都有 `as unknown as`，顺手消掉 |
-| `writeResponse` | [`apps/local-host/src/inbox-native-plugin-http.ts:54`](../../apps/local-host/src/inbox-native-plugin-http.ts#L54)、[`apps/local-host/src/schedule-native-plugin-http.ts:54`](../../apps/local-host/src/schedule-native-plugin-http.ts#L54) | 285 字符 × 2 | 合并进已有的 `native-plugin-http.ts`，作为“可返回 HTML 的 JSON 响应” |
+| `writeResponse` | `apps/local-host/src/inbox-native-plugin-http.ts:54`（已随 FI-7 删；Schedule 入口已随 SYS-15 迁到 Runtime） | 285 字符 × 2 | 合并进已有的 `native-plugin-http.ts`，作为“可返回 HTML 的 JSON 响应” |
 | `deletionRecord` | `modules/projects/src/repository.ts:452`、`modules/projects/src/project-service.ts:223` | 330 字符 × 2 | 一个 mapper 导出给另一个用 |
 | `reopenCompletion` | `modules/goals/src/event-state-agreement.ts:192`、`event-state-effects.ts:567` | 427 字符 × 2 | 同一 Module 内收成一份 |
 | `resolveSourceFaults` / `resolveRssSourceFaults` | `plugins/native/feed/src/connector-sync.ts:196`、`source-sync.ts:279` | 301 字符 × 2 | 同一插件内收成一份 |
@@ -382,6 +382,8 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 置信度：**高** = 有 open PR、现行 spec 或未合入提交的直接证据；**中** = 只有同包活动/间接证据，删前要 owner 确认。
 
+本表是 2026-10-20 的快照：各行的“为什么现在不能删 / 再删的时点”写的是当时的状态，之后合入的改动不回改本表（例外：Jelly 行的「再删的时点」日期已按 T-194 #1492 的实际删除更正）；要删时按各行的证据和现行 spec 重新核一遍。
+
 | 候选 | 为什么现在不能删 | 证据 | 再删的时点 | 置信度 |
 | --- | --- | --- | --- | --- |
 | Alchemist 的 38 个死导出、`bootstrap.ts`、`job.ts` | Studio 的 `/bootstrap`、任务事件、ALC-LIFE/ALC-RES 和 Runtime 迁移仍在做；这些 DTO 是同一接口层的类型，今天没被 import 不等于接口不再要 | `specs/repository-anti-corruption/spec.md` W5-01 ALC-LIFE/ALC-RES；`plugins/native/alchemist/src/studio/server/api/action-routes.ts:28`；#867 改 Alchemist 测试夹具 | Alchemist Runtime/ALC-RES 合入、owner 确认后 | 高 |
@@ -391,7 +393,7 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 | `apps/workbench` 的 3 个死导出 | 15 个视觉 UX PR 正在改 workbench；`sideViewKeys` 所在文件被 #864/#851 直接改；`renderShelfSettingsContribution`/`ArrivalShell` 附近的页面还在视觉线里 | open PR #851/#864 等；未合入的 `a754b1b8f`、`fbb90b892` | 视觉线合入后；`renderPluginRailAccountFooter` 已被 spec 点名无调用方，可随那一批删 | 高 |
 | Feed 的投影死导出 | #867 正改 Feed 的数据库、索引与注册；投影层与它们同包 | open PR #867 | #867 合入后 | 高 |
 | `apps/mcp/src/tool-schemas.ts:v1PayloadTool` | #881 正改 `apps/mcp` 的 Goals 工具与分发；MCP 工具 schema 是同一块 | open PR #881 | #881 合入后，由 MCP owner 确认 | 中 |
-| Jelly 的 `ownJellyStores` 等公开面无消费者导出 | `ownJellyStores` 已被 spec 记为死导出，但 Jelly 的 Runtime/数据库迁移（#743、PG-023）还在；它现在算公开面无消费者，不是 §3.2 的 54 个死导出 | `specs/repository-anti-corruption/privileges.md` PG-023；#743 | Jelly 数据库迁移合入后 | 中 |
+| Jelly 的 `ownJellyStores` 等公开面无消费者导出 | 当时不删：`ownJellyStores` 已被 spec 记为死导出，但 Jelly 的 Runtime/数据库迁移（#743、PG-023）当时还在进行；它当时算公开面无消费者，不是 §3.2 的 54 个死导出 | `specs/repository-anti-corruption/privileges.md` PG-023；#743 | 已做（PG-023；`ownJellyStores` 到 T-194 #1492，2026-10-29 才删） | 中 |
 | plugin-builder 的 `parseBuilderJson`、`BUILDER_PROJECT_PLUGIN_ID`（公开面无消费者） | 创作台/Studio 仍在线上，manifest 与 agent validation 还在改 | `specs/repository-anti-corruption` 的 Studio 线；open PR 无直接冲突，但属于活动包 | Studio 迁移/收口后 | 中 |
 | `packages/design-system` 的 `validatePluginComponentNodes`（公开面无消费者） | 视觉 UX/设计系统 15 个 PR 正在改；组件校验属于这条线 | open PR #851/#861/#864 等 | 视觉线合入后 | 高 |
 | RSS 的 3 个公开面无消费者导出 | 没有 open PR 直接改，但 integration 目录仍在维护；低优先，不是“绝对安全” | `plugins/official-integrations/rss/README.md`、SSOT 官方集成行 | 找 RSS owner 确认后 | 中 |
@@ -490,10 +492,10 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 导出 | 文件 | 值/类型 |
 | --- | --- | --- |
-| `sameTypeDefinition` | [`modules/goals/src/event-facts-validation.ts`](../../modules/goals/src/event-facts-validation.ts) | 值 |
-| `resolveDecisionEffects` | [`modules/goals/src/event-state-authorization.ts`](../../modules/goals/src/event-state-authorization.ts) | 值 |
-| `decisionCoversScope` | [`modules/goals/src/event-state-authorization.ts`](../../modules/goals/src/event-state-authorization.ts) | 值 |
-| `contractInputFromGoal` | [`modules/goals/src/goal-contract-records.ts`](../../modules/goals/src/goal-contract-records.ts) | 值 |
+| `sameTypeDefinition` | [`modules/goals/src/event-facts-validation.ts`](../../plugins/native/goals/src/module/event-facts-validation.ts) | 值 |
+| `resolveDecisionEffects` | [`modules/goals/src/event-state-authorization.ts`](../../plugins/native/goals/src/module/event-state-authorization.ts) | 值 |
+| `decisionCoversScope` | [`modules/goals/src/event-state-authorization.ts`](../../plugins/native/goals/src/module/event-state-authorization.ts) | 值 |
+| `contractInputFromGoal` | [`modules/goals/src/goal-contract-records.ts`](../../plugins/native/goals/src/module/goal-contract-records.ts) | 值 |
 
 **apps/workbench**（3）
 
@@ -513,7 +515,7 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 
 | 导出 | 文件 | 值/类型 |
 | --- | --- | --- |
-| `GoalEventSystemOperation` | [`packages/contracts/src/modules/goal-event-state.ts`](../../packages/contracts/src/modules/goal-event-state.ts) | 类型 |
+| `GoalEventSystemOperation` | [`plugins/native/goals/src/contract/goal-event-state.ts`](../../plugins/native/goals/src/contract/goal-event-state.ts)（PG-111 起；原在 `packages/contracts/src/modules/`） | 类型 |
 
 **plugins/native/feed**（1）
 

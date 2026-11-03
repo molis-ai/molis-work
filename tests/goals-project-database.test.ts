@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_HOME_DATABASE, GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, openPluginProjectDatabase, type PluginProjectSchemaInspector,
@@ -45,13 +46,22 @@ const tableNames = (db: DatabaseSync) => listSqliteObjects(db).filter(object => 
 
 test("PLIB-12 Goals' Manifest declares its project library: the plugin entry's declaration passes the SDK shape check", () => {
   const manifest = parsePluginManifest(structuredClone(goalsManifest));
-  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE });
+  // The same Manifest also declares the person's planning library in the Home (PG-094 S13), for the plugin's Home half.
+  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE });
   assert.equal(GOALS_PROJECT_DATABASE.store_name, "goals");
   assert.equal(GOALS_PROJECT_DATABASE.version, 1);
   // A plugin's own tables in the library are its private storage (D23), and the Manifest declares that permission.
   assert.equal(GOALS_PROJECT_DATABASE.read_permission, "storage:private");
   assert.equal(GOALS_PROJECT_DATABASE.write_permission, "storage:private");
   assert.deepEqual(manifest.permissions.filter(permission => permission.permission === "storage:private").map(permission => permission.required), [true]);
+});
+
+test("RAC-797 every permission is required, and every permission an action asks of its caller is declared in the Manifest's written-out list", () => {
+  const manifest = parsePluginManifest(structuredClone(goalsManifest));
+  assert.ok(manifest.permissions.every(permission => permission.required === true), "a dual-instance plugin has no optional permission");
+  const declared = new Set(manifest.permissions.map(permission => permission.permission));
+  const asked = actionPermissionDeclarations(manifest.actions ?? [], "x").map(permission => permission.permission);
+  assert.deepEqual(asked.filter(permission => !declared.has(permission)), [], "an action's permission missing from the list the Manifest writes out");
 });
 
 test("PLIB-12 on an empty library the declaration passes the SQL rules, creates every Goals and Governance table and writes the ledger row", () => {
@@ -86,26 +96,19 @@ test("PLIB-12 opening the same declaration again opens normally and changes noth
   } finally { db.close(); }
 });
 
-test("PLIB-13 the declared tables are the ones the version 7 baseline had for Goals and Governance, the board without its name and keyed to the project's root", () => {
+test("RAC-2362 PLIB-13 Goals' complete current declaration matches the business fixture and its board is keyed to the project root", () => {
   const db = emptyLibrary();
-  const version7 = new DatabaseSync(":memory:");
+  const expected = new DatabaseSync(":memory:");
   try {
     open(db);
-    // The only record of the tables as the baseline made them: the current baseline (tests/fixtures/project-database-schema.sql) no longer has them.
-    version7.exec(readFileSync(new URL("./fixtures/project-database-schema-v7.sql", import.meta.url), "utf8"));
-    const then = describeSqliteSchema(version7).tables, declared = describeSqliteSchema(db).tables;
-    for (const table of GOALS_TABLES.filter(name => name !== "boards")) {
-      assert.ok(then[table], `${table} is in the version 7 baseline`);
-      assert.deepEqual(declared[table], then[table], `${table} is as it was: its keys still point at the board`);
+    expected.exec(readFileSync(new URL("./fixtures/goal-event-history/approved.sql", import.meta.url), "utf8"));
+    const current = describeSqliteSchema(expected).tables, declared = describeSqliteSchema(db).tables;
+    for (const table of GOALS_TABLES) {
+      assert.ok(current[table], `${table} is in the independent current fixture`);
+      assert.deepEqual(declared[table], current[table], `${table}: complete columns, checks, keys and indexes`);
     }
-    const board = then.boards!;
-    assert.deepEqual(board.columns.map(column => column.name), ["project_id", "title", "active_goal_id", "created_at", "updated_at"], "version 7's board carried the project's name");
-    assert.deepEqual(declared.boards, {
-      ...board,
-      columns: board.columns.filter(column => column.name !== "title"),
-      foreign_keys: [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }],
-    }, "the board lost its name and its key points at the root, deleting with it");
-    // And nothing more: the declaration makes no table the baseline did not have for these owners.
+    assert.deepEqual(declared.boards!.columns.map(column => column.name), ["project_id", "active_goal_id", "created_at", "updated_at"]);
+    assert.deepEqual(declared.boards!.foreign_keys, [{ table: "project_root", from: "project_id", to: "project_id", on_delete: "CASCADE", on_update: "NO ACTION" }]);
     assert.deepEqual(Object.keys(describeSqliteBaseline(GOALS_PROJECT_DATABASE).tables).sort(), GOALS_TABLES);
-  } finally { version7.close(); db.close(); }
+  } finally { expected.close(); db.close(); }
 });

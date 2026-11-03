@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -7,6 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // field, but its buttons must never sit on one of the stage's buttons (they used to cover 「转为待办」).
 for (const width of [1440, 390]) test(`placement card ${width}px: a card that arrives after the toolbar keeps its buttons off the stage's buttons`, { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  const child = await pluginFrameBrowser(t,browser,"lingguang");
   const { origin, projectId, command, sessionId, navigate, evaluate, waitFor, click, surfaceReady } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -16,8 +18,9 @@ for (const width of [1440, 390]) test(`placement card ${width}px: a card that ar
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
   await surfaceReady("lingguang");
-  await evaluate(`document.querySelector("[data-lingguang-capture]").click()`);
-  await waitFor(`${visible("[data-lingguang-todo]")} && Boolean(document.querySelector('.placement-toast'))`, 10_000);
+  await child.evaluate(`document.querySelector("[data-lingguang-capture]").click()`);
+  await child.waitFor(visible("[data-lingguang-todo]"), 10_000);
+  await waitFor("Boolean(document.querySelector('.placement-toast'))", 10_000);
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   const covered = await evaluate<string[]>(`(() => {
     const region = document.querySelector('.placement-toasts'), found = [];
@@ -31,5 +34,9 @@ for (const width of [1440, 390]) test(`placement card ${width}px: a card that ar
     }
     return [...new Set(found)];
   })()`);
-  assert.deepEqual(covered, [], "the card's buttons cover none of the stage's buttons");
+  const points = await evaluate<Array<{x:number;y:number;label:string}>>(`(()=>{
+    const frame=document.querySelector('iframe[data-plugin-frame=lingguang]').getBoundingClientRect();
+    return [...document.querySelectorAll('.placement-toasts button')].flatMap(button=>{const r=button.getBoundingClientRect();return !r.width?[]:[[r.left+2,r.top+2],[r.right-2,r.top+2],[r.left+2,r.bottom-2],[r.right-2,r.bottom-2]].map(([x,y])=>({x:x-frame.left,y:y-frame.top,label:button.textContent.trim()}))});})()`);
+  const childCovered = await child.evaluate<string[]>(`(${JSON.stringify(points)}).flatMap(point=>{const control=document.elementFromPoint(point.x,point.y)?.closest('button,a[href],select,[role=button]');return control?[point.label+' over '+(control.textContent.trim()||control.getAttribute('aria-label')||control.tagName)]:[]})`);
+  assert.deepEqual([...covered, ...childCovered], [], "the card's buttons cover none of the stage's buttons");
 });

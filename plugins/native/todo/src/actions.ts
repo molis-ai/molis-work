@@ -1,7 +1,8 @@
 import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "./contract.js";
 import { isTodoDate, localDate } from "./dates.js";
 import { todoCallerProject } from "./caller.js";
+import { withProjectReach } from "./reach.js";
 import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStores } from "./store.js";
 import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
@@ -86,9 +87,9 @@ type Identity = { id: string; expected_revision?: number };
 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
   extra: Partial<ActionDefinition["action"]> = {}): ActionDefinition<I, O> {
-  return { capability_id: `todo.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home",
+  return withProjectReach({ capability_id: `todo.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home",
     audiences: ["user", "agent", "workflow", "mcp"], permissions: [...(operation === "query" ? TODO_READ : TODO_WRITE)], subject_kinds: [TODO_SUBJECT_KIND],
-    input_schema: input, output_schema: output, ...extra } };
+    input_schema: input, output_schema: output, ...extra } });
 }
 const resultSubject = { id: "item.id", revision: "item.revision" };
 /** How a change is taken back: the revert command, fed from this change's own output (D08: runs when asked, then 撤销). */
@@ -133,9 +134,9 @@ export const todoActions = {
     object({ id }), object({ item }), { result_subject: resultSubject }),
   // The Assistant asks about once a minute which of the person's own reminders fall due, and tells each one once under
   // their rules. Todo keeps no timer and marks nothing; its own page still shows due reminders for looking back.
-  dueWindow: defineDueRemindersAction("todo.reminders.window", [TODO_SUBJECT_KIND], "到期提醒", [...TODO_READ]),
+  dueWindow: withProjectReach(defineDueRemindersAction("todo.reminders.window", [TODO_SUBJECT_KIND], "到期提醒", [...TODO_READ])),
   // The placement panel's “移到…”: Todo keeps where each todo belongs, so the move is Todo's own (only the person, at Home).
-  move: defineObjectMoveAction("todo.placement.move", [TODO_SUBJECT_KIND], "待办", TODO_WRITE, "home"),
+  move: withProjectReach(defineObjectMoveAction("todo.placement.move", [TODO_SUBJECT_KIND], "待办", TODO_WRITE, "home")),
   homeEvents: todoHomeEventsAction,
   searchEntries: todoSearchActions.entries,
   searchProjectEntries: todoSearchActions.projectEntries,
@@ -145,18 +146,21 @@ export const todoActions = {
 export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
 
 /**
- * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure. The
+ * The complete `todo.items.create` input for a fragment of anything (specs/archive/contextual-interaction §10 P2); pure over the fragment and the caller's project. The
  * todo remembers where it came from (the object and the words), and the same request creates it once.
  */
-function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
+function prepareTodoFragmentOffers(input: FragmentOffersInput, project: string | null): FragmentActionOffer[] {
   const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n");
   if (!text) return [];
   const first = (text.split(/[。！？\n]/u)[0] ?? text).trim() || text;
-  const title = first.length > 80 ? first.slice(0, 79) + "…" : first;
+  const title = [...first].length > 80 ? [...first].slice(0, 79).join("") + "…" : first;
   const { object } = input.fragment;
+  // A whole object (an Inbox entry, a 灵光) is made into a todo where that object lives, as its page does: the project the call comes from, else
+  // the personal space. The project is the caller's, never read from the input. A passage leaves the place to the person.
+  const placement = input.fragment.granularity === "object" ? { placement: project ? "project" : "personal" } : {};
   return [{ offer_id: "todo", title: "记成待办", action: { capability_id: "todo.items.create", version: 1 }, input: {
-    title, ...(text !== title ? { notes: text.slice(0, 10_000) } : {}), request_id: input.request_id.slice(0, 160),
-    sources: [{ kind: "material", title: (object.title || "选中的内容").slice(0, 200), excerpt: text.slice(0, 2000), reason: "从选中的内容记成待办",
+    title, ...(text !== title ? { notes: [...text].slice(0, 10_000).join("") } : {}), ...placement, request_id: input.request_id.slice(0, 160),
+    sources: [{ kind: "material", title: [...(object.title || "选中的内容")].slice(0, 200).join(""), excerpt: [...text].slice(0, 2000).join(""), reason: "从选中的内容记成待办",
       subject: { kind: object.kind, id: object.id }, open: null }] },
     summary: `记一条待办：「${title}」（记下它出自${object.title ? `「${object.title}」` : "选中的内容"}）`, editable: ["title", "notes", "due_date"] }];
 }
@@ -172,10 +176,17 @@ export interface TodoActionPorts extends TodoStores {
   modelAvailability?(): ActionAvailability;
 }
 
-/** Who is asking, as far as a todo is concerned. Only the person's own page may read across projects. */
-export function todoAccess(caller: ActionCallContext, everything = false): TodoAccess {
-  if (everything && caller.audience !== "user") throw new ActionError("actions.forbidden", "只有你自己在 Todo 页面里能看到所有项目的待办");
-  return { projectId: todoCallerProject(caller), everything, actor: caller.audience === "user" ? "user" : caller.audience === "agent" ? "assistant" : "other", actorId: caller.actor_id };
+/**
+ * Who is asking, as far as a todo is concerned, and which projects' todos they may reach. That is not judged here: the Host gives the list of
+ * projects the person may reach (`readable_project_ids`, PG-014) to the person's calls on an action that declares `project_reach`, and to
+ * nobody else. `"caller"` ignores it (only the project the call is made in), `"listed"` uses it when there is one, `"required"` refuses a
+ * call the Host gave none (the page asking for every project).
+ */
+export function todoAccess(caller: ActionCallContext, reach: "caller" | "listed" | "required" = "caller"): TodoAccess {
+  const listed = caller.readable_project_ids;
+  if (reach === "required" && !listed) throw new ActionError("actions.forbidden", "只有你自己在 Todo 页面里能看到所有项目的待办");
+  return { projectId: todoCallerProject(caller), projectIds: reach === "caller" ? [] : listed ?? [],
+    actor: caller.audience === "user" ? "user" : caller.audience === "agent" ? "assistant" : "other", actorId: caller.actor_id };
 }
 
 export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerBinding[] {
@@ -186,7 +197,7 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
   const { read, write } = ports;
   return [
     bind(todoActions.list, (input, caller) => read(store => {
-      const access = todoAccess(caller, input.all_projects === true);
+      const access = todoAccess(caller, input.all_projects === true ? "required" : "caller");
       const day = today(input.today);
       const query = input.query?.trim().toLocaleLowerCase() ?? "";
       let items = store.list(access);
@@ -196,49 +207,49 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       const counts = viewCounts(items, day);
       const selected = input.archived ? items.filter(entry => entry.archived_at !== null).sort((a, b) => (b.archived_at ?? "").localeCompare(a.archived_at ?? ""))
         : selectView(items, input.view ?? "today", day);
-      return { today: day, project_id: todoCallerProject(caller), everything: access.everything, counts,
+      return { today: day, project_id: todoCallerProject(caller), everything: input.all_projects === true, counts,
         items: selected.map(entry => ({ ...entry, flags: todoFlags(entry, day) })) };
     })),
     bind(todoActions.get, (input, caller) => read(store => {
-      const access = todoAccess(caller, caller.audience === "user");
+      const access = todoAccess(caller, "listed");
       const entry = store.get(input.id, access);
       return { item: entry, flags: todoFlags(entry, today()), history: store.history(input.id, access),
         backlinks: store.backlinks(input.id, access).map(({ item: other, link: back }) => ({ item_id: other.id, title: other.title, relation: back.relation })) };
     })),
-    bind(todoActions.fragmentOffers, input => ({ offers: prepareTodoFragmentOffers(input) })),
+    bind(todoActions.fragmentOffers, (input, caller) => ({ offers: prepareTodoFragmentOffers(input, todoCallerProject(caller)) })),
     bind(todoActions.create, (input, caller) => write(caller, store => store.create(input, todoAccess(caller)))),
     bind(todoActions.update, (input, caller) => write(caller, store => {
       const { id: target, expected_revision, ...patch } = input;
-      return store.update(target, patch, expected_revision, todoAccess(caller, caller.audience === "user"));
+      return store.update(target, patch, expected_revision, todoAccess(caller, "listed"));
     })),
-    bind(todoActions.status, (input, caller) => write(caller, store => store.setStatus(input.id, input.status, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.archive, (input, caller) => write(caller, store => store.setArchived(input.id, input.archived, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.status, (input, caller) => write(caller, store => store.setStatus(input.id, input.status, input.expected_revision, todoAccess(caller, "listed")))),
+    bind(todoActions.archive, (input, caller) => write(caller, store => store.setArchived(input.id, input.archived, input.expected_revision, todoAccess(caller, "listed")))),
     bind(todoActions.remove, (input, caller) => write(caller, store => {
-      store.delete(input.id, input.expected_revision, todoAccess(caller, caller.audience === "user"));
+      store.delete(input.id, input.expected_revision, todoAccess(caller, "listed"));
       return { deleted: true as const, id: input.id };
     })),
-    bind(todoActions.batch, (input, caller) => write(caller, store => store.batch(input.ids, input.change, input.expected_revisions, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.revert, (input, caller) => write(caller, store => store.revert(input, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.link, (input, caller) => write(caller, store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.batch, (input, caller) => write(caller, store => store.batch(input.ids, input.change, input.expected_revisions, todoAccess(caller, "listed")))),
+    bind(todoActions.revert, (input, caller) => write(caller, store => store.revert(input, todoAccess(caller, "listed")))),
+    bind(todoActions.link, (input, caller) => write(caller, store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, "listed")))),
     bind(todoActions.dueReminders, (_input, caller) => read(store => ({
-      reminders: store.dueReminders(todoAccess(caller, caller.audience === "user"), ports.now?.()) }))),
-    bind(todoActions.acknowledgeReminder, (input, caller) => write(caller, store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
+      reminders: store.dueReminders(todoAccess(caller, "listed"), ports.now?.()) }))),
+    bind(todoActions.acknowledgeReminder, (input, caller) => write(caller, store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, "listed")) }))),
     bind(todoActions.dueWindow, (input, caller) => {
       assertDueReminderWindow(input);
       // The person's own reminders from every project and the personal space: reminders are for them, wherever the todo sits.
       return read(store => ({ source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办" },
-        reminders: store.list(todoAccess(caller, true))
+        reminders: store.list(todoAccess(caller, "required"))
           .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
             && ["open", "doing", "waiting"].includes(item.status) && withinDueReminderWindow(item.remind_at, input))
           .sort((a, b) => Date.parse(a.remind_at!) - Date.parse(b.remind_at!)).slice(0, 100)
-          .map(item => ({ reminder_id: `${item.id}@${item.remind_at}`, due_at: item.remind_at!, title: item.title.slice(0, 300),
+          .map(item => ({ reminder_id: `${item.id}@${item.remind_at}`, due_at: item.remind_at!, title: [...item.title].slice(0, 300).join(""),
             subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.placement === "project" ? item.project_id : null,
             open: { surface: TODO_PROJECT_PLUGIN_ID, id: item.id } })) }));
     }),
     bindHomeObjectMoveHandler(todoActions.move, (input, caller) => write(caller, store => {
       if (input.subject.kind !== TODO_SUBJECT_KIND) throw new ActionError("actions.input_invalid", "这里只能移动待办");
       // The person, across projects: the placement service calls at Home with their own authority.
-      const access = todoAccess(caller, true);
+      const access = todoAccess(caller, "required");
       const current = store.get(input.subject.id, access);
       const to = input.to_project_id === PERSONAL_SPACE_PROJECT_ID ? null : input.to_project_id;
       // Personal and unplaced are both the personal space; unplaced only means “not sorted yet”.

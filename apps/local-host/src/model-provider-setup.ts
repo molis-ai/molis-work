@@ -40,6 +40,17 @@ export function modelTemplatePageData(query: URLSearchParams): Pick<ModelSetting
   return { templates: modelTemplateChoices(), ...(draft ? { draft_provider: draft.provider, draft_template_id: draft.template_id } : {}) };
 }
 
+/**
+ * What the journey's model step reads. The choices carry no address. A chosen template also returns the unsaved form
+ * the settings page would open; nothing is stored, and the form holds no key.
+ */
+export function modelSetupOffer(templateId: string | null): {
+  templates: ReturnType<typeof modelTemplateChoices>;
+  draft: ReturnType<typeof modelProviderDraft> | null;
+} {
+  return { templates: modelTemplateChoices(), draft: templateId ? modelProviderDraft(templateId) : null };
+}
+
 export interface ModelProviderSave {
   provider_id: string;
   input: ModelProviderInput;

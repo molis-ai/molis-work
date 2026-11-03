@@ -1,9 +1,10 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
+import { renderCompanionBrowserStage, type CompanionStageModel } from "./companion-stage.js";
 import { pathLabel } from "./paths.js";
 import { previewMessage, type FilePreview } from "./preview.js";
 import type { FileTreeNode } from "./tree.js";
@@ -48,25 +49,42 @@ export interface FilesUiModel {
   readonly primitives: FilesUiPrimitives;
 }
 
-export const filesUiDescriptor: UiContributionDescriptor = {
+export const filesUiDescriptor: UiContributionDeclaration = {
   contribution_id: FILES_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.files",
   kind: "primary-page",
   navigation_id: "files",
   label: "Files",
   surfaces: [
     { surface_id: "tree", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "reader", target_slot_id: "workbench.main", format: "declarative-html" },
+    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+    // The browser the Coding page embeds (`ui.embedded_plugins`): the slots are the ones that page opens, by their ids.
+    { surface_id: "browser-directory", target_slot_id: "coding.companion-directory", format: "declarative-html" },
+    { surface_id: "browser-result", target_slot_id: "coding.companion-result", format: "declarative-html" },
   ],
   slots: [],
 };
 
-export const filesUiContribution: UiContribution<FilesUiModel> = {
+export const filesUiContribution: UiContribution<FilesUiModel | CompanionStageModel> = {
   descriptor: filesUiDescriptor,
-  render(request: UiRenderRequest<FilesUiModel>): string {
-    return request.surface === "reader" ? renderFilesReader(request.model) : renderFilesTree(request.model);
+  render(request: UiRenderRequest<FilesUiModel | CompanionStageModel>): string {
+    const stage = request.model as CompanionStageModel;
+    switch (request.surface) {
+      case "workbench": return renderFilesStage(stage);
+      case "browser-directory": return renderFilesBrowserDirectory(stage.primitives.text);
+      case "browser-result": return renderFilesBrowserResult(stage.primitives.text);
+      case "reader": return renderFilesReader(request.model as FilesUiModel);
+      default: return renderFilesTree(request.model as FilesUiModel);
+    }
   },
 };
+
+/** Files' stage in the project page: its browser beside a note while no file is open. */
+export function renderFilesStage(model: CompanionStageModel): string {
+  const { text } = model.primitives;
+  return renderCompanionBrowserStage({ surface: "files", label: "Files", icon: "file", route_prefix: model.route_prefix, manage: text("files.stage.manage"),
+    empty: { title: text("files.stage.empty-title"), body: text("files.stage.empty-body") }, directory: renderFilesBrowserDirectory(text), result: renderFilesBrowserResult(text) });
+}
 
 export function renderFilesTree(model: FilesUiModel): string {
   const { escape } = model.primitives;

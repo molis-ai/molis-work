@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-diff",
-  packagePath: "plugins/native/diff",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["diff.artifact-type.v1", "diff.ui-contribution.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export {
   DIFF_CHANGESET_SCHEMA_VERSION,
   DIFF_CHANGESET_TYPE,
@@ -18,16 +5,6 @@ export {
   type ChangeSet,
   type ChangeSetSource,
 } from "./changeset.js";
-export {
-  countChangedLines,
-  hunkRows,
-  parseUnifiedDiff,
-  type UnifiedHunk,
-} from "./unified.js";
-export {
-  unifiedPatch,
-  type UnifiedPatchFile,
-} from "./patch.js";
 export {
   compareChangeSet,
   compareRunChangeSet,
@@ -56,16 +33,16 @@ export {
   diffManifest,
 } from "./manifest.js";
 export {
+  DIFF_LABELS,
   DIFF_UI_CONTRIBUTION_ID,
   diffUiContribution,
   diffUiDescriptor,
-  renderDiff,
   type DiffUiModel,
   type DiffUiPrimitives,
 } from "./ui.js";
 export { createDiffPlugin, type DiffPluginPorts } from "./plugin.js";
 
-export { DIFF_STYLES } from "./styles.js";
-export { DIFF_MESSAGES } from "./messages.js";
+export { DIFF_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export { DIFF_MESSAGES, DIFF_TEMPLATES } from "./messages.js";
 
 export { diffActions, DIFF_ACTIONS } from "./actions.js";

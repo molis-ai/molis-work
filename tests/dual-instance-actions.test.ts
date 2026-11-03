@@ -95,9 +95,8 @@ test("DUAL-10 the halves call each other on the plugin's own path: a person-only
   const context = await s.page();
   assert.deepEqual(await s.client.invoke(context, actions.reach, { call: actions.homeReach.capability_id }), { half: "home", project_id: s.projectId },
     "the project half reaches the Home half's action that only a person reaches");
-  // A Home half's own call runs in no project, even when its action was called in one: the project half's provider, bound to its
-  // project, refuses a caller in no project before the action is looked at (the action service's `actions.scope_mismatch`).
-  await assert.rejects(s.client.invoke(context, actions.homeReach, { call: actions.project.capability_id }), { code: "actions.scope_mismatch" });
+  // SYS-15: a nested Home call keeps the project captured by the Runtime, so directory grants keep their owner identity.
+  assert.deepEqual(await s.client.invoke(context, actions.homeReach, { call: actions.project.capability_id }), { half: "project", project_id: s.projectId });
   // The Home half's route passes on the route's own control: under a project's path it calls in that project; without the prefix, in none.
   const routed = await s.get(`/projects/${s.projectId}/api/plugins/${s.dual.id}/home?call=${actions.project.capability_id}`);
   assert.equal(routed.status, 200, JSON.stringify(routed.body));

@@ -1,5 +1,5 @@
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
+import { feedErrors } from "./contract/feed.js";
+import { sourceDeletedAt } from "./contract/sources.js";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceSchedule, SourceHistoryDecision } from "./projection.js";
 import type { FeedSourcePorts, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceSyncInput } from "./source-ports.js";
@@ -9,7 +9,7 @@ import { PublicSourceSync } from "./source-sync.js";
 export class FeedSourceService {
   readonly feed: FeedApplication;
   private readonly publicSync: PublicSourceSync;
-  constructor(private readonly ports: FeedSourcePorts, readonly projectId: string, private readonly now: () => Date = () => new Date()) {
+  constructor(readonly ports: FeedSourcePorts, readonly projectId: string, private readonly now: () => Date = () => new Date()) {
     this.feed = ports.feed;
     this.publicSync = new PublicSourceSync(ports, projectId);
   }
@@ -28,7 +28,7 @@ export class FeedSourceService {
   register(input: RegisterFeedSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const normalized = normalizeRegistration(input, this.ports.providers);
     const syncKind = "public_source";
-    const existing = this.feed.findSource(
+    const existing = this.feed.sources.find(
       this.projectId,
       syncKind,
       normalized.definitionId,
@@ -44,7 +44,7 @@ export class FeedSourceService {
       }
     }
     const now = new Date().toISOString();
-    const source = this.feed.upsertSource({
+    const source = this.feed.sources.upsert({
       project_id: this.projectId,
       source_id: stableId("feed-source", `${this.projectId}\u0000${normalized.kind}\u0000${normalized.configFingerprint}`),
       kind: normalized.kind,
@@ -73,7 +73,7 @@ export class FeedSourceService {
 
   setEnabled(sourceId: string, enabled: boolean): FeedSourceRecord {
     this.activeSource(sourceId);
-    const source = this.feed.setSourceEnabled(this.projectId, sourceId, enabled);
+    const source = this.feed.sources.setEnabled(this.projectId, sourceId, enabled);
     this.ports.appendEvent(
       this.projectId,
       sourceId,
@@ -121,7 +121,7 @@ export class FeedSourceService {
         throw feedErrors.source_use_catalog("这个地址已在 RSS 目录，请直接添加目录来源");
       }
       const fingerprint = sha256(feedUrl);
-      const existing = this.feed.findSource(this.projectId, "public_source", this.ports.providers.customRss.definitionId, fingerprint);
+      const existing = this.feed.sources.find(this.projectId, "public_source", this.ports.providers.customRss.definitionId, fingerprint);
       if (existing && existing.source_id !== source.source_id) {
         throw feedErrors.source_idempotency_conflict("这个自定义 RSS / Atom 已经存在");
       }
@@ -144,7 +144,7 @@ export class FeedSourceService {
       if (source.sync_kind === "gmail") config.token_refs = connection.tokenRefs;
       if (changedAccount) cursor = {};
     }
-    const save = () => this.feed.upsertSource({
+    const save = () => this.feed.sources.upsert({
       ...source,
       name,
       description,
@@ -167,7 +167,7 @@ export class FeedSourceService {
         if (prior && sourceDeletedAt(prior)) {
           throw feedErrors.source_invalid_configuration("这条账号来源已移除，请先恢复或另建来源");
         }
-        const next = this.feed.upsertSource({
+        const next = this.feed.sources.upsert({
           ...(prior ?? source),
           source_id: nextId,
           name: input.name == null && !prior && accountLabel ? `${source.kind} · ${accountLabel}` : name,
@@ -187,9 +187,9 @@ export class FeedSourceService {
           updated_at: now,
         });
         if (!prior) {
-          for (const rule of this.feed.listOutRules(this.projectId)) {
+          for (const rule of this.feed.outRules.list(this.projectId)) {
             if (rule.match.source_id !== sourceId) continue;
-            this.feed.createOutRule(this.projectId, {
+            this.feed.outRules.create(this.projectId, {
               name: rule.name,
               match: { ...rule.match, source_id: nextId },
               enabled: rule.enabled,
@@ -198,7 +198,7 @@ export class FeedSourceService {
             });
           }
         }
-        this.feed.upsertSource({ ...source, enabled: false, status: "paused", updated_at: now });
+        this.feed.sources.upsert({ ...source, enabled: false, status: "paused", updated_at: now });
         return next;
       })
       : save();
@@ -228,7 +228,7 @@ export class FeedSourceService {
           : null,
       };
     }
-    const updated = this.feed.upsertSource({
+    const updated = this.feed.sources.upsert({
       ...source,
       schedule,
       updated_at: now.toISOString(),
@@ -256,7 +256,7 @@ export class FeedSourceService {
   }
 
   advanceSchedule(sourceId: string, plannedAt: string, attemptedAt: Date = this.now()): FeedSourceRecord | null {
-    const source = this.feed.getSource(this.projectId, sourceId);
+    const source = this.feed.sources.get(this.projectId, sourceId);
     if (sourceDeletedAt(source) || source.schedule.mode !== "interval") return null;
     if (source.schedule.next_pull_at !== plannedAt) return source;
     const intervalMs = source.schedule.interval_minutes * 60_000;
@@ -264,7 +264,7 @@ export class FeedSourceService {
     if (!Number.isFinite(next)) next = attemptedAt.getTime();
     do next += intervalMs;
     while (next <= attemptedAt.getTime());
-    return this.feed.upsertSource({
+    return this.feed.sources.upsert({
       ...source,
       schedule: { ...source.schedule, next_pull_at: new Date(next).toISOString() },
       updated_at: attemptedAt.toISOString(),
@@ -274,7 +274,7 @@ export class FeedSourceService {
   disconnect(sourceId: string): FeedSourceRecord {
     const source = this.activeSource(sourceId);
     const now = this.now().toISOString();
-    const disconnected = this.feed.upsertSource({
+    const disconnected = this.feed.sources.upsert({
       ...source,
       status: "disconnected",
       enabled: false,
@@ -291,11 +291,11 @@ export class FeedSourceService {
 
   delete(sourceId: string, historyDecision: SourceHistoryDecision): FeedSourceRecord {
     this.activeSource(sourceId);
-    return this.feed.retireSource(this.projectId, sourceId, historyDecision);
+    return this.feed.sources.retire(this.projectId, sourceId, historyDecision);
   }
 
   private activeSource(sourceId: string): FeedSourceRecord {
-    const source = this.feed.getSource(this.projectId, sourceId);
+    const source = this.feed.sources.get(this.projectId, sourceId);
     if (sourceDeletedAt(source)) throw feedErrors.source_not_found("找不到这个来源");
     return source;
   }

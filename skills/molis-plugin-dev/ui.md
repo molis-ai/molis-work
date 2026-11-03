@@ -16,8 +16,10 @@
 - **位置不重复**：工作台标签条已经写了插件名，舞台里不再放一行插件名大标题；独立打开（预览、试用页）时才显示。
 - **浅色和深色都成立**：颜色一律用 token，不写死；在两种主题下各看一眼。
 - **反馈可见**：按下有回弹，保存后新记录可见（上浮进入），成功提示短暂出现后淡出，失败提示留下直到下次成功。
+- **Toast 只有一种**：用设计系统的 `.mw-toast`（服务端用 `renderToast`）；成功或失败设 `data-mw-state`（`done`、`failed`）带标记，失败加 `is-error` 会轻摇一次；撤销或下一步是 `.mw-toast__action`。插件只写它放在哪里（居中用 `inset-inline: 0` 加 `margin-inline: auto`，不用 `transform`），不写颜色、圆角和动效。
 - **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：哪里都不画滚动条，设计系统一条规则管全部页面，插件不写 `scrollbar-width`、`scrollbar-color`、`::-webkit-scrollbar`（`tests/scrollbars-hidden.test.ts` 拦）；放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳（只有图标的按钮换成对勾或叉，文字由读屏读出），返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件；会一直长的对话或日志用 `window.molisFollow(滚动容器)` 管滚动：到底就跟着，人往上滚、按键或选字就停，新内容来了调 `pin()`、「回到最新」调 `toLatest()`、跳到某张卡之前调 `release()`，切到另一段对话时放回记下的位置用 `restore(top)`、新对话用 `resume()`，客户端卸载时 `lifetime.own(() => follow.dispose())`；同一个容器只有一个主人，后来的调用者拿到的是同一个，它传的 `onChange` 不生效；页面自己的滚动不会被当成人的操作，不自己判断离底多少像素；很长的列表画完后调 `window.molisShowMore(列表, { key, label: "再显示 {n} 项", keep })`，先给前五项、其余收在一个按钮后面（只多一项就直接显示），`keep` 标出必须一直看得见的项（失败），人点开后同一个 `key` 重画也保持展开。
-- **流式的代码块原地长**：边写边显示的回复用 `window.molisStreamText(容器, html, { reveal, grow })`；代码块交给 `grow`，用 Coding 的 `growCodeTokens` 从变了的那一行起着色（写的时候就是最后一行），块、复制按钮、已着色的片段和人打开的折叠都留着，复制取现在的原文；不要每次整块换掉、从头着色（1,000 行一次 19.5 ms，原地长 3.7 ms）。Diff 按块读：块里一行按首字符算，像文件头的行也是内容。
+- **流式的代码块原地长**：边写边显示的回复用 `window.molisStreamText(容器, html, { reveal, grow })`；代码块交给 `grow`，用插件 SDK 的 `growCodeTokens`（`@molis-ai/molis-work-plugin-sdk/highlight`）从变了的那一行起着色（写的时候就是最后一行），块、复制按钮、已着色的片段和人打开的折叠都留着，复制取现在的原文；不要每次整块换掉、从头着色（1,000 行一次 19.5 ms，原地长 3.7 ms）。Diff 按块读：块里一行按首字符算，像文件头的行也是内容。
+- **外来的文字用 SDK 显示和脱敏**：订阅、网页、模型回答这类不可信的文字，用 `@molis-ai/molis-work-plugin-sdk/rich-text` 的 `renderRichText` 显示成 Markdown 加白名单 HTML（结果一律清洗过，链接只留 http(s)），列表行和摘要用 `richPlainText`；这个子路径要的 `marked` 与 `sanitize-html` 由插件自己写进 `package.json`。把外来的文字交给模型或显示回屏幕之前，先过 SDK 根入口的 `redactSecrets` 遮住贴进来的密钥。不自己写第二套解析、清洗或着色。
 - **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行；工具条放不下时名称收成图标（名称仍是可访问名称）。
 - **悬停才出现的操作，键盘和触控也拿得到**：行里平时藏起、指针停上去才出现的按钮，同一条规则也要写 `:focus-within`（焦点进到行里就出现），并在 `@media (hover: none)` 里一直显示；只有选中后才出现的（选中即点一下）可以不写。键盘停点之外的按钮（如标签上的关闭）在行上用 `aria-keyshortcuts` 写明等价的键。
 - **被截的名字找得回来**：名称、路径、摘要可以用省略号或限定行数截短，但要放在能按下或能移到的控件或行里，平台的提示会在指针停留、键盘聚焦和触控按住时给出全文；不给被截的文字另写 `title` 或自己的提示，错误、状态与操作的标签不截在没有控件包着的地方。
@@ -34,13 +36,26 @@
 | `island` | 个人常驻入口：底栏右侧，项目圆钮旁 | 灵光 |
 | `side` | 侧栏里的一个标签：在工作旁边打开，与讨论、浏览器、文件并列（specs/archive/side-panel） | 需要边工作边看的小工具面 |
 
+视图上还有几项可选的声明，宿主照着放，不另写名单（W5-06 第 2b 片，合同在 `packages/contracts/src/platform/ui.ts`）：
+
+- `icon`：图标名，限平台图标集（SDK `/ui` 的 `PLUGIN_ICON_NAMES`，设计系统逐个画）；写了集合外的名字、不是字符串或是空白，`parsePluginManifest` 当场拒绝，不回退。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写就用 `settings`。
+- `hue`（任何槽的视图都可以写，插件取它第一个写了 `hue` 的视图）：这个插件在标签条上那一组的颜色，取设计系统的颜色名之一（`gray`、`brown`、`orange`、`yellow`、`green`、`mint`、`cyan`、`blue`、`indigo`、`purple`、`pink`、`red`、`steel`、`slate`；清单在 `UI_VIEW_HUES`）。只有标签条的分组用它，其余各处插件都是同一个中性色；不写，宿主按插件 id 在备用色里挑一个，同一个插件总是同一个。随宿主发布的插件和运行时装进项目的插件**待遇一样**，宿主不留插件名单。
+- `title_en`（只用于 `navigator`、`island`）和 Manifest 顶层的 `name_en`：英文界面里这个入口的名字（BL-636）。一行英文，至多 80 个字符（按 Unicode 码点数），不能是空白、首尾不能有空白、不含控制字符和汉字；写在别的槽的视图上被拒，`name_en` 只用于 `schema_version: 2`。外壳按入口自己的来源取：导航或岛视图取它的 `title_en`，只有舞台的插件（外壳画的是 Manifest 的 `name`）取 `name_en`，两者不互相兜底；没写就在英文界面里显示原名，中文界面始终显示原名。内置和装进来的插件走同一条路，外壳没有按插件 id 写的英文名表。
+- `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
+- `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
+- `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。
+
+写错的（不认识的组、`creates` 指向本 Manifest 没有的站或不能新建的站、缺 `title` 或 `hint`、用在别的槽上）`parsePluginManifest` 当场拒绝（`molis-work-plugin validate` 同一套检查），每一种都有拒绝用例（`tests/view-placement-declarations.test.ts`）。工作台读这些声明的函数在 `apps/workbench/src/plugin-catalog.ts`。
+
+这些声明对运行时装进项目的插件和随宿主发布的插件**同样生效**：宿主每次读页面时，从项目 Runtime（与 Home 级插件）里运行中的 Manifest 现取 `ui.views` 的 `slot`、`group`、`icon`、`order`、`creates`、`start`、`accepts_objects`，写进页面的插件目录（`plugin_directory`），外壳（插件切换列表、目标里的「新建」、项目首页的起点、按对象开标签）都读它。停用、卸载或撤回同意的插件下一次读页面就没有入口。插件的名称和这些视图文字是你写的文字：页面一律当文本转义显示，名称和标题只取一行（名称、标题 80 字，`creates.title` 40 字，`start.hint` 200 字），视图的 `icon` 在 Manifest 读取时就限平台图标集（集合外整份清单被拒），所以这里读到的总是集合内的名字；`start.icon` 只认设计系统里登记的名字，URL、SVG 或别的写法都用默认图标；不是由项目的插件选择决定的插件（运行时装的），列在它 `group` 的位置或「更多」，只有「常驻 Dock」，没有添加或移除按钮。
+
 全局只有一处导航与对话入口：底部常驻栏（左侧 Dock 菜单与常驻插件，中间插件切换 + Assistant 输入，右侧 Shelf、灵光、侧栏按钮与项目）。侧栏在工作右边打开，放讨论、浏览器、文件和插件声明的 `side` 标签。插件不要再做全局侧栏、第二个对话入口或自己的顶栏导航；插件内部的目录、树、列表与详情可以分栏。
 
-Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side`。不能往未声明 Slot 塞 HTML。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
+Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`、`workbench.side`。不能往未声明 Slot 塞 HTML。舞台页照 Manifest 挂：打开舞台的那个视图（有 `stage` 视图就是它，否则是 `navigator` 入口）用 `contribution_id` 指向一个贡献，工作台把这个贡献的 `workbench` surface 挂到它声明的 `workbench.main`（`apps/workbench/src/declared-stages.ts`），model 是 `{ primitives: { escape, text } }`；没有这个 surface 就没有舞台，宿主和工作台里不另写按插件名的行。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
 
 ### 侧栏标签（`side`）
 
-需要随当前文档变化的侧栏，在 view 上声明 `context_binding: "focused-object"`。复用工作台给出的对象上下文，不自行追踪全局选中项：接收 `molis:side-context` 和递增的 `context_epoch`，启动时发 `molis:side-ready`，发回编辑器的请求携带所收 epoch。只信任宿主父窗口、同源和当前绑定对象；业务读写仍走对象所有者的动作授权。收起保持收起，选中的普通工具不因换文档被抢走。Pages 评论与备注使用这条协议，详情见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
+需要随当前文档变化的侧栏，在 view 上声明 `context_binding: "focused-object"`。复用工作台给出的对象上下文，不自行追踪全局选中项：经 `host.messages` 接收 `molis:side-context` 和递增的 `context_epoch`，启动时发 `molis:side-ready`，发回编辑器的请求携带所收 epoch。隔离页面使用宿主绑定的通道和当前对象，不读取父窗口；业务读写仍走对象所有者的动作授权。收起保持收起，选中的普通工具不因换文档被抢走。Pages 评论与备注使用这条协议，详情见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 
 - 声明：`ui.views` 里写 `{ view_id, slot: "side", title, contribution_id, icon }`；contribution 的 surface 目标是 `workbench.side`（格式 `declarative-html`）。插件在项目里启用才出现，停用或卸载就撤下，不留空标签。
 - Host 在 `/projects/<id>/side/<project_plugin_id>/<view_id>` 用独立文档渲染它，侧栏用同源 iframe 装载：引用工作台同一份样式表（随页面缓存，插件在舞台上怎样显示，这里就怎样显示），并运行插件的 `clientFactory`（多一个 `side: true`）。contribution 收到的 model 只有位置：`{ project_id, route_prefix, view_id }`，数据仍经插件自己的动作与路由读取。
@@ -51,7 +66,13 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 - 插件的工作要在侧栏浏览器里打开或操作某些网站，就在 `permissions` 里声明 `{ permission: "surface:browser", required, reason, origins: ["https://shop.example.com"] }`。`origins` 必须是完整来源，不带路径、查询串或片段，否则 Manifest 当场被拒；其他权限不能带 `origins`。声明会出现在插件市场的卡片上（「会在侧栏浏览器里使用：…」），`molis-work-plugin validate` 的输出里也会列出 `browser_sites`。声明只是告诉用户，不代替每一步的确认：动手仍按侧栏浏览器的规则逐步确认，上传文件永远要确认。
 - 门禁：`inspectManifest` 拒绝未知槽和未声明的 contribution；`tests/side-panel-platform.test.ts` 用一个未知插件只靠声明接入、停用后撤下。
 
-`settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。页面由项目里运行的插件渲染时（Characters），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
+`settings-page` 只能挂 `workbench.settings`。设置页要自己的数据时，在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支。**目前设置贡献与 `settings_data` 的宿主接线只覆盖内置目录；已安装的 Runtime 插件虽会经过声明校验，设置贡献发现与数据动作调用尚未接入，写了声明也不会在全局设置中生效。** 来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
+
+舞台要自己的数据时，在打开舞台的那个 view（有 `stage` view 就是它，否则是第一个 `navigator` view）上写 `stage_data: { action: "<本 Manifest 里只读、面向 user、只有一个版本的查询>" }`，规则与 `settings_data` 相同，写在别的 view 上或指向别人的动作，Manifest 当场被拒。宿主按页面上的这个人、只带这个动作自己声明的权限调用它（不带输入），结果放在 `StagePageModel.data` 里，连同 `route_prefix`、`shown_plugins` 和 `primitives`（`escape`、`text`、`icon`、`formatDate`）交给舞台的 `workbench` surface；插件不在、未启用或被拒时没有 `data`，按空的舞台画。页面整页画一次，`GET /api/stage/<project_plugin_id>` 原地重画一次，都走同一条路，宿主里没有按插件名的分支（T-133，Schedule 是第一个这样画的）。**目前这条路只对内置目录兑现**，已安装插件的舞台仍由运行中的实例按原来的通用模型画。
+
+设置页要从地址里读别的参数时，在同一个 `settings` view 声明 `settings_address: { query: ["tab"], hash: ["#section"] }`：外壳把插件页交来的设置地址转交时，只保留声明的参数与片段加上每个设置页都有的默认 `project`/`desktop`，没声明的一律丢掉；参数名只许 `[A-Za-z0-9_-]{1,32}`、片段以 `#` 起头，各至多 8 个，`project`/`desktop`/`settings`/`settingsPath`/`embed` 是外壳自己的不能声明，写错在 Manifest 解析处就被拒（BL-543）。
+
+设置页实际需要平台的 Agent 运行时列表时，在同一个 `settings` view 声明 `settings_runtimes: true`（例如 Coding）。不声明时宿主不查询，`context.runtimes` 是未请求的空集合；声明后查询失败会走原 HTTP 错误链，不会伪装成「没有运行时」。这个声明独立于 `settings_data`，值只许 `true`，其他槽不能使用。现有内置设置接线范围同上，未扩为已安装 Runtime 插件的动态设置支持。
 
 不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
 
@@ -60,7 +81,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 一级入口用 Host 壳，不要自绘第二套外框：
 
 ```ts
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 renderPluginStageShell({
   surface: "pages",
@@ -87,13 +108,15 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
+打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版；词典和测试写法见 [逐插件客户端方案](../../specs/repository-anti-corruption/slices/w5-04-plugin-client-bundles.md)。
+
 Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
 Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps/workbench/src/scripts/client/navigation-feed.ts`、`navigation-inbox.ts`、`events-primary.ts`。抄 Pages 的 client 到 Feed 不会接到现有画面。
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
-搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件列在 `global-search.ts` 的 `SEARCH_ITEM_TAB_SURFACES`。
+搜索：内容来自系统搜索，插件声明搜索来源即可（见 [search.md](search.md)）。打开到对象时，用 `searchRow: { selector, idDataset }`（例如 `[data-page-id]`）让工作台点那一行；按标签打开（`molis-work:select-item`）的插件在打开舞台的视图上声明 `accepts_objects: true`。当前工作台的搜索、放置与侧栏文件共用构建期插件目录派生的对象标签名单；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），不能仅凭声明假定这些入口已支持动态安装后的对象标签。
 
 确认用 `dialog.mw-dialog`，不要 `window.confirm` / `alert` / `prompt`。异步失败 `showNote`。
 
@@ -111,7 +134,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 ## 控件与视觉
 
-从 `@molis-ai/molis-work-design-system` 导入 `renderButton` / `renderChoice` / `icon` / 已有 `render*`。class 用 `mw-btn`、`mw-input`、`mw-status`、`mw-choice`。标本与组合：`/__ui/catalog`（含底栏与浮层的真实样例）。
+从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `renderButton` / `renderChoice` / `icon` / 已有 `render*`（外部作者装的就是这个包；插件不 import 私有的 design-system，规则 `plugin-private-ui-dependency`，只有创作台例外）。浏览器端工具（`placeFloating`、`followScroll` 等）从 `/browser` 取，页面全局的类型（`window.molisReflow` 等）用 `import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals"`。class 用 `mw-btn`、`mw-input`、`mw-status`、`mw-choice`。标本与组合：`/__ui/catalog`（含底栏与浮层的真实样例）。
 
 - 字体：系统无衬线 + 平台中文字体（`--font`），代码与终端用 `--font-mono`。字重用角色：`--weight-title` 600、`--weight-control` 500、`--weight-body` 400；不写 700，不用 `!important` 改字重。
 - 面：桌面 `--page`，工作面 `--paper`，插件目录列与内层块 `--surface-soft`，局部分组洗色 `--rail`，分隔 `--line`。面板里的全幅画布用 `--canvas`（与工作面同色）。
@@ -120,7 +143,8 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 - 状态色走 tone/status（文字 + 圆点或图标，不只靠颜色）。禁止系统下拉、系统色盘、`alert` / `confirm` / `prompt`、裸 `<select>`。
 - 色用 token，组件规则里不要写死 hex。
 - 尺寸：控件 32px（紧凑密度 28，窄屏/粗指针 44）；圆角 控件 8、行 10、卡片 12、工作面 14、对话框 16。
-- 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。`prefers-reduced-motion` 与自动化下全部静止。
+- 秩序（DESIGN「Order」）：状态环、圆点与字等高——`renderStateRing` 不传 `size` 就跟随所在文字（`1em + 2px`），不要在自己的行里给环定尺寸；图标与文字同号或大一级（12–15px 字旁 12–16px）。并排的按钮同一尺寸（变体不改变高度）、同一行、间距 8（紧凑组 4，只有图标按钮或工具条 2）；页头的动作在标题那一行。字号只用 11/12/13/15/17/20/24/30。圆角只用 4（比控件小的标记）、6（标签）、8（控件）、10（行）、12（卡片）、14、16 与胶囊或圆；套着圆角零件的框取零件的圆角加内距，两条曲线同心；紧凑密度和暗色不改圆角、不把状态词改画成描边胶囊。列表里就地增删、上移下移的条目用 `window.molisReflow(列表, 改动)`（类型 `Reflow` 从设计系统引用），改动要保留元素、不整体重画，否则所有条目都算新来的。空状态用 `mw-empty`：居中、标题 15px/600、动作用次按钮（页头已有石墨的新建，空状态不再放第二个）。`tests/visual-order.e2e.test.ts` 会拦。
+- 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。自己的元素要入场时只用共有的关键帧名：到达 `craft-rise`、再显示 `craft-fade-in`、控件下方的菜单 `craft-drop`、上方的 `craft-rise-from-bar`；不写自己的 `@keyframes`（`tests/one-motion.test.ts` 会拦）。时长用 `--dur-*`，不用旧的 `--motion-*`。`prefers-reduced-motion` 与自动化下全部静止。
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
 - 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入；只写本插件的布局，不重画共享控件。
 
@@ -129,7 +153,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 终层（`packages/design-system/src/styles/craft-finish.ts`，最后加载）：
 
 - 舞台已经在连续的白色工作面上。不要再给自己的舞台画外框、圆角卡片或整页阴影；需要分区用间距、字重和分隔线。
-- 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）。只在真实完成或真实到达时调用，首次渲染不要调用。
+- 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）；服务端渲染的新行也可以直接带 `data-craft-new`，是同一层淡去的底色。只在真实完成或真实到达时调用，首次渲染不要调用。
 - 位置由标签条最前的插件芯片说明，舞台不需要再放一行「插件名」大标题。
 
 硬规则与用法：`packages/design-system/README.md`。
@@ -154,7 +178,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
 
-需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒（`ui_host.plugin_denied`）。被拒是同步抛错：会调它的定时器、监听器要在 `stop` 里清掉，否则停用或重启以后它们再触发，抛出的错没人接，会让整个宿主进程退出（BL-411）。
+需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。服务端让自己的页面重新读取，调 `context.services.ui.invalidate()`：不带参数，只推自己的 revision；Manifest 声明了 `ui.views` 就能调，不要权限；动作里、事件回调或定时器里都行。`start()` 里还没运行时调用什么也不做，激活停了（停用、重启）再调被拒，版本号不动。`stop` 钩子里被拒是同步抛错（`ui_host.plugin_denied`）；钩子返回以后，留下的定时器、监听器再调什么也不做、不抛错，在还没返回的动作或还没答复的路由里调照常抛错（BL-411，见 [host.md](host.md)「停止以后」）。会调它的定时器、监听器仍要在 `stop` 一开始清掉：它们停用后白跑，日志里留下这个插件。
 
 ## 生成插件的页面组合
 

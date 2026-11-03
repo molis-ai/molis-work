@@ -1,14 +1,18 @@
+import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
-import { offerRoutedOriginalFile } from "./plugin-actions-client.js";
+import { offerRoutedOriginalFile, offerRoutedOriginalInput } from "./plugin-actions-client.js";
 import { offeredOriginalFile } from "./material-original-entry.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
+import { hostErrors } from "./host-errors.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
+
+/** Host lifecycle entries are never provided by a plugin page, even if its Manifest reuses one of these paths. */
+export const PLUGIN_MANAGEMENT_OPERATIONS = new Set(["retry", "enable", "disable", "uninstall", "restart", "release-quarantine", "upgrade"]);
 
 /**
  * What the instance that owns a Runtime plugin's routes adds around the shared operations. The operations know no plugin and no
@@ -16,8 +20,6 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
  * nothing to add passes nothing.
  */
 export interface RuntimePluginRouteHooks {
-  /** Runs before the plugin's route is dispatched, with the router that will dispatch it. */
-  beforeDispatch?(router: PluginRouteRouter): Promise<void>;
   /** Runs after the plugin answered, before the answer is sent; may reshape `result.body`. */
   afterDispatch?(result: PluginRouteResponse): Promise<void>;
 }
@@ -32,6 +34,43 @@ interface RuntimePluginRouteControls {
   readBody?(request: IncomingMessage, maxBytes: number | undefined): Promise<unknown>;
   /** Ends this call (its `execution.signal`): a streamed route uses it when the plugin stops or its progress overflows. */
   stop?(): void;
+}
+
+/** A transport envelope, removed before the plugin's Action input is built. No business parameters decide authorship. */
+function takeOriginalInput(body: unknown, installId: string | null | undefined, control: PluginExecutionControl | undefined): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body) || !Object.hasOwn(body, "original_input")) return body;
+  const { original_input: offered, ...input } = body as Record<string, unknown>;
+  if (!installId || !control || !offered || typeof offered !== "object" || Array.isArray(offered)) throw new ActionError("actions.input_invalid", "原始输入信封无效");
+  const value = offered as Record<string, unknown>;
+  if (Object.keys(value).some(key => key !== "input_id" && key !== "text" && key !== "use") || typeof value.input_id !== "string"
+    || value.use !== undefined && value.use !== "supplement" || !/^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$/.test(value.input_id) || typeof value.text !== "string" || !value.text.trim() || value.text.length > 100_000) {
+    throw new ActionError("actions.input_invalid", "原始输入信封无效");
+  }
+  offerRoutedOriginalInput(control, { ...(value.use === "supplement" ? { use: "supplement" as const } : {}), install_id: installId, input_id: value.input_id, text: value.text, written_by: "person", occurred_at: new Date().toISOString() });
+  return input;
+}
+
+/**
+ * The Runtime matcher decodes every path segment before it decides, so a path with bad percent-encoding throws a URIError before it can
+ * say whether it is one of the plugin's routes. This asks the same matcher and answers that case as the retired Host dispatcher did:
+ * the segments are re-encoded literally and, when the path is then one of this plugin's declared routes, it is the caller's invalid
+ * path (`host.request_path_invalid`, 400); any other shape is not this plugin's route and answers null. Only the matcher's own
+ * URIError is taken; every other failure still propagates.
+ */
+export function matchPluginRoute<Match extends { readonly plugin_id: string }>(
+  match: (method: string, pathname: string) => Match | null, pluginId: string, method: string, pathname: string,
+): Match | null {
+  try {
+    return match(method, pathname);
+  } catch (error) {
+    if (!(error instanceof URIError)) throw error;
+    const literal = pathname.split("/").map((part) => {
+      try { return encodeURIComponent(decodeURIComponent(part)); } catch { return encodeURIComponent(part); }
+    }).join("/");
+    const declared = match(method, literal);
+    if (declared && declared.plugin_id === pluginId) throw hostErrors.request_path_invalid("请求路径里有无效的编码");
+    return null;
+  }
 }
 
 /**
@@ -49,7 +88,15 @@ export async function dispatchRuntimePluginRoute(
   // Native adapters and unrelated routes retain their own ownership. Runtime
   // registration, rather than a second list of built-in IDs, decides this boundary.
   if (!active) return false;
-  if (active.install_id && platform.runtime.get(active.install_id).state === "uninstalled") return false;
+  // An installation the supervisor was started without (switched off) has no install_id in its state: its record says why.
+  const records = active.install_id ? [platform.runtime.get(active.install_id)] : platform.runtime.list().filter(record => record.plugin_id === pluginId);
+  if (records.length > 0 && records.every(record => record.state === "uninstalled")) {
+    // Its own routes answer that it is not installed, as a Home plugin's do (BL-755); a lifecycle operation is another handler's.
+    if (PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) return false;
+    const missing = actionErrorResponse(new ActionError("actions.missing", "这个插件未安装"));
+    sendLocalWebJson(response, missing.status, missing.body);
+    return true;
+  }
   if (operation === "restart" || operation === "release-quarantine") {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "重试必须通过 POST 确认" }); return true; }
     const state = await platform.supervisor.restart(pluginId, { release_quarantine: operation === "release-quarantine" });
@@ -76,15 +123,18 @@ export async function dispatchRuntimePluginRoute(
     sendLocalWebJson(response, 200, { revision: platform.viewRevision(pluginId) });
     return true;
   }
-  const match = router.match(request.method ?? "GET", url.pathname);
+  // Bad percent-encoding in the path is answered by `matchPluginRoute`: 400 for this plugin's declared shape, otherwise not its route.
+  const match = matchPluginRoute((method, pathname) => router.match(method, pathname), pluginId, request.method ?? "GET", url.pathname);
   if (!match) return false;
   // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
   // Host-made control carries it, and only to this installation's actions.
   if (active.install_id && controls.execution) offerRoutedOriginalFile(controls.execution, offeredOriginalFile(request, active.install_id));
-  await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
-    try { body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined); }
+    try {
+      body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined);
+      body = takeOriginalInput(body, active.install_id, controls.execution);
+    }
     catch (error) {
       if (!(error instanceof ActionError)) throw error;
       const refusal = actionErrorResponse(error);
@@ -100,19 +150,26 @@ export async function dispatchRuntimePluginRoute(
   const stop = () => controls.stop?.();
   if (match.stream) return answerPluginRouteStream(response, async emit => {
     const result = await router.dispatch({ ...input, emit, stopped: stop });
+    controls.execution?.assert_authority_current?.();
     if (result) await hooks.afterDispatch?.(result);
+    controls.execution?.assert_authority_current?.();
     return result;
   }, stop);
   const result = await router.dispatch(input);
   if (!result) return false;
+  controls.execution?.assert_authority_current?.();
   await hooks.afterDispatch?.(result);
+  controls.execution?.assert_authority_current?.();
   if (result.bytes !== undefined) {
+    const bytes = Buffer.from(result.bytes);
+    const etag = `"${createHash("sha256").update(bytes).digest("hex")}"`;
     const raster = ["image/png", "image/jpeg", "image/webp"].includes(result.mime ?? "");
     const disposition = raster && result.disposition === "inline" ? "inline" : "attachment";
-    response.writeHead(result.status, { "content-type": raster ? result.mime! : "application/octet-stream",
+    response.writeHead(result.status, { etag, "content-type": raster ? result.mime! : "application/octet-stream",
       "content-disposition": disposition + "; filename*=UTF-8''" + encodeURIComponent(result.filename ?? "material"),
       "x-content-type-options": "nosniff", "content-security-policy": "sandbox", "cache-control": "no-store" });
-    response.end(result.bytes);
+    response.end(bytes);
   } else sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
   return true;
 }
+

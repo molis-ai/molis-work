@@ -90,6 +90,22 @@ export function repeatingFailure(area: string, event: string) {
   };
 }
 
+const failingListeners = new WeakSet<object>();
+
+/**
+ * Tells every listener of `of` (a store's changes, a desk's frames): one that throws does not stop the others or the code that
+ * told them, and is written as `<area>.listener_failed` when it starts failing, and again only once it has worked since.
+ */
+export function eachListener<L extends object>(area: string, of: string, listeners: Iterable<L>, tell: (listener: L) => void): void {
+  for (const listener of listeners) {
+    try { tell(listener); failingListeners.delete(listener); }
+    catch (error) {
+      if (failingListeners.has(listener)) continue;
+      failingListeners.add(listener); hostLog.warn(area, "listener_failed", error, { of });
+    }
+  }
+}
+
 /**
  * The search index's background passes (reconcile, refresh, sync) that failed past the source's own report. They run after
  * every write, so one failure is written once per pass and error code for the life of the process.
@@ -99,12 +115,29 @@ export const logSearchIndexFailure = (error: unknown, where: string): void =>
   searchIndexFailures.failed(`${where}:${String((error as { code?: unknown } | null)?.code ?? "")}`, error, { where });
 
 /**
+ * "You may not read it" and "it is not there" are answers a reader shows as such, not failures to write. Told by the failure's kind
+ * (its own, or the platform table's for a platform code), never by an owner's code.
+ */
+function answeredRefusal(error: unknown): boolean {
+  const { kind, code } = (error ?? {}) as { kind?: unknown; code?: unknown };
+  const sort = kind ?? (typeof code === "string" ? platformErrorKind(code) : undefined);
+  return sort === "forbidden" || sort === "not_found";
+}
+
+/**
+ * 「被谁引用」: the plugin that declares a link kind could not name its objects. The 成果库 shows their ids; a refusal is the
+ * caller's answer, anything else (the plugin broke, timed out, is unavailable) is written.
+ */
+export function logLinkSubjectsFailure(error: unknown, pluginId: string): void {
+  if (answeredRefusal(error)) return;
+  hostLog.warn("artifacts", "link_subjects_failed", error, { plugin_id: pluginId });
+}
+
+/**
  * An owner's preview of a version that failed. The caller still shows no preview; "you may not read it" and "it is not there"
  * are answers, and anything else (the owner broke, timed out, is unavailable) is written.
  */
 export function logPreviewFailure(error: unknown, artifactTypeId: string): void {
-  const { kind, code } = (error ?? {}) as { kind?: unknown; code?: unknown };
-  const sort = kind ?? (typeof code === "string" ? platformErrorKind(code) : undefined);
-  if (sort === "forbidden" || sort === "not_found") return;
+  if (answeredRefusal(error)) return;
   hostLog.warn("artifacts", "preview_failed", error, { artifact_type_id: artifactTypeId });
 }

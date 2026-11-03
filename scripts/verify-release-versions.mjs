@@ -200,12 +200,14 @@ function objectVersion(object) {
   return null;
 }
 
-// PluginDatabaseDeclaration carries the same version/schema baseline through the Host-owned connection service.
-// Both types, including satisfies/as spellings, name databases the table has to list.
+// PluginDatabaseDeclaration carries the same version/schema baseline through the Host-owned connection service, and
+// HomePluginDatabaseDeclaration is that with what a Home library adds (`project_rows`, `partition`). All three types,
+// including satisfies/as spellings, name databases the table has to list.
+const BASELINE_TYPES = "SqliteBaseline|PluginDatabaseDeclaration|HomePluginDatabaseDeclaration";
 function baselineNames(text) {
   const names = new Set();
-  for (const match of text.matchAll(/\bconst\s+(\w+)\s*:\s*(?:SqliteBaseline|PluginDatabaseDeclaration)\s*=/g)) names.add(match[1]);
-  for (const match of text.matchAll(/\b(?:satisfies|as)\s+(?:SqliteBaseline|PluginDatabaseDeclaration)\b/g)) {
+  for (const match of text.matchAll(new RegExp(`\\bconst\\s+(\\w+)\\s*:\\s*(?:${BASELINE_TYPES})\\s*=`, "g"))) names.add(match[1]);
+  for (const match of text.matchAll(new RegExp(`\\b(?:satisfies|as)\\s+(?:${BASELINE_TYPES})\\b`, "g"))) {
     const owner = [...text.slice(0, match.index).matchAll(/\bconst\s+(\w+)\s*=/g)].pop()?.[1];
     if (owner !== undefined) names.add(owner);
   }
@@ -215,7 +217,7 @@ function baselineNames(text) {
 // The version of the baseline constant `name` in `text`, whichever of the three spellings declares it: the `version:` number
 // of its object literal. null when the constant is not an object literal with a literal version.
 function baselineVersion(text, name) {
-  const declaration = new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*(?::\\s*(?:SqliteBaseline|PluginDatabaseDeclaration)\\s*)?=\\s*\\{`).exec(text);
+  const declaration = new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*(?::\\s*(?:${BASELINE_TYPES})\\s*)?=\\s*\\{`).exec(text);
   if (declaration === null) return null;
   const open = declaration.index + declaration[0].length - 1;
   const close = closingBracket(text, open);

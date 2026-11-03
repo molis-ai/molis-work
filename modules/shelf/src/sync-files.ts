@@ -1,8 +1,7 @@
-import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { shelfErrors } from './errors.js';
-import { shelfFileDigest } from './file-hash.js';
+import { shelfFileDigest, shelfFolderDigest } from './file-hash.js';
 import { shelfSyncRelative, type ShelfPortableFile, type ShelfPortableItem, type ShelfPortableRecord } from './sync-shape.js';
 
 function within(root: string, relative: string): string {
@@ -18,9 +17,7 @@ function within(root: string, relative: string): string {
 export function shelfPortableHash(record: Pick<ShelfPortableRecord,'kind'>, files: readonly ShelfPortableFile[]): string {
   if (!files.length) return '';
   if (record.kind !== 'folder') return files[0]!.digest;
-  const hash = createHash('sha256');
-  for (const file of [...files].sort((a,b)=>a.relative<b.relative?-1:a.relative>b.relative?1:0)) hash.update(`${file.relative}:${file.digest}\n`);
-  return hash.digest('hex');
+  return shelfFolderDigest(files);
 }
 export function shelfPortableBytes(file: ShelfPortableFile): Buffer {
   if (typeof file.data !== 'string') throw shelfErrors.invalid_file('Shelf 文件尚未完整恢复');

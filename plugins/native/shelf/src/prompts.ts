@@ -1,5 +1,5 @@
 import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { ShelfRecipeId } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfRecipeId } from "@molis-ai/molis-work-module-shelf/contract";
 import { SHELF_RECIPES } from "@molis-ai/molis-work-module-shelf";
 import { SHELF_PLUGIN_ID } from "./manifest.js";
 

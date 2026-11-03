@@ -10,6 +10,10 @@ import { trustedSequenceSteps, type PluginSqlStep as Step } from "./project-data
 // It comes after the client's keyword filters (a read is `SELECT` or `WITH`, a write `INSERT`, `UPDATE` or `DELETE`), never in
 // their place: SQLite applies some statements while it prepares them, before any step runs (a pragma that sets a flag, `REINDEX`),
 // and `EXPLAIN` prepares the statement on the connection itself.
+//
+// A statement also runs on the Host's own thread, and neither SQLite driver the Host has can interrupt one that is running, so a
+// recursive query (a CTE that reads itself, with or without the `RECURSIVE` keyword) is refused: nothing bounds how long it goes
+// on (specs/repository-anti-corruption/slices/sandbox-project-database-limits.md). `EXPLAIN QUERY PLAN` names it; a step list does not.
 
 /** The SQLite the step list was read against. A Host on another version refuses every statement until the list is read again. */
 export const PLUGIN_STATEMENT_SQLITE_VERSION = "3.51.3";
@@ -47,6 +51,8 @@ const ROOTED: Readonly<Record<string, { readonly page: "p1" | "p2"; readonly dat
 const PAGE_IN_REGISTER = 0x10;
 /** The table-valued functions a statement may read from: each reads only its argument. */
 const FUNCTIONS = ["json_each", "json_tree"] as const;
+/** What `EXPLAIN QUERY PLAN` calls the part of a recursive query that feeds on its own rows. */
+const RECURSIVE_PLAN = "RECURSIVE STEP";
 
 interface Scope {
   /** Root pages of the plugin's tables and of every index on them, SQLite's own included. */
@@ -77,6 +83,11 @@ function functionInstance(connection: PluginRuntimeDatabase, name: (typeof FUNCT
   const step = (connection.prepare(`EXPLAIN SELECT * FROM ${name}('[]')`).all() as Step[]).find(item => item.opcode === "VOpen");
   if (!step) throw new Error(`SQLite 的 ${name} 不是虚表，逐句检查要重新核对`);
   return String(step.p4);
+}
+
+/** Whether the statement reads a CTE that reads itself; its row count, and so its running time, is not bounded by the library's data. */
+function recurses(connection: PluginRuntimeDatabase, sql: string, parameters: readonly unknown[]): boolean {
+  return (connection.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as Array<{ detail: string }>).some(row => row.detail === RECURSIVE_PLAN);
 }
 
 function refusal(steps: readonly Step[], mode: PluginStatementMode, scope: Scope, functions: ReadonlySet<string>, trusted: ReadonlySet<string>): string | null {
@@ -139,6 +150,9 @@ export function pluginStatementGuard(connection: PluginRuntimeDatabase, record: 
     scope ??= scopeOf(connection, record);
     const reason = refusal(connection.prepare(`EXPLAIN ${sql}`).all(...parameters) as Step[], mode, scope, functions, trusted);
     if (reason) throw pluginProjectDatabaseErrors.statement_refused(`插件 ${record.plugin_id} 在项目库里的语句被拒：${reason}`);
+    if (recurses(connection, sql, parameters)) {
+      throw pluginProjectDatabaseErrors.statement_refused(`插件 ${record.plugin_id} 在项目库里的语句被拒：递归查询没有时间上限，请分层查询`);
+    }
     passed.add(key);
   };
 }

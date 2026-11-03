@@ -137,19 +137,19 @@ export const alchemistOperations = {
   directionContext: {
     definition: defineSubjectContextAction("alchemist.direction.subject.read", "alchemist-direction", "探索方向", ["alchemist:read"]),
     input: object({ subject_id: id }),
-    output: object({ subject: object({ kind: z.literal("alchemist-direction"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null(),
+    output: object({ subject: object({ kind: z.literal("alchemist-direction"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings,
       open: object({ surface: z.literal("alchemist"), id }) }),
   },
   ideaContext: {
     definition: defineSubjectContextAction("alchemist.idea.subject.read", "alchemist-idea", "Idea", ["alchemist:read"]),
     input: object({ subject_id: id }),
-    output: object({ subject: object({ kind: z.literal("alchemist-idea"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null(),
+    output: object({ subject: object({ kind: z.literal("alchemist-idea"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings,
       open: object({ surface: z.literal("alchemist"), id }) }),
   },
   playbookContext: {
     definition: defineSubjectContextAction("alchemist.playbook.context", "alchemist-playbook", "已确认研究方法", ["alchemist:read"]),
     input: object({ subject_id: id }),
-    output: object({ subject: object({ kind: z.literal("alchemist-playbook"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null() }),
+    output: object({ subject: object({ kind: z.literal("alchemist-playbook"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings }),
   },
   reuseCandidates: operation("reuse.candidates", "寻找可沿用成果与方法", "读取当前授权范围内固定版本成果与适用方法；查询不运行模型，不代表已采用", "query", reuseCandidateInputSchema, reuseCandidatesSchema),
   reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, MODEL_ACTION_PERMISSIONS, { cost: "metered" }, "concurrent"),

@@ -3,7 +3,7 @@ import { promises as fs, type Stats } from "node:fs";
 import { INTEGRATION_OWNER, integrationResult } from "./runtime-integration-contract.js";
 import type { IntegrationReceipt, PreparedPlan, RuntimeIntegrationPlan, RuntimeIntegrationResult } from "./runtime-integration-contract.js";
 import { fileModeOrUndefined, replaceTextFile, replaceSkillLink, removeExpectedSkillLink, restoreSkillSnapshot,
-  restoreTextSnapshot, textWriteMatches, skillWriteMatches, writeAtomic } from "./runtime-installation-files.js";
+  restoreTextSnapshot, textWriteMatches, skillWriteMatches } from "./runtime-installation-files.js";
 
 // The resident host has one process; confirmations from separate service objects share this target queue.
 const confirmations = new Map<string, Promise<unknown>>();
@@ -21,6 +21,7 @@ interface ApplyPorts {
   userHomeDirectory: string;
   receiptPath: string;
   validate(): Promise<boolean>;
+  writeBackup(contents: string, mode: number | undefined): Promise<void>;
   writeReceipt(receipt: IntegrationReceipt): Promise<void>;
   writeAttempt(plan: RuntimeIntegrationPlan, status: "rolled_back" | "conflict", message: string): Promise<void>;
 }
@@ -37,7 +38,8 @@ export async function applyRuntimeIntegration(prepared: PreparedPlan, ports: App
   try {
     if (prepared.nextConfigText !== prepared.beforeConfigText) {
       if (prepared.beforeConfigText != null && plan.backup_path) {
-        await writeAtomic(plan.backup_path, prepared.beforeConfigText, await fileModeOrUndefined(configPath));
+        const mode = await fileModeOrUndefined(configPath);
+        await ports.writeBackup(prepared.beforeConfigText, mode === undefined ? undefined : mode & 0o777);
       }
       if (!await textWriteMatches(configPath, prepared.beforeConfigText, originalConfigIdentity)) {
         throw new Error("Runtime 配置在写入前发生了变化");

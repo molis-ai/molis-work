@@ -6,14 +6,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import * as goalsPackage from "@molis-ai/molis-work-module-goals";
+import { goalsModuleExports as goalsPackage } from "./fixtures/goals-modules.js";
 import {
   GoalsModule,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 function acceptedGoal(goalId: string, title: string, outcome: string) {
   return {
@@ -42,7 +43,7 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
       actor_id: "user-1",
       idempotency_key: "initialize",
     });
-    const goals = new GoalsModule(store.db, {});
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {});
     // W5-08-MOD-03/04: only public business services are available and own the writes below.
     assert.equal("GoalsRepository" in goalsPackage, false);
     assert.equal("repository" in goals, false);
@@ -107,7 +108,7 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
     const eventsBeforeHook = store.db.prepare("SELECT COUNT(*) AS count FROM events").get()?.count;
     const relationsBeforeHook = store.db.prepare("SELECT COUNT(*) AS count FROM goal_relations").get()?.count;
     for (const [code, status] of [["actions.conflict", 409], ["actions.forbidden", 403]] as const) {
-      const guarded = new GoalsModule(store.db, { validateRelationGraph: () => ({ code, message: "关系图拒绝当前变更" }) });
+      const guarded = new GoalsModule(pluginLegalSql(store).db, store, { validateRelationGraph: () => ({ code, message: "关系图拒绝当前变更" }) });
       // I3-02: a public graph hook still accepts platform codes without an owner-kind override.
       assert.throws(() => guarded.commands.addRelation("board-module", {
         from_goal_id: "goal-parent", to_goal_id: "goal-child", type: "part_of", reason: "被图校验拒绝",
@@ -131,7 +132,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-lifecycle-"));
   const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
-    const goals = new GoalsModule(store.db, {});
+    const goals = new GoalsModule(pluginLegalSql(store).db, store, {});
     const initialize = { project_id: "board-lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
     writeProjectRoot(store.db, "board-lifecycle", "2026-10-20T00:00:00.000Z");
     store.db.exec(`CREATE TRIGGER reject_board_event BEFORE INSERT ON events

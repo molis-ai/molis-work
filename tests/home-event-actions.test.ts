@@ -1,3 +1,5 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -7,6 +9,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type HomeEv
 import { createHomeEventHandlers, homeEventActions, type HomeEventsResult } from "../apps/local-host/dist/home-event-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 const caller: ActionCallContext = { actor_id: "owner", project_id: "event-project", audience: "user", permissions: ["home:read", "notes:read"] };
 const window = { from: "2026-09-16T00:00:00Z", to: "2026-09-23T00:00:00Z", now: "2026-09-19T12:00:00Z" };
 const original: HomeEvent = { event_id: "feed:collision", subject: { kind: "unknown-note", id: "n1" }, occurred_at: window.now, placement: "occurred", category: "personal",
@@ -23,8 +26,8 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
     permissions: [{ permission: "notes:read", required: false, reason: "读取原笔记" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [query] },
     async start() { return { kind: "app", actions: [{ ...query, handle: async () => { await Promise.resolve(); duringRead?.(); return { source: { surface: "notes", title: "我的笔记", icon: "note" }, events }; } }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: caller.project_id! } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read"] }).install;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: caller.project_id! } });
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read"] }).install;
   const read = async (context = caller) => await service.invoke(context, homeEventActions.events, window) as HomeEventsResult;
   try {
     await runtime.start(install.install_id);
@@ -65,15 +68,16 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
   assert.throws(() => service.registerProvider({ provider: { provider_id: "bad", title: "Bad", kind: "plugin" }, definitions: [malformed], handlers: [{ ...malformed, handle: () => ({}) }] }), { code: "actions.definition_invalid" });
 });
 
-test("native event providers project original Feed, Inbox, source state and project Sessions", async () => {
+test("native event providers project original Feed, Inbox and source state", async () => {
   const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
-  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
-  const { createFeedEvidenceContentStore } = await import("@molis-ai/molis-work-module-feed");
-  const { runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
-  const home = await mkdtemp(join(tmpdir(), "native-home-events-")); const databasePath = join(home, "project.db"); seedDemoBoard(databasePath, caller.project_id!);
+  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoGoals } = await import("@molis-ai/molis-work-app-local-host");
+  const { createEvidenceContentStore, runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
+  const home = await mkdtemp(join(tmpdir(), "native-home-events-"));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const databasePath = join(home, "project.db"); await seedDemoGoals(databasePath, caller.project_id!);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read", "sessions:read"] };
+  const owner = { ...caller, permissions: ["home:read", "feed:read", "evidence:read", "inbox:read", "goals:read"] };
   const now = new Date(); const range = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };
   try {
     const runtime = await host.withProject(reference, runtime => runtime); const feed = createLocalFeedApplication(runtime.store.db);
@@ -81,22 +85,19 @@ test("native event providers project original Feed, Inbox, source state and proj
     const ingest = (id: string, at = now.toISOString()) => feed.ingestItem({ source, externalId: id, title: "材料 " + id, summary: "摘要", body: "完整原文 " + id, occurredAt: at, attention: false }).item;
     const ordinary = ingest("ordinary"), active = ingest("active", "2020-01-01T00:00:00Z"), done = ingest("done");
     const retainedText = "# 保留的材料原文\n\n这段内容只存在加密材料中。";
-    const retained = runWithMolisWorkHome(home, () => createFeedEvidenceContentStore().write(retainedText));
+    const retained = runWithMolisWorkHome(home, () => createEvidenceContentStore().write(retainedText));
     const materialItem = feed.ingestItem({ source, externalId: "material-only", title: "材料附件", summary: "不能替代原文的摘要", body: null, occurredAt: now.toISOString(), attention: false,
       material: { material_id: "retained-material", canonical_url: null, title: "材料附件", source_name: source.name, published_at: null,
         preview: "附件预览", content_hash: null, content_ref: retained.contentRef, content_available: true, content_type: "text/markdown",
         character_count: retainedText.length, captured_at: now.toISOString(), provenance: {}, selected_for_context: true } }).item;
-    const goal = runtime.store.snapshot(reference.project_id).goals[0]!;
-    feed.linkGoal(reference.project_id, ordinary.item_id, goal.goal_id, "processing");
+    const goal = boardSnapshot(runtime.store, reference.project_id).goals[0]!;
+    feed.linkGoal(reference.project_id, ordinary.item_id, goal.goal_id, "promoted");
     const activeEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, active.item_id, "manual").entry;
     const doneEntry = feed.ensureInboxEntryForFeedItem(reference.project_id, done.item_id, "manual").entry;
     feed.setInboxEntryStatus(reference.project_id, doneEntry.entry_id, "done", doneEntry.revision); await feed.flushPendingJudgments();
-    feed.upsertSource({ ...source, status: "error", last_outcome: "failed", last_error_code: "rate_limited", updated_at: now.toISOString() });
-    const resources = await host.sessionResources();
-    const session = resources.registry.createSession({ runtime_id: "codex", native_runtime_session_id: "native-event-session", project_id: reference.project_id, actor_id: owner.actor_id, user_confirmed: true, title: "真实会话", current_goal_id: goal.goal_id });
-    const foreign = resources.registry.createSession({ runtime_id: "codex", native_runtime_session_id: "foreign-event-session", project_id: "foreign", actor_id: owner.actor_id, user_confirmed: true });
+    feed.sources.upsert({ ...source, status: "error", last_outcome: "failed", last_error_code: "rate_limited", updated_at: now.toISOString() });
     const client = host.actionClient(reference);
-    for (const capability_id of ["feed.home.events", "inbox.home.events", "sessions.home.events"]) {
+    for (const capability_id of ["feed.home.events", "inbox.home.events"]) {
       await assert.rejects(client.invoke(owner, { capability_id, version: 1 }, { ...range, to: range.from }), { code: "actions.input_invalid" });
     }
     const result = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
@@ -105,18 +106,16 @@ test("native event providers project original Feed, Inbox, source state and proj
     assert.equal(find("feed_item", ordinary.item_id)[0]?.content, "完整原文 ordinary");
     assert.equal(find("feed_item", materialItem.item_id)[0]?.content, retainedText, "Home reads decrypted retained materials when the item has no inline body");
     assert.equal(find("feed_item", ordinary.item_id)[0]?.facts.find(fact => fact[0] === "挂在")?.[1], goal.title);
-    assert.equal(find("session", session.session_id)[0]?.facts.find(fact => fact[0] === "挂在")?.[1], goal.title);
     assert.equal(find("feed_item", active.item_id).length, 0); assert.equal(find("feed_item", done.item_id).length, 0);
     const attention = find("inbox_entry", activeEntry.entry_id); assert.equal(attention.length, 1); assert.equal(attention[0]?.placement, "active"); assert.match(attention[0]?.content || "", /完整原文 active/);
     assert.equal(find("inbox_entry", doneEntry.entry_id).length, 0);
     const fault = find("source", source.source_id)[0]!; assert.ok(fault); assert.equal(fault.open?.label, "查看来源"); assert.match(fault.content, /同步出现问题/); assert.ok(!fault.content.includes("授权"));
-    assert.equal(find("session", session.session_id)[0]?.open?.id, session.session_id); assert.equal(find("session", foreign.session_id).length, 0);
     const open = { window: range, source: fault.source, event_id: fault.event_id, target: fault.open };
     assert.deepEqual(await client.invoke(owner, homeEventActions.openEvent, open), { target: fault.open });
-    feed.upsertSource({ ...source, status: "active", last_outcome: "completed", last_error_code: null });
+    feed.sources.upsert({ ...source, status: "active", last_outcome: "completed", last_error_code: null });
     await assert.rejects(client.invoke(owner, homeEventActions.openEvent, open), { code: "actions.event_changed" });
     // J3D-01/J3D-02: the current source fault keeps the same Home attention and deduplication.
-    feed.upsertSource({ ...source, status: "disconnected", last_outcome: "failed", last_error_code: "feed.auth_required" });
+    feed.sources.upsert({ ...source, status: "disconnected", last_outcome: "failed", last_error_code: "feed.auth_required" });
     const sourceEntry = feed.createInboxEntry({ projectId: reference.project_id, subjectType: "source_fault", subjectId: source.source_id, reason: "source_fault", detail: { user_action: "请检查连接设置" } }).entry;
     const withFault = await client.invoke(owner, homeEventActions.events, range) as HomeEventsResult;
     assert.equal(withFault.events.some(event => event.subject.kind === "source" && event.subject.id === source.source_id), false, "one fault has only its original attention row");
@@ -166,4 +165,78 @@ test("a recommendation read that fails never hides the events and leaves its cod
   assert.deepEqual(log.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
     [["warn", "home", "recommendations_failed", { name: "ActionError", code: "test.judgment_down" }, { capability: "test.home.recommendations@1" }]]);
   assert.ok(!JSON.stringify(log).includes("笔记正文"), "the failure's message stays out of the log");
+});
+
+// T-319 (R-63, RAC-2438): "turned off" used to be read as "not installed in this project"; the project's plugin manifest says which.
+// A source the project lists but cannot use (policy refused it, or it is off) is shown as an issue; one the project does not list
+// has nothing to report.
+test("RAC-2438 an unavailable source the project's plugin manifest lists is reported, and one it does not list stays silent", async () => {
+  const read = async (projectId: string, lookup: () => Promise<(pluginId: string) => boolean | undefined>): Promise<HomeEventsResult> => {
+    const service = new ActionService();
+    service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: projectId }, definitions: Object.values(homeEventActions),
+      handlers: createHomeEventHandlers(service, { capability_id: "unavailable.recommendations", version: 1 }, lookup) });
+    const query = defineHomeEventsAction(`${projectId}.off.notes.events`, ["unknown-note"], "停用插件事项", ["notes:read"]);
+    service.registerProvider({ provider: { provider_id: `${projectId}.off.plugin`, title: "停用插件事项", kind: "plugin", plugin_id: "off.notes", project_id: projectId },
+      availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" }),
+      definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title: "停用插件事项", icon: "note" }, events: [original] }) }] });
+    return await service.invoke({ ...caller, project_id: projectId }, homeEventActions.events, window) as HomeEventsResult;
+  };
+  const unlisted = await read("manifest-without", async () => () => false);
+  const listed = await read("manifest-with", async () => (pluginId: string) => pluginId === "off.notes");
+  assert.deepEqual(unlisted, { events: [], issues: [] }, "a project that does not list the plugin hears nothing about it");
+  assert.deepEqual(listed.issues, ["停用插件事项：此项目未启用该插件"], "a listed plugin that cannot answer is shown");
+  // A manifest lookup that fails is not "no manifest given": the person sees that the Home could not ask, instead of a plugin silently off.
+  const failed = await read("manifest-failed", async () => { throw new ActionError("host.catalog_unavailable", "项目目录尚未就绪，请稍后重试"); });
+  assert.deepEqual(failed.events, []);
+  assert.deepEqual(failed.issues, ["首页事项：项目的插件清单读取失败（host.catalog_unavailable）"]);
+});
+
+// RAC-2783–2786: exercise the real Host/Catalog -> home-actions -> home.events.read wiring, not an injected lookup.
+test("RAC-2783/RAC-2784 real Host event reads use the project's actual plugin catalog", async t => {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
+  const { withMolisWorkProjectCatalog: withCatalog } = await import("@molis-ai/molis-work-app-desktop");
+  const home = await mkdtemp(join(tmpdir(), "t374-home-events-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const stops: Array<() => void> = [];
+  const calls: Record<string, number> = {};
+  const title = "事项目录接线证据";
+  try {
+    host.configurePersonalPlanning(home, withCatalog);
+    const create = (displayName: string) => withCatalog({ homeDirectory: home }, catalog =>
+      catalog.createProject({ display_name: displayName, actor_id: "owner" }));
+    const listed = await create("列出 Feed 的项目"), bare = await create("没有列出 Feed 的项目");
+    await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: listed.project_id, plugin_id: "feed", actor_id: "owner" }));
+    const ref = (project: { project_id: string; database_path: string }) =>
+      molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+    for (const project of [bare, listed]) {
+      const reference = ref(project);
+      await host.withProject(reference, async () => {});
+      calls[project.project_id] = 0;
+      const query = defineHomeEventsAction(`fixture.t374.${project.project_id}.events`, ["unknown-note"], title, ["notes:read"]);
+      stops.push(host.actionRegistry(reference).registerProvider({
+        provider: { provider_id: `t374.${project.project_id}`, title, kind: "plugin", plugin_id: "io.molis.work.feed", project_id: project.project_id },
+        availability: () => ({ available: false, code: "actions.plugin_disabled", reason: "测试策略拒绝" }),
+        definitions: [query], handlers: [{ ...query, handle: () => {
+          calls[project.project_id] += 1;
+          return assert.fail("an unavailable event provider must not execute");
+        } }],
+      }));
+    }
+    const read = async (project: typeof bare) => await host.actionClient(ref(project)).invoke(
+      { ...caller, project_id: project.project_id }, homeEventActions.events, window) as HomeEventsResult;
+    // Read BOTH paths before assertions; the negative control must run even when listed fails in the wiring mutant.
+    const bareResult = await read(bare), listedResult = await read(listed);
+    const ownIssues = (result: HomeEventsResult) => result.issues.filter(issue => issue.startsWith(`${title}：`));
+    assert.deepEqual(ownIssues(bareResult), [], "RAC-2784 bare stays silent");
+    assert.equal(calls[bare.project_id], 0);
+    t.diagnostic("RAC-2784 bare read and silence/handler assertions passed before listed assertions");
+    assert.equal(calls[listed.project_id], 0);
+    assert.deepEqual(ownIssues(listedResult), ["事项目录接线证据：测试策略拒绝"], "RAC-2783 listed refusal is shown through real Host wiring");
+  } finally {
+    try { for (const stop of stops) stop(); }
+    finally { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } }
+  }
 });

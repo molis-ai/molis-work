@@ -297,5 +297,3 @@ function isScanCursorPayload(
   );
 }
 
-// Deployed API aliases; ciphertext, cursor and database names remain unchanged.
-export { createSearchOpaqueBlobStore as createFeedSearchOpaqueBlobStore, createSearchAead as createFeedSearchAead, createSearchSecretStore as createFeedSearchSecretStore };

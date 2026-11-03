@@ -3,6 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { createLocalRuntime } from "./fixtures/alchemist-runtime.js";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 
@@ -41,10 +42,11 @@ async function seed(home: string, projectId: string) {
 test("W5-01-ALC-RES08: restarted UI confirms safe continuation once and explains exhausted original budget", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const ids = await seed(b.homeDirectory, b.projectId!);
-  const { command, sessionId, origin, projectId, navigate, click, evaluate, waitFor } = b;
+  const { command, sessionId, origin, projectId, navigate } = b;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, b, "alchemist");
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click('[data-plugin-strip] [data-plugin-id="alchemist"]');
+  await b.click('[data-plugin-strip] [data-plugin-id="alchemist"]');
   await waitFor(`!!document.querySelector('[data-alchemist-id="${ids.directionId}"]')`);
   await click(`[data-alchemist-id="${ids.directionId}"]`);
   await click(`[data-alc-action="continue-job"][data-job="${ids.jobId}"]`);

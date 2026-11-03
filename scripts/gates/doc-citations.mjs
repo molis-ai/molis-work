@@ -12,8 +12,8 @@
 //   command   `pnpm <script>` names a script of the root package.json (or a pnpm built-in). `pnpm --filter … run x` is not read.
 //   id        a capability id: `owner.noun.verb`, an MCP tool name `molis_work_v1_action_<id>__v<N>`, or a typed id ending
 //             in `.vN`. Only tokens whose first segment is the name of a plugin, module or horizontal service directory
-//             (plugins/native/<x>, modules/<x>, horizontal/<x>) are read; `ui.views` or `services.events` are manifest
-//             fields and SDK members, not ids. The id must be one the code can produce, in one of three ways:
+//             (plugins/native/<x>, modules/<x>, horizontal/<x>) are read; modules/judgment-rules retains the functions
+//             action namespace. `ui.views` or `services.events` are manifest fields and SDK members, not ids. The id must be one the code can produce, in one of three ways:
 //               exact      the whole id is a string literal in source (apps, plugins, packages, modules, horizontal, server,
 //                          tooling, examples; not tests, fixtures, build output or tooling/gates/'s own data);
 //               owner      the id minus its owner prefix is a literal under that owner's directory (a plugin writes
@@ -29,7 +29,7 @@
 //                          spot that only a parser of the placeholders' values would close (scripts/gates/README.md,
 //                          门禁读不到的).
 // Not read (scripts/gates/README.md, 门禁读不到的): MCP tool names other than molis_work_v1_action_<id>__v<N> (the context
-// tools, molis_work_v1_context_resolve and its siblings), ids whose owner is not a directory name (schedules.add), paths and
+// tools, molis_work_v1_context_resolve and its siblings), ids outside directory-derived or preserved namespaces (schedules.add), paths and
 // ids that are not inside an inline code span, and `.cursor/rules/*.mdc` globs.
 // An exception goes in tooling/gates/doc-citation-exceptions.json as { "<file>": { "<token>": "<why it is not a problem>" } }
 // with a reason; an exception that is no longer needed is an error itself, so the file cannot rot. No baseline: starts at 0.
@@ -92,6 +92,12 @@ function pathExists(value, index, folders) {
 }
 
 // ---- the id universe --------------------------------------------------------------------------------------------------
+// The implementation directory moved; its action prefix did not. Use the same owner for eligibility and relative literals.
+function citationOwner(file) {
+  const match = file.match(/^(plugins\/native|modules|horizontal)\/([^/]+)\//);
+  return match?.[1] === "modules" && match[2] === "judgment-rules" ? "functions" : match?.[2];
+}
+
 function idUniverse(snapshot) {
   const exact = new Set();
   const byOwner = new Map();
@@ -100,7 +106,7 @@ function idUniverse(snapshot) {
   for (const file of snapshot.files.filter(isSourceForIds)) {
     const text = snapshot.read(file);
     if (text === null) continue;
-    const owner = file.match(/^(?:plugins\/native|modules|horizontal)\/([^/]+)\//)?.[1];
+    const owner = citationOwner(file);
     for (const m of text.matchAll(literal)) {
       exact.add(m[1]);
       if (owner) { if (!byOwner.has(owner)) byOwner.set(owner, new Set()); byOwner.get(owner).add(m[1]); }
@@ -119,7 +125,7 @@ function idUniverse(snapshot) {
   return { exact, byOwner, templates };
 }
 
-const ownerDirectories = (files) => new Set(files.map((file) => file.match(/^(?:plugins\/native|modules|horizontal)\/([^/]+)\//)?.[1]).filter(Boolean));
+const ownerDirectories = (files) => new Set(files.map(citationOwner).filter(Boolean));
 
 const producible = (id, universe) => {
   if (universe.exact.has(id)) return true;

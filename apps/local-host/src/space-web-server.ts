@@ -1,3 +1,6 @@
+import type { WebAccountSession } from "./personal-web-sessions.js";
+import { prepareMemoryHome } from "./memory/memory-initialization.js";
+import { bindPersonalSpaceAuthority } from './personal-space-authority.js';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -17,6 +20,8 @@ import { trackHostListener } from './host-endpoints.js';
 
 interface Surface {
   home:string; space:StorageSpace; token:string; server:SpaceWebSurface;
+  releaseAuthority?:()=>void;
+  finishBootstrap?:()=>void;
   users:Map<string,()=>boolean>; connections:Map<Duplex,()=>boolean>; responses:Map<ServerResponse,()=>boolean>;
 }
 
@@ -24,12 +29,24 @@ export interface SpaceWebSurface extends http.Server {
   /** Resolves after the runtime and background writers have released their Home. */
   spaceDisposed?:Promise<void>;
   projectSyncLifecycle?:import('./project-deletion-service.js').ProjectDeletionService;
+  readSyncCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader;
   discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
+}
+
+/** A delayed surface open must not borrow a newer account's lease for an older selected directory. */
+function personalSurfaceLease(space: StorageSpace, session: WebAccountSession | null) {
+  if (space.kind !== 'personal') return undefined;
+  if (!session || session.space !== 'account') throw new Error('SPACE_CHANGED');
+  const lease = session.auth.accountLease();
+  lease.assertCurrent();
+  if (personalStorageSpace(lease.authOrigin, lease.applicationId, lease.userId).spaceId !== space.spaceId) throw new Error('SPACE_CHANGED');
+  return lease;
 }
 
 function createSpaceContext(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog:LocalWebCatalogRunner|undefined,address:()=>ReturnType<http.Server["address"]>){
   const home=path.resolve(options.homeDirectory??resolveMolisWorkHome());
   const local=ensureStorageSpace(home);
+  prepareMemoryHome(home);
   const native=createPersonalNativeSession(home);
   const account=runWithMolisWorkHome(home,()=>createPersonalAccountHttp(native));
   const rootToken=resolveWebControlToken({...options,homeDirectory:home});
@@ -49,7 +66,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const active=()=>{try{lease.assertCurrent();return !stopping&&selection(request).space.spaceId===id;}catch{return false;}};
     const start=(async()=>{
       const entry=await surface(selected);attach(entry,request);const core=entry.server;
-      const service=await createPersonalSync(selected.directory,selected.space,lease,withCatalog,()=>{if(!active())throw new Error('SYNC_ACCOUNT_CHANGED');},core.discoverSync,core.projectSyncLifecycle);
+      const service=await createPersonalSync(selected.directory,selected.space,lease,withCatalog,()=>{if(!active())throw new Error('SYNC_ACCOUNT_CHANGED');},core.discoverSync,core.projectSyncLifecycle,core.readSyncCatalog);
       if(!active()){service?.close();return;}
       syncs.set(id,{active,service});
       lease.signal.addEventListener('abort',()=>service?.close(),{once:true});
@@ -70,6 +87,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
       if(fs.realpathSync(directory)!==path.join(fs.realpathSync(home),'spaces',space.spaceId))throw new Error('SPACE_DIRECTORY_UNSAFE');
       // Bind before any token/config file is created in a newly selected Home.
       ensureStorageSpace(directory,space);
+      prepareMemoryHome(directory);
     }
     return {space,directory,session};
   };
@@ -82,16 +100,28 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     let result=surfaces.get(selected.space.spaceId);
     if(result)return result;
     const {directory,space}=selected;
+    const initialLease=personalSurfaceLease(space,selected.session);
     ensureStorageSpace(directory,space);
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
     const token=space.kind==='local'?rootToken:resolveWebControlToken(coreOptions);
     const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token}));
     core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
+    if(space.kind==='personal'){
+      const current=result;
+      let bootstrapping=true;current.finishBootstrap=()=>{bootstrapping=false;};
+      current.releaseAuthority=bindPersonalSpaceAuthority(directory,space.spaceId,()=>{
+        if(stopping||surfaces.get(space.spaceId)!==current)throw new Error('REPLICA_ACCOUNT_MISMATCH');
+        if([...current.users.values()].some(valid=>valid()))return;
+        if(bootstrapping&&selected.session!.space==='account'){initialLease!.assertCurrent();return;}
+        throw new Error('REPLICA_ACCOUNT_MISMATCH');
+      });
+    }
     surfaces.set(space.spaceId,result);
     return result;
   };
   const retire=(entry:Surface)=>{
+    entry.releaseAuthority?.();
     surfaces.delete(entry.space.spaceId);
     for(const response of entry.responses.keys())response.destroy();
     for(const socket of entry.connections.keys())socket.destroy();
@@ -123,6 +153,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
       entry.users.set(session.id,valid);
       lease.signal.addEventListener('abort',sweep,{once:true});
     }
+    entry.finishBootstrap?.();
     return valid;
   };
   const stop=()=>{stopping=true;account.close();for(const entry of syncs.values())entry.service?.close();for(const entry of [...surfaces.values()])retire(entry);};

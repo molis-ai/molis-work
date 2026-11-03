@@ -45,7 +45,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
       <header class="mw-form__header"><h2 id="create-dialog-title">${L("新建 Goal")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-create aria-label="${L("关闭")}">${icon("x")}</button></header>
       <div class="dialog-body mw-form__body">
         <div class="create-compose">
-          <input class="create-compose-title" data-plain-field name="title" required maxlength="120" autocomplete="off" placeholder="${L("你想让什么变成现实？")}" aria-label="${L("目标名称")}">
+          <input class="create-compose-title" data-plain-field name="title" required autocomplete="off" placeholder="${L("你想让什么变成现实？")}" aria-label="${L("目标名称")}">
           <p class="create-compose-example" data-create-example>${L("例如：让新用户安装后知道下一步怎么开始")}</p>
           <textarea class="create-compose-outcome" data-plain-field data-fit name="outcome" rows="2" placeholder="${L("完成后会有什么不一样？可以先空着")}" aria-label="${L("要得到的结果 ")}"></textarea>
         </div>
@@ -90,9 +90,11 @@ export type GoalsDialogsUiModel = {
     kind: "trash";
     args: Parameters<GoalsDialogsRenderer["renderGoalTrashDialog"]>;
 });
+/** Which surface each renderer method mounts (W5-06): the shell builds its renderer from this, and the descriptor lists these. */
+export const GOALS_DIALOGS_UI_SURFACES = { renderCreateDialog: "create", renderGoalTrashDialog: "trash" } as const satisfies Record<keyof GoalsDialogsRenderer, GoalsDialogsUiModel["kind"]>;
 export const goalsDialogsUiContribution: UiContribution<GoalsDialogsUiModel> = {
-    descriptor: { contribution_id: GOALS_DIALOGS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal dialogs",
-        surfaces: ["create", "trash"].map(surface_id => ({ surface_id, target_slot_id: "workbench.overlay", format: "declarative-html" })), slots: [] },
+    descriptor: { contribution_id: GOALS_DIALOGS_UI_CONTRIBUTION_ID, kind: "embedded", label: "Goal dialogs",
+        surfaces: Object.values(GOALS_DIALOGS_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.overlay", format: "declarative-html" })), slots: [] },
     render({ surface, model }) {
         if (surface !== model.kind)
             throw new Error("Goal dialog surface does not match its model");

@@ -1,4 +1,4 @@
-import type { ShelfAiPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfAiPorts } from "@molis-ai/molis-work-module-shelf/contract";
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export const shelfTestReceipt: BoundedInferenceReceipt = {

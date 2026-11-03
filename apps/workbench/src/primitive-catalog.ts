@@ -1,21 +1,47 @@
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
-  escapeHtml,
-  icon,
+  registeredIconNames,
   renderIconSprite,
   renderPrimitiveCatalog,
+  type CatalogPluginIcon,
   renderProjectMonogram,
   renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
 import { FOUNDATION_SPECIMEN_STYLES, renderFoundationSection } from "./foundation-specimens.js";
 import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-specimens.js";
 import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
+import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
+import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
-const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "lingguang", "plugin-builder"] as const;
+/**
+ * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
+ * of a fresh project. The bar specimen draws these bright and the rest of the build-time plugin directory (`pluginMarketCards()`,
+ * which already leaves developer plugins out) grey "not added". The board runs no Runtime and no Host, so it is drawn from the
+ * built-in catalog's directory; a project page is drawn from the one the Host supplies (`plugin_directory`, `shown_plugins`).
+ */
+const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "plugin-builder", "images", "jelly", "shelf", "lingguang", "todo",
+  "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
+
+/** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
+const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
+  { id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
+  { id: ARTIFACT_NAVIGATION.id, name: ARTIFACT_NAVIGATION.label, icon: ARTIFACT_NAVIGATION.glyph },
+];
+
+/** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */
+function iconInventoryPlugins(): CatalogPluginIcon[] {
+  const glyphs = pluginTabGlyphs(), registered = registeredIconNames();
+  return [...SURFACE_GLYPHS, ...builtinPluginDirectory().flatMap(entry => {
+    const glyph = registered.find(name => name === glyphs[entry.id]);
+    return glyph ? [{ id: entry.id, name: entry.name, icon: glyph }] : [];
+  })];
+}
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
@@ -28,12 +54,12 @@ function renderBarSpecimen(): string {
   const monogram = renderProjectMonogram(project.display_name, project.project_id, escapeHtml);
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
   const bar = renderWorkbenchBar(primitives, {
-    enabled: CATALOG_PLUGINS,
-    rail: renderPluginRail(primitives, CATALOG_PLUGINS, ""),
+    enabled: SAMPLE_PROJECT_PLUGINS,
+    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;
-  const pins = pin("home", "home", "项目首页") + pin("goals", "target", "Goals", ' aria-current="page"') + pin("inbox", "inbox", "Inbox") + pin("feed", "rss", "Feed") + pin("sessions", "terminal", "Sessions");
+  const pins = pin("home", "home", "项目首页") + pin("goals", "target", "Goals", ' aria-current="page"') + pin("inbox", "inbox", "Inbox") + pin("feed", "rss", "Feed");
   return `<div class="mw-catalog-bar-stage" data-catalog-bar>${bar.replace('<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件"></div>', `<div class="dock-pins" data-dock-pins role="toolbar" aria-label="常驻插件">${pins}</div>`)}</div>`;
 }
 
@@ -113,6 +139,8 @@ const BAR_SPECIMEN_SCRIPT = `
 const SPECIMEN_SCRIPT = `
 (() => {
   document.addEventListener("click", (event) => {
+    const language = event.target.closest("[data-board-lang]");
+    if (language && !language.classList.contains("is-current")) { const url = new URL(location.href); url.searchParams.set("lang", language.dataset.boardLang); location.assign(url.href); return; }
     const copy = event.target.closest("[data-catalog-copy]");
     if (copy) window.molisCopy?.(copy, () => copy.dataset.catalogCopy === "ok" ? "Molis Work" : Promise.reject(new Error("refused")));
   });
@@ -155,8 +183,15 @@ const SPECIMEN_SCRIPT = `
   });
 })();`;
 
-/** `say` is the page's translator: the conditions section is written through it (the older sections are Chinese only). */
-export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = (text) => text): string {
+/**
+ * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and
+ * plugin-row sections are written through it and their frames start in it (the older sections are Chinese only).
+ */
+export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = (text) => text, lang: "zh" | "en" = "zh"): string {
+  const languages = renderToggleGroup({
+    label: say("界面语言"),
+    items: [["zh", "中文"], ["en", "English"]].map(([value, label]) => ({ value: value!, label: label!, current: value === lang, attrs: { "data-board-lang": value! } })),
+  });
   const themes = renderToggleGroup({
     label: "主题",
     items: [
@@ -165,18 +200,18 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: "系统", current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
-  const catalog = renderPrimitiveCatalog()
-    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
-    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say)}\n    ${renderAssistantBoardSection(say)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
+  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins() })
+    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
+    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${lang === "en" ? "en" : "zh-CN"}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
-  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}</style>
+  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
@@ -185,7 +220,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       <h1>Molis Work 组件板</h1>
       <p>Soft Workbench · 真实生产组件与组合 · HTML Slot 契约。开发工具，不进用户导航。</p>
     </div>
-    ${themes}
+    <div class="mw-catalog-top__tools">${languages}${themes}</div>
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>

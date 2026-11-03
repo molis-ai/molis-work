@@ -20,7 +20,7 @@ export function isHandInSource(sourceId: string): boolean {
 /** The source a delivery from this audience is filed under, made on the first delivery. */
 export function handInSourceFor(feed: FeedApplication, projectId: string, audience: ActionAudience, now: string): FeedSourceRecord {
   const hand = handInFor(audience);
-  return feed.snapshot(projectId).sources.find(source => source.source_id === hand.id) ?? feed.upsertSource({
+  return feed.snapshot(projectId).sources.find(source => source.source_id === hand.id) ?? feed.sources.upsert({
     project_id: projectId, source_id: hand.id, kind: hand.kind, definition_id: null, sync_kind: "manual",
     name: hand.name, description: hand.description, status: "active", enabled: true, origin: "molis_work",
     config: {}, schedule: { mode: "manual" }, credential_ref: null, account_label: null, last_sync_at: null,

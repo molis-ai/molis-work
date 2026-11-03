@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -11,9 +11,8 @@ export const GOALS_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.goals.settings.v
  * The library, detail and edit documents stay on `/settings/planning`,
  * which the Host already renders. This contribution only registers the row.
  */
-export const goalsSettingsUiDescriptor: UiContributionDescriptor = {
+export const goalsSettingsUiDescriptor: UiContributionDeclaration = {
   contribution_id: GOALS_SETTINGS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.goals",
   kind: "settings-page",
   navigation_id: "planning",
   label: "Goals",

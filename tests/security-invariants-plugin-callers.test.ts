@@ -5,8 +5,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
+import { ArtifactsModule, ProcessItemsModule, createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
 import { assertPluginActionCurrent } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { CALLERS_READ as READ, CALLERS_WRITE as WRITE, callAs, callerPlugin, issuedCaller, probeActions, registerProbe, startProjectPlugins, type CallerPlugin, type CallerScope } from "./fixtures/plugin-callers.js";
@@ -256,7 +255,7 @@ test("PG110-08 S-15 the artifacts SDK runs only under its own session's live cal
   });
   const manifest = reader.definition.manifest;
   const borrowing = (caller: HostPluginCaller, installId: string) => {
-    const context: PluginStartContext = { install_id: installId, provider_id: installId, plugin_id: manifest.plugin_id, version: manifest.version,
+    const context: PluginStartContext = { install_id: installId, installation_generation: "1", provider_id: installId, plugin_id: manifest.plugin_id, version: manifest.version,
       deployment: "local", grants: ["storage:private", READ, "artifact:read"], requireGrant: () => {} };
     return createPluginArtifactClient({ assertInput: assertActionInput, ...modules, manifest, context, plugin_caller: caller, project_id: two.project_id, actor_id: caller.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context.install_id),
       actions: { registry: host.actionRegistry(two.reference), client: host.syncActionClient(two.reference), project_id: two.project_id } });
@@ -430,4 +429,20 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
   assert.equal(await scenes.runScene(caller, scene, binding.binding_id, {}), undefined, "the failed consumer handles the judgment error");
   assert.deepEqual([...seen].sort(), ["action", "action availability", "bindings", "targets", "prepare", "scene availability",
     "configuration availability", "bind", "consume", "failed"].sort());
+});
+
+test("PG110-18 S-15 a plugin's handler is told which plugin called it by the Host, never by the call: a person's call carrying one is not told", async t => {
+  const receiver = consumer("whoreceiver", "home", "required"), sender = callerPlugin("whosender", "home", {}, [`${receiver.id}.who`]);
+  const who: ActionDefinition<Record<string, never>, string | null> = { capability_id: `${receiver.id}.who`, version: 1, operation: "query",
+    action: { title: "谁在调用", description: "回答调用它的插件", kind: "query", scope: "home", audiences: ["plugin", "user"], permissions: [READ], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false } } };
+  const base = receiver.definition;
+  receiver.definition = { ...base, manifest: { ...base.manifest, actions: [who] }, async start(context) {
+    await base.start(context);
+    return { kind: "app", actions: [{ ...who, handle: caller => caller.calling_plugin_id ?? null }] };
+  } };
+  const { host } = await homeSetup(t, [sender, receiver]);
+  assert.equal(await sender.actions().invoke(who, {}), sender.id, "the plugin that called is named by the Host");
+  const client = host.homeActionClient();
+  assert.equal(await client.invoke({ ...person([READ]), calling_plugin_id: "io.molis.work.feed" }, who, {}), null, "a person's call is told no plugin, whatever it carries");
 });

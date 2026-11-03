@@ -4,8 +4,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
+import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 for (const mode of ["cancel", "abort", "revoke", "source", "model", "shortcut"] as const) test(`Shelf ${mode} refuses late model results and failure records`, async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-late-"));
@@ -14,7 +14,7 @@ for (const mode of ["cancel", "abort", "revoke", "source", "model", "shortcut"] 
   const held = new Promise<void>(resolve => { release = resolve; });
   let valid = true;
   const controller = new AbortController();
-  const store = openHostShelfStore(home, { disabled: true }, {}, shelfTestAi(async () => {
+  const store = openTestShelfStore(home, { disabled: true }, {}, shelfTestAi(async () => {
     enter(); await held; return { text: "Late output", execution: shelfTestReceipt };
   }));
   try {

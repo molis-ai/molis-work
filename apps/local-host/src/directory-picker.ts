@@ -23,6 +23,7 @@ export interface DirectoryPickerCommandResult {
 type DirectoryPickerRun = (
   command: string,
   args: readonly string[],
+  signal?: AbortSignal,
 ) => Promise<DirectoryPickerCommandResult>;
 
 const PROMPT = "选择要关联到当前项目的目录";
@@ -30,29 +31,20 @@ const OPEN_FAILED = "这台电脑打不开目录选择窗口";
 const NOT_A_DIRECTORY = "选中的路径不是这台电脑上的目录";
 const TIMED_OUT = "目录选择超时，请再试一次";
 
-function appleString(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`;
-}
-
-function dialogCommand(): { command: string; args: string[] } | null {
+function dialogCommand(prompt = PROMPT): { command: string; args: string[] } | null {
   if (process.platform === "darwin") {
-    const script = [
-      "try",
-      `POSIX path of (choose folder with prompt ${appleString(PROMPT)} default location (path to home folder))`,
-      "on error number -128",
-      "\"\"",
-      "end try",
-    ].join("\n");
-    return { command: "osascript", args: ["-e", script] };
+    const script = ["on run argv", "try", "POSIX path of (choose folder with prompt (item 1 of argv) default location (path to home folder))",
+      "on error number -128", '""', "end try", "end run"].join("\n");
+    return { command: "osascript", args: ["-e", script, prompt] };
   }
   if (process.platform === "linux") {
-    return { command: "zenity", args: ["--file-selection", "--directory", "--title", PROMPT] };
+    return { command: "zenity", args: ["--file-selection", "--directory", "--title", prompt] };
   }
   if (process.platform === "win32") {
     const script = [
       "Add-Type -AssemblyName System.Windows.Forms",
       "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
-      `$dialog.Description = '${PROMPT.replaceAll("'", "''")}'`,
+      `$dialog.Description = '${prompt.replaceAll("'", "''")}'`,
       "$dialog.UseDescriptionForTitle = $true",
       "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }",
     ].join("\n");
@@ -74,10 +66,10 @@ function text(value: unknown): string {
 }
 
 /** The process boundary shared by the default picker and its real child-process regressions. */
-export async function runDirectoryPickerCommand(command: string, args: readonly string[], timeoutMs = 5 * 60_000): Promise<DirectoryPickerCommandResult> {
+export async function runDirectoryPickerCommand(command: string, args: readonly string[], timeoutMs = 5 * 60_000, signal?: AbortSignal): Promise<DirectoryPickerCommandResult> {
   try {
     const { stdout, stderr } = await run(command, args, {
-      encoding: "utf8",
+      encoding: "utf8", signal,
       timeout: timeoutMs,
       windowsHide: false,
     });
@@ -102,12 +94,14 @@ export async function runDirectoryPickerCommand(command: string, args: readonly 
   }
 }
 
-export function createDirectoryPicker(run: DirectoryPickerRun = runDirectoryPickerCommand, commandFor: typeof dialogCommand = dialogCommand) {
+export function createDirectoryPicker(run: DirectoryPickerRun = (command, args, signal) => runDirectoryPickerCommand(command, args, undefined, signal), commandFor: typeof dialogCommand = dialogCommand) {
   let pending: Promise<DirectoryPickResult> | null = null;
-  const open = async (): Promise<DirectoryPickResult> => {
-    const command = commandFor();
+  const open = async (prompt?: string, signal?: AbortSignal): Promise<DirectoryPickResult> => {
+    signal?.throwIfAborted();
+    const command = commandFor(prompt);
     if (!command) return { status: "unavailable", message: OPEN_FAILED };
-    const result = await run(command.command, command.args);
+    const result = await run(command.command, command.args, signal);
+    signal?.throwIfAborted();
     if (result.missing) return { status: "unavailable", message: OPEN_FAILED };
     if (result.timedOut) return { status: "unavailable", message: TIMED_OUT };
     if (!result.stdout.trim()) {
@@ -125,9 +119,9 @@ export function createDirectoryPicker(run: DirectoryPickerRun = runDirectoryPick
     return { status: "picked", path: picked };
   };
   return {
-    pick(): Promise<DirectoryPickResult> {
+    pick(prompt?: string, signal?: AbortSignal): Promise<DirectoryPickResult> {
       if (pending) return Promise.resolve({ status: "busy" });
-      const task = open().finally(() => {
+      const task = open(prompt, signal).finally(() => {
         pending = null;
       });
       pending = task;
@@ -139,6 +133,6 @@ export function createDirectoryPicker(run: DirectoryPickerRun = runDirectoryPick
 const shared = createDirectoryPicker();
 
 /** One system folder window for this host process. */
-export function pickLocalDirectory(): Promise<DirectoryPickResult> {
-  return shared.pick();
+export function pickLocalDirectory(prompt?: string, signal?: AbortSignal): Promise<DirectoryPickResult> {
+  return shared.pick(prompt, signal);
 }

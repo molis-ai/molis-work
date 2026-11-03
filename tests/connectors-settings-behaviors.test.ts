@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -16,21 +17,18 @@ import {
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
-import {
-  DEMO_PROJECT_ID,
-  LocalProjectDatabase,
-  createLocalFeedApplication,
-  liveHostFunctionAuthoringCatalog,
-  seedDemoBoard,
-  withConnectorConnections,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, liveHostJudgmentRuleAuthoringCatalog, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { connectorAccountActions, readConnectorAccount } from "../apps/local-host/dist/connector-account-actions.js";
-import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/dist/connector-directory.js";
+import { connectorDirectory, listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+
+// What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
+const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home")).map(({ github_client_id_configured, notion_oauth_configured, ...entry }) => entry);
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";
@@ -94,7 +92,7 @@ async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): 
   }
 }
 
-function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCatalog>): readonly string[] {
+function agentBehaviorIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoringCatalog>): readonly string[] {
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
@@ -214,6 +212,101 @@ test("Connectors settings cards distinguish account states and never echo the se
   assert.match(html, /出站动作未兑现/);
 });
 
+test("RAC-2418: a package's long connector name and summary are cut to whole characters, never half of one", () => {
+  const wide = (count: number) => "🟢".repeat(count);
+  const html = renderConnectorsSettings({ connectors: [{
+    connector_id: "example", title: wide(200), summary: wide(500), availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+  }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const name = `${wide(119)}…`, summary = `${wide(399)}…`;
+  assert.equal([...name].length, 120, "the name limit is 120 characters, the last one 「…」");
+  assert.equal([...summary].length, 400, "the summary limit is 400 characters, the last one 「…」");
+  const cardName = /<span class="settings-connector-card__title"><strong>([^<]*)<\/strong>/.exec(html)?.[1];
+  const cardSummary = /<span class="settings-connector-card__copy">([^<]*)<\/span>/.exec(html)?.[1];
+  assert.equal(cardName, name, "the card shows the name cut to whole characters");
+  assert.equal(cardSummary, summary, "the card shows the summary cut to whole characters");
+  assert.equal(html.includes(`<h2 tabindex="-1">${name}</h2>`), true, "the detail shows the same cut name");
+  // The page's filter searches the card's own attribute: cutting what it shows must not hide the words past the limit.
+  const filtered = renderConnectorsSettings({ connectors: [{
+    connector_id: "example", title: `${wide(120)}tail-name`, summary: "Short, but the name goes on past its limit.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+  }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const search = /data-connector-search="([^"]*)"/.exec(filtered)?.[1] ?? "";
+  assert.equal(search.includes("tail-name"), true, "the search attribute keeps the name past the 120th character");
+  // The description's own tail stays searchable as well: the filter reads the full text, not the cut the card shows.
+  const searchedSummary = renderConnectorsSettings({ connectors: [{
+    connector_id: "example", title: "Short name.", summary: `${wide(420)}tail-summary`, availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+  }] }, { L: (text) => text, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
+  const summarySearch = /data-connector-search="([^"]*)"/.exec(searchedSummary)?.[1] ?? "";
+  assert.equal(summarySearch.includes("tail-summary"), true, "the search attribute keeps the description past the 400th character");
+  assert.doesNotMatch(html, /[\ud800-\udfff]/u, "with the u flag only a lone half of a pair matches");
+});
+
+test("RAC-2419: a card names the package that declared it, and the package name is escaped", () => {
+  // The page's translator, so the source line reads as a person sees it.
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;");
+  const primitives = { L, escapeHtml, icon: () => "" };
+  const github = HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "github")!;
+  assert.deepEqual(github.declared_by, { plugin_id: "io.molis.work.integration.github", title: "GitHub" },
+    "the card names the declaring plugin by its Manifest name, not by its id");
+  for (const id of ["model-api", "typesafe", "image-api", "mcp-bearer"]) {
+    assert.equal(HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === id)!.declared_by, null, `${id} is the platform's own`);
+  }
+  const html = renderConnectorsSettings({ connectors: [
+    github,
+    HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "model-api")!,
+    { connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+      declared_by: { plugin_id: "io.example.package", title: '<img src=x onerror="alert(1)">' } },
+  ] }, primitives);
+  assert.match(html, /data-connector-source>来自 GitHub</u, "a package's card says where it comes from");
+  assert.match(html, /来自 Molis Work（内置）/, "the platform's own cards say so too, no exception for built-ins");
+  assert.match(html, /来自 &lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/, "the package name is escaped");
+  assert.doesNotMatch(html, /<img src=x onerror=/, "no markup of a package name reaches the page");
+});
+
+test("RAC-2440: a card's source line cuts a package name to whole characters", () => {
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const primitives = { L, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
+  // 5,000 characters, 7,500 UTF-16 units: alternating a two-unit emoji and a one-unit Han character. A cut by units at the 119-unit point
+  // would give 79 original characters plus 「…」 (80 characters) — well formed but 40 short of 120, which the exact 120-character
+  // assertion refuses; the cut must count characters, not units.
+  const title = "🙂汉".repeat(2_500);
+  const html = renderConnectorsSettings({ connectors: [{ connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
+    declared_by: { plugin_id: "io.example.package", title } }] }, primitives);
+  const shown = /data-connector-source>来自 ([^<]*)</u.exec(html)?.[1];
+  assert.ok(shown, "the source line is there");
+  const expected = [...title].slice(0, 119).join("") + "…";
+  assert.equal(shown, expected, "the package name is cut to 120 whole characters, the last one an ellipsis");
+  assert.equal([...shown].length, 120);
+  assert.ok(shown.isWellFormed(), "no half of a two-unit character is left over");
+});
+
+test("RAC-2441: a card without a declaring package shows no source line, while null still reads as the platform's own", () => {
+  const L = (text: string, values?: Record<string, string | number>) =>
+    Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+  const primitives = { L, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
+  const base = { connector_id: "example", title: "Example", summary: "Short.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [] } as const;
+  const unknown = renderConnectorsSettings({ connectors: [{ ...base }] }, primitives);
+  assert.doesNotMatch(unknown, /data-connector-source/u, "an unknown declaring package leaves no source line at all");
+  assert.doesNotMatch(unknown, /Molis Work（内置）/u, "unknown is not the platform's own");
+  const platform = renderConnectorsSettings({ connectors: [{ ...base, declared_by: null }] }, primitives);
+  assert.match(platform, /data-connector-source>来自 Molis Work（内置）</u, "null is the platform's own");
+  const named = renderConnectorsSettings({ connectors: [{ ...base, declared_by: { plugin_id: "io.example.package", title: "Example Package" } }] }, primitives);
+  assert.match(named, /data-connector-source>来自 Example Package</u, "a package's card names it");
+  // The directory's own fallback, exercised through the production function: a package whose Manifest gives it no name shows its owner id,
+  // so the source line still says where the card comes from instead of reading as the platform's own.
+  const declarations = {
+    connectionServices: () => [{ declaration: { service_id: "unnamed", title: "Unnamed", group_id: "work", summary: "Short.", auth_kind: "token", auth: { methods: [] }, capabilities: [] }, owner: "io.example.unnamed" }],
+    hasSource: () => false,
+    integration: () => undefined,
+    listIntegrations: () => [],
+    pluginName: () => undefined,
+  };
+  assert.deepEqual(connectorDirectory(declarations)[0]?.declared_by, { plugin_id: "io.example.unnamed", title: "io.example.unnamed" },
+    "a package with no Manifest name shows its owner id in the source line");
+});
+
 test("every connector detail exposes official https setup links", () => {
   const primitives = {
     L: (text: string) => text,
@@ -250,7 +343,7 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
     connector_connections: [{ connection_id: "33333333-3333-4333-8333-333333333333", service_id: "gmail", display_name: "工作邮箱", account_label: "work@example.com", auth_method: "oauth", source: "managed", state: "connected" }],
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
-      .map((row) => ({ ...row, gmail_oauth_configured: true })),
+      .map((row) => ({ ...row, method_options: row.method_options?.map((method) => method.kind === "oauth" ? { ...method, login_ready: true } : method) })),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),
@@ -259,7 +352,8 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
   assert.match(html, /data-connection-reauthorize="33333333-3333-4333-8333-333333333333"/);
   // RING-05: the saved credentials retain their original claim beside the shared mark.
   assert.match(html, /data-connection-state data-mw-state="saved">已保存/);
-  assert.match(html, /data-account-login="gmail"/);
+  assert.match(html, /data-protocol-start="oauth"/);
+  assert.doesNotMatch(html, /data-account-login="gmail"/, "Gmail signs in through the generic flow, not a dedicated login");
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
   assert.match(html, /data-connection-manage="disable"/);
   assert.match(html, /data-connection-manage="remove"/);
@@ -268,7 +362,7 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
   const manualTokenHtml = renderConnectorsSettings({
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
-      .map((row) => ({ ...row, gmail_oauth_configured: false })),
+      .map((row) => ({ ...row, method_options: row.method_options?.map((method) => method.kind === "oauth" ? { ...method, login_ready: false } : method) })),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),
@@ -323,9 +417,12 @@ test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors"
 
 test("Functions and judgment sources do not talk to GitHub", async () => {
   const files = [
-    "modules/functions/src/service.ts",
-    "apps/local-host/src/functions-http/route-handlers.ts",
-    "apps/workbench/src/functions/client.ts",
+    "modules/judgment-rules/src/service.ts",
+    "apps/local-host/src/judgment-rules-http/route-handlers.ts",
+    "apps/workbench/src/judgment-rules/client.ts",
+    "apps/workbench/src/judgment-rules/client-render.ts",
+    "apps/workbench/src/judgment-rules/client-records.ts",
+    "apps/workbench/src/judgment-rules/client-events.ts",
   ];
   for (const relative of files) {
     const source = await readFile(join(ROOT, "..", relative), "utf8");
@@ -356,11 +453,11 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
 
 test("a saved connection does not invent Agent capabilities absent from the action directory", async () => {
   await withIsolatedHome(async (homeDirectory) => {
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
   });
 });
 
@@ -433,7 +530,7 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
         "the account check is the registered connector action, not a catalog behavior");
       assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
-      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId),
+      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId, connectorControl()),
         { connection_id: connectionId, service_id: "github", login: "octocat", scopes: ["notifications"] });
       assert.deepEqual(githubCalls, ["https://api.github.com/user"]);
       const disconnected = await fetch(`${origin}/api/settings/connectors/connections/${connectionId}`, {
@@ -465,11 +562,11 @@ test("deleting a Feed GitHub source keeps its connection's credential", async ()
       const connection = withConnectorConnections(homeDirectory, connections => connections.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
       const feed = createLocalFeedApplication(store.db);
       const at = new Date().toISOString();
-      const source = feed.upsertSource({ project_id: DEMO_PROJECT_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
+      const source = feed.sources.upsert({ project_id: DEMO_PROJECT_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
         name: "GitHub", description: "通知", status: "active", enabled: true, item_count: 0, origin: "molis_work",
         config: { connection_id: connection.connection_id }, schedule: { mode: "manual" }, cursor: {}, credential_ref: connection.credential_ref,
         account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: at, updated_at: at });
-      feed.retireSource(DEMO_PROJECT_ID, source.source_id, "retain_history");
+      feed.sources.retire(DEMO_PROJECT_ID, source.source_id, "retain_history");
       assert.equal(createFileSecretStore().get(connection.credential_ref!), TOKEN);
     } finally {
       store.close();
@@ -496,11 +593,11 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   if (result.ok) assert.equal(result.login, "molis");
   assert.deepEqual(urls, ["https://slack.com/api/auth.test"]);
   await withIsolatedHome(async (homeDirectory) => {
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "slack", displayName: "Slack", token: "xoxb-liveTokenABCD" }));
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
   });
 });
 

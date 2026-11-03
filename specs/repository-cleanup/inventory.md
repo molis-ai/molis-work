@@ -34,7 +34,7 @@ Work 扫描全部 72 个 workspace 包、开始基线的 2405 份产品 TypeScri
 | `modules/goals/src/event-state-authorization.ts` | `decisionCoversScope` |
 | `modules/goals/src/goal-contract-records.ts` | `contractInputFromGoal` |
 | `apps/local-host/src/agent-definitions/instructions.ts` | `withRegisteredPrompts` |
-| `apps/local-host/src/git-operations.ts` | `GIT_OPERATION_TOOLS` |
+| `apps/local-host/src/workspace-git-operations.ts` | `GIT_OPERATION_TOOLS` |
 | `apps/local-host/src/project-file-paths.ts` | `isWithin` |
 | `plugins/native/coding/src/route-activation.ts` | `sessionTitle` |
 | `server/src/database.ts` | `ImDatabase` |
@@ -150,7 +150,7 @@ Work 扫描全部 72 个 workspace 包、开始基线的 2405 份产品 TypeScri
 
 | 路径 | 候选 | 保留原因 |
 | --- | --- | --- |
-| `apps/local-host/src/artifact-native-plugin-http.ts` | `ArtifactHttpContext` | TypeScript 导出的返回值/变量签名需要这个具名类型；去掉会产生 TS4023/TS4058。 |
+| `apps/local-host/src/artifact-library-http.ts` | `ArtifactHttpContext` | TypeScript 导出的返回值/变量签名需要这个具名类型；去掉会产生 TS4023/TS4058。 |
 | `apps/local-host/src/assistant/assistant-service.ts` | `AssistantCaller`, `CODING_SESSION_KIND` | 开放 PR #970, #934 的实际修改文件。 |
 | `apps/local-host/src/assistant/assistant-surroundings.ts` | `SurroundingsPorts` | 开放 PR #970, #934 的实际修改文件。 |
 | `apps/local-host/src/coding-surface.ts` | `charactersWorkbenchPanel`, `codingCompanionStages` | 开放 PR #970, #934 的实际修改文件。 |
@@ -165,8 +165,8 @@ Work 扫描全部 72 个 workspace 包、开始基线的 2405 份产品 TypeScri
 | `apps/local-host/src/project-plugins.ts` | `ProjectStageView` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |
 | `apps/workbench/src/immersive-shell.ts` | `InstalledRailEntry`, `renderPickerExtend` | 开放 PR #970, #934 的实际修改文件。 |
 | `apps/workbench/src/settings-connector-guide.ts` | `methodLabel`, `officialLinks` | 开放 PR #970, #946 的实际修改文件。 |
-| `apps/workbench/src/settings-directory.ts` | `SettingsDirectoryPrimitives`, `renderPluginRailAccountFooter` | 开放 PR #970, #946 的实际修改文件。 |
-| `apps/workbench/src/side-view-document.ts` | `sideViewKeys` | 开放 PR #970, #934 的实际修改文件。 |
+| `apps/workbench/src/settings-directory.ts` | `SettingsDirectoryPrimitives`, `renderPluginRailAccountFooter`（已删，#1353） | 开放 PR #970, #946 的实际修改文件。 |
+| `apps/workbench/src/side-view-document.ts` | `sideViewKeys`（已删，#1353） | 开放 PR #970, #934 的实际修改文件。 |
 | `horizontal/agent-host/src/adapters/prologue-documents.ts` | `parsePrologueDocument` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |
 | `horizontal/agent-host/src/adapters/prologue-inputs.ts` | `SteerInput`, `deliverSteer` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |
 | `horizontal/agent-host/src/adapters/prologue-stream.ts` | `PrologueTokenCount` | 存在真实未合改动或新增消费者，见下方工作树依据；未合改动的取舍不由本次清理代决。 |

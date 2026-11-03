@@ -1,6 +1,6 @@
 import { GOAL_DISPLAY_STATUSES, createGoalActionPresenter } from "./action-presentation.js";
 import type { GoalsMomentumBoardView, GoalsMomentumItem, GoalsMomentumUiPrimitives } from "./momentum-ui-model.js";
-import { renderStateRing } from "@molis-ai/molis-work-design-system";
+import { renderStateRing } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { DISPLAY_STATUS_MARKS } from "./status-rings.js";
 import { sortGoalTreeItems } from "./tree-order.js";
 

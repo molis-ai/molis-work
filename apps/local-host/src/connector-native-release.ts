@@ -13,7 +13,9 @@ interface ReleaseAsset { name: string; browser_download_url: string; digest?: st
 interface GitHubRelease { tag_name: string; assets: ReleaseAsset[] }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 async function releaseJson(url: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
-  const value: unknown = JSON.parse((await nativeReleaseBytes(url, 4 * 1024 * 1024, signal)).toString("utf8"));
+  const text = (await nativeReleaseBytes(url, 4 * 1024 * 1024, signal)).toString("utf8");
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { throw toolInstallErrors.failed("官方发布元数据读不出来，请检查网络后重试"); }
   if (!object(value)) throw toolInstallErrors.failed("官方发布元数据格式无效");
   return value;
 }

@@ -5,7 +5,7 @@ import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-p
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -23,10 +23,7 @@ test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads
   const state = await (await fetch(url)).json(); assert.deepEqual(state.materials, []); assert.equal(state.ai_available, false);
   const project = await f.project("Old route refusal");
   const grantResponse = await f.request(`/projects/${project.project_id}/api/host/directory-grants`, { method: "POST", body: { path: f.home } });
-  assert.equal(grantResponse.status, 200, "PRR-03 the person authorizes a directory through the project page");
-  const grant = await grantResponse.json() as { grant_id: string; root: string; expires_at: string };
-  assert.match(grant.grant_id, /^[0-9a-f-]{36}$/); assert.equal(grant.root, await realpath(f.home));
-  assert.equal((await f.request(`/projects/${project.project_id}/api/host/directory-grants`, { method: "POST", body: { path: "relative" } })).status, 400);
+  assert.equal(grantResponse.status, 400, "SYS-15 an absolute path supplied by a page is not authorization");
   assert.equal((await f.request(`/projects/${project.project_id}/api/cognia`)).status, 404, "RAC-40: the removed Host adapter is unavailable");
   assert.equal((await f.request("/api/cognia")).status, 400, "Home retains its shared unknown-API response");
   const body='---\ntags: [test]\n---\n# Original\n<script>globalThis.executed=true</script>';
@@ -45,7 +42,7 @@ test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads
 });
 
 test("Cognia registers as personal workspace, Home cleanup and read-only Home actions",async()=>{
-  const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='cognia');assert.equal(entry?.personal,true);assert.equal(entry?.manifest.plugin_id,COGNIA_PLUGIN_ID);assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e=>e.project_plugin_id==='cognia'));assert.equal(entry?.runtime?.scope,"home");assert.equal(homeStores().get('cognia')?.owner,COGNIA_PLUGIN_ID,'uninstall --purge-user-data reaches the Cognia store');
+  const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='cognia');assert.equal(entry?.personal,true);assert.equal(entry?.manifest.plugin_id,COGNIA_PLUGIN_ID);assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e=>e.project_plugin_id==='cognia'));assert.equal(entry?.manifest.runtime?.scope,"home");assert.equal(homeStores().get('cognia')?.owner,COGNIA_PLUGIN_ID,'uninstall --purge-user-data reaches the Cognia store');
   for (const action of [cogniaActions.search, cogniaActions.read]) { assert.equal(action.operation, 'query'); assert.equal(action.action.scope, 'home'); }
   assert.ok(!assembleMcpCatalog({ audience: 'runtime' }).entries.some(row => row.action?.provider.plugin_id === COGNIA_PLUGIN_ID), 'no Cognia tool without a grant');
   const home = await mkdtemp(join(tmpdir(), 'cognia-mcp-')), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

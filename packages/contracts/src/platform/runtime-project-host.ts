@@ -1,5 +1,4 @@
 import type { ProjectRecord, DeleteProjectInput, ProjectDeletionResult } from "../modules/projects.js";
-import type { AliasDesktopPanelSessionInput, DesktopPanelRecord } from "./app-host.js";
 import type {
   RuntimeWorkContext, RuntimeProjectSuggestionClue, MolisWorkRuntimeContextResolution,
   BindRuntimeWorkContextInput, UnbindRuntimeWorkContextInput, MolisWorkRuntimeContextUnbindResult,
@@ -16,7 +15,7 @@ export interface MolisWorkRuntimeContextHost {
   nativeRuntimeSessionId?: string | null;
   /** The work entry the host declared (`MOLIS_WORK_WORK_CONTEXT_ID`: a desktop panel, an integration check); the Session is routed by it. */
   hostWorkContextId?: string | null;
-  goalId?: string | null;
+  focusId?: string | null;
   /**
    * Host-only non-authoritative hints for a fresh Session. They may rank
    * projects, but never establish a binding and are never supplied by a
@@ -48,8 +47,15 @@ export interface RuntimeProjectCatalogProvider {
   withCatalog<T>(homeDirectory: string | undefined, operation: (catalog: RuntimeProjectApplicationApi) => T | Promise<T>): Promise<T>;
 }
 
+/** The session a runtime reported in a terminal the platform started (S-103): the terminal resumes it when it starts again. */
+export interface RuntimeTerminalSessionAlias {
+  panel_id: string;
+  runtime_id: string;
+  host_session_id: string;
+}
+
 export interface RuntimePanelCatalogApi {
-  aliasPanelSession(input: AliasDesktopPanelSessionInput): DesktopPanelRecord;
+  aliasTerminalSession(input: RuntimeTerminalSessionAlias): Promise<void>;
 }
 
 export interface RuntimePanelCatalogProvider {

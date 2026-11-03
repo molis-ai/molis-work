@@ -39,9 +39,11 @@ test("底栏：输入法组合中按回车只确认候选、不发送；组合�
   const before = await works();
   await evaluate("(() => { const input = document.querySelector('[data-assistant-input]'); window.__keys = []; input.addEventListener('keydown', e => window.__keys.push([e.key, e.keyCode, e.isComposing]), true); input.focus(); })()");
   // Pinyin still being composed; the IME's own Enter (key code 229) arrives while the composition is open.
+  // RAC-1459: no native key code on these synthetic Enters. 229 is Windows' VK_PROCESSKEY and 13 is not Enter on macOS;
+  // as the native code they can hide the page in macOS Chrome (BL-393), so only the Windows virtual key code stays.
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(await works(), before, "nothing was sent while composing");
   // The page did receive that Enter: the guard, not a lost key, is what kept it from sending.
@@ -56,8 +58,8 @@ test("底栏：输入法组合中按回车只确认候选、不发送；组合�
   assert.equal(await works(), before, "committing a candidate sends nothing");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "no work opened");
   // With the composition over, Enter sends what was typed.
-  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor(`!document.querySelector('[data-assistant-panel]').hidden`);
   assert.equal(await works(), before + 1, "one Enter after the composition sends once");
 });

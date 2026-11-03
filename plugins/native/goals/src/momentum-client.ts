@@ -7,17 +7,16 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const frame = workspace.querySelector("[data-goal-node-workspace]");
     const graphElement = () => workspace.querySelector("[data-goal-momentum]");
     const kanbanElement = () => workspace.querySelector("[data-goal-kanban]");
-    const reopenKanbanGroups = () => {
+    let lastWidth = 0;
+    const readWidth = () => (lastWidth = shell?.clientWidth || lastWidth);
+    const openColumns = () => {
       const kanban = kanbanElement();
-      if (!kanban || kanban.clientWidth <= 839) return;
+      if (!kanban || readWidth() <= 839) return;
       kanban.querySelectorAll("details[data-kanban-group]").forEach((group) => { group.open = true; });
     };
-    if (shell && typeof ResizeObserver === "function") new ResizeObserver(reopenKanbanGroups).observe(shell);
+    if (shell && typeof ResizeObserver === "function") new ResizeObserver(openColumns).observe(shell);
     workspace.addEventListener("toggle", (event) => {
-      const group = event.target;
-      if (!group?.matches?.("details[data-kanban-group]")) return;
-      const kanban = kanbanElement();
-      if (kanban && kanban.clientWidth > 839) group.open = true;
+      if (event.target?.matches?.("details[data-kanban-group]")) openColumns();
     });
     workspace.addEventListener("wheel", (event) => {
       const board = event.target.closest?.("[data-goal-kanban]");
@@ -55,6 +54,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
         graph.toggleAttribute("inert", expanded || kanbanActive || listActive);
       }
       if (kanban) kanban.toggleAttribute("inert", expanded || !kanbanActive);
+      if (kanbanActive) openColumns();
       if (boardView === "canvas" && graph?.dataset.loaded === "true") {
         const run = () => {
           if (shell?.dataset.boardView !== "canvas") return false;
@@ -138,7 +138,8 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
             if (nextBoard && board) {
               const left = kanban.scrollLeft;
               const top = kanban.scrollTop;
-              const stacked = kanban.clientWidth <= 839;
+              const width = readWidth();
+              const stacked = width > 0 && width <= 839;
               const collapsed = stacked
                 ? [...board.querySelectorAll("[data-kanban-column]")].filter((column) => column.querySelector("details")?.open === false).map((column) => column.dataset.kanbanColumn)
                 : [];
@@ -169,7 +170,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
           graphLoadedOnce = true;
           applyBoardVisibility();
           syncKanbanSelection();
-          reopenKanbanGroups();
+          openColumns();
           view.layout();
           return true;
         } catch (error) {

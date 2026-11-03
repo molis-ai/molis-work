@@ -21,7 +21,7 @@ export type FeedSourceSchedulerDispatch = (
 export class FeedSourceScheduler {
   constructor(
     readonly projectId: string,
-    private readonly createService: () => Pick<FeedSourceService, "dueSources" | "advanceSchedule" | "feed">,
+    private readonly createService: () => Pick<FeedSourceService, "dueSources" | "advanceSchedule" | "feed" | "ports">,
     private readonly dispatch: FeedSourceSchedulerDispatch,
     private readonly now: () => Date = () => new Date(),
     private readonly inFlight = new Set<string>(),
@@ -62,10 +62,12 @@ export class FeedSourceScheduler {
           // A guard that already refused stays refused: authority and the person's edits are never bookkept past.
           if (!beforeEffect.refused) beforeEffect = createFeedSourceSyncGuard(service.feed, source, authority, { afterOwnFailure: true });
           await beforeEffect();
-          await this.recordActionableFault(source, error, at);
+          await this.recordActionableFault(service, source, error, at, beforeEffect);
         }
         await beforeEffect();
-        service.advanceSchedule(source.source_id, plannedAt, at);
+        // Checked again inside the transaction: a source changed while the commit waited keeps the schedule the person gave it (FI-C-05).
+        const guard = beforeEffect;
+        await this.write(service, () => { guard.check(); return service.advanceSchedule(source.source_id, plannedAt, at); });
       } finally {
         this.inFlight.delete(source.source_id);
       }
@@ -80,29 +82,37 @@ export class FeedSourceScheduler {
     return this.inFlight.has(sourceId);
   }
 
-  private async recordActionableFault(source: FeedSourceRecord, error: unknown, at: Date): Promise<void> {
+  /** A write after the tick has waited: the Runtime's commit of the call's own, or just the operation where writes are not the caller's transactions. */
+  private write<T>(service: Pick<FeedSourceService, "ports">, operation: () => T): Promise<T> {
+    return service.ports.commit ? service.ports.commit(operation) : Promise.resolve(operation());
+  }
+
+  private async recordActionableFault(service: Pick<FeedSourceService, "feed" | "ports">, source: FeedSourceRecord, error: unknown, at: Date, guard: FeedSourceSyncGuard): Promise<void> {
     const publicError = toFeedPublicError(error);
     if (publicError.retryable || !["auth", "configuration", "stale_cursor"].includes(publicError.category)) {
       return;
     }
-    const feed = this.createService().feed;
-    const stored = feed.createInboxEntry({
-      projectId: this.projectId,
-      subjectType: "source_fault",
-      subjectId: source.source_id,
-      reason: "source_fault",
-      detail: {
-        error_code: publicError.code,
-        category: publicError.category,
-        retryable: publicError.retryable,
-        user_action: publicError.user_action,
-        detected_at: at.toISOString(),
-      },
-      at: at.toISOString(),
+    const feed = service.feed;
+    await this.write(service, () => {
+      guard.check();
+      const stored = feed.createInboxEntry({
+        projectId: this.projectId,
+        subjectType: "source_fault",
+        subjectId: source.source_id,
+        reason: "source_fault",
+        detail: {
+          error_code: publicError.code,
+          category: publicError.category,
+          retryable: publicError.retryable,
+          user_action: publicError.user_action,
+          detected_at: at.toISOString(),
+        },
+        at: at.toISOString(),
+      });
+      if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
+        feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
+      }
     });
-    if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      feed.setInboxEntryStatus(this.projectId, stored.entry.entry_id, "open", stored.entry.revision);
-    }
     await feed.flushPendingJudgments();
   }
 }

@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
+import { createActionWakeups, SCHEDULE_ACTION_BINDINGS_SCHEMA, type ScheduleActionBinding } from "./action-wakeups.js";
+export type { ScheduleActionBinding, ScheduleActionOwner } from "./action-wakeups.js";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
-import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
   SCHEDULE_LEASE_MS,
   schedulerErrors,
-  scheduleCapabilities,
   type ScheduleJobRecord,
   type ScheduleRecurrence,
-  type SchedulePluginRegisterInput,
   type ScheduleRegisterInput,
   type ScheduleTickResult,
   type ScheduleWakeupInput,
@@ -20,23 +20,9 @@ import {
   type ScheduleWakeupStatus,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-scheduler",
-  packagePath: "horizontal/scheduler",
-  kind: "horizontal",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/services/scheduler",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["scheduler.wakeup.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export {
   MIN_SCHEDULE_INTERVAL_MS,
   SCHEDULE_LEASE_MS,
-  scheduleCapabilities,
 };
 export type {
   ScheduleJobRecord,
@@ -61,44 +47,7 @@ export interface ScheduleSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export type ScheduleWakeupHandler = (input: ScheduleWakeupInput, control: ScheduleWakeupControl) => Promise<ScheduleWakeupReply | void>;
-export interface ScheduleWakeupPreparation {
-  /** Same-db persistence only, inside the claim transaction. Never dispatch external work or await here. */
-  prepare(input: ScheduleWakeupInput): void;
-}
-
-export class PluginWakeupIndex {
-  private readonly handlers = new Map<string, { handle: ScheduleWakeupHandler; preparation?: ScheduleWakeupPreparation }>();
-
-  register(pluginId: string, capabilityId: string, handler: ScheduleWakeupHandler, preparation?: ScheduleWakeupPreparation): () => void {
-    const key = wakeupKey(pluginId, capabilityId);
-    const entry = { handle: handler, preparation };
-    this.handlers.set(key, entry);
-    return () => {
-      if (this.handlers.get(key) === entry) this.handlers.delete(key);
-    };
-  }
-
-  has(pluginId: string, capabilityId: string): boolean {
-    return this.handlers.has(wakeupKey(pluginId, capabilityId));
-  }
-
-  prepare(input: ScheduleWakeupInput): void {
-    requireSynchronous(this.handlers.get(wakeupKey(input.plugin_id, input.capability_id))?.preparation?.prepare(input), "Scheduler prepare must be synchronous");
-  }
-
-  async invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl): Promise<ScheduleWakeupReply | void> {
-    const handler = this.handlers.get(wakeupKey(input.plugin_id, input.capability_id));
-    if (!handler) {
-      throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
-    }
-    control.beforeEffect();
-    return handler.handle(input, control);
-  }
-}
-
 interface ScheduleServiceOptions {
-  wakeupIndex: PluginWakeupIndex;
   now?: () => Date;
   leaseMs?: number;
 }
@@ -163,33 +112,27 @@ export const SCHEDULER_SCHEMA_SQL = `
       detail TEXT,
       FOREIGN KEY (job_id) REFERENCES schedule_jobs(job_id)
     );
+${SCHEDULE_ACTION_BINDINGS_SCHEMA}
 `;
 
-export function scheduleFingerprint(db: ScheduleSqliteDatabase): string {
-  db.exec(SCHEDULER_SCHEMA_SQL);
-  const jobs = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), '') AS updated FROM schedule_jobs",
-  ).get() as { n: number; updated: string };
-  const wakeups = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(finished_at), '') AS updated FROM schedule_wakeups",
-  ).get() as { n: number; updated: string };
-  return JSON.stringify({ jobs, wakeups });
+function abortExecutionAfterCommit(execution: { controller: AbortController } | undefined, reason: string, afterCommit: (effect: () => void) => void): void {
+  afterCommit(() => execution?.controller.abort(new Error(reason)));
 }
 
-export function createScheduleService(db: ScheduleSqliteDatabase, options: ScheduleServiceOptions) {
+export function createScheduleService(db: ScheduleSqliteDatabase, options: ScheduleServiceOptions = {}) {
   db.exec(SCHEDULER_SCHEMA_SQL);
-  const wakeupIndex = options.wakeupIndex;
   const now = options.now ?? (() => new Date());
   const leaseMs = options.leaseMs ?? SCHEDULE_LEASE_MS;
   // Tokens this process is still executing. A replacement service does not see
   // them, so a crash (no more renewal) leaves only the sqlite lease, which can
   // be taken over once it expires. This map is not the lock.
   const executions = new Map<string, { token: string; controller: AbortController; job: JobRow }>();
+  const actionWakeups = createActionWakeups(db, executions);
   const ticks = new Set<Promise<ScheduleTickResult>>();
   let closed = false;
   const requireOpen = () => { if (closed) throw new DOMException("Schedule stopped", "AbortError"); };
 
-  function register(input: ScheduleRegisterInput): ScheduleJobRecord {
+  function storeSchedule(input: ScheduleRegisterInput, afterCommit: (effect: () => void) => void, binding: ScheduleActionBinding): ScheduleJobRecord {
     requireOpen();
     const pluginId = normalizeIdentity(input.plugin_id, "插件身份");
     const capabilityId = normalizeIdentity(input.capability_id, "执行接口");
@@ -197,7 +140,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     const title = normalizeTitle(input.title);
     const dueAt = normalizeDueAt(input.due_at);
     const recurrence = normalizeRecurrence(input.recurrence);
-    if (!wakeupIndex.has(pluginId, capabilityId)) {
+    if (!actionWakeups.accepts(binding, pluginId, capabilityId)) {
       throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
     }
     const clock = iso(now());
@@ -225,20 +168,21 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
       recurrence.kind, recurrence.kind === "interval" ? recurrence.interval_ms : null,
       dueAt, existing?.last_wakeup_id ?? null, createdAt, clock,
     );
-    executions.get(jobId)?.controller.abort(new Error("Schedule replaced"));
+    actionWakeups.save(jobId, binding);
+    abortExecutionAfterCommit(executions.get(jobId), "Schedule replaced", afterCommit);
     return mustRead(jobId);
   }
 
-  function cancel(jobId: string, pluginId?: string): { cancelled: boolean } {
+  function cancel(jobId: string, pluginId?: string, afterCommit: (effect: () => void) => void = effect => effect()): { cancelled: boolean } {
     requireOpen();
     const job = readOwned(jobId, pluginId);
     db.prepare("DELETE FROM schedule_wakeups WHERE job_id = ?").run(job.job_id);
     db.prepare("DELETE FROM schedule_jobs WHERE job_id = ?").run(job.job_id);
-    executions.get(jobId)?.controller.abort(new Error("Schedule cancelled"));
+    abortExecutionAfterCommit(executions.get(jobId), "Schedule cancelled", afterCommit);
     return { cancelled: true };
   }
 
-  function setEnabled(jobId: string, enabled: boolean, pluginId?: string): ScheduleJobRecord {
+  function setEnabled(jobId: string, enabled: boolean, pluginId?: string, afterCommit: (effect: () => void) => void = effect => effect()): ScheduleJobRecord {
     requireOpen();
     const job = readOwned(jobId, pluginId);
     const clock = iso(now());
@@ -255,7 +199,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         SET enabled = 0, lease_until = NULL, lease_token = NULL, updated_at = ?
         WHERE job_id = ?
       `).run(clock, job.job_id);
-      executions.get(jobId)?.controller.abort(new Error("Schedule paused"));
+      abortExecutionAfterCommit(executions.get(jobId), "Schedule paused", afterCommit);
     }
     return mustRead(job.job_id);
   }
@@ -266,13 +210,13 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
       ? db.prepare("SELECT * FROM schedule_jobs WHERE plugin_id = ? ORDER BY enabled DESC, next_due_at ASC").all(pluginId)
       : db.prepare("SELECT * FROM schedule_jobs ORDER BY enabled DESC, next_due_at ASC").all()
     ) as JobRow[];
-    return rows.map(toRecord);
+    return rows.map(row => scheduleRecord(db, row));
   }
 
   function get(jobId: string): ScheduleJobRecord | null {
     requireOpen();
     const row = db.prepare("SELECT * FROM schedule_jobs WHERE job_id = ?").get(jobId) as JobRow | undefined;
-    return row ? toRecord(row) : null;
+    return row ? scheduleRecord(db, row) : null;
   }
 
   /** Read the shared lease so task owners do not rearm a one-shot wakeup that is still running. */
@@ -296,7 +240,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         result.skipped += 1;
         continue;
       }
-      const outcome = await fireScheduleWakeup(db, claimed, at, { wakeupIndex, now, leaseMs, executions, renewExecutions });
+      const outcome = await fireScheduleWakeup(db, claimed, at, { now, leaseMs, executions, renewExecutions, actionCurrent: () => actionWakeups.current(claimed), invoke: actionWakeups.invoke });
       result.invoked += 1;
       if (outcome.status !== "ok") result.failed += 1;
     }
@@ -304,7 +248,8 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   }
 
   function renewExecutions(at: Date): void {
-    for (const [jobId, { token, controller }] of executions) {
+    for (const [jobId, { token, controller, job }] of executions) {
+      if (!actionWakeups.current(job)) controller.abort(new DOMException("Scheduled action authorization ended", "AbortError"));
       if (controller.signal.aborted) continue;
       const renewed = db.transaction(() => {
         // Read the clock after acquiring the write lock; waiting for SQLite must not revive an expired lease.
@@ -327,7 +272,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     const token = `lease_${randomUUID()}`;
     return db.transaction(() => {
       const row = db.prepare("SELECT * FROM schedule_jobs WHERE job_id = ?").get(jobId) as JobRow | undefined;
-      if (!row || row.enabled !== 1 || row.next_due_at > clock) return null;
+      if (!row || row.enabled !== 1 || row.next_due_at > clock || !actionWakeups.current(row)) return null;
       if (row.lease_until && row.lease_until > clock) return null;
       const updated = db.prepare(`
         UPDATE schedule_jobs
@@ -338,8 +283,6 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
           AND (lease_until IS NULL OR lease_until <= ?)
       `).run(leaseUntil, token, clock, jobId, clock, clock);
       if (Number(updated.changes) !== 1) return null;
-      wakeupIndex.prepare({ job_id: row.job_id, plugin_id: row.plugin_id, capability_id: row.capability_id,
-        object_ref: row.object_ref, due_at: row.next_due_at });
       return { ...row, lease_until: leaseUntil, lease_token: token, updated_at: clock };
     }).immediate();
   }
@@ -359,26 +302,6 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     return record;
   }
 
-  function toRecord(row: JobRow): ScheduleJobRecord {
-    const last = row.last_wakeup_id
-      ? db.prepare("SELECT * FROM schedule_wakeups WHERE wakeup_id = ?").get(row.last_wakeup_id) as WakeupRow | undefined
-      : undefined;
-    return {
-      job_id: row.job_id,
-      plugin_id: row.plugin_id,
-      capability_id: row.capability_id,
-      object_ref: row.object_ref,
-      title: row.title,
-      recurrence: row.recurrence_kind === "interval"
-        ? { kind: "interval", interval_ms: Number(row.interval_ms) }
-        : { kind: "once" },
-      next_due_at: row.next_due_at,
-      enabled: row.enabled === 1,
-      last_wakeup: last ? toWakeup(last) : null,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    };
-  }
 
   function tick(at = now()): Promise<ScheduleTickResult> {
     if (closed) return Promise.resolve({ invoked: 0, failed: 0, skipped: 0 });
@@ -407,16 +330,42 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     closed = false;
   }
 
-  return { register, cancel, setEnabled, list, get, isExecuting, tick, close, start, get active() { return !closed; } };
+  return {
+    registerAction: (input: ScheduleRegisterInput, binding: ScheduleActionBinding, afterCommit: (effect: () => void) => void) => storeSchedule(input, afterCommit, binding),
+    cancel, setEnabled, list, get, isExecuting, tick, close, start, connectActionOwner: actionWakeups.connect, actionBinding: actionWakeups.bindingFor, get active() { return !closed; } };
 }
 
 
+function scheduleRecord(db: ScheduleSqliteDatabase, row: JobRow): ScheduleJobRecord {
+    const last = row.last_wakeup_id
+      ? db.prepare("SELECT * FROM schedule_wakeups WHERE wakeup_id = ?").get(row.last_wakeup_id) as WakeupRow | undefined
+      : undefined;
+    return {
+      job_id: row.job_id,
+      plugin_id: row.plugin_id,
+      capability_id: row.capability_id,
+      object_ref: row.object_ref,
+      title: row.title,
+      recurrence: row.recurrence_kind === "interval"
+        ? { kind: "interval", interval_ms: Number(row.interval_ms) }
+        : { kind: "once" },
+      next_due_at: row.next_due_at,
+      enabled: row.enabled === 1,
+      last_wakeup: last ? toWakeup(last) : null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
+
+
 async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: Date, options: {
-  wakeupIndex: PluginWakeupIndex; now(): Date; leaseMs: number;
+  now(): Date; leaseMs: number;
+  actionCurrent(): boolean;
+  invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl): Promise<ScheduleWakeupReply | void>;
   executions: Map<string, { token: string; controller: AbortController; job: JobRow }>;
   renewExecutions(at: Date): void;
 }): Promise<ScheduleWakeupRecord> {
-  const { wakeupIndex, now, leaseMs, executions, renewExecutions } = options;
+  const { now, leaseMs, executions, renewExecutions } = options;
   const started = iso(at);
   const wakeupId = `wakeup_${randomUUID()}`;
   const dueAt = job.next_due_at;
@@ -424,8 +373,12 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
   const controller = new AbortController();
   if (token) executions.set(job.job_id, { token, controller, job });
   const lifetime = createExecutionLifetime({ signal: controller.signal,
-    monitor: { intervalMs: Math.max(1, Math.min(1000, Math.floor(leaseMs / 3))), check: () => renewExecutions(now()) } });
+    monitor: { intervalMs: Math.max(1, Math.min(1000, Math.floor(leaseMs / 3))), check: () => {
+      if (!options.actionCurrent()) controller.abort(new DOMException("Scheduled action authorization ended", "AbortError"));
+      if (!controller.signal.aborted) renewExecutions(now());
+    } } });
   const control: ScheduleWakeupControl = { signal: lifetime.signal, beforeEffect: () => {
+    if (!options.actionCurrent()) controller.abort(new DOMException("Scheduled action authorization ended", "AbortError"));
     lifetime.assertActive();
     const owned = db.prepare("SELECT lease_token, lease_until FROM schedule_jobs WHERE job_id = ?").get(job.job_id) as Pick<JobRow, "lease_token" | "lease_until"> | undefined;
     if (!token || owned?.lease_token !== token || !owned.lease_until || owned.lease_until <= iso(now())) {
@@ -434,19 +387,7 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
     }
   } };
   try {
-    const nextDue = nextDueAfter(job, at);
-    const stillEnabled = job.recurrence_kind === "interval" ? 1 : 0;
-    // Keep the normal cadence. A long handler stays exclusive because its
-    // lease is renewed, not because this timestamp was pushed out.
-    if (token) {
-      db.prepare(`
-        UPDATE schedule_jobs
-        SET next_due_at = ?,
-            enabled = CASE WHEN enabled = 0 THEN 0 ELSE ? END,
-            updated_at = ?
-        WHERE job_id = ? AND lease_token = ?
-      `).run(nextDue, stillEnabled, started, job.job_id, token);
-    }
+    control.beforeEffect();
     const input: ScheduleWakeupInput = {
       job_id: job.job_id,
       plugin_id: job.plugin_id,
@@ -457,17 +398,15 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
     let status: ScheduleWakeupStatus = "ok";
     let detail: string | null = null;
     try {
-      if (!wakeupIndex.has(job.plugin_id, job.capability_id)) {
-        throw schedulerErrors.handler_missing("叫醒对象还没有提供执行接口");
-      }
-      const reply = await lifetime.wait(wakeupIndex.invoke(input, control));
+      const reply = await lifetime.wait(options.invoke(input, control));
       control.beforeEffect();
-      detail = reply?.detail?.slice(0, 500) ?? null;
+      const replied = reply?.detail;
+      detail = replied == null ? null : cutHead(replied, 500);
       status = reply?.status ?? "ok";
     } catch (error) {
       const code = error instanceof ActionError && error.code.startsWith("scheduler.") && Object.hasOwn(schedulerErrors, error.code.slice("scheduler.".length)) ? error.code : "";
       status = code === "scheduler.handler_missing" ? "plugin_unavailable" : "failed";
-      detail = (error instanceof Error ? error.message : String(error)).slice(0, 500);
+      detail = cutHead(error instanceof Error ? error.message : String(error), 500);
     }
     const finishedAt = iso(now());
     if (token && !lifetime.signal.aborted) {
@@ -476,11 +415,16 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
           "SELECT lease_token, lease_until FROM schedule_jobs WHERE job_id = ?",
         ).get(job.job_id) as Pick<JobRow, "lease_token" | "lease_until"> | undefined;
         // An expired lease is no longer owned, even before a replacement takes it.
-        if (lifetime.signal.aborted || !owned || owned.lease_token !== token || !owned.lease_until || owned.lease_until <= iso(now())) return;
+        if (lifetime.signal.aborted || !options.actionCurrent() || !owned || owned.lease_token !== token || !owned.lease_until || owned.lease_until <= iso(now())) return;
         db.prepare(`
           INSERT INTO schedule_wakeups (wakeup_id, job_id, due_at, started_at, finished_at, status, detail)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `).run(wakeupId, job.job_id, dueAt, started, finishedAt, status, detail);
+        // An action prepares its own durable occurrence after claim. Keep the due point until it answers,
+        // so a process death between claim and that preparation cannot silently consume one-shot work.
+        // A long action stays exclusive because its lease is renewed, not because this timestamp was pushed out.
+        db.prepare("UPDATE schedule_jobs SET next_due_at = ?, enabled = ? WHERE job_id = ? AND lease_token = ?")
+          .run(nextDueAfter(job, at), job.recurrence_kind === "interval" ? 1 : 0, job.job_id, token);
         db.prepare(`
           UPDATE schedule_jobs
           SET lease_until = NULL, lease_token = NULL, last_wakeup_id = ?, updated_at = ?
@@ -505,66 +449,9 @@ async function fireScheduleWakeup(db: ScheduleSqliteDatabase, job: JobRow, at: D
 
 export type ScheduleService = ReturnType<typeof createScheduleService>;
 
-export interface ScheduleCapabilityRegistrar<Context> {
-  register<Input, Output>(
-    definition: HostCapabilityDefinition<Input, Output>,
-    handler: (context: Context, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>,
-  ): () => void;
-}
-
-/**
- * The typed `schedule.*` channel is for Runtime plugins, and the Scheduler owns the rule for whose jobs a call touches:
- * the calling plugin's, read from the trusted invocation. Nothing in the input names an owner, so no input shape
- * (array, string, a smuggled `plugin_id`) changes it; a call without a plugin identity, or from a stopped installation,
- * is refused. The handlers below do not await, so the check holds through the write.
- */
-export function registerScheduleCapabilities<Context>(
-  registrar: ScheduleCapabilityRegistrar<Context>,
-  serviceFor: (context: Context) => ScheduleService,
-): void {
-  registrar.register(scheduleCapabilities.register, (context, input, invocation) => {
-    const owner = callingPluginId(invocation);
-    return serviceFor(context).register({ ...inputRecord<SchedulePluginRegisterInput>(input), plugin_id: owner });
-  });
-  registrar.register(scheduleCapabilities.cancel, (context, input, invocation) => {
-    const owner = callingPluginId(invocation);
-    return serviceFor(context).cancel(jobIdOf(input), owner);
-  });
-  registrar.register(scheduleCapabilities.setEnabled, (context, input, invocation) => {
-    const owner = callingPluginId(invocation);
-    const { job_id, enabled } = inputRecord<{ job_id?: unknown; enabled?: unknown }>(input);
-    if (typeof job_id !== "string" || typeof enabled !== "boolean") throw invalid("输入无效");
-    return serviceFor(context).setEnabled(job_id, enabled, owner);
-  });
-  registrar.register(scheduleCapabilities.list, (context, _input, invocation) =>
-    ({ jobs: serviceFor(context).list(callingPluginId(invocation)) }));
-}
-
-function callingPluginId(invocation: HostCapabilityInvocation | undefined): string {
-  const plugin = invocation?.plugin;
-  if (!plugin || typeof plugin.plugin_id !== "string" || plugin.plugin_id === "") throw invalid("插件身份无效");
-  plugin.assertActive();
-  return plugin.plugin_id;
-}
-
-function inputRecord<T extends object>(input: unknown): T {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) throw invalid("输入无效");
-  return input as T;
-}
-
-function jobIdOf(input: unknown): string {
-  const { job_id } = inputRecord<{ job_id?: unknown }>(input);
-  if (typeof job_id !== "string") throw invalid("输入无效");
-  return job_id;
-}
-
 /** The one place a refused input becomes a `scheduler.job_invalid` error; the throw sites read as `throw invalid("...")`. */
 function invalid(message: string): ActionError {
   return schedulerErrors.job_invalid(message);
-}
-
-function wakeupKey(pluginId: string, capabilityId: string): string {
-  return `${pluginId}\0${capabilityId}`;
 }
 
 function iso(value: Date): string {

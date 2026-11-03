@@ -34,6 +34,10 @@ export interface IssueModelBehavior {
   remember?: { text: string; said: string };
   /** After the free-text question, state how it handles the supplement the round was given (by the id the runtime showed). */
   acknowledge?: { treatment: string; kind?: string; impacts: string[] };
+  /** The first `times` Assistant calls are refused with 429 and `Retry-After` (seconds): the runtime waits and tries again. */
+  rateLimited?: { times: number; retryAfterSeconds: number };
+  /** Assistant calls are held until this settles: a round stays running meanwhile. */
+  held?: Promise<void>;
 }
 
 /**
@@ -44,7 +48,7 @@ export interface IssueModelBehavior {
 export async function issueModel(t: TestContext, home: string, behavior: IssueModelBehavior = {}) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: unknown[] = [], namings: string[] = [];
-  let turn = 0;
+  let turn = 0, limited = 0;
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8"), review = asideReply(raw);
@@ -58,6 +62,12 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
         : behavior.unusable ? { status: "named", title: "", type: "question" } : { status: "named", title: behavior.title ?? FIXTURE_TITLE, type: behavior.type ?? "bug" });
       response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, answer)); return;
     }
+    if (behavior.rateLimited && limited < behavior.rateLimited.times) {
+      limited++;
+      response.writeHead(429, { "content-type": "application/json", "retry-after": String(behavior.rateLimited.retryAfterSeconds) });
+      response.end('{"type":"error","error":{"type":"rate_limit_error","message":"fixture rate limit"}}'); return;
+    }
+    await behavior.held;
     requests.push(body);
     const ask = { name: "ask-user", input: { why: ISSUE_ASK } };
     // One planned tool call per model turn; after the plan, the round ends in words.

@@ -3,7 +3,7 @@ import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord, ModelThinkingMo
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
-import { commitModelProvider, planConnectionCheck, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
+import { commitModelProvider, modelSetupOffer, planConnectionCheck, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
 
 /** Global settings reuse the catalog's configuration and Host-owned secret store. */
 export async function handleModelSettingsHttp(
@@ -15,10 +15,14 @@ export async function handleModelSettingsHttp(
   try {
     const providerId = match[1];
     if (request.method === "GET" && !providerId) {
-      const result = await withCatalog({ homeDirectory }, (catalog) => ({
+      const listed = await withCatalog({ homeDirectory }, (catalog) => ({
         providers: catalog.models.list(), health: catalog.models.health(),
       }));
-      sendLocalWebJson(response, 200, result);
+      if (url.searchParams.get("setup") !== "1") sendLocalWebJson(response, 200, listed);
+      else {
+        const offer = modelSetupOffer(url.searchParams.get("template"));
+        sendLocalWebJson(response, 200, { ...listed, templates: offer.templates, ...(offer.draft ? { draft: offer.draft } : {}) });
+      }
     } else if (request.method === "POST" && providerId && match[2]) {
       const body = await readLocalWebBody(request);
       const selection = await withCatalog({ homeDirectory }, (catalog) => catalog.models.resolveConfiguration({

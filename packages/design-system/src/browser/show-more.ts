@@ -1,4 +1,4 @@
-import type { ShowMoreOptions } from "../show-more.js";
+import type { ShowMoreOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 
 /**
  * One "show more" for a long list (specs/visual-ui-experience §assistant-information, VUX-08):

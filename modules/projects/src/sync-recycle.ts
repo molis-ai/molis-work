@@ -1,5 +1,5 @@
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
-import type {ProjectsSqliteDatabase} from './repository.js';
+import type {ProjectsSqliteDatabase} from './sqlite.js';
 const errors=defineErrorCodes('catalog',{sync_project_scope:'forbidden'});
 /** Called only inside the receiver transaction after the trusted Host lifecycle permit. No local command/event echo. */
 export function applySyncedProjectRecycle(db:ProjectsSqliteDatabase,key:string,recycled:boolean,authorize:()=>void):void {

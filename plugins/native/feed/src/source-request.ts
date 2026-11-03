@@ -1,5 +1,5 @@
 import { validateSearchIntentExactV1 } from "@adeptify/intelligence-client";
-import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { feedErrors } from "./contract/feed.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceProviders, RegisterFeedSourceInput, IntelligenceCollectRequest } from "./source-ports.js";
 import { sha256, bounded, normalizeQuery } from "./source-input.js";

@@ -1,3 +1,8 @@
+/** The page runtime installs this helper; its shape is owned by the UI contract. */
+declare global {
+  var molisWorkRequest: import("@molis-ai/molis-work-contracts/platform/ui").UiRequest;
+}
+
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash } from "node:crypto";
@@ -11,15 +16,24 @@ export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type Syn
 export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
 export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";
+/** `git status --porcelain=v1 -z --branch` read into a working-tree status; the Host's workspace Git service and the Git plugin read it with this one parse. */
+export { parsePorcelainStatus, type GitStatus, type GitChange, type GitHead, type GitUpstream, type PorcelainInput } from "./git-porcelain.js";
 /** A message's `{name}` values filled in, with `{count|one|other}` for a word that agrees with a number. */
 export { fillMessage } from "./message-text.js";
+export { messageDeclarationProblems, PLUGIN_MESSAGE_LIMITS } from "./message-declarations.js";
+/**
+ * Copied credentials masked in external text before it goes to a model or back on screen. Code colouring and rich text are
+ * subpaths (`/highlight`, `/rich-text`), so an entry that does not use them loads neither the tokenizer nor the Markdown parser.
+ */
+export { redactSecrets } from "./redact-secrets.js";
 export { questionAnswer } from "./question-answers.js";
 export { QUESTION_REASK, questionDraftMaterial } from "./question-drafts.js";
-export { cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";
+export { actionCardView, cardSubject, draftActionCard, runActionCard, dismissActionCard, sweepActionCard, type ActionCard, type ActionCardStatus, type ActionCardPorts, type ActionCardRefusal, type CardStore, type CardAuthority } from "./action-cards.js";
 export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 /** The rules of a question set and its answer, for a plugin that asks without an Agent run; the same verdicts as the Agent runtime's. */
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
@@ -27,9 +41,10 @@ export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platfo
 export { defineAction } from "./actions.js";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
+export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRouteProblems, stageRequestParams, type DeclaredPageRouteMatch, type PageRouteMatch } from "./page-routes.js";
 /** One error model: raise `ActionError`s whose codes your plugin declares once with `defineErrorCodes`; the Host's edge answers them by kind. */
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
-export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
+export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, isCodedFailure, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
 export { defineSubjectContextAction, subjectContext, resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -56,6 +71,9 @@ export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices, PluginActionClient, PluginActionDirectory,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
+  PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginJournalReader, PluginJournalWriter, PluginJournalEvent, PluginJournalAppend,
+  PluginIdempotencyRecord, PluginIdempotencyPut,
+  PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration,
   PluginModelClient, PluginModelRequest, PluginModelResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 /** The Host's text model for a plugin it runs itself: `context.services.model`, with the instructions the plugin registers (`PluginDefinition.instructions`). */
@@ -63,25 +81,16 @@ export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plu
 export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-export type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,
   PluginDefinition,
   PluginManifest,
+  PluginIntegrationContribution,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-sdk",
-  packagePath: "packages/plugin-sdk",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["plugin.define.v1", "integration.polling.v1"],
-} as const;
+import type { IntegrationAccountPresentation, IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 
 
@@ -90,9 +99,15 @@ export function definePlugin(definition: PluginDefinition): PluginDefinition {
   return Object.freeze(definition);
 }
 
+/**
+ * An integration plugin that polls a provider. It starts once; `createProvider` is asked again for every source's binding, so what
+ * differs between sources (the connection they hold, their settings) arrives as references and a change needs no restart.
+ */
 export function definePollingIntegrationPlugin(input: {
   manifest: PluginManifest;
-  createProvider(context: PluginStartContext): IntegrationProviderPort;
+  createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
+  /** How a source's account reads after a pull (the cursor it left); `null` keeps the source's label and configuration as they are. */
+  presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
@@ -101,83 +116,103 @@ export function definePollingIntegrationPlugin(input: {
   return definePlugin({
     manifest: input.manifest,
     async start(context) {
-      const provider = input.createProvider(context);
-      const now = input.now ?? (() => new Date());
       return {
         kind: "integration",
-        connector_driver: {
-          driver_id: `${input.manifest.plugin_id}:connector`,
-          async health() {
-            const health = await provider.health();
-            return {
-              ok: health.ok,
-              status: health.status === "mock" ? "error" : health.status,
-              message: health.message,
-              ...(health.action ? { action: health.action } : {}),
-            };
-          },
-          async poll(request) {
-            const mode = request.intent?.sync_mode === "rebuild_cursor"
-              ? "rebuild_cursor"
-              : "normal";
-            const result = await provider.sync({ cursor: request.cursor, mode });
-            if (!result.ok) {
-              return {
-                ok: false,
-                mode: "live",
-                failure: result.failure,
-                message: result.message,
-                ...(result.action ? { action: result.action } : {}),
-                ...(result.httpStatus == null ? {} : { http_status: result.httpStatus }),
-                ...(result.retryAfterAt ? { retry_after_at: result.retryAfterAt } : {}),
-              };
-            }
-            const observedAt = now().toISOString();
-            return {
-              ok: true,
-              mode: result.mode,
-              cursor_after: structuredClone(result.cursor),
-              events: result.items.map((item, index) => ({
-                raw_event_id: `raw-event-${digest(`${input.manifest.plugin_id}\u0000${item.externalId}\u0000${JSON.stringify(item)}`)}`,
-                provider_dedupe_id: item.externalId,
-                occurred_at: normalizeDate(item.occurredAt, observedAt),
-                observed_at: observedAt,
-                payload: structuredClone(item) as unknown as Record<string, unknown>,
-                ...(index === result.items.length - 1
-                  ? { cursor_after: structuredClone(result.cursor) }
-                  : {}),
-              })),
-            };
-          },
-        },
-        signal_adapter: {
-          adapter: {
-            plugin_id: input.manifest.plugin_id,
-            version: input.manifest.version,
-          },
-          toSignalDraft(event, source) {
-            const payload = structuredClone(event.payload);
-            const kind = typeof payload.kind === "string" && payload.kind.trim()
-              ? payload.kind
-              : "update";
-            return {
-              kind,
-              occurred_at: event.occurred_at,
-              observed_at: event.observed_at,
-              payload,
-              content_refs: [],
-              provenance: {
-                provider_plugin_id: input.manifest.plugin_id,
-                provider_plugin_version: input.manifest.version,
-                project_id: source.project_id,
-                source_id: source.source_id,
-              },
-            };
-          },
+        bind(binding) {
+          const provider = input.createProvider(context, binding);
+          return pollingIntegrationBinding({ manifest: input.manifest, provider, ...(input.now ? { now: input.now } : {}),
+            ...(input.presentAccount ? { presentAccount: (cursor: unknown, label: string | null) => input.presentAccount!(cursor, label, binding) } : {}) });
         },
       };
     },
   });
+}
+
+/**
+ * One source's driver and adapter over a polling provider: what `definePollingIntegrationPlugin` gives each binding, and what the Host
+ * gives a sandboxed integration's source over the operations it calls in the sandbox (BL-530), so both read a pull the same way.
+ */
+export function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
+  manifest: PluginManifest;
+  provider: IntegrationProviderPort;
+  presentAccount?(cursor: unknown, currentAccountLabel: string | null): IntegrationAccountPresentation | null;
+  now?: () => Date;
+}): ReturnType<PluginIntegrationContribution["bind"]> {
+  return {
+    connector_driver: {
+      driver_id: `${manifest.plugin_id}:connector`,
+      async health(control) {
+        const health = await provider.health(control);
+        await control.beforeEffect(); control.current();
+        return {
+          ok: health.ok,
+          status: health.status === "mock" ? "error" : health.status,
+          message: health.message,
+          ...(health.action ? { action: health.action } : {}),
+        };
+      },
+      async poll(request, control) {
+        const mode = request.intent?.sync_mode === "rebuild_cursor"
+          ? "rebuild_cursor"
+          : "normal";
+        const result = await provider.sync({ cursor: request.cursor, mode }, control);
+        await control.beforeEffect(); control.current();
+        if (!result.ok) {
+          return {
+            ok: false,
+            mode: "live",
+            failure: result.failure,
+            message: result.message,
+            ...(result.action ? { action: result.action } : {}),
+            ...(result.httpStatus == null ? {} : { http_status: result.httpStatus }),
+            ...(result.retryAfterAt ? { retry_after_at: result.retryAfterAt } : {}),
+          };
+        }
+        const observedAt = (now ?? (() => new Date()))().toISOString();
+        return {
+          ok: true,
+          mode: result.mode,
+          cursor_after: structuredClone(result.cursor),
+          events: result.items.map((item, index) => ({
+            raw_event_id: `raw-event-${digest(`${manifest.plugin_id}\u0000${item.externalId}\u0000${JSON.stringify(item)}`)}`,
+            provider_dedupe_id: item.externalId,
+            occurred_at: normalizeDate(item.occurredAt, observedAt),
+            observed_at: observedAt,
+            payload: structuredClone(item) as unknown as Record<string, unknown>,
+            ...(index === result.items.length - 1
+              ? { cursor_after: structuredClone(result.cursor) }
+              : {}),
+          })),
+        };
+      },
+    },
+    signal_adapter: {
+      adapter: {
+        plugin_id: manifest.plugin_id,
+        version: manifest.version,
+      },
+      toSignalDraft(event, source) {
+        const payload = structuredClone(event.payload);
+        const kind = typeof payload.kind === "string" && payload.kind.trim()
+          ? payload.kind
+          : "update";
+        return {
+          kind,
+          occurred_at: event.occurred_at,
+          observed_at: event.observed_at,
+          payload,
+          content_refs: [],
+          provenance: {
+            provider_plugin_id: manifest.plugin_id,
+            provider_plugin_version: manifest.version,
+            project_id: source.project_id,
+            source_id: source.source_id,
+          },
+        };
+      },
+    },
+    ...(presentAccount ? { account: presentAccount } : {}),
+  };
 }
 
 export function assertManifest(manifest: PluginManifest): void {
@@ -198,8 +233,6 @@ function digest(value: string): string {
 function normalizeDate(value: string | undefined, fallback: string): string {
   return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : fallback;
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 export {
@@ -223,7 +256,8 @@ export type { FragmentOffersInput, FragmentActionOffer, FragmentOfferChoice, Fra
 /**
  * 成果库 helpers for a type your plugin produces (declared in the manifest's `artifacts.produces`): preview a version as a file,
  * pin the current object as a new version (`nextPinnedVersion` numbers it), compare a version with its object, start new work
- * from a version, and list your objects that link to one.
+ * from a version, list your objects that link to one, and name your objects behind the link kinds you declare (`artifacts.links`,
+ * at most `ARTIFACT_LINK_SUBJECTS_BATCH` ids per call).
  */
 export {
   defineArtifactPreviewAction, bindArtifactPreview,
@@ -231,10 +265,12 @@ export {
   defineArtifactCompareAction, bindArtifactCompare, sameArtifactFields, objectOrMissing,
   defineArtifactContinueAction, bindArtifactContinue,
   defineArtifactReferrersAction, linkedArtifactVersion, linksToArtifactVersion,
+  defineArtifactLinkSubjectsAction, ARTIFACT_LINK_SUBJECTS_BATCH,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   ArtifactPreviewInput, ArtifactPinInput, ArtifactPinResult, ArtifactLineHead, ArtifactCompareInput, ArtifactCompareResult, ArtifactCompareState,
   ArtifactContinueInput, ArtifactContinueResult, ArtifactReferrersInput, ArtifactReferrer, ArtifactReferrersResult,
+  ArtifactLinkSubjectsInput, ArtifactLinkSubject, ArtifactLinkSubjectsResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Say what an action really does where its id would be misread (a `delete_preview` deletes nothing); `plugin: false` keeps it from generated plugins. */
@@ -248,9 +284,24 @@ const manifestFailures = {
 } as const;
 
 export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 export { type SyncMutation, type SyncEvent, type SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 export { type ProjectCopyAsset, type ProjectCopyReference, type ProjectCopyIdentity, type ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
 
+export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { canonicalJsonValue } from "./json-value.js";
+
+export { controlledConnectorFetch } from "./connector-call.js";
+
+export type { PluginSyncClient, SyncAggregateDefinition, SyncAggregateRecords, SyncPortableRow } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
+
+export type { SyncTrackedTable, SyncKeyPart, PluginSyncCollectionDefinition, PluginSyncCollectionOwner, PluginSyncBusinessDatabase, PluginSyncOwnerContext } from '@molis-ai/molis-work-contracts/platform/plugin-sync';
+
+export { syncAggregateDeclaration, parseSyncTracking, parseSyncAggregates } from './sync-schema.js';
+export { syncSection, syncSectionsDeclaration, syncSectionsTracking } from './sync-sections.js';

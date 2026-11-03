@@ -100,7 +100,7 @@ export interface AgentTextSourceDeclaration {
 
 export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
+export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare function orderPromptsByLayer<T extends {
     layer?: AgentPromptLayer;

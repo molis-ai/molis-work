@@ -103,7 +103,7 @@ test("W3-02-G1-03/04 real platform routes reject JSON and UTF-8 byte overflow be
 
 test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner details, trusted recorded numbers and unknown failure messages", { timeout: 60_000 }, async t => {
   const { host, origin, controlToken, createProject } = await openTestHome(t);
-  const project = await createProject("Platform owner failures", ["sessions"]), target = await createProject("Move target");
+  const project = await createProject("Platform owner failures"), target = await createProject("Move target");
   const reader = defineSubjectContextAction("example.platform.subject", "example_note", "Example note", []);
   const mover = defineObjectMoveAction("example.platform.move", ["example_note"], "Example note", []);
   const write: ActionDefinition<{ id: string }, null> = { ...command, capability_id: "example.platform.write", action: {
@@ -118,13 +118,12 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   const note = { id: "note-1", project_id: project.project_id, body: "原有正文" };
   const details = { current_version: 4, call_id: "owner-data-only", code: "owner-data-only" };
   let failure: unknown = new ActionError("example.stale", "原资料已变化", { kind: "conflict", details });
-  let readerFails = false;
   const writes: string[] = [];
   await host.withProject(project.reference, () => host.actionRegistry(project.reference).registerProvider({
     provider: { provider_id: "example-platform", title: "Example", kind: "plugin", plugin_id: "io.molis.work.example.platform", project_id: project.project_id },
     definitions: [reader, mover, offers, write], handlers: [
-      { ...reader, handle: () => { if (readerFails) throw failure; return subjectContext({ subject: { kind: "example_note", id: note.id },
-        revision: "1", title: "Example note", content: note.body, project_id: note.project_id, goal_ids: [], session_id: null }); } },
+      { ...reader, handle: () => { return subjectContext({ subject: { kind: "example_note", id: note.id },
+        revision: "1", title: "Example note", content: note.body, project_id: note.project_id, goal_ids: [] }); } },
       { ...mover, handle: () => { if (failure) throw failure; writes.push("moved"); return { subject: { kind: "example_note", id: note.id }, project_id: target.project_id, revision: "2" }; } },
       { ...offers, handle: () => { throw failure; } },
       { ...write, handle: () => { writes.push("written"); return null; } },
@@ -143,10 +142,8 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   const paths = [
     ["/api/placement/move", { object: { kind: "example_note", id: note.id, project_id: project.project_id }, to_project_id: target.project_id }],
     ["/api/contextual/prepare", { pane_id: "g1-note", focus, key: offered.key, request_id: "g1-prepare" }],
-    ["/api/home/talk/prepare", { subject: { kind: "example_note", id: note.id } }],
   ] as const;
   for (const [path, body] of paths) {
-    readerFails = path.includes("/talk/");
     const refused = await post(path, body), answer = await refused.json();
     assert.equal(refused.status, 409, `${path}: ${JSON.stringify(answer)}`);
     assert.deepEqual({ error: answer.error, code: answer.code, details: answer.details }, { error: "原资料已变化", code: "example.stale", details });
@@ -156,7 +153,6 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   }
   failure = Object.assign(new Error("存储暂时读不到"), { code: "EIO", details: { driver: "private" } });
   for (const [path, body] of paths) {
-    readerFails = path.includes("/talk/");
     const refused = await post(path, body), answer = await refused.json();
     assert.equal(refused.status, 500, `${path}: ${JSON.stringify(answer)}`);
     assert.deepEqual([answer.error, answer.code], ["存储暂时读不到", "actions.execution_failed"]);
@@ -168,7 +164,6 @@ test("W3-02-G1-03 real Home, Placement and Contextual routes preserve owner deta
   assert.deepEqual([sameBody.code, sameBody.error], ["placement.same_location", "它已经在这个位置"]);
   assert.deepEqual(writes, [], "a failed prepare or move never executes a write or a prepared action");
   assert.equal(note.body, "原有正文");
-  readerFails = false;
   const described = await post("/api/placement/describe", { object: { kind: "example_note", id: note.id, project_id: project.project_id } });
   assert.equal(described.status, 200, "a readable object's normal business result remains successful");
   assert.equal((await described.json()).location.project_id, project.project_id, "a failed mover has not changed the object's placement");

@@ -1,3 +1,4 @@
+import { GOALS_PLUGIN_API } from "./plugin-api.js";
 import { GOALS_DELIVERABLES_SCRIPT } from "./event-document-deliverables.js";
 
 /** Keep source indentation readable; omit it from the served program within the frozen asset budget. */
@@ -12,8 +13,8 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const root = () => q(documentPane, "[data-goal-event-document]");
     const goalId = () => root()?.dataset.goalView || "";
     // A form's own write; its 409 and field errors read the answer itself. One the Host never answered keeps the input, and says so.
-    const postForm = (goal, path, key, body) => molisWorkRequest(route("/api/goals/" + encodeURIComponent(goal) + path), {
-      method: "POST", headers: { accept: "application/json" }, key, body, as: "response",
+    const postForm = (goal, path, body) => molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(goal) + path), {
+      method: "POST", headers: { accept: "application/json" }, body, as: "response",
     }).catch((error) => {
       if (error?.code === "ui_host.outcome_unknown") error.message = L("无法连接本地服务，输入已保留，请重试。");
       throw error;
@@ -115,7 +116,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (!itemId) return;
       renderEventHtml("<p class=\\"no-results\\">" + escapeText(L("正在载入原文…")) + "</p>");
       try {
-        const body = await molisWorkRequest(route("/api/goals/" + encodeURIComponent(currentGoal) + "/history/" + encodeURIComponent(itemId)), { fallback: L("无法读取事件") }) ?? {};
+        const body = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/history/" + encodeURIComponent(itemId)), { fallback: L("无法读取事件") }) ?? {};
         if (requestId !== selectedRequest || goalId() !== currentGoal || reading.goal !== currentGoal) return;
         if (!explicit && (reading.form || reading.reader)) return;
         renderEventHtml(body.html || "");
@@ -356,7 +357,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
       let typeSaved = false;
       try {
         if (kind === "closure") await saveDeliverables(form, currentGoal);
-        const response = await postForm(currentGoal, formPath(kind), key, { ...buildPayload(form, kind, article), idempotency_key: key });
+        const response = await postForm(currentGoal, formPath(kind), { ...buildPayload(form, kind, article), idempotency_key: key });
         const body = await response.json().catch(() => ({}));
         if (goalId() !== currentGoal) return;
         if (response.status === 409) {
@@ -372,7 +373,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
             return;
           }
           let current = {};
-          try { current = await molisWorkRequest(route("/api/goals/" + encodeURIComponent(currentGoal) + "/event-state")) ?? {}; } catch {}
+          try { current = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/event-state")) ?? {}; } catch {}
           if (conflict) {
             conflict.hidden = false;
             conflict.innerHTML = "<p>" + escapeText(body.error || L("当前约定已变化。输入已保留。")) + "</p>"
@@ -397,7 +398,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
             return;
           }
           const extraKey = key + ":req";
-          const extraRes = await postForm(currentGoal, "/event-agree", extraKey, {
+          const extraRes = await postForm(currentGoal, "/event-agree", {
             expected_config_version: Number(body.config?.version ?? form.dataset.configVersion ?? 0),
             expected_agreement_version: Number(form.dataset.agreementVersion || article.dataset.agreementVersion || 0),
             new_requirements: [{
@@ -544,7 +545,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
       const retry = event.target.closest("[data-conflict-retry]");
       if (retry) {
         void (async () => {
-          const state = await molisWorkRequest(route("/api/goals/" + encodeURIComponent(goalId()) + "/event-state"));
+          const state = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(goalId()) + "/event-state"));
           const form = q(article, "[data-event-form]:not([hidden])");
           if (!form) return;
           const config = q(form, '[name="expected_config_version"]');
@@ -571,7 +572,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
           const currentGoal = goalId();
           more.disabled = true;
           try {
-            const body = await molisWorkRequest(route("/api/goals/" + encodeURIComponent(currentGoal) + "/event-timeline?before_cursor=" + encodeURIComponent(more.dataset.nextCursor || "") + "&limit=40"), { fallback: L("无法读取更早记录，请重试。") }) ?? {};
+            const body = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/event-timeline?before_cursor=" + encodeURIComponent(more.dataset.nextCursor || "") + "&limit=40"), { fallback: L("无法读取更早记录，请重试。") }) ?? {};
             if (requestId !== moreRequest || goalId() !== currentGoal) return;
             appendTimelineItems(body.items || []);
             if (!body.next_cursor) { more.hidden = true; more.dataset.nextCursor = ""; }

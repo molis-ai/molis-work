@@ -30,8 +30,10 @@ test("VUX-40: the page's L and the Host's L fill the same way, and every agreein
   assert.equal(host.L("git.commit.staged", { count: 1 }), "Commit 1 staged file…");
   assert.equal(host.L("git.commit.staged", { count: 2 }), "Commit 2 staged files…");
   // An agreeing word without its number would read "file" alone; the Chinese has the number, so the English shows it too.
-  const stable = Object.entries(Object.assign({}, ...BUILTIN_PLUGIN_CATALOG.map((entry) => entry.messages ?? {})) as Record<string, { zh: string; en: string }>);
-  const messages: Array<[zh: string, en: string]> = [...Object.entries(EN), ...stable.map(([, text]) => [text.zh, text.en] as [string, string])];
+  // The Plugins' words are in their Manifests: stable-key words (zh and en) and English for words still keyed by their Chinese text.
+  const stable = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => Object.values(entry.manifest.ui.messages ?? {}));
+  const keyed = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => Object.entries(entry.manifest.ui.translations ?? {}));
+  const messages: Array<[zh: string, en: string]> = [...Object.entries(EN), ...keyed, ...stable.map((text) => [text.zh, text.en] as [string, string])];
   const plural = /\{([^{}|]+)\|[^{}|]*\|[^{}|]*\}/g;
   let found = 0;
   for (const [zh, en] of messages) for (const [, name] of en.matchAll(plural)) {

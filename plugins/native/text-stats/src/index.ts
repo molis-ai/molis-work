@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-text-stats",
-  packagePath: "plugins/native/text-stats",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["text-stats.ui-contribution.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export {
   TEXT_STATS_RECOVERY,
   TEXT_STATS_UNAVAILABLE,
@@ -42,3 +29,5 @@ export {
 export { createTextStatsPlugin, type TextStatsPluginPorts } from "./plugin.js";
 export { textStatsActions, TEXT_STATS_ACTIONS } from "./actions.js";
 export { TEXT_STATS_MESSAGES } from "./messages.js";
+export { TEXT_STATS_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export { TEXT_STATS_STYLES } from "./styles.js";

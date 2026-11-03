@@ -13,7 +13,7 @@ interface HeldDraft { input: IssueDraft; expires: number; saved?: string; pendin
 // Long enough to come back to a capture that could not be named while the person was elsewhere.
 const lifetime = 2 * 60 * 60_000;
 const missing = () => new ActionError("actions.conflict", "这份录入草稿已失效，请在 Issue 里重新记录");
-const text = (value: unknown, max: number) => value === null || typeof value === "string" && value.length <= max;
+const text = (value: unknown, max: number) => value === null || typeof value === "string" && [...value].length <= max;
 
 /**
  * Unsaved input belongs to this activation. The model never copies or edits its words or image bytes: it only names
@@ -24,7 +24,7 @@ export class IssueCaptures {
   private readonly drafts = new Map<string, HeldDraft>();
   constructor(private readonly store: IssueStore) {}
   async prepare(input: IssueDraft, caller: ActionExecutionContext): Promise<{ draft_id: string }> {
-    if (!/^[0-9a-f-]{36}$/.test(input.draft_id) || typeof input.description !== "string" || input.description.length > 100000
+    if (!/^[0-9a-f-]{36}$/.test(input.draft_id) || typeof input.description !== "string" || [...input.description].length > 100000
       || !input.description.trim() && !input.images?.length) throw new ActionError("actions.input_invalid", "请描述问题或添加图片");
     if (input.page !== undefined && !(input.page && text(input.page.url, 500) && text(input.page.title, 200))) throw new ActionError("actions.input_invalid", "记录页面格式不正确");
     validateIssueImages(input.images ?? []);

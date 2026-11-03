@@ -1,22 +1,15 @@
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
-  PERSONAL_PLUGIN_IDS,
-  PROJECT_SCOPED_PLUGIN_IDS,
-  islandEntries,
-  pluginMarketCards,
-  railEntries,
+  islandEntries, pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { CHARACTERS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
-import {
-  LINGGUANG_CLIENT_FACTORY_SCRIPT,
-  LINGGUANG_PROJECT_PLUGIN_ID,
-  lingguangActions,
-  lingguangManifest,
-  openLingguangStore,
-} from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_UI_CONTRIBUTION_ID, LINGGUANG_PROJECT_PLUGIN_ID, lingguangActions, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   renderMolisWorkWeb,
@@ -25,8 +18,10 @@ import {
 } from "./workbench-renderer-fixture.js";
 
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
-import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import type { LingguangSpark } from "@molis-ai/molis-work-plugin-lingguang/contract";
 import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 const PROJECT = "project-lingguang";
 
 test("PRR-10 material.read reports each extraction progress once", { timeout: 120_000 }, async t => {
@@ -49,11 +44,15 @@ test("PRR-11 each Lingguang route has its own body limit", () => {
   }
 });
 
-function saveFunctionSource(script: string): string {
-  const start = script.indexOf("const save = async");
-  const end = script.indexOf("const queueSave", start);
+/** 灵光's page code is TypeScript in `src/browser/`; what it does is read in the sources, not in the minified bundle. */
+const browserSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/lingguang/src/browser/${file}`, import.meta.url)), "utf8");
+
+function saveFunctionSource(): string {
+  const source = browserSource("editor.ts");
+  const start = source.indexOf("page.save = async");
+  const end = source.indexOf("page.queueSave", start);
   assert.ok(start >= 0 && end > start, "找不到 save()");
-  return script.slice(start, end);
+  return source.slice(start, end);
 }
 
 function emptyView(): MolisWorkWebView {
@@ -97,12 +96,12 @@ function emptyView(): MolisWorkWebView {
 test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图标用 idea", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(LINGGUANG_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("lingguang"), false);
-  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"] as const;
+  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "files"] as const;
   assert.equal(railEntries([...enabled]).some((item) => item.id === "lingguang"), false);
   const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");
   assert.equal(entry?.glyph, "idea");
-  const market = pluginMarketCards().find((card) => card.id === "lingguang");
+  const market = pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "lingguang");
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
@@ -110,24 +109,28 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
 });
 
 test("PRR-12 the Manifest fallback only renders stages no host path already rendered, and only for shown plugins", () => {
+  // A stage the host lists as already rendered (here Lingguang's own, standing in for the host's Coding panels) is kept once.
   const view = {
     ...emptyView(),
-    enabled_plugins: ["goals", "characters", "lingguang", "issues"],
-    plugin_stage_ids: [CHARACTERS_UI_CONTRIBUTION_ID],
-    plugin_stages: ['<section data-work-surface="characters" data-stage="host"></section>'],
+    enabled_plugins: ["goals", "lingguang", "issues"],
+    plugin_stage_ids: [LINGGUANG_UI_CONTRIBUTION_ID],
+    plugin_stages: ['<section data-work-surface="lingguang" data-stage="host"></section>'],
   } as MolisWorkWebView;
-  const html = renderMolisWorkWeb(view);
-  assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's Characters stage is kept once");
-  assert.doesNotMatch(html, /data-character-api="undefined/, "the fallback did not render a second Characters stage with an empty model");
-  assert.match(html, /data-lingguang="workbench"/, "Lingguang still comes from its Manifest stage");
+  const owner = renderMolisWorkWeb(withHostPluginFacts(view));
+  const html = owner + pluginDocuments(owner).join("\n");
+  assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's stage is kept once");
+  assert.doesNotMatch(html, /data-lingguang="directory"/, "the fallback did not render a second Lingguang stage");
   assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
+  assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
+    "without the host's stage, Lingguang comes from its Manifest stage");
 
-  const hiddenIssues = { ...view, enabled_plugins: ["goals", "characters", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
-  assert.doesNotMatch(renderMolisWorkWeb(hiddenIssues), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
+  const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
+  assert.doesNotMatch(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts(hiddenIssues))).join("\n"), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
 });
 
 test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染", () => {
-  const html = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
+  const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="lingguang"/);
   // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle, the
   // side panel's one button beside the project button (side-shelf §3.1). 灵光 is a tab of the side panel, right after Shelf,
@@ -159,7 +162,8 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   assert.match(html, /data-lingguang-dispatch>复制内容</);
   assert.doesNotMatch(html, /lingguang-dispatch-candidates/);
   assert.doesNotMatch(html, /window\.confirm/);
-  const lingguang = html.slice(html.indexOf('data-lingguang="workbench"'), html.indexOf("data-lingguang-confirm"));
+  const contents = pluginDocuments(owner).join("\n");
+  const lingguang = contents.slice(contents.indexOf('data-lingguang="workbench"'), contents.indexOf("data-lingguang-confirm"));
   assert.match(lingguang, /plugin-stage-list feed-stage-list feed-stage-tree/);
   assert.match(lingguang, /tree-create/);
   assert.match(lingguang, /class="mw-empty"/);
@@ -171,12 +175,12 @@ test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编�
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /data-assistant-composer/);
-  assert.doesNotMatch(saveFunctionSource(LINGGUANG_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.doesNotMatch(saveFunctionSource(), /fillEditor/, "保存不重绘编辑器");
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /window\.confirm/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /openai|anthropic|api\.openai/i);
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /showNote/);
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /showModal/);
+  assert.match(browserSource("page.ts"), /showNote\(text: string/, "failures are said in the page's note");
+  assert.match(browserSource("page.ts"), /dialog\.showModal\(\)/, "the confirmation is the page's own dialog, not a browser one");
 });
 
 test("RAC-31 RAC-32 快记、重开还在；项目隔离；丢掉后离开列表", async t => {

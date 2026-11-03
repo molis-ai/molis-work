@@ -1,6 +1,11 @@
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
-import { headLabel, type GitChange, type GitStatus } from "./status.js";
+import type { GitChange, GitHead, GitStatus } from "@molis-ai/molis-work-plugin-sdk";
+
+import { GIT_MESSAGES } from "./messages.js";
+
+/** A host sentence, written in Chinese from its template; the page recognizes it and says it in its own language (`sentences.ts`). */
+const said = (key: keyof typeof GIT_MESSAGES, values: Record<string, string | number>) => GIT_MESSAGES[key].zh.replace(/\{(\w+)\}/g, (_all, name: string) => String(values[name]));
 
 /**
  * What the Git surface shows.
@@ -38,11 +43,13 @@ export interface GitProjectionInput {
   selected?: readonly string[];
 }
 
+export interface GitUpstream { name: string; ahead: number; behind: number }
+
 export interface GitView {
   phase: GitPhase;
   head: string;
-  /** Rendered as "领先 2 · 落后 1", or empty when there is no upstream. */
-  tracking: string;
+  /** The remote tracking branch and how far this branch is ahead of and behind it, or null when there is none. The page says it in its own language and width (user 2026-10-23 ⑧). */
+  upstream: GitUpstream | null;
   staged: readonly GitListItem[];
   changes: readonly GitListItem[];
   conflicts: readonly GitListItem[];
@@ -64,7 +71,7 @@ export function projectGit(input: GitProjectionInput): GitView {
     return {
       phase: input.phase,
       head: "",
-      tracking: "",
+      upstream: null,
       staged: [],
       changes: [],
       conflicts: [],
@@ -91,7 +98,7 @@ export function projectGit(input: GitProjectionInput): GitView {
   return {
     phase: "ready",
     head: headLabel(status.head),
-    tracking: trackingLabel(status),
+    upstream: status.upstream === undefined ? null : { name: status.upstream.name, ahead: status.upstream.ahead, behind: status.upstream.behind },
     staged,
     changes,
     conflicts,
@@ -115,14 +122,10 @@ function item(kind: GitListKind, change: GitChange): GitListItem {
   };
 }
 
-function trackingLabel(status: GitStatus): string {
-  const upstream = status.upstream;
-  if (upstream === undefined) return "";
-  if (upstream.ahead === 0 && upstream.behind === 0) return `与 ${upstream.name} 同步`;
-  const parts: string[] = [];
-  if (upstream.ahead > 0) parts.push(`领先 ${upstream.ahead}`);
-  if (upstream.behind > 0) parts.push(`落后 ${upstream.behind}`);
-  return `${upstream.name}：${parts.join(" · ")}`;
+export function headLabel(head: GitHead): string {
+  if (head.kind === "branch") return head.name;
+  if (head.kind === "unborn") return said("git.host.head-unborn", { name: head.name });
+  return said("git.host.head-detached", { commit: head.commit.slice(0, 8) });
 }
 
 function messageFor(phase: GitPhase): string {

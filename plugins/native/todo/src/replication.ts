@@ -1,19 +1,10 @@
-import {queueReplicaChange} from "@molis-ai/molis-work-storage";
 import { syncError } from './sync-errors.js';
-import type { DatabaseSync } from "node:sqlite";
-import { TODO_STATUSES } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { PluginSyncCollectionDefinition, PluginSyncBusinessDatabase } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
+import { TODO_STATUSES } from "./contract.js";
 import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
-import {
-  createSqliteReplica, initializeReplica, readDatabaseSpace, replicaMarkSql, replicaTransaction,
-  type AggregateReplicaContext,
-} from "@molis-ai/molis-work-storage";
 import { isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 
-export const todoSync: PluginSyncDeclaration = {
-  protocol_version: 1,
-  collections: [{ id: "todo_items", title: "待办与修改历史", schema_version: 1, requires: [] }],
-};
+
 
 type Row = Record<string, string | number | null>;
 const itemColumns = [
@@ -29,35 +20,13 @@ const changeColumns = [
 const requestColumns = ["request_id", "item_id", "created_at"] as const;
 const LIMIT = 100000000;
 
-/** Journal the item's transaction; its history and request receipts are written in that same transaction. */
-export function initializeTodoReplication(db: DatabaseSync): void {
-  if (readDatabaseSpace(db)?.kind !== "personal") return;
-  replicaTransaction(db, () => {
-    initializeReplica(db);
-    db.prepare("SELECT id,revision FROM todo_editor_versions LIMIT 0").all();
-    db.prepare("SELECT change_id FROM todo_imported_changes LIMIT 0").all();
-    db.exec("INSERT INTO todo_editor_versions SELECT id,revision FROM todo_items WHERE 1 ON CONFLICT(id) DO UPDATE SET revision=MAX(revision,excluded.revision)");
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='todo_replica_insert'").get()) {
-      for(const row of db.prepare("SELECT id FROM todo_items ORDER BY id").all())queueReplicaChange(db,JSON.stringify(["todo",row.id]));
-      for (const event of ["INSERT", "UPDATE", "DELETE"] as const) {
-        const row = event === "DELETE" ? "OLD" : "NEW";
-        db.exec("CREATE TRIGGER todo_replica_" + event.toLowerCase() + " AFTER " + event + " ON todo_items BEGIN " +
-          replicaMarkSql("json_array('todo'," + row + ".id)") +
-          (event === "DELETE" ? "" : "INSERT INTO todo_editor_versions VALUES (" + row + ".id," + row + ".revision) ON CONFLICT(id) DO UPDATE SET revision=MAX(revision,excluded.revision);") +
-          " END");
-      }
-    }
-  });
+export function isImportedTodoChange(db: PluginSyncBusinessDatabase, id: string): boolean {
+  return !!db.prepare("SELECT 1 FROM todo_imported_changes WHERE change_id=?").get(id);
 }
 
-export function isImportedTodoChange(db: DatabaseSync, id: string): boolean {
-  return !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='todo_imported_changes'").get() &&
-    !!db.prepare("SELECT 1 FROM todo_imported_changes WHERE change_id=?").get(id);
-}
-
-export function createTodoReplica(db: DatabaseSync, context: AggregateReplicaContext): SyncReplicaAdapter {
-  const space = readDatabaseSpace(db);
-  if (space?.kind !== "personal" || space.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
+export const todoCollection: PluginSyncCollectionDefinition = {
+ tracking:[{table:"todo_items",key:[{literal:"todo"},{column:"id"}],revision:{table:"todo_editor_versions",key:[{column:"id",rowColumn:"id"}],column:"revision",rowColumn:"revision"}}],
+ create(db,context){
   const decode = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
@@ -65,9 +34,19 @@ export function createTodoReplica(db: DatabaseSync, context: AggregateReplicaCon
       typeof parts[1] !== "string" || !parts[1] || parts[1].length > 100) invalid();
     return parts[1] as string;
   };
-  return createSqliteReplica(db, {
-    authorize: context.authorize,
-    conflictState: context.conflictState,
+  const localProject=(id:string)=>db.prepare('SELECT project_id FROM todo_items WHERE id=?').get(id)
+    ?? db.prepare('SELECT project_id FROM todo_deleted_projects WHERE id=?').get(id);
+  return {
+    authorizeKey(key,value){
+      const id=decode(key),current=localProject(id);
+      context.authorize();
+      if(current?.project_id)context.project(String(current.project_id));
+      if(value!==undefined&&value!==null){
+        const project=object(value).project;
+        if(project!==undefined&&project!==null){const id=object(project).id;if(typeof id!=='string'||!id||id.length>80)invalid();context.project(id);}
+      }
+    },
+    canUpload(key){const project=localProject(decode(key))?.project_id;return !project||context.canUploadProject(String(project));},
     belongsToProject(key,projectId,retained){
       const id=decode(key);
       const current=db.prepare('SELECT project_id FROM todo_items WHERE id=?').get(id)
@@ -115,12 +94,13 @@ export function createTodoReplica(db: DatabaseSync, context: AggregateReplicaCon
       upsert(db, "todo_items", itemColumns, "id", { ...wire.item, revision });
       for (const change of wire.changes) {
         insert(db, "todo_changes", changeColumns, { ...change, revision_after: Number(change.revision_after) + offset });
-        db.prepare("INSERT OR IGNORE INTO todo_imported_changes(change_id) VALUES (?)").run(change.change_id as string);
+        db.prepare("INSERT OR IGNORE INTO todo_imported_changes(change_id,item_id) VALUES (?,?)").run(change.change_id as string,id);
       }
       for (const request of wire.requests) insert(db, "todo_requests", requestColumns, request);
     },
-  });
-}
+  };
+ }
+};
 
 function validate(value: unknown, id: string, spaceId: string): {
   project: { id: string; title: string } | null; item: Row; changes: Row[]; requests: Row[];
@@ -180,11 +160,11 @@ function validate(value: unknown, id: string, spaceId: string): {
   return { project: project as { id: string; title: string } | null, item, changes, requests };
 }
 
-function insert(db: DatabaseSync, table: string, columns: readonly string[], row: Row): void {
+function insert(db: PluginSyncBusinessDatabase, table: string, columns: readonly string[], row: Row): void {
   db.prepare("INSERT INTO " + table + " (" + columns.join(",") + ") VALUES (" + columns.map(() => "?").join(",") + ")")
     .run(...columns.map(column => row[column] as string | number | null));
 }
-function upsert(db: DatabaseSync, table: string, columns: readonly string[], identity: string, row: Row): void {
+function upsert(db: PluginSyncBusinessDatabase, table: string, columns: readonly string[], identity: string, row: Row): void {
   db.prepare("INSERT INTO " + table + " (" + columns.join(",") + ") VALUES (" + columns.map(() => "?").join(",") +
     ") ON CONFLICT(" + identity + ") DO UPDATE SET " + columns.filter(column => column !== identity).map(column => column + "=excluded." + column).join(","))
     .run(...columns.map(column => row[column] as string | number | null));
@@ -213,3 +193,8 @@ function size(value: unknown): void {
 function invalid(message = "待办同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
   throw syncError(code, message);
 }
+
+export const todoSync: PluginSyncDeclaration = {
+  protocol_version: 1,
+  collections: [{ id: "todo_items", title: "待办与修改历史", schema_version: 2, requires: [], tracking: todoCollection.tracking }],
+};

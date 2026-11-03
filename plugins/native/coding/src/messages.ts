@@ -1,3 +1,4 @@
+import { CODING_CHANGE_MESSAGES } from "./change-messages.js";
 import { CODING_PANELS_MESSAGES } from "./panels-messages.js";
 import { CODING_SERVER_MESSAGES } from "./server-messages.js";
 import { CODING_SETTINGS_MESSAGES } from "./settings-messages.js";
@@ -5,14 +6,15 @@ import { CODING_TIMELINE_MESSAGES } from "./timeline-messages.js";
 
 /**
  * Coding's own words, by stable key (apps/workbench/README.md「界面文字」). Shown through the host's `text` primitive.
- * The timeline's words, the side panels', the settings' and what the server sends are parts of their own (timeline-messages.ts,
- * panels-messages.ts, settings-messages.ts, server-messages.ts), spread in here.
+ * The timeline's words, the side panels', the settings', what the server sends and the change reader's are parts of their own
+ * (timeline-messages.ts, panels-messages.ts, settings-messages.ts, server-messages.ts, change-messages.ts), spread in here.
  */
 export const CODING_MESSAGES = {
   ...CODING_TIMELINE_MESSAGES,
   ...CODING_PANELS_MESSAGES,
   ...CODING_SETTINGS_MESSAGES,
   ...CODING_SERVER_MESSAGES,
+  ...CODING_CHANGE_MESSAGES,
   "coding.directory.search-title": { zh: "搜索标题", en: "Search titles" },
   "coding.goal-face.open-session-first": { zh: "先在「会话」里打开一个会话。", en: "Open a session under Sessions first." },
   "coding.goal-face.note": { zh: "关联只影响下一轮；执行报告可以记录进原目标，已开始的任务和历史成果保持原目标。", en: "Linking affects only the next turn. A run report can be recorded on the original goal; tasks already started and past results keep the original goal." },
@@ -428,6 +430,7 @@ export const CODING_MESSAGES = {
   "coding.session.twin": { zh: "可能与「{title}」重复", en: "May duplicate “{title}”" },
   "coding.directory.goal-unavailable": { zh: "关联 Goal 暂不可用", en: "Linked Goal not available right now" },
   "coding.directory.no-goal": { zh: "未关联 Goal", en: "No Goal" },
+  "coding.board.sessions": { zh: "会话行 · 状态与状态环", en: "Session rows · state and state ring" },
   "coding.model.unavailable": { zh: "原模型暂不可用，请重新选择", en: "The original model is not available right now; choose again" },
   "coding.workspace.unavailable": { zh: "原工作区暂不可用，请重新选择", en: "The original workspace is not available right now; choose again" },
   "coding.workspace.choose-first": { zh: "选择已授权工作区后开始", en: "Choose a granted workspace to begin" },
@@ -633,23 +636,14 @@ export const CODING_MESSAGES = {
   "coding.run.blocked": { zh: "{reason}。请在右侧核对后再继续。", en: "{reason}. Check on the right before carrying on." },
   "coding.overlap.not-sent": { zh: "没有发送；可以修改任务后再发。", en: "Not sent; you can change the task and send it again." },
   "coding.overlap.will-wait": { zh: "这一轮会在「{title}」那一轮结束后自动开始。", en: "This turn starts by itself once the turn of “{title}” ends." },
-  // Names and summaries Coding's manifest declares (roles, methods): the data stays Chinese for the Agent; pages word them here.
-  "规划者": { zh: "规划者", en: "Planner" },
-  "阅读者": { zh: "阅读者", en: "Reader" },
-  "评审者": { zh: "评审者", en: "Reviewer" },
-  "协作": { zh: "协作", en: "Collaboration" },
-  "并行写入": { zh: "并行写入", en: "Parallel writing" },
-  "构建者": { zh: "构建者", en: "Builder" },
-  "改写者": { zh: "改写者", en: "Editor" },
-  "代码调查": { zh: "代码调查", en: "Code investigation" },
-  "独立评审": { zh: "独立评审", en: "Independent review" },
-  "独立实现": { zh: "独立实现", en: "Independent implementation" },
-  "审查改动": { zh: "审查改动", en: "Review changes" },
-  "根据实际代码与需求查找问题，区分已证实风险和待核实项。": { zh: "根据实际代码与需求查找问题，区分已证实风险和待核实项。", en: "Find problems against the actual code and requirements, separating confirmed risks from items still to verify." },
-  "定位并修复问题": { zh: "定位并修复问题", en: "Find and fix a problem" },
-  "先找到可复现原因，再做最小修复并检查失败与恢复。": { zh: "先找到可复现原因，再做最小修复并检查失败与恢复。", en: "Find a reproducible cause first, then make the smallest fix and check both failure and recovery." },
-  "实现需求": { zh: "实现需求", en: "Implement a requirement" },
-  "沿现有结构接通完整用户路径，核对差异与完成条件。": { zh: "沿现有结构接通完整用户路径，核对差异与完成条件。", en: "Connect the whole user path along the existing structure, checking the differences and when it is done." },
-  "整理交付": { zh: "整理交付", en: "Prepare delivery" },
-  "核对分支、改动和检查证据，按已有授权准备提交与交付。": { zh: "核对分支、改动和检查证据，按已有授权准备提交与交付。", en: "Check the branch, changes and evidence from checks, and prepare the commit and delivery within the access already granted." },
+  "coding.role.planner": { zh: "规划者", en: "Planner" },
+  "coding.role.reader": { zh: "阅读者", en: "Reader" },
+  "coding.role.reviewer": { zh: "评审者", en: "Reviewer" },
+  "coding.role.coordinator": { zh: "协作", en: "Collaboration" },
+  "coding.role.writers": { zh: "并行写入", en: "Parallel writing" },
+  "coding.role.builder": { zh: "构建者", en: "Builder" },
+  "coding.role.writer": { zh: "改写者", en: "Editor" },
+  "coding.role.coding-reader": { zh: "代码调查", en: "Code investigation" },
+  "coding.role.coding-reviewer": { zh: "独立评审", en: "Independent review" },
+  "coding.role.coding-builder": { zh: "独立实现", en: "Independent implementation" },
 } as const;

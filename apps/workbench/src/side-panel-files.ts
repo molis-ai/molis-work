@@ -228,6 +228,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const more=async(sourceId)=>{
     const held=entries.get(sourceId);if(!held?.next)return;
     const page=(await get('/api/side/files/entries?source='+encodeURIComponent(sourceId)+'&cursor='+encodeURIComponent(held.next))).page;
+    if(entries.get(sourceId)!==held)return;
     entries.set(sourceId,{items:[...held.items,...page.entries],next:page.next_cursor,error:null});paint();
   };
   const paint=()=>{

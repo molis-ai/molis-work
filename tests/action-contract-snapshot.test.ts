@@ -298,7 +298,7 @@ test("a registration the Host gains, loses or changes is named under host-action
   }
   const changed = productProblems(views);
   assert.match(changed, /changed shape under the SAME version/);
-  assert.match(changed, new RegExp(`${system.capability_id.replaceAll(".", "\\.")}@1 via system\\.memory: input`));
+  assert.match(changed, new RegExp(`${system.capability_id.replaceAll(".", "\\.")}@${system.version} via system\\.memory: input`));
 
   const moved = copyOfViews().map((view) => (view.provider.provider_id === "system.placement" ? { ...view, provider: { provider_id: "system.placement-two" } } : view));
   const movedProblems = productProblems(moved);
@@ -321,10 +321,16 @@ test("the Host must register what each Manifest declares, and the plugin's regis
 });
 
 test("a capability a Manifest declares and a Home-level provider also registers is one Host row of its own", () => {
-  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
-  const both = built.host.filter((row: Row) => built.actions.some((declared: Row) => declared.key === `${row.cells.capability_id}@${row.cells.version}`));
-  assert.ok(both.length >= 1, "the Goals personal planning actions are registered under io.molis.work.goals.home as well as declared by the Goals Manifest");
-  for (const row of both) assert.notEqual(row.cells.provider, built.actions.find((declared: Row) => declared.key === `${row.cells.capability_id}@${row.cells.version}`)!.cells.provider);
+  // No built-in plugin has a Home half registered by the Host any more (Goals' is a Runtime plugin), so the Home-level registration is made here.
+  const views = copyOfViews();
+  const declared = new Set(product.manifests.flatMap((manifest) => (manifest.actions ?? []).map((definition) => `${definition.capability_id}@${definition.version} ${manifest.plugin_id}`)));
+  const own = find(views, (view) => declared.has(`${view.capability_id}@${view.version} ${view.provider.plugin_id}`), "a Manifest action registered by its plugin");
+  const home = { ...own, provider: { provider_id: `${own.provider.plugin_id}.home`, plugin_id: `${own.provider.plugin_id}.home` } };
+  const built = buildAll({ manifests: product.manifests, effectOf: product.effectOf, hostViews: [...views, home], hostScenes: product.hostScenes });
+  const key = `${own.capability_id}@${own.version}`;
+  const row = built.host.find((candidate: Row) => `${candidate.cells.capability_id}@${candidate.cells.version}` === key && candidate.cells.provider === home.provider.provider_id);
+  assert.ok(row, "the Home-level registration is a Host row of its own, beside the Manifest's row");
+  assert.notEqual(row.cells.provider, built.actions.find((candidate: Row) => candidate.key === key)!.cells.provider);
 });
 
 // ---- the consumer scenes the Host registers without a Manifest --------------------------------------------------------
@@ -444,7 +450,7 @@ test("an action the Host registers under another provider id is named, action by
   assert.doesNotMatch(renamed, /SAME version|who may call it/, "the provider id is its own list, not a change of shape");
   // A plugin the Runtime assembles registers under its own plugin_id, as the native ones do (user decision 2026-10-10, W3-06 Q1): the
   // id derived from its signature is what the Runtime gives every other plugin, and it is not what a persisted reference holds for
-  // a built-in one. So a built-in plugin registered under it, as the Host not naming it `bundled` would, is named action by action.
+  // a built-in one. So a built-in plugin registered under it, as the Host not giving it host trust would, is named action by action.
   const shelf = committedRegistration("io.molis.work.shelf");
   assert.equal(shelf.id, "io.molis.work.shelf");
   const installId = `plugin-install-${"b".repeat(32)}`;
@@ -489,7 +495,7 @@ test("a provider id edited by hand in the committed file is refused, and the wri
   };
   const copy = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE);
   assert.deepEqual(checkActionSnapshots({ root: copy, manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes }).problems, [], "the copy of the committed files passes");
-  assert.match(edit((text) => text.replace(/\t(io\.molis\.work\.todo)\t(io\.molis\.work\.todo)\t/, "\t$1\ttodo\t")), /todo\.[a-z_.]+@1: todo -> io\.molis\.work\.todo\n/);
+  assert.match(edit((text) => text.replace(/\t(io\.molis\.work\.todo)\t(io\.molis\.work\.todo)\t/, "\t$1\ttodo\t")), /todo\.[a-z_.]+@[0-9]+: todo -> io\.molis\.work\.todo\n/);
   const dir = scratchRoot(ACTIONS_FILE, SCENES_FILE, HOST_ACTIONS_FILE, HOST_SCENES_FILE);
   const written = updateActionSnapshots({ root: dir, manifests: product.manifests, effectOf: product.effectOf });
   assert.match(written.problems.join("\n"), /written from the Host's directory/);

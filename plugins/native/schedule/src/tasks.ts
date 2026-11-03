@@ -75,17 +75,6 @@ interface TurnRow {
   created_at: string;
 }
 
-
-export function scheduleConversationFingerprint(db: ScheduleTaskDatabase): string {
-  const tasks = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), '') AS updated FROM schedule_conversation_tasks",
-  ).get() as { n: number; updated: string };
-  const turns = db.prepare(
-    "SELECT COUNT(*) AS n, COALESCE(MAX(created_at), '') AS updated FROM schedule_conversation_turns",
-  ).get() as { n: number; updated: string };
-  return JSON.stringify({ tasks, turns });
-}
-
 export function listScheduleConversationTasks(db: ScheduleTaskDatabase): ScheduleConversationTaskRecord[] {
   const rows = db.prepare(
     "SELECT * FROM schedule_conversation_tasks WHERE archived = 0 ORDER BY enabled DESC, updated_at DESC",
@@ -284,7 +273,7 @@ function toTurn(row: TurnRow): ScheduleConversationTurnRecord {
 
 function normalizeTitle(value: string): string {
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 80) {
+  if (!trimmed || [...trimmed].length > 80) {
     throw scheduleErrors.task_invalid("请填写 1 到 80 字的标题");
   }
   return trimmed;
@@ -292,7 +281,7 @@ function normalizeTitle(value: string): string {
 
 function normalizeInstructions(value: string): string {
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 8_000) {
+  if (!trimmed || [...trimmed].length > 8_000) {
     throw scheduleErrors.task_invalid("请填写 Agent 到点要做的说明");
   }
   return trimmed;

@@ -129,6 +129,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/plugins/io.molis.work.cognia/library" },
   { method: "GET", path: "/api/alchemist" },
   { method: "GET", path: "/api/shelf" },
+  // Shelf's positive path is its Runtime route (Shelf S3); the short route above is only the removed alias.
+  { method: "GET", path: "/api/plugins/io.molis.work.shelf/" },
   { method: "GET", path: "/api/memory/" },
   { method: "GET", path: "/api/memory/items" },
   { method: "GET", path: "/api/memory/overview" },
@@ -139,18 +141,27 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/workflows" },
   { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows" },
   { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows/no-such" },
-  { method: "GET", path: "/api/inbox" },
+  { method: "GET", path: "/api/plugins/io.molis.work.inbox/entries" },
+  { method: "GET", path: "/api/stage/inbox" },
   { method: "GET", path: "/api/home/dock-judgment" },
   { method: "GET", path: "/api/home/actions/choices" },
-  { method: "GET", path: "/api/schedule" },
+  { method: "GET", path: "/api/plugins/io.molis.work.schedule/list" },
   { method: "GET", path: "/api/feed" },
+  // Feed's positive paths are its Runtime route and the shell's stage (FI-7); the short route above is only the removed edge.
+  { method: "GET", path: "/api/plugins/io.molis.work.feed/snapshot" },
+  { method: "GET", path: "/api/stage/feed" },
   { method: "GET", path: "/api/capsule" },
   { method: "GET", path: "/api/panels" },
   { method: "GET", path: "/api/panels/no-such-panel" },
+  // RAC-2561: a Goal's terminals are Goals' route; the Host's own panel routes are gone (T-148).
+  { method: "GET", path: "/api/goals/no-such-goal/panels" },
+  { method: "POST", path: "/api/goals/no-such-goal/panels", body: { runtime_kind: "generic", command: "/bin/sh" } },
+  { method: "POST", path: "/api/panels/no-such-panel/reopen", body: {} },
+  { method: "GET", path: "/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals" },
   { method: "GET", path: "/api/home/events" },
   { method: "GET", path: "/api/project-references/no-such" },
-  { method: "GET", path: "/api/goals" },
-  { method: "POST", path: "/api/goals", body: {} },
+  { method: "GET", path: "/api/plugins/io.molis.work.goals/goals" },
+  { method: "POST", path: "/api/plugins/io.molis.work.goals/goals", body: {} },
   { method: "GET", path: "/api/artifacts/versions" },
   { method: "GET", path: "/artifacts", html: true },
   { method: "GET", path: "/archive", html: true },
@@ -192,6 +203,8 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   const token = "web-route-table-control-token-0123456789";
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "路由表", actor_id: "test" });
+  // Inbox is a plugin of the project's Runtime: the pages and routes under test are the project's only when it has it.
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "inbox", actor_id: "test" });
   const missing = await catalog.createProject({ display_name: "没有库", actor_id: "test" });
   rmSync(catalog.getProject(missing.project_id).database_path, { force: true });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
@@ -232,4 +245,14 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
     return;
   }
   assert.deepEqual(actual, JSON.parse(readFileSync(SNAPSHOT, "utf8")));
+});
+
+test("RAC-2561 the Host answers no terminal panel route of its own: a Goal's terminals are Goals' plugin route", () => {
+  const routes = JSON.parse(readFileSync(SNAPSHOT, "utf8")) as Record<string, { status: number; error?: string }>;
+  const gone = ["GET <project>/api/panels", "GET <project>/api/panels/no-such-panel", "GET <project>/api/goals/no-such-goal/panels",
+    "POST <project>/api/goals/no-such-goal/panels", "POST <project>/api/panels/no-such-panel/reopen"];
+  for (const key of gone) assert.deepEqual([key, routes[key]?.status, routes[key]?.error], [key, 404, "页面或接口不存在"]);
+  const goals = routes["GET <project>/api/plugins/io.molis.work.goals/goals/no-such-goal/terminals"];
+  assert.ok(goals, "the probe is pinned");
+  assert.notEqual(goals.error, "页面或接口不存在", "Goals' route answers, not the Host's missing-route fallback");
 });

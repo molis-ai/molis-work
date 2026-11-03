@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
@@ -5,28 +6,37 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-for (const width of [1440, 390]) test(`Cognia ${width}px: directory preview, import, synthesize, review and fixed citation through actual UI`, { timeout: 90_000 }, async t => {
-  const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
+for (const width of [1440, 390]) test(`SYS-15 Cognia ${width}px: directory preview, import, synthesize, review and fixed citation through actual UI`, { timeout: 90_000 }, async t => {
+  let chosen: string | null = null, picks = 0, pickerPrompt = "";
+  const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }, undefined, undefined, { chooseDirectory: async prompt => { picks++; pickerPrompt = prompt ?? ""; return chosen ? { status: "picked", path: chosen } : { status: "cancelled" }; } }); if (!browser) return;
+  const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "cognia");
   const read = () => { const store = openCogniaStore(homeDirectory); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };
   const vault = join(homeDirectory, "chosen-vault"); await mkdir(vault); await writeFile(join(vault, "原始资料.md"), "# 原始资料\nORIGINAL_EVIDENCE\n<script>window.untrustedExecuted=true</script>");
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const open = async () => {
-    await waitFor("document.querySelector('[data-plugin-id=cognia]')");
-    if (await evaluate("document.body.dataset.desktopSurface") !== "cognia") {
-      await click('[data-plugin-strip] [data-plugin-id=cognia]');
+    await browser.waitFor("document.querySelector('[data-plugin-id=cognia]')");
+    if (await browser.evaluate("document.body.dataset.desktopSurface") !== "cognia") {
+      await browser.click('[data-plugin-strip] [data-plugin-id=cognia]');
     }
-    await waitFor("document.body.dataset.desktopSurface === 'cognia' && !document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
+    await browser.surfaceReady("cognia");
+    await waitFor("!document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
   };
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=cognia` }, sessionId)); await open();
   await click('[data-cognia-action=import]'); await waitFor("document.querySelector('[data-cognia-dialog]').open");
-  await evaluate(`document.querySelector('[data-cognia-form] [name=path]').value=${JSON.stringify(vault)}`);
-  await click('[data-cognia-submit]'); await waitFor("document.querySelector('[data-cognia-step]').textContent === '预览' && !document.querySelector('[data-cognia-submit]').disabled");
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-cognia-form] [name=path]'))"), false, "the page cannot supply an absolute directory path");
+  await click('[data-cognia-submit]');
+  await waitFor("!document.querySelector('[data-cognia-submit]').disabled");
+  assert.equal(picks, 1, String(await evaluate("document.querySelector('[data-cognia-error]').textContent"))); assert.match(pickerPrompt, /Cognia/);
+  assert.equal(read().materials.length, 0); assert.equal(await evaluate("document.querySelector('[data-cognia-dialog]').open"), true);
+  chosen = vault;
+  await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-submit]').disabled && (document.querySelector('[data-cognia-step]').textContent === '预览' || !document.querySelector('[data-cognia-error]').hidden)");
+  assert.equal(await evaluate("document.querySelector('[data-cognia-step]').textContent"), "预览", String(await evaluate("document.querySelector('[data-cognia-error]').textContent")));
   assert.equal(read().materials.length, 0);
   await click('[data-cognia-submit]'); await waitFor("document.querySelector('[data-cognia-step]').textContent === '结果' && !document.querySelector('[data-cognia-submit]').disabled");
   assert.equal(read().materials.length, 1); const source = read().materials[0]!;
@@ -41,7 +51,7 @@ for (const width of [1440, 390]) test(`Cognia ${width}px: directory preview, imp
   assert.equal(read().materials.length, 2); assert.ok(read().drafts[0]!.saved_id);
   // Another importer updates the current source while the saved knowledge still references v1.
   const changed = openCogniaStore(homeDirectory);
-  try { changed.commit(changed.preview({ kind: "markdown", name: "same vault", locator: changed.sources().find(item => item.id === source.source_id)!.locator, files: [{ path: source.path, data: Buffer.from("# 原始资料\nUPDATED_EVIDENCE").toString("base64") }] }).id); } finally { changed.close(); }
+  try { changed.commit(changed.preview({ kind: "markdown", source_id: source.source_id, name: "same vault", locator: changed.sources().find(item => item.id === source.source_id)!.locator, files: [{ path: source.path, data: Buffer.from("# 原始资料\nUPDATED_EVIDENCE").toString("base64") }] }).id); } finally { changed.close(); }
   assert.equal(read().materials.length, 2); assert.equal(read().materials.find(item => item.id === source.id)!.revision, 2);
   await click('[data-cognia-reading] [data-cognia-action=reference]'); await waitFor("document.querySelector('[data-cognia-heading]').textContent === '原始资料'");
   assert.equal(await evaluate("document.querySelector('[data-cognia-download]').href.endsWith('revision=1')"), true);
@@ -49,10 +59,33 @@ for (const width of [1440, 390]) test(`Cognia ${width}px: directory preview, imp
   await waitFor("document.querySelector('#cognia-dialog-title').textContent === '审阅知识草稿' && !document.querySelector('[data-cognia-submit]').disabled");
   assert.equal(read().drafts.length, 2); assert.equal(read().drafts[0]!.references[0]!.revision, 1);
   await click('[data-cognia-dialog] header [data-cognia-action=close]');
+  // SYS-15: reload the list only after Back clears the reader and the shell's saved object.
+  await click('[data-cognia-action=back]');
+  await waitFor("document.querySelector('[data-cognia=workbench]').dataset.expanded === 'false' && document.querySelector('[data-cognia-workspace]').hidden");
+  await browser.waitFor("(() => { const surface = document.querySelector('[data-work-surface=cognia][data-assistant-context]'); return surface?.dataset.expanded === 'false' && !JSON.parse(surface.dataset.assistantContext).object; })()");
   await reloadPage(); await open();
-  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2");
+  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2 && [...document.querySelectorAll('[data-cognia-id]')].every(row => row.getClientRects().length > 0)");
   assert.equal(read().materials.find(m => m.id === source.id)!.body.includes("UPDATED_EVIDENCE"), true);
   await writeFile(new URL(`cognia-library-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  await evaluate("document.querySelector('[data-cognia-source]').value=" + JSON.stringify(source.source_id) + ";document.querySelector('[data-cognia-source]').dispatchEvent(new Event('change',{bubbles:true}))");
+  await waitFor("!document.querySelector('[data-cognia-action=rename-source]').hidden");
+  await click('.cognia-manage > summary');
+  await click('[data-cognia-action=rename-source]'); await waitFor("document.querySelector('[data-page-dialog=prompt]').open");
+  await evaluate("document.querySelector('[data-page-dialog] input').value='已核对的来源'"); await click('[data-page-dialog] button[type=submit]');
+  await waitFor("document.querySelector('[data-cognia-source]').selectedOptions[0].textContent === '已核对的来源'");
+  await evaluate("document.querySelector('[data-cognia-source]').value='';document.querySelector('[data-cognia-source]').dispatchEvent(new Event('change',{bubbles:true}))");
+  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2");
+  // SYS-15: native browser confirmation is unavailable in the isolated document; the public dialog preserves cancel and confirm.
+  await click('[data-cognia-id="' + source.id + '"]'); await waitFor("document.querySelector('[data-cognia-heading]').textContent === '原始资料'");
+  await click('[data-cognia-action=delete-material]'); await waitFor("document.querySelector('[data-page-dialog=confirm]').open");
+  await click('[data-page-dialog] button[type=button]');
+  assert.equal(read().materials.length, 2);
+  await click('[data-cognia-action=delete-material]'); await waitFor("document.querySelector('[data-page-dialog=confirm]').open"); await click('[data-page-dialog] button[type=submit]');
+  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 1");
+  assert.equal(read().materials.length, 1);
+  await click('[data-cognia-id]'); await waitFor("document.querySelector('[data-cognia-reading] [data-cognia-action=reference]')"); await click('[data-cognia-reading] [data-cognia-action=reference]');
+  await waitFor("document.querySelector('[data-cognia-heading]').textContent === '原始资料'");
+  assert.equal(await evaluate("document.querySelector('[data-cognia-download]').href.endsWith('revision=1')"), true);
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"));
 });
 
@@ -63,7 +96,8 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
   const requests: Array<{ path: string; key: unknown; body: Record<string, unknown> }> = [];
   const model = createServer(async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     // The Home's own background work (knowledge cards for the demo project's pieces) is answered aside: `requests` are Cognia's.
     const aside = asideReply(body);
     if (aside === undefined) requests.push({ path: req.url!, key: req.headers["x-api-key"], body: JSON.parse(body) });
@@ -74,7 +108,8 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "cognia");
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
     const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
@@ -83,11 +118,12 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const open = async () => {
-    await waitFor("document.querySelector('[data-plugin-id=cognia]')");
-    if (await evaluate("document.body.dataset.desktopSurface") !== "cognia") {
-      await click('[data-plugin-strip] [data-plugin-id=cognia]');
+    await browser.waitFor("document.querySelector('[data-plugin-id=cognia]')");
+    if (await browser.evaluate("document.body.dataset.desktopSurface") !== "cognia") {
+      await browser.click('[data-plugin-strip] [data-plugin-id=cognia]');
     }
-    await waitFor("document.body.dataset.desktopSurface === 'cognia' && !document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
+    await browser.surfaceReady("cognia");
+    await waitFor("!document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
   };
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=cognia` }, sessionId)); await open();
   await waitFor("document.querySelector('[data-cognia-model]').textContent.includes('Prologue')");
@@ -106,10 +142,22 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   await writeFile(new URL(`cognia-http-review-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-dialog]').open && document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果'");
   assert.equal(read().materials.length, 2); assert.equal(read().materials.find(m => m.title === "本机模型整理结果")!.body, "已核对本机资料 [S1]");
+  // The shell persists this device's open record before a reload can restore it. Observe that output, never seed it.
+  await browser.waitFor(`JSON.parse(localStorage.getItem('molis-work-plugin-records:' + ${JSON.stringify(projectId)}) || '{}').cognia === ${JSON.stringify(read().materials.find(m => m.title === "本机模型整理结果")!.id)}`);
   await reloadPage(); await open(); assert.equal(read().materials.length, 2); assert.equal(requests.length, 1);
+  await waitFor("document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果' && document.querySelector('[data-cognia=workbench]').dataset.expanded === 'true'");
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.models.upsert({ ...catalog.models.get("local-only")!, enabled: false })));
+  await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))");
+  await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
   await reloadPage(); await open();
   await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
+  await waitFor("document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果' && document.querySelector('[data-cognia=workbench]').dataset.expanded === 'true'");
+  // Reload restores the saved reader asynchronously; at 390px its list (and Add) is hidden.
+  if (width === 390) assert.equal(await evaluate("document.querySelector('[data-cognia-action=add]').getClientRects().length"), 0, "the restored narrow reader hides list actions");
+  await click('[data-cognia-action=back]');
+  await waitFor("document.querySelector('[data-cognia=workbench]').dataset.expanded === 'false' && document.querySelector('[data-cognia-workspace]').hidden");
+  await browser.waitFor(`!JSON.parse(localStorage.getItem('molis-work-plugin-records:' + ${JSON.stringify(projectId)}) || '{}').cognia`);
+  assert.equal(await evaluate("document.querySelector('[data-cognia-action=add]').getClientRects().length > 0"), true, "Back makes Add visible before input is dispatched");
   assert.equal(await evaluate("document.querySelector('[data-cognia-action=synthesize]').disabled"), true);
   assert.equal(await evaluate<string>("document.querySelector('[data-cognia-action=synthesize]').title"), "请先在「模型设置」里连接文字模型");
   await click('[data-cognia-action=add]'); await waitFor("document.querySelector('[data-cognia-dialog]').open");

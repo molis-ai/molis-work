@@ -22,6 +22,7 @@ import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/
 function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const home = mkdtempSync(join(tmpdir(), "cognia-prologue-"));
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
   mkdirSync(join(home, "projects"));
   const db = new LocalSqliteStorage(join(home, "projects", "catalog.db"));
   const metadata = new LocalCatalogMetadata(db.db); metadata.create(); metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION); createModelProviderTables(db.db); db.close();
@@ -33,7 +34,6 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Cognia account", token: "cognia-fixture-secret" }));
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
   models(store => { store.upsert({ credential_ref: connection.credential_ref!, provider_id: "cognia-test", display_name: "Cognia model", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] }); });
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   ensureSystemAgentService(host, home);
   const bound = bindActionClient(host.homeActionClient(), () => ({ actor_id: "trusted-cognia-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
   t.after(async () => { await host.close(); if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); rmSync(home, { recursive: true, force: true }); });
@@ -43,7 +43,6 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
 
 test("Cognia discovery never decrypts or starts Prologue; actual packed SDK receives fixed evidence and no tools", { timeout: 30_000 }, async t => {
   const f = fixture(t); let reads = 0, requests = 0;
-  agentDefinitionsFor(f.home, builtinRegistrations).save("io.molis.work.cognia/cognia-evidence", "COGNIA_ROLE_OVERRIDE", null, "person");
   const get = f.secrets.get.bind(f.secrets); t.mock.method(f.secrets, "get", ref => { reads++; return get(ref); });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     requests++; const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
@@ -54,6 +53,8 @@ test("Cognia discovery never decrypts or starts Prologue; actual packed SDK rece
     return response("# SDK 知识草稿\n已读取固定证据 [S1]");
   });
   assert.equal((await f.bound.discover()).find(d => d.capability_id === actions.synthesize.capability_id)!.availability.available, true);
+  // Cognia's instructions are registered by its running definition (PG-051): the person edits them once it runs.
+  agentDefinitionsFor(f.home, builtinRegistrations).save("io.molis.work.cognia/cognia-evidence", "COGNIA_ROLE_OVERRIDE", null, "person");
   const workspace = await f.bound.invoke(actions.workspace, {}); assert.equal(workspace.ai_runtime, "Prologue · Cognia model · fixture-model");
   assert.equal(reads, 0); assert.equal(requests, 0); assert.equal(existsSync(join(f.home, "cognia", "runtime")), false);
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Selected", body: "ORIGINAL_FIXED_EVIDENCE" });
@@ -92,7 +93,8 @@ for (const protocol of ["http", "https"]) test(`configured Cognia model runs thr
   if (protocol === "https") setDefaultCACertificates([...priorCAs, readFileSync(certFile, "utf8")]);
   const server = protocol === "https" ? createServer({ key: readFileSync(keyFile), cert: readFileSync(certFile) }) : createHttpServer();
   server.on("request", async (req, res) => {
-    let body = ""; for await (const chunk of req) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     const input = JSON.parse(body); requests++;
     assert.equal(req.url, "/v1/messages"); assert.equal(req.headers["x-api-key"], "cognia-fixture-secret");
     assert.equal(input.model, "fixture-model"); assert.equal(input.tools?.length ?? 0, 0); assert.match(JSON.stringify(input.messages), /NETWORK_EVIDENCE/);

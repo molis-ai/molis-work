@@ -13,7 +13,7 @@ export function registeredActionMetadata(registry: Pick<CapabilityRegistry<Actio
   also?: (definition: ActionDefinition, provider: ActionProvider) => boolean): RegisteredActionMetadata[] {
   const listed = (d: Readonly<HostCapabilityDescriptor>) => {
     const provider = d.action_provider;
-    return d.operation !== "wait" && !!d.action && !!provider && !!context.actor_id && (!provider.project_id || provider.project_id === context.project_id)
+    return !!d.action && !!provider && !!context.actor_id && (!provider.project_id || provider.project_id === context.project_id)
       && actionReachesAudience(d.action, d.capability_id, context.audience) && (!also || also(d as ActionDefinition, provider));
   };
   return registry.descriptors(listed).map(definition => ({ capability_id: definition.capability_id, version: definition.version,

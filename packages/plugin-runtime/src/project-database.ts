@@ -30,6 +30,14 @@ export const pluginProjectDatabaseErrors = defineErrorCodes("plugin.project_data
   shape_mismatch: "conflict",
   /** A statement that reaches past the plugin's own tables, or does more than read or change rows (`project-database-statements.ts`). */
   statement_refused: "forbidden",
+  /** A sandboxed plugin's statement ran past its time, and the process it ran in was killed (`apps/local-host` `project-statement-process.ts`). */
+  statement_timeout: "timeout",
+  /** The process a sandboxed plugin's statement ran in grew past its memory and was killed. */
+  statement_memory: "too_large",
+  /** A sandboxed plugin's read gave more rows or bytes than one answer carries. */
+  result_too_large: "too_large",
+  /** The process that runs a sandboxed plugin's statements would not start, or ended on its own. */
+  process_failed: "unavailable",
 });
 
 /** One entry of a database's schema table, as storage's `listSqliteObjects` gives it. */
@@ -55,7 +63,7 @@ export interface PluginProjectDatabaseRecord {
   readonly created_at: string;
 }
 
-interface DeclaredSchema { readonly tables: readonly string[]; readonly objects: readonly string[]; readonly shape: PluginSchemaShape["tables"] }
+interface DeclaredSchema { readonly tables: readonly string[]; readonly objects: readonly string[]; readonly shape: PluginSchemaShape["tables"]; readonly triggers?: ReadonlyMap<string, string> }
 
 const NAME = String.raw`(?:Q|[A-Za-z_\u0080-\u{10FFFF}][\w$\u0080-\u{10FFFF}]*)`;
 const CREATE_TABLE = new RegExp(String.raw`^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${NAME}\s*\(`, "iu");
@@ -162,6 +170,32 @@ function standing(connection: PluginRuntimeDatabase, declared: DeclaredSchema, i
   return canonical(Object.fromEntries(declared.tables.map(table => [table, tables[table] ?? null])));
 }
 
+/** Host-only current baseline extension. The original package schema still passes the ordinary declaration gate first. */
+function platformDeclaration(declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector, schema?: string, prelude?: string): DeclaredSchema {
+  const business = inspectPluginProjectSchema(declaration, inspector);
+  if (!schema) return business;
+  const scratch = inspector.scratch();
+  try {
+    if (prelude) scratch.exec(prelude);
+    const preexisting = new Set(inspector.objects(scratch).map(object => fold(object.name)));
+    scratch.exec(declaration.schema);
+    scratch.exec(schema);
+    const objects = inspector.objects(scratch).filter(object => !fold(object.name).startsWith('sqlite_') && !preexisting.has(fold(object.name)));
+    return { tables: objects.filter(object => object.type === 'table').map(object => object.name),
+      objects: objects.filter(object => !object.automatic).map(object => object.name).sort(), shape: Object.fromEntries(Object.entries(inspector.shape(scratch).tables).filter(([name]) => !preexisting.has(fold(name)))),
+      triggers: new Map((scratch.prepare("SELECT name,sql FROM sqlite_schema WHERE type='trigger'").all() as Array<{name: string; sql: string}>)
+        .filter(row => !preexisting.has(fold(row.name))).map(row => [row.name,row.sql])) };
+  } finally { scratch.close(); }
+}
+
+function triggersMatch(connection: PluginRuntimeDatabase, declared: DeclaredSchema): boolean {
+  for (const [name, expected] of declared.triggers ?? []) {
+    const actual = connection.prepare("SELECT sql FROM sqlite_schema WHERE type='trigger' AND name=?").get(name) as {sql: string} | undefined;
+    if (actual?.sql !== expected) return false;
+  }
+  return true;
+}
+
 interface LedgerRow { plugin_id: string; publisher_signature: string; store_name: string; version: number; tables_json: string; created_at: string }
 
 const record = (row: LedgerRow, where = ""): PluginProjectDatabaseRecord => {
@@ -172,6 +206,19 @@ const record = (row: LedgerRow, where = ""): PluginProjectDatabaseRecord => {
     objects, created_at: row.created_at };
 };
 
+/** The actual ledger subversions for an offline backup; no table creation, write transaction, or plugin activation. */
+export function listPluginProjectDatabases(connection: PluginRuntimeDatabase): readonly PluginProjectDatabaseRecord[] {
+  const rows = connection.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json, created_at FROM plugin_project_databases ORDER BY plugin_id").all() as LedgerRow[];
+  return rows.map(row => {
+    const entry = record(row);
+    if (!Number.isSafeInteger(entry.version) || entry.version < 1 || !Array.isArray(entry.objects)
+      || !entry.objects.every(name => typeof name === "string" && name.length > 0)) {
+      throw pluginProjectDatabaseErrors.shape_mismatch("项目插件库账本的版本或对象列表无效，未生成快照");
+    }
+    return entry;
+  });
+}
+
 /**
  * Open a plugin's tables in a project's library, making them the first time (PLIB-02, PLIB-04). In one write transaction: with no
  * ledger row, nothing of the same name may exist yet, and the statements run and the row is written together; with one, the
@@ -180,8 +227,8 @@ const record = (row: LedgerRow, where = ""): PluginProjectDatabaseRecord => {
  */
 export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
   owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
-  inspector: PluginProjectSchemaInspector, options: { readonly path: string; readonly now?: () => Date }): { record: PluginProjectDatabaseRecord; created: boolean } {
-  const { declaration } = owner, declared = inspectPluginProjectSchema(declaration, inspector);
+  inspector: PluginProjectSchemaInspector, options: { readonly path: string; readonly now?: () => Date; readonly platformSchema?: string; readonly platformPrelude?: string }): { record: PluginProjectDatabaseRecord; created: boolean } {
+  const { declaration } = owner, declared = platformDeclaration(declaration, inspector, options.platformSchema, options.platformPrelude);
   const where = `项目库 ${options.path} 里插件 ${owner.plugin_id} 的库 ${declaration.store_name}`;
   connection.exec("BEGIN IMMEDIATE");
   try {
@@ -195,7 +242,7 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
           { path: options.path, store_name: declaration.store_name, recorded_version: Number(row.version), declared_version: declaration.version });
       }
       if (row.store_name !== declaration.store_name || canonical(record(row, where).objects) !== canonical(declared.objects)
-        || standing(connection, declared, inspector) !== canonical(declared.shape)) {
+        || standing(connection, declared, inspector) !== canonical(declared.shape) || !triggersMatch(connection, declared)) {
         throw pluginProjectDatabaseErrors.shape_mismatch(`${where} 的表和索引与声明不同（账本记的库名 ${row.store_name}）`);
       }
       opened = { record: record(row, where), created: false };
@@ -206,8 +253,9 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
       const taken = declared.objects.filter(name => existing.has(fold(name)));
       if (taken.length > 0) throw pluginProjectDatabaseErrors.object_taken(`${where}：项目库里已经有同名的对象 ${taken.join("、")}`);
       connection.exec(declaration.schema);
-      const made = inspector.objects(connection).filter(object => !object.automatic && !existing.has(fold(object.name))).map(object => object.name).sort();
-      if (canonical(made) !== canonical(declared.objects) || standing(connection, declared, inspector) !== canonical(declared.shape)) {
+      if (options.platformSchema) connection.exec(options.platformSchema);
+      const made = inspector.objects(connection).filter(object => !object.automatic && !fold(object.name).startsWith('sqlite_') && !existing.has(fold(object.name))).map(object => object.name).sort();
+      if (canonical(made) !== canonical(declared.objects) || standing(connection, declared, inspector) !== canonical(declared.shape) || !triggersMatch(connection, declared)) {
         throw invalid(`${where}：在项目库里建出的表和索引与空库里试建的不同`);
       }
       const created: LedgerRow = { plugin_id: owner.plugin_id, publisher_signature: owner.publisher_signature, store_name: declaration.store_name,
@@ -217,7 +265,7 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
       opened = { record: record(created, where), created: true };
     }
     connection.exec("COMMIT");
-    return opened;
+    return { ...opened, record: { ...opened.record, objects: inspectPluginProjectSchema(declaration, inspector).objects } };
   } catch (error) {
     // SQLite may already have rolled the transaction back (SQLITE_FULL, SQLITE_IOERR, SQLITE_NOMEM); a second ROLLBACK then
     // throws "cannot rollback - no transaction is active" and would hide the real failure. Keep the original error.

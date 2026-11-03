@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
-import { bindRuntimeSyncCollection, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage, assertContributionMatchesManifest } from '@molis-ai/molis-work-plugin-runtime';
+import { bindRuntimeSyncCollection, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage, assertContributionMatchesManifest, UNSIGNED_TRUST } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginAppContribution, PluginExecutor } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { createPersonalNotesSample } from '../examples/personal-sync-plugin/plugin.js';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
 import { MolisWorkLocalHost } from '@molis-ai/molis-work-app-local-host';
 import { homeProbe } from './fixtures/home-runtime.js';
+import { ISOLATED_HOST_IDS } from './fixtures/isolated-host.js';
 
 async function fixture(t: import('node:test').TestContext,maintain?:()=>void) {
   const db = new DatabaseSync(':memory:'); t.after(() => db.close()); const storage = new SqlitePluginPrivateStorage(db);
@@ -26,15 +27,16 @@ async function fixture(t: import('node:test').TestContext,maintain?:()=>void) {
     },
     async stop(definition, context) { await definition.stop?.(context); },
   };
-  const runtime = new PluginRuntime(undefined, executor,{actions:{registry:new ActionService()}}), supervisor = new PluginSupervisor(runtime);
-  await supervisor.start([{ definition: sample.definition, grants: ['storage:private'] }]);
+  const runtime = new PluginRuntime(undefined, executor,{hostIds:ISOLATED_HOST_IDS,actions:{registry:new ActionService()}}), supervisor = new PluginSupervisor(runtime);
+  await supervisor.start([{ definition: sample.definition, trust: UNSIGNED_TRUST, grants: ['storage:private'] }]);
+  assert.equal(runtime.list()[0]!.publisher_trust, 'unsigned');
   t.after(async () => { for (const installed of runtime.list()) if (installed.state === 'running') await runtime.stop(installed.install_id); });
   const authority = { authorize() { if (!account) throw new Error('ACCOUNT_REVOKED'); }, record: (id: string) => runtime.get(id) };
   const bind = () => bindRuntimeSyncCollection(supervisor, manifest.plugin_id, 'notes', authority);
   return { sample, manifest, runtime, supervisor, bind, starts: () => starts, revoke: () => { account = false; } };
 }
 
-test('S-84 PCSYNC-25 independent SDK owner binds current identity, sends exact attachment bytes and never echoes remote content', async t => {
+test('S-136 PCSYNC-25 independent SDK owner binds current identity, sends exact attachment bytes and never echoes remote content', async t => {
   const a = await fixture(t), b = await fixture(t), binding = (await a.bind())!, target = (await b.bind())!;
   assert.equal(binding.publisher_signature, a.manifest.publisher.signature); assert.equal(binding.collection.id, 'notes');
   assert.equal(binding.available(), true);
@@ -53,7 +55,7 @@ test('S-84 PCSYNC-25 independent SDK owner binds current identity, sends exact a
   await a.supervisor.enable(a.manifest.plugin_id); assert.ok(await a.bind()); assert.throws(() => binding.replica.counts(), { code: 'actions.forbidden' }, 'restart does not revive an old handle');
 });
 
-test('S-84 PCSYNC-25 the independent owner can delete an own key that also names an Object prototype property',async t=>{
+test('S-136 PCSYNC-25 the independent owner can delete an own key that also names an Object prototype property',async t=>{
  const f=await fixture(t),binding=(await f.bind())!;
  assert.throws(()=>f.sample.edit('__proto__',{text:'invalid dictionary key',attachment:null}),{code:'sample_notes.invalid'});assert.deepEqual(f.sample.read(),{notes:{}});
  f.sample.edit('constructor',{text:'own note',attachment:null});const first=binding.replica.next()!;assert.equal(first.key,'constructor');
@@ -62,7 +64,7 @@ test('S-84 PCSYNC-25 the independent owner can delete an own key that also names
  binding.replica.acknowledge(deletion.key,deletion.operationId,2);assert.equal(binding.replica.counts().pending,0);
 });
 
-test('S-84 PCSYNC-25 upgrade and retained-data reinstall cannot revive a previous activation binding', async t => {
+test('S-136 PCSYNC-25 upgrade and retained-data reinstall cannot revive a previous activation binding', async t => {
   const f = await fixture(t), old = (await f.bind())!, install = f.runtime.list()[0]!;
   f.sample.edit('keep', { text: 'saved before upgrade', attachment: null });
   const next = createPersonalNotesSample('2.0.0'), definition = { ...next.definition, manifest: { ...next.definition.manifest,
@@ -72,7 +74,7 @@ test('S-84 PCSYNC-25 upgrade and retained-data reinstall cannot revive a previou
   const current = (await f.bind())!; assert.equal(current.available(), true); assert.equal(next.read().notes.keep!.text, 'saved before upgrade');
   const installed = f.runtime.get(install.install_id); await f.runtime.uninstall(install.install_id, { retain_private_data: true });
   assert.equal(current.available(), false); assert.equal(await f.bind(), null, 'discovery does not reinstall an uninstalled plugin');
-  f.runtime.install({ definition, deployment: 'local', grants: ['storage:private'] });
+  f.runtime.install({ definition, deployment: 'local', trust: UNSIGNED_TRUST, grants: ['storage:private'] });
   await f.supervisor.restart(f.manifest.plugin_id);
   const replacement = (await f.bind())!; assert.ok(replacement); assert.equal(replacement.available(), true);
   assert.notEqual(f.runtime.get(install.install_id).installation_generation, installed.installation_generation);
@@ -80,7 +82,7 @@ test('S-84 PCSYNC-25 upgrade and retained-data reinstall cannot revive a previou
   assert.equal(next.read().notes.keep!.text, 'saved before upgrade');
 });
 
-test('S-84 PCSYNC-06/25 late attachment reads refuse after account cancellation and cannot create target business facts', async t => {
+test('S-136 PCSYNC-06/25 late attachment reads refuse after account cancellation and cannot create target business facts', async t => {
   const f = await fixture(t), binding = (await f.bind())!;
   f.sample.edit('note', { text: 'only source', attachment: Buffer.from('raw content').toString('base64') });
   const operation = binding.replica.next()!, encoded = binding.content!.encode(operation.key, operation.value);
@@ -90,7 +92,7 @@ test('S-84 PCSYNC-06/25 late attachment reads refuse after account cancellation 
   assert.throws(() => binding.replica.receive({ ...operation, revision: 1 }), /ACCOUNT_REVOKED/);
 });
 
-test('S-84 PCSYNC-25 undeclared, duplicate and malformed sync implementations fail activation validation', async t => {
+test('S-136 PCSYNC-25 undeclared, duplicate and malformed sync implementations fail activation validation', async t => {
   const f = await fixture(t), binding = (await f.bind())!, actions=f.manifest.actions!.map(definition=>({...definition,handle(){throw new Error('UNUSED_ACTION');}})), delivered = { collection_id: 'notes', replica: binding.replica };
   for (const sync of [[{ ...delivered, collection_id: 'foreign' }], [delivered, delivered], [{ collection_id: 'notes', replica: {} }]]) {
     assert.throws(() => assertContributionMatchesManifest(f.manifest, { kind: 'app', actions, sync } as PluginAppContribution), { code: 'plugin.contribution_unredeemed' });
@@ -99,7 +101,7 @@ test('S-84 PCSYNC-25 undeclared, duplicate and malformed sync implementations fa
   assert.equal(await bindRuntimeSyncCollection(f.supervisor, f.manifest.plugin_id, 'undeclared', { authorize() {}, record: id => f.runtime.get(id) }), null);
 });
 
-test('S-84 PCSYNC-01/25 real Host injects only immutable personal Home ownership, and revokes old sync context on stop', async t => {
+test('S-136 PCSYNC-01/25 real Host injects only immutable personal Home ownership, and revokes old sync context on stop', async t => {
   for (const kind of ['local', 'personal'] as const) {
     const home = mkdtempSync(join(tmpdir(), 'runtime-sync-scope-')), probe = homeProbe('sync-' + kind);
     const space = kind === 'personal' ? personalStorageSpace('https://auth.example.test', 'work', 'alice') : undefined;

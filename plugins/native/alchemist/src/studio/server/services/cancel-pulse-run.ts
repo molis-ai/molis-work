@@ -23,14 +23,14 @@ export function createCancelPulseRunService(dependencies: {
     const cancelled = dependencies.database.transaction(() => {
       const job = dependencies.jobs.get(jobId);
       const input = job?.kind === DISCOVERY_PULSE_JOB ? inputSchema.safeParse(job.input) : undefined;
-      const run = input?.success ? dependencies.pulse.getRun(input.data.pulseRunId) : undefined;
+      const run = input?.success ? dependencies.pulse.runs.getRun(input.data.pulseRunId) : undefined;
       if (!run || run.jobId !== jobId) throw alchemistStateErrors.run_not_found("没有找到这次市场脉搏。");
       try {
         dependencies.jobs.cancel(jobId);
       } catch {
         throw alchemistStateErrors.run_not_cancellable("这次市场脉搏已经结束，不能再停止。");
       }
-      return dependencies.pulse.updateRun(run.id, { status: "cancelled", now: dependencies.now() });
+      return dependencies.pulse.runs.updateRun(run.id, { status: "cancelled", now: dependencies.now() });
     })();
     dependencies.onCancel?.(jobId);
     return cancelled;

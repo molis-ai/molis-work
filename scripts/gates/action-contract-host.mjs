@@ -54,7 +54,8 @@ export const collectHost = async (home) => {
   assertThrowawayHome(home);
   const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
   const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
-  const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_CATALOG } = await import("@molis-ai/molis-work-app-workbench");
+  const { BUILTIN_PLUGIN_CATALOG } = await import("@molis-ai/molis-work-app-workbench");
+  const { PROJECT_SCOPED_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
   const { projectActionAvailability } = await import(new URL("../../apps/local-host/dist/project-action-availability.js", import.meta.url).href);
   // A scene is listed only to a caller who holds the permissions it asks for (`sceneVisible` in the kernel), so the scene caller holds
   // every permission the product names: what the person at this computer holds, what any action the Host lists asks for, and what a

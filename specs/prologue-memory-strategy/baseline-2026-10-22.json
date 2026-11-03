@@ -1,0 +1,1361 @@
+{
+  "stage": "completed",
+  "recordedAt": "2026-10-22T12:31:42.949Z",
+  "baseline": {
+    "molisCommit": "f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10",
+    "sdkCommit": "753dbae8359e56a74397d030af4d18abf402d5b5",
+    "sdkArtifact": "prologue-sdk-0.0.0-rc.1-attachment-order.tgz",
+    "policy": "当前生产 MemoryService，保留现有有效 prefs（默认 auto=true）",
+    "attribution": "B2 若同时升级 SDK，须增加同一新 SDK + 旧配方的升级对照；不能将上游性能/安全修复全归于新 memory 策略"
+  },
+  "protocol": {
+    "version": 1,
+    "status": "frozen-before-b0-b1",
+    "clock": "2026-10-22T00:00:00.000Z",
+    "repeats": 2,
+    "split": "one tuning and one independently worded held-out sequence per layer; never split individual events across sets",
+    "order": [
+      "source1",
+      "task1",
+      "source2",
+      "task2"
+    ],
+    "windows": {
+      "cold": [
+        "source1",
+        "task1"
+      ],
+      "steady": [
+        "source2",
+        "task2"
+      ],
+      "total": "all four events, including both formation opportunities"
+    },
+    "pairing": "for sequence index i and repeat r: B0/B1 when (i+r) is even, B1/B0 otherwise; fresh Home per arm/repeat",
+    "configuration": "B1 preserves actual old effective auto=true prefs. B2 must map the same effective permissions; new-user reviewed defaults are a separate product test",
+    "initialMemories": "Explicit, independently labelled, previously user-approved fixtures go through public MemoryService.write before the window, identically in both arms. They are declared prior history, not a repair for missed formation. Empty-home formation sequences never receive fixture repair",
+    "labels": "Source truth, candidate correctness, approval state, required recall and answer quality are separate. A pending first mention must not be treated as approved; two independent explicit low-risk mentions may promote under the frozen allowed policy. Never infer truth from what B1 promoted",
+    "budget": {
+      "maxNetworkAttempts": 192,
+      "maxConcurrentSequences": 2,
+      "maxRequestBytes": 12000,
+      "maxOutputTokensPerBatch": 288000,
+      "task": {
+        "maxOutputTokens": 1024,
+        "maxTotalTokens": 8192,
+        "timeoutMs": 90000
+      },
+      "formation": {
+        "maxOutputTokens": 1500,
+        "timeoutMs": 120000
+      }
+    },
+    "latency": "Retain event and recall durations per pair and cold/steady window. Freeze B1 variability per layer/window/metric as the maximum absolute difference between its two repeats; compare B2 paired change against that measured bound, and report inconclusive when repeats disagree or observations fail. Two repeats do not establish population P95 or significance; empirical quantiles are descriptive only",
+    "accounting": "Every actual attempt including retries counts. Provider input/cached_input/output/cache_creation and unknown coverage are separate. Final emitted memory message content including wrapper uses the installed SDK public conservative counter and is labelled estimated; never add that estimate to Provider usage. No-op formation has observed zero attempts, not a fictitious zero-cost failed call",
+    "observation": "Per-event snapshots use only the existing read-only ledger candidates/changes/revisions projection, never MemoryService.list/candidates that can expire candidates. No extra lifecycle operation runs outside the cost window",
+    "clockBoundary": "The injected Molis MemoryService clock controls existing Molis expiry checks. The real SDK/Host clock remains wall time, including request date. TTL results prove this current boundary only; B2 must use equivalent trusted time semantics or be reported non-comparable",
+    "limitations": [
+      "No B2 or SDK-upgrade control yet",
+      "Independent review and MEM-37/MEM-38 product acceptance remain separate",
+      "Small synthetic corpus does not establish large-library scaling, population latency or user experience",
+      "Current B1 lacks native scene taxonomy and source tombstone semantics; the runner observes these gaps instead of implementing them"
+    ]
+  },
+  "model": "MiniMax-M3",
+  "endpoint": "https://api.minimaxi.com/anthropic/v1/messages",
+  "attempts": 191,
+  "summary": {
+    "sourceSchema": "molis-memory-sequence-baseline-v1",
+    "stage": "completed",
+    "model": "MiniMax-M3",
+    "attempts": 191,
+    "events": 256,
+    "status": {
+      "observed": 255,
+      "failed": 1,
+      "not-run": 0
+    },
+    "costsByArmAndWindow": {
+      "B0/cold": {
+        "events": 64,
+        "attempts": 33,
+        "failures": 0,
+        "observedNoCallFormation": 32,
+        "costs": {
+          "input": {
+            "reported": {
+              "tokens": 2202,
+              "observations": 32
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "output": {
+            "reported": {
+              "tokens": 3806,
+              "observations": 32
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cached_input": {
+            "reported": {
+              "tokens": 5410,
+              "observations": 32
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cache_creation": {
+            "reported": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 32
+            }
+          }
+        },
+        "finalMemoryEstimatedTokens": 0,
+        "finalMemoryUnknownEvents": 0,
+        "multiAttemptEvents": 1
+      },
+      "B0/steady": {
+        "events": 64,
+        "attempts": 32,
+        "failures": 0,
+        "observedNoCallFormation": 32,
+        "costs": {
+          "input": {
+            "reported": {
+              "tokens": 1050,
+              "observations": 32
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "output": {
+            "reported": {
+              "tokens": 2179,
+              "observations": 32
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cached_input": {
+            "reported": {
+              "tokens": 5252,
+              "observations": 32
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cache_creation": {
+            "reported": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 32
+            }
+          }
+        },
+        "finalMemoryEstimatedTokens": 0,
+        "finalMemoryUnknownEvents": 0,
+        "multiAttemptEvents": 0
+      },
+      "B1/cold": {
+        "events": 64,
+        "attempts": 66,
+        "failures": 1,
+        "observedNoCallFormation": 0,
+        "costs": {
+          "input": {
+            "reported": {
+              "tokens": 13642,
+              "observations": 63
+            },
+            "estimated": {
+              "tokens": 6926,
+              "observations": 1
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "output": {
+            "reported": {
+              "tokens": 2441,
+              "observations": 63
+            },
+            "estimated": {
+              "tokens": 3072,
+              "observations": 1
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cached_input": {
+            "reported": {
+              "tokens": 15249,
+              "observations": 63
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 1579,
+              "observations": 1
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cache_creation": {
+            "reported": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 64
+            }
+          }
+        },
+        "finalMemoryEstimatedTokens": 1616,
+        "finalMemoryUnknownEvents": 0,
+        "multiAttemptEvents": 1
+      },
+      "B1/steady": {
+        "events": 64,
+        "attempts": 60,
+        "failures": 0,
+        "observedNoCallFormation": 4,
+        "costs": {
+          "input": {
+            "reported": {
+              "tokens": 13580,
+              "observations": 60
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "output": {
+            "reported": {
+              "tokens": 3331,
+              "observations": 60
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cached_input": {
+            "reported": {
+              "tokens": 12495,
+              "observations": 60
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 0
+            }
+          },
+          "cache_creation": {
+            "reported": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial-estimated": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "partial": {
+              "tokens": 0,
+              "observations": 0
+            },
+            "unknown": {
+              "tokens": null,
+              "observations": 60
+            }
+          }
+        },
+        "finalMemoryEstimatedTokens": 1030,
+        "finalMemoryUnknownEvents": 0,
+        "multiAttemptEvents": 0
+      }
+    },
+    "layers": {
+      "coding-convention": {
+        "events": 32,
+        "failures": 1,
+        "B1FormationOutcomes": {
+          "candidate": 8
+        },
+        "B1InjectedMessages": 0,
+        "B1FinalMemoryEstimatedTokens": 0
+      },
+      "assistant-preference": {
+        "events": 32,
+        "failures": 0,
+        "B1FormationOutcomes": {
+          "candidate": 6,
+          "written": 2
+        },
+        "B1InjectedMessages": 2,
+        "B1FinalMemoryEstimatedTokens": 244
+      },
+      "temporary-expiry": {
+        "events": 32,
+        "failures": 0,
+        "B1FormationOutcomes": {},
+        "B1InjectedMessages": 4,
+        "B1FinalMemoryEstimatedTokens": 334
+      },
+      "explicit-correction": {
+        "events": 32,
+        "failures": 0,
+        "B1FormationOutcomes": {
+          "candidate": 1
+        },
+        "B1InjectedMessages": 8,
+        "B1FinalMemoryEstimatedTokens": 632
+      },
+      "scope-scene-consumer": {
+        "events": 32,
+        "failures": 0,
+        "B1FormationOutcomes": {},
+        "B1InjectedMessages": 8,
+        "B1FinalMemoryEstimatedTokens": 650
+      },
+      "skip-explicit-recall": {
+        "events": 32,
+        "failures": 0,
+        "B1FormationOutcomes": {
+          "candidate": 2
+        },
+        "B1InjectedMessages": 6,
+        "B1FinalMemoryEstimatedTokens": 466
+      },
+      "source-attribution": {
+        "events": 32,
+        "failures": 0,
+        "B1FormationOutcomes": {
+          "candidate": 2
+        },
+        "B1InjectedMessages": 0,
+        "B1FinalMemoryEstimatedTokens": 0
+      },
+      "forget-replay-restart": {
+        "events": 32,
+        "failures": 0,
+        "B1FormationOutcomes": {
+          "candidate": 4
+        },
+        "B1InjectedMessages": 4,
+        "B1FinalMemoryEstimatedTokens": 320
+      }
+    },
+    "failures": [
+      {
+        "sequence": "coding-prism",
+        "repeat": 0,
+        "arm": "B1",
+        "event": "task1",
+        "reason": "MODEL_NETWORK_FAILED: 评测请求超过已批准字节上限；未发出",
+        "attemptRange": {
+          "startInclusive": 13,
+          "endExclusive": 16
+        }
+      }
+    ],
+    "semantics": "Costs are separated by coverage. Unknown buckets count missing observations, never assert zero token cost. Estimated memory messages are not added to Provider usage. USD remains unknown. Outcomes are actual product results, not quality verdicts."
+  },
+  "scaleBaseline": {
+    "schema": "molis-memory-scale-v1",
+    "recordedAt": "2026-10-22T12:22:48.956Z",
+    "baseline": {
+      "molisCommit": "f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10",
+      "sdkCommit": "753dbae8359e56a74397d030af4d18abf402d5b5",
+      "sdkArtifact": "prologue-sdk-0.0.0-rc.1-attachment-order.tgz",
+      "policy": "当前生产 MemoryService，保留现有有效 prefs（默认 auto=true）",
+      "attribution": "B2 若同时升级 SDK，须增加同一新 SDK + 旧配方的升级对照；不能将上游性能/安全修复全归于新 memory 策略"
+    },
+    "plan": {
+      "sizes": [
+        10,
+        100,
+        1000
+      ],
+      "replicas": 3,
+      "repeatedReads": 9,
+      "query": "项目安装依赖和运行检查的约定是什么",
+      "caller": {
+        "actor_id": "synthetic-person",
+        "project_id": "project-a",
+        "consumer": "agent"
+      },
+      "distribution": "four current kinds; half personal, one quarter project-a, one quarter project-b (rounding for small libraries)",
+      "queryDensity": "all entries contain the query topic: dense-match synthetic stress, not representative relevance"
+    },
+    "runtime": {
+      "node": "v24.19.0",
+      "platform": "darwin",
+      "arch": "arm64"
+    },
+    "modelCalls": 0,
+    "limitations": [
+      "合成规模假设，不是任何真实Home的统计；不测语义质量",
+      "首次读取在新Runtime重新打开后测量，包含该路径的hydrate；不宣称操作系统文件缓存冷启动",
+      "计时包含生产recall和账本回执，不含Runtime启动、造数、配置；不等同最终Agent Context延迟",
+      "list调用/返回量可观察；底层存储扫描量unknown，不能互相替代",
+      "3个独立副本的本机波动不能建立跨设备稳定SLA；B2及新SDK旧配方对照未执行"
+    ],
+    "failures": [],
+    "summaries": [
+      {
+        "size": 10,
+        "arm": "B0",
+        "errors": 0,
+        "first": {
+          "count": 3,
+          "minMs": 0.03704199999992852,
+          "medianMs": 0.03879099999994651,
+          "p95Ms": 0.3077499999999418,
+          "maxMs": 0.3077499999999418
+        },
+        "repeated": {
+          "count": 27,
+          "minMs": 0.01912499999980355,
+          "medianMs": 0.02254199999993034,
+          "p95Ms": 0.03404199999999946,
+          "maxMs": 0.04087499999991451
+        },
+        "replicaRepeated": [
+          {
+            "replica": 0,
+            "count": 9,
+            "minMs": 0.021707999999989624,
+            "medianMs": 0.02595799999994597,
+            "p95Ms": 0.04087499999991451,
+            "maxMs": 0.04087499999991451
+          },
+          {
+            "replica": 1,
+            "count": 9,
+            "minMs": 0.01912499999980355,
+            "medianMs": 0.020042000000103144,
+            "p95Ms": 0.031791999999995824,
+            "maxMs": 0.031791999999995824
+          },
+          {
+            "replica": 2,
+            "count": 9,
+            "minMs": 0.021250000000009095,
+            "medianMs": 0.02254199999993034,
+            "p95Ms": 0.02750000000014552,
+            "maxMs": 0.02750000000014552
+          }
+        ]
+      },
+      {
+        "size": 10,
+        "arm": "B1",
+        "errors": 0,
+        "first": {
+          "count": 3,
+          "minMs": 1.3804579999998623,
+          "medianMs": 1.4388750000000528,
+          "p95Ms": 1.6961249999999382,
+          "maxMs": 1.6961249999999382
+        },
+        "repeated": {
+          "count": 27,
+          "minMs": 0.19670800000017152,
+          "medianMs": 0.23716699999999946,
+          "p95Ms": 0.30666599999995015,
+          "maxMs": 0.3322499999999309
+        },
+        "replicaRepeated": [
+          {
+            "replica": 0,
+            "count": 9,
+            "minMs": 0.19670800000017152,
+            "medianMs": 0.233791999999994,
+            "p95Ms": 0.2843750000001819,
+            "maxMs": 0.2843750000001819
+          },
+          {
+            "replica": 1,
+            "count": 9,
+            "minMs": 0.21208299999989322,
+            "medianMs": 0.23716699999999946,
+            "p95Ms": 0.26879200000007586,
+            "maxMs": 0.26879200000007586
+          },
+          {
+            "replica": 2,
+            "count": 9,
+            "minMs": 0.2194160000001375,
+            "medianMs": 0.24949999999989814,
+            "p95Ms": 0.3322499999999309,
+            "maxMs": 0.3322499999999309
+          }
+        ]
+      },
+      {
+        "size": 100,
+        "arm": "B0",
+        "errors": 0,
+        "first": {
+          "count": 3,
+          "minMs": 0.03408300000000963,
+          "medianMs": 0.07329199999958291,
+          "p95Ms": 0.09804200000007768,
+          "maxMs": 0.09804200000007768
+        },
+        "repeated": {
+          "count": 27,
+          "minMs": 0.01908400000002075,
+          "medianMs": 0.029666999999790278,
+          "p95Ms": 0.04166699999996126,
+          "maxMs": 0.04379200000039418
+        },
+        "replicaRepeated": [
+          {
+            "replica": 0,
+            "count": 9,
+            "minMs": 0.032541999999921245,
+            "medianMs": 0.03458299999965675,
+            "p95Ms": 0.04166699999996126,
+            "maxMs": 0.04166699999996126
+          },
+          {
+            "replica": 1,
+            "count": 9,
+            "minMs": 0.01908400000002075,
+            "medianMs": 0.01974999999993088,
+            "p95Ms": 0.023541000000022905,
+            "maxMs": 0.023541000000022905
+          },
+          {
+            "replica": 2,
+            "count": 9,
+            "minMs": 0.027833000000100583,
+            "medianMs": 0.029666999999790278,
+            "p95Ms": 0.04379200000039418,
+            "maxMs": 0.04379200000039418
+          }
+        ]
+      },
+      {
+        "size": 100,
+        "arm": "B1",
+        "errors": 0,
+        "first": {
+          "count": 3,
+          "minMs": 12.627334000000246,
+          "medianMs": 12.975084000000152,
+          "p95Ms": 14.312334000000192,
+          "maxMs": 14.312334000000192
+        },
+        "repeated": {
+          "count": 27,
+          "minMs": 1.1100830000000315,
+          "medianMs": 1.272375000000011,
+          "p95Ms": 1.3772090000002208,
+          "maxMs": 1.44275000000016
+        },
+        "replicaRepeated": [
+          {
+            "replica": 0,
+            "count": 9,
+            "minMs": 1.2311670000003687,
+            "medianMs": 1.3088330000000497,
+            "p95Ms": 1.3298749999999018,
+            "maxMs": 1.3298749999999018
+          },
+          {
+            "replica": 1,
+            "count": 9,
+            "minMs": 1.2002919999999904,
+            "medianMs": 1.272375000000011,
+            "p95Ms": 1.44275000000016,
+            "maxMs": 1.44275000000016
+          },
+          {
+            "replica": 2,
+            "count": 9,
+            "minMs": 1.1100830000000315,
+            "medianMs": 1.1880410000003394,
+            "p95Ms": 1.2823330000001079,
+            "maxMs": 1.2823330000001079
+          }
+        ]
+      },
+      {
+        "size": 1000,
+        "arm": "B0",
+        "errors": 0,
+        "first": {
+          "count": 3,
+          "minMs": 0.031957999999576714,
+          "medianMs": 0.05754199999864795,
+          "p95Ms": 0.059374999998908606,
+          "maxMs": 0.059374999998908606
+        },
+        "repeated": {
+          "count": 27,
+          "minMs": 0.01370899999892572,
+          "medianMs": 0.021709000000555534,
+          "p95Ms": 0.028125000000727596,
+          "maxMs": 0.02995800000098825
+        },
+        "replicaRepeated": [
+          {
+            "replica": 0,
+            "count": 9,
+            "minMs": 0.021415999999589985,
+            "medianMs": 0.022332999998980085,
+            "p95Ms": 0.028125000000727596,
+            "maxMs": 0.028125000000727596
+          },
+          {
+            "replica": 1,
+            "count": 9,
+            "minMs": 0.01370899999892572,
+            "medianMs": 0.014791999999943073,
+            "p95Ms": 0.02995800000098825,
+            "maxMs": 0.02995800000098825
+          },
+          {
+            "replica": 2,
+            "count": 9,
+            "minMs": 0.021334000000933884,
+            "medianMs": 0.02195900000151596,
+            "p95Ms": 0.027792000000772532,
+            "maxMs": 0.027792000000772532
+          }
+        ]
+      },
+      {
+        "size": 1000,
+        "arm": "B1",
+        "errors": 0,
+        "first": {
+          "count": 3,
+          "minMs": 81.4008329999997,
+          "medianMs": 82.24716699999954,
+          "p95Ms": 82.9051670000008,
+          "maxMs": 82.9051670000008
+        },
+        "repeated": {
+          "count": 27,
+          "minMs": 6.14970799999719,
+          "medianMs": 6.709249999999884,
+          "p95Ms": 10.2400000000016,
+          "maxMs": 10.275834000000032
+        },
+        "replicaRepeated": [
+          {
+            "replica": 0,
+            "count": 9,
+            "minMs": 6.402958000000581,
+            "medianMs": 6.714124999998603,
+            "p95Ms": 8.137833000000683,
+            "maxMs": 8.137833000000683
+          },
+          {
+            "replica": 1,
+            "count": 9,
+            "minMs": 6.178959000000759,
+            "medianMs": 6.532624999999825,
+            "p95Ms": 10.275834000000032,
+            "maxMs": 10.275834000000032
+          },
+          {
+            "replica": 2,
+            "count": 9,
+            "minMs": 6.14970799999719,
+            "medianMs": 7.061333999998169,
+            "p95Ms": 10.2400000000016,
+            "maxMs": 10.2400000000016
+          }
+        ]
+      }
+    ],
+    "nonInferiorityMarginMs": 5
+  },
+  "coordinatorReview": {
+    "level": "independent-agent-review-not-human-acceptance",
+    "checks": [
+      "256 event observations preserved verbatim",
+      "191 actual request attempts partitioned by events",
+      "B1 emitted memory texts and task answers reviewed",
+      "all 25 formation outcomes checked against source labels",
+      "180 scale observations all successful"
+    ],
+    "findings": [
+      "B1 deleted material returned as pending candidates in all four forget/replay repeats, despite zero task injection afterwards",
+      "B1 same-meaning repeated coding source remained separate candidates in all four sequences/repeats",
+      "B1 injected unrelated travel preference in both coding review repeats",
+      "B1 injected unrelated seat preference for both uppercase conversion tasks",
+      "Correction, expiry and consumer-off behaved as recorded within declared clock/trigger boundary"
+    ],
+    "limitations": [
+      "MEM-37 human quality review and MEM-39 user acceptance are pending",
+      "Elm project name was ambiguous with the language; retain failure without attributing every factual error to memory",
+      "No B2 or SDK-upgrade attribution control yet",
+      "Provider cache creation and dollar cost unknown; failure estimates must not be merged with reported usage"
+    ]
+  },
+  "schema": "molis-memory-baseline-summary-v1",
+  "sourceReports": {
+    "raw": "/private/tmp/molis-memory-q0-minimax-baseline-20261022.json",
+    "compact": "/private/tmp/molis-memory-q0-minimax-baseline-compact-20261022.json",
+    "scale": "/private/tmp/molis-memory-scale-20261022-v1.json",
+    "rawBytes": 1350429,
+    "eventObservations": 256,
+    "note": "Raw observations and full answers stay outside the repository per repository hygiene. This derived summary does not replace them."
+  },
+  "modelLatencyBaseline": [
+    {
+      "layer": "assistant-preference",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 2907.5987500000047,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "assistant-preference",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 1137.5282089999819,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "assistant-preference",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.04779200002667494,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "assistant-preference",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 698.3602919999976,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "assistant-preference",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 329.3567080000066,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "assistant-preference",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.47454200001084246,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "coding-convention",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [
+        {
+          "sequence": "coding-prism",
+          "event": "task1",
+          "reason": "failed-or-missing-repeat"
+        }
+      ],
+      "boundMs": 1527.108542000009,
+      "eligibleForWholeStratumNonInferiority": false,
+      "eligibleRepeatPairs": 3
+    },
+    {
+      "layer": "coding-convention",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [
+        {
+          "sequence": "coding-prism",
+          "event": "task1",
+          "reason": "failed-or-missing-repeat"
+        }
+      ],
+      "boundMs": 129.52416699999958,
+      "eligibleForWholeStratumNonInferiority": false,
+      "eligibleRepeatPairs": 1
+    },
+    {
+      "layer": "coding-convention",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [
+        {
+          "sequence": "coding-prism",
+          "event": "task1",
+          "reason": "failed-or-missing-repeat"
+        }
+      ],
+      "boundMs": 0.2804999999971187,
+      "eligibleForWholeStratumNonInferiority": false,
+      "eligibleRepeatPairs": 1
+    },
+    {
+      "layer": "coding-convention",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 6973.716916999998,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "coding-convention",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 1361.602165999997,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "coding-convention",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.15887500000098953,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "explicit-correction",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 1063.478833000001,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "explicit-correction",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 414.35104099998716,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "explicit-correction",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.292167000065092,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "explicit-correction",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 372.6039580000215,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "explicit-correction",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 141.14266599999974,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "explicit-correction",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.08645800000522286,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "forget-replay-restart",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 2167.2662500000442,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "forget-replay-restart",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 1821.0325829999056,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "forget-replay-restart",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.206499999971129,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "forget-replay-restart",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 142.9888749999809,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "forget-replay-restart",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 337.97241599997506,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "forget-replay-restart",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.12087499996414408,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "scope-scene-consumer",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 1671.3294580000802,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "scope-scene-consumer",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 1626.2567920000292,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "scope-scene-consumer",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.24187399999937043,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "scope-scene-consumer",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 2946.0180830000318,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "scope-scene-consumer",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 76.36166700004833,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "scope-scene-consumer",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.020541999954730272,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "skip-explicit-recall",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 11110.464833999984,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "skip-explicit-recall",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 10962.02124999999,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "skip-explicit-recall",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.13204099994618446,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "skip-explicit-recall",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 4752.298958999978,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "skip-explicit-recall",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 3138.5942500000237,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "skip-explicit-recall",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.636458000051789,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "source-attribution",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 2284.488083000004,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "source-attribution",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 2126.3214990000124,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "source-attribution",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.15495900000678375,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "source-attribution",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 1285.0336669999524,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "source-attribution",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 431.4794159999583,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "source-attribution",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.014290999970398843,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "temporary-expiry",
+      "window": "cold",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 459.57674999997835,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "temporary-expiry",
+      "window": "cold",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 781.7196670000267,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "temporary-expiry",
+      "window": "cold",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.3720409999950789,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "temporary-expiry",
+      "window": "steady",
+      "metric": "eventDurationMs",
+      "ineligiblePairs": [],
+      "boundMs": 1492.61729200001,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 4
+    },
+    {
+      "layer": "temporary-expiry",
+      "window": "steady",
+      "metric": "firstVisibleResponseMs",
+      "ineligiblePairs": [],
+      "boundMs": 5524.170708999998,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    },
+    {
+      "layer": "temporary-expiry",
+      "window": "steady",
+      "metric": "recallLatencyMs",
+      "ineligiblePairs": [],
+      "boundMs": 0.16058199998224154,
+      "eligibleForWholeStratumNonInferiority": true,
+      "eligibleRepeatPairs": 2
+    }
+  ]
+}

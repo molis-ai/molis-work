@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { createPagesActionHandlers, createPagesContentHandlers, openPagesStore, ownPagesStores, pagesActions, pagesManifest, PAGES_ACTION_PERMISSIONS, preparePagesImport } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesActionHandlers, createPagesContentHandlers, ownPagesStores, pagesActions, pagesManifest, PAGES_ACTION_PERMISSIONS, preparePagesImport } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { readMaterialDocuments, readMaterialUploads } from "../apps/local-host/src/material-documents.js";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 

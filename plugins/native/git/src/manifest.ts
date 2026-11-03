@@ -1,5 +1,5 @@
 import { GIT_ACTIONS } from "./action-definitions.js";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_REVIEW_SETTLED_EVENT, HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
@@ -18,6 +18,8 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
+import { GIT_MESSAGES } from "./messages.js";
+import { GIT_EN } from "./en.js";
 export const GIT_PLUGIN_ID = "io.molis.work.git";
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
@@ -47,6 +49,7 @@ export const gitManifest: PluginManifest = {
   plugin_id: GIT_PLUGIN_ID,
   version: "0.3.0",
   name: "Git",
+  summary: "查看工作区的版本与变更。",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -62,7 +65,7 @@ export const gitManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.git.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id,
-      prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id],
+      prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id, "diff.state"],
   },
   actions: GIT_ACTIONS,
   artifacts: { produces: [], consumes: [] },
@@ -106,6 +109,11 @@ export const gitManifest: PluginManifest = {
         type_version: 1,
         from_plugin_ids: [CODING_PLUGIN_ID],
       },
+      // Operations Git asked for, once a person approved and the Host ran them. Only the Host sends it, so no source is named.
+      { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1 },
+      // Every person-approved workspace operation of this project, whoever asked: a Coding worktree or integration too (BL-379).
+      // The Host broadcasts it to each installation that subscribes and holds `workspace:read`.
+      { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1 },
     ],
   },
   routes: [
@@ -121,22 +129,10 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.prepare-operation", method: "POST", path: "/operations" },
   ],
   ui: {
+    messages: GIT_MESSAGES,
+    translations: GIT_EN,
     embedded_plugins: ["io.molis.work.diff"],
     contributions: [GIT_UI_CONTRIBUTION_ID],
-    commands: [
-      {
-        command_id: "git.open-change",
-        title: "查看这处改动",
-        input_kinds: ["current", "object"],
-        opens_view_id: "changes",
-      },
-      {
-        command_id: "git.accept-run-changes",
-        title: "把这一轮的改动放进工作区",
-        input_kinds: ["agent-session", "artifacts"],
-        opens_view_id: "changes",
-      },
-    ],
     views: [
       {
         view_id: "changes",
@@ -144,8 +140,8 @@ export const gitManifest: PluginManifest = {
         title: "Git",
         contribution_id: GIT_UI_CONTRIBUTION_ID,
         icon: "git-branch",
+        hue: "orange",
         order: 30,
-        accepts_objects: true,
       },
     ],
   },

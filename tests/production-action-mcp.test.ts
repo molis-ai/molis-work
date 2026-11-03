@@ -9,7 +9,7 @@ import { alchemistActions as alchemist } from "@molis-ai/molis-work-plugin-alche
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// Every MCP client here starts its own forwarding process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
 // whole test at two files at once): the budget only stops a hang, it is not a speed check.
 test("production MCP reads persisted scoped grants on every list/call, shares real Alchemist data and preserves revocation after restart", { timeout: 120_000 }, async t => {
   const clients: Client[] = [];
@@ -19,7 +19,7 @@ test("production MCP reads persisted scoped grants on every list/call, shares re
   const connect = async (project: { project_id: string; database_path: string }, actor: string) => {
     const client = new Client({ name: "untrusted-client-name", version: "1" }); clients.push(client);
     const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)),
-      home, project.project_id, actor, project.database_path], stderr: "pipe" });
+      home, project.project_id, actor, project.database_path, testHome.origin], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     diagnostics.set(client, () => errors);
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }

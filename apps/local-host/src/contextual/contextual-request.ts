@@ -3,6 +3,7 @@ import {
   SURFACE_LANDING_POSITIONS, SURFACE_PLACES, type ContextualJudgeRequest, type SurfaceActivity, type SurfaceFocus, type SurfaceFocusTarget,
   type SurfaceLanding, type SurfaceLandingPosition, type SurfacePlace,
 } from "@molis-ai/molis-work-contracts/services/contextual";
+import { cutHead, cutTail } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 /**
  * What a page may claim about the context, bounded before anything else reads it. A page's focus and landing are claims:
@@ -35,10 +36,10 @@ function readRef(value: unknown, field: string): SurfaceFocus["object"] {
   const version = ref.version;
   if (version !== undefined && typeof version !== "string" && typeof version !== "number") throw invalid(`${field}.version`);
   return { kind: readString(ref.kind, `${field}.kind`, 80), id: readString(ref.id, `${field}.id`, 200),
-    ...(version !== undefined ? { version } : {}), ...(typeof ref.title === "string" ? { title: ref.title.slice(0, 200) } : {}) };
+    ...(version !== undefined ? { version } : {}), ...(typeof ref.title === "string" ? { title: cutHead(ref.title, 200) } : {}) };
 }
 
-const strings = (value: unknown, max: number) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, max).map(item => item.slice(0, 200)) : [];
+const strings = (value: unknown, max: number) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, max).map(item => cutHead(item, 200)) : [];
 
 function readTargets(raw: unknown, field: string, max: number): SurfaceFocusTarget[] {
   if (!Array.isArray(raw) || raw.length > max) throw invalid(field);
@@ -51,7 +52,7 @@ function readTargets(raw: unknown, field: string, max: number): SurfaceFocusTarg
     const cut = target.text.length > MAX_TARGET_TEXT;
     return { kind: target.kind, ...(target.role !== undefined ? { role: target.role as SurfaceFocusTarget["role"] } : {}),
       ...(target.ref !== undefined ? { ref: readRef(target.ref, `${field}[${index}].ref`) } : {}),
-      text: cut ? target.text.slice(0, MAX_TARGET_TEXT) : target.text, ...(cut || target.truncated === true ? { truncated: true } : {}),
+      text: cutHead(target.text, MAX_TARGET_TEXT), ...(cut || target.truncated === true ? { truncated: true } : {}),
       ...(Number.isInteger(target.anchor) ? { anchor: target.anchor as number } : {}), ...(Number.isInteger(target.head) ? { head: target.head as number } : {}) };
   });
 }
@@ -60,8 +61,8 @@ function readSurroundings(raw: unknown): SurfaceFocus["surroundings"] | undefine
   if (!raw || typeof raw !== "object") return undefined;
   const around = raw as Record<string, unknown>;
   return { heading_path: strings(around.heading_path, 6),
-    ...(typeof around.before === "string" ? { before: around.before.slice(-300) } : {}),
-    ...(typeof around.after === "string" ? { after: around.after.slice(0, 300) } : {}) };
+    ...(typeof around.before === "string" ? { before: cutTail(around.before, 300) } : {}),
+    ...(typeof around.after === "string" ? { after: cutHead(around.after, 300) } : {}) };
 }
 
 /** Where the person can put what is in hand: the pane on the left, the object in it and the position, bounded like a focus. */
@@ -108,8 +109,8 @@ export function readJudgeRequest(body: Record<string, unknown>): Omit<Contextual
       activity: activity as SurfaceActivity, granularity: granularity as SurfaceFocus["granularity"], object: readRef(focus.object, "focus.object"), targets,
       ...(surroundings ? { surroundings } : {}),
       ...(focus.unsaved === true ? { unsaved: true } : {}),
-      ...(goal && typeof goal.id === "string" && typeof goal.title === "string" ? { goal: { id: goal.id.slice(0, 200), title: goal.title.slice(0, 200),
-        ...(typeof goal.state === "string" ? { state: goal.state.slice(0, 40) } : {}) } } : {}),
+      ...(goal && typeof goal.id === "string" && typeof goal.title === "string" ? { goal: { id: cutHead(goal.id, 200), title: cutHead(goal.title, 200),
+        ...(typeof goal.state === "string" ? { state: cutHead(goal.state, 40) } : {}) } } : {}),
       ...readPlace(focus),
     },
     ...(body.landing !== undefined ? { landing: readLanding(body.landing) } : {}),
@@ -117,7 +118,7 @@ export function readJudgeRequest(body: Record<string, unknown>): Omit<Contextual
     pinned: strings(body.pinned, 8),
     dismissed: strings(body.dismissed, 32),
     ...(body.previous && typeof body.previous === "object" && typeof (body.previous as Record<string, unknown>).context_id === "string"
-      ? { previous: { context_id: String((body.previous as Record<string, unknown>).context_id).slice(0, 240), primary: strings((body.previous as Record<string, unknown>).primary, 8) } } : {}),
+      ? { previous: { context_id: cutHead(String((body.previous as Record<string, unknown>).context_id), 240), primary: strings((body.previous as Record<string, unknown>).primary, 8) } } : {}),
   };
 }
 

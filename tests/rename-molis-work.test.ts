@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { isPlatformMcpTool } from "@molis-ai/molis-work-app-mcp";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
@@ -60,7 +60,8 @@ test("MOLIS_WORK environment is the only product env prefix", () => {
     assert.equal(readProductEnv("HOME"), undefined);
     process.env.MOLIS_WORK_HOME = "/tmp/molis-work-home";
     assert.equal(readProductEnv("HOME"), "/tmp/molis-work-home");
-    assert.equal(resolveMolisWorkHome(), "/tmp/molis-work-home");
+    // S-11 resolves a Home to its real path at entry: on macOS /tmp is a link to /private/tmp, so the env value is read through it.
+    assert.equal(resolveMolisWorkHome(), join(realpathSync("/tmp"), "molis-work-home"));
   } finally {
     restoreEnv("MOLIS_WORK_HOME", previousNext);
     restoreEnv("GOALBOARD_HOME", previousLegacy);
@@ -74,24 +75,6 @@ test("project database path does not rename leftover goalboard.db", async () => 
     assert.equal(resolveProjectDatabaseFile(directory), join(directory, PROJECT_DATABASE_FILENAME));
     assert.equal(existsSync(leftover), true);
     assert.equal(existsSync(join(directory, PROJECT_DATABASE_FILENAME)), false);
-  });
-});
-
-test("Session Registry rejects GoalBoard owner", async () => {
-  await withTemporaryDirectory(async (directory) => {
-    const home = join(directory, "home");
-    const registry = await openWorkSessionRegistry({ homeDirectory: home });
-    registry.close();
-    const db = new Database(join(home, "sessions", "sessions.db"));
-    try {
-      db.prepare("UPDATE session_meta SET value = ? WHERE key = 'owner'").run("goalboard-session-registry-v1");
-    } finally {
-      db.close();
-    }
-    await assert.rejects(
-      () => openWorkSessionRegistry({ homeDirectory: home }),
-      (error: unknown) => error instanceof Error && error.message.includes("不会复用未知 Session Registry 数据库"),
-    );
   });
 });
 

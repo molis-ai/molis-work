@@ -8,15 +8,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { controlConnectorConnection } from "./connector-management-service.js";
-import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
+import { connectorDirectory } from "./connector-directory.js";
+import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { activateConnectorConnection, type ConnectorActivation } from "./connector-activation.js";
 import { verifyEnabledConnection } from "./connector-check-service.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
-
-import { refreshFeedConnectionState } from "./connector-source-state.js";
-export { refreshFeedConnectionState } from "./connector-source-state.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
@@ -56,15 +54,20 @@ export async function handleConnectorConnectionsHttp(
     }
     if (request.method === "POST" && collection) {
       const body = await readLocalWebBody(request);
-      const service = HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === body.service_id);
+      // The card and the package behind it are read from one registry with nothing awaited between them: a package detached in between
+      // would leave a card with no declarer, and a connection made unpinned that another publisher's package could then use (T-134).
+      const registry = await homeIntegrationRegistry(homeDirectory);
+      const service = connectorDirectory(registry).find(entry => entry.connector_id === body.service_id);
       if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw connectorErrors["connector.connection.invalid"]("此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
+      // A signed package's service: the new connection is pinned to the package that declares it now, read from the Home's registry, never from the body (T-134).
+      const declarer = registry.connectionDeclarer(service.connector_id);
       const setup = startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined, { service_id: body.service_id as string, method: "token" });
       try {
         setup?.assertCurrent();
         const completion: ConnectorActivation = { kind: "token", input: {
           serviceId: body.service_id as string, displayName: body.display_name as string,
           token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
-        } };
+        }, ...(declarer ? { declarer } : {}) };
         const result = setup ? setup.submit(completion) : { connection: activateConnectorConnection(homeDirectory, completion) };
         sendJson(response, "status" in result && result.status === "pending" ? 202 : 201, result);
       } catch (error) { setup?.fail(); throw error; }
@@ -72,20 +75,22 @@ export async function handleConnectorConnectionsHttp(
     }
     if (item && request.method === "PATCH") {
       const body = await readLocalWebBody(request);
-      const setup = typeof body.token === "string" ? startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
-        { service_id: withConnectorConnections(homeDirectory, store => store.require(item[1]!).service_id), method: "token", connection_id: item[1]! }) : undefined;
-      if (setup && typeof body.token === "string") {
+      const completion: ConnectorActivation | undefined = typeof body.token === "string" ? withConnectorConnections(homeDirectory, store => {
+        const current = store.require(item[1]!);
+        return { kind: "token", input: { serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token as string },
+          target: { connectionId: current.connection_id, expectedRevision: current.updated_at } };
+      }) : undefined;
+      const setup = completion ? startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
+        { service_id: completion.input.serviceId, method: "token", connection_id: item[1]! }) : undefined;
+      if (setup && completion) {
         try {
-          const current = withConnectorConnections(homeDirectory, store => store.require(item[1]!));
-          const result = setup.submit({ kind: "token", input: { serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token },
-            target: { connectionId: current.connection_id, expectedRevision: current.updated_at } });
+          const result = setup.submit(completion);
           sendJson(response, result.status === "pending" ? 202 : 200, result); return true;
         } catch (error) { setup.fail(); throw error; }
       }
-      const connection = withConnectorConnections(homeDirectory, (store) => {
+      const connection = completion ? activateConnectorConnection(homeDirectory, completion) : withConnectorConnections(homeDirectory, (store) => {
         let updated = store.require(item[1]!);
         if (typeof body.display_name === "string") updated = store.rename(updated.connection_id, body.display_name);
-        if (typeof body.token === "string") updated = store.replaceToken(updated.connection_id, body.token);
         return store.view(updated);
       });
       if (typeof body.enabled === "boolean") {
@@ -93,7 +98,6 @@ export async function handleConnectorConnectionsHttp(
         const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;
         sendJson(response, 200, { ...result, ...(verification ? { verification } : {}) }); return true;
       }
-      if (typeof body.token === "string") refreshFeedConnectionState(homeDirectory, item[1]!);
       sendJson(response, 200, { connection });
       return true;
     }

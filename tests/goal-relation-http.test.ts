@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test('Relation HTTP validates direction/type/project scope and replays writes without duplicate history',{timeout:30000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
@@ -10,23 +12,24 @@ test('Relation HTTP validates direction/type/project scope and replays writes wi
   const other=await catalog.createProject({display_name:'其他隔离项目',actor_id:'test'});catalog.close();
   const prefix=`/projects/${b.projectId}`;
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+prefix+'/'},b.sessionId));
-  const post=(path:string,body:unknown,key:string)=>b.evaluate<{status:number,body:any}>(`(async()=>{const r=await fetch(${JSON.stringify(path)},{method:'POST',headers:{...globalThis.molisWorkControlHeaders(),'x-molis-work-idempotency-key':${JSON.stringify(key)}},body:JSON.stringify(${JSON.stringify(body)})});return {status:r.status,body:await r.json()}})()`);
+  // The page names the act in the body (a retry replays by that key) and spends a fresh Host one-time key per attempt.
+  const post=(path:string,body:unknown,key:string)=>b.evaluate<{status:number,body:any}>(`(async()=>{const r=await fetch(${JSON.stringify(path)},{method:'POST',headers:{...globalThis.molisWorkControlHeaders(),'x-molis-work-idempotency-key':crypto.randomUUID()},body:JSON.stringify({...${JSON.stringify(body)},idempotency_key:${JSON.stringify(key)}})});return {status:r.status,body:await r.json()}})()`);
   const payload={direction:'incoming',target_goal_id:'PLATFORM',type:'extends',reason:'独立关系HTTP验收'};
-  const count=b.store.snapshot(DEMO_PROJECT_ID).relations.length;
-  for(const invalid of [{...payload,type:'unknown'},{...payload,direction:'unknown'},{...payload,reason:''}])assert.equal((await post(prefix+'/api/goals/CORE/relations',invalid,'invalid-payload')).status,400);
-  assert.equal((await post(`/projects/${other.project_id}/api/goals/CORE/relations`,payload,'wrong-project')).status,400);
-  assert.equal(b.store.snapshot(DEMO_PROJECT_ID).relations.length,count);
-  const unauthorized=await b.evaluate<number>(`fetch('${prefix}/api/goals/CORE/relations',{method:'POST',body:'{}'}).then(r=>r.status)`);
+  const count=boardSnapshot(b.store, DEMO_PROJECT_ID).relations.length;
+  for(const invalid of [{...payload,type:'unknown'},{...payload,direction:'unknown'},{...payload,reason:''}])assert.equal((await post(prefix+'/api/plugins/io.molis.work.goals/goals/CORE/relations',invalid,'invalid-payload')).status,400);
+  assert.equal((await post(`/projects/${other.project_id}/api/plugins/io.molis.work.goals/goals/CORE/relations`,payload,'wrong-project')).status,400);
+  assert.equal(boardSnapshot(b.store, DEMO_PROJECT_ID).relations.length,count);
+  const unauthorized=await b.evaluate<number>(`fetch('${prefix}/api/plugins/io.molis.work.goals/goals/CORE/relations',{method:'POST',body:'{}'}).then(r=>r.status)`);
   assert.equal(unauthorized,403);
-  const first=await post(prefix+'/api/goals/CORE/relations',payload,'create-relation');
+  const first=await post(prefix+'/api/plugins/io.molis.work.goals/goals/CORE/relations',payload,'create-relation');
   assert.equal(first.status,200,JSON.stringify(first.body));
-  const retry=await post(prefix+'/api/goals/CORE/relations',payload,'create-relation');
+  const retry=await post(prefix+'/api/plugins/io.molis.work.goals/goals/CORE/relations',payload,'create-relation');
   assert.equal(retry.body.replayed,true,JSON.stringify(retry));assert.equal(retry.body.relation_id,first.body.relation_id);
-  assert.equal(b.store.snapshot(DEMO_PROJECT_ID).relations.length,count+1);
-  const path=prefix+'/api/relations/'+first.body.relation_id+'/deactivate';
+  assert.equal(boardSnapshot(b.store, DEMO_PROJECT_ID).relations.length,count+1);
+  const path=prefix+'/api/plugins/io.molis.work.goals/relations/'+first.body.relation_id+'/deactivate';
   const deactivated=await post(path,{reason:'验收完毕解除'},'remove-relation');assert.equal(deactivated.status,200);
   assert.equal((await post(path,{reason:'验收完毕解除'},'remove-relation')).body.replayed,true);
-  assert.equal(b.store.snapshot(DEMO_PROJECT_ID).relations.find(r=>r.relation_id===first.body.relation_id)?.state,'inactive');
+  assert.equal(boardSnapshot(b.store, DEMO_PROJECT_ID).relations.find(r=>r.relation_id===first.body.relation_id)?.state,'inactive');
   const history=b.store.readEventsDescending(DEMO_PROJECT_ID).filter(e=>e.object_id===first.body.relation_id);
-  assert.equal(history.filter(e=>e.type==='relation.added').length,1);assert.equal(history.filter(e=>e.type==='relation.deactivated').length,1);
+  assert.equal(history.filter(e=>e.type===`${GOALS_PLUGIN_ID}:relation.added`).length,1);assert.equal(history.filter(e=>e.type===`${GOALS_PLUGIN_ID}:relation.deactivated`).length,1);
 });

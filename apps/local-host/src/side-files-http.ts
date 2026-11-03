@@ -9,7 +9,8 @@ import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { BUILTIN_PLUGIN_CATALOG, artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
+import { artifactTypeDeclarations } from "./artifact-type-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { ARTIFACT_SUBJECT_KIND, parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 /**
@@ -34,7 +35,7 @@ const textual = (mediaType: string) => /^text\/|\/(json|xml|yaml|javascript|type
 async function ownerPreview(subjectId: string, views: readonly ActionView[], invoke: (view: ActionView, input: unknown) => Promise<unknown>, ports: SideFilesPorts): Promise<FileContent | null> {
   const reference = parseArtifactSubjectId(subjectId);
   if (!reference) return null;
-  const artifact = await ports.localHost.withProject(ports.reference, runtime => runtime.coordinator.artifacts.query.getArtifactVersion(runtime.project_id, reference));
+  const artifact = await ports.localHost.withProject(ports.reference, runtime => runtime.artifacts.query.getArtifactVersion(runtime.project_id, reference));
   const declaration = artifact ? artifactTypeDeclarations().get(artifact.artifact_type_id) : undefined;
   // Only the declared owner previews its type, and only versions it produced.
   if (!artifact || artifact.availability !== "available" || !declaration?.preview || artifact.producer_plugin_id !== declaration.plugin_id) return null;
@@ -55,7 +56,7 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
     const shown = await ports.shownPlugins?.();
     // A built-in plugin the project does not show lists nothing here; a plugin installed from outside the catalog follows its own state.
     const hiddenHere = (view: ActionView) => {
-      const builtin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === (view.provider.plugin_id ?? view.provider.provider_id));
+      const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === (view.provider.plugin_id ?? view.provider.provider_id));
       return !!shown && !!builtin && !shown.has(builtin.project_plugin_id);
     };
     const sources = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && view.availability.available && !hiddenHere(view));

@@ -19,7 +19,7 @@ function fixture(t: import('node:test').TestContext) {
   const authorize = () => { if (!active) throw new Error('ACCOUNT_REVOKED'); };
   const document = createSyncDocument<Record<string, string>>({ spaceId: space.spaceId, storage: {
     read: () => raw, compareAndSet(expected, value) { if (expected !== raw) return false; raw = value; return true; },
-  }, authorize, initial: () => ({}), validate(value) {
+  }, authorize,authorizeKey(){}, initial: () => ({}), validate(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.values(value).some(item => typeof item !== 'string')) throw new Error('INVALID_NOTES');
     return value as Record<string, string>;
   }, observe: data => new Map(Object.entries(data)), read(data,key){if(unavailable&&key==='note')throw errors.unavailable('PRIVATE_ORIGINAL_PATH');return data[key]??null;},
@@ -39,23 +39,25 @@ function fixture(t: import('node:test').TestContext) {
       return Response.json({ events: [], more: false });
     } });
   t.after(() => service.close());
-  return { service, selection, registration, raw: () => raw, readCount: () => reads, calls: () => ({ discoveryCalls, networkCalls, mutations }), tokenGate(value: typeof beforeToken) { beforeToken = value; },
+  return { service, selection, registration, pending:()=>document.replica.counts().pending, raw: () => raw, readCount: () => reads, calls: () => ({ discoveryCalls, networkCalls, mutations }), tokenGate(value: typeof beforeToken) { beforeToken = value; },
     enabled(value: boolean) { enabled = value; }, version(value: number) { version = value; }, revoke() { active = false; }, provider(value: typeof provider) { provider = value; },
     unavailable(value:boolean){unavailable=value;},healthy(){document.update(data=>{data.healthy='another complete original';});} };
 }
 
-test('S-84 PCSYNC-14 SDK original-byte unavailability does not quarantine or starve another dynamically registered asset',async t=>{
+test('S-136 PCSYNC-14 SDK original-byte unavailability does not quarantine or starve another dynamically registered asset',async t=>{
  const f=fixture(t);f.unavailable(true);f.healthy();await f.service.save({...f.service.policy(),selections:[f.selection()]});await f.service.run();
  assert.equal(f.calls().mutations,1);const status=f.service.status();assert.equal(status.collections[0]!.pending,1);assert.deepEqual(status.collections[0]!.failures,[]);
  assert.match(status.error!,/暂时不可用/);assert.doesNotMatch(status.error!,/PRIVATE_ORIGINAL_PATH/);assert.equal(JSON.parse(f.raw()!).data.note,'local original');
  f.unavailable(false);await f.service.run();assert.equal(f.calls().mutations,2);assert.equal(f.service.status().error,null);assert.equal(f.service.status().collections[0]!.pending,0);
 });
 
-test('S-84 PCSYNC-21/25 discovering a Runtime collection never selects it; disabled and upgraded formats preserve unavailable policy', async t => {
+test('S-136 PCSYNC-21/25 discovering a Runtime collection never selects it; disabled and upgraded formats preserve unavailable policy', async t => {
   const f = fixture(t); assert.equal(f.calls().discoveryCalls, 0, 'construction does not discover or run code');
   await f.service.refreshCatalog();assert.equal(f.calls().networkCalls,0,'opening a collection directory does not contact Auth/transport or transfer assets');assert.deepEqual(f.service.policy().selections,[]);assert.equal(f.service.status().collections.length,1);
   await f.service.run(); assert.equal(f.service.status().collections.length, 1); assert.deepEqual(f.service.policy().selections, []);
-  assert.equal(f.service.status().collections[0]!.pending, 1);
+  assert.equal(f.service.status().collections[0]!.pending, 0,'unselected collection metadata does not authorize reading its queue');
+  assert.equal(f.readCount(),0,'discovery and unselected status never open the replica');
+  assert.equal(f.pending(),1,'the owner still retains the original local queue');
   const selected = f.selection(); await f.service.save({ ...f.service.policy(), selections: [selected] });
   await f.service.run(); assert.equal(f.service.status().collections[0]!.pending, 0);
   const lastSuccess=f.service.status().lastSuccess;assert.ok(lastSuccess);
@@ -70,11 +72,11 @@ test('S-84 PCSYNC-21/25 discovering a Runtime collection never selects it; disab
   assert.match(f.service.status().error!,/已选同步集合不可用/);assert.equal(f.service.status().lastSuccess,lastSuccess);
 });
 
-test('S-84 PCSYNC-14/27 an unavailable selected owner prevents false success without blocking a healthy collection',async t=>{
+test('S-136 PCSYNC-14/27 an unavailable selected owner prevents false success without blocking a healthy collection',async t=>{
  const f=fixture(t);let raw:string|null=null,enabled=true,opens=0;
  const selection={...f.selection(),collection_id:'other_notes'};
  const document=createSyncDocument<Record<string,string>>({spaceId:personalStorageSpace('https://auth.example.test','work','alice').spaceId,
-  storage:{read:()=>raw,compareAndSet(expected,value){if(expected!==raw)return false;raw=value;return true;}},authorize:()=>{},initial:()=>({}),
+  storage:{read:()=>raw,compareAndSet(expected,value){if(expected!==raw)return false;raw=value;return true;}},authorize:()=>{},authorizeKey(){},initial:()=>({}),
   validate(value){assert.ok(value&&typeof value==='object'&&!Array.isArray(value));return value as Record<string,string>;},
   observe:data=>new Map(Object.entries(data)),read:(data,key)=>data[key]??null,apply(data,key,value){if(value===null)delete data[key];else{assert.equal(typeof value,'string');data[key]=String(value);}}});
  const other:SyncRegistration={selection,title:'Unavailable notes',available:()=>enabled,refresh:async()=>{},prepare:async()=>{},withReplica(run){opens++;return run(document.replica);}};
@@ -85,7 +87,7 @@ test('S-84 PCSYNC-14/27 an unavailable selected owner prevents false success wit
  enabled=true;await f.service.run();assert.equal(f.service.status().error,null);assert.ok(f.service.status().lastSuccess);
 });
 
-test('S-84 PCSYNC-06/25 cancelled discovery publishes nothing and sends no requests; malformed replacement retains the checked directory', async t => {
+test('S-136 PCSYNC-06/25 cancelled discovery publishes nothing and sends no requests; malformed replacement retains the checked directory', async t => {
   const f = fixture(t); await f.service.run(); const before = f.raw(), calls = f.calls().networkCalls;
   f.provider(async () => [f.registration(), f.registration()]); await f.service.run();
   assert.match(f.service.status().error!, /重复集合/); assert.equal(f.service.status().collections.length, 1); assert.equal(f.calls().networkCalls, calls); assert.equal(f.raw(), before);
@@ -96,7 +98,7 @@ test('S-84 PCSYNC-06/25 cancelled discovery publishes nothing and sends no reque
   assert.throws(() => revoked.service.status(), /ACCOUNT_REVOKED/);
 });
 
-test('S-84 PCSYNC-06/25 stopping a plugin while awaiting a token cannot dispatch the old frozen upload or clear its queue', { timeout: 10000 }, async t => {
+test('S-136 PCSYNC-06/25 stopping a plugin while awaiting a token cannot dispatch the old frozen upload or clear its queue', { timeout: 10000 }, async t => {
   const f = fixture(t); await f.service.save({ spaceId: personalStorageSpace('https://auth.example.test', 'work', 'alice').spaceId, revision: 0, selections: [f.selection()] });
   let resume!: () => void, arrived!: () => void;
   const wait = new Promise<void>(resolve => { resume = resolve; }), reached = new Promise<void>(resolve => { arrived = resolve; });

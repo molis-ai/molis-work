@@ -27,6 +27,8 @@ export type BoundaryViolationCode =
   | "root-package-import"
   | "platform-reverse-dependency"
   | "plugin-implementation-import"
+  | "plugin-testing-entry-import"
+  | "plugin-private-ui-dependency"
   | "plugin-upward-dependency"
   | "production-test-kit-dependency"
   | "public-sdk-private-dependency"
@@ -50,6 +52,24 @@ export interface BoundaryViolation {
 
 const CONTRACTS_PACKAGE_NAME = "@molis-ai/molis-work-contracts";
 const PLUGIN_SDK_PACKAGE_NAME = "@molis-ai/molis-work-plugin-sdk";
+
+/**
+ * The private UI packages. A Plugin draws with the public parts of the Plugin SDK (`/ui`, `/browser`, `/page-globals`), the
+ * same ones a third-party author installs, so no Plugin imports these (PG-055).
+ */
+const PRIVATE_UI_PACKAGE_NAMES = new Set([
+  "@molis-ai/molis-work-design-system",
+  "@molis-ai/molis-work-im-ui",
+  "@molis-ai/molis-work-ui-host",
+]);
+
+/**
+ * The Plugins that may use the private UI packages, by package path. Plugin Studio edits the component catalog and the
+ * presentation checks, which live in the design system: a platform capability (10-18 decision), not a precedent.
+ */
+export const PRIVATE_UI_EXEMPT_PLUGINS: readonly string[] = [
+  "plugins/native/plugin-builder",
+];
 
 const DATABASE_IMPLEMENTATIONS = new Set([
   "better-sqlite3",
@@ -137,6 +157,25 @@ function exportedSubpath(specifier: string, target: BoundaryPackage): string | n
   return `./${specifier.slice(target.name.length + 1)}`;
 }
 
+/**
+ * A Plugin's `./testing` entry opens its data the way a test does (outside the Plugin Runtime). The sources the checker scans are
+ * all production, so an import of it from them, from another package or from the Plugin's own other modules, is a violation.
+ */
+function importsPluginTestingEntry(observation: ImportObservation): boolean {
+  const { importer, target, specifier } = observation;
+  if (specifier.startsWith(".")) return isPlugin(importer.kind) && /(?:^|\/)testing(?:\.js)?$/u.test(specifier);
+  return target !== undefined && isPlugin(target.kind) && exportedSubpath(specifier, target) === "./testing";
+}
+
+function testingEntryViolations(observation: ImportObservation): readonly BoundaryViolation[] {
+  if (!importsPluginTestingEntry(observation)) return [];
+  return [violation(
+    "plugin-testing-entry-import",
+    observation,
+    `${observation.specifier} is a test entry: production code opens a Plugin's data through the Plugin Runtime, never through its ./testing export`,
+  )];
+}
+
 function violation(
   code: BoundaryViolationCode,
   observation: ImportObservation,
@@ -148,6 +187,19 @@ function violation(
     specifier: observation.specifier,
     message,
   };
+}
+
+/** A Plugin draws with the Plugin SDK's public UI parts; the private UI packages are not its to import (PG-055). */
+function privateUiViolations(observation: ImportObservation, target: BoundaryPackage): readonly BoundaryViolation[] {
+  const { importer } = observation;
+  if (!isPlugin(importer.kind) || !PRIVATE_UI_PACKAGE_NAMES.has(target.name) || PRIVATE_UI_EXEMPT_PLUGINS.includes(importer.path)) return [];
+  return [
+    violation(
+      "plugin-private-ui-dependency",
+      observation,
+      `${importer.name} must draw with the Plugin SDK's public UI parts, not import ${target.name}: an author installs the contracts and the SDK only`,
+    ),
+  ];
 }
 
 /** Dependency direction between layers: Apps over Plugins and Modules and Horizontal Services over platform packages. */
@@ -280,6 +332,8 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
     );
   }
 
+  violations.push(...testingEntryViolations(observation));
+
   if (!target || target.name === importer.name) return violations;
 
   const subpath = exportedSubpath(specifier, target);
@@ -322,6 +376,8 @@ export function evaluateImportBoundary(observation: ImportObservation): readonly
       ),
     );
   }
+
+  violations.push(...privateUiViolations(observation, target));
 
   if (target.name === "@molis-ai/molis-work-test-kit" && importer.name !== target.name) {
     violations.push(

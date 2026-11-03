@@ -1,6 +1,6 @@
 /** The agent-host contract (`services/agent-host`): a started run's handle and controls, and what a run and a session show. */
 import type { AgentRunRef, AgentRunPhase, AgentSessionRef } from "./agent-host-runtime.js";
-import type { AgentFrozenStart, AgentCreateSessionInput } from "./agent-host-start.js";
+import type { AgentFrozenStart, AgentSessionOwner } from "./agent-host-start.js";
 import type { AgentAnswerControl, AgentPendingQuestion } from "./agent-interaction.js";
 import type { AgentStepBoard } from "./agent-host-session.js";
 import type { AgentMemoryRecallFact } from "./agent-host-memory.js";
@@ -116,7 +116,20 @@ export interface AgentTodoItem {
   state: "pending" | "in-progress" | "done" | "abandoned";
 }
 
+/**
+ * A model call the runtime is about to try again: the wall-clock time it will (`until`), the attempt that failed and why —
+ * the provider limited the rate, was unavailable after the request went out, or the request was never sent. The page counts
+ * down to `until`; it never retries on its own.
+ */
+export interface AgentRetryWait {
+  until: string;
+  reason: "rate-limited" | "unavailable" | "not-sent";
+  attempt: number;
+}
+
 export interface AgentRunView {
+  /** Canonical original input read from its existing Session attempt; absent when no source was recorded. */
+  original_input?: import("./agent-inputs.js").AgentOriginalInput;
   step_board?: AgentStepBoard;
   step_board_error?: string;
   ref: AgentRunRef;
@@ -151,6 +164,8 @@ export interface AgentRunView {
    * cancel act at once, an added instruction waits for it to wake. The wait counts against its time budget.
    */
   sleeping_until?: string;
+  /** While a model call waits to try again (the runtime's `retry-waiting`): when, and why. Gone once a call answers or the Run ends. */
+  retry_wait?: AgentRetryWait;
   /**
    * The person switched this Run's model: `now` is where its calls go since (`frozen.model_id` stays the start), and
    * `requested` one asked for that takes effect at the next model call. Context tidying keeps the start model.
@@ -183,7 +198,7 @@ export interface AgentSessionView {
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
-  owner: Pick<AgentCreateSessionInput, "project_id" | "plugin_id" | "install_id" | "actor_id">;
+  owner: AgentSessionOwner;
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];

@@ -35,7 +35,7 @@ test("ASC-34: a failed latest Send keeps a durable pause and draft, including wh
     try {
       await assert.rejects(service.send({ work_id: work.work_id, request_id: `latest-${holdFails}`, text: "只查资料，别保存" }, {}));
       const saved = store.get("user", work.work_id);
-      assert.equal(saved.continuation_hold, "paused"); assert.equal(saved.draft, "只查资料，别保存");
+      assert.equal(saved.continuation_hold, "input"); assert.equal(saved.draft, "只查资料，别保存");
       service.continuations.close();
       const restarted = new AssistantService(new AssistantStore(db), ports, "user");
       try {
@@ -65,8 +65,52 @@ test("ASC-34: an earlier Send failing after a newer accepted input cannot replac
     assert.equal(saved.draft, "New draft"); assert.equal(saved.continuation_hold, undefined);
     const failed = service.continuations.begin(saved, "Newest unsent input");
     failed.end();
-    assert.equal(store.get("user", work.work_id).continuation_hold, "paused");
+    assert.equal(store.get("user", work.work_id).continuation_hold, "input");
   } finally { release.resolve(); service.continuations.close(); db.close(); }
+});
+
+test("ASC-34: a newer Send whose setup hold fails invalidates the older Send before failure and preserves its own draft", () => {
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  const host = new AgentHost({ reviews: new AgentReviewQueue() });
+  let holds = 0;
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async () => { throw new Error("No round should start"); }, holdSetups: () => {
+      if (++holds === 2) {
+        assert.equal(first.current(), false, "the old Send loses authority before the new setup hold runs");
+        throw new Error("setup storage unavailable");
+      }
+    } }, "user");
+  const work = store.create({ actor_id: "user", title: "Waiting work", scope: { kind: "personal" }, origin: null });
+  const first = service.continuations.begin(store.update("user", work.work_id, null, { session_id: "waiting-session" }), "First draft");
+  try {
+    assert.throws(() => service.continuations.begin(store.get("user", work.work_id), "Newer unsent draft"), /setup storage unavailable/);
+    assert.equal(first.current(), false, "failure must not restore the earlier Send's authority");
+    assert.equal(service.continuations.currentInput(work.work_id)(), false, "the failed new Send leaves no live token");
+    const saved = store.get("user", work.work_id);
+    assert.equal(saved.continuation_hold, "input"); assert.equal(saved.draft, "Newer unsent draft");
+    first.accept(); first.end();
+    assert.deepEqual(store.get("user", work.work_id), saved, "late acceptance cannot clear the failed newer input or change its revision");
+    assert.equal(service.continuations.pending(), false);
+  } finally { service.continuations.close(); db.close(); }
+});
+
+test("ASC-34: late Send acceptance preserves a delegated work stopped directly by its parent", async () => {
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  const host = new AgentHost({ reviews: new AgentReviewQueue() });
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async () => { throw new Error("No round should start"); } }, "user");
+  const work = store.create({ actor_id: "user", title: "Child work", scope: { kind: "personal" }, origin: null,
+    delegated_by: { graph_id: "parent-graph", node_id: "child", title: "Parent work", acceptance: "Return findings" } });
+  const input = service.continuations.begin(work, "Continue the child");
+  try {
+    // Parent stop writes each child's durable hold directly; it does not invalidate the child's Send token.
+    const stopped = store.update("user", work.work_id, null, { continuation_hold: "stopped" }, false);
+    assert.equal(input.current(), true);
+    input.accept(); input.end();
+    assert.deepEqual(store.get("user", work.work_id), stopped, "acceptance cannot erase a stop written after Send began");
+    assert.equal(await service.continuations.state(stopped, "completed"), "stopped");
+    assert.equal(service.continuations.pending(), false);
+  } finally { service.continuations.close(); db.close(); }
 });
 
 
@@ -157,7 +201,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
     else store.update("user", work.work_id, null, { continuation_hold: "paused", draft: "Newest intent" });
     release.resolve(); await new Promise(resolve => setImmediate(resolve));
     assert.equal(store.observed("user", work.work_id), "running", "the obsolete observation must not be committed");
-    assert.deepEqual(service.notices(null), [], "there is no false completed notification");
+    assert.deepEqual(service.notices.notices(null), [], "there is no false completed notification");
     if (change === "latest-input") assert.equal(store.get("user", work.work_id).draft, "Newest intent");
   } finally { release.resolve(); service.continuations.close(); await adapter.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });

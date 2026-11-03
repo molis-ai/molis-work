@@ -1,176 +1,125 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
-import ts from "typescript";
+import { buildSync } from "esbuild";
+import type { UiTerminalEvent, UiTerminalCommand, UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
+import { SHELF_MESSAGES } from "@molis-ai/molis-work-plugin-shelf";
 
-const source = readFileSync(new URL("../plugins/native/shelf/src/terminal-client.ts", import.meta.url), "utf8");
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText;
-const options = { command: "/fixture/agent", cwd: "/fixture/shelf", title: "Fixture Agent" };
-type OpenOptions = typeof options;
-const panelId = "molis-shelf-tui";
-type Message = { type: string; data?: string; token?: string; panelId?: string; command?: string };
+// RAC-717: the terminal well is Shelf's own browser code (src/browser/terminal.ts); the platform's entry no longer carries it.
+const compiled = buildSync({ entryPoints: [fileURLToPath(new URL("../plugins/native/shelf/src/browser/terminal.ts", import.meta.url))],
+  bundle: true, write: false, format: "cjs", platform: "browser", target: "es2022" }).outputFiles[0]!.text;
 type Recovery = { texts: string[]; message: string };
-type Bridge = { open(options: OpenOptions): void; send(text: string): boolean; isLive(): boolean };
+type Bridge = { open(): void; send(text: string): boolean; isLive(): boolean };
+const panelId = "installation-owned-terminal";
+const flush = async () => { await new Promise(resolve => setImmediate(resolve)); };
 
-// This runs the current production controller. Only DOM, xterm and the wire
-// transport are fake; no process or actual terminal agent is launched.
-function fixture(token = "fixture-control-token") {
-  const sockets: Socket[] = [];
-  class Socket extends EventTarget {
-    static CONNECTING = 0;
-    static OPEN = 1;
-    readyState = Socket.CONNECTING;
-    sent: Message[] = [];
-    constructor(readonly url: string) { super(); sockets.push(this); }
-    send(text: string) {
-      assert.equal(this.readyState, Socket.OPEN, "writes require an open transport");
-      this.sent.push(JSON.parse(text));
-    }
-    open() { this.readyState = Socket.OPEN; this.dispatchEvent(new Event("open")); }
-    message(message: unknown) {
-      this.dispatchEvent(Object.assign(new Event("message"), { data: JSON.stringify(message) }));
-    }
-    close() { this.readyState = 3; this.dispatchEvent(new Event("close")); }
-  }
-  class Terminal {
-    cols = 100;
-    rows = 30;
-    constructor(public options: Record<string, unknown>) {}
-    loadAddon() {}
-    open() {}
-    onData() {}
-    write() {}
-    writeln() {}
-  }
-  const host = { dataset: {} as Record<string, string>, isConnected: true, clientWidth: 640 };
-  const window = new EventTarget();
-  const recovered: Recovery[] = [];
-  const notices: string[] = [];
-  window.addEventListener("molis-shelf-tui-unsent", (event) => {
-    recovered.push(JSON.parse(JSON.stringify((event as CustomEvent<Recovery>).detail)));
-  });
-  window.addEventListener("molis-shelf-notice", (event) => {
-    notices.push((event as CustomEvent<{ message: string }>).detail.message);
-  });
+// Production queue controller; the common terminal API is the boundary being simulated here.
+// Real backend authorization and browser keyboard/replay run in security-invariants-plugin-terminals*.
+/** The page's translator, as the Host gives it: the stable key in the page's language (RAC-1321). */
+const shelfWords = (english: boolean) => (key: string) => {
+  const text = SHELF_MESSAGES[key as keyof typeof SHELF_MESSAGES];
+  assert.ok(text, key);
+  return english ? text.en : text.zh;
+};
+
+function fixture(options: { english?: boolean } = {}) {
+  const window = new EventTarget(), recovered: Recovery[] = [], requests: string[] = [], writes: UiTerminalCommand[] = [];
+  let mounted: UiTerminalMountOptions | undefined, unavailable = false, failedWrite = false, disposed = 0;
+  window.addEventListener("molis-shelf-tui-unsent", event => recovered.push(structuredClone((event as CustomEvent<Recovery>).detail)));
+  const screen = { dataset: {} };
   const context = {
-    exports: {} as { startShelfTerminalClient?: () => void },
+    module: { exports: {} as { installTerminal(page: unknown): void } }, window, CustomEvent,
     molisWorkShelfTui: undefined as Bridge | undefined,
-    require(name: string) {
-      if (name === "@xterm/xterm") return { Terminal };
-      if (name === "@xterm/addon-fit") return { FitAddon: class { fit() {} } };
-      if (name === "@xterm/xterm/css/xterm.css") return { default: "" };
-      throw new Error(`Unexpected dependency: ${name}`);
+    async molisWorkRequest(path: string, options: { body: Record<string, unknown> }) {
+      requests.push(path); assert.equal(JSON.stringify(options.body), "{}", "the page cannot choose a command or working directory");
+      if (unavailable) throw new Error("安装权限已失效");
+      return { panelId };
     },
-    WebSocket: Socket, window, CustomEvent,
-    location: { protocol: "http:", host: "localhost" },
-    ResizeObserver: class { observe() {} },
-    getComputedStyle: () => ({ getPropertyValue: () => "" }),
-    document: {
-      documentElement: { dataset: { resolvedTheme: "light" } },
-      querySelector(selector: string) {
-        if (selector === "[data-shelf-tty-screen]") return host;
-        if (selector === 'meta[name="molis-work-control-token"]') return { getAttribute: () => token };
-        return null;
+    molisPageTerminal: {
+      async mount(_screen: unknown, options: UiTerminalMountOptions) {
+        mounted = options; return { fit() {}, focus() {}, dispose() { disposed++; } };
       },
-      getElementById: () => null,
-      createElement: () => ({ id: "", textContent: "" }),
-      head: { appendChild() {} },
+      async send(command: UiTerminalCommand) { if (failedWrite) throw new Error("连接已断开"); writes.push(structuredClone(command)); },
     },
   };
-  runInNewContext(compiled, context, { filename: "shelf-terminal-client.js" });
-  context.exports.startShelfTerminalClient!();
-  assert.ok(context.molisWorkShelfTui);
-  const bridge = context.molisWorkShelfTui;
-  const connect = () => {
-    bridge.open(options);
-    const socket = sockets.at(-1)!;
-    socket.open();
-    assert.deepEqual(socket.sent[0], { type: "auth", token });
-    socket.message({ type: "ready" });
-    return socket;
+  const page = { bench: { querySelector: () => screen }, api: "/projects/fixture/api/plugins/io.molis.work.shelf",
+    lifetime: { signal: new AbortController().signal }, L: shelfWords(options.english === true) };
+  runInNewContext(compiled, context, { filename: "shelf-terminal.js" }); context.module.exports.installTerminal(page);
+  assert.ok(context.molisWorkShelfTui); const bridge = context.molisWorkShelfTui;
+  return { bridge, recovered, requests, writes, get disposed() { return disposed; },
+    event(event: UiTerminalEvent) { assert.ok(mounted); mounted.onEvent?.(event); },
+    failOpen() { unavailable = true; }, failWrite() { failedWrite = true; },
+    async open() { bridge.open(); await flush(); assert.ok(mounted); },
+    spawned() { assert.ok(mounted); mounted.onEvent?.({ type: "spawned", panelId, attached: true, started: false, replay: "" }); },
+    notAttached() { assert.ok(mounted); mounted.onEvent?.({ type: "spawned", panelId, attached: false, started: false, replay: "" }); },
   };
-  const writes = (socket: Socket) => socket.sent.filter(message => message.type === "write").map(message => message.data);
-  return { bridge, sockets, recovered, notices, connect, writes };
 }
 
-test("Shelf spawn failure returns all pending input once and retry does not resend the old queue", () => {
-  const f = fixture(), socket = f.connect();
-  assert.equal(f.bridge.send("第一行\n保留换行"), true);
-  assert.equal(f.bridge.send("https://example.com/中文"), true);
-  assert.deepEqual(f.writes(socket), []);
-  socket.message({ type: "error", panelId, message: "fixture spawn failed" });
-  assert.equal(f.bridge.isLive(), false);
-  assert.deepEqual(f.recovered, [{ texts: ["第一行\n保留换行", "https://example.com/中文"], message: "fixture spawn failed" }]);
-  assert.deepEqual(f.notices, ["fixture spawn failed"]);
-  socket.message({ type: "error", panelId, message: "second notice" });
-  assert.equal(f.recovered.length, 1, "recovery consumes the failed queue");
-  f.bridge.open(options);
-  assert.equal(socket.sent.filter(message => message.type === "spawn").length, 2);
-  for (const text of f.recovered[0]!.texts) assert.equal(f.bridge.send(text), true);
-  socket.message({ type: "spawned", panelId });
-  assert.equal(f.bridge.isLive(), true);
-  assert.deepEqual(f.writes(socket), ["第一行\n保留换行\r", "https://example.com/中文\r"]);
+test("SYS-15 Shelf startup rejection restores queued input once and does not replay it", async () => {
+  const f = fixture(); f.failOpen(); f.bridge.open(); assert.equal(f.bridge.send("待发送的文字"), true); await flush();
+  assert.equal(f.recovered.length, 1); assert.deepEqual(f.recovered[0]!.texts, ["待发送的文字"]);
+  assert.match(f.recovered[0]!.message, /权限/); assert.deepEqual(f.writes, []); assert.equal(f.bridge.isLive(), false);
+  assert.equal(f.bridge.send("保留在输入框"), false);
 });
 
-test("Shelf disconnect restores input queued during authentication and reconnect ignores old socket messages", () => {
-  const f = fixture();
-  f.bridge.open(options);
-  const first = f.sockets[0]!;
-  assert.equal(f.bridge.send("断线时尚未发送"), true);
-  first.close();
-  assert.equal(f.bridge.isLive(), false);
-  assert.equal(f.bridge.send("没有连接"), false);
-  assert.deepEqual(f.recovered[0]?.texts, ["断线时尚未发送"]);
-  assert.match(f.recovered[0]?.message ?? "", /连接已断开/);
-  const second = f.connect();
-  assert.notEqual(second, first);
-  first.message({ type: "spawned", panelId });
-  assert.equal(f.bridge.isLive(), false, "stale socket cannot mark the new session live");
-  assert.equal(f.bridge.send(f.recovered[0]!.texts[0]!), true);
-  second.message({ type: "spawned", panelId });
-  assert.deepEqual(f.writes(first), []);
-  assert.deepEqual(f.writes(second), ["断线时尚未发送\r"]);
-  assert.equal(f.recovered.length, 1);
+test("SYS-15 Shelf opens only its backend terminal and flushes queued input after attach", async () => {
+  const f = fixture(); assert.equal(f.bridge.send("未打开"), false);
+  f.bridge.open(); f.bridge.open(); f.bridge.send("启动期间输入"); await flush();
+  assert.deepEqual(f.requests, ["/projects/fixture/api/plugins/io.molis.work.shelf/terminal"]); assert.deepEqual(f.writes, []);
+  f.spawned(); assert.equal(f.bridge.isLive(), true);
+  assert.deepEqual(f.writes, [{ type: "write", panelId, data: "启动期间输入\r" }]);
+  f.spawned(); assert.equal(f.writes.length, 1, "another attach acknowledgement must not repeat input");
 });
 
-test("Shelf exit marks the session dead and a new open spawns again without repeating delivered input", () => {
-  const f = fixture(), socket = f.connect();
-  socket.message({ type: "spawned", panelId });
-  assert.equal(f.bridge.isLive(), true);
-  assert.equal(f.bridge.send("已送达第一轮"), true);
-  socket.message({ type: "exit", panelId });
-  assert.equal(f.bridge.isLive(), false);
-  assert.deepEqual(f.recovered, [], "delivered input must not return to the composer");
-  f.bridge.open(options);
-  f.bridge.open(options);
-  assert.equal(socket.sent.filter(message => message.type === "spawn").length, 2, "repeated open shares a pending spawn");
-  assert.equal(f.bridge.send("第二轮"), true);
-  assert.deepEqual(f.writes(socket), ["已送达第一轮\r"]);
-  socket.message({ type: "spawned", panelId });
-  assert.deepEqual(f.writes(socket), ["已送达第一轮\r", "第二轮\r"]);
+test("RAC-1322 SYS-15 Shelf disconnect restores pending input; reattach does not resend it", async () => {
+  const f = fixture(); await f.open(); f.bridge.send("尚未发送"); f.event({ type: "disconnected" });
+  assert.equal(f.recovered[0]!.message, "终端连接已断开，未发送的输入已恢复。");
+  assert.deepEqual(f.recovered[0]!.texts, ["尚未发送"]); f.spawned(); assert.deepEqual(f.writes, []);
+  assert.equal(f.bridge.send(f.recovered[0]!.texts[0]!), true); await flush();
+  assert.deepEqual(f.writes, [{ type: "write", panelId, data: "尚未发送\r" }]);
 });
 
-test("Shelf exit before spawn acknowledgement returns pending input for explicit retry", () => {
-  const f = fixture(), socket = f.connect();
-  f.bridge.send("启动期间退出");
-  socket.message({ type: "exit", panelId });
-  assert.deepEqual(f.recovered[0]?.texts, ["启动期间退出"]);
-  assert.match(f.recovered[0]?.message ?? "", /会话已结束/);
-  f.bridge.open(options);
-  f.bridge.send(f.recovered[0]!.texts[0]!);
-  socket.message({ type: "spawned", panelId });
-  assert.deepEqual(f.writes(socket), ["启动期间退出\r"]);
+test("SYS-15 Shelf exit releases the view and another open never repeats delivered input", async () => {
+  const f = fixture(); await f.open(); f.spawned(); f.bridge.send("第一轮"); await flush();
+  f.event({ type: "exit", panelId, exitCode: 0, signal: 0 }); assert.equal(f.bridge.isLive(), false); assert.equal(f.disposed, 1);
+  assert.deepEqual(f.recovered, []); f.bridge.open(); f.bridge.open(); f.bridge.send("第二轮"); await flush();
+  assert.equal(f.requests.length, 2); f.spawned(); await flush();
+  assert.deepEqual(f.writes.map(command => command.type === "write" ? command.data : ""), ["第一轮\r", "第二轮\r"]);
 });
 
-test("Shelf send returns false before open and when a missing control token prevents connection", () => {
-  const f = fixture("");
-  assert.equal(f.bridge.send("未打开"), false);
-  f.bridge.open(options);
-  assert.equal(f.sockets.length, 0);
-  assert.equal(f.bridge.send("令牌缺失，保留输入"), false);
+test("RAC-1322 SYS-15 Shelf exit before attach returns pending input for explicit retry", async () => {
+  const f = fixture(); await f.open(); f.bridge.send("启动期间退出"); f.event({ type: "exit", panelId, exitCode: 1, signal: 0 });
+  assert.deepEqual(f.recovered[0]!.texts, ["启动期间退出"]); assert.match(f.recovered[0]!.message, /会话已结束/);
+  assert.equal(f.recovered[0]!.message, "终端会话已结束，未发送的输入已恢复。");
+  await f.open(); f.spawned(); assert.deepEqual(f.writes, []); f.bridge.send(f.recovered[0]!.texts[0]!); await flush(); assert.equal(f.writes.length, 1);
+});
+
+test("SYS-15 Shelf failed transport write returns the input without automatic replay", async () => {
+  const f = fixture(); await f.open(); f.spawned(); f.failWrite(); f.bridge.send("断开时输入"); await flush();
+  assert.deepEqual(f.recovered[0]!.texts, ["断开时输入"]); f.spawned(); assert.deepEqual(f.writes, []);
+});
+
+test("RAC-1321 the terminal well's recovery sentences are English on an English page", async () => {
+  const ended = fixture({ english: true }); await ended.open(); ended.bridge.send("unsent");
+  ended.event({ type: "exit", panelId, exitCode: 1, signal: 0 });
+  assert.equal(ended.recovered[0]!.message, "The terminal session ended. Your unsent input was restored.");
+  assert.doesNotMatch(ended.recovered[0]!.message, /[一-鿿]/u);
+  const dropped = fixture({ english: true }); await dropped.open(); dropped.bridge.send("unsent");
+  dropped.event({ type: "disconnected" });
+  assert.equal(dropped.recovered[0]!.message, "The terminal connection dropped. Your unsent input was restored.");
+  assert.doesNotMatch(dropped.recovered[0]!.message, /[一-鿿]/u);
+  // The third branch: a spawned panel that neither started nor attached ends the session too.
+  const notAttached = fixture({ english: true }); await notAttached.open(); notAttached.bridge.send("unsent");
+  notAttached.notAttached();
+  assert.equal(notAttached.recovered[0]!.message, "The terminal session ended. Your unsent input was restored.");
+  assert.doesNotMatch(notAttached.recovered[0]!.message, /[一-鿿]/u);
+});
+
+test("RAC-1322 SYS-15 a spawned panel that neither started nor attached restores the queued input with the ended sentence", async () => {
+  const f = fixture(); await f.open(); f.bridge.send("未附着的输入"); f.notAttached();
+  assert.deepEqual(f.recovered[0]!.texts, ["未附着的输入"]);
+  assert.equal(f.recovered[0]!.message, "终端会话已结束，未发送的输入已恢复。");
   assert.equal(f.bridge.isLive(), false);
-  assert.deepEqual(f.recovered, []);
+  assert.equal(f.disposed, 1);
 });

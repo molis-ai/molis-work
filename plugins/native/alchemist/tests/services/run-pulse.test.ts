@@ -46,14 +46,14 @@ describe("Market Pulse worker", () => {
     acceptTestJob(fixture.worker, run.jobId);
     await fixture.worker.runNext();
 
-    expect(fixture.pulse.getRun(run.id)).toMatchObject({ status: "partial", stage: "synthesizing" });
-    expect(fixture.pulse.listSourceCollections(run.id)).toHaveLength(3);
-    expect(fixture.pulse.listReports()[0]).toMatchObject({
+    expect(fixture.pulse.runs.getRun(run.id)).toMatchObject({ status: "partial", stage: "synthesizing" });
+    expect(fixture.pulse.sources.listSourceCollections(run.id)).toHaveLength(3);
+    expect(fixture.pulse.reports.listReports()[0]).toMatchObject({
       status: "partial",
       successfulSourceIds: ["watcha", "github"],
       failedSourceIds: ["toolify"],
     });
-    const opportunities = fixture.pulse.listOpportunities(fixture.pulse.listReports()[0]?.id);
+    const opportunities = fixture.pulse.opportunities.listOpportunities(fixture.pulse.reports.listReports()[0]?.id);
     expect(opportunities.length).toBeGreaterThan(0);
     expect(opportunities.every((item) => item.sourceSignalIds.length > 0)).toBe(true);
     expect(
@@ -80,7 +80,7 @@ function setup(sources: readonly SourcePort[]) {
   const idFactory = { next: (prefix: string) => `${prefix}-pulse-${++sequence}` };
   const clock = { now: () => now };
   const pulse = new SqlitePulseRepository(database);
-  pulse.ensureDefaultSourceSettings(now);
+  pulse.sources.ensureDefaultSourceSettings(now);
   const jobs = new SqliteJobRunner(database, { workerId: "pulse-worker", clock, idFactory });
   const worker = new LocalWorker(
     jobs,

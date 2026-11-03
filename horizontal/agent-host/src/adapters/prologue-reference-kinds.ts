@@ -7,7 +7,8 @@ import { QUESTIONNAIRE_LIMITS } from "@prologue/sdk";
  * bad entry, which would stop every round in the project; here that entry alone is left out and named as a problem for its
  * plugin's diagnostics, never for the model.
  */
-export interface ReferenceKindCandidate { readonly plugin_id: string; readonly builtin: boolean; readonly kind: string; readonly title: string }
+/** `installation` is the Host's key for the plugin installation the kind comes from: each has its own share of the limit. */
+export interface ReferenceKindCandidate { readonly plugin_id: string; readonly installation: string; readonly kind: string; readonly title: string }
 type ReferenceKindProblemReason = "kind" | "title" | "limit";
 /** One per plugin and reason, with the kinds it covers and the SDK's bound it broke (characters, or kinds for `limit`). */
 export interface ReferenceKindProblem { readonly plugin_id: string; readonly reason: ReferenceKindProblemReason; readonly limit: number; readonly kinds: readonly string[] }
@@ -25,13 +26,16 @@ const LIMITS: Record<ReferenceKindProblemReason, number> = {
   kind: QUESTIONNAIRE_LIMITS.maxRefKindChars, title: QUESTIONNAIRE_LIMITS.maxRefKindTitleChars, limit: QUESTIONNAIRE_LIMITS.maxAppRefKinds };
 
 /**
- * The kinds in a fixed order: built-in plugins first, then by plugin id and kind, so two rounds in one project see the same
- * schema (and keep the prompt cache). A kind two plugins list keeps the first one's name. At most the SDK's
- * `maxAppRefKinds`; the rest are problems.
+ * The kinds in a fixed order, by plugin id and kind, so two rounds in one project see the same schema (and keep the prompt
+ * cache); two installations that name one plugin id go by installation. A kind two plugins list keeps the name of the one first
+ * in that order. Every installation, built in or not, has the same share of the SDK's `maxAppRefKinds` (PG-015): past the
+ * limit, kinds are taken one per installation in turn, so one that lists many cannot push out another's, and a share one does
+ * not use goes to the others. What is left out is a problem for its plugin.
  */
 export function boundReferenceKinds(candidates: readonly ReferenceKindCandidate[]): { kinds: Array<{ kind: string; title: string }>; problems: ReferenceKindProblem[] } {
-  const ordered = [...candidates].sort((a, b) => Number(b.builtin) - Number(a.builtin) || byCodePoint(a.plugin_id, b.plugin_id) || byCodePoint(a.kind, b.kind));
-  const kinds = new Map<string, string>(), problems = new Map<string, { plugin_id: string; reason: ReferenceKindProblemReason; limit: number; kinds: string[] }>();
+  const ordered = [...candidates].sort((a, b) => byCodePoint(a.plugin_id, b.plugin_id) || byCodePoint(a.installation, b.installation) || byCodePoint(a.kind, b.kind));
+  const named = new Set<string>(), offered = new Map<string, ReferenceKindCandidate[]>();
+  const problems = new Map<string, { plugin_id: string; reason: ReferenceKindProblemReason; limit: number; kinds: string[] }>();
   const note = (entry: ReferenceKindCandidate, reason: ReferenceKindProblemReason) => {
     const key = `${entry.plugin_id}\n${reason}`;
     if (!problems.has(key)) problems.set(key, { plugin_id: entry.plugin_id, reason, limit: LIMITS[reason], kinds: [] });
@@ -40,11 +44,15 @@ export function boundReferenceKinds(candidates: readonly ReferenceKindCandidate[
   for (const entry of ordered) {
     if (!oneLine(entry.kind, LIMITS.kind) || !KIND.test(entry.kind)) note(entry, "kind");
     else if (!oneLine(entry.title, LIMITS.title)) note(entry, "title");
-    else if (kinds.has(entry.kind)) { /* named already, by a plugin earlier in the order */ }
-    else if (kinds.size >= LIMITS.limit) note(entry, "limit");
-    else kinds.set(entry.kind, entry.title);
+    else if (named.has(entry.kind)) { /* named already, by a plugin earlier in the order */ }
+    else { named.add(entry.kind); offered.set(entry.installation, [...offered.get(entry.installation) ?? [], entry]); }
   }
-  return { kinds: [...kinds].map(([kind, title]) => ({ kind, title })), problems: [...problems.values()] };
+  const taken = new Set<ReferenceKindCandidate>(), queues = [...offered.values()];
+  for (let turn = 0; taken.size < LIMITS.limit && queues.some(queue => queue.length > turn); turn++)
+    for (const queue of queues) if (queue.length > turn && taken.size < LIMITS.limit) taken.add(queue[turn]!);
+  const kinds: Array<{ kind: string; title: string }> = [];
+  for (const entry of queues.flat()) taken.has(entry) ? kinds.push({ kind: entry.kind, title: entry.title }) : note(entry, "limit");
+  return { kinds, problems: [...problems.values()] };
 }
 
 /**

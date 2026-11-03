@@ -83,13 +83,16 @@ for (const fallback of [false, true]) {
   test(`VUX-16 (${fallback ? "fallback" : "field-sizing"}): Coding's box grows to 320 px and starts small again in a new session`, { timeout: 150_000 }, async (t) => {
     const browser = await openCoding(t, fallback ? WITHOUT_FIELD_SIZING : ""); if (!browser) return;
     const { evaluate, waitFor, command, sessionId, box, start } = browser;
+    // Leave at least 800 px inside the plugin frame after the shell chrome, so 40% reaches the 320 px field cap.
+    await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await waitFor("innerHeight >= 800");
     assert.equal(await evaluate(`${box}.hasAttribute('data-fit')`), true);
     const height = () => evaluate<number>(`${box}.getBoundingClientRect().height`);
     await start("一行");
     const one = await height();
     await evaluate(`${box}.focus()`);
     for (let line = 2; line <= 30; line++) await command("Input.insertText", { text: "\n第 " + line + " 行" }, sessionId);
-    // 40% of a 900 px frame is 360 px, so the box's own 320 px is the max.
+    // The child viewport allows at least 320 px, so the box's own 320 px is the max.
     assert.equal(await height(), 320, "the box stops at 320 px");
     assert.ok(await evaluate(`(() => { const f = ${box}; return f.scrollTop + f.clientHeight >= f.scrollHeight - 1; })()`), "the last line is in view, whole");
     // A new session's box is emptied by the page's draft (no input event): it starts small again.

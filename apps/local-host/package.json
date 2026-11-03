@@ -25,7 +25,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && node tooling/build-browser-surfaces.mjs && node native/materials/build.mjs && node native/computer/build.mjs",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/programs/surface-nodes.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --global-name=surfaceProgram --outfile=dist/browser/surface-capture.js '--banner:js=(() => {' '--footer:js=return surfaceProgram.capture();})()' && esbuild src/browser/programs/surface-nodes.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --global-name=surfaceProgram --outfile=dist/browser/surface-read.js '--banner:js=function() {' '--footer:js=return surfaceProgram.read.call(this)}' && esbuild src/browser/programs/surface-nodes.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --global-name=surfaceProgram --outfile=dist/browser/surface-resolve.js '--banner:js=function(index, currentDocument) {' '--footer:js=return surfaceProgram.resolve.call(this,index,currentDocument)}' && node native/materials/build.mjs && node native/computer/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json",
     "materials:build": "bash native/materials/build.sh",
     "materials:build:whisper": "bash native/materials/build-whisper.sh",

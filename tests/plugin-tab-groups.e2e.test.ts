@@ -22,9 +22,17 @@ const GROUP_CONTRAST = `(() => {
 })()`;
 
 test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined, true);
   if (!browser) return;
   const { command, sessionId, evaluate, origin, projectId } = browser;
+  const paneReads: Array<{ url: string; started: number; finished?: number }> = [];
+  const observePane = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
+    if (request.method !== "GET" || !request.url?.includes("workbenchPane=")) return;
+    const read = { url: request.url, started: Date.now(), finished: undefined as number | undefined }; paneReads.push(read); if (paneReads.length > 12) paneReads.shift();
+    response.once("finish", () => { read.finished = Date.now(); });
+  };
+  browser.server?.on("request", observePane);
+  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 Goals pane reads " + JSON.stringify(paneReads)); });
   const phases: Array<{ action: string; at: number }> = [];
   const mark = (action: string) => { phases.push({ action, at: Date.now() }); if (phases.length > 12) phases.shift(); };
   const click: typeof browser.click = (selector, options) => { mark('click ' + selector); return browser.click(selector, options); };
@@ -129,7 +137,7 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
   await waitFor(`${remainingCore}.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === 'CORE' && ${remainingCore}.querySelector('[data-goal-node-workspace]')?.getClientRects().length > 0`, 30_000);
   } catch (error) {
     const state = await command('Runtime.evaluate', { expression: "(()=>({url:location.href,ready:document.readyState,visibility:document.visibilityState,focus:document.hasFocus(),active:document.activeElement?.outerHTML.slice(0,180),surface:document.body?.dataset.desktopSurface,viewport:[innerWidth,innerHeight],panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),tabs:[...p.querySelectorAll('.tab-item')].map(t=>({id:t.dataset.tabId,plugin:t.dataset.plugin,kind:t.dataset.tabKind,item:t.dataset.itemId,current:t.hasAttribute('aria-current')}))})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,connected:f.isConnected,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState,surface:f.contentDocument?.body?.dataset.desktopSurface,roots:[...f.contentDocument?.querySelectorAll('[data-ui-client-state]')||[]].map(r=>({state:r.dataset.uiClientState,plugin:r.dataset.pluginOwner,page:r.dataset.pluginPage,hidden:r.hidden})),children:[...f.contentDocument?.querySelectorAll('iframe[data-plugin-frame]')||[]].map(c=>({surface:c.dataset.pluginFrame,src:c.src,connected:c.isConnected}))}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
-    t.diagnostic('T405 Goals beside CORE failed ' + JSON.stringify({ phases, frameEvents, state }));
+    t.diagnostic('T405 Goals beside CORE failed ' + JSON.stringify({ phases, frameEvents, paneReads, state }));
     throw error;
   } finally { settled = true; }
 });
@@ -244,7 +252,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await addProjectPlugin(browser.web, projectId!, "feed");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1000);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
@@ -305,12 +313,24 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
 
   // PRR-07 PTG-05: the parent owns the split pane's visible strip; the embedded page's strip is hidden and does not own CORE.
   // Keep the pane identity through closing the group, then use its visible undo chip to restore the group and current page.
+  // T405-17B5-UI-02: only observe the six-second chip; never extend its lifetime or manufacture focus.
+  await evaluate(`(()=>{const pane=${goalsPane},trace=window.__t405Undo={events:[]};let prior;
+    const note=phase=>{trace.events.push({phase,at:Date.now(),connected:pane.isConnected,chip:!!pane.querySelector('[data-tab-undo]')});if(trace.events.length>12)trace.events.shift();};
+    const changed=()=>{const current=!!pane.querySelector('[data-tab-undo]');if(current!==prior){prior=current;note('chip changed');}};
+    const pressed=event=>{if(event.target.closest('[data-tab-kind=plugin][data-plugin=goals] [data-tab-close]'))note('close click trusted='+event.isTrusted);};
+    const observer=new MutationObserver(changed);observer.observe(pane,{childList:true,subtree:true});pane.addEventListener('click',pressed,true);changed();
+    window.__t405StopUndo=()=>{observer.disconnect();pane.removeEventListener('click',pressed,true);note('observation ended');};})()`);
+  try {
   await click(`${goalsPaneSelector} [data-tab-kind=plugin][data-plugin=goals] [data-tab-close]`);
   await waitFor(`!${goalsPane}.querySelector('[data-plugin-group=goals] [data-tab-kind=plugin][data-plugin=goals]')`);
   await waitFor(`${goalsPane}.querySelector('[data-tab-undo]')`, 10_000);
   await click(`${goalsPaneSelector} [data-tab-undo]`);
   await waitFor(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
   assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "undo restores the Goals page as current");
+  } finally {
+    const state = await command("Runtime.evaluate", { expression: `(()=>{window.__t405StopUndo?.();return{trace:window.__t405Undo,pane:${goalsPane}?.outerHTML.slice(0,1200),saved:localStorage.getItem(${JSON.stringify("molis-work-tab-workspace:" + projectId)})};})()`, returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic("T405 group undo " + JSON.stringify(state));
+  }
 });
 
 test("D24 a list that picks several keeps ⌘-click for picking; a middle click there still opens the page behind", { timeout: 90_000 }, async (t) => {
@@ -321,7 +341,7 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
   const store = openPagesStore(homeDirectory);
   const pages = (() => { try { return ["A", "B", "C"].map((letter) => store.create({ project_id: projectId!, title: `Page ${letter}`, body: { type: "doc", content: [] } })); } finally { store.close(); } })();
   const [a, b, c] = pages.map((page) => page.id) as [string, string, string];
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1000);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${a}` }, sessionId));
   await child.waitFor(`document.querySelector('[data-pages=workbench]')?.dataset.expanded === 'true' && document.querySelector('[data-pages-rows] button[data-page-id="${c}"]')?.getClientRects().length > 0`);
   const selected = `[...document.querySelectorAll('[data-pages-rows] button[data-page-id]')].filter((row) => row.getAttribute('aria-selected') === 'true').map((row) => row.dataset.pageId).sort().join()`;

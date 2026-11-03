@@ -8,8 +8,16 @@ import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixt
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, true); if (!b) return;
+  const b = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined, true); if (!b) return;
   const { evaluate, waitFor, click, openGoalFrame, command, sessionId, navigate, origin, projectId } = b;
+  const paneReads: Array<{ url: string; started: number; finished?: number }> = [];
+  const observePane = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
+    if (request.method !== "GET" || !request.url?.includes("workbenchPane=")) return;
+    const read = { url: request.url, started: Date.now(), finished: undefined as number | undefined }; paneReads.push(read); if (paneReads.length > 12) paneReads.shift();
+    response.once("finish", () => { read.finished = Date.now(); });
+  };
+  b.server?.on("request", observePane);
+  t.after(() => { b.server?.off("request", observePane); t.diagnostic("T405 product pane reads " + JSON.stringify(paneReads)); });
   await b.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", {url: `${origin}/projects/${projectId}/`}, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
@@ -26,7 +34,11 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   await click('[data-layout-split="bottom"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===2 && document.querySelector('[data-direction=column]')");
   // Each pane is a page of its own, so both panes load the whole workbench before showing the Frame.
-  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE')", 8_000);
+  try { await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE')", 8_000); }
+  catch (error) {
+    const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({pane:f.dataset.paneOwner,tab:f.dataset.paneTab,hidden:f.hidden,src:f.src,ready:f.contentDocument?.readyState,goal:f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic("T405 product after split " + JSON.stringify({ paneReads, state })); throw error;
+  }
   const paneIds = await evaluate<string[]>("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].map(f=>f.dataset.paneOwner)");
   const [paneId, otherPaneId] = paneIds;
   const pane = (id: string) => `document.querySelector('iframe.tab-content-frame[data-pane-owner="${id}"]:not([hidden])').contentDocument`;

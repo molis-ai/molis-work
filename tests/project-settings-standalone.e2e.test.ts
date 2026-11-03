@@ -10,9 +10,18 @@ import { boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
 
 // It walks every settings category in two layouts: about 27 s on a development Mac, about 60 s on the Linux CI runner.
 test("settings serve complete category pages; the project gear opens them in the workbench stage", { timeout: 120_000 }, async t => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined, true);
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor, reloadPage } = browser;
+  // T405-17B5-UI-02: correlate the existing timeout profile with the actual pane page reads.
+  const paneReads: Array<{ url: string; started: number; finished?: number }> = [];
+  const observePane = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
+    if (request.method !== "GET" || !request.url?.includes("workbenchPane=")) return;
+    const read = { url: request.url, started: Date.now(), finished: undefined as number | undefined }; paneReads.push(read); if (paneReads.length > 12) paneReads.shift();
+    response.once("finish", () => { read.finished = Date.now(); });
+  };
+  browser.server?.on("request", observePane);
+  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 settings pane reads " + JSON.stringify(paneReads)); });
   const prefix = `/projects/${projectId}`;
   for (const [path, content] of [["", "data-project-rename"], ["/general", "data-project-rename"], ["/guidance", "data-guidance-form"], ["/rules", "data-policy-form"], ["/planning", "data-planning-search"]]) {
     const response = await fetch(origin + prefix + "/settings" + path);
@@ -25,7 +34,7 @@ test("settings serve complete category pages; the project gear opens them in the
   const embed = await (await fetch(origin + prefix + "/settings/rules?embed=1")).text();
   assert.match(embed, /data-policy-form/);
   assert.doesNotMatch(embed, /<body/);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1000);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await browser.openGoalFrame('.tree-node[data-select-goal="CORE"]');
@@ -35,7 +44,11 @@ test("settings serve complete category pages; the project gear opens them in the
   const storageKey = "molis-work-tab-workspace:" + projectId;
   const readState = `JSON.parse(localStorage.getItem(${JSON.stringify(storageKey)}))`;
   const before = await evaluate(readState);
-  await click(".navigator-project-settings");
+  try { await click(".navigator-project-settings"); }
+  catch (error) {
+    const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({pane:f.dataset.paneOwner,tab:f.dataset.paneTab,hidden:f.hidden,src:f.src,ready:f.contentDocument?.readyState,goal:f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic("T405 settings after split " + JSON.stringify({ paneReads, state })); throw error;
+  }
   await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
   assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-busy')"), false);
   assert.equal(await evaluate("location.pathname.includes('/settings')"), false);
@@ -147,7 +160,7 @@ test("work planning opens from the Goal list and is absent from project settings
   if (!browser) return;
   const { origin, projectId, command, sessionId, evaluate, navigate, click, waitFor } = browser;
   const prefix = `/projects/${projectId}`;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 700, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 700);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   await waitFor("Boolean(document.body.dataset.desktopSurface) && document.body.classList.contains('immersive-workbench')");
   await click(".navigator-project-settings");

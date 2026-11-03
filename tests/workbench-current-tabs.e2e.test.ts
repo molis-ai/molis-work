@@ -13,7 +13,16 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested split restore; unsupported stored tabs are discarded instead of converted", { timeout: 120_000 }, async t => {
-  const browser = await openAuditBrowser(t); if (!browser) return;
+  const browser = await openAuditBrowser(t, true); if (!browser) return;
+  await browser.setViewport(1440, 1000);
+  const paneReads: Array<{ url: string; started: number; finished?: number }> = [];
+  const observePane = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
+    if (request.method !== "GET" || !request.url?.includes("workbenchPane=")) return;
+    const read = { url: request.url, started: Date.now(), finished: undefined as number | undefined }; paneReads.push(read); if (paneReads.length > 12) paneReads.shift();
+    response.once("finish", () => { read.finished = Date.now(); });
+  };
+  browser.server?.on("request", observePane);
+  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 current tabs pane reads " + JSON.stringify(paneReads)); });
   await browser.click('[data-plugin-strip] [data-plugin-id="goals"]');
   await browser.waitFor("document.querySelector('.tree-node[data-select-goal=CORE]')?.getClientRects().length > 0", 15_000);
   await browser.openGoalFrame('.tree-node[data-select-goal="CORE"]');
@@ -32,7 +41,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
   try { await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3"); }
   catch (error) {
     const state = await browser.command('Runtime.evaluate', { expression: `(()=>({stage:'nested split after bottom edge click',saved:localStorage.getItem(${JSON.stringify(key)}),panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,focused:p.classList.contains('is-focused'),box:p.getBoundingClientRect().toJSON()})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({src:f.src,hidden:f.hidden,pane:f.dataset.paneOwner,tab:f.dataset.paneTab,ready:f.contentDocument?.readyState}))}))()`, returnByValue: true }, browser.sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
-    t.diagnostic('T405 current tabs nested split failed ' + JSON.stringify(state));
+    t.diagnostic('T405 current tabs nested split failed ' + JSON.stringify({ paneReads, state }));
     throw error;
   }
   const saved = await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`);
@@ -66,6 +75,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
 
 test("personal Home uses the bottom navigation while Goals retains its current plugin group", { timeout: 90_000 }, async t => {
   const browser = await openAuditBrowser(t); if (!browser) return;
+  await browser.setViewport(1440, 1000);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/personal/" }, browser.sessionId));
   await browser.waitFor("document.body.dataset.projectId === 'personal' && document.body.dataset.desktopSurface === 'home'", 15_000);
 
@@ -110,7 +120,7 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     finally { store.close(); }
   };
   const before = await facts(), profileDirectory = join(served.home, "restart-profile");
-  let chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
+  let chrome = await ChromeHarness.start(served.home, { executable, profileDirectory, profileTimeouts: true });
   try {
     let page = await chrome.page();
     const storageChanges: unknown[] = [];
@@ -128,6 +138,8 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     const prefix = served.origin + "/projects/" + project.project_id + "/";
     const load = async (url: string) => {
       await page.command("Page.enable");
+      const { windowId } = await page.command<{ windowId: number }>("Browser.getWindowForTarget", { targetId: page.targetId });
+      await page.command("Browser.setWindowBounds", { windowId, bounds: { width: 1440, height: 1000 } });
       await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
       await Promise.all([chrome.event("Page.domContentEventFired"), page.command("Page.navigate", { url })]);
       // A restored split draws tabs in each pane, while a single pane uses the titlebar strip.
@@ -188,7 +200,7 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     const closing = await page.evaluate<{saved:string;marker:string|null;ui:Record<string,string|null>}>(`({saved:localStorage.getItem(${JSON.stringify(key)}),marker:localStorage.getItem('molis-work-tab-workspace:other-project'),ui:Object.fromEntries(${JSON.stringify(uiKeys)}.map(key=>[key,sessionStorage.getItem(key)]))})`);
     assert.equal(closing.saved, saved, "the original layout remains exact immediately before closing the first process");
     await chrome.close();
-    chrome = await ChromeHarness.start(served.home, { executable, profileDirectory });
+    chrome = await ChromeHarness.start(served.home, { executable, profileDirectory, profileTimeouts: true });
     page = await chrome.page();
     await observeStorage('restart');
     await page.command("Page.addScriptToEvaluateOnNewDocument", { source: `if(window.top===window&&location.origin===${JSON.stringify(served.origin)})window.__restartPreboot={origin:location.origin,href:location.href,saved:localStorage.getItem(${JSON.stringify(key)}),marker:localStorage.getItem('molis-work-tab-workspace:other-project'),ui:Object.fromEntries(${JSON.stringify(uiKeys)}.map(key=>[key,sessionStorage.getItem(key)]))};` });

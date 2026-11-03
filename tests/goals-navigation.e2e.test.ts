@@ -9,12 +9,19 @@ test("Goal navigation preserves history, keyboard focus, failed selection recove
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { store, before, origin, projectId, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, openGoalWork } = browser;
+  // T405-17B5-UI-02: the original 60s case deadline remains the limit; abort diagnostics never issue CDP work.
+  const phases: Array<{ phase: string; at: number }> = [];
+  const mark = (phase: string) => { phases.push({ phase, at: Date.now() }); if (phases.length > 24) phases.shift(); };
+  t.after(() => t.diagnostic("T405 Goal navigation phases " + JSON.stringify({ aborted: t.signal.aborted, phases })));
+  mark("configure browser");
   // The catalog's project owns the Goal: its pages and Runtime plugin routes are served under the project prefix.
   const prefix = `/projects/${projectId}`;
   await command("Network.enable", {}, sessionId);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1100);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  mark("navigate V1");
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/V1?desktop=1" }, sessionId));
+  mark("open V1 workspace");
   await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
   const selected = (id: string) => `document.querySelector('[data-goal-view="${id}"]') && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === "${id}"`;
   async function key(key: string, code: number) {
@@ -22,21 +29,27 @@ test("Goal navigation preserves history, keyboard focus, failed selection recove
     await command("Input.dispatchKeyEvent", { type: "keyUp", key, windowsVirtualKeyCode: code }, sessionId);
   }
   await waitFor(selected("V1"));
+  mark("select RELEASE");
   await click('.tree-node[data-select-goal="RELEASE"]');
   await waitFor(selected("RELEASE"));
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.tree-entry.is-selected .tree-node')].map(node => node.dataset.selectGoal)"), ["RELEASE"]);
+  mark("history back to V1");
   await evaluate("history.back()");
   await waitFor(selected("V1"));
   assert.equal(await evaluate("location.pathname"), prefix + "/goals/V1");
+  mark("history forward to RELEASE");
   await evaluate("history.forward()");
   await waitFor(selected("RELEASE"));
   assert.equal(await evaluate("location.pathname"), prefix + "/goals/RELEASE");
+  mark("keyboard CORE");
   await evaluate("document.querySelector('.tree-node[data-select-goal=CORE]').focus()");
   await key("Enter", 13);
   await waitFor(selected("CORE"));
+  mark("return RELEASE");
   await click('.tree-node[data-select-goal="RELEASE"]');
   await waitFor(selected("RELEASE"));
 
+  mark("RELEASE event document");
   await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'RELEASE'");
   const timelineItem = "document.querySelector('[data-timeline-item]')";
   if (await evaluate(timelineItem + " != null")) {
@@ -44,23 +57,28 @@ test("Goal navigation preserves history, keyboard focus, failed selection recove
     assert.equal(await evaluate("document.querySelector('[data-timeline-item][aria-current=\"true\"]') != null"), true);
   }
 
+  mark("blocked CORE selection and RELEASE recovery");
   await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/goals/CORE/document*"] }, sessionId);
   await click('.tree-node[data-select-goal="CORE"]');
   // PG094-09: the read goes through the page's request helper, which names an unreachable Host in its own words.
   await waitFor(selected("RELEASE") + " && !document.querySelector('#goal-document-pane').hasAttribute('aria-busy') && document.querySelector('[data-toast]').textContent.includes('连不上 Molis Work 服务')");
   assert.equal(await evaluate("location.pathname"), prefix + "/goals/RELEASE");
+  mark("unblock CORE and select again");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click('.tree-node[data-select-goal="CORE"]');
   await waitFor(selected("CORE"));
   // Current Goals switch in place. GRAPH is archived in the demo: it sits in the 归档 fold and opens in the archive view.
   const opened = ["PLATFORM", "WORKSPACE", "ADOPTION", "CORE", "INTERFACES", "WEB", "DESKTOP"];
   for (const id of opened) {
+    mark("repeated selection " + id);
     await click('.tree-node[data-select-goal="' + id + '"]');
     await waitFor(selected(id));
   }
+  mark("reload DESKTOP");
   await reloadPage();
   await waitFor(selected("DESKTOP"));
   assert.equal(await evaluate("document.querySelector('[data-workspace-goal-title]').textContent"), before.goals.find(goal => goal.goal_id === "DESKTOP").title);
+  mark("open archived GRAPH");
   await navigate(() => click('[data-goal-collection-fold=archive] .tree-node[data-select-goal="GRAPH"]'));
   assert.equal(await evaluate("location.pathname"), prefix + "/goals/GRAPH");
   assert.equal(await evaluate("document.body.dataset.boardView"), "archive");
@@ -69,6 +87,7 @@ test("Goal navigation preserves history, keyboard focus, failed selection recove
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.equal(after.board.active_goal_id, before.board.active_goal_id);
+  mark("all navigation and storage assertions passed");
 });
 
 test("browsing does not set a current Goal; archive actions recover, persist on reload and retain the Goal's history", { timeout: 60_000 }, async t => {
@@ -82,7 +101,7 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
     await waitFor("document.querySelector('.goal-more > summary')?.getBoundingClientRect().width > 0");
   };
   await command("Network.enable", {}, sessionId);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1100);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/WEB" }, sessionId));
   await waitFor("document.querySelector('[data-goal-view=WEB]')");
@@ -137,7 +156,7 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   const { origin, projectId, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, openGoalWork } = browser;
   const feed = await pluginFrameBrowser(t, browser, "feed");
   const prefix = `/projects/${projectId}`;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1000);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/goals/V1?desktop=1#goal-records-V1" }, sessionId));
   await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
   await waitFor("document.body.dataset.desktopSurface === 'goals' && Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=\"feed\"]'))");

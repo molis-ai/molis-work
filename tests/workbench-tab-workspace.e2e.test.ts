@@ -6,14 +6,23 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("project workbench adds tabs without replacing existing ones and keeps split panes", { timeout: 90_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, openGoalFrame, origin, projectId, homeDirectory } = browser;
+  // T405-17B5-UI-02: observing pane GETs does not wait for them or change the next CDP command.
+  const paneReads: Array<{ url: string; started: number; finished?: number }> = [];
+  const observePane = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
+    if (request.method !== "GET" || !request.url?.includes("workbenchPane=")) return;
+    const read = { url: request.url, started: Date.now(), finished: undefined as number | undefined }; paneReads.push(read); if (paneReads.length > 12) paneReads.shift();
+    response.once("finish", () => { read.finished = Date.now(); });
+  };
+  browser.server?.on("request", observePane);
+  t.after(() => { browser.server?.off("request", observePane); t.diagnostic("T405 workspace pane reads " + JSON.stringify(paneReads)); });
   for (const plugin_id of ["feed", "inbox"] as const) {
     await addProjectPlugin(browser.web, projectId!, plugin_id);
   }
 
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1000);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
@@ -95,7 +104,11 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await waitFor("document.querySelector('.tab-group[data-collapsed=true]') === null");
   await evaluate("document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true);
+  try { assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true); }
+  catch (error) {
+    const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({pane:f.dataset.paneOwner,tab:f.dataset.paneTab,hidden:f.hidden,src:f.src,ready:f.contentDocument?.readyState,goal:f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic("T405 workspace after split " + JSON.stringify({ paneReads, state })); throw error;
+  }
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden && strip.querySelector('[data-tab-id]'))"), true);
   assert.equal(await evaluate(`(() => {
     const panes = [...document.querySelectorAll('[data-tab-pane]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
@@ -108,7 +121,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), false);
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item') != null"), true);
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1");
-  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(390, 844);
   await waitFor("innerWidth === 390");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
@@ -126,7 +139,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-tab-kind=mother]').length"), mothersBefore);
   assert.equal(await evaluate("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE]') != null"), true);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1000);
   await evaluate(`(() => { for (let i = 0; i < 32; i += 1) document.querySelector("[data-tab-close]")?.click(); })()`);
   // Closing every tab, plugin tabs included, leaves the project's home.
   await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home]')");

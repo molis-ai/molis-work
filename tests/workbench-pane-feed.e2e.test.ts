@@ -20,7 +20,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   const firstPane = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-pane-index="0"]');
   const secondPane = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-pane-index="1"]');
   await addProjectPlugin(browser.web, projectId!, "feed");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="feed"]');
@@ -57,6 +57,8 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   const focusedBefore = await evaluate<string>(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).focusedPaneId`);
   await evaluate(`(() => { const frames=[...document.querySelectorAll('iframe.tab-content-frame')]; frames.forEach((frame,index)=>frame.dataset.t403PaneIndex=String(index)); window.pr2FirstPane=frames[0].dataset.paneOwner; })()`);
   await firstPane.waitFor("document.querySelector('[data-feed-task]')");
+  // T405-17B5-UI-02: HTML arrives before the opaque client's factory installs its click listener.
+  await waitFor("(()=>{const frame=document.querySelector('iframe[data-t403-pane-index=\"0\"]');return frame?.isConnected && !frame.hidden && frame.contentDocument?.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready';})()");
   await firstPane.evaluate(`document.querySelector('[data-feed-task="${source}"]').click()`);
   await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).panes.find(p=>p.id===window.pr2FirstPane).tabs.some(t=>t.plugin==='feed'&&t.kind==='plugin'&&t.view===${JSON.stringify(source)})`);
   assert.equal(await evaluate(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).focusedPaneId`), focusedBefore);
@@ -108,7 +110,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await browser.reloadPage();
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===3");
   assert.equal(await evaluate("document.querySelector('[data-direction=row] [data-tab-sash]').getAttribute('aria-valuenow')"), ratio);
-  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(390, 844);
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane]')].filter(p=>p.getBoundingClientRect().width>0).length"), 1);
   await click('.tab-pane.is-focused [data-tab-split]');
   await click('[data-focus-pane]');
@@ -127,7 +129,7 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
   }:factory;return true;}});`);
   const child = await pluginFrameBrowser(t, browser, "feed", 'iframe[data-t403-draft-frame]');
   await addProjectPlugin(browser.web, projectId!, "feed");
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-titlebar-tabs] [data-tab-split]');
@@ -190,7 +192,7 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   const click = async (selector: string) => {
     await browser.click(selector);
   };
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="goals"]');
@@ -249,7 +251,7 @@ test("a background refresh keeps the titlebar tabs hidden while panes are split,
     await evaluate(`document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: { board_cursor: ${Number(before) + 1} } }))`);
     await waitFor(`JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor !== ${before}`);
   };
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 960);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="feed"]');

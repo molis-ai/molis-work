@@ -129,6 +129,7 @@
 | [prologue-mcp-strategy](../prologue-mcp-strategy/spec.md) | MCP 服务器信任、发现、健康、认证 | 评审后 3·C，配合服务接入收尾 |
 | [prologue-tool-strategy](../prologue-tool-strategy/spec.md) | 工具面、搜索、结果预算 | 评审后 3·C |
 | [intelligent-surfaces](../intelligent-surfaces/spec.md) | 智能呈现与操作层（11-02 新增）：插件声明对象能怎样展示、能做什么、别人能放在它哪里；平台先做确定组合，助理再把插件内容、平台内容与 MCP、Skill 组合成此刻的操作面，注入插件内外、对话、项目讨论、等你与首页 | 分四片，跨阶段 1～4，见表后 |
+| [work-mainline](../work-mainline/spec.md) | 主线（11-02 新增）：用户把手头的事项（各插件的对象）按自己的分组和顺序排好，从顶部像切换项目那样切到一件事，主区、标签、右侧、助理范围和等你一起换；排列归新的主线服务，事项内容仍归插件 | 1·D 与 PFG 的工作台统一一起设计；2·C1 合同（M1 之前）、2·C3 主线服务包、2·D 切换器与按事项的工作台状态、2·E/B Goals 与 Coding 来源；整理视图与助理范围 2～3·A/D/E；助理建议 3·A，跨设备随 G |
 
 **字体、皮肤与语言分五段**（[实现方案](../font-and-skin-system/implementation-plan.md) 第 11 节）：
 

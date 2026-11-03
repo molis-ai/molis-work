@@ -17,7 +17,7 @@ import { readKeptSandboxPackage, type KeptSandboxPackage } from './sandbox-packa
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
-import { assertUpgradeOf } from './package-upgrade.js';
+import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
 import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
@@ -121,7 +121,8 @@ export class PluginInstallService {
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value as string);
     const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
     const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');
-    const old = current ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged?.agentBodies ?? [] : undefined;
+    // Only an upgrade has bodies to compare: any other package is refused at the confirmation (S-84), even when the kept one is gone.
+    const old = current && !upgradeRefusal(manifest, current.record.version) ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged?.agentBodies ?? [] : undefined;
     const bodies = 'agentBodies' in pkg ? pkg.agentBodies : [];
     const previewBody = (body: SandboxAgentBody, change?: 'added' | 'changed' | 'removed') => ({ kind: body.kind, name: body.name, excerpt: Array.from(body.body).slice(0, 200).join(''), ...(change ? { change } : {}) });
     const agent_bodies = bodies.map(body => {

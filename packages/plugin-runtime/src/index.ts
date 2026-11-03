@@ -728,7 +728,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const registration = pluginActionProvider(manifest, contribution, record,
           actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id),
             bounded: Boolean(this.options.permissionBound?.(record, definition)),
-            checkGrant: permission => this.capturePermission(record.install_id, permission)(), capturePermissions: permissions => {
+            checkGrant: permission => { this.capturePermission(record.install_id, permission); }, capturePermissions: permissions => {
               if (!this.options.permissionBound?.(record, definition)) return;
               const context = this.liveContext(record.install_id);
               if (!context) throw pluginErrors.grant_denied("插件激活已失效");

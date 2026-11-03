@@ -89,8 +89,21 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     assert.match(await inbox.evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').textContent"),/评审工作区的用户动线/);
     await capture('inbox-from-feed');
     await inbox.click('[data-inbox-open-feed]');
-    await feedView.waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"]')?.getClientRects().length > 0`);
-    assert.match(await feedView.evaluate<string>(`document.querySelector('[data-feed-detail="${item.item_id}"]').textContent`), /这是一条隔离验收资料/);
+    // T405-UI-04: a visible Feed can replace its rows while refreshing. Read visibility and text in one DOM turn.
+    const detailDeadline=Date.now()+10_000;
+    let openedDetail: {text:string}|null=null, detailFailure:unknown;
+    while(Date.now()<detailDeadline){
+      try{
+        openedDetail=await feedView.evaluate<{text:string}|null>(`(()=>{
+          const detail=document.querySelector('[data-feed-detail="${item.item_id}"]');
+          return detail?.getClientRects().length>0?{text:detail.textContent}:null;
+        })()`);
+        if(openedDetail)break;
+      }catch(error){detailFailure=error;}
+      await new Promise(resolve=>setTimeout(resolve,40));
+    }
+    assert.ok(openedDetail,new Error('the same Feed item detail is visible within 10000ms',{cause:detailFailure}));
+    assert.match(openedDetail.text, /这是一条隔离验收资料/);
     await plugin('inbox');
     if (width < 760 && await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-toggle]');
     await inbox.evaluate("[...document.querySelectorAll('[data-inbox-row]')].find(row=>row.textContent.includes('评审工作区的用户动线'))?.click()");

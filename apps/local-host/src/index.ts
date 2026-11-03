@@ -236,7 +236,7 @@ export {
 export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
-export { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
+export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 export { announceConnectionChanged } from "./connection-change-events.js";

@@ -2,9 +2,9 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { randomUUID } from "node:crypto";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-
+export { definitionOrigin, isFrozenRegisteredManifest, platformDefinition } from "./platform-definitions.js";
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
-
+import { definitionOrigin, platformDefinition } from "./platform-definitions.js";
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest, assertStartable, type DeclarationOwners } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
@@ -180,16 +180,16 @@ export class PluginRuntime implements PluginRuntimeApi {
       ? this.options.permissionBound?.(record, definition)?.(permission) : undefined;
   }
 
-  register(definition: PluginDefinition): void {
-    validateManifest(definition.manifest);
+  register(given: PluginDefinition): void {
+    const definition = platformDefinition(given); validateManifest(definition.manifest);
     const key = definitionKey(definition.manifest);
     const current = this.definitions.get(key);
-    if (current && current !== definition) throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
+    if (current && definitionOrigin(current) !== definitionOrigin(definition)) throw pluginErrors.definition_conflict("同一 Plugin ID、Version 和签名不能注册两个实现");
     this.definitions.set(key, definition);
   }
 
-  install(input: PluginInstallInput): PluginLifecycleReceipt {
-    const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
+  install(given: PluginInstallInput): PluginLifecycleReceipt {
+    const input = { ...given, definition: platformDefinition(given.definition) }, trust =assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
     assertRuleKeysUnreserved(input.definition.manifest, trust, this.options.reservedRuleKeys?.());
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
@@ -307,8 +307,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.changeVersion(input, true);
   }
 
-  private async changeVersion(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
-    return this.locks.run(input.install_id, async () => {
+  private async changeVersion(given: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
+    const input = { ...given, definition: platformDefinition(given.definition) }; return this.locks.run(input.install_id, async () => {
       const target = input.definition.manifest;
       validateInstalledManifest(target, this.options.declarationOwners);
       const current = requireInstall(this.repository, input.install_id);
@@ -415,7 +415,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           // Its stable install id keeps access to the same private data.
           try { await this.startOnce(input.install_id); } catch { /* the original upgrade error remains authoritative */ }
         }
-        if (failed?.version === target.version && oldDefinition !== input.definition) {
+        if (failed?.version === target.version && (!oldDefinition || definitionOrigin(oldDefinition) !== definitionOrigin(input.definition))) {
           this.definitions.delete(definitionKey(target));
         }
         if (dataRollbackError) {

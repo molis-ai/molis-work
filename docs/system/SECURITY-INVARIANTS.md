@@ -200,6 +200,7 @@ consumes/声明/grant/原允许引用任一不足拒绝，嵌套 query 不扩权
 
 Home/project 重复声明、沙箱 Home 条目和冒充内置身份在开库前拒绝；
 Home 的提供方、库归属只认宿主实际定义对象，网页从该条目正在运行的安装读取当前 grant，不从前缀、query 或 provider 名字推身份。
+Runtime 与 supervisor 持有的是平台对该对象的视图（`platformDefinition`）：同一个对象，只有 Manifest 换成平台在交付时深冻结的副本（Manifest 不是纯数据时不换，栅栏照旧比较序列化）。宿主认身份时按视图反查出的原对象（`definitionOrigin`）；对视图或原对象做的拷贝都不算，进程内准入照样以 `plugin.in_process_denied` 拒绝。调用方之后改自己手里的 Manifest，对运行中的实例没有作用；改平台副本当场抛 TypeError（`tests/platform-manifest-snapshot.test.ts`）。
 
 插件的 `services.ownerFiles` 只给 Manifest 声明了 `owner_files`、又在宿主启动名单上的定义（声明了却不在名单上的启动被拒，`plugin.declaration_invalid`），根必须已登记为该插件所有，条目只有声明的顶层文件与目录；
 无 Home、沙箱、错误 owner 或未声明读写权限拒绝；

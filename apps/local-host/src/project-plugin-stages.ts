@@ -3,7 +3,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionError, actionEffect, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
+import { isFrozenRegisteredManifest, type PluginRuntime, type PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
 import { optionalPluginQuery } from "./web-view.js";
 import type { UiContribution, UiRenderRequest, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginSupervisorState } from "@molis-ai/molis-work-plugin-runtime";
@@ -216,13 +216,16 @@ export function captureRuntimeStageOwner(platform: { runtime: PluginRuntime; sup
   const id = stageContributionId(manifest), view = contribution.views?.find(item => item.descriptor.contribution_id === id);
   if (!view) return undefined;
   const identity = { install_id: record.install_id, installation_generation: record.installation_generation, version: record.version, manifest_digest: record.manifest_digest };
-  const descriptor = JSON.stringify(view.descriptor), declaration = JSON.stringify(manifest), render = view.render, grants = [...record.grants].sort().join("\0");
+  // The supervisor's Manifest is the platform's deep-frozen copy (`platformDefinition`) unless the declaration was not plain data:
+  // that copy cannot serialize differently later, so it is not serialized on every check; any other Manifest is compared as before.
+  const frozen = isFrozenRegisteredManifest(manifest);
+  const descriptor = JSON.stringify(view.descriptor), declaration = frozen ? "" : JSON.stringify(manifest), render = view.render, grants = [...record.grants].sort().join("\0");
   const assertCurrent = () => {
     const now = platform.supervisor.state(pluginId), installed = platform.runtime.get(record.install_id);
     if (now?.status !== "running" || now.install_id !== identity.install_id || installed.state !== "running"
       || installed.installation_generation !== identity.installation_generation || installed.version !== identity.version || installed.manifest_digest !== identity.manifest_digest
       || [...installed.grants].sort().join("\0") !== grants || platform.supervisor.manifest(pluginId) !== manifest
-      || JSON.stringify(manifest) !== declaration
+      || !(frozen && isFrozenRegisteredManifest(manifest)) && JSON.stringify(manifest) !== declaration
       || platform.supervisor.contribution(pluginId) !== contribution || !contribution.views?.includes(view) || view.render !== render
       || JSON.stringify(view.descriptor) !== descriptor) throw new ActionError("actions.provider_changed", "原舞台实例、声明或授权已变化，请重新读取");
   };

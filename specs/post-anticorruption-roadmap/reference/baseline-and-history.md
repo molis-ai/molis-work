@@ -39,7 +39,7 @@
 
 状态：规划（2026-11-03 更新；本轮需求与排期维护：Codex，实施沿原负责人及待分配状态）。在防腐线（[repository-anti-corruption](../../repository-anti-corruption/spec.md)）收尾之后执行；在那之前只作排期参考，不开工。本文只排先后、分轨道、定每一段和每批的交付，不改原需求的内容和验收：那些仍以各自的 spec 和 [统一待办清单](../../BACKLOG.md) 为准。起草时读的是 main `0d8388b09`（batch-42，#1311）。10-26 复查：补进个人云同步与 CGS 两条 main 之外的线、产品建议的余项、BACKLOG 全部条目的去处（[需求清单 8](requirements.md#section-3-8)），字体皮肤语言按段写开，并修了几处轨道借文件和兼容起点的排序。
 
-**执行入口：[01～89 执行目录](../spec.md#execution-batches)；要服务端的需求在[服务端批](server-batch.md#server-batch)。** 阶段 0～4 是总览，批次才是逐项推进的顺序。11-03 对照现行需求与 10-31 以来的改动，纳入全产品文案与引导、智能呈现、主线、升级持续可用、平台余项及开发流程；修正同步与字体切换、SDK 缺口与消费者之间的依赖。11-03 再逐 PR 复核，补入 #1730、版本归一与调用整治的具体交付，修正文字合同顺序、服务互等和评测多余等待；来源对照见 [近期 PR 来源对照](requirement-prs.md#recent-requirement-prs)。本次再按原验收补齐组合服务、创作台 C1～C5、视觉与性能余项、字体资源待决及本机诊断，统一正文与批次的顺序；每项开工前按开发流程 §2.1 说明具体工作。11-03 用户又定两项：恢复一条轨道一个写手、轨道之间并行；字体皮肤语言 C 段前移到 16，B 段验完即把现有入口一次切换（[决策记录](decisions.md#section-7) 第 20 项）。11-03 用户再定：个人同步、团队协作、团队记忆与 M2 都要服务端，移出 01～89，独立成[服务端批](server-batch.md#server-batch)的服务端批，开工时间由用户定，以后有服务端需求都加在这一批；同步声明在 M1 之后按兼容流程加。只更新文档，未启动这些产品实现。
+**执行入口：[01～89 执行目录](../spec.md#execution-batches)；要服务端的需求在[服务端批](server-batch.md#server-batch)。** 阶段 0～4 是总览，批次才是逐项推进的顺序。11-03 对照现行需求与 10-31 以来的改动，纳入全产品文案与引导、智能呈现、主线、升级持续可用、平台余项及开发流程；修正同步与字体切换、SDK 缺口与消费者之间的依赖。11-03 再逐 PR 复核，补入 #1730、版本归一与调用整治的具体交付，修正文字合同顺序、服务互等和评测多余等待；来源对照见 [近期 PR 来源对照](requirement-prs.md#recent-requirement-prs)。本次再按原验收补齐组合服务、创作台 C1～C5、视觉与性能余项、字体资源待决及本机诊断，统一正文与批次的顺序；每项开工前按开发流程 §2.1 说明具体工作。11-03 用户又定两项：恢复一条轨道一个写手、轨道之间并行；字体皮肤语言 C 段前移到 16，B 段验完即把现有入口一次切换（[决策记录](decisions.md#section-7) 第 20 项）。11-03 用户再定：个人同步、团队协作、团队记忆与 M2 都要服务端，移出 01～89，独立成[服务端批](server-batch.md#server-batch)，开工时间由用户定，以后有服务端需求都加在这一批；同步声明在 M1 之后按兼容流程加。只更新文档，未启动这些产品实现。
 
 
 
@@ -167,6 +167,6 @@
 | D 外观与语言 | `packages/design-system/`、`apps/workbench/src/i18n/`、ui-host、`packages/contracts/src/ui/` 与 `ui.ts`、`packages/plugin-sdk/src/ui.ts`（字体皮肤语言 A 段落在这里）、`DESIGN.md`、平台设置页 | 工作台标签/分屏/导航、公共资料呈现、VUX 收尾、字体皮肤语言、生成页面承载与交互预览、「授权与放行」一页（产品建议 H1） | Claude |
 | E 插件 | Coding 一族以外的 `plugins/native/<插件>/`、新插件包 | 体验债、风险、工作简报本体、创作台的插件侧实现、场景所需插件配置与结果落点、情境 W4～W6、插件小功能 | Codex 独立片为主，界面定样由 Claude |
 | F 场景引导与发布 | `apps/desktop/`、安装器、`docs/releases/`、引导页与引导路由 | 首次/项目/任务引导完整路径、设置映射、首日旅程；运行条件、签名与升级、正式 OAuth | Codex；账号、证书、真实 Home 只能你办 |
-| G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)服务端批：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～89 期间不开工 | 接着 `personal` 分支原来的会话做，合同由 C 轨评审；开工时间、部署和真实账号只能你办 |
+| G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～89 期间不开工 | 接着 `personal` 分支原来的会话做，合同由 C 轨评审；开工时间、部署和真实账号只能你办 |
 
 [PAEXT]: https://github.com/molis-ai/molis-work/blob/bd6090ab468522ce57092e3d240e7e8254cd0b16/specs/proactive-assistant/spec.md

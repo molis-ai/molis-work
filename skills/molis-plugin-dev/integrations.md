@@ -42,7 +42,20 @@ Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡
 
 ## OAuth 与账号
 
-GitHub、Gmail 有独立的 oauth 模块：配置、pending、token 生命周期、按账号隔离。账号检查（whoami）用连接器动作 `connectors.account.read`（GitHub 1.2.0 起，Catalog 连接器 1.1.0 起），不是插件自己登记的 behavior；连接 / 断开是设置页动作。这些都**不进** `feed.capture`。
+OAuth 流程写成数据：服务的 `auth.methods` 里写 `{ kind: "oauth", grant, … }`（类型 `PluginOAuthMethodDeclaration`，`packages/contracts/src/platform/plugin-integrations.ts`；形状检查在 `packages/plugin-sdk/src/oauth-declarations.ts`，宿主的解释器是 `apps/local-host/src/connector-oauth-declarations.ts`）。平台只有这一个解释器和通用回调 `/api/settings/connectors/methods/oauth/callback`，没有按服务写的 OAuth 代码，也没有插件钩子；写不成的往声明里补字段，不往宿主里加分支。回调按 state 找待完成记录，不按路径找插件；Gmail 和 Notion 在服务商控制台登记过的回调路径保留为别名，只有路径正好等于记录里的 `redirect_uri` 才收。只写 `{ kind: "oauth" }` 不带数据，或数据检查不过，整份 Manifest 以 `plugin.declaration_invalid` 被拒。
+
+- `grant`：`authorization_code` 或 `device`（RFC 8628，平台按通用的 `methods/device/start`、`methods/device/poll` 驱动）；同一服务可各写一条，其他 kind 每种一条。
+- 端点 `authorize_url`、`token_url`、`refresh_url`、`device_authorization_url`：完整 `https://` 地址（不带账号密码、端口、查询、片段，主机是名字），或写成 `{tenant}/路径`。写了 `issuer`，回调就必须带相同的 `iss`（RFC 9207）。
+- `scopes`、`pkce`（只收 `S256`）、`client_auth`（`basic`、`post`、`none` 或 `{ setting }`，默认 post）、`token_format`（`form`、`json`）、`client_secret`（`required`、`optional`）、`parameters`（授权地址上的固定参数；`client_id`、`redirect_uri`、`state`、`code_challenge*`、`response_type` 由平台写，不许出现）、`quirks`（只收 `refresh_redirect_uri`、`omit_token_params`、`expiry: "jwt_exp"` 三种已知怪癖）、`note`。
+- `settings`：本人在设置里填的字段，`use` 只能是 `path`、`scope`、`client_auth`、`tenant`；`use: "path"` 必须写 `pattern` 或 `enum`，`default` 也按它们检查。
+- `identity`：怎样取账号，account_id 是几段、段间用 `:` 连起来，每段取第一个非空的来源；`label` 同理。来源写成 `identity:/JSON指针`、`context:键`、`literal:文字`，不取令牌响应：令牌响应里要用的值先用 `keep` 留进连接上下文，再写成 `context:` 读，授权、检查连接和读账号走同一条路。重新授权必须还是同一个 account_id，换了账号得到“请新增一条连接”。`context` 请求只在授权时发，检查、读账号、刷新都不发。
+- 占位只有一份文法（`@molis-ai/molis-work-plugin-sdk/oauth` 的 `oauthPlaceholder`，SDK 的检查和宿主的解释器读同一份）：`{client_id}`、地址开头的 `{service}`、`{tenant}`、`{gateway}`、`{account}`，以及 `{context.<key>}`、`{setting.<key>}`。占位占满一个路径段，值按路径段编码，带 `/`、`\`、`..`、编码过的斜杠的拒绝；展开后每个地址再按 S-09、S-10 查一遍。`body`、`label_prefix` 原样照收、不展开，写得像占位的整份不过；`headers` 不许写平台自己写的头（`OAUTH_PLATFORM_HEADERS`）。
+- 带访问令牌的 identity、context 请求只发往平台登记的地方，Manifest 只写路径：`{service}/路径` 发往 `CONNECTOR_REQUEST_SERVICES` 的来源（有几项的写完整地址，来源必须是其中一项），`{tenant}/路径` 发往钉在连接上的租户来源，`{gateway}` 发往 Atlassian 网关，`{account}` 发往只给平台自己用的 `CONNECTOR_ACCOUNT_ORIGINS`（S-69）。授权、令牌、刷新、设备授权这几个端点收的是 code、verifier、client secret、refresh token，不收访问令牌。
+- 来源可变的只有租户：Manifest 不写主机后缀，只有 `use: "tenant"` 的那一个 setting 能换来源，范围是平台表里该服务 `tenant.domain` 之下；平台表里没有 `tenant` 的服务写 `use: "tenant"` 是声明错误。`keep` 的 `check: "tenant"` 必须同时 `required: true`，响应里没有就授权失败，不悄悄退回登录来源。
+- 客户端凭据仍归平台，按顺序取：重新授权沿用原客户端、产品 broker、产品客户端（环境变量 `MOLIS_WORK_CONNECTOR_<服务>_OAUTH_CLIENT_ID`、`…_CLIENT_SECRET`，服务名大写、连字符改下划线）、本人填的客户端。broker 和产品客户端只给宿主构建的声明，别的插件声明同一个 service_id 也拿不到；client id/secret 只以引用存密钥库，插件拿不到 code、verifier、client secret 和 refresh token。broker Worker（`apps/local-host/cloudflare/`）留自己的 `providers.ts`，与 Manifest 声明由 `tests/connector-provider-contracts.test.ts` 钉住；改 Worker 就是重新部署，属发布，先报用户。
+- 回调、刷新、设备授权怎样判断和拒绝，是 S-95、S-101、S-106（`docs/system/SECURITY-INVARIANTS.md`）：声明它的插件停用、换了安装或发布者、方法指纹变了，授权和刷新都拒绝，连接标 `reauth_required`；拒绝只写取走的授权记录与状态，不动连接、凭据和 protocol 配置。旧形状的 OAuth 连接（凭据不是 `connector-protocol:`）不读、不刷新，只能新增。
+
+账号检查（whoami）用连接器动作 `connectors.account.read`（GitHub 1.2.0 起，Catalog 连接器 1.1.0 起），不是插件自己登记的 behavior；连接 / 断开是设置页动作。这些都**不进** `feed.capture`。
 
 项目 MCP 的来源插件是来历，不能作为连接运行寿命或其他消费者授权。Host 共用目录保留项目范围，每次调用核对当前调用者与工作区权限；项目配置只引用 Home 凭据 owner，不能把 SDK 进程内的 credential ref 当成持久密钥。停用连接保留凭据，但所有消费者都须拒绝调用；移除不删除已有业务成果。
 

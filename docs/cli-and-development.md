@@ -12,7 +12,7 @@
 
 SDK 密文由原 SDK reader 使用原 Home 的 key 验证全部记录种类和分页，合法空正文与保留密文的墓碑也验证；纯元数据或普通检查点不会要求或生成 key。受管 CLI 恢复仍要求原安装身份及原路径上的实际程序，命令不联网重装或创建替代安装。
 
-完整 `home restore`、统一发布/回滚与重启续写仍在 W5-16 后续，尚缺 Memory owner 的归档重开资格与合法空态受控恢复契约；本快照片不把它们标完成。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。现行范围和证据见 [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+`molis-work home restore --from /快照目录 [--home /原Home] [--json]` 在同样的离线窗口把快照恢复到原 Home；`molis-work home restore --recover` 续写上次中断的恢复：未提交的回滚到操作前，已提交的做收尾，没有待恢复项时返回 `no_recovery`。两者二选一，缺一或都给直接拒绝。恢复只适用于原 Home 路径和原密钥：先完整预检（快照清单与摘要、各 owner 的版本和完整性、原 key 依赖、Memory 资格、目标集合），任何一项不过都在移动原件之前拒绝；通过后才替换业务集合，被替换的原件和失败材料保留在结果的 `originals_directory`；与快照一致时返回 `unchanged` 且不写业务内容。恢复未收尾时留有持久日志，会阻断正常启动，先跑 `--recover`。命令不联网重装、不创建替代安装或替代 key。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。
 
 ## 安装代码的开发边界
 

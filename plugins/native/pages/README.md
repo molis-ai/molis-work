@@ -48,6 +48,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - 不支持的正文结构只读保留；返回、导入打开、发布、提取、导出和打印不把编辑器占位正文写回或当成原文。图片读取、写作候选及卡片浮层属于打开它们的文档；切文档结束这些资源，同文档的延迟图片沿原插入位置映射。
   - Markdown 与静态 HTML 保留表格单元格的所有段落和任务、日程、引用的可见文字；多篇合成沿现有 1500 个字符的节选范围，材料保留对象、版本与截断标记，成稿说明节选并链接原 Pages。
   - HTTP 的项目由 Host 绑定，query 或 body 声明不同项目会拒绝；`pages.update` 带 `expected_version`，冲突保留草稿。
+  - Markdown 转文档正文只经公开动作 `pages.documents.body_from_markdown`（只读转换，输入 `{ markdown }` 至多 1,000,000 字符，输出 `{ body }`，权限 `pages:read`，受众只有 `user`，`subject_kinds: []`，所以不进 MCP 工具名单，Agent 与工作流程也调不到）：宿主的项目引导（`context-onboarding-service.ts`）用它，不 import `blocksFromMarkdown` 或 ProseMirror；转换后超过单文档正文上限（`MAX_BODY_CHARS`，1,500,000 编码字符）返回 `pages.body_too_large`，不截断，调用方按自己的策略（引导是减半重试）处理。
   - 生成按请求保存材料快照；缺模型明确拒绝，不生成占位文稿。
   - 被取消或撤权的生成不写任何业务记录（调用记录里的“未执行”诊断行除外），本进程可以立即接手重试；其他进程的尝试仍守租约。
   - 上传文件由 Runtime 的 `services.materials.readDocuments`（`materials:read`，只能在本插件自己声明了该权限的 concurrent 动作里调；ZIP/DOCX/编码解析归 Host worker）读成公共 MaterialDocumentBatch，Pages 的 `preparePagesImport` 只把它转换为编辑器正文；平台的 `material.*` 拒绝按 `pages.invalid` 说给人听。解析等待不占项目串行队列，返回后复查授权/取消（W5-01-PAGES-01、-03）。

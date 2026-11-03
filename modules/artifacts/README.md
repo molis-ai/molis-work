@@ -59,6 +59,8 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
   - 只有用户在插件里明确共享，或 Team 插件已获授权，才能注册 `team_project` 版本。
   - 事件日志（`events` 表）是 storage 的：事件追加和读游标都经装配时传入的 `appendEvent`、`eventCursor`（宿主传 storage 的日志函数），包内不写 `events` 的 SQL，`pnpm health:check` 的 `table-owners` 门禁守着。
   - 写入一个成果或过程项版本后，本进程里看同一个库文件的观察者会被告知（`committed.ts` 的 `onVersionStoreWrite`，W4-09）；写在别人开的事务里时，等那个事务结束（提交或回滚）再告知，观察者自己读日志判断有没有新东西。别的进程写的不告知，由观察者的低频兜底读到。
+  - 一个项目库只有一份成果服务：`projectVersionStores(options)` 按项目库缓存一对 `ArtifactsModule` 与 `ProcessItemsModule`，Host 里要成果服务的地方（项目 Runtime、已装插件的宿主、Feed）都取它，事件追加、`homeOwner`、已声明类型的检查只接一次，先到的调用方的端口为准，后来的只补它没给的。源码里 `new ArtifactsModule(` 只在这个工厂和恢复用的 `restoreVersionStores`（单独一对，不进共享缓存，其 `declared` 检查是唯一允许收下本项目没装的产出者的，S-81）里出现（`tests/project-version-stores.test.ts`）。
+  - 插件读自己的成果线（`head`、`readOwn`）与过程项同一条身份口径（`plugin-operations.ts` 的 `ownsRecord`）：记录的 `producer_plugin_id` 与 `producer_binding_signature` 必须同时等于调用方 Manifest 的插件 id 与发布者签名，同 id 不同签名的插件读不到对方的线，拒 `artifacts.plugin_denied`；过程项的个人版本另比 owner（记录它的行为人），成果的个人版本归 Home 的人，不比记录者。身份取自调用上下文，不取输入。
 - 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-module.test.ts tests/artifacts-actions.test.ts tests/plugin-artifact-client.test.ts tests/personal-artifact-owner.test.ts tests/plugin-platform-composition.test.ts`
 - 相关手册：[docs/modules/artifacts.md](../../docs/modules/artifacts.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

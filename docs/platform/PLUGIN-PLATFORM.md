@@ -108,6 +108,8 @@ Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块�
 
 首方工作区插件可通过受控制令牌保护的 `POST /api/plugins/:pluginId/restart` 显式重试。达到恢复上限的插件继续隔离，普通重试和页面重开不解除。用户明确选择解除隔离时，Host 通过 `POST /api/plugins/:pluginId/release-quarantine` 发起一次受控恢复；启动成功才解除并重置恢复预算，失败仍隔离。两种操作均不改变安装版本、身份或 grants。
 
+项目页上插件的占位（`apps/workbench/src/unavailable-plugin-stage.ts` 的项目分支）带这两个操作的入口，由宿主在 `project-plugin-stages.ts` 的 `restartOffer` 算出，不新增页面：监督器说启动失败、或安装是崩溃、且原因不是 `plugin.revoked`、安装没卸载，给「重启」；安装被隔离，给「解除隔离并重启」；只是被停用、被撤回同意（`plugin.revoked`）、`blocked` 或已卸载的，只写状态、不画按钮，因为重启不能把关掉的插件重新打开（路由本身也拒：撤销启用的得 409 `plugin.revoked`，已卸载的落到 404）。按钮（`data-project-plugin-restart` 与 `data-restart-plugin`）由工作台外壳的脚本发请求，带控制令牌，成功后重读页面，失败在占位里写原因；点击只认项目占位直属内容里的按钮、占位直接处在宿主的 surface pool、分栏或独占区而不嵌在别的插件舞台里，所以插件内容伪造同名按钮发不出请求，操作名只接受 `restart` 与 `release-quarantine`。占位是宿主画的静态内容，不执行插件的客户端，也不申请页面授权。Home 级插件的占位保持「查看插件状态」链接。
+
 ## 9. 合同台账
 
 2026-09-30 之后，动作目录之外又长出一批「插件对平台、平台对插件」的小合同：搜索来源、侧栏文件与浏览器站点声明、放置、撤销、到期提醒、后台任务、情境片段推荐、方法、记忆、插件通知等。台账回答每一项是不是真的接通了：谁定义、谁生产、谁消费、谁守着、写没写进开发手册和 Skill、停用卸载升级撤权后会怎样。它是[防腐整理任务书 §4.10](../prompts/repository-anti-corruption.md)（本轮新合同的全链路）的证据，进度记在 [spec](../../specs/repository-anti-corruption/spec.md)，对照 main（4d59cd4d）读码核对（2026-10-08）；用户在 2026-10-07、10-08 对其中几项做了决定（下称「决定 n」，见 spec §10 的决定表），已定而还没改的写在状态列，标「目标」；逐条款的复核见 [action-architecture §3 的复核小节](../../specs/action-architecture/spec.md)。

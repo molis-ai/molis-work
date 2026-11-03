@@ -1,8 +1,22 @@
 # CLI & Development
 
+## Offline Home snapshots
+
+`molis-work home snapshot --to /absolute/path/new-directory --home /original/Home --json` captures an existing Home. If `--home` is omitted, normal product Home resolution applies. `--to` is required: the destination must not exist, its parent must exist, and neither the destination nor the Home may contain the other. Duplicate, unknown or incomplete arguments are rejected. Success writes JSON to stdout, or the path and counts without `--json`; failure writes only to stderr and exits with code 1.
+
+Stop every Web/Desktop/Agent process using that Home before running the command. It acquires the same storage ownership as Host/Agent; it neither starts a business Host nor pauses an online one. A busy Home produces no snapshot output. The store inventory comes from `homeStores()`, including actual installed-plugin databases and project partitions. SQLite uses the backup API, including the latest committed WAL; sidecars and ownership locks are excluded. Unknown entries, wrong versions, corrupt databases, links or unfinished maintenance reject the entire snapshot.
+
+The snapshot is limited to the same machine, original canonical Home path and original keys. SDK, build-run and retired-session keys are recorded only as references and identity digests; Home master keys and Keychain contents are not exported. Managed CLI `.home` state and directory bookmarks inside the Home are sealed by their existing owners. This is not a key backup. Browser login state is excluded, so sign in again after recovery; select directories again if the system rejects their original bookmarks. External AppData is not read. Retain or reinstall managed programs and rebuildable caches. Ordinary files are streamed; each vault, bookmark or other file processed as a whole by its owner is limited to 32 MiB. CLI private state also follows its owner's limits of 10,000 nodes, 32 MiB of plaintext and 128 MiB of ciphertext.
+
+Output uses a private sibling staging directory with mode 0700 and files with mode 0600. The manifest records original modes, versions, integrity data, digests and dependencies. Validation and flushing finish before publishing to a new directory; existing destinations are never overwritten. Ordinary failures and SIGINT/SIGTERM remove this operation's unpublished staging directory. A forced termination may leave `.molis-home-snapshot-*`: remove it only after confirming that its process has exited, it is in this operation's destination parent, and it was not published. If the command reports that publication succeeded but durability is unconfirmed, retain the reported destination and inspect its manifest and payload rather than overwriting it as an empty result.
+
+The original SDK reader validates every ciphertext record kind and page using the original Home's key, including valid empty bodies and tombstones that retain ciphertext. Metadata-only stores and ordinary checkpoints do not require or create a key. Managed CLI recovery still requires the original installation identity and actual program at the original path; this command does not reinstall over the network or create a replacement installation.
+
+Complete `home restore`, coordinated publication/rollback and restart continuation remain follow-up work in W5-16; Memory-owner eligibility for reopening archived data and controlled recovery of valid empty state are still missing. This snapshot slice does not mark them complete. Engineering and temporary-Home tests do not replace a real-Home maintenance window or user acceptance. Scope and evidence are in the [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md).
+
 ## Installer ownership during development
 
-`pnpm build` cleans generated workspace outputs, then builds all 70 workspace packages in declared dependency order before the root entrypoints and PTY bundle. `build:migrated-packages` reuses `workspace:build`: deleted or moved sources must not leave stale JavaScript in npm/DMG artifacts. This removes generated dist only, not node_modules or user data. The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec molis-work-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
+`pnpm build` invokes `workspace:build` through `build:migrated-packages`, cleaning and rebuilding workspace packages whose inputs or outputs have changed, in dependency order, and skipping packages whose build records remain valid. It then regenerates the root entrypoints, PTY bundle and installation build fingerprint. Deleting or moving source files rebuilds their package and its dependents, preventing stale JavaScript in npm/DMG artifacts. With no build records, all packages are built; use `pnpm build:clean` to force a complete rebuild. Only generated outputs are cleaned, not node_modules or user data. Incremental-build and machine-slot rules are in [Parallel development §5](system/PARALLEL-DEVELOPMENT.md#5-构建与浏览器用例排时段). The Plugin CLI launcher exists in source, so a clean frozen-lockfile install followed by build makes `pnpm exec molis-work-plugin --help` available. Boundary checks cover JavaScript/TypeScript under src, tooling and bin.
 
 Desktop release scripts belong to `apps/desktop/tooling/`; root `pnpm desktop:*` commands are unchanged. They call Local Host's `createMolisWorkRuntimePayload` instead of running npm install against an isolated workspace:* manifest. Failed preparation preserves old resources; vendor provenance, SBOM and license assets survive both payload generation and Home installation.
 
@@ -20,27 +34,28 @@ Goals Module owns graph integrity and structural impact. Reusable candidates com
 
 ## CLI
 
-The public CLI top level provides program install, the persistent service, demo, safe uninstall, and the `molis-work v1 <operation>` management surface:
+The public CLI top level provides program install, the persistent service, demo, safe uninstall, plugin management, offline `molis-work home snapshot`, and the `molis-work v1 <operation>` management surface. The following are v1 operations:
 
 ```text
 init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-Every command needs `--db PATH` to name the project database. There is no default path: without it (no value, a blank one, or another `--` flag straight after `--db`) the command fails rather than guess a database from the working directory (`init` included; it creates the database at `PATH`). A relative `PATH` is the one you name; it is resolved against the working directory. Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. Each v1 command calls one Goals action (`goals.board.initialize`, `goals.snapshot.read`, `goals.active.set`, `goals.tree.submit`, `.read`, `.check`, `.decide`) as a caller the Host builds: the person on this machine, origin `management`, with only that one action's own permissions; a command's input and output are unchanged (one exception, S8: `init` no longer takes a `title`, the project's name lives only in the project directory, and the board in `snapshot` no longer carries a `title`; `goals.board.initialize` and `goals.snapshot.read` are therefore at version 2), and its JSON must carry the `project_id` the command is bound to, otherwise `actions.scope_mismatch`. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. `init`, `goal-tree-propose`, `goal-tree-check`, `active-goal` and `goal-tree-decide` write as the person on this machine and their arguments carry no identity: `goal-tree-propose` and `goal-tree-check` refuse an `actor_id` or `actor_kind` in their arguments (`actions.input_invalid`), and `goal-tree-propose` refuses `submitted_session_id` too (there is no Runtime Session behind this door), and `goal-tree-decide` refuses `actor_id`, `actor_kind`, `audit_actor_id` and `runtime_actor_id` the same way (the person on this machine decides and no Runtime relays it; the `authority` only carries the conversation reference, `conversation_ref` and `message_ref`, and an `actor_id`, `actor_kind` or `authority_source` in it is refused too), and `active-goal` no longer reads `actor_id` from the JSON, so an old script that still writes the field is not taken for someone else.
+Each v1 command above needs `--db PATH` to name the project database. There is no default path: without it (no value, a blank one, or another `--` flag straight after `--db`) the command fails rather than guess a database from the working directory (`init` included; it creates the database at `PATH`). A relative `PATH` is the one you name; it is resolved against the working directory. Complex inputs can be passed with `--json` or `--file payload.json`. Old create-goal, Claim/Run, Evidence/Review, and Contract/Candidate/Rewire commands are retired and return an unknown-operation error. Everyday notes, reports, agreements, closure, and resume use MCP or Web; CLI does not provide duplicate event-write commands. Each v1 command calls one Goals action (`goals.board.initialize`, `goals.snapshot.read`, `goals.active.set`, `goals.tree.submit`, `.read`, `.check`, `.decide`) as a caller the Host builds: the person on this machine, origin `management`, with only that one action's own permissions; a command's input and output are unchanged (one exception, S8: `init` no longer takes a `title`, the project's name lives only in the project directory, and the board in `snapshot` no longer carries a `title`; `goals.board.initialize` and `goals.snapshot.read` are therefore at version 2), and its JSON must carry the `project_id` the command is bound to, otherwise `actions.scope_mismatch`. CLI is a user/management and local debugging entry, not a fallback for Runtime service failures. `init`, `goal-tree-propose`, `goal-tree-check`, `active-goal` and `goal-tree-decide` write as the person on this machine and their arguments carry no identity: `goal-tree-propose` and `goal-tree-check` refuse an `actor_id` or `actor_kind` in their arguments (`actions.input_invalid`), and `goal-tree-propose` refuses `submitted_session_id` too (there is no Runtime Session behind this door), and `goal-tree-decide` refuses `actor_id`, `actor_kind`, `audit_actor_id` and `runtime_actor_id` the same way (the person on this machine decides and no Runtime relays it; the `authority` only carries the conversation reference, `conversation_ref` and `message_ref`, and an `actor_id`, `actor_kind` or `authority_source` in it is refused too), and `active-goal` no longer reads `actor_id` from the JSON, so an old script that still writes the field is not taken for someone else.
 
 `molis-work demo remove --confirm` asks the resident service of this Home first. When it answers, its deletion service does the removal (it refuses while a terminal of the project is still open, as the settings page does, and records the person on this machine); the address is the `MOLIS_WORK_WEB_URL` environment variable, or `http://127.0.0.1:4173` without it. Only when the Home has no control token, or nothing answers at that address, does the command delete in its own process. If the answer comes from another Home's service, or a terminal is still open, the command exits with an error and leaves the demo as it was. `molis-work uninstall` stops the resident service first and then clears the demo in its own process.
 
 ## Project structure
 
-> The repository is a plugin base plus many plugins in one monorepo: the 70 workspace packages are labelled with the four maturity words in [SSOT-MATRIX](SSOT-MATRIX.md) §2 (`production`, `experimental`, `slice`, `absent`); the root package only assembles the product launchers and exports no code. See the [Architecture SSOT](SSOT-MATRIX.md) for status and ownership.
+> The repository is a plugin base plus many plugins in one monorepo. `scripts/workspace-packages.mjs` owns the package inventory; `pnpm workspace:check` reports its current count. Maturity uses the four words in [SSOT-MATRIX](SSOT-MATRIX.md) §2 (`production`, `experimental`, `slice`, `absent`), with `absent` reserved for target paths that have no package yet. The root package only assembles product launchers and exports no code. See the [Architecture SSOT](SSOT-MATRIX.md) for status and ownership.
 
 ```text
-apps/                        Six product-entry and composition-root boundaries
-packages/                    Ten foundation packages (plus the root server/); contracts exposes 58 public subpaths
-modules/                     Thirteen business-fact owners
-horizontal/                  Eight packages: five horizontal runtime services and three platform product services (Memory, Placement, Search)
-plugins/                     25 native plugins and six official integration plugins
+apps/                        Product-entry and composition-root boundaries
+packages/                    Foundation packages; contracts declares public subpaths in its package.json exports
+server/                      Chat and continuation facts, classified as a Module
+modules/                     Business-fact owners; current packages and future target paths are in SSOT-MATRIX §5
+horizontal/                  Runtime services and platform product services (Memory, Placement, Search, Knowledge)
+plugins/                     Native and official integration plugins, listed by the registry
 packages/plugin-runtime/     FD3 local Plugin lifecycle reference implementation
 packages/plugin-sdk/         FD3 Manifest and Integration Plugin definition API
 plugins/official-integrations/
@@ -52,10 +67,11 @@ apps/mcp/                    Platform MCP schemas, protocol and project tool dis
 packages/ui-host/            UI Contribution registry, surface rendering, and Slot mount validation
 packages/design-system/      AP3 theme preferences, browser visual foundation, and layered styles
 plugins/native/feed/         FD4 Feed/Attention/Source UI and HTTP route table
+plugins/native/goals/        Goals plugin, owning Goal facts and the event protocol
                              Current user decisions, finite structure proposals, provenance, and history
 tooling/plugin-cli/          Plugin CLI boundary; DV3 implements the real developer tool
 scripts/workspace-packages.mjs
-                             Inventory (70 packages), manifest, entrypoint, README, and Contract wiring check
+                             Package inventory, manifest, entrypoint, README, and Contract wiring check
 apps/desktop/launchers/mcp/server.ts            MCP launcher; protocol in apps/mcp, composition in Local Host
 apps/desktop/launchers/web/server.ts            Web launcher; Host owns HTTP/resources, Workbench/Native Plugins own pages
 apps/desktop/               Desktop platform and native adapters; old src/desktop removed
@@ -80,6 +96,8 @@ tests/command-entry-chain.test.ts
 tests/host-entry-consistency.test.ts
                              Composed calls, queued concurrency, and Host resource lifetime
 tests/mcp.test.ts            MCP audience, permission, and connection regression
+tests/mcp-action-catalog.test.ts
+                             Public MCP catalog: platform tools and authorized actions
 tests/web.test.ts            Web data and interaction regression
 tests/desktop-tui.test.ts    Third-pane launch, panels, and local PTY regression
 tests/i18n.test.ts           UI language regression
@@ -88,7 +106,7 @@ PRODUCT.md                   Product definition
 DESIGN.md                    Shipped UI design system
 docs/SSOT-MATRIX.md          Canonical architecture, package status, and migration-owner index
 docs/system/                 Layers, dependencies, migration, and the giant-unit list
-docs/modules/                Fact ownership and API boundaries for Modules (pages do not yet match the 13 Modules one to one: characters has no page, and pages remain for 4 future owners and retired modules; SSOT-MATRIX is authoritative)
+docs/modules/                Fact ownership and API boundaries, including future targets and concepts now implemented by plugins; pages do not map one to one to current Module packages; SSOT-MATRIX is authoritative
 docs/horizontal/             Technical boundaries for the services under `horizontal/` (Memory and Placement: see their package READMEs)
 docs/platform/               Plugin, Storage, Exchange, and UI platform mechanisms
 specs/molis-work-architecture-reorganization/spec.md
@@ -97,7 +115,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ### Development rules during the reorganization
 
-- Root `pnpm build` builds all 70 workspace packages and then compiles the launchers; `workspace:*` commands run only the workspace packages, and `*:all` commands run both.
+- Root `pnpm build` incrementally builds workspace packages, then recompiles the launchers and refreshes the installation build fingerprint; `pnpm build:clean` forces a complete rebuild. `workspace:*` commands run only the workspace packages, and `*:all` commands run both.
 - Cross-owner calls use public entrypoints only; deep imports, cross-Module Store access, and App database writes are forbidden.
 - A package that exists has a real implementation: no fake provider, store, UI entry, or success response; targets that do not exist yet stay in the `absent` rows of the SSOT.
 - Every migration slice updates its package README and the affected Module/Service document.

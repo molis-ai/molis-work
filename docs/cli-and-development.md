@@ -16,7 +16,7 @@ SDK 密文由原 SDK reader 使用原 Home 的 key 验证全部记录种类和�
 
 ## 安装代码的开发边界
 
-`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 70 个 workspace 包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
+`pnpm build` 先经 `build:migrated-packages` 调用 `workspace:build`，按依赖顺序清理并重建输入或产物已变化的 workspace 包，跳过构建记录仍有效的包；随后重新生成根入口、PTY bundle 和安装构建指纹。删除或移动源码会使所属包及依赖它的包重新构建，避免旧 JS 留在 npm/DMG；无构建记录时会构建全部包，需要强制整体重建时用 `pnpm build:clean`。只清生成目录，不清 node_modules 或用户数据。增量判定与机器槽规则见 [并行开发 §5](system/PARALLEL-DEVELOPMENT.md#5-构建与浏览器用例排时段)。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
 
 Desktop 发布脚本归 `apps/desktop/tooling/`，根 `pnpm desktop:*` 命令不变。它调用 Local Host 的 `createMolisWorkRuntimePayload` 生成自包含目录，不在孤立资源目录对 workspace:* manifest 再执行 npm install。失败不覆盖已有资源，vendor 来源、SBOM、许可证随 payload 和 Home 安装保留。
 
@@ -34,27 +34,28 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 ## CLI
 
-公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载，以及 `molis-work v1 <operation>` 管理接口：
+公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载、插件管理、`molis-work home snapshot` 离线快照与 `molis-work v1 <operation>` 管理接口；下面列出 v1 操作：
 
 ```text
 init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-每条命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`；`goals.board.initialize`、`goals.snapshot.read` 因此各升到版本 2），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`；`goals.board.initialize`、`goals.snapshot.read` 因此各升到版本 2），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
 
 `molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址取环境变量 `MOLIS_WORK_WEB_URL`，没有就是 `http://127.0.0.1:4173`。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
 ## 项目结构
 
-> 仓库是插件基座加多插件的 Monorepo：70 个 workspace 包的成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
+> 仓库是插件基座加多插件的 Monorepo：包清单以 `scripts/workspace-packages.mjs` 为准，当前数量由 `pnpm workspace:check` 输出；成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注，其中 `absent` 只用于尚未建包的目标路径。根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
 
 ```text
-apps/                        6 个产品入口与 composition root 边界
-packages/                    10 个 Foundation package（另有根目录 server/）；contracts 暴露 58 个公开 subpath
-modules/                     13 个业务事实 owner
-horizontal/                  8 个包：5 个横向运行服务，3 个平台产品服务（记忆、放置、搜索）
-plugins/                     25 个 Native Plugin 与 6 个官方 Integration Plugin
+apps/                        产品入口与 composition root 边界
+packages/                    Foundation package；公开合同由 contracts 的 package.json exports 声明
+server/                      聊天与接续的事实模块，按 Module 计
+modules/                     业务事实 owner；当前包与未来目标路径见 SSOT-MATRIX §5
+horizontal/                  横向运行服务与平台产品服务（记忆、放置、搜索、项目资料）
+plugins/                     Native Plugin 与官方 Integration Plugin；清单由登记表提供
 packages/plugin-runtime/     FD3 本地 Plugin 生命周期参考实现
 packages/plugin-sdk/         FD3 Manifest 与 Integration Plugin 定义 API
 plugins/official-integrations/
@@ -66,10 +67,11 @@ apps/mcp/                    平台 MCP schema、协议、项目工具分发；�
 packages/ui-host/            UI Contribution registry、surface render 与 Slot mount 校验
 packages/design-system/      AP3 主题偏好、浏览器视觉基础与分层样式
 plugins/native/feed/         FD4 Feed/Attention/Source UI 和 HTTP route table
+plugins/native/goals/        Goals 插件，拥有 Goal 事实与事件协议
                              当前用户决定、有限结构提案、来源与历史事实
 tooling/plugin-cli/          Plugin CLI 边界；真实开发工具由 DV3 实现
 scripts/workspace-packages.mjs
-                             70 包清单、manifest、入口、README 与 Contract 接线检查
+                             包清单、manifest、入口、README 与 Contract 接线检查
 apps/desktop/launchers/mcp/server.ts            MCP 启动入口；协议归 apps/mcp，装配归 Local Host
 apps/desktop/launchers/web/server.ts            Web 启动入口；HTTP/资源装配归 Local Host，页面归 Workbench/Native Plugin
 apps/desktop/               Desktop 平台与 Native adapter；旧 src/desktop 已删除
@@ -104,7 +106,7 @@ PRODUCT.md                   产品定义
 DESIGN.md                    shipped UI 设计系统
 docs/SSOT-MATRIX.md          架构、包状态和迁移 owner 的权威索引
 docs/system/                 分层、依赖、迁移与巨大单元清单
-docs/modules/                Module 的事实 owner 与 API 边界（页面尚未与 13 个 Module 一一对应：characters 暂无页面，另含 4 个未来 owner 和已退役模块的页面，以 SSOT-MATRIX 为准）
+docs/modules/                事实 owner 与 API 边界；含未来目标及已迁入插件的概念文档，不与现存 Module 包一一对应，以 SSOT-MATRIX 为准
 docs/horizontal/             `horizontal/` 下各服务的技术边界（Memory、Placement 见各自包 README）
 docs/platform/               Plugin、Storage、Exchange 与 UI 平台机制
 specs/molis-work-architecture-reorganization/spec.md
@@ -113,7 +115,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ### 重组期间的开发规则
 
-- 根 `pnpm build` 先构建全部 70 个 workspace 包再编译启动器；`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
+- 根 `pnpm build` 先增量构建 workspace 包，再重新编译启动器并刷新安装构建指纹；`pnpm build:clean` 强制整体重建。`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
 - 已建的 package 要有真实实现：不得注册假 Provider、假 Store、UI 入口或伪成功 API；还没建的目标只留在 SSOT 的 `absent` 行。
 - 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。

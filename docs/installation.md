@@ -4,9 +4,9 @@
 
 ## macOS Desktop 安装包
 
-安装实现已迁至 Local Host；从源码安装前需完整构建，包括清理并重建所有 workspace 包。旧构建会被拒绝，已有安装不受这次拒绝影响。当前分发验收、实际 App 升级/恢复和独立 npm 消费证据集中在 [DV4 验收报告](../specs/molis-work-architecture-reorganization/dv4-validation.md)。本机内部包验证不代表 Apple 公证、Intel 实机或公开发布资格。
+安装实现已迁至 Local Host；从源码安装前需运行整体 `pnpm build`：workspace 包按构建记录增量重建，根入口与安装指纹重新生成；需要强制整体重建时用 `pnpm build:clean`。旧构建会被拒绝，已有安装不受这次拒绝影响。当前分发验收、实际 App 升级/恢复和独立 npm 消费证据集中在 [DV4 验收报告](../specs/molis-work-architecture-reorganization/dv4-validation.md)。本机内部包验证不代表 Apple 公证、Intel 实机或公开发布资格。
 
-普通 macOS 用户优先从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
+截至 2026-11-03，v0.3.0 安装包仍是未公开的发布草稿，最新公开正式版 v0.2.0 只有源码。当前试用走下面的仓库构建路径；发布范围与缺口见 [v0.3.0 发布记录](releases/v0.3.0.md)。公开安装包发布后，再从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
 
 开发者可以从仓库运行：
 
@@ -47,7 +47,7 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ### 离线备份与恢复边界
 
-W5-16 正在实施离线 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]`，使用与 Host/Agent 相同的存储所有权和 SQLite backup API。当前 SDK 零源写密文认证与完整 restore 尚未闭合，不能把这一实现当作可交付恢复工具；用法、原 key/路径限制和失败清理见 [CLI 与开发](cli-and-development.md#home-离线快照)。
+当前 main 已实现离线 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]`，使用与 Host/Agent 相同的存储所有权和 SQLite backup API，并由原 SDK reader 校验密文记录。完整 `home restore`、统一发布/回滚与重启续写尚未完成，不能把快照捕获当作完整恢复工具；用法、原 key/路径限制和失败清理见 [CLI 与开发](cli-and-development.md#home-离线快照)。
 
 操作任何离线副本前，退出 App，并按服务的所有权检查停止 Molis Work 服务及其他写入进程；仅退出窗口不保证后台停止。Catalog、全部项目/插件库、加密正文和原密钥依赖必须保持同一时点。外部工作区文件需单独备份。Keychain 或环境变量提供的原 key 不随 Home 文件复制，不能用新 key 替换丢失的旧 key；缺 key 必须明确拒绝，不能生成空数据冒充恢复。
 

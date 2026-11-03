@@ -4,7 +4,7 @@
 
 Molis Work is a local-first work platform: a plugin base with many plugins, where you and the AI Runtimes you use work on the same goals, sessions, feeds, code, documents and calendar, each kept by the plugin that owns it.
 
-The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Sessions, Inbox, Feed, Schedule, Results and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
+The platform is one resident host per Home, a shared action catalog with grants, the plugin runtime, the workbench shell, and one AI runtime. Every project has Goals and can add Inbox, Feed, Schedule and the Coding family as needed; personal plugins such as Jelly (calendar and notes), Todo, Pages, Lingguang and Cognia work in every project. Each plugin registers its capabilities once in the action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted.
 
 The Goals plugin is for a boring way long-running work fails: a new Session cannot see the last one, the original outcome drifts as local decisions pile up, and “done” is a sentence with nothing to check. What is missing is not a smarter model. It is one project record every Runtime can read: the accepted Goal, how it was split, what is blocked, and what counts as done.
 
@@ -79,7 +79,7 @@ Plain use, and the problem each one is for.
 
 ### One base, plugins as you need them
 
-Every project has Goals; add Sessions, Inbox, Feed, Schedule, Results and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, Lingguang, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The sections below are the Goals plugin.
+Every project has Goals; add Inbox, Feed, Schedule and the Coding family in place from the plugin switcher, while personal plugins such as Jelly, Todo, Pages, Lingguang, Cognia and Shelf work in every project. Each plugin's capabilities are registered once in the shared action catalog, where pages, the Assistant, workflows and external MCP clients call them as granted. The artifact library is provided by the platform. The Sessions plugin has been removed and its replacement is not implemented yet; see the [Sessions requirements](specs/sessions-rebuild/spec.md). Goal terminals remain available. The sections below are the Goals plugin.
 
 ### See the Goal, what is done, and what to do next
 
@@ -117,9 +117,11 @@ With no Runtime connected Molis Work is still a full workbench: plugins work as 
 
 ## Try it in 3 minutes
 
-### macOS Desktop (recommended)
+### macOS Desktop (not yet publicly released)
 
-Download the DMG for your Mac from [GitHub Releases](https://github.com/molis-ai/molis-work/releases):
+As of 2026-11-03, v0.3.0 remains a release draft and is not public. The latest public stable release, v0.2.0, has source only and does not represent the development features described here. To try them now, run from source as described below. Release scope and validation gaps are in the [v0.3.0 release record](docs/releases/v0.3.0.md).
+
+Once a public installer is released, choose a DMG for your Mac from the actual assets on [GitHub Releases](https://github.com/molis-ai/molis-work/releases):
 
 - Apple Silicon (M1/M2/M3/M4…): `macos-arm64`
 - Intel Mac: `macos-x64`

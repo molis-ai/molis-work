@@ -21,8 +21,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 每个包的规模、运行状态（在用 / Runtime / 构建期 / 非产品，不是下面第 2 节的状态词）和计划审查深度 | [`specs/repository-anti-corruption`](../specs/repository-anti-corruption/spec.md) §5.1 的包清单表；`scripts/gates/package-inventory.mjs` 按登记表和代码检查，随 `pnpm health:check` 跑。每个包的成熟度（第 2 节四词）唯一写在 `scripts/workspace-packages.mjs`，各表的「包成熟度」列由 `scripts/package-owners.mjs` 逐行校验，随 `pnpm boundary:check` 跑 |
 | 巨大单元只许变小 | `pnpm health:check`（基线 `tooling/gates/baseline.json`，必须长的登记在 `tooling/gates/giant-exceptions.json`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
 | 评审截图、根目录杂项、vendored 补丁的去留 | [`docs/system/REPOSITORY-HYGIENE.md`](system/REPOSITORY-HYGIENE.md)；`pnpm health:check` 按评审组限制入库的 `.impeccable/` 文件，只许减少 |
-| 13 个业务事实 Module（另有 4 个尚未建包的未来 owner；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
-| 9 个 `horizontal/` 包：5 个横向运行服务，4 个平台产品服务（记忆、放置、搜索、项目资料） | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |
+| 业务事实 Module（当前包与尚未建包的未来 owner 见 §5；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
+| `horizontal/` 下的横向运行服务与平台产品服务（记忆、放置、搜索、项目资料），当前包见 §6 | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |
 | Plugin、存储、交换、UI 等平台机制 | [`docs/platform/`](platform/README.md) |
 | Molis Work 自己联网去哪里（出站网络逐类登记：主机、触发、发出去什么、限制） | [`docs/platform/NETWORK.md`](platform/NETWORK.md)（[English](platform/NETWORK.en.md)）；设置页「服务连接」链到它；到 AnySearch 的出站只有 `apps/local-host/src/anysearch-transport.ts` 一条 |
 | 新插件先写什么、怎么接到产品 | [`skills/molis-plugin-dev/SKILL.md`](../skills/molis-plugin-dev/SKILL.md)（Host/CLI/接入分文件）；命令与录取四问仍是 [`docs/platform/PLUGIN-DEVELOPMENT.md`](platform/PLUGIN-DEVELOPMENT.md) |
@@ -48,7 +48,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 迁移期的 `legacy-mixed`、`contract-only`、`partial`、`implemented`、`retired`、`workspace-root + legacy-release` 已退役；历史见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md) 与 [`specs/repository-anti-corruption/roadmap-2026-10-07.md`](../specs/repository-anti-corruption/roadmap-2026-10-07.md)。
 
-当前 70 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、9 horizontal、24 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-25 核对）：`production` 54、`slice` 14、`experimental` 2。另外 10 个仅含描述符的占位包已删除；下表保留 8 个未来目标路径并标为 `absent`，不参与构建或发布；`apps/workbench/src/judgment-rules` 是包内目标路径行，跟随 `apps/workbench` 的成熟度。
+当前 workspace 包清单、分层与成熟度以 `scripts/workspace-packages.mjs` 为准，`pnpm workspace:check` 输出当前 `packageCount`；下表逐包列出职责、成熟度与归属，不另维护汇总数量。`server` 按 Module 计，`modules/`、`horizontal/` 的概念文档不等于现存包清单。仅含描述符的占位包已删除；下表的未来目标路径标为 `absent`，不参与构建或发布；`apps/workbench/src/judgment-rules` 是包内目标路径行，跟随 `apps/workbench` 的成熟度。
 
 ## 3. Apps
 
@@ -170,12 +170,12 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 入口 | 当前 owner / 状态 | 交付边界 |
 | --- | --- | --- |
 | plugin CLI 与示例 | tooling/plugin-cli；examples/plugin-sample | 公开 SDK scaffold → validate/pack/sign → 本地安装 → Artifact/UI；样例不进生产 workspace |
-| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | 全部 70 个 workspace 包由 `pnpm workspace:build` 拓扑构建；发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
+| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | `pnpm workspace:build` 按依赖顺序构建输入或产物已变化的包，跳过构建记录仍有效的包；`pnpm build:clean` 强制整体重建。发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
 | CLI / MCP / Web bins | apps/desktop/launchers/cli/main.ts、apps/desktop/launchers/mcp/server.ts、apps/desktop/launchers/web/server.ts | 只保留启动环境/stdio/资源路径与公开 App 入口；无业务 SQL 或状态机 |
 | Desktop / Tauri | apps/desktop + apps/desktop/src-tauri | App/DMG/zip、bundle、ad-hoc codesign、本地安装/恢复；Developer ID、公证和公开发布不在本期验收承诺内 |
 | Runtime Skill | skills/goal-advance | 仅消费正式公开 Contract 与入口，不读取内部 Store |
 | Plugin 开发 Skill | skills/molis-plugin-dev | 随 npm / Home 发布；不自动挂 Runtime 接入；本仓库 `.cursor/skills` 只是符号链接 |
-| CI / vendor | .github/workflows、vendor；App-owned 发布工具 | PR 与 main push 触发：包边界与 workspace 校验、健康门禁、Goal 边界与存储基线、发布资产、启动器类型检查、动作与插件合同、单一外壳与成果声明门禁、炼金术士测试；全量产品测试仍在本地跑（`specs/archive/repository-systematic-review/spec.md` F-08）。vendor 的来源、版本、许可证、SBOM 保留；发布包排除 `vendor/prologue-sdk/*.tgz` |
+| CI / vendor | .github/workflows、vendor；App-owned 发布工具 | `ci.yml` 的 `Verify` 汇总包边界与 workspace 校验、健康门禁、原生与 shell 检查、动作与插件合同、安全不变量、产品子集和密钥扫描；PR 选择、合并队列与 main 复用规则见 [并行开发 §3](system/PARALLEL-DEVELOPMENT.md#3-合并)。产品全量（含浏览器用例）由 `full-suite.yml` 分片运行，macOS 专有用例在本机补，触发与本机执行约束见 [§5.1](system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)和 [§7](system/PARALLEL-DEVELOPMENT.md#7-集成分支上跑全量)。vendor 的来源、版本、许可证、SBOM 保留；发布包排除 `vendor/prologue-sdk/*.tgz` |
 | 文档 | 本索引与对应 owner 文档 | 当前位置以此表为准；迁移期记录见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)，阶段性验收保留历史，不代表未来能力落地 |
 
 ## 9. 变更规则

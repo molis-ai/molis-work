@@ -3,7 +3,9 @@ import test from "node:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ActionCallContext, ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorFromResponse, actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { formatMcpToolError } from "@molis-ai/molis-work-app-mcp";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority, openByDefault } from "../apps/local-host/dist/mcp-action-grants.js";
 import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, writeMcpActionGrants, mcpToolPreferencePath } from "../apps/local-host/dist/mcp-settings-store.js";
@@ -22,7 +24,7 @@ test("persisted grants keep concurrent management updates; duplicates and other 
   const second = { ...first, client_id: "runtime:client-b", enabled: false };
   await Promise.all([writeMcpActionGrant(home, first), writeMcpActionGrant(home, second)]);
   const preference = await readMcpToolPreference(home);
-  assert.equal(preference.version, 3);
+  assert.equal(preference.version, 1);
   assert.deepEqual(preference.action_grants.map(({ generation, ...facts }) => { assert.ok(generation); return facts; }), [first, second]);
   const [storedFirst, storedSecond] = preference.action_grants;
   await writeMcpActionGrant(home, { ...first, enabled: false });
@@ -41,7 +43,7 @@ test("persisted grants keep concurrent management updates; duplicates and other 
   await writeFile(mcpToolPreferencePath(home), invalid);
   await assert.rejects(writeMcpActionGrant(home, first), /已保留原文件/);
   assert.equal(await readFile(mcpToolPreferencePath(home), "utf8"), invalid);
-  const otherVersion = JSON.stringify({ version: 1, overrides: {}, action_grants: [first] });
+  const otherVersion = JSON.stringify({ ...preference, version: 2 });
   assert.throws(() => parseMcpToolPreference(JSON.parse(otherVersion)), { code: "actions.configuration_unavailable" }, "another version is rejected, never interpreted as a missing file");
   await writeFile(mcpToolPreferencePath(home), otherVersion);
   await assert.rejects(writeMcpActionGrant(home, first), /已保留原文件/);
@@ -83,10 +85,36 @@ test("ACA005-04/06 management owns each generation, preserving permission sets, 
   }
 });
 
+// RAC-2490 RAC-2492: an MCP client calling an action it holds no grant for is refused as a refusal (kind `forbidden`), at the source, so a
+// reader that tells refusals from failures does not need to know this code; what the client reads in its tool result is unchanged.
+test("RAC-2490 an MCP client's call to an action it was not granted is refused with mcp.action_revoked of kind forbidden, also across the gateway hop", () => {
+  const preference = { version: 1 as const, action_grants: [] };
+  const project = view();
+  const reference = { capability_id: project.capability_id, version: project.version, provider_id: project.provider.provider_id };
+  const refusal = (() => { try { assertMcpActionAuthority(caller, [project], preference, reference); } catch (error) { return error; } assert.fail("an ungranted call must be refused"); })();
+  assert.ok(refusal instanceof ActionError);
+  assert.deepEqual([refusal.code, refusal.kind], ["mcp.action_revoked", "forbidden"]);
+  const { status, body } = actionErrorResponse(refusal);
+  assert.equal(status, 403, "the status comes from the kind, by the one table in the plugin SDK");
+  const received = actionErrorFromResponse(status, body);
+  assert.deepEqual([received.code, received.kind, received.message], ["mcp.action_revoked", "forbidden", refusal.message], "the MCP process reads the same refusal back");
+});
+
+test("RAC-2492 the tool result an MCP client reads for that refusal is unchanged: the same code and message, no kind and no status", () => {
+  const project = view();
+  const reference = { capability_id: project.capability_id, version: project.version, provider_id: project.provider.provider_id };
+  const refusal = (() => { try { assertMcpActionAuthority(caller, [project], { version: 1, action_grants: [] }, reference); } catch (error) { return error; } assert.fail("an ungranted call must be refused"); })();
+  assert.ok(refusal instanceof ActionError);
+  const before = new ActionError("mcp.action_revoked", refusal.message);
+  assert.equal(formatMcpToolError(refusal), formatMcpToolError(before));
+  assert.equal(formatMcpToolError(refusal, "call-1"), formatMcpToolError(before, "call-1"));
+  assert.deepEqual(JSON.parse(formatMcpToolError(refusal)), { error: refusal.message, code: "mcp.action_revoked" });
+});
+
 test("MCP grants are exact for client, project, Home, provider, version and accepted permissions; no permission borrowing", () => {
   const project = view(), home = view("home"), newer = view("project", 2), replacement = view("project", 1, "replacement");
   const grant = createMcpActionGrant(caller.actor_id, "a", project, true);
-  const preference = { version: 3 as const, action_grants: [grant] };
+  const preference = { version: 1 as const, action_grants: [grant] };
   const resolve = (context = caller, actions = [project, home, newer, replacement]) => resolveMcpActionContext(context, actions, preference);
   assert.deepEqual(resolve().allowed_actions, [{ capability_id: project.capability_id, version: 1, provider_id: project.provider.provider_id }]);
   assert.deepEqual(resolve({ ...caller, project_id: "b" }).permissions, []);
@@ -166,7 +194,7 @@ test("permission-free system defaults can be revoked per client and restored, wi
   const base = view("home");
   const action: ActionView = { ...base, provider: { ...base.provider, kind: "system" }, action: { ...base.action, permissions: [] } };
   const context = { ...caller, project_id: null };
-  const preference = { version: 3 as const, action_grants: [] };
+  const preference = { version: 1 as const, action_grants: [] };
   assert.equal(resolveMcpActionContext(context, [action], preference).allowed_actions?.length, 1);
   const deny = createMcpActionGrant(caller.actor_id, null, action, false);
   assert.deepEqual(resolveMcpActionContext(context, [action], { ...preference, action_grants: [deny] }).allowed_actions, []);
@@ -186,7 +214,7 @@ test("PMAT-24 the built-in Agent holds project knowledge without a grant record,
     provider: { provider_id: "pages", title: "Pages", kind: "plugin", ...(project ? { project_id: project } : {}) },
     action: { ...view("project").action, kind, audiences: ["agent", "mcp"], permissions: ["pages:read"], input_type: "molis.subject-reference.v1", output_type: "molis.subject-context.v1" } });
   const writer: ActionView = { ...view("project"), provider: { provider_id: "pages", title: "Pages", kind: "plugin", project_id: "a" }, action: { ...view("project").action, audiences: ["agent", "mcp"] } };
-  const empty = { version: 3 as const, action_grants: [] };
+  const empty = { version: 1 as const, action_grants: [] };
   assert.deepEqual([openByDefault(knowledge, agent), openByDefault(reader("a"), agent)], [true, true]);
   assert.equal(openByDefault(writer, agent), false, "a write still needs its own grant");
   const manage: ActionView = { ...knowledge, capability_id: "knowledge.card.edit", operation: "command", action: { ...knowledge.action, kind: "operation", effect: "write", permissions: ["knowledge:manage"] } };

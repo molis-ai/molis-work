@@ -20,7 +20,7 @@ export function runtimeContextHostFromEnvironment(
     molisWorkSessionId: signals.molis_work_session_id,
     nativeRuntimeSessionId: signals.native_runtime_session_id,
     hostWorkContextId: readProductEnv("WORK_CONTEXT_ID", environment) || null,
-    goalId: signals.goal_id,
+    focusId: signals.focus_id,
     panelId: signals.surface_id,
     projectSuggestionClues: signals.project_suggestion_clues,
   };
@@ -47,7 +47,7 @@ export function runtimeSessionHostSignalsFromEnvironment(
     molis_work_session_id: molisWorkSessionId,
     native_runtime_session_id: nativeRuntimeSessionId,
     surface_id: readProductEnv("PANEL_ID", environment) || null,
-    goal_id: readProductEnv("GOAL_ID", environment) || null,
+    focus_id: readProductEnv("FOCUS_ID", environment) || null,
     runtime_context: {
       runtime_id: runtimeId,
       // A work entry the host declared routes the Session by its own id; otherwise the native runtime session does.

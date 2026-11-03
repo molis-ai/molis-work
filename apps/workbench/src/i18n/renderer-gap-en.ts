@@ -212,7 +212,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": "{agent}'s execution capability is checked at run time; sign-in and isolation scope are not yet confirmed.",
   "给这个项目添加插件，或打开已经在用的。": "Add plugins to this project, or open the ones already in use.",
   "请稍后重试": "Try again in a moment",
-  // apps/local-host/src/artifact-native-plugin-http.ts
+  // apps/local-host/src/artifact-library-http.ts
   "这一版不能在这个插件里继续": "This version can't be continued in this plugin",
   "这个版本没有可取回的文件": "This version has no file to retrieve",
   // apps/local-host/src/web-request.ts

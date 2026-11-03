@@ -93,10 +93,10 @@ test("RAC-443 S-62 the Assistant names no plugin: assistant-coding.ts is gone an
   assert.deepEqual(found, []);
 });
 
-test("RAC-444 the Assistant store is at version 3 and refuses the store of version 2 it does not translate on read", () => {
-  assert.equal(ASSISTANT_STORE_BASELINE.version, 3);
+test("RAC-444 RAC-2365 the Assistant store starts at 1 and refuses a store of version 2 it does not translate on read", () => {
+  assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
   const db = new DatabaseSync(":memory:");
   db.exec(ASSISTANT_STORE_BASELINE.schema); db.exec("PRAGMA user_version = 2");
-  assert.throws(() => new AssistantStore(db), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 3);
+  assert.throws(() => new AssistantStore(db), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 1);
   db.close();
 });

@@ -33,6 +33,7 @@ export function createActivationContext(record: PluginInstanceRecord, definition
 export async function releaseUnrecorded(activation: { context: PluginStartContext; definition: PluginDefinition } | undefined, executor: PluginExecutor, revoke: () => void): Promise<never> {
   revoke();
   // A failing stop hook has nothing left to mark crashed: the missing record is the failure reported either way.
-  if (activation) await Promise.allSettled([outsidePluginAction(() => executor.stop(activation.definition, activation.context))]);
+  // The contract only says the hook returns a promise; an executor may throw before it does, and that must not escape the letting-go step.
+  if (activation) await Promise.allSettled([(async () => outsidePluginAction(() => executor.stop(activation.definition, activation.context)))()]);
   throw pluginErrors.definition_missing("Plugin installation 不存在");
 }

@@ -123,11 +123,11 @@ test("icon() writes a reference into the page sprite, and the design system draw
   assert.equal(icon("folder"), icon("folder", ""));
   assert.match(icon("folder", "x"), /class="[^"]*\bx\b[^"]*"/u);
   assert.match(icon("folder"), /<use href="#icon-folder"><\/use>/u);
-  // The names are one list, the `PluginIconName` type in the SDK; the design system's drawing table is typed
-  // `Record<PluginIconName, IconNode>`, so a name without a drawing, or a drawing without a name, does not compile. This holds
-  // the built declaration against what the page sprite actually carries.
-  const declaration = readFileSync(new URL("../packages/plugin-sdk/dist/ui/icon.d.ts", import.meta.url), "utf8");
-  const listed = [...new Set([...declaration.slice(declaration.indexOf("PluginIconName"), declaration.indexOf("export declare function icon")).matchAll(/"([a-z0-9-]+)"/gu)].map((match) => match[1]!))].sort();
+  // The names are one list, the `PluginIconName` type in the SDK (`ui/icon-names`, which `ui/icon` re-exports); the design system's
+  // drawing table is typed `Record<PluginIconName, IconNode>`, so a name without a drawing, or a drawing without a name, does not
+  // compile. This holds the built declaration of that list against what the page sprite actually carries.
+  const declaration = readFileSync(new URL("../packages/plugin-sdk/dist/ui/icon-names.d.ts", import.meta.url), "utf8");
+  const listed = [...new Set([...declaration.matchAll(/"([a-z0-9-]+)"/gu)].map((match) => match[1]!))].sort();
   assert.ok(listed.length > 100, `read ${listed.length} names from the declaration`);
   assert.deepEqual([...registeredIconNames()].sort(), listed);
   assert.ok(listedIconNames().every((name) => listed.includes(name)));

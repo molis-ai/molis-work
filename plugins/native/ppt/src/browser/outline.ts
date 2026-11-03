@@ -1,8 +1,20 @@
 import { messageOf } from "./dom.js";
 import type { OutlineAttempt, Ppt, PptPage } from "./types.js";
+import type { Translate } from "./types.js";
 
 interface OutlinePages { documents?: { id: string; title?: string }[]; unavailable_reason?: string | null }
 interface OutlineReply { presentation: Ppt; slide_count: number }
+
+/** The outline action takes 20000 characters (actions.ts outlineInput.text.maxLength): a maxlength attribute counts UTF-16 units and
+ * stopped a two-unit character at half of it, so the box is cut to whole characters at the same limit and says it in the page's words.
+ * Returns the error line to show, or null to leave it as it is. */
+const OUTLINE_MAX_CHARS = 20_000;
+const capOutlineText = (area: HTMLTextAreaElement, error: HTMLElement | null, L: Translate): string | null => {
+  const characters = [...area.value], limit = L("ppt.outline.too-long");
+  if (characters.length <= OUTLINE_MAX_CHARS) return error?.textContent === limit ? "" : null;
+  area.value = characters.slice(0, OUTLINE_MAX_CHARS).join("");
+  return limit;
+};
 
 /** The outline dialog: pasted text or a Pages document turned into slides, locally or through the model. */
 export function installOutline(page: PptPage): void {
@@ -28,6 +40,10 @@ export function installOutline(page: PptPage): void {
     errorBox.textContent = text || "";
   };
 
+  box?.querySelector<HTMLTextAreaElement>("[data-ppt-outline-text]")?.addEventListener("input", (event) => {
+    const text = capOutlineText(event.target as HTMLTextAreaElement, q("[data-ppt-outline-error]"), L);
+    if (text !== null) showOutlineError(text);
+  });
   const markCurrent = (selector: string, current: (button: HTMLElement) => boolean) => {
     box?.querySelectorAll<HTMLElement>(selector).forEach((button) => {
       const on = current(button);

@@ -20,6 +20,7 @@ function openProjects(directory: string, plugins: ProjectPluginRegistry = shippe
   createProjectsSchema(db);
   const projects = new ProjectsModule({
     db,
+    projects_directory: directory,
     plugins,
   });
   return { db, projects };
@@ -28,7 +29,6 @@ function openProjects(directory: string, plugins: ProjectPluginRegistry = shippe
 function createProject(projects: ProjectsModule, directory: string, name: string) {
   const draft = projects.lifecycle.prepareRecord({
     display_name: name,
-    projects_directory: directory,
     data_class: "user",
   });
   projects.lifecycle.register(draft, "project.created", "tester");

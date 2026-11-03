@@ -9,15 +9,14 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     }
     ops.ensureHome(state);
   };
-  const pluginSurface = (plugin) => plugin === "goals" ? "goal" : plugin === "home" ? "home" : plugin;
   const directoryOf = (plugin) => {
-      if (plugin === "home" || plugin === "market") return "root"; const directory = plugin === "goals" ? "goals" : plugin;
+      if (plugin === "home" || plugin === "market") return "root"; const directory = plugin;
       return document.querySelector('[data-directory-panel="' + directory + '"]') ? directory : "root";
     };
   const supportsGoalFrames = () => document.body.dataset.boardView === "current";
   const findTopLevelSurface = (plugin) => plugin === "goals"
     ? document.querySelector("[data-goal-canvas-shell]") || document.querySelector('[data-document-pane]')
-    : [...document.querySelectorAll('[data-work-surface="' + pluginSurface(plugin) + '"]')]
+    : [...document.querySelectorAll('[data-work-surface="' + plugin + '"]')]
       .find((node) => !node.closest("[data-goal-canvas-shell]")) || null;
   const topLevelSurface = plugin => { const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface); return surface; };
   const titleForItem = (plugin, itemId, fallback) => {

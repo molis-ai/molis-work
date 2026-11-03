@@ -50,6 +50,8 @@ test('RAC-635 a built-in contribution is registered under the plugin its Manifes
   // Native UI is composed statically, not redeemed as a Runtime contribution; the platform fills the owner from the catalog entry's Manifest (PG-098).
   const ui = createWorkbenchUiHost().list();
   const owners = new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.workbench?.contributions ?? []).map(item => [item.descriptor.contribution_id, entry.manifest.plugin_id] as const)));
+  owners.set("io.molis.work.native.artifacts.browser.v1", "io.molis.work.artifacts");
+  owners.set("io.molis.work.native.artifacts.reference.v1", "io.molis.work.artifacts");
   assert.ok(ui.length > 20, 'the catalog registers its contributions');
   for (const descriptor of ui) assert.equal(descriptor.plugin_id, owners.get(descriptor.contribution_id), descriptor.contribution_id);
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.goals');

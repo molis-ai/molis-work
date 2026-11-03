@@ -4,7 +4,7 @@ import { gmailHealthResponse } from "./health-response.js";
 /**
  * Gmail Connector - live mode by default; deterministic fixture mode is
  * available only in an explicit test/fixture process.
- * Live path uses the shared usable-token resolver (refresh-before-call) -
+ * Live path uses the Host's usable-token resolver (refresh-before-call) -
  * never attaches tokens to Item rows; never substitutes fixtures after live failure.
  *
  * Live sync is one closed boundary with two bounded entry paths driven by the
@@ -44,12 +44,6 @@ type ConnectorIngestItem = IntegrationProviderItem;
 type ConnectorPort = IntegrationProviderPort;
 type ConnectorSyncResult = IntegrationProviderSyncResult;
 
-export interface GmailTokenRefs {
-  access: string;
-  refresh: string;
-  expiresAt: string;
-}
-
 export type GmailUsableTokenResult =
   | { ok: true; accessToken: string }
   | { ok: false; status: "none" }
@@ -77,8 +71,6 @@ export function createGmailProvider(opts?: {
   authRef?: string;
   /** Direct access token for tests / env (not stored on Item) */
   accessToken?: string;
-  /** The connection's credential scope: every token read and refresh write-back targets exactly these refs. */
-  tokenRefs?: GmailTokenRefs;
   /** One of the closed, incrementally enforceable Gmail range presets. */
   scope?: string;
   fetchImpl?: GmailFetch;
@@ -93,21 +85,19 @@ export function createGmailProvider(opts?: {
     control: ConnectorCallControl;
     fetchImpl?: GmailFetch;
     nowMs?: number;
-    tokenRefs?: GmailTokenRefs;
   }) => Promise<GmailUsableTokenResult>;
 }): ConnectorPort {
   const fixture = opts?.fixture ?? FIXTURE_MAIL;
   const allowFixture = opts?.allowFixture ?? false;
   const authRef = opts?.authRef;
-  const tokenRefs = opts?.tokenRefs;
   const scope = normalizeGmailScope(opts?.scope);
   const envToken = opts?.accessToken;
   const fetchImpl = opts?.fetchImpl ?? globalThis.fetch?.bind(globalThis);
   const getNowMs = opts?.getNowMs;
 
   /**
-   * One shared path for health + sync: direct inject, custom authRef, or
-   * SecretStore lifecycle (reuse fresh / refresh once near expiry).
+   * One shared path for health + sync: direct inject, a reference the Host
+   * resolves, or the Host's own token resolver (the generic OAuth flow).
    */
   const resolveUsable = async (control: ConnectorCallControl): Promise<GmailUsableTokenResult> => {
     control.current();
@@ -127,7 +117,6 @@ export function createGmailProvider(opts?: {
     return opts?.resolveUsableToken?.({
       control, fetchImpl,
       nowMs: getNowMs?.(),
-      tokenRefs,
     }) ?? { ok: false, status: "none" };
   };
 

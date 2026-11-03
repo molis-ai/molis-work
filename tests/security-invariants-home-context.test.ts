@@ -13,16 +13,20 @@ test("S-07 RAC-105-A-09: shipped stdio shares the resident Home for context tool
   const projects = await resident.catalog({ homeDirectory: resident.home }, async catalog => {
     const one = await catalog.createProject({ display_name: "已有项目", actor_id: "fixture-user" });
     const two = await catalog.createProject({ display_name: "另一个项目", actor_id: "fixture-user" });
-    const panel = catalog.openDesktopPanel({ project_id: one.project_id, goal_id: "fixture-goal", runtime_kind: "codex", launch_command: "codex", actor_id: "fixture-user", user_confirmed: true });
+    // A terminal the platform started (S-103) for a plugin in the first project: its own work context is bound there. The late alias
+    // below is RAC-2565's MCP half: the session a runtime reports through MCP is what the terminal resumes (`tests/goals-terminal.test.ts`).
+    const panel = await catalog.commit(() => catalog.terminalPanels.insert({ panel_id: "plugin-home-context-fixture", install_id: "fixture-install",
+      project_id: one.project_id, actor_id: "fixture-user", key: "fixture", subject: "fixture-goal", runtime: "codex", launch_command: "codex",
+      launch_args: [], title: "Codex" }, resident.home));
     return { one, two, panel };
   });
-  const client = await homeContextStdio(t, { ...resident, panelId: projects.panel.panel_id, workContext: projects.panel.work_context_id });
+  const client = await homeContextStdio(t, { ...resident, panelId: projects.panel.panel_id, workContext: projects.panel.panel_id });
   const peer = await peers.start(join(resident.home, "agent-runtime"));
   assert.deepEqual(await peer.request("acquire"), { code: "storage.owner.busy" });
   const forgedBeforeAlias = await client.callTool({ name: "molis_work_v1_context_bind",
     arguments: { project_id: projects.two.project_id, user_confirmed: true, actor_id: "fixture-user" }, _meta: { "molis-work/sessionId": "refused-native-session" } });
   assert.equal(forgedBeforeAlias.isError, true); assert.match(JSON.stringify(forgedBeforeAlias), /mcp.unexpected_field/);
-  assert.equal(await resident.catalog({ homeDirectory: resident.home }, catalog => catalog.getDesktopPanel(projects.panel.panel_id).host_session_id), null,
+  assert.equal(await resident.catalog({ homeDirectory: resident.home }, catalog => catalog.terminalPanels.get(projects.panel.panel_id)?.host_session_id), null,
     "a tool-supplied actor is refused before the protocol Session alias writes anything");
   type Resolution = { status: string; connection: { project_id: string } | null };
   assert.equal((await contextTool<Resolution>(client, "context_resolve")).connection?.project_id, projects.one.project_id);
@@ -46,18 +50,18 @@ test("S-07 RAC-105-A-09: shipped stdio shares the resident Home for context tool
   assert.equal(forged.isError, true); assert.match(JSON.stringify(forged), /mcp.unexpected_field/);
   await contextTool(client, "context_list_projects", {}, { "molis-work/sessionId": "late-native-session" });
   const persisted = await resident.catalog({ homeDirectory: resident.home }, catalog => ({
-    projects: catalog.listProjects(), panel: catalog.getDesktopPanel(projects.panel.panel_id),
-    events: catalog.listRuntimeContextBindingEvents({ runtime_id: "codex", stable_work_context_id: projects.panel.work_context_id, host_declares_stable: true }),
+    projects: catalog.listProjects(), panel: catalog.terminalPanels.get(projects.panel.panel_id)!,
+    events: catalog.listRuntimeContextBindingEvents({ runtime_id: "codex", stable_work_context_id: projects.panel.panel_id, host_declares_stable: true }),
   }));
   assert.equal(persisted.projects.filter(project => project.display_name === input.display_name).length, 1);
   assert.equal(persisted.panel.host_session_id, "late-native-session");
-  assert.ok(persisted.events.some(event => event.project_id === created.connection!.project_id && event.actor_id === `runtime:codex:${projects.panel.work_context_id}`));
+  assert.ok(persisted.events.some(event => event.project_id === created.connection!.project_id && event.actor_id === `runtime:codex:${projects.panel.panel_id}`));
   const deleted = await contextTool<{ deletion: { actor_id: string } }>(client, "project_delete", { project_id: created.connection.project_id, delete_confirmed: true, idempotency_key: "delete-from-real-stdio" });
-  assert.equal(deleted.deletion.actor_id, `runtime:codex:${projects.panel.work_context_id}`);
+  assert.equal(deleted.deletion.actor_id, `runtime:codex:${projects.panel.panel_id}`);
   await contextTool(client, "project_delete", { project_id: created.connection.project_id, delete_confirmed: true, idempotency_key: "delete-from-real-stdio" });
   await contextTool(client, "context_bind", { project_id: projects.two.project_id, user_confirmed: true });
   await client.close();
-  const restarted = await homeContextStdio(t, { ...resident, workContext: projects.panel.work_context_id });
+  const restarted = await homeContextStdio(t, { ...resident, workContext: projects.panel.panel_id });
   assert.ok((await restarted.listTools()).tools.some(tool => tool.name === "molis_work_v1_context_resolve"));
   assert.equal((await contextTool<Resolution>(restarted, "context_resolve")).connection?.project_id, projects.two.project_id);
   assert.deepEqual(await peer.request("acquire"), { code: "storage.owner.busy" });

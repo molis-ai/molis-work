@@ -22,7 +22,8 @@ function material(messages: unknown, title: string): string {
 }
 
 test("PMAT-33 PMAT-35 PMAT-37 PMAT-39 本轮情况 counts the project's documents the round could list; kept-from-agents ones and a round without list get none", { timeout: 90_000 }, async t => {
-  const home = await openTestHome(t), project = await home.createProject("资料", ["artifacts"]);
+  // PG-077: the platform Artifact provider is available without a project Plugin member.
+  const home = await openTestHome(t), project = await home.createProject("资料");
   const prefix = `/projects/${project.project_id}`;
   const model = await connectorAssistantModel(t, home.home, () => "好。");
   const ask = async (work_id?: string) => {

@@ -21,6 +21,6 @@
   - 草稿与状态的唯一写入方，按本人隔离、跨项目复用；修改与状态变更做修订检查，删除保留墓碑。
   - 只在确认草稿仍有效时，把固定内容交给 Host 注入的发布者。
   - 不依赖插件、App、Agent Runtime 或其他 Module 的实现；仓库实现不从公开入口导出。
-  - 仅空的版本 0 库初始化为当前版本 2；已有结构的版本 0 库、版本 1 库（加 `character_runs` 之前的，维护见 `tests/fixtures/characters-maintenance-v2.sql`）和未来版本拒绝打开，保留原库的结构、数据、版本及文件权限，不盖章升级。
-- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-maintenance-v2.test.ts tests/characters-project-deletion.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
+  - 仅空的版本0库初始化为现行结构1（草稿与原生执行记录）；已有表的无版本库、其他版本都拒绝，保留结构、数据、版本及文件权限，不就地升级。既有检查记录的旧版本1没有 `character_runs`，同号不同结构不在本次检查范围；重建前不要用新构建打开旧Home。
+- 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts tests/characters-project-deletion.test.ts`；动了声明、绑定或处理器再跑 `tests/characters-native-execution.test.ts tests/characters-publication-http.test.ts tests/security-invariants-plugin-original-caller.test.ts`
 - 相关手册：[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

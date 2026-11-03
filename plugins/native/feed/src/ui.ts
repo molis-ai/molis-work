@@ -314,7 +314,7 @@ function renderFeedStageToolbar(model: FeedUiModel, count: number): string {
   const sourceOptions: readonly (readonly [string, string])[] = [["all", p.text("全部来源")], ...sourceLabels.map((label) => [label, label] as const)];
   const typeOptions = [["all", p.text("全部类型")], ["github", "GitHub"], ["gmail", "Gmail"], ["rss", "RSS / Atom"], ["other", p.text("其他类型")]] as const;
   const timeOptions = [["all", p.text("全部时间")], ["day", p.text("最近 24 小时")], ["week", p.text("最近 7 天")], ["month", p.text("最近 30 天")]] as const;
-  const statusOptions = [["active", p.text("未忽略")], ["all", p.text("全部状态")], ["feed", p.text("仅 Feed")], ["saved", p.text("已保存")], ["promoted", p.text("已升格")], ["processing", p.text("处理中")], ["archived", p.text("已忽略")]] as const;
+  const statusOptions = [["active", p.text("未忽略")], ["all", p.text("全部状态")], ["feed", p.text("仅 Feed")], ["saved", p.text("已保存")], ["promoted", p.text("已升格")], ["archived", p.text("已忽略")]] as const;
   const sortOptions = [["newest", p.text("最新在前")], ["oldest", p.text("最早在前")], ["source", p.text("按来源")], ["title", p.text("按标题")]] as const;
   const filterOptions = (kind: string, options: readonly (readonly [string, string])[], selected: string) =>
     options.map(([value, label]) => `<button class="feed-filter-option" type="button" role="radio" aria-checked="${value === selected}" data-feed-filter-option="${kind}" data-feed-filter-value="${p.escape(value)}"><span>${p.escape(label)}</span>${p.icon("check")}</button>`).join("");
@@ -382,7 +382,7 @@ export function renderPersistedFeedItemDetail(model: PersistedFeedDetailModel, s
     return `<li><span>${p.icon("link")}</span><div><strong>${p.escape(material.title || material.source_name)}</strong><small>${p.escape([material.source_name, material.published_at ? p.formatDate(material.published_at) : ""].filter(Boolean).join(" · "))}</small>${material.preview ? `<p>${p.escape(material.preview)}</p>` : ""}${material.content ? `<details class="feed-material-content"><summary>${p.text("查看保存的正文")}</summary><div>${p.escape(material.content)}</div></details>` : material.content_ref && !material.content_available ? `<small class="feed-material-unavailable">${p.text("正文暂时不可读取")}</small>` : ""}</div>${href ? `<a href="${p.escape(href)}" target="_blank" rel="noopener noreferrer" aria-label="${p.text("打开原资料")}">${p.icon("arrow")}</a>` : ""}</li>`;
   }).join("") : `<li class="feed-material-empty">${p.icon("archive")}<p>${p.text("这条 Item 没有附带资料；正文和来源信息仍会进入处理上下文。")}</p></li>`;
   return `<article class="feed-detail" data-feed-detail="${p.escape(model.entry_id)}" data-feed-detail-item-type="feed" data-feed-detail-read="${item.read_at ? "read" : "unread"}"${selected ? "" : " hidden"}>
-    <header class="feed-detail-header"><div class="feed-detail-kicker"><span class="mw-status mw-status--progress">Feed</span><span class="mw-status mw-status--quiet">${p.escape(item.source_label || item.source_kind)}</span><span class="mw-status mw-status--${item.read_at ? "quiet" : "attention"}" data-mw-state="${item.read_at ? "read" : "unread"}" data-feed-read-state>${item.read_at ? p.text("已读") : p.text("未读")}</span><span class="mw-status mw-status--${model.inbox_active ? "attention" : "quiet"}"${model.inbox_active || ["saved", "processing", "archived"].includes(effectiveDisposition) ? ` data-mw-state="${model.inbox_active ? "answer" : effectiveDisposition === "saved" ? "material" : effectiveDisposition === "processing" ? "doing" : "archived"}"` : ""}>${p.escape(dispositionLabel(model.inbox_active ? "inbox" : effectiveDisposition, p))}</span></div><h1>${p.escape(item.title || p.text("未命名消息"))}</h1>${item.summary ? `<p>${p.escape(p.plainText(item.summary))}</p>` : ""}<div class="feed-detail-meta">${item.author ? `<span>${p.icon("user")}${p.escape(item.author)}</span>` : ""}<time datetime="${p.escape(item.source_updated_at)}">${p.formatDate(item.source_updated_at)}</time>${item.source_id ? `<button class="mw-btn mw-btn--link" type="button" data-open-source-record="${p.escape(item.source_id)}">${p.icon("settings")}${p.text("查看来源")}</button>` : ""}${itemUrl ? `<a href="${p.escape(itemUrl)}" target="_blank" rel="noopener noreferrer">${p.text("打开原文")}${p.icon("arrow")}</a>` : ""}</div></header>
+    <header class="feed-detail-header"><div class="feed-detail-kicker"><span class="mw-status mw-status--progress">Feed</span><span class="mw-status mw-status--quiet">${p.escape(item.source_label || item.source_kind)}</span><span class="mw-status mw-status--${item.read_at ? "quiet" : "attention"}" data-mw-state="${item.read_at ? "read" : "unread"}" data-feed-read-state>${item.read_at ? p.text("已读") : p.text("未读")}</span><span class="mw-status mw-status--${model.inbox_active ? "attention" : "quiet"}"${model.inbox_active || ["saved", "archived"].includes(effectiveDisposition) ? ` data-mw-state="${model.inbox_active ? "answer" : effectiveDisposition === "saved" ? "material" : "archived"}"` : ""}>${p.escape(dispositionLabel(model.inbox_active ? "inbox" : effectiveDisposition, p))}</span></div><h1>${p.escape(item.title || p.text("未命名消息"))}</h1>${item.summary ? `<p>${p.escape(p.plainText(item.summary))}</p>` : ""}<div class="feed-detail-meta">${item.author ? `<span>${p.icon("user")}${p.escape(item.author)}</span>` : ""}<time datetime="${p.escape(item.source_updated_at)}">${p.formatDate(item.source_updated_at)}</time>${item.source_id ? `<button class="mw-btn mw-btn--link" type="button" data-open-source-record="${p.escape(item.source_id)}">${p.icon("settings")}${p.text("查看来源")}</button>` : ""}${itemUrl ? `<a href="${p.escape(itemUrl)}" target="_blank" rel="noopener noreferrer">${p.text("打开原文")}${p.icon("arrow")}</a>` : ""}</div></header>
     <section class="feed-detail-body"><h2>${p.text("内容")}</h2><div class="feed-rich-content">${body}</div></section>
     ${item.tags.length ? `<section class="feed-detail-tags" aria-label="${p.text("标签")}">${item.tags.map((tag) => `<span>${p.escape(tag)}</span>`).join("")}</section>` : ""}
     ${item.materials.length ? `<details class="feed-materials"><summary>${p.icon("link")}<span>${p.text("附带资料")}</span><small>${p.text("{count} 项", { count: item.materials.length })}</small>${p.icon("chevron-down")}</summary><ul>${materials}</ul></details>` : ""}
@@ -592,7 +592,6 @@ function dispositionLabel(value: string, p: FeedUiPrimitives): string {
     inbox: p.text("已加入 Inbox"),
     saved: p.text("已保存为资料"),
     promoted: p.text("已升格为 Goal"),
-    processing: p.text("处理中"),
     archived: p.text("已忽略"),
   };
   return labels[value] ?? value;
@@ -604,14 +603,13 @@ function renderFeedEntryStatus(entry: FeedUiEntry, p: FeedUiPrimitives): string 
       inbox: { tone: "attention", icon: "inbox" },
       saved: { tone: "done", icon: "archive" },
       promoted: { tone: "progress", icon: "target" },
-      processing: { tone: "progress", icon: "waiting" },
       archived: { tone: "quiet", icon: "archive" },
     } as const;
     const mark = marks[entry.disposition as keyof typeof marks] ?? { tone: "idle" as const, icon: "dot" as const };
     return renderStatusMark({
       label: dispositionLabel(entry.disposition, p),
       tone: mark.tone,
-      icon: mark.icon, state: entry.disposition === "inbox" ? "answer" : entry.disposition === "saved" ? "material" : entry.disposition === "processing" ? "doing" : entry.disposition === "archived" ? "archived" : undefined,
+      icon: mark.icon, state: entry.disposition === "inbox" ? "answer" : entry.disposition === "saved" ? "material" : entry.disposition === "archived" ? "archived" : undefined,
       plain: true,
       className: "feed-entry-status",
     });
@@ -632,7 +630,6 @@ function destinationCopy(value: string, p: FeedUiPrimitives): readonly [string, 
     inbox: [p.text("已加入 Inbox"), p.text("Inbox 只保存需处理引用；原消息仍在 Feed")],
     saved: [p.text("已保存为资料"), p.text("完整消息、来源和已有资料保持关联")],
     promoted: [p.text("已升格为 Goal"), p.text("Goal 使用这条消息作为可追溯输入")],
-    processing: [p.text("正在处理"), p.text("关联 Goal 已打开，原消息仍保留")],
     archived: [p.text("已忽略"), p.text("默认列表不再显示，仍可从状态筛选恢复")],
   };
   return copy[value] ?? [value, p.text("原消息仍然保留")];

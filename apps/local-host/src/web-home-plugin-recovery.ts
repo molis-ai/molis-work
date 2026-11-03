@@ -1,9 +1,9 @@
 import { renderPluginStoreUnavailablePage } from "@molis-ai/molis-work-app-workbench";
-import { resolveGoalsPageRoute } from "@molis-ai/molis-work-plugin-goals";
 import { isHomePluginStoreRefusal } from "./home-plugin-store.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { WebRequestContext } from "./web-route-table.js";
 import { htmlLang, L } from "./web-locale.js";
+import { matchPageRoute } from "./page-routes.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -29,7 +29,7 @@ export async function withHomePluginStorePageRecovery(context: WebRequestContext
       sendLocalWebJson(response, failure.status, failure.body);
       return;
     }
-    const page = resolveGoalsPageRoute(url.pathname) || /^\/(?:settings|capabilities|planning|assistant|side)(?:\/|$)/u.test(url.pathname);
+    const page = matchPageRoute(url) !== null || /^\/(?:settings|capabilities|planning|assistant|side)(?:\/|$)/u.test(url.pathname);
     if (!page) throw error;
     const selectedId = projectId ?? url.searchParams.get("project");
     const projection = selectedId ? await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => ({

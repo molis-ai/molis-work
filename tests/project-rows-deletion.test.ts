@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import fs, { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import fs, { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -452,4 +452,107 @@ test("RAC-577 S-86 the SDK refuses files that do not hang on a project's own tab
     /owner_files 里声明的目录/u, "a Manifest with no owner_files has no directory to name");
   assert.throws(files([{ table: "items", column: "id; DROP TABLE items", directory: "assets" }]), /小写标识符/u);
   assert.throws(files([]), /至少要有一项/u);
+});
+
+test("RAC-2435 S-86 a declared file is not removed through its directory swapped for a link after the check", async t => {
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets"), outside = join(home, "outside-assets"), moved = join(home, "images", "assets-moved");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name,
+      api_format, model, prompt, size, aspect_ratio, status, images_json, error, created_at) VALUES ('job-pa', 'pa', 'request-pa', 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+      .run(JSON.stringify(["first.png", "victim.png"].map(filename => ({ filename, mime_type: "image/png" }))));
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true }); mkdirSync(outside, { recursive: true });
+  for (const file of [join(assets, "first.png"), join(assets, "victim.png"), join(outside, "victim.png")]) writeFileSync(file, "png");
+  // The seam is in the filesystem calls, not in a sleep: the directory is swapped for a link to a directory outside the declaration at
+  // the exact step between the check and the removal. A re-check reads the directory's real path (the swap happens then, so the re-check
+  // sees a link); a build without the re-check reaches rmSync with the real directory unchanged, and the swap happens just before the
+  // removal, which then removes the same-named file outside the declaration through the link.
+  const realRealpath = fs.realpathSync, realRm = fs.rmSync;
+  let swapped = false, assetsRealpaths = 0;
+  const swap = () => {
+    if (swapped) return;
+    swapped = true;
+    renameSync(assets, moved);
+    symlinkSync(outside, assets);
+  };
+  const realpathObserver = t.mock.method(fs, "realpathSync", (...args: Parameters<typeof realRealpath>) => {
+    // The first name's re-check reads the directory's real path before the swap; the second name's re-check is the one that sees it.
+    if (String(args[0]) === assets) { assetsRealpaths += 1; if (assetsRealpaths === 2) swap(); }
+    return realRealpath(...args);
+  });
+  const rmObserver = t.mock.method(fs, "rmSync", (...args: Parameters<typeof realRm>) => {
+    if (String(args[0]) === join(assets, "victim.png")) swap();
+    return realRm(...args);
+  });
+  try {
+    syncBuiltinESMExports();
+    assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true, "a name whose parent changed is left, not an error");
+    assert.ok(existsSync(join(outside, "victim.png")), "the same name outside the declared directory is not removed through the link");
+    assert.ok(existsSync(join(moved, "victim.png")), "the file that was in the declared directory is left, not removed elsewhere");
+    assert.equal(existsSync(join(moved, "first.png")), false, "the name before the swap was removed normally");
+    t.diagnostic("R-62: parent swapped for a link between check and removal; the outside file is not removed and no error is raised");
+  } finally {
+    realpathObserver.mock.restore();
+    rmObserver.mock.restore();
+    syncBuiltinESMExports();
+  }
+});
+
+test("RAC-2436 S-86 a plain file in the declared directory still goes, and a name already gone is no error", async t => {
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name,
+      api_format, model, prompt, size, aspect_ratio, status, images_json, error, created_at) VALUES ('job-pa', 'pa', 'request-pa', 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+      .run(JSON.stringify(["plain.png", "missing.png"].map(filename => ({ filename, mime_type: "image/png" }))));
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  writeFileSync(join(assets, "plain.png"), "png");
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true, "a file already gone is no error");
+  assert.equal(existsSync(join(assets, "plain.png")), false, "a plain file in the declared directory is still removed");
+});
+
+test("RAC-2435 S-86 a failure to re-read the parent's real path is not a skip: the rows roll back and a retry removes the file", async t => {
+  // The re-check has two parts: the second inspect and reading the parent's real path. A directory that is gone is a name no longer the
+  // plugin's (it is left, like a missing file); any other failure to look (EACCES here) is a real error: the removal throws, the rows of
+  // the transaction roll back with it, the file stays, and a retry with the fault gone removes both.
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name,
+      api_format, model, prompt, size, aspect_ratio, status, images_json, error, created_at) VALUES ('job-pa', 'pa', 'request-pa', 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+      .run(JSON.stringify([{ filename: "plain.png", mime_type: "image/png" }]));
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  writeFileSync(join(assets, "plain.png"), "png");
+  const realRealpath = fs.realpathSync;
+  let fault = true;
+  const observer = t.mock.method(fs, "realpathSync", (...args: Parameters<typeof realRealpath>) => {
+    if (fault && String(args[0]) === assets) throw Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    return realRealpath(...args);
+  });
+  const rows = () => {
+    const current = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+    try { return current.prepare("SELECT count(*) AS n FROM jobs WHERE project_id = ?").get("pa")?.n; } finally { current.close(); }
+  };
+  try {
+    syncBuiltinESMExports();
+    await assert.rejects(() => projectDeletedHooksFor(home).clear("images", "pa"), { code: "EACCES" });
+    assert.ok(existsSync(join(assets, "plain.png")), "the file stays when the re-check cannot look at its parent");
+    assert.equal(rows(), 1, "the row rolls back with the failed removal, so the next attempt can find the file again");
+    fault = false;
+    assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
+    assert.equal(existsSync(join(assets, "plain.png")), false, "with the fault gone the retry removes the file");
+    assert.equal(rows(), 0, "and the row goes with it");
+  } finally {
+    observer.mock.restore();
+    syncBuiltinESMExports();
+  }
 });

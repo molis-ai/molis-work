@@ -18,6 +18,7 @@ import { COLLAB_SECTION_SCRIPT, COLLAB_SECTION_STYLES, renderCollabSection } fro
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 /**
  * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
@@ -29,7 +30,10 @@ const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "p
   "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
 
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
-const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [{ id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" }];
+const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
+  { id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
+  { id: ARTIFACT_NAVIGATION.id, name: ARTIFACT_NAVIGATION.label, icon: ARTIFACT_NAVIGATION.glyph },
+];
 
 /** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */
 function iconInventoryPlugins(): CatalogPluginIcon[] {
@@ -52,7 +56,7 @@ function renderBarSpecimen(): string {
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
   const bar = renderWorkbenchBar(primitives, {
     enabled: SAMPLE_PROJECT_PLUGINS,
-    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, "", builtinPluginDirectory()),
+    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;

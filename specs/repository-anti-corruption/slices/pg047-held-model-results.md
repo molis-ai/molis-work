@@ -8,7 +8,7 @@
 
 ## 2. 做法
 
-- 模型服务（`packages/plugin-runtime/src/model-service.ts`）在拿到结果后（成功与可记账失败两条路），自己照常核一次，再用 `holdPluginModelResult` 把同一份检查留在这次调用上。这份检查包括取消、安装仍在、`model:invoke` 授权、调用方权限、同步的 `assert_authority_current`，以及宿主给的 `validateResult`。
+- 模型服务（`packages/plugin-runtime/src/model-service.ts`）在拿到结果后（成功与可记账失败两条路），自己照常核一次，再用 `holdPluginResult` 把同一份检查留在这次调用上。这份检查包括取消、安装仍在、`model:invoke` 授权、调用方权限、同步的 `assert_authority_current`，以及宿主给的 `validateResult`。
 - 留下的检查以调用的 `checked` 记录为键（`packages/plugin-runtime/src/action-scope.ts`），替这次调用续跑的后台执行共用同一份。下面几处都会再跑一遍留下的检查，失效就带原错误码拒绝：
   - `assertCapturedPluginActionCurrent`：每个平台写服务都调它，库事务在 `BEGIN` 前、每条语句前与 `COMMIT` 前各调一次，私有存储、文件、成果、事件、输出端口也调；每次嵌套调用也调。
   - 动作处理器拿到的 `beforeEffect`（`pluginActionBeforeEffect`）。

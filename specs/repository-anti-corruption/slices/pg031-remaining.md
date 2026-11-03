@@ -1,5 +1,7 @@
 # PG-031 余项：宿主与 horizontal 替别的插件钉提供方、import 别的插件包
 
+T-382 路径更新：本文历史记录中的 `artifact-native-plugin-http.ts` 现为平台成果库路由 `apps/local-host/src/artifact-library-http.ts`；已移出 `NATIVE_PLUGIN_HTTP_FILES`。历史证据与当时裁定保留。
+
 状态：工程验证中，待评审与合入（2026-10-25）。负责人：ac-kernel。本片按统筹 10-25 的归类口径，逐处核对 main（`54437998c`）上宿主与 `horizontal/*` 里所有 `retainActionAuthority(…, { provider_id })`、`provider_id:` 字面量，以及 import `@molis-ai/molis-work-plugin-*` 的文件，分四类处理。
 
 ## 1. 本片改的

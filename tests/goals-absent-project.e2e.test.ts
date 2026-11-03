@@ -38,6 +38,6 @@ test("RAC-400 Goals added again from the plugin list to a project without it ope
   assert.equal(await b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] [data-plugin-toggle]').disabled"), false,
     "the agreement was taken back, so the project may remove it again");
   await b.evaluate("document.querySelector('[data-plugin-tile=\"goals\"] > .plugin-rail-item').click(); true");
-  await b.waitFor("document.querySelector('[data-desktop-surface]')?.getAttribute('data-desktop-surface') === 'goal'");
+  await b.waitFor("document.querySelector('[data-desktop-surface]')?.getAttribute('data-desktop-surface') === 'goals'");
   assert.deepEqual(await b.evaluate("window.__errors"), [], "the page's program did not fail");
 });

@@ -12,7 +12,7 @@ import test from "node:test";
 import { molisWorkHostProjectReference, createMolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 function localType() {

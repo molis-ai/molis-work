@@ -75,7 +75,7 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
   try {
     const { store, platform } = project(directory);
     const report = await platform.start([
-      { definition: createFilesPlugin({ readable: () => true }), trust: { level: "host" } },
+      { definition: createFilesPlugin(), trust: { level: "host" } },
       { definition: createDiffPlugin(), trust: { level: "host" } },
       { definition: createGitPlugin(), trust: { level: "host" } },
       { definition: createTextStatsPlugin(), trust: { level: "host" } },
@@ -122,7 +122,7 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
     await platform.start([
       {
         definition: capturing(
-          createFilesPlugin({ readable: () => true }),
+          createFilesPlugin(),
           (context) => { filesServices = context.services; },
         ),
         trust: { level: "host" },

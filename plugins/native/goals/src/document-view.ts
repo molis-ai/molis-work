@@ -1,4 +1,4 @@
-import type { GoalInputBindingRecord, GoalRecord, GoalRelationRecord, GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalInputBindingRecord, GoalRecord, GoalRelationRecord, GoalPolicy } from "./contract/goals.js";
 import type { GoalDisplayStatus, GoalPresentationState } from "./tree-order.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";

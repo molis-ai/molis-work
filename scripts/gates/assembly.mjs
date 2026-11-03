@@ -32,8 +32,8 @@ const PROJECT_PLUGINS = "apps/local-host/src/project-plugins.ts";
  */
 export const assemblyWantsText = (file) => hasPath(file, PLUGIN_PACKAGE, "package.json", /^apps\/[^/]+\/package\.json$/, /^scripts\/[^/]+\.(?:mjs|mts)$/);
 
-/** The singular a Host file may use for a plural plugin directory (artifact-actions.ts for plugins/native/artifacts). */
-export const NAME_ALIASES = { artifacts: ["artifact"] };
+/** No remaining Plugin directory has a singular Host-file alias. */
+export const NAME_ALIASES = {};
 /**
  * What a new built-in plugin may be named in outside its own package: none (W5-02 PR-C; hub 10-23). Its registration, its
  * package.json entry and the generator put it in the catalog, the supervisors and the dependencies, and no hand-written file.

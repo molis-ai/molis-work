@@ -70,6 +70,7 @@ export const PPT_MESSAGES = {
   "ppt.outline.docs-failed": { zh: "读不到 Pages 文档", en: "Could not read Pages documents" },
   "ppt.outline.no-model": { zh: "请先配置可用的文字模型", en: "Set up a text model first" },
   "ppt.outline.pick-first": { zh: "先选一篇文档", en: "Pick a document first" },
+  "ppt.outline.too-long": { zh: "大纲最多 20000 个字", en: "Outline is at most 20000 characters" },
   "ppt.outline.empty-text": { zh: "收到的内容里没有可以做成幻灯片的文字", en: "Nothing in that text can become a slide" },
   "ppt.outline.done": { zh: "已生成 {count} 页", en: "{count} {count|slide|slides} generated" },
   "ppt.dialog.cancel": { zh: "取消", en: "Cancel" },

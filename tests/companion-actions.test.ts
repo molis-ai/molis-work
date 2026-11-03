@@ -6,8 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { DesktopPanelService } from "../apps/desktop/dist/panels.js";
-import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "../apps/desktop/dist/adapters/sqlite-panels.js";
+import { createDesktopPanelTables } from "../apps/desktop/dist/adapters/sqlite-panels.js";
 import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
 import { filesActions } from "@molis-ai/molis-work-plugin-files";
@@ -24,7 +23,6 @@ test("headless runtime companions are discovered and called by the official MCP 
   const home = await mkdtemp(join(tmpdir(), "companion-actions-"));
   const catalog = await MolisWorkProjectCatalog.open({ homeDirectory: home }, {
     createPanelSchema: createDesktopPanelTables,
-    createPanels: (db, ports) => new DesktopPanelService({ ...ports, repository: new SqliteDesktopPanelRepository(db) }),
   });
   const project = await catalog.createProject({ display_name: "Headless companions", actor_id: "owner" });
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });

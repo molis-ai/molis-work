@@ -25,6 +25,7 @@ const IMPORT = /^\s*import[\s{*"']|\bimport\s*\(|\brequire\s*\(|^\s*export\s[^;]
 
 test("W5-01-CODING-60: /highlight imports nothing and each function runs alone from its source, as a page script carries it", () => {
   assert.doesNotMatch(built("./highlight"), IMPORT);
+  assert.doesNotMatch(built("./whole-units"), IMPORT);
   // What Coding's client.ts does: each function's source pasted into the page script, with the tokenizer passed in.
   const alone = <T>(fn: T): T => new Function(`return (${String(fn)});`)() as T;
   const tokens = alone(highlight.codeTokens), grow = alone(highlight.growCodeTokens), rows = alone(highlight.diffRowTokens), language = alone(highlight.codeLanguage);

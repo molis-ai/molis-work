@@ -13,7 +13,6 @@ export {
   resolveStaleHistoryRecovery,
   type GmailFetch,
   type GmailForbiddenDisposition,
-  type GmailTokenRefs,
   type GmailUsableTokenResult,
 } from "./provider.js";
 
@@ -44,7 +43,6 @@ export const gmailIntegrationManifest = {
     group_id: "mail",
     summary: "本机账号。Feed 只读收信。",
     auth_kind: "gmail",
-    // The generic flow for a client of the person's own; Gmail's own sign-in goes on until W5-11 slice 6.
     auth: { methods: [{
       kind: "oauth", grant: "authorization_code", authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
       token_url: "https://oauth2.googleapis.com/token", scopes: ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly"], pkce: "S256",
@@ -82,8 +80,3 @@ export function createGmailIntegrationPlugin(input: {
     now: input.now,
   });
 }
-
-export { createGmailOAuth, parseGmailOAuthCallbackInput } from "./oauth.js";
-export { GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF, GMAIL_OAUTH_PENDING_PREFIX, GMAIL_OAUTH_PENDING_TTL_MS, GMAIL_ACCESS_TOKEN_SKEW_MS, GMAIL_OAUTH_CALLBACK_PATH, GMAIL_OAUTH_DEFAULT_SCOPES, type GmailOAuthPorts, type GmailOAuthSecrets, type GmailOAuthStart, type GmailOAuthComplete, type GmailOAuthExchangeInput, type OAuthFetch } from "./oauth-types.js";
-
-export { isGmailTokenRefs } from "./token-refs.js";

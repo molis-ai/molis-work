@@ -1,3 +1,5 @@
+import { pluginInstallRecords } from "../plugin-install-records.js";
+import { HomeConsentLedger } from "../home-plugin-store.js";
 import { assistantRelatedRegistration, relatedWorks, type RelatedWorksSource } from "./assistant-related-action.js";
 import { executorInputActions } from "./assistant-executor-input.js";
 import { AssistantThreads } from "./assistant-threads.js";
@@ -147,7 +149,25 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     projectTitle: ports.projectTitle,
     // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
     methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
-      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
+      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version),
+      readSigned: (install, ref) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).signedMaterial(install, ref),
+      recordSignedUse: (material, caller) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).recordSignedUse(material, caller),
+      bindSigned: async (project, installId, ref) => {
+        const projectRows = project ? await ports.localHost.withProject(project, runtime => pluginInstallRecords(runtime.store.db)) : undefined;
+        const inProject = projectRows?.get(installId);
+        const current = inProject ? () => projectRows!.get(installId) : () => ports.localHost.homePlugins?.installations().find(row => row.install_id === installId);
+        const original = current(), ledger = new HomeConsentLedger(ports.homeDirectory);
+        const assertCurrent = () => {
+          const record = current();
+          if (!original || !record || record.state !== "running" || record.installation_generation !== original.installation_generation
+            || record.plugin_id !== ref.source.plugin_id || record.version !== ref.source.plugin_version || record.publisher_signature !== ref.source.publisher_signature
+            || record.publisher_trust !== "pinned" || !ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at)) {
+            throw assistantErrors.invalid("角色资料或方法的安装来源已失效，请重新选择");
+          }
+        };
+        assertCurrent();
+        return { installation: { install_id: installId, installation_generation: original!.installation_generation, project_id: inProject ? project!.project_id : null }, assertCurrent };
+      } },
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
     personActions: async (work, use, original, executorPluginId) => {

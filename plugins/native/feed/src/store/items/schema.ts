@@ -18,7 +18,7 @@ export const FEED_ITEMS_SCHEMA_SQL = `
       priority TEXT NOT NULL,
       tags_json TEXT NOT NULL DEFAULT '[]',
       author TEXT,
-      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'processing', 'archived')),
+      disposition TEXT NOT NULL CHECK (disposition IN ('inbox', 'saved', 'promoted', 'archived')),
       read_at TEXT,
       revision INTEGER NOT NULL DEFAULT 1,
       source_created_at TEXT NOT NULL,

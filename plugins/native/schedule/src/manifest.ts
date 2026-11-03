@@ -2,7 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { scheduleAgentManifest } from "./roles.js";
 import { SCHEDULE_UI_CONTRIBUTION_ID } from "./ui.js";
-import { SCHEDULE_ACTIONS } from "./actions.js";
+import { SCHEDULE_ACTIONS, scheduleActions } from "./actions.js";
 import { SCHEDULE_PROJECT_DATABASE } from "./database.js";
 import { REMINDER_ACTIONS } from "./reminder-actions.js";
 import { SCHEDULE_OPERATION_ACTIONS } from "./operation-actions.js";
@@ -62,7 +62,8 @@ export const scheduleManifest: PluginManifest = {
     translations: SCHEDULE_EN,
     contributions: [SCHEDULE_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", hue: "yellow", order: 35, group: "advance" },
+      { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", hue: "yellow", order: 35, group: "advance",
+        stage_data: { action: scheduleActions.list.capability_id } },
     ],
   },
 };

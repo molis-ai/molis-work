@@ -96,7 +96,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 | `store/listener.ts` | `ListenerHost`：持久游标、租约、重试、隔离、原始事件投递与运行收据 | `listener_instances`、`listener_deliveries`、`feed_source_runs` |
 
 - 存取只经 `FeedSql`（`store/sql.ts`：`get`/`all`/`run`/`transaction`，同步，和 better-sqlite3 与平台的 `PluginDatabaseTransaction` 的交集）。存储层不 import 数据库驱动或 `@molis-ai/molis-work-storage` 的连接；`fromBetterSqlite(db)` 包 better-sqlite3 的连接，现在只给 `createDemoFeedApplication`（`apps/local-host/src/demo-feed-library.ts`）和测试用；Runtime 里的 Feed 在 `runtime-ports.ts` 用 `fromPluginReader(services.database)`（只读，写和事务都直接拒绝）和 `fromPluginTransaction(transaction)`（平台已开的写事务）包平台给的库。
-- 构造器只存引用：不执行建表语句、不缓存语句或连接、不读 `sqlite_master`。表由声明建（`FEED_PROJECT_DATABASE` 的 `schema` 是 `out-rules.ts` 与 `store/` 下四份建表语句的拼接，逐字同旧基线），所以每次调用现建一个 Module 是安全的（FI-6 的 `fromPluginTransaction` 依赖这一点）。测试要自己造库时，先执行对应的 `*_SCHEMA_SQL`。
+- 构造器只存引用：不执行建表语句、不缓存语句或连接、不读 `sqlite_master`。表由声明建（`FEED_PROJECT_DATABASE` 的 `schema` 是 `out-rules.ts` 与 `store/` 下四份建表语句的拼接，与本插件现行结构一致），所以每次调用现建一个 Module 是安全的（FI-6 的 `fromPluginTransaction` 依赖这一点）。测试要自己造库时，先执行对应的 `*_SCHEMA_SQL`。
 - 不变量：
   - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者；入口不导出 Repository 或 Store，也不转出 Storage 的证据正文库（RAC-170）。别的包不读写 `feed_materials`（`scripts/gates/table-owners.mjs`）。
   - 凭据正文不进 Source 记录，只存引用；来源想怎样被听（Sources）与实际游标、租约（Listener）是不同事实，不混。
@@ -104,7 +104,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
   - 收到 Signals 回执之前 Listener 不推进游标、不确认投递；同一来源的有效租约阻止重复消费，多次转换失败进入隔离，终态重放不再调用 Provider。
   - 运行账本 `feed_source_runs` 只由 `store/listener.ts` 读写；Listener 的表按来源 id 指向来源，不对 `feed_sources` 加外键，一个来源的运行记录经 `deleteListenerSourceState` 显式清掉。
   - 不直接创建 Goal，升格经 Goals 的公开入口；`linked_goal_id` 等兼容输出由 Ledger 推导，不恢复旧字段双写；外部标题、正文与链接是不可信输入，不成为指令。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-store-declaration.test.ts tests/project-maintenance-v11.test.ts tests/feed-module-repositories.test.ts tests/feed-goal-query.test.ts tests/feed-receive-chain.test.ts tests/feed-sources.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-contract-ownership.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-store-declaration.test.ts tests/feed-module-repositories.test.ts tests/feed-goal-query.test.ts tests/feed-receive-chain.test.ts tests/feed-sources.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-contract-ownership.test.ts`
 - 合同在本插件的公开入口 `@molis-ai/molis-work-plugin-feed/contract`（`src/contract/`：条目、来源、Signal 与 Listener 的状态，PG-111，T-110）；`sourceErrors`、`listenerErrors` 声明在主人是 `sources`、`listener` 的 `store/sources.ts`、`store/listener.ts`，经 `./store` 出口可见。集成插件交出的 `RawEventAdapter` 与订阅源回执 `RssFetchReceipt` 是平台的，在 `@molis-ai/molis-work-contracts/platform/plugin-source-pull`。
 
 ## 进一步阅读

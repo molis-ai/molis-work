@@ -1,8 +1,8 @@
 import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalsCommandApi } from "./contract/goals.js";
 import { goalActor } from "./action-contract.js";
-import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export type { InitializeBoardOutput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEntryActions } from "./contract/goal-actions.js";
+export type { InitializeBoardOutput } from "./contract/goal-actions.js";
 
 /** What board initialization needs from the Goals owner. */
 export interface GoalsBoardPorts {

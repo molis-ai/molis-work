@@ -2,7 +2,6 @@ import type { IncomingMessage } from "node:http";
 import { evidenceText, goalsActions, GOALS_PLUGIN_ID, managementEvidence } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { entryUserAction, webEntryMessage } from "./entry-user-action.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -19,15 +18,22 @@ export function bindGoalsWebActions(host: MolisWorkLocalHost, reference: LocalHo
   return bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS, { user_action: () => entryUserAction("web", reference.project_id, message) });
 }
 
+/** What the Host reads of a project's guidance: whether there is any, which revision it is at, and the text a Run starts with. */
+export interface ProjectGuidanceFacts {
+  readonly entries: readonly unknown[];
+  readonly revisions: readonly unknown[];
+  readonly runtime_prompt_prefix: string;
+}
+
 /**
  * The project's confirmed guidance, read by the Host for the project layer of a Run or an Assistant turn. It is a read of one Goals
  * action as the person on this machine, with nothing else granted. A project whose Goals is removed or whose guidance cannot be
  * read refuses it, and the caller starts without the layer.
  */
-export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceView> {
+export async function readProjectGuidance(client: ActionClient, reference: LocalHostProjectReference): Promise<ProjectGuidanceFacts> {
   const read = goalsActions.guidanceRead;
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: reference.project_id, permissions: read.action.permissions };
-  return await invokeGoals(client, caller, read, {});
+  return await invokeGoals<ProjectGuidanceFacts>(client, caller, read, {});
 }
 
 /**
@@ -37,17 +43,32 @@ export async function readProjectGuidance(client: ActionClient, reference: Local
  * assigns (`plugin-entry-identity.ts`), so the dispatcher refuses any other provider before a handler runs, and records the call like any
  * other (a cancellation while it waits is settled there). Accepting a trusted publisher's installation instead is ac-trust's (BL-555 onwards).
  */
-async function invokeGoals<Input, Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> {
+async function invokeGoals<Output>(client: ActionClient, caller: ActionCallContext, definition: ActionDefinition, input: unknown): Promise<Output> {
   const provider_id = GOALS_PLUGIN_ID;
   return await client.invoke({ ...caller, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id }] },
     { ...definition, provider_id }, input) as Output;
 }
 
+/** A Goals action as a management entry names it: by id and version, as the action directory lists it. The Host finds the definition. */
+export type GoalsActionReference = Pick<ActionDefinition, "capability_id" | "version">;
+
+/**
+ * Goals' actions as the Host's own callers hold them, with their input and output types. The Host reaches Goals here and in no other file
+ * (PG-031); what a transport entry (the command line, the MCP) calls it names by id and version through `GoalsManagementActions`.
+ */
+export const goalsHostActions = {
+  initialize: goalsActions.initialize, create: goalsActions.create, guidanceRead: goalsActions.guidanceRead,
+  directoryItem: goalsActions.directoryItem, list: goalsActions.list, state: goalsActions.state,
+} as const;
+export { readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals/contract";
+
 /** What a management entry can do: Goals' actions as the person on this machine, origin management. */
 export interface GoalsManagementActions {
   readonly project_id: string;
   /** `evidence` is for the two decisions only: the conversation and message a decision came from, never who made it. */
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output>;
+  invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output>;
+  /** The business fields the action's input declares, from its definition; what a tool built over it may accept. */
+  fields(reference: GoalsActionReference): readonly string[];
 }
 
 /** The host decides who writes (the person on this machine, or a plugin's own call context); the arguments carry no identity. */
@@ -107,26 +128,40 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
   const projectId = reference.project_id;
   return {
     project_id: projectId,
-    async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
-      return await invokeGoals(client, goalsManagementContext(projectId, definition, input, evidence, transport.signal), definition, input);
+    async invoke<Output = unknown>(reference: GoalsActionReference, input: object, evidence?: unknown): Promise<Output> {
+      return await invokeGoals<Output>(client, goalsManagementContext(projectId, reference, input, evidence, transport.signal),
+        requireManagementDefinition(reference), input);
     },
+    fields: managementInputFields,
   };
 }
 
 /** The same identity/evidence refusal runs before starting a resident and at its actual management dispatch. */
-export function goalsManagementContext(projectId: string, definition: ActionDefinition, input: unknown, evidence?: unknown, signal?: AbortSignal): ActionCallContext {
-  const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
+export function goalsManagementContext(projectId: string, reference: GoalsActionReference, input: unknown, evidence?: unknown, signal?: AbortSignal): ActionCallContext {
+  const refused = MANAGEMENT_REFUSED_IDENTITY[reference.capability_id];
   if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
   // The owner definition includes platform-service permissions; a transport cannot manufacture an extra grant.
-  const registered = managementActionDefinition(definition) ?? definition;
+  const registered = requireManagementDefinition(reference);
   return { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
     permissions: registered.action.permissions, ...(signal ? { signal } : {}),
-    user_action: managementUserAction(projectId, definition.capability_id, input, evidence) };
+    user_action: managementUserAction(projectId, reference.capability_id, input, evidence) };
 }
 
 /** The existing CLI/MCP management action subset, resolved against the owner's definitions and exact version. */
-export function managementActionDefinition(reference: { capability_id: string; version: number }): ActionDefinition | undefined {
+export function managementActionDefinition(reference: GoalsActionReference): ActionDefinition | undefined {
   return [goalsActions.initialize, goalsActions.active, goalsActions.snapshot, goalsActions.treeSubmit,
     goalsActions.treeRead, goalsActions.treeCheck, goalsActions.treeDecide, goalsActions.decide]
     .find(entry => entry.capability_id === reference.capability_id && entry.version === reference.version);
+}
+
+/** The business fields the management action's input declares, in the order its schema lists them. */
+export function managementInputFields(reference: GoalsActionReference): readonly string[] {
+  return Object.keys((requireManagementDefinition(reference).action.input_schema.properties ?? {}) as Record<string, unknown>);
+}
+
+/** The definition a management entry's reference names; one that is not in the subset above is refused, whatever its caller holds. */
+export function requireManagementDefinition(reference: GoalsActionReference): ActionDefinition {
+  const definition = managementActionDefinition(reference);
+  if (!definition) throw new ActionError("actions.dependency_missing", "这个管理动作或版本不可用");
+  return definition;
 }

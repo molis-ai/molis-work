@@ -10,7 +10,7 @@ import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin
 import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
-import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-functions";
+import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PROJECT_WORKSPACE_PROVIDER_ID } from "./project-workspace-actions.js";
 import { HOST_PROVIDER_ID } from "./local-host.js";

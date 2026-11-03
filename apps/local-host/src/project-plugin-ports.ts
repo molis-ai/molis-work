@@ -83,9 +83,11 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   await ensureProjectPluginActions(source, reference);
   const entries = await source.host.withRuntime(reference, async runtime => {
+    const installed = source.options.homeDirectory ? await installedPluginsOf(source, reference, runtime) : undefined;
     // A publisher the person took back since this project last looked: its installations are stopped before they are listed.
-    if (source.options.homeDirectory) await (await installedPluginsOf(source, reference, runtime)).reconcilePublishers();
-    return installedPluginEntries(runtime.store.db);
+    await installed?.reconcilePublishers();
+    // Why a package of this project is not running, when its plugin host knows; a plugin of the Host's build has none here.
+    return installedPluginEntries(runtime.store.db).map(entry => ({ ...entry, recoveryError: installed?.recoveryErrors.get(entry.record.plugin_id) }));
   });
   // The Home's own packages of that publisher stop the same way.
   await source.homePlugins()?.reconcilePublishers();
@@ -119,11 +121,28 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
   });
 }
 
-/** The plugins that run as the Home's own instance, each with the Manifest the Home runs it by (BL-700). */
+/**
+ * The plugins that run as the Home's own instance, each with the Manifest the Home runs it by (BL-700) and why it is not running when the Home
+ * knows (BL-715). A publisher the person took back is reconciled first, as a project's list does, so the state listed is the one after it.
+ */
 export async function installedHomePlugins(homePlugins: HomePluginHost | undefined): Promise<InstalledPluginEntry[]> {
   if (!homePlugins) return [];
   await homePlugins.ready();
-  return homePlugins.installations().filter(record => record.state !== "uninstalled").map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id) }));
+  await homePlugins.reconcilePublishers();
+  return homePlugins.installations().filter(record => record.state !== "uninstalled")
+    .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryError: homePlugins.packageError(record.plugin_id) }));
+}
+
+/**
+ * Switches a package installed in the Home off or on, or takes it off (BL-715), for the Host settings door: only an installation that came from
+ * a signed package (a plugin of the Host's build or a fixture is not reached here). Answers the state it is in afterwards.
+ */
+export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean }): Promise<string> {
+  if (!homePlugins) throw pluginErrors.state_invalid("这个宿主没有个人空间");
+  await homePlugins.ready();
+  if (!homePlugins.hasPackage(pluginId)) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
+  await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data } : {});
+  return homePlugins.installation(pluginId)?.state ?? "uninstalled";
 }
 
 /** Switches one optional permission of a Home instance: the Home platform's supervisor runs it, so the Home platform stops it and starts it again. */

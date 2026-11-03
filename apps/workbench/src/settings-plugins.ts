@@ -8,7 +8,7 @@
  * Each optional permission an installed plugin asked for is a switch (`permissions/set`, PG-002, S-94); turning on one of the four that reach out or
  * spend (`actions:delegate`, `network:*`, `secret:*`, `model:invoke`) asks first, in the platform's own words for it. The plugins that run as the
  * Home's own instance, shared by every project, are listed below the project's with the same rows; their switch goes through the Host settings
- * door for them, `/api/settings/plugin-permissions/set` (BL-700, S-94), as an agreement is taken back through the Host's.
+ * door for them, `/api/settings/plugin-permissions/set` (BL-700, S-94), as an agreement is taken back through the Host's, and so do switching a signed one off and on and taking it off (`/api/settings/plugin-permissions/{disable,enable,uninstall}`, BL-715).
  */
 export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: string): string; projectId: string; chevron: string }): string {
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
@@ -52,7 +52,7 @@ if (!root || root.dataset.pluginTrustBound === "1") return;
 root.dataset.pluginTrustBound = "1";
 const L = globalThis.L || ((text) => text);
 const base = "/projects/" + encodeURIComponent(root.dataset.project || "") + "/api/plugin-trust";
-const $ = (selector) => root.querySelector(selector);
+const $ = (name) => root.querySelector("[data-plugin-trust-" + name + "]");
 const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
 const button = (text, variant) => { const node = el("button", "mw-btn " + variant + " mw-btn--sm", text); node.type = "button"; return node; };
 const TRUST = { host: "宿主随带", pinned: "你固定的发布者", unsigned: "没有签名" };
@@ -61,11 +61,12 @@ const KIND = { always_on: "常开", default_wiring: "默认连线", default_grou
 const EFFECT = { storage: "保存数据", artifacts: "成果库", capabilities: "调用动作", events: "收发事件", networkDomains: "联网", secretRefs: "密钥", resources: "资源" };
 const day = (iso) => String(iso || "").slice(0, 10);
 const short = (id) => String(id).replace(/^ed25519:sha256:/, "").slice(0, 12);
-const error = $("[data-plugin-trust-error]");
+const error = $("error");
 const board = () => document.querySelector("[data-settings-toast], [data-toast]");
 const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
 const toast = (text) => { const box = board(); if (!box) return; box.textContent = text; box.classList.remove("is-error"); box.classList.add("is-visible"); setTimeout(() => box.classList.remove("is-visible"), 2600); };
 const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
+const homeApi = (name, payload = {}) => molisWorkRequest("/api/settings/plugin-permissions/" + name, { body: payload });
 const ask = (title, description, yesLabel) => new Promise((resolve) => {
 const dialog = el("dialog", "mw-dialog mw-dialog--alert"); dialog.dataset.slot = "alert-dialog";
 const form = el("form", "mw-form mw-dialog__shell"); form.method = "dialog";
@@ -82,7 +83,7 @@ root.append(dialog); dialog.showModal(); cancel.focus();
 });
 const group = (title, empty, rows) => {
 const box = el("div", "plugin-trust-group"); box.append(el("strong", "", title));
-if (!rows.length) box.append(el("span", "settings-muted", empty)); else { const list = el("ul", "plugin-trust-rows"); rows.forEach((row) => list.append(row)); box.append(list); }
+if (!rows.length) box.append(el("span", "settings-muted", empty)); else { const list = el("ul", "plugin-trust-rows"); list.append(...rows); box.append(list); }
 return box;
 };
 const row = (head, ...notes) => { const item = el("li"); item.append(el("span", "", head)); notes.filter(Boolean).forEach((note) => item.append(el("span", "settings-muted", note))); return item; };
@@ -129,15 +130,15 @@ item.append(revoke);
 }
 return item;
 }));
-// A signed plugin is switched off and on and taken off here (BL-623); a publisher taken back leaves only taking it off.
-const controls = (plugin, revoked) => {
+// A signed plugin is switched off and on and taken off here (BL-623), one of the Home's through the Host settings door (BL-715); a publisher taken back leaves only taking it off.
+const controls = (plugin, revoked, act = (name, payload) => api("/installed/" + name, payload)) => {
 const box = el("div", "plugin-trust-actions");
 const step = (text, variant, name, payload, done, title, detail) => {
 const node = button(text, variant);
 node.addEventListener("click", async () => {
 if (title && !await ask(title, detail, text)) return;
 error.hidden = true;
-try { await api("/installed/" + name, { plugin_id: plugin.plugin_id, ...payload }); toast(done); await load(); } catch (failure) { fail(failure); }
+try { await act(name, { plugin_id: plugin.plugin_id, ...payload }); toast(done); await load(); } catch (failure) { fail(failure); }
 });
 box.append(node);
 };
@@ -148,15 +149,17 @@ step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true
 step(L("卸载并删除数据"), "mw-btn--ghost", "uninstall", { keep_data: false }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据一并删除，不能恢复。", { plugin: name }));
 return box;
 };
-const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null) => {
+const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act) => {
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
 copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", L(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + L(STATE[plugin.state] || plugin.state)));
-summary.append(copy); const mark = $("[data-plugin-trust-chevron]"); if (mark) summary.append(mark.content.cloneNode(true));
+summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.content.cloneNode(true));
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
+if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
-body.append(consents(plugin)); if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked)); box.append(summary, body);
+body.append(consents(plugin)); if (plugin.trust === "pinned" && revoked) body.append(controls(plugin, revoked, act)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;
 };
 const publisher = (pin) => {
@@ -172,25 +175,36 @@ item.append(revoke);
 }
 return item;
 };
-let current = [];
+let current = [], personal = [];
 const load = async () => {
 const data = await api("/overview");
 current = data.plugins;
 const revoked = new Set(data.publishers.filter((pin) => pin.revoked_at).map((pin) => pin.key_id));
-draw($("[data-plugin-trust-list]"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => installed(plugin, undefined, revoked)));
-const home = await molisWorkRequest("/api/settings/plugin-permissions/list", { body: {} });
-const homeSend = (payload) => molisWorkRequest("/api/settings/plugin-permissions/set", { body: payload });
-draw($("[data-plugin-trust-home]"), L("个人空间里没有插件"), home.plugins.map((plugin) => installed(plugin, homeSend)));
-draw($("[data-plugin-trust-publishers]"), L("你还没有固定过发布者"), data.publishers.map(publisher));
+draw($("list"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => installed(plugin, undefined, revoked)));
+personal = (await homeApi("list")).plugins;
+const homeSend = (payload) => homeApi("set", payload);
+draw($("home"), L("个人空间里没有插件"), personal.map((plugin) => installed(plugin, homeSend, revoked, homeApi)));
+draw($("publishers"), L("你还没有固定过发布者"), data.publishers.map(publisher));
 };
-const preview = $("[data-plugin-trust-preview]");
+const preview = $("preview");
 const close = () => { preview.replaceChildren(); preview.hidden = true; };
 const review = (shown) => {
-const view = shown.preview, panel = el("div", "plugin-trust-review");
-panel.append(el("h3", "", shown.name + " · " + view.version), el("span", "settings-muted", view.plugin_id + " · " + L("签名者 {id}", { id: short(shown.publisher.key_id) })));
-const was = current.find((plugin) => plugin.plugin_id === view.plugin_id);
+const view = shown.preview, panel = el("div", "plugin-trust-review"); panel.style.overflowWrap = "anywhere";
+panel.append(el("h3", "", shown.name + " · " + view.version), el("span", "settings-muted", view.plugin_id + " · " + L("签名者 {id}", { id: shown.publisher.key_id })));
+const was = (shown.runtime_scope === "home" ? personal : current).find((plugin) => plugin.plugin_id === view.plugin_id);
 if (was) panel.append(el("span", "", L("已装的是 {from}，装上后升级到 {to}；数据保留。", { from: was.version, to: view.version })));
 panel.append(permissions(view.permissions), jobs(view.jobs));
+if (shown.origins?.length) panel.append(group(L("可访问的服务地址"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
+if (shown.agent_bodies && shown.agent_bodies.length) {
+const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", L("角色资料与方法")));
+shown.agent_bodies.forEach((item) => {
+const body = el("div", "plugin-trust-agent-body");
+body.append(el("strong", "", L(item.kind === "role" ? "角色资料" : "方法") + "：" + item.name));
+if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
+const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
+body.append(excerpt); bodies.append(body);
+}); panel.append(bodies);
+}
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);
 panel.append(group(L("它的代码能做的事"), L("不读写任何东西"), effects.map((key) => row(L(EFFECT[key] || key), shown.effects[key].join("、")))));
 let label = null;
@@ -200,6 +214,7 @@ const field = el("label", "plugin-trust-pin"); label = el("input", "mw-input"); 
 field.append(el("span", "", L("你还没有信任这个发布者。给它起个名字，才会固定它；固定后它之后签的包都会按这份信任安装。")), label); panel.append(field);
 }
 const footer = el("div", "plugin-trust-actions"), cancel = button(L("取消"), "mw-btn--secondary"), install = button(L("同意这些权限并安装"), "mw-btn--primary");
+footer.style.flexWrap = "wrap"; install.style.maxWidth = "100%"; install.style.whiteSpace = "normal";
 cancel.addEventListener("click", close);
 install.addEventListener("click", async () => {
 const name = label ? label.value.trim() : "";
@@ -211,7 +226,7 @@ catch (failure) { fail(failure); install.disabled = false; }
 footer.append(cancel, install); panel.append(footer);
 preview.replaceChildren(panel); preview.hidden = false; panel.scrollIntoView?.({ block: "nearest" });
 };
-$("[data-plugin-trust-pick]").addEventListener("change", async (event) => {
+$("pick").addEventListener("change", async (event) => {
 const file = event.target.files && event.target.files[0];
 event.target.value = ""; if (!file) return;
 error.hidden = true; close();

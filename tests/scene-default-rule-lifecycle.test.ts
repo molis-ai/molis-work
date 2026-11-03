@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { seedSceneRules, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
-import { publishedFunctionReference } from "@molis-ai/molis-work-module-functions";
+import { publishedFunctionReference } from "@molis-ai/molis-work-module-judgment-rules";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 import { DECLARED_RULE_OPTIONS as OPTIONS, declaredRule, declaredScene } from "./fixtures/declared-rules.js";
 import { openTestHome, type TestProject } from "./fixtures/test-home.js";

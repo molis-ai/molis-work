@@ -8,25 +8,22 @@ import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
 import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
 
-/** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
+/** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
  * Characters with its own native runs (Sessions cleanup SC-2). */
-const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 2, memory: 4, assistant: 3, functions: 4, form: 2, characters: 2 };
-/** Baseline tables a real Home had not created yet (made on first use); the one-time stamping run created them empty. */
-const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
+const STORE_VERSIONS: Record<string, number> = { pages: 1, memory: 1, assistant: 1, functions: 1, form: 1, characters: 1 };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 
 /**
- * The registered libraries with no schema fixture taken from a real Home: the Home Runtime's is checked against its own v3
- * fixture below; Issues and the discussion store had no real-Home schema taken when the fixtures were; project knowledge's cards
+ * Registered libraries without a frozen schema fixture in home-store-schemas: the discussion store, project knowledge's cards
  * (specs/project-knowledge K1), the original-file registrations plugins keep (plugin-originals, 2026-10-20) and the installations'
  * remembered Agent declarations (agent-declarations, PG-051 2026-10-23) and the local directories the person granted plugins
  * (plugin-directories, PG-049 2026-10-25) are new, so no Home has them yet. A new library either
  * comes with a fixture or is named here. Goals' new Home library (PG-094 S13) has no real-Home schema receipt yet;
- * its personal-method writes and isolated catalog-to-Home move are covered separately, not presented as an existing-Home fixture.
+ * its current personal-method writes are covered separately, without claiming a real-Home receipt.
  * Feed's Home reference ledger (feed-content, FI-6) is new with the Feed Home half, so no Home has it either; its v1 is frozen below.
  */
-const WITHOUT_REAL_HOME_FIXTURE = ["plugin-runtime", "plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "issues", "goals", "feed-content"];
+const WITHOUT_REAL_HOME_FIXTURE = ["plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "goals", "feed-content"];
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
 test("every library in the Home's store registry has a schema fixture or is named as having none", () => {
   const fixtures = new Set(readdirSync(new URL("./fixtures/home-store-schemas/", import.meta.url)).filter(file => file.endsWith(".sql")).map(file => file.slice(0, -4)));
@@ -47,18 +44,18 @@ test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no
   assert.deepEqual(shape(ledger!.library!.baseline.schema), shape(readFileSync(new URL("./fixtures/feed-content-home-v1.sql", import.meta.url), "utf8")));
 });
 
-// Each Home store's baseline (repository-anti-corruption §4.1) is the structure existing stores already have: the
-// fixtures are the schema statements of a real Home's stores (schema only), the reference a store was stamped against.
+// Frozen fixtures describe each owner's complete current schema (repository-anti-corruption §4.1). Some began as
+// schema-only real-Home records; connectors, Pages, Form, Issues, Memory and Characters now freeze current DDL,
+// without claiming another real-Home inspection. The independently frozen Runtime schema is checked by its Host test below.
 // The Alchemist search store's is what the previous build created, since no real Home had one; it lives inside the
 // Alchemist store's directory, one per project, so it is not a registered library of its own. Changing a baseline means a
 // new version and a new fixture, never a silent drift.
-for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name)), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
-  test(`the ${name} store's baseline is version ${STORE_VERSIONS[name] ?? 1} and the structure existing stores have`, () => {
+for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name) && name !== "plugin-runtime"), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
+  test(`the ${name} store's baseline is version ${STORE_VERSIONS[name] ?? 1} and its complete frozen schema`, () => {
     assert.equal(baseline.version, STORE_VERSIONS[name] ?? 1);
     const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
-    // Every table an existing store has is exactly the baseline's; a table made lazily on first use may be missing there.
-    for (const [table, structure] of Object.entries(existing.tables)) assert.deepEqual(want.tables[table], structure, `${name}.${table}`);
-    assert.deepEqual(Object.keys(want.tables).filter(table => !existing.tables[table]), LAZY_TABLES[name] ?? [], `${name}: tables only the baseline has`);
+    // RAC-2384: the fixture carries the complete current schema; no missing-table allowance remains.
+    assert.deepEqual(want, existing, `${name}: complete frozen schema`);
   });
 }
 
@@ -72,14 +69,14 @@ test("RAC-44: the cognia library is the one Cognia's Home Runtime declares, at v
   assert.ok(libraries.some(([name]) => name === "cognia") && !WITHOUT_REAL_HOME_FIXTURE.includes("cognia"));
 });
 
-test("W3-06-F-04 Home Runtime created by the public Host is the complete independent v3 baseline", async () => {
+test("W3-06-F-04 Home Runtime created by the public Host is the complete independent current baseline at 1", async () => {
   const home = mkdtempSync(join(tmpdir(), "home-runtime-baseline-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   let db: DatabaseSync | undefined;
   try {
     await host.homePlugins!.ready();
     db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 3);
-    assert.deepEqual(describeSqliteSchema(db), shape(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v3.sql", import.meta.url), "utf8")));
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
+    assert.deepEqual(describeSqliteSchema(db), shape(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")));
   } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
 });
 
@@ -106,6 +103,6 @@ test("the Characters store refuses tables without a version and a newer version,
   assert.deepEqual(state(newer), { version: 3, rows: 0 });
   const fresh = openCharacters(join(home, "fresh"), "actor");
   try { assert.deepEqual(fresh.service.list(), []); } finally { fresh.close(); }
-  assert.deepEqual(state(join(home, "fresh")), { version: 2, rows: 0 });
+  assert.deepEqual(state(join(home, "fresh")), { version: 1, rows: 0 });
   openCharacters(join(home, "fresh"), "actor").close();
 });

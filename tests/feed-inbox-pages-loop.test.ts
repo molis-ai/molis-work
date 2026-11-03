@@ -204,3 +204,54 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
       "what the other producer queued is still there for it, under its own authority");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("RAC-2186: a generated document is at most 100,000 characters, however many units its characters take", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-length-"));
+  const store = openPagesStore(home);
+  try {
+    const accepted = await generate(store, { ...request(), request_id: "length-accepted", request_hash: "hash-accepted" }, async () => "😀".repeat(100_000));
+    assert.equal(accepted.document.title, "观察文稿");
+    assert.equal(accepted.replayed, false, "100,000 two-unit characters are saved, not refused for taking 200,000 units");
+    await assert.rejects(generate(store, { ...request(), request_id: "length-refused", request_hash: "hash-refused" }, async () => "😀".repeat(100_001)), /文稿为空或过长/);
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAC-2275: a document of 100,001 one-unit characters is refused by the character limit, though its 100,001 units are far under the unit limit", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-pages-generation-ascii-length-"));
+  const store = openPagesStore(home);
+  try {
+    const accepted = await generate(store, { ...request(), request_id: "ascii-accepted", request_hash: "hash-ascii-accepted" }, async () => "a".repeat(100_000));
+    assert.equal(accepted.replayed, false);
+    // 100,001 one-unit characters are 100,001 units, way under the 200,000-unit half of the check: only the character count can refuse them.
+    await assert.rejects(generate(store, { ...request(), request_id: "ascii-refused", request_hash: "hash-ascii-refused" }, async () => "a".repeat(100_001)), /文稿为空或过长/);
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+test("RAC-2409: the information planner cuts feed titles and source names to 200 whole characters before the prompt is built", async () => {
+  // Neither a feed title nor a source name has a length limit of its own (Feed keeps the title as it arrived), so the planner caps both
+  // in whole characters, as it already caps a summary at 1,000: a cut never keeps half of a two-unit character.
+  const title = "😀".repeat(250), sourceName = "😀".repeat(250);
+  let shown = "";
+  const result = await planInformationWork({ sources: [{ source_id: "s1", name: sourceName, enabled: true }],
+    feed_items: [{ item_id: "i1", source_id: "s1", title, summary: "摘要" }],
+    inbox_entries: [{ entry_id: "e1", subject_type: "feed_item", subject_id: "i1", status: "open" }] }, "project-a", { prompt: "整理" },
+    async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
+  const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
+  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[]; items: { title: string }[]; inbox: { title: string }[] };
+  assert.deepEqual([context.items[0]!.title, context.inbox[0]!.title, context.sources[0]!.name], ["😀".repeat(200), "😀".repeat(200), "😀".repeat(200)],
+    "the prompt carries 200 whole characters of the feed title, the inbox entry's feed title and the source name, not 250");
+  assert.deepEqual(result.context, { project_id: "project-a", items: 1, inbox: 1 });
+});
+
+test("INFORMATION-PLANNER-SOURCES-LIMIT: the plan describes at most 20 sources in the prompt, so the data stays bounded", async () => {
+  // A Home can have many enabled sources; with no count bound the context could outgrow the port's data position. The items and inbox
+  // entries are already capped at 20, and the source list is capped the same way, in the snapshot's own order.
+  const sources = Array.from({ length: 25 }, (_, index) => ({ source_id: `s${index}`, name: `来源 ${index}`, enabled: true }));
+  let shown = "";
+  await planInformationWork({ sources, feed_items: [], inbox_entries: [] }, "project-a", { prompt: "整理" },
+    async value => { shown = typeof value === "string" ? value : modelPromptText(value); return JSON.stringify({ message: "ok", action: null }); });
+  const start = shown.indexOf("当前范围：") + "当前范围：".length, end = shown.indexOf("\n\n用户请求：");
+  const context = JSON.parse(shown.slice(start, end)) as { sources: { name: string }[] };
+  assert.equal(context.sources.length, 20, "at most 20 sources are described, like items and inbox entries");
+  assert.deepEqual(context.sources.map(source => source.name), Array.from({ length: 20 }, (_, index) => `来源 ${index}`), "the first 20 enabled sources, in the snapshot's order");
+});

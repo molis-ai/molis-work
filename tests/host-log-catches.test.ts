@@ -47,6 +47,16 @@ test("W5-13-05 an owner's failed preview is written by its type; \"you may not r
   ]);
 });
 
+test("RAC-2494 an owner's preview refused to an MCP client is an answer, told by its kind; the same code without a kind is written", () => {
+  const { entries } = captured(() => {
+    logPreviewFailure(new ActionError("mcp.action_revoked", "没有授权", { kind: "forbidden" }), "pages.document.v1");
+    logPreviewFailure(new ActionError("mcp.action_revoked", "没有授权"), "pages.document.v1");
+  });
+  assert.deepEqual(entries.map(({ at: _at, ...rest }) => rest), [
+    { level: "warn", area: "artifacts", event: "preview_failed", error: { name: "ActionError", code: "mcp.action_revoked" }, fields: { artifact_type_id: "pages.document.v1" } },
+  ]);
+});
+
 test("W5-13-06 W5-01-CODING-49 the Home's background list: a project where the plugin is off lists nothing quietly; one whose answer cannot be read is written once until it reads again", async t => {
   const empty = { source: { surface: "example" }, tasks: [] };
   const plugin = backgroundPlugin(() => empty);

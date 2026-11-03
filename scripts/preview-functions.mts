@@ -1,18 +1,18 @@
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { functionContextActions, functionsActionProvider } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions, functionsActionProvider } from "@molis-ai/molis-work-module-judgment-rules";
 /** Isolated Functions QA: real SQLite/routes/UI, deterministic provider; no external calls. */
 import { createServer } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { renderFunctionsWorkbench } from '../apps/workbench/src/functions/ui.ts';
-import { FUNCTIONS_STYLES } from '../apps/workbench/src/functions/styles.ts';
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from '../apps/workbench/src/functions/client.ts';
-import { FUNCTIONS_EN } from '../apps/workbench/src/functions/en.ts';
-import { createFunctionsService } from '@molis-ai/molis-work-module-functions';
-import { createFunctionsRouteHandlers } from '../apps/local-host/src/functions-http/route-handlers.ts';
-import { FunctionsHttpRouteTable } from '../apps/local-host/src/functions-http/routes.ts';
+import { renderFunctionsWorkbench } from '../apps/workbench/src/judgment-rules/ui.ts';
+import { FUNCTIONS_STYLES } from '../apps/workbench/src/judgment-rules/styles.ts';
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from '../apps/workbench/src/judgment-rules/client.ts';
+import { FUNCTIONS_EN } from '../apps/workbench/src/judgment-rules/en.ts';
+import { createFunctionsService } from '@molis-ai/molis-work-module-judgment-rules';
+import { createFunctionsRouteHandlers } from '../apps/local-host/src/judgment-rules-http/route-handlers.ts';
+import { FunctionsHttpRouteTable } from '../apps/local-host/src/judgment-rules-http/routes.ts';
 import { actionErrorResponse } from '@molis-ai/molis-work-plugin-sdk';
 import { liveHostJudgmentRuleAuthoringCatalog } from '../apps/local-host/src/recommendation-catalog.ts';
 import { renderMolisWorkWorkbenchStylesheet } from '../tests/workbench-renderer-fixture.ts';
@@ -40,7 +40,8 @@ const escape = (value: unknown) => String(value ?? '').replaceAll('&','&amp;').r
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
   if (url.pathname.startsWith('/api/')) {
-    let raw = ''; for await (const part of req) raw += part;
+    const chunks: Buffer[] = []; for await (const part of req) chunks.push(Buffer.from(part));
+    const raw = Buffer.concat(chunks).toString('utf8');
     try {
       const result = await routes.handle({ method: req.method as 'GET' | 'POST', pathname: url.pathname, query: url.searchParams, body: raw ? JSON.parse(raw) : {} });
       res.writeHead(result?.status ?? 404, { 'content-type':'application/json' }); res.end(JSON.stringify(result?.body ?? {}));

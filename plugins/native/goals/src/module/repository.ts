@@ -8,7 +8,7 @@ import type {
   PlanningMethodPack,
   ProjectGuidanceEntryRecord,
   ProjectGuidanceRevisionRecord,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 type Row = Record<string, unknown>;
 

@@ -5,7 +5,7 @@ import type {
   GoalRecord,
   GoalRelationRecord,
   PlanningMethodPack,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";

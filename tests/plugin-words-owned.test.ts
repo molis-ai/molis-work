@@ -53,13 +53,14 @@ test("RAC-771 a third-party Plugin's action title and description are English wh
   runWithLocale("zh", () => assert.match(rows(entry(ACME)), /<h3>整理笔记<\/h3><p>把散落的笔记按主题归到一起<\/p>/));
 }));
 
-test("RAC-1049 a platform provider's action text is English in the dictionary its registration names (words_of), and a row that names none takes nothing", () => withAcme(() => {
+test("RAC-2342 platform action text uses the platform dictionary and cannot name an arbitrary Plugin dictionary", () => withAcme(() => {
   runWithLocale("en", () => {
     const platform = { ...entry(), provider_id: "io.platform.provider", words_of: ACME };
-    assert.match(rows(platform), /<h3>Tidy notes<\/h3><p>Gathers loose notes by topic<\/p>/, "the platform provider's own words");
-    assert.match(rows({ ...platform, plugin_id: OTHER }), /<h3>Other's tidy-up<\/h3>/, "a row that names its Plugin takes that Plugin's words first");
+    assert.match(rows(platform), /<h3>整理笔记<\/h3>/, "a retired words_of property does not select another owner's dictionary");
+    assert.match(rows({ ...platform, plugin_id: OTHER }), /<h3>Other's tidy-up<\/h3>/, "Plugin-owned text still takes its own dictionary");
     assert.match(rows({ ...entry(), provider_id: ACME }), /<h3>整理笔记<\/h3>/, "a provider id alone is not a dictionary name");
-    assert.match(rows({ ...platform, words_of: "com.nobody.words" }), /<h3>整理笔记<\/h3>/, "a name with no dictionary registered takes nothing");
+    const artifact = { ...entry(), provider_id: "io.molis.work.artifacts", title: "复制引用" };
+    assert.match(rows(artifact), /<h3>Copy reference<\/h3>/, "the Artifact words are in the platform dictionary without a Plugin registration");
   });
 }));
 
@@ -110,13 +111,13 @@ test("RAC-777 the Host's onboarding names the kinds of to-do it drafts in Englis
 
 // Scripts of a Plugin that run inside the Host page would draw with the page-wide L and lose words only that Plugin declares;
 // each binds its own translator, so its sentences are English in its own words.
-test("RAC-778 Goals' and Artifacts' scripts that run in the Host page draw with their own Plugin's words", async () => {
+test("RAC-778 Goals scripts retain their Plugin words and platform Artifact text is in the page dictionary", async () => {
   const { PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT } = await import("@molis-ai/molis-work-plugin-goals");
   const goals = /const L = \(key, vars\) => LF\("io\.molis\.work\.goals", key, vars\);/;
   assert.match(PLANNING_SETTINGS_CLIENT_SCRIPT, goals);
   assert.match(PLANNING_ADOPTION_CLIENT_SCRIPT, goals);
   assert.match(PROJECT_RULES_CLIENT_SCRIPT, goals);
   const workbench = readFileSync(new URL("../apps/workbench/src/scripts/client/plugin-workbench.ts", import.meta.url), "utf8");
-  assert.match(workbench, /const AL = \(key, vars\) => LF\(\$\{JSON\.stringify\(ARTIFACTS_PLUGIN_ID\)\}, key, vars\);/, "Artifacts' snippets, which share the factory's scope, draw with their own translator");
-  assert.match(workbench, /inArtifactsWords\(ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT \+ ARTIFACT_WORKS_CLIENT_SCRIPT \+ ARTIFACT_HANDOFF_CLIENT_SCRIPT \+ ARTIFACT_PORT_INPUT_CLIENT_SCRIPT\)/);
+  assert.equal(browser("en").MOLIS_WORK_MESSAGES?.["复制引用"], "Copy reference", "Artifact client text is present in the platform page dictionary");
+  assert.match(workbench, /translate: L/, "the platform factory receives the page translator");
 });

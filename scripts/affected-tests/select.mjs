@@ -330,7 +330,7 @@ export function selectAffected({ root, changes, packages, index, options = {} })
   // ---- when the related tests are not enough ----------------------------------------------------------------------------------
   const full = [];
   const group = (rule, label, files) => { if (files.length) full.push({ rule, detail: `${label}: ${sample(files)}` }); };
-  group("shared-core", "shared core (contracts, kernel, plugin-sdk, modules)", codeChanges.filter((change) => {
+  group("shared-core", "shared core (contracts, kernel, plugin-sdk, plugin-runtime, agent-host, modules)", codeChanges.filter((change) => {
     const item = packageOf(packages, change.path);
     return item && (FULL_REGRESSION.corePackages.includes(item.dir) || FULL_REGRESSION.corePackagePrefixes.some((prefix) => item.dir.startsWith(prefix)));
   }).map((change) => change.path));

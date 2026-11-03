@@ -4,7 +4,7 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from '@molis-ai/molis-work-contracts/services/memory';
 import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
-import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
+import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/plugin-builder/catalog.js';
 import { deferred } from './fixtures/home-runtime.js';

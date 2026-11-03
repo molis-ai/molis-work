@@ -9,7 +9,7 @@ import { MODEL_SETTINGS_CLIENT_SCRIPT } from "./settings-models.js";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./project-settings.js";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "./settings-web-service.js";
 import { SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
-import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../functions/settings-client.js";
+import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../judgment-rules/settings-client.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 export const RUNTIME_PLAN_CLIENT_SCRIPT = `

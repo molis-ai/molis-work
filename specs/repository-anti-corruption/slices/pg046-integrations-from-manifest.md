@@ -30,7 +30,7 @@ FI-3（设计稿 [feed-inbox-integration-registry.md](feed-inbox-integration-reg
 
 - **声明服务不给连接权**（FI-3 的 RAC-519，不变）：`connection_services` 只管目录卡和登记，插件要用连接发请求，走 `services.connections`，按安装逐个授权（S-57）；能请求哪些服务、发到哪里，只由平台的 `CONNECTOR_REQUEST_SERVICES` 定（S-69），Manifest 里永远没有地址。本片不改这两条，也不碰那张表。
 - `connection_services` 与 `CONNECTOR_REQUEST_SERVICES` 是同一批服务的两面（卡片与请求目标）。要不要合成一份，FI-3 §5 留到 PG-045 之后，本片仍不合：合并要把地址放进插件可写的声明里，与 S-69「地址只由平台定」相反。
-- **`integration-providers.ts` 的三选一不做**（统筹 10-26）：集成插件按绑定拿令牌，今天还是宿主端口按集成 id 选 GitHub、Gmail、目录三种提供方。等集成插件改走 `services.connections` 取数据（PG-045 的余项，主人 ac-kernel）后删掉。这是 PG-046 收尾后宿主里唯一按集成 id 分支的地方。
+- **`integration-providers.ts` 的三选一不做**（统筹 10-26）：集成插件按绑定拿令牌，今天还是宿主端口按集成 id 选 GitHub、Gmail、目录三种提供方。等集成插件改走 `services.connections` 取数据（PG-045 的余项，主人 ac-kernel）后删掉。这是 PG-046 收尾后宿主里唯一按集成 id 分支的地方。（2026-10-31 改，T-120：按集成 id 的分支已删，`defaultIntegrationProvider` 不在了；`builtin-integrations.ts` 的清单给 GitHub、Gmail、每个目录集成各接自己种类的提供方，目录里加一个连接器不用改宿主；三种提供方各自的取钥仍是过渡写法，等 T-066 之后的一片把 GitHub、Gmail 并进 `resolveApiConnection`。）
 
 ### 2.3 与 W5-11（OAuth 的一半，Codex C4）
 
@@ -59,9 +59,13 @@ FI-3（设计稿 [feed-inbox-integration-registry.md](feed-inbox-integration-reg
 | RAC-890 | 来源的账号显示来自它的集成插件：宿主不 import 集成包的账号函数，`feed-connector-sync.ts` 里没有按 `sync_kind` 的分支；GitHub、Gmail（范围取自来源自己的绑定）、目录连接器绑定后给出与改前同样的账号显示，拉取没说账号时给 `null`；外部夹具的 `presentAccount` 拿到的是它这个来源的绑定；不给 `presentAccount` 的插件没有 `account`，来源的账号与配置不变 | `tests/integration-registry.test.ts`；端到端的账号显示由 `tests/feed-connectors.test.ts` 原有用例证明（GitHub `@login`、Gmail 邮箱） |
 | RAC-891 | 文档导入只收集成声明了的接入方式：feishu 的 CLI 连接收，notion 的 CLI 连接不收，notion 的令牌与 OAuth、google-drive 的令牌收，不读文档的服务（GitHub）的连接不收；宿主的 `artifact-document-import.ts` 里没有 `"feishu"` 字面量 | `tests/artifact-document-import.test.ts`，连接夹具 |
 | RAC-892 | SDK 拒绝畸形的 `connection_methods`：`document_import` 没写、空、重复、不认识的方式、不是数组，`source` 集成写了 | `tests/integration-registry.test.ts`，解析用例 |
+| RAC-2660 | （T-120）`integration-providers.ts` 不 import 任何宿主文件（所以不 import 连接器）、不含内置集成的 id 字面量、没有 `===`／`!==` 比较：提供方按种类在 `builtin-integrations.ts` 的清单里各自接线，不由一个函数按集成 id 选 | `tests/builtin-integration-providers.test.ts` |
+| RAC-2661 | （T-120）不带覆盖的 `homeIntegrationRegistry` 里，GitHub、Gmail 和登记里每个目录集成绑定一个没有连接的来源，`health()` 与各自种类的连接器给出同一个结果、同一句话 | 同上 |
+| RAC-2662 | （T-120）带自己提供方工厂的调用方，对每个内置集成被问一次，参数是它的 id 和绑定，且得到自己的登记（不共用缓存） | 同上 |
+| RAC-2663 | （T-120）来源只用自己连接的凭据：目录集成（Linear）带连接就带那条连接的令牌、没连接就不带；GitHub 只在来源同时有连接和凭据引用时才用存着的密钥 | 同上 |
 
 ## 4. 待定
 
-- **BL-530（统筹 10-26 定：不进本片，归 ac-sandbox-sched，排在 BL-491、BL-493 之后，先出设计稿）**：装进 Home 的外部集成插件怎样进登记。查实今天没有这条路：安装路径只有 T2 的签名沙箱包（S-84），它的格式只有应用插件，没有 `kind: "integration"`；登记的共用 Runtime 在宿主进程里、按宿主构建的信任装，跑外部集成插件就是在宿主进程里跑外部代码。所以这一项要先定两件动安全边界的事：外部集成插件是否要在沙箱里跑（沙箱包格式加 integration 一类，绑定与拉取经 broker）；装上之后用哪一级信任进登记、冲突时怎样对待已登记的内置集成（FI-3 的「先装的持有」对外部插件是否够）。`integration-registry.ts` 只由内置清单调。两个问题动安全边界，设计稿出来后由统筹弹窗问用户，本线不定；统筹的倾向是 ① 在沙箱里跑、② 信任按发布者签名（与 S-84 同一条），与内置集成撞 id 时在安装时明确拒绝（同 A3 的「安装时拒重复属主」），不用「先装的占住」。
+- **BL-530（原片之外，现行接续按 T-122／T-141）**：外部 source 集成的 Home 沙箱路径、签名安装、按调用临时连接与声明来源已按 [BL-530 方案](bl530-sandboxed-integrations.md) §6 的既定决定实现；配置字节边界与 attach/detach 接续随 #1295（`9efbf8d04`）采用，T-134 连接声明者前置随 #1649（`daa8fd23c`）合入。T-122 仅核收这两项采用及当前组合证据，后续已补冻结 `77f4fd172` 的独立 Mac 三完整文件 23/23；[#1696](https://github.com/molis-ai/molis-work/pull/1696) 仍只作文档采用，结果与核抵边界见[同稿 §7.3](bl530-sandboxed-integrations.md#73-t-122-配置队列采用核收2026-10-31)，不再重复设计或实现。预览 API 已返回 origins，设置页实际展示与初装／升级浏览器验证仍归 T-141；BL-691、整个 PG-046 保持未整体关闭。BL-692～694 仍按原后续分别跟踪，不从本片扩写。
 - **BL-690**：C4（W5-11）把 OAuth、MCP、CLI 的数据搬进 `auth.methods` 后，SDK 检查 `document_import` 的 `connection_methods` 是服务声明了的方式的子集。
 - 其余按推荐定，记在 §3。

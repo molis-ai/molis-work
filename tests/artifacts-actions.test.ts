@@ -22,7 +22,8 @@ test("Artifacts share real records through Host and production MCP, preserving f
   const home = await mkdtemp(join(tmpdir(), "artifacts-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Artifact actions", actor_id: "owner" });
-  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
+  assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found", "the platform has no project Plugin membership");
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy,
     workspaceFor: async () => ({ workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true }) });
@@ -44,7 +45,7 @@ test("Artifacts share real records through Host and production MCP, preserving f
     assert.deepEqual(directory.map(row => row.capability_id).sort(), ARTIFACT_ACTIONS.map(row => row.capability_id).sort());
     for (const row of directory) {
       assert.equal(row.provider.kind, "system"); assert.equal(row.provider.plugin_id, undefined); assert.equal(row.provider.plugin_install_id, undefined);
-      assert.equal(row.provider.project_id, project.project_id); assert.equal(row.provider.words_of, "io.molis.work.artifacts");
+      assert.equal(row.provider.project_id, project.project_id); assert.equal("words_of" in row.provider, false, "platform text uses the Workbench dictionary");
     }
     const input = { source: "file" as const, filename: "结果.md", content: "# 固定原文\n跨入口保存" };
     const first = await bound.invoke(a.importFile, input);
@@ -96,7 +97,8 @@ test("Artifacts share real records through Host and production MCP, preserving f
     // without them has no Feed or Inbox action to refuse, while a hidden personal plugin keeps running and is refused here.
     const isPages = (row: { provider: { plugin_id?: string } }) => row.provider.plugin_id === "io.molis.work.pages";
     const shown = (await client.discover({ ...caller, permissions: LOCAL_OWNER_PERMISSIONS })).filter(row => isPages(row) && row.availability.available).map(row => row.capability_id);
-    catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
+    assert.throws(() => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
     const without = await client.discover({ ...caller, permissions: LOCAL_OWNER_PERMISSIONS });
     assert.ok(without.filter(row => row.provider.provider_id === ARTIFACTS_PROVIDER_ID).every(row => row.availability.available), "every 成果库 action is still available");
@@ -105,7 +107,8 @@ test("Artifacts share real records through Host and production MCP, preserving f
     assert.ok(shown.length > 0 && hidden.length === shown.length && hidden.every(row => !row.availability.available && row.availability.code === "actions.plugin_disabled"),
       "a plugin's own action in the same project is still refused: the plugin list gates plugins");
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
-    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" });
+    assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }),
+      (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found", "the platform has no project Plugin membership");
   } finally {
     await Promise.all(clients.map(value => value.close())); await served.close(); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
   }

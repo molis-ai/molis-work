@@ -47,6 +47,12 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
   document.getElementById("t").textContent = data.title || say("title", "问卷");
   document.getElementById("d").textContent = data.description || "";
   var el = function(tag, text){ var node = document.createElement(tag); if (text) node.textContent = text; return node; };
+  // form-answer-cap:begin
+  // The answer box takes at most FORM_ANSWER_LIMIT characters, the same rule the workbench's fields.ts (T-234) applies: one emoji is
+  // one character, so a UTF-16 maxlength attribute would stop an emoji answer at half the limit. The page is one self-contained file
+  // and cannot import that module, so the few lines live here; the form keeps the answer with the very same count.
+  var answerCap = function(text){ var chars = Array.from(text); return chars.length > ${FORM_ANSWER_LIMIT} ? chars.slice(0, ${FORM_ANSWER_LIMIT}).join("") : text; };
+  // form-answer-cap:end
   data.questions.forEach(function(q, index){
     var box = el("div"); box.className = "q"; box.dataset.id = q.id; box.dataset.type = q.type; box.dataset.required = q.required ? "1" : "";
     var label = el(q.type === "singleChoice" || q.type === "multiChoice" || q.type === "rating" ? "span" : "label", q.title || say("untitled", "（未命名题目）")); label.id = "question-" + index; box.setAttribute("role", q.type === "singleChoice" || q.type === "rating" ? "radiogroup" : "group"); box.setAttribute("aria-labelledby", label.id); if (box.getAttribute("role") === "radiogroup") box.setAttribute("aria-required", String(q.required));
@@ -62,7 +68,19 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     } else {
       var t = el("input"); t.type = q.type === "date" ? "date" : "text"; t.name = q.id; box.appendChild(t);
     }
-    [].forEach.call(box.querySelectorAll("input[type=text],input[type=date],select"), function(input){ input.id = label.id + "-input"; label.htmlFor = input.id; input.setAttribute("aria-labelledby", label.id); input.setAttribute("aria-required", String(q.required)); input.required = Boolean(q.required); if (input.type === "text") input.maxLength = ${FORM_ANSWER_LIMIT}; });
+    [].forEach.call(box.querySelectorAll("input[type=text],input[type=date],select"), function(input){ input.id = label.id + "-input"; label.htmlFor = input.id; input.setAttribute("aria-labelledby", label.id); input.setAttribute("aria-required", String(q.required)); input.required = Boolean(q.required); if (input.type === "text") {
+      // An input method's composition is not cut mid-way: the box is capped as it goes, and again once the composition ends.
+      var composing = false, tooLong = say("tooLong", "每题回答最多 ${FORM_ANSWER_LIMIT} 个字：") + (q.title || say("untitled", "（未命名题目）"));
+      var capNow = function(){
+        if (composing) return;
+        var capped = answerCap(input.value);
+        if (capped !== input.value) { input.value = capped; error.textContent = tooLong; }
+        else if (error.textContent === tooLong) error.textContent = "";
+      };
+      input.addEventListener("compositionstart", function(){ composing = true; });
+      input.addEventListener("compositionend", function(){ composing = false; capNow(); });
+      input.addEventListener("input", capNow);
+    } });
     qs.appendChild(box);
   });
   var answers = function(){

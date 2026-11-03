@@ -1,3 +1,7 @@
+import { installedPackageHost } from "./fixtures/signed-package-host.js";
+import { signedAgentPackage } from "./fixtures/sandbox-package.js";
+import { homeAgentDefinitions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
+type PluginInstallPreviewResult = Awaited<ReturnType<PluginInstallService["preview"]>>;
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { chmod, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -34,13 +38,14 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   const installed: Array<{ project: string; plugin: string; trust: unknown }> = [];
   const homeRecords: PluginInstanceRecord[] = [];
+  const projectRecords: PluginInstanceRecord[] = [];
   const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore(home), now: () => AT,
     installInProject: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); },
     installInHome: async release => {
       installed.push({ project: "~home", plugin: release.pluginId, trust: release.packaged?.trust });
       if (withHome) homeRecords.push(homeRecord(release.packaged!.manifest));
     },
-    installed: async () => [], control: async () => "disabled",
+    installed: async () => projectRecords.map(record => ({ record, manifest: undefined })), control: async () => "disabled",
     ...(withHome ? { homeInstalled: async () => homeRecords.map(record => ({ record, manifest: undefined })) } : {}) });
   /** Nothing the install path writes exists: no pinned publisher, no kept package, no installation. */
   const nothingWritten = () => {
@@ -48,7 +53,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
     assert.equal(existsSync(join(home, "plugin-packages")), false, "no package was kept");
     assert.deepEqual(installed, [], "nothing was installed");
   };
-  return { home, ledger, service, installed, homeRecords, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
+  return { home, ledger, service, installed, homeRecords, projectRecords, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
 }
 
 test("RAC-387 S-84 a package with no signature is refused at the preview with plugin.signature_invalid, and nothing is written", async () => {
@@ -309,20 +314,101 @@ test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, o
   } finally { await h.done(); }
 });
 
-test("RAC-1682 S-80 S-84 the Home's own publisher's package of a plugin the Home already holds is refused at the confirmation with plugin.state_invalid, before the package is kept, whether that installation runs or is switched off", async () => {
+test("RAC-1682 S-80 S-84 a compatible Home upgrade is saved and sent to the Home port for running and disabled installations", async () => {
   const h = await harness(undefined, true);
   try {
-    const a = newPublisher();
-    const confirm = confirmIn(h.service);
-    const snapshot = async () => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), dirs: (await readdir(join(h.home, "plugin-packages"))).sort(), installs: h.installed.length });
-    assert.equal(await confirm(homeBundle(a)), "installed");
-    const step = async (bundle: PluginPackageBundle) => { const before = await snapshot(); return { code: await confirm(bundle), unchanged: isDeepStrictEqual(await snapshot(), before) }; };
+    const publisher = newPublisher(), confirm = confirmIn(h.service);
+    assert.equal(await confirm(homeBundle(publisher)), "installed");
+    for (const state of ["running", "disabled"] as const) {
+      h.homeRecords[0]!.state = state;
+      const bundle = signedPackage(publisher, (_files, manifest) => {
+        manifest.runtime = { scope: "home" }; manifest.upgrade_compatibility = { compatible_from_versions: ["1.0.0"] };
+      }, { version: state === "running" ? "1.1.0" : "1.2.0" });
+      const count = h.installed.length, pins = h.ledger.publishers();
+      assert.equal(await confirm(bundle), "installed");
+      assert.equal(h.installed.length, count + 1);
+      assert.equal(h.installed.at(-1)!.project, "~home");
+      assert.deepEqual(h.ledger.publishers(), pins);
+      assert.equal((await readdir(join(h.home, "plugin-packages"))).length, count + 1);
+    }
+  } finally { await h.done(); }
+});
+
+type Harness = Awaited<ReturnType<typeof harness>>;
+const CHILD_ID = `${PACKAGE_PLUGIN_ID}.extra`, THIRD_ID = "io.molis.work.example.third";
+
+/** What the install path has written so far: the pinned publishers, the kept packages, the installations. */
+const writtenBy = async (h: Harness) => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), installs: h.installed.length,
+  dirs: existsSync(join(h.home, "plugin-packages")) ? (await readdir(join(h.home, "plugin-packages"))).sort() : [] });
+
+/** Confirms a package as the person, naming its publisher; answers the code it was refused with, and whether anything the install path writes changed. */
+const confirmStep = (h: Harness) => async (bundle: PluginPackageBundle) => {
+  const before = await writtenBy(h);
+  const code = await confirmIn(h.service)(bundle);
+  return { code, unchanged: isDeepStrictEqual(await writtenBy(h), before) };
+};
+
+/** The record the Runtime keeps of a signed package of `publisher` that is installed. */
+const installedBy = (publisher: ReturnType<typeof newPublisher>, pluginId: string, version = "1.0.0"): PluginInstanceRecord =>
+  homeRecord(packageFiles(publisher.identity, undefined, { pluginId, version }).manifest);
+
+/** A package that says it can be upgraded to from these versions. */
+const declares = (...versions: string[]) => (_files: PackageFiles, manifest: PluginManifest) => { manifest.upgrade_compatibility = { compatible_from_versions: versions }; };
+
+test("RAC-1835 S-75 S-84 another publisher's package whose plugin id is on the dotted path of an installed plugin's, below it or above it, is refused at the confirmation with plugin.id_namespace_conflict, before its publisher is pinned or the package is kept, in a project and in the Home", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const a = newPublisher(), b = newPublisher(), c = newPublisher();
+    const confirm = confirmIn(h.service), step = confirmStep(h);
     const results: Record<string, { code: string; unchanged: boolean }> = {};
-    results["a, a newer version"] = await step(homeBundle(a, { version: "1.1.0" }));
-    h.homeRecords.find(record => record.plugin_id === PACKAGE_PLUGIN_ID)!.state = "disabled";
-    results["a, installation switched off"] = await step(homeBundle(a, { version: "1.2.0" }));
-    const refusedUntouched = { code: "plugin.state_invalid", unchanged: true };
-    assert.deepEqual(results, { "a, a newer version": refusedUntouched, "a, installation switched off": refusedUntouched }, "refused, with no package kept and nothing installed");
+    // The project's Runtime holds a's notes plugin.
+    h.projectRecords.push(installedBy(a, PACKAGE_PLUGIN_ID));
+    results["project, b below a's id, b not pinned yet"] = await step(signedPackage(b, undefined, { pluginId: CHILD_ID }));
+    assert.equal(await confirm(signedPackage(c, undefined, { pluginId: THIRD_ID })), "installed", "c is pinned by a plugin of its own");
+    results["project, c below a's id, c pinned"] = await step(signedPackage(c, undefined, { pluginId: CHILD_ID }));
+    h.projectRecords[0] = installedBy(a, CHILD_ID);
+    results["project, b above a's id"] = await step(signedPackage(b, undefined, { pluginId: PACKAGE_PLUGIN_ID }));
+    // The Home's Runtime holds a's second plugin.
+    assert.equal(await confirm(homeBundle(a, { pluginId: SECOND_PLUGIN_ID })), "installed");
+    results["Home, b below a's id"] = await step(homeBundle(b, { pluginId: `${SECOND_PLUGIN_ID}.extra` }));
+    results["Home, b above a's id"] = await step(homeBundle(b, { pluginId: "io.molis.work.example" }));
+    const refusedUntouched = { code: "plugin.id_namespace_conflict", unchanged: true };
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, refusedUntouched])), "refused, with no publisher pinned, no package kept and nothing installed");
+  } finally { await h.done(); }
+});
+
+test("RAC-1836 S-75 S-84 the dotted-path check refuses only another publisher's package: the same publisher's nests, and an id that only starts alike is not on the path", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const a = newPublisher(), b = newPublisher();
+    const confirm = confirmIn(h.service);
+    h.projectRecords.push(installedBy(a, PACKAGE_PLUGIN_ID));
+    assert.equal(await confirm(signedPackage(a, undefined, { pluginId: CHILD_ID })), "installed", "a project: the same publisher's plugin below its own");
+    assert.equal(await confirm(signedPackage(b, undefined, { pluginId: `${PACKAGE_PLUGIN_ID}-extra` })), "installed", "a project: another publisher's id that only starts alike is not on the path");
+    assert.equal(await confirm(homeBundle(a, { pluginId: SECOND_PLUGIN_ID })), "installed");
+    assert.equal(await confirm(homeBundle(a, { pluginId: `${SECOND_PLUGIN_ID}.extra` })), "installed", "the Home: the same publisher's plugin below its own");
+    assert.equal(h.installed.length, 4, "all four went on to the install");
+  } finally { await h.done(); }
+});
+
+test("RAC-1837 S-84 BL-623 in a project, its own publisher's package of an installed plugin that is not an upgrade is refused at the confirmation with plugin.upgrade_required, before the package is kept, and its upgrade goes on", async () => {
+  const h = await harness();
+  try {
+    const a = newPublisher();
+    h.projectRecords.push(installedBy(a, PACKAGE_PLUGIN_ID));
+    const prior = signedPackage(a);
+    new SandboxPackageStore(h.home).save(prior, readSandboxPackage(prior.payload));
+    const step = confirmStep(h);
+    const results: Record<string, { code: string; unchanged: boolean }> = {};
+    results["the same version"] = await step(signedPackage(a));
+    results["the same version, declaring it can be upgraded to from itself"] = await step(signedPackage(a, declares("1.0.0")));
+    results["an earlier version"] = await step(signedPackage(a, undefined, { version: "0.9.0" }));
+    results["a later version that declares nothing"] = await step(signedPackage(a, undefined, { version: "1.1.0" }));
+    results["a later version that declares another source"] = await step(signedPackage(a, declares("0.5.0"), { version: "1.1.0" }));
+    const refusedUntouched = { code: "plugin.upgrade_required", unchanged: true };
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map(name => [name, refusedUntouched])), "refused, with no publisher pinned, no package kept and nothing installed");
+    assert.equal(await confirmIn(h.service)(signedPackage(a, declares("1.0.0"), { version: "1.1.0" })), "installed", "its upgrade is not in the way");
+    assert.equal(h.installed.length, 1, "and it went on to the install");
   } finally { await h.done(); }
 });
 
@@ -349,4 +435,34 @@ test("RAC-382 S-84 confirming in a real Host installs the package under pinned t
     } finally { database.close(); }
     assert.deepEqual(new HomeConsentLedger(home).publishers().map(pin => [pin.key_id, pin.label]), [[publisher.identity, "Example"]]);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("RAC-2640/2643 S-84 preview@4 exposes each signed body and compares the complete installed text before confirmation", { skip: process.platform !== "darwin", timeout: 90_000 }, async () => {
+  const h = await installedPackageHost(), publisher = newPublisher(), prefix = "😀".repeat(200);
+  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], methods: [{ name: "将被移除", purpose: "核对", body: "agent/method.md" }], bodies: { "agent/role.md": prefix + "旧尾部" } };
+  try {
+    const first = signedAgentPackage(publisher, base);
+    const peek = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 4 }, { bundle: first }) as PluginInstallPreviewResult;
+    assert.deepEqual(peek.agent_bodies?.map(item => [item.kind, item.name]), [["role", "共享名称"], ["method", "将被移除"]]);
+    assert.equal(peek.agent_bodies![0]!.excerpt, prefix, "200 code points, without splitting surrogate pairs");
+    assert.equal(peek.preview.publisher_signature, publisher.identity); assert.equal(peek.preview.version, "1.1.0");
+    assert.deepEqual(await h.plugins(), []); assert.deepEqual(h.ledger.publishers(), []);
+    await assert.rejects(h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 3 }, { bundle: first }));
+    await h.install(first);
+    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], methods: [{ name: "新增方法", purpose: "整理", body: "agent/new.md" }], bodies: { "agent/role.md": prefix + "新尾部", "agent/new.md": "<script>仅为文本</script>" } });
+    const preview = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 4 }, { bundle: next }) as PluginInstallPreviewResult;
+    // RAC-2643: a changed tail beyond the displayed 200 code points still changes the upgrade preview.
+    assert.deepEqual(preview.agent_bodies?.map(item => [item.kind, item.name, item.change]), [["role", "共享名称", "changed"], ["method", "新增方法", "added"], ["method", "将被移除", "removed"]]);
+    assert.equal(preview.agent_bodies![0]!.excerpt, prefix, "same excerpt still reports the full-body change");
+    assert.equal((await h.plugins())[0]!.version, "1.1.0", "preview keeps the installed version");
+    assert.equal(homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!.default_ref!.source.plugin_version, "1.1.0");
+    await h.client.invoke(h.person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true });
+    assert.equal((await h.plugins())[0]!.version, "1.2.0");
+    const role = homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!;
+    assert.equal(homeAgentDefinitions(h.home).signedMaterial(role.install_id!, role.default_ref!).body, prefix + "新尾部");
+    await assert.rejects(h.install(signedAgentPackage(publisher, { ...base, version: "1.3.0", compatibleFrom: ["1.2.0"], broken: true, bodies: { "agent/role.md": "未成功的新正文" } })));
+    const current = homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!;
+    assert.equal(current.default_ref!.source.plugin_version, "1.2.0");
+    assert.equal(homeAgentDefinitions(h.home).signedMaterial(current.install_id!, current.default_ref!).body, prefix + "新尾部");
+  } finally { await h.close(); }
 });

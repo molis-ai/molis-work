@@ -2,6 +2,7 @@ import type { EditorView } from "prosemirror-view";
 import type { UiSideContext, UiPageMessages } from "@molis-ai/molis-work-contracts/platform/ui";
 import { focusComment, commentBlock } from "./editor-comments.js";
 import { commentErrorMessage } from "./comment-browser-types.js";
+import { cutUnits, firstCharacters } from "./browser/dom.js";
 interface CommentEditorState {
   messages: UiPageMessages;
   readonly selected: { id: string; version: number }|null;
@@ -27,7 +28,7 @@ export function bindComments(state: CommentEditorState): (markId: string|null) =
       if (state.selected?.id !== id) return;
       const excerpts: string[] = [];
       if (markId) state.editor.view.state.doc.descendants(node => { if (node.isText && node.marks.some(mark => mark.type.name === 'comment' && mark.attrs.id === markId)) excerpts.push(node.text ?? ""); });
-      const detail = { tab: 'plugin:pages/comments', target: { open_id: crypto.randomUUID(), page_id: id, mark_id: markId || null, excerpt: excerpts.join('').slice(0, 2000) } };
+      const detail = { tab: 'plugin:pages/comments', target: { open_id: crypto.randomUUID(), page_id: id, mark_id: markId || null, excerpt: firstCharacters(excerpts.join(''), 2000) } };
       state.messages.send({ type: 'molis:side-open', ...detail });
     } catch (error) { showNote(commentErrorMessage(error), true); }
   };
@@ -38,12 +39,12 @@ export function bindComments(state: CommentEditorState): (markId: string|null) =
     const answer: CommentAnswer = { type: 'molis:side-context-result', object_id: state.selected.id, request_id: command.request_id };
     try {
       if (command.kind === 'draft') {
-        answer.text = state.editor.view.state.doc.textBetween(0, state.editor.view.state.doc.content.size, '\n\n').slice(0, 100000);
+        answer.text = cutUnits(state.editor.view.state.doc.textBetween(0, state.editor.view.state.doc.content.size, '\n\n'), 100000);
         answer.version = state.selected.version;
       } else if (command.kind === 'notes') {
         const notes: NonNullable<CommentAnswer["notes"]> = [];
         state.editor.view.state.doc.forEach((node, _pos, index) => {
-          if (String(node.attrs.note || '').trim()) notes.push({ index, text: node.textContent.slice(0, 100), note: String(node.attrs.note) });
+          if (String(node.attrs.note || '').trim()) notes.push({ index, text: firstCharacters(node.textContent, 100), note: String(node.attrs.note) });
         });
         answer.notes = notes; answer.version = state.selected.version;
       } else if (command.kind === 'focus-mark') {

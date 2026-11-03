@@ -2,7 +2,6 @@
 // edit: change the plugin's own registration and regenerate; `pnpm health:check` fails while this file is out of date.
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { registration as alchemistRegistration } from "@molis-ai/molis-work-plugin-alchemist/registration";
-import { registration as artifactsRegistration } from "@molis-ai/molis-work-plugin-artifacts/registration";
 import { registration as pluginBuilderRegistration } from "@molis-ai/molis-work-plugin-builder/registration";
 import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
 import { registration as cogniaRegistration } from "@molis-ai/molis-work-plugin-cognia/registration";
@@ -46,7 +45,6 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   pptRegistration,
   alchemistRegistration,
   workflowsRegistration,
-  artifactsRegistration,
   codingRegistration,
   filesRegistration,
   gitRegistration,

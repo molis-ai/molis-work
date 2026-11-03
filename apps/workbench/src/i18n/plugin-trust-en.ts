@@ -7,6 +7,7 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "已安装的插件": "Installed plugins",
   "你信任的发布者": "Publishers you trust",
   "你固定过的发布者。他们之后签的包会按这份信任安装。": "Publishers you have pinned. Packages they sign later are installed under that trust.",
+  "可访问的服务地址": "Service addresses it may access",
   "它要的权限": "What it asks for",
   "没有要任何权限": "It asks for no permissions",
   "它在后台常做的事": "What it keeps doing in the background",
@@ -30,7 +31,7 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "不读写任何东西": "It reads and writes nothing",
   "你已把这个发布者固定为 {name}": "You pinned this publisher as {name}",
   "你还没有信任这个发布者。给它起个名字，才会固定它；固定后它之后签的包都会按这份信任安装。": "You have not trusted this publisher yet. Give it a name to pin it; packages it signs later are then installed under that trust.",
-  "同意这些权限并安装": "Agree to these permissions and install",
+  "同意这些权限并安装": "Agree and install",
   "这个文件不是插件包": "This file is not a plugin package",
   "宿主随带": "Shipped with Molis Work",
   "你固定的发布者": "A publisher you pinned",
@@ -69,4 +70,6 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "个人空间里的插件": "Plugins in your personal space",
   "这些插件在你的个人空间里运行，所有项目共用同一份；这里改它的权限，对每个项目都生效。": "These plugins run in your personal space, one copy shared by every project; changing a permission here applies in every project.",
   "个人空间里没有插件": "No plugins in your personal space",
+  "没能启动：{error}": "Could not start: {error}",
+  "发布者的信任已撤销：它不再运行，只能卸载": "Trust in its publisher was revoked: it no longer runs and can only be uninstalled",
 };

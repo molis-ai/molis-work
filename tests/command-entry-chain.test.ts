@@ -11,7 +11,7 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
-import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView, ReportGoalEventsResult } from "@molis-ai/molis-work-plugin-goals/contract";
 
 test("actual CLI snapshot and MCP event handlers finish one Goal without the retired claim/run protocol", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-command-chain-"));

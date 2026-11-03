@@ -5350,3 +5350,28 @@ test("AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发
     store.close();
   });
 });
+
+test("RAC-1980 a picture caption is cut at 200 UTF-16 units on a whole character, never between the two units of one", () => {
+  const wide = (count: number) => "🟢".repeat(count); // one character, two UTF-16 units
+  assert.equal(safePagesImageCaption("a".repeat(199) + wide(1) + "tail"), "a".repeat(199), "unit 200 is the first half of a character: the half is not kept");
+  assert.equal(safePagesImageCaption("a".repeat(198) + wide(1) + "tail"), "a".repeat(198) + wide(1), "a character that ends exactly at unit 200 is kept");
+  assert.equal(safePagesImageCaption("a" + wide(101)), "a" + wide(99), "after one plain character 99 whole wide characters fit in 200 units");
+});
+
+test("RAC-1980 a bookmark name is cut at 120 UTF-16 units on a whole character, never between the two units of one", () => {
+  const wide = (count: number) => "🟢".repeat(count); // one character, two UTF-16 units
+  assert.equal(safePagesBookmarkTitle("a".repeat(119) + wide(1) + "tail"), "a".repeat(119), "unit 120 is the first half of a character: the half is not kept");
+  assert.equal(safePagesBookmarkTitle("a".repeat(118) + wide(1) + "tail"), "a".repeat(118) + wide(1), "a character that ends exactly at unit 120 is kept");
+  assert.equal(safePagesBookmarkTitle("a" + wide(61)), "a" + wide(59), "after one plain character 59 whole wide characters fit in 120 units");
+});
+
+test("RAC-1984 a picture caption or a bookmark name that fits, or that the limit cuts between two characters, is kept as it was", () => {
+  const wide = (count: number) => "🟢".repeat(count);
+  assert.equal(safePagesImageCaption(wide(100)), wide(100), "100 wide characters are exactly 200 units");
+  assert.equal(safePagesImageCaption(wide(101)), wide(100), "the 101st is dropped whole");
+  assert.equal(safePagesBookmarkTitle(wide(60)), wide(60), "60 wide characters are exactly 120 units");
+  assert.equal(safePagesBookmarkTitle(wide(61)), wide(60), "the 61st is dropped whole");
+  assert.equal(safePagesImageCaption("  封面说明\n第二行  "), "封面说明 第二行", "line breaks and the edges are handled as before");
+  assert.equal(safePagesImageCaption("甲".repeat(220)), "甲".repeat(200));
+  assert.equal(safePagesBookmarkTitle("甲".repeat(140)), "甲".repeat(120));
+});

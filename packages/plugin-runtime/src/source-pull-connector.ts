@@ -5,7 +5,7 @@ import {
   PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, type ConnectorPullReceipt, type ConnectorPullRequest, type ConnectorSignalDraft, type PluginConnectorSourceClient, type RawEventAdapter,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly } from "./action-scope.js";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, holdPluginResult, inPluginInstance, pluginInvocationReadOnly } from "./action-scope.js";
 import { slotTarget, type PluginConnectionTarget } from "./connections-service.js";
 import type { PluginSourcePullGate, PluginSourcePullRun } from "./source-pull-service.js";
 
@@ -26,7 +26,10 @@ export interface PluginConnectorPort {
   /** Whether the integration is registered as a source of this service, and its adapter's identity. Refuses what is not. */
   open(service_id: string, integration_id: string): Promise<RawEventAdapter["adapter"]>;
   pull(target: PluginConnectionTarget, request: { readonly integration_id: string; readonly cursor: unknown; readonly intent?: { readonly sync_mode?: string }; readonly settings?: Readonly<Record<string, string>> },
-    run: Pick<PluginSourcePullRun, "signal" | "current" | "beforeEffect">): Promise<ConnectorPullReceipt>;
+    run: Pick<PluginSourcePullRun, "signal" | "current" | "beforeEffect"> & {
+      /** Trusted Host producer check, retained for every subsequent commit by this invocation. Never plugin input. */
+      retainProvider(validate: () => void): void;
+    }): Promise<ConnectorPullReceipt>;
   adapt(target: PluginConnectionTarget, integration_id: string, event: ConnectorRawEvent): Promise<ConnectorSignalDraft>;
   accounts(service_ids: readonly string[]): Readonly<Record<string, { readonly bound: boolean }>>;
 }
@@ -78,7 +81,7 @@ export function createPluginConnectorSourceClient(manifest: PluginManifest, port
       const beforeEffect = async () => { current(); if ("definition" in scope) await scope.caller.beforeEffect(); current(); };
       await beforeEffect();
       const receipt = await port.pull(target, { integration_id: checked.integration_id, cursor: checked.cursor, ...(checked.intent ? { intent: checked.intent } : {}),
-        ...(checked.settings ? { settings: checked.settings } : {}) }, { signal, current, beforeEffect });
+        ...(checked.settings ? { settings: checked.settings } : {}) }, { signal, current, beforeEffect, retainProvider: validate => holdPluginResult(scope, validate) });
       await beforeEffect();
       // Rebuilt from five fields, so nothing else the Host's side might carry (a connection, a reference) reaches the plugin.
       const { receipt_id, driver_id, started_at, completed_at, result } = structuredClone(receipt);

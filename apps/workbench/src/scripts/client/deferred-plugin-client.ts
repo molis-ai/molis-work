@@ -36,6 +36,8 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (mounting.has(root)) return mounting.get(root);
     const pack = packs.find(pack => pack.id === root.dataset.workSurface);
     if (!pack) return Promise.resolve();
+    // A real reopen replaces this surface's previous failure, just as its retry button does.
+    for (const retry of root.querySelectorAll(':scope > div > [data-ui-client-retry]')) retry.parentElement.remove();
     const template = root.querySelector(':scope > template[data-deferred-content]');
     if (!pack.plugin_id && template) { root.append(template.content); template.remove(); }
     root.inert = true; root.setAttribute('aria-busy', 'true'); root.dataset.uiClientState = 'loading';

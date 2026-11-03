@@ -33,19 +33,17 @@ export interface FeedHistoryReleasePorts {
  * Gives a source's history back before its rows go, in bounded batches. Each batch but the last takes back only the holds it names, so the
  * bodies of a batch not reached yet stay held by this source while its rows still point at them; the last takes back whatever holds are left.
  * A call that fails throws: nothing of the deletion has been committed, the source and its rows (and with them the references and operation
- * ids) stay, and deleting it again repeats each step harmlessly. A ledger without the completeness mark is not a failure: it keeps every body
- * and says so (`complete: false`), and the deletion goes ahead with them kept. The ledger, the evidence store and the search records are
+ * ids) stay, and deleting it again repeats each step harmlessly. The ledger always knows who holds a body, so only the search records can be
+ * left behind: `complete` says whether they were all forgotten. The ledger, the evidence store and the search records are
  * other services' writes: nothing here rolls one back when a later one fails.
  */
 export async function releaseHeldHistory(held: FeedSourceHistoryHolding, ports: FeedHistoryReleasePorts): Promise<FeedSourceHistoryRelease> {
   const bodies = held.content_refs.filter(isFeedBodyRef);
-  let deleted = 0, kept = 0, complete = true;
+  let deleted = 0, kept = 0;
   for (let start = 0; ; start += FEED_CONTENT_LEDGER_BATCH) {
     const end = start + FEED_CONTENT_LEDGER_BATCH, batch = bodies.slice(start, end);
     const outcome = await (end >= bodies.length ? ports.release(batch) : ports.reclaim(batch));
     deleted += outcome.bodies_deleted; kept += outcome.bodies_kept;
-    // Without the mark no batch can say "nobody", so the rest stay held as they are.
-    if (!outcome.complete) { complete = false; kept += Math.max(0, bodies.length - end); break; }
     if (end >= bodies.length) break;
   }
   let records = 0;
@@ -54,7 +52,7 @@ export async function releaseHeldHistory(held: FeedSourceHistoryHolding, ports: 
       records += (await ports.forget(held.operation_ids.slice(start, start + FEED_FORGET_BATCH))).records_deleted;
     }
   }
-  return { bodies_deleted: deleted, bodies_kept: kept, records_deleted: records, complete: complete && ports.forget !== null };
+  return { bodies_deleted: deleted, bodies_kept: kept, records_deleted: records, complete: ports.forget !== null };
 }
 
 /** What one source's history held on to, read before its rows are deleted. */
@@ -71,8 +69,7 @@ export interface FeedSourceHistoryRelease {
   bodies_kept: number;
   records_deleted: number;
   /**
-   * False when part of it could not be done: either references could not be counted everywhere (no body was deleted),
-   * or the search records could not be forgotten.
+   * False when part of it could not be done: the search records could not be forgotten (the bodies always can be).
    */
   complete: boolean;
 }
@@ -133,7 +130,7 @@ function releaseSourceHistory(
     "feed_source",
     sourceId,
     "feed_source.history_released",
-    outcome.complete ? "来源的本地正文与检索记录已清理" : "来源的本地正文未能确认无人引用，已保留",
+    outcome.complete ? "来源的本地正文与检索记录已清理" : "来源的本地历史未能全部清理",
     { ...outcome },
     new Date().toISOString(),
   );

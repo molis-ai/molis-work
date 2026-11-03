@@ -1,3 +1,4 @@
+// RAC-2363: current-format business history behavior remains covered without any maintenance chain.
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -8,7 +9,7 @@ import {
   pageHistoryItems,
   renderHistoryItemBody,
 } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalEventTimelineItem } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventTimelineItem } from "@molis-ai/molis-work-plugin-goals/contract";
 
 test("history merges event work with the journal's records, keeps original IDs and does not duplicate work events", () => {
   const work = {

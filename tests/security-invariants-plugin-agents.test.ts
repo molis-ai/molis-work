@@ -29,7 +29,8 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
   let requests = 0;
   const model = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     const aside = asideReply(body);
     if (!aside) {
       requests++; response.on("close", () => disconnected.resolve()); started.resolve();

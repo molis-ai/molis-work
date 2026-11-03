@@ -280,3 +280,26 @@ test("project main group uses live project access; tags, quotes, search and read
     assert.deepEqual(f.db.pragma('foreign_key_check'),[]);
   } finally {await f.close();}
 });
+
+// RAC-2716: a join only takes a current invitation credential — 64 lowercase hex digits. Anything else is refused at the entry with
+// im.invite.invalid_token (the im.invite declaration), before the hash lookup, and writes no member; a real invitation still joins.
+test("RAC-2716 joining accepts only a 64-hex invitation credential and writes no member for anything else", async () => {
+  const f = await fixture();
+  try {
+    const alice = await f.person("一骏"), bob = await f.person("小林");
+    const room = (await f.post(alice.session, "/rooms", { title: "产品讨论" })).body.room as ImRoom;
+    const invite = { token: randomBytes(32).toString("hex") };
+    assert.equal((await f.post(alice.session, `/rooms/${room.id}/invite/rotate`, invite)).status, 200);
+    const members = () => (f.db.prepare("SELECT COUNT(*) AS n FROM im_members WHERE room_id = ? AND member_id = ?").get(room.id, bob.member.id) as { n: number }).n;
+    // The boundary is exact — 64 lowercase hex digits — so 63, 65 and 66 are all outside it, and so is 64 non-hex characters.
+    const forged = [randomBytes(33).toString("hex"), randomBytes(32).toString("hex") + "a", randomBytes(32).toString("hex").slice(0, 63), "g".repeat(64)];
+    assert.deepEqual(forged.map(token => token.length), [66, 65, 63, 64]);
+    for (const token of forged) {
+      const refused = await f.post(bob.session, "/join", { token });
+      assert.deepEqual([refused.status, refused.body.code], [400, "im.invite.invalid_token"], `${token.length} characters is not the credential`);
+      assert.equal(members(), 0, "a refused join writes no member");
+    }
+    assert.equal((await f.post(bob.session, "/join", { token: invite.token })).status, 200);
+    assert.equal(members(), 1, "the real invitation still joins");
+  } finally { await f.close(); }
+});

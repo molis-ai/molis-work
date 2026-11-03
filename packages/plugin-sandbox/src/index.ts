@@ -4,9 +4,10 @@ export { SandboxBroker, type SandboxServices, type SandboxServiceContext } from 
 export { sandboxDatabase, type SandboxDatabaseService, type SandboxStatement } from './database.js';
 export { OWNER_FILE_BYTES, OWNER_FILE_CALL_BYTES, OWNER_FILE_STEPS, OWNER_FILE_LIST_ENTRIES, sandboxOwnerFiles, type SandboxOwnerFiles } from './owner-files.js';
 export { BACKGROUND_EXECUTIONS, SANDBOX_BACKGROUND_LIMITS, createBackgroundLane, type SandboxBackground, type SandboxBackgroundLane } from './background.js';
-export { MODEL_DATA_CHARS, modelDeadlines, sandboxModel, type SandboxModel } from './model.js';
+export { MODEL_DATA_CHARS, modelDeadlines, sandboxModel, type SandboxModel, type SandboxModelSettings } from './model.js';
+export type { SandboxImageGeneration } from './image.js';
 export { sandboxServicesFor, storageTransactions, assertSandboxDeclarations, SANDBOX_NOT_GIVEN, SANDBOX_SERVICE_FATE, type NotGiven, type SandboxServiceFate, type SandboxHostServices, type SandboxHostExtras, type SandboxDeclarations } from './services.js';
 export { createHttpsProxy, isPublicAddress, validateNetworkRequest } from './https-proxy.js';
 export type { HttpsProxyOptions, SandboxSecret } from './https-proxy.js';
-export { assertContract, assertSchema, assertMatches, assertEffects, assertJson, effectsFromContract, SandboxError } from './schema.js';
+export { assertContract, assertSchema, assertMatches, assertEffects, assertJson, effectsFromContract, sandboxNotAuthorized, SandboxError } from './schema.js';
 export { seatbeltProfile } from './seatbelt.js';

@@ -15,9 +15,9 @@ import { inboxSubjectAction } from "../plugins/native/inbox/dist/content-actions
 import { homeActions } from "../apps/local-host/dist/home-actions.js";
 import type { HomeEventsResult } from "../apps/local-host/dist/home-event-actions.js";
 import type { HomeActionOffers } from "../apps/local-host/dist/home-offer-actions.js";
-import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService } from "../apps/local-host/dist/judgment-rules-host.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { functionContextActions } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { serveTestHost } from "./fixtures/test-home.js";

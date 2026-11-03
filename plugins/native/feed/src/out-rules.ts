@@ -1,4 +1,4 @@
-import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { platformErrorKind, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
 import { feedErrors } from "./contract/feed.js";
 import type { ArtifactJsonValue, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -204,11 +204,15 @@ const CALL_REFUSALS: ReadonlySet<string> = new Set([
   "actions.plugin_permission", "actions.provider_changed",
 ]);
 
-/** Throws a refusal of the call itself, a cancellation included, again: it stops the call here, not at the commit's last check. */
+/** Throws a refusal of the call itself, a cancellation included, again: it stops the call here, not at the commit's last check.
+ * A call refused by an owner (an MCP grant revoked, an assistant action revoked) is the call's own refusal too: its kind is forbidden, so
+ * it does not have to be listed here code by code. The kind is the error's own when it carries one, else the platform table's. */
 export function throwIfCallRefused(error: unknown): void {
-  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "";
-  const aborted = !!error && typeof error === "object" && "name" in error && error.name === "AbortError";
-  if (aborted || CALL_REFUSALS.has(code)) throw error;
+  if (!error || typeof error !== "object") return;
+  const code = "code" in error && typeof error.code === "string" ? error.code : "";
+  const aborted = "name" in error && error.name === "AbortError";
+  const kind = "kind" in error && typeof error.kind === "string" ? error.kind : code ? platformErrorKind(code) : undefined;
+  if (aborted || CALL_REFUSALS.has(code) || kind === "forbidden") throw error;
 }
 
 /**

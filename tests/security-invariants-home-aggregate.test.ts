@@ -9,7 +9,7 @@ import { ActionError, type ActionDefinition, type ActionExecutionContext, type A
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { inspectActionDeclarations, isHomeAggregateQuery } from "@molis-ai/molis-work-plugin-sdk";
-import { FunctionsService } from "@molis-ai/molis-work-module-functions";
+import { FunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /*
@@ -81,6 +81,9 @@ async function rig(t: import("node:test").TestContext) {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [plugin.definition] },
     actionAvailability: (caller, view) => view.provider.plugin_id === PLUGIN_ID && disabled.has(caller.project_id!)
       ? { available: false, code: "actions.plugin_disabled", reason: "这个项目里停用了" } : { available: true } });
+  // The aggregate reads each project's plugin manifest by the Host's catalog; the product binds it before serving, and without one
+  // the manifest lookup refuses (T-319). Bind the same owner the test already uses to create its projects.
+  host.configurePersonalPlanning(home, withCatalog);
   t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
   const open = () => host.status().projects.map(project => project.project_id).sort();
   return { host, plugin, a, b, off, closed, open, disabled };

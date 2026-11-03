@@ -1,7 +1,7 @@
 import { treeErrors } from "./goal-tree-errors.js";
 import { randomUUID } from "node:crypto";
-import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeSemanticReview, GoalTreeProposalRecord, GoalTreeProposalDecisionAuthority } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsPlanningApi } from "./contract/goals.js";
+import type { GovernanceApplicationApi, GoalTreeSemanticReview, GoalTreeProposalRecord, GoalTreeProposalDecisionAuthority } from "./contract/governance-collaboration.js";
 import type { NormalizedGoalTreeProposalDecision } from "./goal-tree-decision-inputs.js";
 import type { NormalizedGoalTreeProposalItem } from "./proposal-normalizer.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";

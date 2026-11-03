@@ -9,7 +9,7 @@ import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/m
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
-import { withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PROJECT = "project-judgment-link";

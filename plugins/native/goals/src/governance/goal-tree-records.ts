@@ -1,5 +1,5 @@
 import { treeErrors } from "./errors.js";
-import type { GoalTreeProposalDecisionRecord, GoalTreeProposalItemRecord, GoalTreeProposalRecord, GoalTreeItemOwner, GoalTreeSemanticReview, GovernanceRecordsApi, NewNativeGoalTreeProposal, NewNativeGoalTreeProposalItem } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecisionRecord, GoalTreeProposalItemRecord, GoalTreeProposalRecord, GoalTreeItemOwner, GoalTreeSemanticReview, GovernanceRecordsApi, NewNativeGoalTreeProposal, NewNativeGoalTreeProposalItem } from "../contract/governance-collaboration.js";
 import { randomUUID } from "node:crypto";
 import { json, text, type GovernanceRow } from "./mappers.js";
 import { GovernanceRepository, type GovernanceJournal, type GovernanceSqliteDatabase } from "./repository.js";

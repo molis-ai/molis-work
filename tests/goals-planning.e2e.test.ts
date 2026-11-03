@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";

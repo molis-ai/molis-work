@@ -198,11 +198,11 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 ### PR-B4 项目级监督器条目改成生成（PG-067，单独一个 PR）
 
-- 登记加 `project_runtime?: { create; package_name; factory_export }`（与 `runtime` 分开：Shelf 是双实例，两半都要）。12 条不带端口的条目写进各自的登记；生成的平台文件带出它们；`project-plugins.ts` 只留 Files 一条手写（它要 `readable` 端口，等 PG-005 与 X-5，BL-616），其余按登记生成，库在 Home 的（`manifest.databases.home`）只在有 Home 目录时加，与今天的 `homeLibraryPlugins()` 一致。
+- 登记加 `project_runtime?: { create; package_name; factory_export }`（与 `runtime` 分开：Shelf 是双实例，两半都要）。12 条不带端口的条目写进各自的登记；生成的平台文件带出它们；`project-plugins.ts` 只留 Files 一条手写（它要 `readable` 端口，等 PG-005 与 X-5，BL-616；T-135 已做：那个端口从没被调用，Files 读的浏览目录本来就是 Manifest 声明的 `projects.settings.browsing-workspace.read.v1`，Files 改写 `project_runtime`，手写的一条删掉），其余按登记生成，库在 Home 的（`manifest.databases.home`）只在有 Home 目录时加，与今天的 `homeLibraryPlugins()` 一致。
 - 起停顺序按 `catalog_order`；与今天的顺序不同的地方实现前先核是否有依赖（今天的注释说伴随插件「一起启动」，不靠顺序）。
 - `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED` 改读生成物；`home-runtime-entries.mjs`、`assembly.mjs`、`package-inventory.mjs` 认 `project_runtime`，同样要求字面量的包名与工厂名。`node scripts/gates/package-inventory.mjs --table` 重生成 §5.1 的行。
 - 文档：`AGENTS.md` 硬约束里「项目级的是 `project-plugins.ts` 的监督器条目」改成写在包的登记上；`skills/molis-plugin-dev/host.md`。
-- 实现时核过（10-25）：项目监督器的激活顺序由 `resolvePluginActivation` 按依赖排，名单顺序只决定没有依赖关系的几个谁先；`ProjectPluginState.plugins` 只当集合用（`project-plugin-stages.ts`）。所以名单改成「登记按 `catalog_order`，再接手写的 Files」，与之前的差别（Home 库六个之间、Diff 与 Git 互换、Files 挪到最后）不影响谁能启动。双实例门禁（`scripts/gates/dual-instance.mjs`）同样认 `project_runtime` 为项目一半；Files 一条记 BL-616，`tests/builtin-plugin-assembly-gate.test.ts` 的 `HAND_STARTED` 冻结、只许减少。
+- 实现时核过（10-25）：项目监督器的激活顺序由 `resolvePluginActivation` 按依赖排，名单顺序只决定没有依赖关系的几个谁先；`ProjectPluginState.plugins` 只当集合用（`project-plugin-stages.ts`）。所以名单改成「登记按 `catalog_order`，再接手写的 Files」，与之前的差别（Home 库六个之间、Diff 与 Git 互换、Files 挪到最后）不影响谁能启动。双实例门禁（`scripts/gates/dual-instance.mjs`）同样认 `project_runtime` 为项目一半；Files 一条记 BL-616，`tests/builtin-plugin-assembly-gate.test.ts` 的 `HAND_STARTED` 冻结、只许减少（T-135 已删：Files 按 `catalog_order` 23 排进登记，名单清空后删掉，RAC-571 收紧为监督器不手写启动、不点名插件包）。
 
 ### B 的验收
 
@@ -354,7 +354,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 | PG-024 | A 后：部分（插件按声明删；Images 等 BL-615）；§2.1 合入后已做 |
 | PG-065 | B 后：已做 |
 | PG-066 | A 后：已做（Alchemist 照 BL-376） |
-| PG-067 | PR-B4 后：已做（Files 一条等 BL-616）；描述改成 13 条、只有 Files 带端口 |
+| PG-067 | PR-B4 后：已做（Files 一条等 BL-616）；描述改成 13 条、只有 Files 带端口。T-135 后：Files 也走 `project_runtime`，没有带端口的工厂 |
 | PG-068 | B 后：部分；C 后：已做（额度 0）；W6-01 收冻结名单 |
 | PG-069 | C 后：已做 |
 | PG-072～076 | D 后：已做 |

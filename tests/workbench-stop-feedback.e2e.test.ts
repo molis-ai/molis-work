@@ -62,7 +62,7 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   const stop = ".background-task-command button", alert = ".background-tasks-menu [role=alert]";
   await armResponse(browser, "stop-refused", "/stop", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-refused");
-  command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor("!!document.querySelector('.background-task[data-state=paused]')");
   await releaseResponse(browser, "stop-refused");
   await browser.waitFor(`[...document.querySelectorAll('${alert}')].some(node=>node.textContent.includes('The fixture Runtime refused this stop')) && !document.querySelector('${stop}').disabled`);

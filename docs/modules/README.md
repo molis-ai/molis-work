@@ -7,7 +7,7 @@ Molis Work 是本地优先的插件基座加多个插件，每项事实只有一
 | 类别 | Modules |
 | --- | --- |
 | 基础 | [Identity, Team & Access](identity-team-access.md)、[Projects](projects.md)、[Context Ledger](context-ledger.md)、[Sync & Replication](sync-replication.md) |
-| 信息与个人工作 | [Sources](sources.md)、[Signals](signals.md)、[Feed](feed.md)、[Actions](actions.md)、[Attention & Resumption](attention-resumption.md)、[Shelf](shelf.md)、[Functions](../../modules/functions/README.md)、[Characters](../../modules/characters/README.md) |
+| 信息与个人工作 | [Sources](sources.md)、[Signals](signals.md)、[Feed](feed.md)、[Actions](actions.md)、[Attention & Resumption](attention-resumption.md)、[Shelf](shelf.md)、[Functions](../../modules/judgment-rules/README.md)、[Characters](../../modules/characters/README.md) |
 | 目标与工作上下文 | [Goals](goals.md)、[Private Work Context](private-work-context.md) |
 | 成果与过程项 | [Artifacts](artifacts.md) |
 | 协作与自动化 | [Governance & Collaboration](governance-collaboration.md)、[Automation](automation.md) |

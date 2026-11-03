@@ -1,3 +1,5 @@
+import { pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
+import { pluginHomeFor } from "./home-side.js";
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { pluginProjectsPort } from './plugin-projects-service.js';
@@ -152,7 +154,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       }
       const record = recordFor(pluginId), installed = releaseFor(pluginId);
       if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw new SandboxError('plugin.capability_denied', '模型调用的安装执行身份已失效');
-      return { kind: 'installed', registration: generatedRegistration(installed, releases.versions(installed.buildId), 'enabled', record.version) };
+      return { kind: 'installed', registration: installed.packaged ? pluginAgentRegistration(definition(installed, approvedFor(pluginId) ?? installed.permissions))! : generatedRegistration(installed, releases.versions(installed.buildId), 'enabled', record.version) };
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
@@ -161,14 +163,20 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw, homeDirectory, actorId: options.actorId ?? 'web-user',
     changed: () => { exposureRevision++; }, catalog });
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled,
+    holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId),
     earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
   const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') =>
-    registerGeneratedPrompts(homeDirectory, generatedRegistration(release, release.packaged ? [release] : releases.versions(release.buildId), state, installedVersion(release)), promptScope(recordFor(release.pluginId)!.install_id));
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
+    const record = recordFor(release.pluginId);
+    if (!record || record.version !== installedVersion(release)) return;
+    if (release.packaged) updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), definition(release, approvedFor(release.pluginId) ?? release.permissions), record.install_id, state, restored);
+    else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
+  };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
+      forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
       forgetDefinitions(pluginId);
       // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).
       forgetInstallationConnections(homeDirectory, installId, { kind: "project", project_id: projectId });

@@ -1,15 +1,15 @@
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readProjectGuidance } from "../goal-callers.js";
+import { readProjectGuidance, type ProjectGuidanceFacts } from "../goal-callers.js";
 import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
 import { hostLog } from "../host-log.js";
+import { assistantErrors } from "./assistant-errors.js";
 
 /** The Assistant acts for the local person; its calls are audited as the Assistant's, and its grants are its own. */
 const ASSISTANT_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -76,7 +76,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         await validate?.();
         const now = accepted(await localHost.inspectActions(caller, reference), caller);
         if (!now.some(view => view.capability_id === action.capability_id && view.version === action.version && view.provider.provider_id === action.provider_id)) {
-          throw new ActionError("assistant.action_revoked", "这项能力已对助理关闭或不再可用，未执行");
+          throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用，未执行");
         }
         await validate?.();
       } };
@@ -102,7 +102,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
       check: async (action, input) => {
         const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
-        if (!view) throw new ActionError("assistant.action_revoked", "这项能力已对助理关闭或不再可用");
+        if (!view) throw assistantErrors.action_revoked("这项能力已对助理关闭或不再可用");
         assertActionCommandInput(view, base(), input);
       },
       invoke: async (action, input, signal) => {
@@ -156,7 +156,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
 export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost, "actionClient">, work: StoredWork): Promise<AgentPromptText[]> {
   const reference = work.project_ref;
   if (!reference) return [];
-  let view: ProjectGuidanceView;
+  let view: ProjectGuidanceFacts;
   try { view = await readProjectGuidance(localHost.actionClient(reference), reference); }
   catch { return []; }
   if (view.entries.length === 0) return [];

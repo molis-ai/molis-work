@@ -13,7 +13,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   const b=await openGoalBrowser(t,true); if(!b)return;
   const {command,sessionId,evaluate,click,waitFor,navigate,origin,projectId}=b;
   const catalog=await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-  for(const plugin_id of ["feed","artifacts"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
+  for(const plugin_id of ["feed"])catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:"content-test"});
   catalog.close();
   const app=openProjectVersionStores(b.store);
   installProducers(b.store.db,{plugin_id:"io.example.writer",artifact_types:["io.example.report"]});

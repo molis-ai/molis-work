@@ -1,7 +1,7 @@
 import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isInstructedPrompt, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PLUGIN_MODEL_LIMITS, pluginErrors, type PluginManifest, type PluginModelClient, type PluginModelAvailability, type PluginModelRequest, type PluginModelResult, type PluginModelSelection, type PluginModelImage, type PluginModelChoice, type PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { currentPluginAction, holdPluginModelResult, inPluginInstance, type PluginInstance } from "./action-scope.js";
+import { currentPluginAction, holdPluginResult, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
 /** Sending a request to the model: the action declares it, the installation holds it. */
 const MODEL_INVOKE = "model:invoke";
@@ -125,7 +125,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       const guarded = (validateHost: () => void) => () => { validateCall(); validateHost(); };
       // The platform checks the answer again itself before the call commits anything (PG-047): from inside the call's own checks,
       // which a nested dispatch may run in another scope, so the scope identity is the plugin's own call's to check.
-      const hold = (validateHost: () => void) => holdPluginModelResult(scope, () => { validateAuthority(); validateHost(); });
+      const hold = (validateHost: () => void) => holdPluginResult(scope, () => { validateAuthority(); validateHost(); });
       await authority(caller);
       validateCall();
       let receiving = true;

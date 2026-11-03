@@ -6,7 +6,8 @@ import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirecto
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
-import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
+import { renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -25,18 +26,15 @@ const say = (L: ImmersiveShellPrimitives["L"], template: string, values: Readonl
 
 /**
  * Navigation comes from the Plugin catalog's Manifests, not from a list kept
- * here. Adding a Plugin must never mean editing the shell.
- *
- * `surface` keeps the historical Goals value: the URL surface predates the
- * Manifest id and changing it would break existing links and saved tabs.
+ * here. Adding a Plugin must never mean editing the shell. A plugin's work
+ * surface is its id, Goals' too (T-114).
  */
-const SURFACE_OVERRIDES: Readonly<Record<string, string>> = { goals: "goal" };
 
 function directoryPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
   return railEntries(enabled, directory).map(entry => ({
     id: entry.id,
-    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
-    label: pluginLabel(entry.id, entry.label, inEnglish),
+    surface: entry.surface,
+    label: pluginLabel(entry, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
     rail: entry.rail,
@@ -55,7 +53,7 @@ function pluginLink(
   // A plugin installed at run time has a stage and no directory panel to open.
   const directory = rawPlugin.chosen === false || DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
-  const aria = plugin.id === "home" || plugin.id === "market"
+  const aria = plugin.id === "home"
     ? ` aria-label="${plugin.label}"`
     : ` aria-label="${say(L, "切换到插件：{name}", { name: plugin.label })}"`;
   const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
@@ -73,8 +71,8 @@ function currentListPlugin(directory: string): string {
 function islandPlugins(directory: PluginDirectory, enabled: readonly string[], inEnglish = false) {
   return islandEntries(enabled, directory).map(entry => ({
     id: entry.id,
-    surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
-    label: pluginLabel(entry.id, entry.label, inEnglish),
+    surface: entry.surface,
+    label: pluginLabel(entry, inEnglish),
     glyph: entry.glyph as PluginIconName,
     group: entry.group,
     rail: entry.rail,
@@ -83,21 +81,6 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
 }
 
 /**
- * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
- * the person's own entries (灵光, 对话, 群聊 — reached from anywhere, so they come first),
- * where the work lives (home and the four backbone plugins), which tools this project uses,
- * and at the foot the account with the system settings.
- *
- * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
- * 全部工具 opens the rest in place, grouped, with the ways to extend them at the end. Everything
- * keeps its entry; nothing moves when the list opens. Every entry stays a direct child of the
- * list so the travelling selection chip can reach it.
- *
- * Only the backbone is listed here. Every other Plugin is listed in the group its view names
- * (`group`, W5-06 2b), and one that names none, including one added later, lands in 更多, so adding
- * a Plugin never edits the shell.
- */
-/**
  * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
  * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
  * specs/archive/plugin-e2e-review/spec.md §3.1.
@@ -105,15 +88,6 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
 const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "推进", make: "写与做", personal: "个人", research: "研究", code: "编码" };
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
 
-/**
- * The person's entries, the backbone and this project's tools (recent first, the rest one click away).
- *
- * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
- * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
- * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
- * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
- * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
- */
 /**
  * The plugin keys that go when one goes: `id` plus every member whose companions name something already going. The Projects service
  * applies the same closure on removal, so the Dock and the market both say it from the directory alone.
@@ -128,10 +102,31 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
   return [...going];
 }
 
+/**
+ * The person's entries, the backbone and this project's tools (recent first, the rest one click away).
+ *
+ * Every plugin a project could have is listed once, in its group, as one tile. A tile this project has reads in full
+ * colour and opens its plugin; one it does not have is grey and opens nothing. Each tile carries the same two small
+ * buttons, shown when the tile is looked at (the row yields to them, as DropAgent's directory rows do): keep it in the Dock
+ * (the Dock's list is these buttons; there is no second list), and add it to or remove it from this project. The client
+ * changes a tile's state in place (specs/archive/plugin-picker-dock), so the markup is the same in both states.
+ */
+
+/**
+ * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
+ * where the work lives (the project home, then the backbone plugins), and which tools this
+ * project uses, in the group each plugin's view names (`group`, W5-06 2b): 灵光 leads the
+ * personal group, and one that names no group, including one added later, lands in 更多, so
+ * adding a Plugin never edits the shell.
+ *
+ * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
+ * 全部插件 opens the rest in place, grouped, and the ways to extend them are rendered separately
+ * by `renderPickerExtend`. Everything keeps its entry; nothing moves when the list opens. Every
+ * entry stays a direct child of the list so the travelling selection chip can reach it.
+ */
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
-  personalIsland = "",
   directory: PluginDirectory = builtinPluginDirectory(),
   options: PluginMarketOptions = {},
 ): string {
@@ -146,7 +141,7 @@ export function renderPluginRail(
   const join = (values: readonly string[]) => values.join(L("、"));
   const summaries = pluginStageSummaries();
   // A summary is the Plugin's own text, so it is English in that Plugin's own words and nobody else's.
-  const hints = Object.fromEntries(Object.entries(summaries).map(([id, { plugin_id, summary }]) => [id, withPluginWords(plugin_id, () => L(summary))]));
+  const hints: Record<string, string> = { ...Object.fromEntries(Object.entries(summaries).map(([id, { plugin_id, summary }]) => [id, withPluginWords(plugin_id, () => L(summary))])), [ARTIFACT_NAVIGATION.id]: L(ARTIFACT_NAVIGATION.hint) };
   const names = new Map<string, string>([...entries, ...islands].map(plugin => [plugin.id, plugin.label]));
   const sitesOf = new Map(cards.map(card => [card.id, card.sites]));
   const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);
@@ -207,7 +202,6 @@ export function renderPluginRail(
   const other = tools.filter(plugin => plugin.group === null).map(plugin => tile(plugin, "tool")).join("");
   const toggle = `<button class="immersive-plugin-link plugin-rail-item plugin-rail-toggle" type="button" data-rail-tools-toggle aria-expanded="false" aria-label="${L("全部插件")}" title="${L("全部插件")}">${icon("more")}<span data-rail-toggle-label="${L("收起插件")}">${L("全部插件")}</span></button>`;
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
-    ${personalIsland}
     <div class="plugin-rail-items" data-reload-plugins="${RELOAD_ON_MEMBERSHIP_IDS.join(" ")}">${home}<p class="plugin-rail-group" data-rail-zone="tools">${L(RAIL_GROUP_LABELS[UI_VIEW_GROUPS[0]])}</p>${core}${grouped}${subgroup(L("更多"), other)}${toggle}</div>
   </nav>`;
 }
@@ -284,7 +278,7 @@ export function renderDirectoryPluginSections(
   return `${plugins}${settingsSection}`;
 }
 
-export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean): string {
+export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desktop: boolean, homePlugins: readonly HomePluginNavigationEntry[] = []): string {
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
@@ -292,11 +286,11 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="forward" aria-label="${L("下一步")}" title="${L("下一步")}" disabled>${icon("arrow")}</button>
     </div>
     <strong data-immersive-plugin-title hidden>Goals</strong>
-    <div class="mw-group immersive-goal-tools" data-immersive-goal-tools hidden><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button" type="button" data-work-surface-open="goal" aria-label="${L("打开 Goal 列表")}" title="${L("打开 Goal 列表")}">${icon("list")}</button></div>
+    <div class="mw-group immersive-goal-tools" data-immersive-goal-tools hidden><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button" type="button" data-work-surface-open="goals" aria-label="${L("打开 Goal 列表")}" title="${L("打开 Goal 列表")}">${icon("list")}</button></div>
     <nav class="tab-strip tab-strip--chrome" data-titlebar-tabs aria-label="${L("工作区标签")}"></nav>
     <nav class="container-tabs" data-container-tabs data-overflow-fade aria-label="${L("工作区标签")}" hidden></nav>
     <div class="desktop-titlebar-drag"${desktop ? " data-tauri-drag-region" : ""} aria-hidden="true"></div>
-    ${renderHomePluginNavigation()}
+    ${renderHomePluginNavigation(undefined, homePlugins)}
     <button class="mw-btn mw-btn--ghost background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-background-tasks-count>0</span></button>
   </header>`;
 }
@@ -304,24 +298,6 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
 export function renderWorkspaceChrome(primitives: ImmersiveShellPrimitives, chromeHtml: string): string {
   const { L } = primitives;
   return `<section class="workspace-chrome project-island titlebar-chrome navigator-project" data-workspace-chrome data-titlebar-chrome data-project-island aria-label="${L("当前项目")}">${chromeHtml}</section>`;
-}
-
-export function renderImmersiveGoalHeader(title: string, primitives: ImmersiveShellPrimitives): string {
-  const { L, escapeHtml, icon } = primitives;
-  return `<header class="goal-node-toolbar"><button class="goal-node-back" type="button" data-goal-collapse aria-label="${L("返回 Goal 画布")}" title="${L("返回 Goal 画布")}">${icon("chevron-right")}</button><div class="goal-node-heading"><h1 data-workspace-goal-title tabindex="-1">${escapeHtml(title)}</h1><span data-workspace-goal-status></span></div><div class="mw-toggle-group goal-view-switch" data-slot="toggle-group" role="group" aria-label="${L("Goal 视图")}"><button class="mw-toggle is-current" type="button" data-goal-view-tab="document" aria-pressed="true">${icon("file")}<span>${L("概览")}</span></button><button class="mw-toggle" type="button" data-goal-view-tab="work" aria-pressed="false">${icon("terminal")}<span>${L("终端")}</span></button></div>
-  </header>`;
-}
-
-export function renderGoalDetailsAside(documentHtml: string, primitives: ImmersiveShellPrimitives): string {
-  const { L, icon } = primitives;
-  return `<aside class="goal-details-aside" data-goal-details-aside>
-      <button class="goal-details-toggle" type="button" data-goal-details-toggle aria-expanded="true" aria-label="${L("收起 Goal 信息与时间线")}" title="${L("Goal 信息与时间线")}">${icon("panel")}</button>
-      ${documentHtml}
-    </aside>`;
-}
-
-export function renderImmersiveWorkTabs({ L, icon }: ImmersiveShellPrimitives): string {
-  return `<div class="goal-work-modebar"><div role="tablist" aria-label="${L("工作方式")}"><button type="button" role="tab" id="goal-conversation-tab" aria-selected="false" aria-disabled="true" disabled tabindex="-1" title="${L("对话尚未接入")}" data-goal-work-mode="conversation">${icon("message")}<span>${L("对话")}</span></button><button type="button" role="tab" id="goal-terminal-tab" aria-controls="goal-tui-pane" aria-selected="true" data-goal-work-mode="terminal">${icon("terminal")}<span>${L("终端")}</span></button></div><span data-goal-runtime-status></span></div>`;
 }
 
 export { renderProjectHome } from "./project-home.js";
@@ -352,10 +328,10 @@ export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options
   const marks = new Map(directory.map(entry => [entry.id, entry]));
   const companionsOf = (id: string): readonly string[] => marks.get(id)?.companions ?? [];
   const related = (ids: readonly string[]) => ids.filter(id => cardIds.has(id));
-  const rows = cards.map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => {
+  const rows = cards.map(card => ({ ...card, label: pluginLabel(card, english(primitives)) })).map(plugin => {
     const needs = related(companionsOf(plugin.id).filter(id => id !== plugin.id));
     const neededBy = dependentPlugins(plugin.id, cardIds, companionsOf);
-    return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${withPluginWords(plugin.runtime_id, () => L(plugin.copy))}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`;
+    return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${escapeHtml(plugin.label)}</h2><p>${withPluginWords(plugin.runtime_id, () => L(plugin.copy))}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`;
   }).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1><p>${L("给这个项目添加插件，或打开已经在用的。")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>

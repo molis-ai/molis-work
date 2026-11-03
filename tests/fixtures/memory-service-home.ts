@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { createPrologueNodeAdapter, openPrologueMemoryAdoption, type PrologueNodeAdapterOptions, type PrologueRunRef } from "@molis-ai/molis-work-service-agent-host";
+import { createPrologueNodeAdapter, type PrologueNodeAdapterOptions, type PrologueRunRef } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, type MemoryBackendPort, type MemoryCaller, type MemoryProposal } from "@molis-ai/molis-work-service-memory";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMemoryCaller, AgentMemorySourceSnapshot, AgentMemorySourceRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -98,7 +98,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
   };
   const close = async () => { alive = false; await adapter?.close(); adapter = undefined; ledger?.close(); ledger = undefined; };
   t.after(async () => { await close(); await rm(home, { recursive: true, force: true }); });
-  // Historical rows use the SDK's public storage owner, then explicit offline adoption; no online unclassified-write exception.
+  // RAC-2375: seed current SDK shape 8 via its public storage owner; unknown facts need no historical conversion or online exception.
   const seedUnclassified = async (scope: "user" | "project", ownerId: string, id: string, text: string) => {
     await close();
     const requireSdk = createRequire(new URL("../../horizontal/agent-host/package.json", import.meta.url));
@@ -108,16 +108,10 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
     const storageOwner = `${scope}-${encodeURIComponent(ownerId).replaceAll("%", "_")}`;
     try {
       await runtime.store.commit({ kind: "memories", id: `owner.${storageOwner}.${id}.v1`, expectedVersion: 0,
-        metadata: { scope: `owner.${storageOwner}`, rowId: id, version: 1, state: "active", shape: 2 },
+        metadata: { scope: `owner.${storageOwner}`, rowId: id, version: 1, state: "active", shape: 8 },
         secureBody: new TextEncoder().encode(JSON.stringify({ id, scope, owner: ownerId, version: 1, text, origin: "别处写入", tags: [],
           tombstoned: false, meta: {}, createdAtMs: 100, updatedAtMs: 100 })) });
     } finally { await runtime.shutdown(); }
-    const maintenance = await openPrologueMemoryAdoption({ appVersion: "1.0.0", storageRoot: join(home, "sdk"),
-      scopes: [{ scope, owner: ownerId }], policy: memoryRuntimePolicy(() => owner).policy });
-    try {
-      const page = await maintenance.adopt({ kind: "memory", scope, owner: ownerId });
-      if (page.items.some(item => item.outcome === "needs-reconcile") || page.issues.length) throw new Error("Historical memory could not be adopted");
-    } finally { await maintenance.close(); }
     return open();
   };
   return { home, open, close, seedUnclassified, ledger: () => ledger!, adapter: () => adapter!, memory: () => adapter!.memory!, raw: (caller = person) => backend().withCaller(caller) };

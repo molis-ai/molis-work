@@ -14,9 +14,13 @@ import type {
 export interface UiPlacedView {
   plugin_id: string;
   plugin_title: string;
+  /** The plugin's name in the English interface (its Manifest `name_en`); absent when it declares none. Never read for a view's own title. */
+  plugin_title_en?: string;
   view_id: string;
   slot: UiViewSlot;
   title: string;
+  /** The view's title in the English interface (its `title_en`); absent when it declares none. Never filled from `plugin_title_en`. */
+  title_en?: string;
   contribution_id: string;
   icon: string | null;
   accepts_objects: boolean;
@@ -35,6 +39,7 @@ export interface UiPlacedView {
 export interface UiViewRegistryManifest {
   readonly plugin_id: string;
   readonly name: string;
+  readonly name_en?: string;
   readonly ui: { readonly views?: readonly UiViewDeclaration[] };
 }
 
@@ -66,9 +71,11 @@ export class UiViewRegistry {
         views.push({
           plugin_id: manifest.plugin_id,
           plugin_title: manifest.name,
+          ...(manifest.name_en !== undefined ? { plugin_title_en: manifest.name_en } : {}),
           view_id: view.view_id,
           slot: view.slot,
           title: view.title,
+          ...(view.title_en !== undefined ? { title_en: view.title_en } : {}),
           contribution_id: view.contribution_id ?? defaultContributionId(manifest, view.view_id),
           icon: view.icon ?? null,
           accepts_objects: view.accepts_objects === true,

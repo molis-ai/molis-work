@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { mock } from "node:test";
-import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-judgment-rules";
 
 const conflict = (error: unknown) => (error as { code?: string }).code === "functions.conflict";
 

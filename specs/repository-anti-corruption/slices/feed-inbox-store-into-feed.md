@@ -75,7 +75,7 @@ export interface FeedSql {
 ```ts
 export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
   store_name: "feed",
-  version: 2,
+  version: 1,
   schema: [FEED_OUT_RULES_SCHEMA_SQL, FEED_ITEMS_SCHEMA_SQL, SOURCES_SCHEMA_SQL, SIGNALS_SCHEMA_SQL, LISTENER_SCHEMA_SQL].join("\n"),
   read_permission: "storage:private",
   write_permission: "storage:private",
@@ -86,14 +86,11 @@ export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 - 表名、列、约束、索引、`IF NOT EXISTS` 与原来**逐字相同**；数据不动，不重命名任何表（Goals S8 同法）。唯一允许的差别是 schema 字符串的拼接位置。
 - 权限：`storage:private`，与现有 `feed_out_rules` 一致。Feed 的 Manifest 里本来就声明了。
 
-### 3.4 基线 v10 → v11 与真实 Home 的维护
+### 3.4 当前起点与真实 Home
 
-- `PROJECT_DATABASE_BASELINE.version` 10 → 11，数组里去掉 `SOURCES_SCHEMA_SQL`、`SIGNALS_SCHEMA_SQL`、`LISTENER_HOST_SCHEMA_SQL`、`FEED_SCHEMA_SQL`；文件头注释加「Feed 的表也不在这里：Feed 声明它们（FI-5）」。
-- **新库**：以 v11 出生，Feed 的声明在第一次打开时由平台建表、写 `plugin_project_databases` 的 `feed` 行（版本 2，`tables_json` 列 12 张表）。
-- **存量库（真实 Home）**：基线只认现行版本，不读取时兜底（`AGENTS.md` 硬约束）。所以 v10 库要**维护一次**：停宿主、整份备份后，对每个项目库在一个事务里：把 `PRAGMA user_version`（基线版本存在这里，`packages/storage/src/sqlite-baseline.ts`）改为 11，把 `plugin_project_databases` 里 `feed` 那一行从版本 1 改为 2、`tables_json` 改为 12 张表。**表和数据一行都不动**，因为 11 张表本来就在库里。这是一次只改两处记录的维护，没有数据搬迁。
-- 夹具与演练，照 `tests/project-maintenance-v10.test.ts`、`tests/fixtures/project-maintenance-v9.sql` 的做法：`tests/fixtures/project-maintenance-v10.sql`（一个真实形状的 v10 库，含 Feed 的各类行）、`tests/project-maintenance-v11.test.ts`（维护后库按 v11 打开，Feed 的数据逐行相等，`feed` 声明行是版本 2，Feed 不被拒，其余插件的声明行不变；维护前的库被 v11 的宿主拒绝打开，而不是被悄悄升级）。
-- `docs/releases/CHECKLIST.md` 加一行「项目库 v10 → v11（Feed 的表归 Feed 声明，FI-5）」，措辞与已有 v8/v10 两行同口径；**时段归用户**，与 W5-17 同一次维护窗口排（见 §5 要用户定的事）。
-- **版本号 v11 是暂定的**：Goals S9-2、PG-017 P2e 等分支也可能动基线。合入顺序决定最终号，号冲突时后合入的顺延，测试文件名与 CHECKLIST 行跟着改。
+用户2026-10-30决定干净重建（统筹 #1332 6517794305）：项目库原现行11和Feed声明原现行2都归起点1，保留全部现行DDL。旧逐库升级路线取消，升级脚本、旧结构夹具和演练删除；旧Home整个搬开后新建，实际执行等全部代码就绪后用户另说“开始”。不新增读取兼容或启动升级。
+
+新库的平台基线不含Feed表，Feed声明建齐12表并记账本1；版本/表形状不符仍只拒绝Feed。独立现行完整DDL对照、拒绝和owner断言在 `tests/feed-store-declaration.test.ts`、`tests/project-database-baseline.test.ts`；不再用旧结构作为当前schema的证明。
 
 ### 3.5 其余清理
 
@@ -104,8 +101,8 @@ export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 
 ## 4. 验收（暂定号）
 
-- **RAC-496**：声明与旧基线逐表同形。同一份 schema 两种建法——v10 基线建出的库，与 v11 基线加 Feed 声明建出的库——比较 `sqlite_master` 里 11 张表与 11 条索引的 `sql` 逐字相等（去掉声明新增的 `feed_out_rules` 之外的差别为零）；基线 v11 不再建这些表（只有基线的库里 `feed_items` 等不存在），声明建出的库里在；v10 库被 v11 宿主拒绝打开。`tests/feed-store-declaration.test.ts`。
-- **RAC-497**：被拒只停 Feed。把一个项目库里 `feed` 声明行改成版本 1 或让表形状不符，Feed 的动作报「库被拒」，同一个库里 Goals 与别的插件不受影响，项目照常打开；基线不再有这 11 张表，所以没有「基线建了它又被声明覆盖」的情形。`tests/feed-store-declaration.test.ts`；维护演练 `tests/project-maintenance-v11.test.ts`（记录改动、数据逐行相等、旧库被拒）。
+- **RAC-496**：声明表和现行完整项目DDL逐项同形；平台基线无Feed表，声明建齐12表，版本1。`tests/feed-store-declaration.test.ts`，使用独立现行场景DDL并比较完整schema。
+- **RAC-497**：Feed账本版本改成非现行2或表形状不符时只停Feed，Goals和其他插件不受影响；不在读取时修补。`tests/feed-store-declaration.test.ts`，原升级演练已取消删除。
 - **RAC-498**：四个包没有了，Feed 的存储层只经 `FeedSql`。`workspace-packages.mjs` 没有这四条，`apps/local-host`、测试不再 import 它们（门禁：包清单表与登记表一致，`package-inventory`）；`plugins/native/feed/src/store/` 不 import `better-sqlite3`、`@molis-ai/molis-work-storage` 的连接类型；存储层构造器不执行建表语句（测试：对一个**没有这些表**的 `FeedSql` 构造 Module 不报错、不建表）；9 个原 import 这些包的测试改路径后原样过（断言不放宽）。
 
 另有搬迁等价性的证据，不单独编号：搬迁那一步（§3.1 第 1 步）完成时，跑一遍 §6 的必跑文件，之后每一步结束再跑，PR 里写每一步的结果。
@@ -119,7 +116,7 @@ export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 ## 6. 号段、必跑文件、开工前核对
 
 - 号段：RAC-496～498（RAC-480～519 本线号段内，统筹 10-24 定）。BL 不新增。
-- 必跑（非浏览器，测试槽、`--jobs 1`）：上面 9 个原 import 文件、`tests/feed-store-declaration.test.ts`、`tests/project-maintenance-v11.test.ts`、`tests/project-database-baseline.test.ts`、`tests/project-plugin-database-refusal.test.ts`、`tests/plugin-project-database.test.ts`、`tests/plugin-project-database-ledger.test.ts`、Goals S8 的先例用例 `tests/goals-project-database*.test.ts`、动作合同快照 `tests/action-contract-snapshot.test.ts`、内置装配门禁 `tests/builtin-plugin-assembly-gate.test.ts`；门禁 `boundary:check`、`check-health-gates --base origin/main`、`secrets:check`、`package-inventory --table`、`package-owners --write`。
+- 必跑（非浏览器，测试槽、`--jobs 1`）：上面 9 个原 import 文件、`tests/feed-store-declaration.test.ts`、`tests/project-database-baseline.test.ts`、`tests/project-plugin-database-refusal.test.ts`、`tests/plugin-project-database.test.ts`、`tests/plugin-project-database-ledger.test.ts`、Goals S8 的先例用例 `tests/goals-project-database*.test.ts`、动作合同快照 `tests/action-contract-snapshot.test.ts`、内置装配门禁 `tests/builtin-plugin-assembly-gate.test.ts`；门禁 `boundary:check`、`check-health-gates --base origin/main`、`secrets:check`、`package-inventory --table`、`package-owners --write`。
 - 开工前核对：`git log origin/main -- modules/feed modules/sources modules/signals horizontal/listener-host apps/local-host/src/project-database-schema.ts` 有没有在途 PR 碰；基线版本号现在是不是还是 10（别的分支可能已改）；§1.2 的 grep 再跑一次。
 
 ## 7. 实现记录（与上文的差别，FI-5 实现时补）
@@ -127,8 +124,8 @@ export const FEED_PROJECT_DATABASE: PluginDatabaseDeclaration = {
 - **语句逐个核对（§3.2 欠的那一项）**：四个包里 `prepare(` 的真实调用共 63 处（Feed 条目 21、Sources 9、Signals 10、Listener Host 23，另有 4 处是接口声明、1 处是 `sqlite_master` 检查），全部改成 `db.get/all/run(sql, …params)`；没有任何一个语句或对象在构造器里建好并缓存（原来唯一的游离语句是 `persistListenerDeliveries` 里的 `insert`，现在是常量 `INSERT_LISTENER_DELIVERY_SQL` 加 `db.run`）。构造器不再 `db.exec` 建表（4 处）。
 - **`fromBetterSqlite` 有两个签名**：带 `transaction` 的句柄得到完整的 `FeedSql`；只能 `prepare` 的句柄（`feed-history-release.ts` 的 `Pick<Database, "prepare">`）得到去掉 `transaction` 的读写接口。`transaction` 用 `.immediate()`，与原来的 `db.transaction(op).immediate()` 同。
 - **`sqlite_master` 的检查搬到宿主**：`refreshSourceConnectionState` 不再自己问「`feed_sources` 在不在」（它按声明表一定在）；`apps/local-host/src/connector-source-state.ts` 遍历目录库里所有项目库，其中还没被 Feed 声明建出表的库（没打开过的新项目）在宿主那一侧跳过。这是宿主自己的连接，不经受检客户端。该文件随 FI-6、FI-4 删除。
-- **被拒只停 Feed（RAC-497）靠 `feedSql(db)`**：`feed-application.ts` 导出的包装在每次读写前 `assertProjectPluginDatabase(db, FEED_PLUGIN_ID)`，库拒绝了 Feed 的声明就抛那个拒绝，而不是「no such table」。以前「出规则的表被拒、其余 Feed 照常」的写法（`projectPluginDatabaseRefusal(...) ? {} : { outRules }`）仍在：被拒时出规则列表是空，快照/来源/条目的路径抛拒绝。（2026-10-28 补：FI-6 删了 `feed-application.ts`，这一层随之没有了；被拒的 Feed 由项目插件监督器不启动，动作不进目录，由 `tests/project-plugin-database-refusal.test.ts` PLIB-04 的 Feed 一例证明，`feed-store-declaration` 的 RAC-497 只留库这一层。）
+- **被拒只停 Feed（RAC-497）曾靠 `feedSql(db)`**：`feed-application.ts` 导出的包装在每次读写前断言项目库拒绝（逐次断言函数，T-286 已删），库拒绝了 Feed 的声明就抛那个拒绝，而不是「no such table」。以前「出规则的表被拒、其余 Feed 照常」的写法（`projectPluginDatabaseRefusal(...) ? {} : { outRules }`）仍在：被拒时出规则列表是空，快照/来源/条目的路径抛拒绝。（2026-10-28 补：FI-6 删了 `feed-application.ts`，这一层随之没有了；被拒的 Feed 由项目插件监督器不启动，动作不进目录，由 `tests/project-plugin-database-refusal.test.ts` PLIB-04 的 Feed 一例证明，`feed-store-declaration` 的 RAC-497 只留库这一层。2026-10-30 补：T-286 删掉那个没有调用方的逐次断言函数，被拒只停它自己由启动时的 `withoutRefusedPlugins` 与 RAC-497 守着。）
 - **常量改名**：`FEED_SCHEMA_SQL` → `FEED_ITEMS_SCHEMA_SQL`（与 `FEED_OUT_RULES_SCHEMA_SQL` 并排）、`LISTENER_HOST_SCHEMA_SQL` → `LISTENER_SCHEMA_SQL`，只在包内与声明里用。
 - **原 import 这些包的 9 个测试**只改了 import 路径和 `fromBetterSqlite(…)` 的包装；`context-ledger.test.ts` 的测试台自己造库，所以多一行 `db.exec(FEED_ITEMS_SCHEMA_SQL)`（表是声明建的，存储层不再建）。断言一条没改。
-- **随基线 v11 改的既有测试**：`project-database-baseline.test.ts`（版本 11、Feed 账本版本取声明的版本、PLIB-02 里 `boards → project_root` 改名后外键按表和列重排，否则 Feed 的两个外键顺序对不上）、`project-maintenance-v8/v9/v10.test.ts`（链子末端多一步 v11；v10 的结果拿 v10 夹具比，而不是现行基线）。
+- **现行基线测试**：`project-database-baseline.test.ts` 保留project_root归属与完整插件schema，Feed账本为现行声明1；原逐版本升级测试已按干净重建决定删除。业务历史场景使用现行DDL1，业务INSERT不改写。
 - **号**：RAC-496～498 用于 `tests/feed-store-declaration.test.ts`；维护演练的用例号是 RAC-497、RAC-514（FI-6 稿里的维护演练号）。

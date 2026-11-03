@@ -27,6 +27,8 @@ import { pluginInstallationsFor, type InstallationDirectoryClient } from "./plug
 import { pluginEvidenceCollectorFor } from "./plugin-evidence-collector.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+import { forgetSandboxImageBindings, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
+import { withSandboxModelSettings } from "./sandbox-model-settings.js";
 import { pluginLocalToolsFor } from "./plugin-local-tools-service.js";
 import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
@@ -99,8 +101,10 @@ export class HomePluginExecutor implements PluginExecutor {
     let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
     let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
     const dispose = () => {
-      active = false; stopped = true; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); background?.close(); withdrawCaller?.();
+      active = false; stopped = true;
       const failures: unknown[] = [];
+      try { terminal?.dispose(); } catch (error) { failures.push(error); }
+      withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.();
       for (const release of [() => database?.close(), () => sandboxLibrary?.close(), () => partitions?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
@@ -131,8 +135,10 @@ export class HomePluginExecutor implements PluginExecutor {
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
       withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants));
       const authorized = { ...context, requireGrant: authorize };
-      const model = pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置"));
-      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
+      // A sandboxed package has no `model_configuration` or `image_generation` block: its settings and image connections are derived from its contract's effects (BL-491).
+      const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);
+      const imageGeneration = sandboxImageGenerationFor(home, definition, authorized, assertActive)
+        ?? pluginImageGenerationFor(home, definition, authorized, givenService(definition, manifest.image_generation, this.options.imageGeneration(definition), "图片生成"), assertActive);
       const localTools = pluginLocalToolsFor(definition, authorized, assertActive);
       const projects = pluginProjectsFor(definition, authorized, this.options.home, assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
@@ -146,7 +152,7 @@ export class HomePluginExecutor implements PluginExecutor {
       background = pluginBackgroundFor(definition, authorized, assertActive, { actor_id: this.options.actorId, record: activeRecord });
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
-      terminal = pluginTerminalFor(this.options.home, manifest, authorized, ownerFiles?.client, assertActive);
+      terminal = pluginTerminalFor({ home: this.options.home, manifest, context: authorized, ownerFiles: ownerFiles?.client, assertActive });
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
         ui: ui.client, interaction: pluginInteraction, terminal: terminal?.client, database: (partitions ?? database)?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
@@ -158,7 +164,7 @@ export class HomePluginExecutor implements PluginExecutor {
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await (background ? background.starting(() => definition.start(given)) : definition.start(given));
-      this.sessions.set(context.install_id, { context: given, revoke: () => { active = false; withdrawPages?.(); terminal?.dispose(); directory?.dispose(); background?.close(); withdrawCaller?.(); }, dispose, partitions, background });
+      this.sessions.set(context.install_id, { context: given, revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }
@@ -203,7 +209,10 @@ export class HomePluginExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
     directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
-    if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+    if (record.execution === "sandbox" && !record.retain_private_data) {
+      removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
+      forgetSandboxImageBindings(this.options.home, record.install_id);
+    }
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }
   prepareReinstall(record: PluginInstanceRecord): void {

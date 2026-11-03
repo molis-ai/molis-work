@@ -406,6 +406,17 @@ test("RAC-1678: adopting a candidate keeps its whole why as the source's reason,
   assert.equal(reviewed.decision?.reason, reason, "the ignored candidate keeps its 100-character reason whole");
 });
 
+// T-222: organizing shares the materials of one request among model calls by counting each in whole characters, as it reads them. A 🟢 is one
+// character but two UTF-16 units; a family of three people joined by zero-width joiners is five characters (code points) and eight units.
+/** What the model was given in one call, read back from the one JSON line between BEGIN_ and END_ in the prompt's data (RAC-1698 and T-222 read the
+ * same line; `other` is that text without its 🟢, which RAC-1698 alone checks). */
+const givenMaterials = (prompt: InstructedPrompt) => {
+  const lines = prompt.data.split("\n");
+  const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
+  return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length,
+    other: [...entry.text].filter(character => character !== "🟢").join("") }));
+};
+
 test("RAC-1698: organizing reads a material's first 60000 whole characters: the model gets no half character, and only a material over 60000 characters is marked as partly read", async t => {
   // One 🟢 is one character but two UTF-16 units. The first material is "a" and 60000 of them: 60001 characters, one more than organizing
   // reads. Cut at 60000 units it would end with the first half of the 30000th 🟢; cut at 60000 characters it is "a" and 59999 of them.
@@ -413,30 +424,15 @@ test("RAC-1698: organizing reads a material's first 60000 whole characters: the 
   const long = { title: "六万零一个字的材料", text: "a" + "🟢".repeat(60_000) }, whole = { title: "四万个字的材料", text: "🟢".repeat(40_000) };
   const f = fixture(t, () => JSON.stringify({ candidates: [], reference_only: [] }));
   const { batch } = await f.me.invoke(organize.extract, { materials: [long, whole] });
-  // What the model was given of each material, read back from the one JSON line between BEGIN_ and END_ in the prompt's data.
-  const given = (prompt: InstructedPrompt) => {
-    const lines = prompt.data.split("\n");
-    const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
-    return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length,
-      other: [...entry.text].filter(character => character !== "🟢").join("") }));
-  };
   assert.equal(f.prompts.length, 2, "each of the two materials is a part of its own, as before");
-  assert.deepEqual(given(f.prompts[0]!), [{ material: 1, characters: 60_000, units: 119_999, other: "a" }],
+  assert.deepEqual(givenMaterials(f.prompts[0]!), [{ material: 1, characters: 60_000, units: 119_999, other: "a" }],
     "the model gets the first 60000 whole characters of the long material, no half character");
-  assert.deepEqual(given(f.prompts[1]!), [{ material: 2, characters: 40_000, units: 80_000, other: "" }],
+  assert.deepEqual(givenMaterials(f.prompts[1]!), [{ material: 2, characters: 40_000, units: 80_000, other: "" }],
     "the model gets all 40000 characters of the shorter material");
   assert.deepEqual(batch.materials.map(material => material.read), ["truncated", "read"], "only the material over 60000 characters is marked as partly read");
   assert.deepEqual(batch.materials.map(material => material.note), ["只读了前 60000 字", ""], "only that material says it read the first 60000 characters");
 });
 
-// T-222: organizing shares the materials of one request among model calls by counting each in whole characters, as it reads them. A 🟢 is one
-// character but two UTF-16 units; a family of three people joined by zero-width joiners is five characters (code points) and eight units.
-/** What the model was given in one call, read back from the one JSON line between BEGIN_ and END_ in the prompt's data (as RAC-1698 reads it). */
-const givenMaterials = (prompt: InstructedPrompt) => {
-  const lines = prompt.data.split("\n");
-  const { materials } = JSON.parse(lines[lines.findIndex(line => line.startsWith("BEGIN_MATERIALS_")) + 1]!) as { materials: { material: number; text: string }[] };
-  return materials.map(entry => ({ material: entry.material, characters: [...entry.text].length, units: entry.text.length }));
-};
 const ofText = (text: string, extra: { title?: string; read?: "failed" } = {}) => ({ title: extra.title ?? "材料", text, ...(extra.read ? { read: extra.read } : {}) });
 const emoji = (count: number) => ofText("🟢".repeat(count));
 const plain = (count: number, character = "x") => ofText(character.repeat(count));
@@ -475,7 +471,7 @@ test("RAC-2157: organizing gives the model materials of 🟢 together as far as 
   // Each is 15000 characters and 30000 units. Two are 30000 characters and share a call; a third would make 45000, over the 40000 a call is given, and goes in the next.
   const f = fixture(t, nothing);
   const { batch } = await f.me.invoke(organize.extract, { materials: [{ ...emoji(15_000), title: "甲" }, { ...emoji(15_000), title: "乙" }, { ...emoji(15_000), title: "丙" }] });
-  assert.deepEqual(f.prompts.map(givenMaterials), [
+  assert.deepEqual(f.prompts.map(prompt => givenMaterials(prompt).map(({ material, characters, units }) => ({ material, characters, units }))), [
     [{ material: 1, characters: 15_000, units: 30_000 }, { material: 2, characters: 15_000, units: 30_000 }],
     [{ material: 3, characters: 15_000, units: 30_000 }],
   ], "materials 1 and 2 go to the first call, whole, and material 3 to the second");
@@ -518,4 +514,75 @@ test("RAC-2159: the most one call carries: 40000 characters of 🟢 shared by se
     const prompt = [...modelPromptText(f.prompts[0]!)].length;
     assert.ok(prompt <= HOST_PROMPT_MAX_CHARS, `${name}: the whole prompt is ${prompt} characters, within the ${HOST_PROMPT_MAX_CHARS} the Host allows`);
   }
+});
+
+test("RAC-2413: one organizing call whose data is over the prompt's data slot is refused before dispatch, saying by how much", async t => {
+  // Materials are split into 40,000-character calls, so a big batch is not refused as a whole (RAC-2158 keeps that). The data of one call
+  // also carries every existing todo, and that count has no limit: here 700 todos of 200 characters push one call's data over the 180,000
+  // the Host leaves for data. The refusal comes before any model call or batch record and counts characters, saying how much over it is.
+  const f = fixture(t, nothing);
+  for (let index = 0; index < 700; index += 1) await f.me.invoke(todoActions.create, { title: `已有待办 ${"字".repeat(190)} ${index}` });
+  const refused = await f.me.invoke(organize.extract, { materials: [ofText("请周五前发新版方案。")] })
+    .then(() => null, (caught: unknown) => caught as { code?: string; message?: string });
+  assert.ok(refused, "the call is refused instead of being sent over the Host's limit");
+  assert.equal(refused.code, "todo.invalid");
+  assert.match(refused.message ?? "", /超过数据位 180000 字，多 \d+ 个字/, "the refusal counts characters and says how much over it is");
+  assert.equal(f.prompts.length, 0, "nothing is sent to the model");
+  assert.deepEqual((await f.me.invoke(organize.list, { status: "all" })).batches, [], "no batch record is written");
+});
+
+test("RAC-2414: every shard is checked before the first model call, so a later shard over the data position refuses the whole call", async t => {
+  // The approved criterion (A): every organizing call's prompt.data is checked before the first model call and before a batch is written.
+  // About 150,000 characters of existing todos keep the first shard (the one small material) under the 180,000 data position; the second
+  // shard carries the 40,000-character material and is over it. The whole call is refused with nothing sent and no batch recorded.
+  const f = fixture(t, nothing);
+  for (let index = 0; index < 500; index += 1) await f.me.invoke(todoActions.create, { title: `已有待办 ${"字".repeat(190)} ${index}` });
+  const refused = await f.me.invoke(organize.extract, { materials: [ofText("先看这条。"), ofText("字".repeat(40_000))] })
+    .then(() => null, (caught: unknown) => caught as { code?: string; message?: string });
+  assert.ok(refused, "a later shard over the data position refuses the call");
+  assert.equal(refused.code, "todo.invalid");
+  assert.match(refused.message ?? "", /超过数据位 180000 字/, "the refusal names the data position it is over");
+  assert.equal(f.prompts.length, 0, "nothing is sent to the model: every shard is checked first");
+  assert.deepEqual((await f.me.invoke(organize.list, { status: "all" })).batches, [], "no batch record is written");
+});
+
+test("TODO-ORGANIZE-DATA-LIMIT: the pre-check lets a part whose data is exactly the data position through and refuses one character more", async t => {
+  // The pre-check refuses a part whose prompt.data is over the port's data position (180,000 characters). The boundary is exact: exactly
+  // 180,000 passes and is dispatched; 180,001 is refused saying it is one character over. The answer is a plain one-candidate reply whose
+  // evidence is in the material, so a passing probe really runs the model and a batch is written.
+  let answer = "";
+  const f = fixture(t, () => answer);
+  for (let index = 0; index < 480; index += 1) await f.agent.invoke(todoActions.create, { title: `已有待办 ${"字".repeat(190)} ${index}` });
+  const answerCandidate = (title: string) => JSON.stringify({ candidates: [{ ref: "r1", kind: "request", title: "长材料", owner: { who: "你", stated: true },
+    due: { date: null, time: null, phrase: null }, evidence: [{ material: 1, excerpt: "xxx" }], uncertain: [], depends_on: [] }], reference_only: [] });
+  answer = answerCandidate("长材料");
+  /** Extract with a material of `length` ASCII characters and report either the refused over-count or the prompt data's character count. */
+  const probe = async (length: number): Promise<{ refused: number } | { dataChars: number }> => {
+    f.prompts.length = 0;
+    const outcome = await f.agent.invoke(organize.extract, { materials: [{ title: "长材料", text: "x".repeat(length) }] })
+      .then(value => ({ ok: true as const, value }), error => ({ ok: false as const, error: error as Error & { code?: string; message?: string } }));
+    if (!outcome.ok) {
+      assert.equal(outcome.error.code, "todo.invalid", "only the data position refuses at this point");
+      const over = /多 (\d+) 个字/u.exec(outcome.error.message ?? "");
+      assert.ok(over, `the refusal says how far over it is: ${outcome.error.message}`);
+      return { refused: Number(over[1]) };
+    }
+    const data = f.prompts.at(-1)?.data;
+    assert.ok(typeof data === "string", "a passing probe dispatched the model once");
+    return { dataChars: [...data].length };
+  };
+  // Find the material length whose data is exactly the data position by walking the reported over/under amounts (deterministic, no sleeps).
+  let length = 30_000, exact = 0;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const result = await probe(length);
+    if ("refused" in result && result.refused === 0) {
+      assert.fail("a part whose data is exactly at the data position is dispatched, not refused");
+    }
+    const dataChars = "dataChars" in result ? result.dataChars : 180_000 + result.refused;
+    if ("dataChars" in result && dataChars === 180_000) { exact = length; break; }
+    length += 180_000 - dataChars;
+  }
+  assert.ok(exact > 0, "a material length whose part data is exactly 180,000 characters was found");
+  const refused = await probe(exact + 1);
+  assert.deepEqual(refused, { refused: 1 }, "one character over the data position is refused, saying it is one character over");
 });

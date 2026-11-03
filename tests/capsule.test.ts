@@ -7,7 +7,7 @@ import { createLocalHostCapsule, LocalProjectDatabase } from "@molis-ai/molis-wo
 import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
 const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(renderDesktopCapsuleShell);
 import { eventDirectoryPresentation, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 

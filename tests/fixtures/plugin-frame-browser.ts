@@ -7,6 +7,32 @@ import type { openGoalBrowser } from "./goal-browser.js";
 type Browser = Pick<NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, "command" | "on" | "evaluate" | "sessionId">;
 type Context = { id: number; auxData?: { frameId?: string; isDefault?: boolean } };
 
+/** One line about the browser and window an input failure happened in; a value that could not be read is "unavailable". */
+export const inputDeliveryDetails = (values: { chrome?: string; window?: string; inner?: string }): string =>
+  "; chrome=" + (values.chrome ?? "unavailable") + "; window=" + (values.window ?? "unavailable") + "; inner=" + (values.inner ?? "unavailable");
+
+/** The protocol surface the failure diagnostics need; it is only read after an input was not delivered, never on the happy path. */
+export type InputDeliverySource = Pick<Browser, "command" | "evaluate" | "sessionId">;
+
+/** The browser product, its target window bounds and the page viewport; a read that fails is left undefined and reads "unavailable". */
+export async function inputDeliveryValues(browser: InputDeliverySource): Promise<{ chrome?: string; window?: string; inner?: string }> {
+  const attempt = async <T>(read: () => Promise<T>): Promise<T | undefined> => {
+    try { return await read(); }
+    catch { /* The delivery failure is reported anyway; a missing diagnostic reads "unavailable". */ return undefined; }
+  };
+  const version = await attempt(() => browser.command<{ product?: string }>("Browser.getVersion"));
+  const target = await attempt(() => browser.command<{ targetInfo?: { targetId?: string } }>("Target.getTargetInfo", {}, browser.sessionId));
+  const targetId = target?.targetInfo?.targetId;
+  const frame = targetId ? await attempt(() => browser.command<{ bounds?: { left: number; top: number; width: number; height: number } }>("Browser.getWindowForTarget", { targetId })) : undefined;
+  const viewport = await attempt(() => browser.evaluate<{ width: number; height: number }>("({width: innerWidth, height: innerHeight})"));
+  const bounds = frame?.bounds;
+  return {
+    chrome: version?.product,
+    window: bounds ? bounds.left + "," + bounds.top + " " + bounds.width + "x" + bounds.height : undefined,
+    inner: viewport ? viewport.width + "x" + viewport.height : undefined,
+  };
+}
+
 /** Serve observation before the unmodified production bridge. Opaque srcdoc targets can attach after their scripts ran. */
 export function observePluginFrames(server: Server): (source: string) => void {
   let source = "";
@@ -198,9 +224,9 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
         // The child can be ready before its owner finishes a tab switch or resize. Never dispatch through an overlay.
         await new Promise(resolve => setTimeout(resolve, 40));
       }
-      throw new Error("Input was not delivered to plugin frame: " + target + "; covered=" + JSON.stringify(covered));
+      throw new Error("Input was not delivered to plugin frame: " + target + "; covered=" + JSON.stringify(covered) + inputDeliveryDetails(await inputDeliveryValues(browser)));
     } catch (error) {
-      const failure = Date.now() >= deadline ? new Error("Input was not delivered to plugin frame within 10000ms: " + target, {cause:error}) : error;
+      const failure = Date.now() >= deadline ? new Error("Input was not delivered to plugin frame within 10000ms: " + target + inputDeliveryDetails(await inputDeliveryValues(browser)), {cause:error}) : error;
       failures.push(failure);
       throw failure;
     } finally {

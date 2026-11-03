@@ -3,7 +3,7 @@ import type {
   GoalTreeProposalDecisionRecord,
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
-} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+} from "../contract/governance-collaboration.js";
 
 export type GovernanceRow = Record<string, unknown>;
 

@@ -20,12 +20,13 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.match(html, /data-market-scope="all"/);
   assert.match(html, /data-market-scope="added"/);
   assert.match(html, /class="plugin-market-list"/);
-  assert.match(html, /data-market-add="artifacts"/);
-  assert.match(html, /data-market-runtime-id="io\.molis\.work\.artifacts"/);
+  assert.match(html, /data-market-add="coding"/);
+  assert.match(html, /data-market-runtime-id="io\.molis\.work\.coding"/);
+  assert.doesNotMatch(html, /data-market-add="artifacts"/);
   assert.match(html, /data-market-version hidden/);
   assert.match(html, /#icon-rss/);
   assert.match(html, /#icon-inbox/);
-  assert.match(html, /#icon-package/);
+  assert.match(html, /#icon-code/);
   assert.doesNotMatch(html, />Molis Work</);
   assert.doesNotMatch(html, /plugin-market-grid/);
   assert.doesNotMatch(html, /仅看已添加/);
@@ -76,4 +77,10 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(script, /\[data-feed-rows\]/);
   assert.doesNotMatch(script, /feedList\.insertBefore\(wrap, feedEmpty\)/);
   new Function(script);
+});
+
+test("RAC-1824 the market entry is looked for in the switcher's own group, and the update dot is lit on the switcher alone", () => {
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(`const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"]');`), "the market entry has one place to be found");
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(`updateCount.closest(".plugin-picker")?.toggleAttribute("data-market-updates", updates.length > 0);`), "the dot is lit on the switcher");
+  assert.doesNotMatch(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /data-plugin-strip\] \[data-plugin-id="market"\]|account-global-menu/, "neither the rail nor an account menu is looked at");
 });

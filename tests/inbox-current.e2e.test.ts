@@ -8,7 +8,7 @@ import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService } from "../apps/local-host/dist/judgment-rules-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";

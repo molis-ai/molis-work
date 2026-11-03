@@ -124,6 +124,22 @@ test("RAC-902 the workbench's terminal entry and platform terminal import no plu
   assert.doesNotMatch(entry, /Shelf|Character|Goal/iu, "the entry lists no client of any plugin or Host surface");
 });
 
+test("RAC-2566 the workbench's terminal client only attaches: no spawn carries a program, folder or environment, and no Host panel route is named", () => {
+  const files = [join(ROOT, "apps/workbench/src/terminal-client.ts"), ...sources(join(ROOT, "apps/workbench/src/terminal"))];
+  let attaches = 0;
+  for (const file of files) {
+    const text = readFileSync(file, "utf8");
+    // Every message that names `spawn`, up to the object's end: only `panelId`, size and `attachOnly: true`, never a program to start.
+    for (const [message] of text.matchAll(/type: "spawn",?[^}]*\}/gu)) {
+      attaches++;
+      assert.match(message, /attachOnly: true/u, `${file}: ${message}`);
+      assert.doesNotMatch(message, /\b(command|args|cwd|env)\b/u, `${file}: ${message}`);
+    }
+    assert.doesNotMatch(text, /\/api\/panels|\/api\/goals\//u, `${file} names a Host panel route`);
+  }
+  assert.ok(attaches >= 2, "the page terminal and the work terminal both attach");
+});
+
 test("RAC-902 a surface's terminal client rides in that surface's own bundle and reaches the terminal only through the platform's", () => {
   const shelf = join(ROOT, "plugins/native/shelf");
   assert.match(readFileSync(join(shelf, "src/browser/client.ts"), "utf8"), /installTerminal\(page\)/u, "Shelf's client bundle installs its own terminal well");

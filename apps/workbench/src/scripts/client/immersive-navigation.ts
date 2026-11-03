@@ -3,7 +3,7 @@ import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 /** Coordinates application chrome; content and Runtime behavior stay with their Plugin owners. */
 export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
-  const PLUGIN_TAB_TITLES = { goal: "Goals", sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
+  const PLUGIN_TAB_TITLES = { sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   const { workspace, treePane, documentPane, getSelected, getState, getSurface, translate: L,
     setDirectoryCollapsed, setWorkspaceMode, setMobileView, saveUiState } = host;
   if (!document.body.classList.contains("immersive-workbench")) return null;
@@ -28,10 +28,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (treePane?.dataset.desktopDirectory === "settings") return "settings";
     if (treePane?.dataset.desktopDirectory === "project-settings") return "project-settings";
     const surface = getSurface();
-    if (surface === "goal") return "goals";
     if (surface === "feed" || surface === "sources") return "feed";
-    if (surface === "home") return "home";
-    if (surface === "market") return "market";
+    if (["goals", "home", "market"].includes(surface)) return surface;
     if (surface === "settings") return "settings";
     if (surface === "project-settings") return "project-settings";
     if (OWN_DIRECTORY_SURFACES.includes(surface)) return surface === "sources" ? "feed" : surface;

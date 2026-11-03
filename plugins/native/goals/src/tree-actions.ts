@@ -1,7 +1,7 @@
 import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { ATTENTION_WRITE_PERMISSION, goalActor, usingServices } from "./action-contract.js";
-import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEntryActions } from "./contract/goal-actions.js";
 
 type Input<Key extends keyof GoalTreeApplicationApi> = Omit<Parameters<GoalTreeApplicationApi[Key]>[0],
   "project_id" | "actor_id" | "submitted_session_id" | "runtime_actor_id" | "authority">;

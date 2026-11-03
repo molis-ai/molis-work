@@ -396,8 +396,7 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="inbox"] { color: var(--amber); }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="feed"] { color: var(--faint); }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="saved"] { color: var(--green); }
-  body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="promoted"],
-  body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="processing"] { color: var(--blue-dark); }
+  body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="promoted"] { color: var(--blue-dark); }
   body[data-desktop-shell="true"] .feed-list-state[data-feed-disposition="archived"] { color: var(--faint); }
 
   body[data-desktop-shell="true"] .feed-directory-search { height: 32px; }

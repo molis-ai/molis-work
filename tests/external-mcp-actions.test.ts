@@ -74,7 +74,8 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
 
     // 3. An external MCP client of Molis calls it only with an exact grant, under its own identity.
     const mcp = await served.mcp("client-x", project.project_id);
-    await assert.rejects(mcp.client.invoke(mcp.caller, ref, { note: "未授权" }), { code: "mcp.action_revoked" });
+    // RAC-2491: the client reads the refusal as one (kind `forbidden`) across the process hop, not as a mistake in its input.
+    await assert.rejects(mcp.client.invoke(mcp.caller, ref, { note: "未授权" }), { code: "mcp.action_revoked", kind: "forbidden" });
     await served.grant("client-x", project.project_id, [view]);
     assert.deepEqual(await mcp.client.invoke(mcp.caller, ref, { note: "MCP 客户端" }), { text: "Saved one note: MCP 客户端", truncated: false });
     assert.deepEqual(await notes(), ["直接调用", "工作流交来的标题", "MCP 客户端"], "every call reached the real server once");
@@ -87,7 +88,7 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
       return checked;
     };
     try {
-      await assert.rejects(mcp.client.invoke(mcp.caller, ref, { note: "准备过程中已撤权" }), { code: "mcp.action_revoked" });
+      await assert.rejects(mcp.client.invoke(mcp.caller, ref, { note: "准备过程中已撤权" }), { code: "mcp.action_revoked", kind: "forbidden" });
       assert.deepEqual(await notes(), ["直接调用", "工作流交来的标题", "MCP 客户端"], "revocation after SDK discovery must prevent the actual stdio write");
     } finally { library.validate = validate; }
 

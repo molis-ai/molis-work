@@ -9,7 +9,7 @@ import { inspectRelease, createRelease, promoteRelease, rollbackPromotedRelease 
 import { ensureDirectory, writeOwnedText, readOwnedJson, replaceOwnedJson, pathState, rollbackTextMutations } from "./home-files.js";
 import { launcherSource } from "./home-launcher.js";
 import { resolveConfiguredHome } from "../product-home.js";
-import { prepareMemoryHome } from "../memory/memory-adoption.js";
+import { prepareMemoryHome } from "../memory/memory-initialization.js";
 
 /** Installs App-owned files and initializes a new Home's memory prefs; external Runtime configuration is separate. */
 

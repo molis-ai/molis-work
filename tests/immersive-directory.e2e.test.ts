@@ -356,7 +356,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // Switching goes through the list at the bar's left; its label follows.
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-plugin-picker-popover]').hidden && /Goals/.test(document.querySelector('[data-plugin-picker-current]').textContent)");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-plugin-picker-popover]').hidden && /Goals/.test(document.querySelector('[data-plugin-picker-current]').textContent)");
   assert.equal(await evaluate("document.querySelector('[data-dock-pin=goals]').getAttribute('aria-current')"), "page");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
   await click("[data-assistant-panel-close]");

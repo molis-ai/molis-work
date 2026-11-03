@@ -4,6 +4,7 @@ import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_PROMPT_MAX_CHARS } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { MODEL_DATA_MAX_CHARS } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 import { L } from "./web-locale.js";
@@ -165,8 +166,10 @@ function assertVisionInput(request: HostTextRequestOptions | undefined, vision: 
 }
 
 // A prompt is counted in characters, like a schema's maxLength (Ajv counts code points), so text a schema accepts is not refused here for having two UTF-16 units a character.
-// Around 180_000 characters of text sit the instruction (at most AGENT_PROMPT_MAX_CHARS), "\n\n" and Pages' command line (at most 21): 20_023 in all; the limit leaves 77 more.
-const PROMPT_MAX_CHARS = 180_000 + AGENT_PROMPT_MAX_CHARS + 100;
+// Around MODEL_DATA_MAX_CHARS characters of data sit the instruction (at most AGENT_PROMPT_MAX_CHARS), "\n\n" and Pages' command line (at most 21): 20_023 in all; the limit leaves 77 more.
+/** The one prompt limit: the number every consumer of this port checks against, exported so a caller that leaves room for the instruction
+ * (or does not carry one) computes its own position from the same source rather than writing a second number. */
+export const PROMPT_MAX_CHARS = MODEL_DATA_MAX_CHARS + AGENT_PROMPT_MAX_CHARS + 100;
 
 function validatePrompt(prompt: string): void {
   if (!prompt.trim() || promptTooLong(prompt)) throw new Error("写作输入为空或过长，请减少材料后重试");

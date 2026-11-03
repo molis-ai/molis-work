@@ -4,6 +4,7 @@ import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, Pl
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
+import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ImagesStore, type StoredConnection } from "./store.js";
 import { runImageJob } from "./service-job.js";
 import { IMAGES_ASSETS } from "./owner-files.js";
@@ -173,8 +174,9 @@ export class ImagesService {
 }
 
 function textField(value: unknown, name: string, maximum: number): string {
-  if (typeof value !== "string" || !value.trim() || value.trim().length > maximum) throw imagesErrors.invalid(`${name}不能为空，且最多 ${maximum} 个字符。`);
-  return value.trim();
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text || exceedsCharacters(text, maximum)) throw imagesErrors.invalid(`${name}不能为空，且最多 ${maximum} 个字符。`);
+  return text;
 }
 function optionalText(value: unknown, name: string, maximum: number): string { return value === undefined || value === "" ? "" : textField(value, name, maximum); }
 function project(value: unknown): string { return textField(value, "当前项目", 256); }

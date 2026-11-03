@@ -25,7 +25,7 @@ test("390px: Todo reveals the chosen view tab, and Goals rows do not run past th
   assert.ok(revealed.left >= 0 && revealed.right >= 0, `the chosen tab is fully inside its strip: ${JSON.stringify(revealed)}`);
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && Boolean(document.querySelector('.goal-stage-list .tree-entry'))", 20_000);
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && Boolean(document.querySelector('.goal-stage-list .tree-entry'))", 20_000);
   const rows = await evaluate<{ scroll: number; client: number; overrun: string[] }>(`(() => { const list = document.querySelector('.goal-stage-list'), edge = list.getBoundingClientRect().right;
     const overrun = [...list.querySelectorAll('.tree-entry')].flatMap(entry => [...entry.children].filter(child => getComputedStyle(child).display !== 'none' && child.getBoundingClientRect().width > 0
       && child.getBoundingClientRect().right > edge + 1).map(child => child.className)); return { scroll: list.scrollWidth, client: list.clientWidth, overrun: [...new Set(overrun)] }; })()`);

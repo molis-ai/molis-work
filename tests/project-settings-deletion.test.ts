@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync, promises as fs } from "node:fs";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -9,6 +9,7 @@ import { WebSocket } from "ws";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
 const TOKEN = "project-settings-deletion-test-0123456789";
 
@@ -150,10 +151,16 @@ test("project deletion reports incomplete physical cleanup and retries the same 
   assert.equal(existsSync(join(dirname(dirname(project.database_path)), staged[0])), false);
 });
 
-test("RAC-1330 project deletion refuses a live terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
+test("RAC-1330 RAC-2568 project deletion refuses a live Goal terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
   const { directory, catalog, project, origin, post } = await fixture(t);
-  const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "test-terminal-goal", runtime_kind: "generic",
-    launch_command: "/bin/cat", cwd: directory, actor_id: "test-user", user_confirmed: true });
+  // The live terminal is a Goal's, started by Goals in a folder linked to the project; the channel below only attaches to it (S-103 ⑦).
+  const folder = join(directory, "terminal-workspace");
+  await mkdir(folder);
+  await linkTerminalFolder(catalog, project.project_id, await realpath(folder));
+  addTerminalGoal(project, "test-terminal-goal");
+  const opened = await post(goalTerminalsPath(project.project_id, "test-terminal-goal"), { key: "live", command: "/bin/cat" });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const panel = { panel_id: (await opened.json() as { panel_id: string }).panel_id };
   const socket = new WebSocket(origin.replace("http:", "ws:") + "/pty");
   t.after(() => socket.close());
   await once(socket, "open");
@@ -174,7 +181,7 @@ test("RAC-1330 project deletion refuses a live terminal and succeeds after the u
   }
   try {
     await message({ type: "auth", token: TOKEN }, "ready");
-    await message({ type: "spawn", panelId: panel.panel_id, command: "/bin/cat", cwd: directory }, "spawned");
+    assert.equal((await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned")).attached, true, "Goals started it");
     const deletePath = `/api/settings/projects/${project.project_id}/delete`;
     const body = { delete_confirmed: true, idempotency_key: "live-terminal-delete" };
     const blocked = await post(deletePath, body);
@@ -188,7 +195,7 @@ test("RAC-1330 project deletion refuses a live terminal and succeeds after the u
     assert.equal(detached.attached, false);
     assert.equal((await post(deletePath, body)).status, 200);
     assert.equal(existsSync(project.database_path), false);
-    assert.deepEqual(catalog.listDesktopPanels(project.project_id), []);
+    assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), [], "RAC-2568: the project's terminal records went with it");
   } finally { socket.terminate(); }
 });
 

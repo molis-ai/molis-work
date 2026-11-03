@@ -30,7 +30,7 @@ C1 → C2 → C3 → C4 → C5 不是偏好，是依赖：
 （`plugins/native/goals/src/` 下的 `board-entry-capabilities.ts`、`goal-entry-contract.ts`、
 `goal-event-entry-capabilities.ts`、`proposal-capabilities.ts`）和 Coding 在用的四个
 （`goals.context.list.v1`、`goals.context.read.v1`、`goals.progress.record.v1`、`goals.progress.receipt.v1`，
-定义在 `packages/contracts/src/modules/goals.ts`，由 `apps/local-host/src/project-capabilities.ts` 注册）。
+定义在 `plugins/native/goals/src/contract/goals.ts`（PG-111 前在 `packages/contracts/src/modules/goals.ts`），由 `apps/local-host/src/project-capabilities.ts` 注册）。
 这些随 W3-07 改成 Goals 的动作，旧入口删除（用户 2026-10-10，见
 [防腐整理 spec](../repository-anti-corruption/spec.md) §1、`docs/system/CALL-CHAINS.md` §10.2）。当年写在这里的
 「Goals 的 38 个能力定义放在 `plugins/native/goals/src/goals-entry-capabilities.ts`」已不成立：那个文件和 26 个没有

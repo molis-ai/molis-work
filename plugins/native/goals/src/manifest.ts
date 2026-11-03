@@ -3,8 +3,10 @@ import { GOALS_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
 import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
+import { GOALS_TERMINAL_ACTIONS } from "./terminal-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { GOALS_MESSAGES } from "./messages.js";
+import { GOALS_PAGE_ROUTES } from "./page-routes.js";
 import { GOALS_CONTEXT_EN } from "./context-en.js";
 import { GOALS_DIALOGS_EN } from "./dialogs-en.js";
 import { GOALS_DOCUMENT_EN } from "./document-en.js";
@@ -59,6 +61,10 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.artifact-inputs-read", method: "GET", path: "/goals/:goalId/artifact-inputs" },
   { route_id: "goals.artifact-inputs-write", method: "POST", path: "/goals/:goalId/artifact-inputs" },
   { route_id: "goals.inputs", method: "POST", path: "/goals/:goalId/inputs" },
+  { route_id: "goals.terminal-list", method: "GET", path: "/goals/:goalId/terminals" },
+  { route_id: "goals.terminal-open", method: "POST", path: "/goals/:goalId/terminals" },
+  { route_id: "goals.terminal-close", method: "DELETE", path: "/goals/:goalId/terminals/:key" },
+  { route_id: "goals.advance-prompt", method: "GET", path: "/goals/:goalId/advance-prompt" },
 ];
 
 /**
@@ -86,7 +92,7 @@ export const goalsManifest: PluginManifest = {
   // and written out here (the dual-instance gate reads the list as syntax). The first four are what its actions ask of the caller
   // (`actionPermissionDeclarations` over `GOALS_ACTIONS` and `PERSONAL_PLANNING_ACTIONS`, which `tests/goals-project-database.test.ts` holds
   // this list to); the rest are what Goals asks of the platform's services: its own tables, the journal, Attention, the Context Ledger,
-  // and other plugins' actions as the caller.
+  // other plugins' actions as the caller, and the Goal's work terminals (also asked by `GOALS_TERMINAL_ACTIONS`).
   permissions: [
     { permission: "goals:read", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
     { permission: "goals:write", required: true, reason: "按调用者授权读取、推进和决定项目目标" },
@@ -100,9 +106,11 @@ export const goalsManifest: PluginManifest = {
     { permission: PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, required: true, reason: "记下目标的交付物和输入引用" },
     { permission: "actions:delegate", required: true, reason: "以调用者的身份读取成果版本、请成果的所有者固定对象" },
     { permission: "actions:invoke", required: true, reason: "读取 Home 里的个人规划方法" },
+    { permission: "terminal:run", required: true, reason: "在项目的工作目录里为目标打开工作终端" },
+    { permission: "workspace:read", required: true, reason: "工作终端开在项目已关联的工作目录里" },
   ],
   capabilities: { provides: [], consumes: [] },
-  actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
+  actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS, ...GOALS_TERMINAL_ACTIONS],
   // The four kinds of edge Goals writes from a Goal to an exact version in the 成果库 (its inputs and deliverables, and the proposals
   // of either that a person confirms). `deliverable-actions.ts` writes them; the 成果库 reads them from here, by kind.
   artifacts: { produces: [], consumes: [], links: [
@@ -131,6 +139,7 @@ export const goalsManifest: PluginManifest = {
       ...GOALS_PROPOSAL_EN,
     },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
+    page_routes: GOALS_PAGE_ROUTES,
     views: [
       { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
         start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" } },

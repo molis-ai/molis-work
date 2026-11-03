@@ -105,7 +105,7 @@ export const CRAFT_BAR_STYLES = `
   @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
-  :root ${ASSIST} :is(.assistant-island-card, .workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
+  :root ${ASSIST} :is(.workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
     background: transparent; box-shadow: none; border: 0;
   }
   /* The zone hairline above the account sits in the 8px gap and takes no height. */
@@ -139,7 +139,7 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} ${RAIL_LINK} svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-quint); }
   ${SHELL} ${RAIL_LINK}:hover { background: var(--nav-hover); }
   ${SHELL} ${RAIL_LINK}:is(:hover, [aria-current], [aria-expanded="true"]) svg { color: var(--ink); }
-  ${SHELL} :is(.plugin-rail-items, .assistant-island-card)[data-seg-thumb]::before { border-radius: 8px; background: var(--nav-active); }
+  ${SHELL} .plugin-rail-items[data-seg-thumb]::before { border-radius: 8px; background: var(--nav-active); }
   ${SHELL} .plugin-rail a.plugin-rail-item { text-decoration: none; color: inherit; }
   ${SHELL} .plugin-rail-hint { display: none; }
   ${SHELL} .plugin-rail-items .immersive-plugin-link { position: relative; }
@@ -181,11 +181,11 @@ export const CRAFT_BAR_STYLES = `
       color: var(--faint); font: inherit; font-size: 11px; line-height: 17px;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-items { align-items: stretch; padding: 4px 16px 8px; gap: 1px; }
-    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item {
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .plugin-rail-item {
       width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 12px; padding: 0 12px; border-radius: 8px;
     }
-    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item svg { width: 16px; height: 16px; }
-    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item > span { font-size: 13px; color: var(--ink-soft); }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .plugin-rail-item svg { width: 16px; height: 16px; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .plugin-rail-item > span { font-size: 13px; color: var(--ink-soft); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-item:is([aria-current], [aria-expanded="true"]) > span { color: var(--ink); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-toggle > span { color: var(--muted); }
     ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail-group, .plugin-rail-subgroup) {
@@ -255,7 +255,9 @@ export const CRAFT_BAR_STYLES = `
   }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
-  ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"], .account-global-menu[open] > .account-global-trigger) {
+  /* The trailing :is(.dock-pin, .bar-chat) keeps this rule's specificity (0,5,1); with only the two states it would be (0,4,1)
+     and .dock-pin.is-leaving below would take transform from a Dock item that is both current and leaving. */
+  ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"]):is(.dock-pin, .bar-chat) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); transform: none;
   }
   ${SHELL} .dock-pin[aria-current]::after {
@@ -273,11 +275,7 @@ export const CRAFT_BAR_STYLES = `
 
   /* The Dock menu: which plugins stay, what is yours everywhere, settings and the account. */
   ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
-  ${SHELL} .account-global-menu { position: relative; flex: none; }
   ${SHELL} .account-global-trigger::-webkit-details-marker { display: none; }
-  ${SHELL} .account-global-menu:not([open])[data-market-updates] > .account-global-trigger::after {
-    content: ""; position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
-  }
   ${SHELL} .account-global-popover {
     position: absolute; z-index: 60; left: 0; bottom: calc(100% + 10px); display: grid; gap: 1px; width: 264px; max-height: min(70dvh, 620px); overflow: auto; padding: 8px;
     border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);

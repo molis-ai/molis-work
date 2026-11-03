@@ -3,8 +3,8 @@ import {
   PLUGIN_JUDGMENTS_READ_PERMISSION, PLUGIN_JUDGMENTS_WRITE_PERMISSION, pluginErrors,
   type PluginInstanceRecord, type PluginJudgmentInput, type PluginJudgmentsClient, type PluginManifest, type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService } from "./functions-host.js";
+import { publishedFunctionKey } from "@molis-ai/molis-work-module-judgment-rules";
+import { withFunctionsService } from "./judgment-rules-host.js";
 import { gateFor } from "./plugin-attention-service.js";
 
 /** What the Host gives `services.judgments` of one installation: the Home whose Functions library holds the ledger, the project, and the questions every call asks. */

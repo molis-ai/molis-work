@@ -1,6 +1,6 @@
 import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
-import type { GoalPolicy, GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalPolicy, GoalsCommandApi } from "../contract/goals.js";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
 
 /** Project defaults have one active binding; edits and their audit event commit together. */

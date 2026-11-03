@@ -16,7 +16,7 @@ import { serveTestHost } from "./fixtures/test-home.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
-const PROMOTE = "molis_work_v1_action_feed.items.promote__v1";
+const PROMOTE = "molis_work_v1_action_feed.items.promote__v2";
 const CLIENT = "runtime:codex";
 
 const PREPARE = "molis_work_v1_action_home.actions.prepare__v1";

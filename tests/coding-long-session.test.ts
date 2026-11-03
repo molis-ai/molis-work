@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, originalTask, codingContinuation, HISTORY_DIGEST_MARKER, CONTINUATION_MARKER,
-  codingRunForDisplay, codingSessionUsage, summaryCache, summariesFingerprint } from "@molis-ai/molis-work-plugin-coding";
+  codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const run = (index: number, over: Partial<AgentRunView> & { task?: string; answer?: string } = {}) => ({
@@ -128,4 +128,23 @@ test("较早轮次的摘要：已结束的只读一次，进行中的每次重�
   assert.equal(first[0]!.light, true);
   assert.equal(first[0]!.task, "第 1 个问题");
   assert.equal(summariesFingerprint(first), summariesFingerprint(await cache.read("s", [refs[0]!], load).then(one => [...one, first[1]!])));
+});
+
+/** A half of a two-unit character whose other half is missing: what a cut in the middle of one leaves behind (as in tests/contextual-draft.test.ts). */
+const LONE_HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
+
+test("RAC-2430: the task summary sent to the page is cut between whole characters", () => {
+  // The cut lands in the middle of 🙂 (two UTF-16 units) at unit 300 of "x"*299 + "🙂尾" without this: the page would draw the lone high
+  // half as "�" before the ellipsis.
+  const summary = codingRunSummary(run(1, { task: "x".repeat(299) + "🙂尾" }));
+  assert.equal(summary.task, "x".repeat(299) + "…", "the half of 🙂 is dropped rather than left before the ellipsis");
+  assert.equal(LONE_HALF.test(summary.task), false, "no half of a character in the task summary");
+});
+
+test("RAC-2430: the tool output sent to the page is cut between whole characters", () => {
+  // The cut lands in the middle of 🙂 at unit 6000 of "y"*5999 + "🙂z"; the page draws what it is sent, so the lone high half is "�".
+  const view = run(1), output = "y".repeat(5999) + "🙂z";
+  const shown = codingRunForDisplay({ ...view, activity: view.activity.map((item, index) => index === 0 ? { ...item, output } : item) });
+  assert.equal(shown.activity[0]!.output, "y".repeat(5999), "the shown output keeps 5999 whole characters and drops the half of 🙂");
+  assert.equal(LONE_HALF.test(shown.activity[0]!.output ?? ""), false, "no half of a character in the shown output");
 });

@@ -7,7 +7,7 @@ import type { ImDatabase, ImEvents } from "./types.js";
 
 const errors = defineErrorCodes("im.invite", { invalid_token: "invalid", token_conflict: "conflict" });
 
-/** Validate a current generation intent once. Joining also accepts pre-maintenance links. */
+/** Validate a current generation intent once. */
 export function invitationTokenHash(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f]{64}$/u.test(value)) throw errors.invalid_token("请使用本次生成的安全随机邀请令牌");
   return createHash("sha256").update(value).digest("hex");

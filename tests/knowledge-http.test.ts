@@ -33,7 +33,7 @@ test("PMAT-15 PMAT-16 the knowledge routes list, find, edit and keep pieces from
   const home = await mkdtemp(join(tmpdir(), "knowledge-http-"));
   const project = await withCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "资料", actor_id: "owner" });
-    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "artifacts", actor_id: "owner" });
+    assert.throws(() => catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "artifacts", actor_id: "owner" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     return created;
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

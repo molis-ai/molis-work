@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorErrors, type ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { submitConnectorActivation } from "./connector-authorization-commit.js";
@@ -11,16 +12,19 @@ import type { OAuthTokenRequestDeclaration, PluginOAuthMethodDeclaration } from 
 import { isDeclaredOAuth } from "@molis-ai/molis-work-plugin-sdk/oauth";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProductAuth, connectorBrokerOrigin } from "./connector-product-auth.js";
-import { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthContextValue, oauthExpiry, oauthKept,
-  oauthSecretRequired, oauthTokenRequest, resolveOAuthSettings, type OAuthRequestDescription, type OAuthResolvedSettings } from "./connector-oauth-declarations.js";
-import { publicOAuthFetch, type OAuthSendChecks } from "./connector-oauth-send.js";
-import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
+import { oauthAccount, oauthAccountRequest, oauthAuthorizationContext, oauthAuthorizationUrl, oauthContextValue, oauthEndpointFingerprint, oauthExpiry,
+  oauthKept, oauthSecretRequired, oauthTokenRequest, resolveOAuthSettings, type OAuthRequestDescription, type OAuthResolvedSettings } from "./connector-oauth-declarations.js";
+import { publicOAuthFetch, type OAuthNetwork, type OAuthSendChecks } from "./connector-oauth-send.js";
+import { startSharedRefresh, type SharedRefresh, type SharedRefreshRun } from "./connector-shared-refresh.js";
+import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorAuthorizationSession, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { tokenEndpointRefused } from "./connector-refresh-refusals.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import type { OAuthServiceOwner } from "./integration-registry.js";
+export { apiOAuthConnectionId } from "./connector-oauth-shape.js";
+import { OAUTH_CALLBACK as CALLBACK, defaultOAuthCallback, isOAuthCallbackAliasFor } from "./connector-oauth-callback-paths.js";
+import { assertOAuthReturnPending, beginOAuthReturn, expiredOAuthReturn, finishOAuthReturn, type OAuthReturn } from "./connector-oauth-return.js";
 
-const CALLBACK = "/api/settings/connectors/methods/oauth/callback";
 interface OAuthConfiguration extends ConnectorProtocolConfiguration {
   protocol: "oauth";
   sessionId: string;
@@ -30,6 +34,8 @@ interface OAuthConfiguration extends ConnectorProtocolConfiguration {
   settings: Record<string, string>;
   context: Record<string, string>;
   previousRevision?: string;
+  /** Where the person returns to once the authorization ends; never saved with the connection. */
+  returnTo?: OAuthReturn;
   brokerOrigin?: string;
   clientSource?: "product" | "custom";
   /**
@@ -40,7 +46,14 @@ interface OAuthConfiguration extends ConnectorProtocolConfiguration {
   fingerprint?: string;
   /** RFC 9207: the callback must name this issuer when the declaration gives one. */
   issuer?: string;
+  /**
+   * What the connection was activated under (W5-11 §2.6, M1(a)), saved with it: the declaring plugin, its publisher and the endpoint
+   * fingerprint (`oauthEndpointFingerprint`). A refresh or a request goes ahead only while the plugin declaring the service now is the same.
+   */
+  binding?: { plugin_id: string; publisher_id: string; endpoint: string };
 }
+/** Refusals of an OAuth connection's use. */
+export const oauthConnectionErrors = defineErrorCodes("connector.oauth", { method_unavailable: "unavailable" });
 /** Who declares a service's OAuth method now: the Home's integration registry unless a test brings its own. */
 export type OAuthOwners = (serviceId: string) => Promise<OAuthServiceOwner | undefined>;
 const registryOwners = (home: string): OAuthOwners => async serviceId => (await homeIntegrationRegistry(home)).oauthOwner(serviceId);
@@ -51,6 +64,22 @@ function methodFingerprint(owner: OAuthServiceOwner): string {
 /** The service's `oauth` method as the enabled plugin declares it now; a service with none has no OAuth connection. */
 function declaredMethod(owner: OAuthServiceOwner | undefined, serviceId: string): PluginOAuthMethodDeclaration {
   if (!owner?.method || !isDeclaredOAuth(owner.method)) throw new ApiOAuthError("没有已启用的宿主插件声明这个服务的 OAuth 连接", serviceId);
+  return owner.method;
+}
+/**
+ * The method a connection of the generic flow may use now (W5-11 §2.6). The plugin declaring its service must be enabled (Q3): otherwise
+ * `method_unavailable`, no request sent, back as soon as it is enabled again. And it must be the plugin, publisher and endpoints the
+ * connection was activated under (M1(a)): otherwise the connection needs reauthorizing (`refused`), and neither its refresh token nor its
+ * client secret goes anywhere. A connection activated before bindings were saved has none, and is reauthorized the same way.
+ */
+function boundMethod(config: OAuthConfiguration, owner: OAuthServiceOwner | undefined): PluginOAuthMethodDeclaration {
+  if (!owner?.method || !isDeclaredOAuth(owner.method)) {
+    throw oauthConnectionErrors.method_unavailable("方法不可用：声明这个服务的插件已停用，重新启用后恢复");
+  }
+  const binding = config.binding;
+  if (!binding || binding.plugin_id !== owner.plugin_id || binding.publisher_id !== owner.publisher_id || binding.endpoint !== oauthEndpointFingerprint(owner.method)) {
+    throw new ApiOAuthError("这条连接授权时的服务声明已变更，请重新授权此连接", config.serviceId, true);
+  }
   return owner.method;
 }
 /** The interpreter's answer, its refusal said to the person as the flow's own error. */
@@ -84,6 +113,8 @@ export async function assertHeldOAuthDeclared(home: string, completion: Connecto
 export class ApiOAuthError extends Error {
   /** `refused`: the token endpoint said no (`tokenEndpointRefused`), not a network failure or a 5xx. `status`: the service's HTTP answer. */
   constructor(message: string, readonly serviceId?: string, readonly refused = false, readonly status?: number) { super(message); }
+  /** Set once the callback's record is known: where the person returns to, for the page that answers the callback. */
+  returnTo?: OAuthReturn;
 }
 type Json = Record<string, unknown>;
 function object(value: unknown): Json { return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {}; }
@@ -112,8 +143,8 @@ async function described(fetchImpl: typeof fetch, request: OAuthRequestDescripti
   return (await answer(fetchImpl, request.url, { method: request.method, headers: request.headers, ...(request.body === undefined ? {} : { body: request.body }) })).body;
 }
 /** The flow's own sender unless a test brings one: `sendPublicHttps` with the checks of this step. */
-function sender(fetchImpl: typeof fetch | undefined, checks: OAuthSendChecks): typeof fetch {
-  return fetchImpl ?? publicOAuthFetch(checks);
+function sender(fetchImpl: typeof fetch | undefined, checks: OAuthSendChecks, network?: OAuthNetwork): typeof fetch {
+  return fetchImpl ?? publicOAuthFetch(checks, network);
 }
 const queues = new Map<string, Promise<unknown>>();
 async function serialized<T>(home: string, id: string, run: () => Promise<T>): Promise<T> {
@@ -135,12 +166,9 @@ export function apiOAuthContext(home: string, id: string): Record<string, string
   const config = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(id));
   return config?.protocol === "oauth" ? { ...config.context, auth_method: "oauth" } : undefined;
 }
-export function apiOAuthConnectionId(ref?: string): string | undefined {
-  return ref ? /^connector-protocol:([0-9a-f-]{36}):access$/u.exec(ref)?.[1] : undefined;
-}
 export async function startApiOAuth(home: string, input: {
   serviceId: string; displayName: string; clientId: string; clientSecret?: string; settings?: Record<string, string>;
-  origin: string; redirectUri?: string; connectionId?: string; setupId?: string;
+  origin: string; redirectUri?: string; connectionId?: string; setupId?: string; returnTo?: OAuthReturn;
 }, fetchImpl?: typeof fetch, owners: OAuthOwners = registryOwners(home)) {
   const origin = localOrigin(input.origin);
   checkConnectorSetupSubmission(home, input.setupId, { service_id: input.serviceId, method: "oauth", connection_id: input.connectionId });
@@ -151,8 +179,9 @@ export async function startApiOAuth(home: string, input: {
   let clientSource: "product" | "custom" = "custom";
   // Reauthorization keeps this account's app settings on the host. Never send a
   // saved client secret back to the browser or borrow another account's client.
+  const previous = input.connectionId ? withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!)) : undefined;
+  const reauthorizing = previous?.protocol === "oauth" && previous.serviceId === input.serviceId;
   if (input.connectionId && !input.clientId.trim()) {
-    const previous = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!));
     withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId));
     if (previous?.protocol === "oauth" && previous.serviceId === input.serviceId) {
       const secret = object(JSON.parse(connectorProtocolSecrets(home, input.connectionId).get("client") || "{}"));
@@ -173,8 +202,9 @@ export async function startApiOAuth(home: string, input: {
     }
   }
   // A custom client never inherits a product secret. Reauthorization above has
-  // priority, even when deployment configuration changes between sessions.
-  if (!input.connectionId && !input.clientId.trim() && !input.clientSecret?.trim() && !input.redirectUri?.trim()) {
+  // priority, even when deployment configuration changes between sessions. A connection with no generic configuration (made before
+  // its service joined the generic flow) chooses its client as a new one does, and ends at the callback's rule 8.
+  if ((!input.connectionId || !reauthorizing) && !input.clientId.trim() && !input.clientSecret?.trim() && !input.redirectUri?.trim()) {
     brokerOrigin = connectorBrokerOrigin(input.serviceId);
     if (brokerOrigin) input = { ...input, clientId: "broker", settings: {} };
     const product = connectorProductAuth(input.serviceId, "oauth", settingKeys);
@@ -186,9 +216,11 @@ export async function startApiOAuth(home: string, input: {
   if (!input.clientId.trim() || input.clientId.length > 512 || /[\r\n]/u.test(input.clientId)) throw new ApiOAuthError("请填写有效的 OAuth Client ID");
   if (resolved && oauthSecretRequired(method, resolved) && !input.clientSecret?.trim()) throw new ApiOAuthError("请填写此应用的 Client Secret");
   if (!input.displayName.trim() || input.displayName.length > 100) throw new ApiOAuthError("请填写连接名称（最多 100 字）");
-  const redirectUri = input.redirectUri?.trim() || `${origin}${CALLBACK}`;
+  // The service's registered alias is for a client the person registered; the broker's own callback sends the browser on to the generic one.
+  const redirectUri = input.redirectUri?.trim() || (brokerOrigin ? `${origin}${CALLBACK}` : defaultOAuthCallback(input.serviceId, origin));
   const redirect = new URL(redirectUri);
-  if (redirect.username || redirect.password || redirect.hash || redirect.search || (redirect.protocol !== "https:" && redirectUri !== `${origin}${CALLBACK}`)) throw new ApiOAuthError("回调地址应为当前本机回调，或你在服务商登记的 HTTPS 地址（无查询参数）");
+  const local = redirectUri === `${origin}${CALLBACK}` || isOAuthCallbackAliasFor(input.serviceId, origin, redirectUri);
+  if (redirect.username || redirect.password || redirect.hash || redirect.search || (redirect.protocol !== "https:" && !local)) throw new ApiOAuthError("回调地址应为当前本机回调，或你在服务商登记的 HTTPS 地址（无查询参数）");
   const connectionId = input.connectionId || randomUUID();
   let previousRevision: string | undefined;
   if (input.connectionId) {
@@ -199,7 +231,7 @@ export async function startApiOAuth(home: string, input: {
   const sessionId = randomUUID();
   const configuration: OAuthConfiguration = { connectionId, serviceId: input.serviceId, protocol: "oauth", sessionId,
     clientSource, displayName: input.displayName.trim(), clientId: input.clientId.trim(), redirectUri, settings,
-    context: { auth_method: "oauth", client_id: input.clientId.trim() }, previousRevision, ...(brokerOrigin ? { brokerOrigin } : {}),
+    context: { auth_method: "oauth", client_id: input.clientId.trim() }, previousRevision, ...(input.returnTo ? { returnTo: input.returnTo } : {}), ...(brokerOrigin ? { brokerOrigin } : {}),
     plugin: { plugin_id: owner!.plugin_id, install_id: owner!.install_id, publisher_id: owner!.publisher_id },
     fingerprint: methodFingerprint(owner!), ...(method.issuer ? { issuer: method.issuer } : {}) };
   const secrets = connectorProtocolSecrets(home, sessionId);
@@ -220,6 +252,7 @@ export async function startApiOAuth(home: string, input: {
       settingsOf(input.serviceId, method, configuration.settings);
       withConnectorProtocols(home, store => store.update(state, configuration));
       saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: authorize.href });
+      beginOAuthReturn(home, input.returnTo, state);
       return { authorization_id: authorizationId, connection_id: connectionId, authorization_url: authorize.href, redirect_uri: redirectUri, manual_callback: false };
     } catch (error) { finishConnectorAuthorization(home, state, "failed"); withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); throw error; }
   }
@@ -229,7 +262,8 @@ export async function startApiOAuth(home: string, input: {
       codeChallenge: createHash("sha256").update(verifier).digest("base64url") }), input.serviceId);
   } catch (error) { finishConnectorAuthorization(home, state, "failed"); withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); throw error; }
   saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: href });
-  return { authorization_id: authorizationId, connection_id: connectionId, authorization_url: href, redirect_uri: redirectUri, manual_callback: redirectUri !== `${origin}${CALLBACK}` };
+  beginOAuthReturn(home, input.returnTo, state);
+  return { authorization_id: authorizationId, connection_id: connectionId, authorization_url: href, redirect_uri: redirectUri, manual_callback: !local };
 }
 async function exchange(home: string, config: OAuthConfiguration, method: PluginOAuthMethodDeclaration, input: { code?: string; refreshToken?: string },
   fetchImpl: typeof fetch): Promise<Json> {
@@ -281,10 +315,19 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
   const returned = input.returnedUrl ? new URL(input.returnedUrl) : null;
   const state = returned?.searchParams.get("state") || input.state || "";
   const error = input.error || returned?.searchParams.get("error") || undefined;
-  const ended = () => finishConnectorAuthorization(home, state, error === "access_denied" ? "cancelled" : "failed");
+  const ended = (config: OAuthConfiguration) => {
+    const how = error === "access_denied" ? "cancelled" : "failed";
+    finishConnectorAuthorization(home, state, how);
+    finishOAuthReturn(home, config.returnTo, state, { ended: how });
+  };
   // Rule 1: a state that is malformed, unknown, used or expired; an expired record is taken all the same. A used state ends nothing:
   // the callback that took it may still be exchanging its code.
-  const session = withConnectorProtocols(home, store => store.take<OAuthConfiguration>(state));
+  let session: ConnectorAuthorizationSession<OAuthConfiguration>;
+  try { session = withConnectorProtocols(home, store => store.take<OAuthConfiguration>(state)); } catch (refused) {
+    const failure = new ApiOAuthError(refused instanceof Error ? refused.message : "授权状态无效，请重新连接");
+    failure.returnTo = expiredOAuthReturn(home, state);
+    throw failure;
+  }
   const config = session.configuration;
   const staged = config.protocol === "oauth" ? connectorProtocolSecrets(home, config.sessionId) : null;
   try {
@@ -292,9 +335,10 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
     // Rule 2: the local origin the authorization started from.
     if (session.origin !== origin) throw new ApiOAuthError("回调来自另一个本机地址，请从发起授权的页面重新连接");
     // Rule 3: the address the service came back to is the one registered for this authorization.
-    const callback = returned ? `${returned.origin}${returned.pathname}` : input.callback ?? `${origin}${CALLBACK}`;
+    const callback = returned ? `${returned.origin}${returned.pathname}` : input.callback ?? (config.brokerOrigin ? `${origin}${CALLBACK}` : defaultOAuthCallback(config.serviceId, origin));
     if (callback !== config.redirectUri) throw new ApiOAuthError("返回地址不匹配本次登记的回调地址");
-    // Rule 4: the service said no, or gave no code.
+    // Rule 4: the service said no, or gave no code. The onboarding journey, if the authorization came from one, must still wait for it.
+    assertOAuthReturnPending(home, config.returnTo, state);
     if (error) throw new ApiOAuthError("授权被取消或拒绝，请重新连接");
     const code = returned?.searchParams.get("code") || input.code;
     if (!code || code.length > (config.brokerOrigin ? 16000 : 4096)) throw new ApiOAuthError("缺少有效的授权码");
@@ -321,55 +365,107 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
         const previous = withConnectorConnections(home, store => store.require(config.connectionId, config.serviceId));
         if (previous.updated_at !== config.previousRevision) throw new ApiOAuthError("此连接在授权期间已变更，请重新开始");
         const previousContext = apiOAuthContext(home, config.connectionId);
-        if (!previousContext?.account_id || previousContext.account_id !== config.context.account_id) throw new ApiOAuthError("无法确认这是原账号，请新增连接，保留已有账号绑定");
+        if (!previousContext?.account_id || previousContext.account_id !== config.context.account_id) throw new ApiOAuthError("无法确认这是原账号：请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接");
       }
       const secrets = connectorProtocolSecrets(home, config.connectionId);
       const refreshToken = text(tokens.refresh_token), expires = oauthExpiry(method, tokens, Date.now());
       const credentials = { [secrets.reference("client")]: staged!.get("client") || "{}", [secrets.reference("access")]: token,
         [secrets.reference("oauth")]: refreshToken || null, [secrets.reference("expires")]: expires ? String(expires) : null };
-      const saved = { ...config, sessionId: config.connectionId };
-      delete saved.previousRevision; delete saved.plugin; delete saved.fingerprint; delete saved.issuer;
+      const saved: OAuthConfiguration = { ...config, sessionId: config.connectionId,
+        binding: { plugin_id: config.plugin!.plugin_id, publisher_id: config.plugin!.publisher_id, endpoint: oauthEndpointFingerprint(method) } };
+      delete saved.previousRevision; delete saved.plugin; delete saved.fingerprint; delete saved.issuer; delete saved.returnTo;
       const result = submitConnectorActivation(home, state, { kind: "oauth", target: { connectionId: config.connectionId, expectedRevision: config.previousRevision },
         credentials, protocol: saved, declaration: { plugin: config.plugin!, fingerprint: config.fingerprint! }, input: { connectionId: config.connectionId, serviceId: config.serviceId,
           displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
           refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true } });
-      return { service_id: config.serviceId, ...result };
+      if (result.status !== "pending") finishOAuthReturn(home, config.returnTo, state, { connected: config.connectionId });
+      return { service_id: config.serviceId, ...result, ...(config.returnTo ? { return_to: config.returnTo } : {}) };
     });
   } catch (refused) {
-    ended();
-    throw new ApiOAuthError(refused instanceof ApiOAuthError ? refused.message : "授权未完成，请检查应用配置与权限后重试", config.serviceId);
+    ended(config);
+    const failure = new ApiOAuthError(refused instanceof ApiOAuthError ? refused.message : "授权未完成，请检查应用配置与权限后重试", config.serviceId);
+    failure.returnTo = config.returnTo;
+    throw failure;
   } finally { staged?.clear(); }
 }
+const refreshes = new Map<string, SharedRefresh<string>>();
+const LOST_AUTHORITY = "等这次刷新的调用已失去授权，换到的令牌不保存";
+/**
+ * A connection's access token, refreshed when asked, when it is about to expire or when only the refresh token is left. Each use checks
+ * the connection's binding first (`boundMethod`). One refresh per connection at a time, shared by the calls that need it (RAC-1085,
+ * `connector-shared-refresh.ts`): a call arriving while one is in flight joins it. A refresh starts in the connection's queue, behind a
+ * callback or another refresh, and holds it until it ends; a call that left while queued starts nothing. `network` is how the refresh
+ * leaves by `sendPublicHttps` (a test's name resolution); its checks are the refresh's own, never the caller's.
+ */
 export async function resolveApiOAuthToken(home: string, id: string, control: ConnectorCallControl, forceRefresh = false, fetchImpl?: typeof fetch,
-  owners: OAuthOwners = registryOwners(home)): Promise<string> {
-  return serialized(home, id, async () => {
-    await control.beforeEffect(); control.current();
-    const request = controlledConnectorFetch(sender(fetchImpl, control), control);
-    const config = configured(home, id);
-    const revision = withConnectorConnections(home, store => store.require(id)).updated_at;
-    const secrets = connectorProtocolSecrets(home, id);
-    const token = secrets.get("access");
-    const expires = Number(secrets.get("expires"));
-    if (token && !forceRefresh && (!expires || expires > Date.now() + 60_000)) return token;
-    const refreshToken = secrets.get("oauth");
-    if (!refreshToken) throw new ApiOAuthError("访问令牌已失效，请重新授权此连接");
-    const method = declaredMethod(await owners(config.serviceId), config.serviceId);
-    const json = await exchange(home, config, method, { refreshToken }, request);
-    const next = text(json.access_token);
-    if (!next) throw new ApiOAuthError("刷新失败，请重新授权此连接");
-    // A refresh sends no context request; it keeps what the token response says again, and what it leaves out stays as it was.
-    Object.assign(config.context, declared(() => oauthKept(config.serviceId, method.keep?.map(keep => ({ ...keep, required: false })), json), config.serviceId));
-    await control.beforeEffect(); control.current();
-    // A disconnect during the network request must win over a token refresh.
-    configured(home, id);
-    if (withConnectorConnections(home, store => store.require(id)).updated_at !== revision) throw new ApiOAuthError("连接在刷新期间已变化，请重试");
-    secrets.put("access", next);
-    if (text(json.refresh_token)) secrets.put("oauth", text(json.refresh_token));
-    const nextExpiry = oauthExpiry(method, json, Date.now());
-    if (nextExpiry) secrets.put("expires", String(nextExpiry)); else secrets.delete("expires");
-    withConnectorProtocols(home, store => store.save(config));
-    return next;
+  owners: OAuthOwners = registryOwners(home), network?: OAuthNetwork): Promise<string> {
+  await control.beforeEffect(); control.current();
+  const key = `${resolve(home)}:${id}`;
+  const inFlight = refreshes.get(key);
+  if (inFlight?.open) return inFlight.join(control);
+  let resolveTurn!: (decided: string | SharedRefresh<string>) => void, rejectTurn!: (error: unknown) => void;
+  const turn = new Promise<string | SharedRefresh<string>>((resolved, rejected) => { resolveTurn = resolved; rejectTurn = rejected; });
+  void serialized(home, id, async () => {
+    let started: SharedRefresh<string> | undefined;
+    try {
+      control.signal.throwIfAborted(); await control.beforeEffect(); control.current();
+      const config = configured(home, id);
+      const owner = await owners(config.serviceId);
+      const method = boundMethod(config, owner);
+      const secrets = connectorProtocolSecrets(home, id);
+      const token = secrets.get("access");
+      const expires = Number(secrets.get("expires"));
+      if (token && !forceRefresh && (!expires || expires > Date.now() + 60_000)) { resolveTurn(token); return; }
+      if (!secrets.get("oauth")) throw new ApiOAuthError("访问令牌已失效，请重新授权此连接");
+      const revision = withConnectorConnections(home, store => store.require(id)).updated_at;
+      started = startSharedRefresh(control, refresh => renewed(home, id, { config, owner: owner!, method, revision }, refresh, { fetchImpl, network }, owners));
+      refreshes.set(key, started);
+      resolveTurn(started);
+      await started.done;
+    } catch (error) { rejectTurn(error); }
+    finally { if (started && refreshes.get(key) === started) refreshes.delete(key); }
   });
+  const decided = await turn;
+  return typeof decided === "string" ? decided : decided.first;
+}
+/**
+ * One refresh of a connection, as `startSharedRefresh` runs it. Its request is checked before it is sent, never after (a sent refresh is
+ * not abandoned: `connector-shared-refresh.ts`). The last check (W5-11 §2.6, N2(a)) comes after the answer and before anything is written:
+ * the plugin declaring the service still enabled as the same install, the connection still bound to it, the connection still there at the
+ * revision the refresh read. After `settle` and the last `await`, `outcome` says what may be written: everything to the participants still
+ * waiting; only the rotated credentials when every participant cancelled; nothing when one lost its authority.
+ */
+async function renewed(home: string, id: string, read: { config: OAuthConfiguration; owner: OAuthServiceOwner; method: PluginOAuthMethodDeclaration; revision: string },
+  refresh: SharedRefreshRun, { fetchImpl, network }: { fetchImpl?: typeof fetch; network?: OAuthNetwork }, owners: OAuthOwners): Promise<string> {
+  const { config, method } = read;
+  const secrets = connectorProtocolSecrets(home, id);
+  const checks = refresh.control;
+  const send: typeof fetch = fetchImpl ? async (input, init) => { await checks.beforeEffect(); checks.current(); return fetchImpl(input, init); } : sender(undefined, checks, network);
+  const json = await exchange(home, config, method, { refreshToken: secrets.get("oauth")! }, send);
+  const next = text(json.access_token);
+  if (!next) throw new ApiOAuthError("刷新失败，请重新授权此连接");
+  // A refresh sends no context request; it keeps what the token response says again, and what it leaves out stays as it was.
+  const kept = declared(() => oauthKept(config.serviceId, method.keep?.map(keep => ({ ...keep, required: false })), json), config.serviceId);
+  await refresh.settle();
+  if (refresh.outcome() === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
+  const owner = await owners(config.serviceId);
+  // The last await: from here to the write nothing yields, so the participants are asked once more now (S-95).
+  const outcome = refresh.outcome();
+  if (outcome === "discard") throw new ApiOAuthError(LOST_AUTHORITY);
+  if (!owner || owner.install_id !== read.owner.install_id) throw new ApiOAuthError("声明这个服务的插件在刷新期间已停用或重装，换到的令牌不保存");
+  boundMethod(config, owner);
+  // A disconnect during the network request must win over a token refresh.
+  configured(home, id);
+  if (withConnectorConnections(home, store => store.require(id)).updated_at !== read.revision) throw new ApiOAuthError("连接在刷新期间已变化，请重试");
+  secrets.put("access", next);
+  if (text(json.refresh_token)) secrets.put("oauth", text(json.refresh_token));
+  const nextExpiry = oauthExpiry(method, json, Date.now());
+  if (nextExpiry) secrets.put("expires", String(nextExpiry)); else secrets.delete("expires");
+  if (outcome === "deliver") {
+    const saved: OAuthConfiguration = { ...config, context: { ...config.context, ...kept } };
+    withConnectorProtocols(home, store => store.save(saved));
+  }
+  return next;
 }
 /**
  * The account behind an OAuth connection of the generic flow, read the way its authorization read it (W5-11 §2.2「检查连接和读账号」):
@@ -379,7 +475,7 @@ export async function resolveApiOAuthToken(home: string, id: string, control: Co
 export async function readApiOAuthAccount(home: string, id: string, control: ConnectorCallControl, token: (refresh: boolean) => Promise<string>,
   options: { fetchImpl?: typeof fetch; owners?: OAuthOwners } = {}): Promise<{ account_id: string; label: string }> {
   const config = configured(home, id);
-  const method = declaredMethod(await (options.owners ?? registryOwners(home))(config.serviceId), config.serviceId);
+  const method = boundMethod(config, await (options.owners ?? registryOwners(home))(config.serviceId));
   const settings = settingsOf(config.serviceId, method, config.settings);
   const send = controlledConnectorFetch(sender(options.fetchImpl, control), control);
   const read = async (refresh: boolean) => identityOf(config, method, settings, await token(refresh), send);

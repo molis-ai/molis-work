@@ -8,17 +8,20 @@ import type { PluginPlatformHome } from "./home-side.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
+import { sandboxImageNamespaceName } from "./sandbox-home-names.js";
 import { imageBaseUrl, imageConnectionSnapshot, imageConnectionViews, imagePortErrors } from "./plugin-image-connections.js";
 
 export function pluginImageGenerationFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   declaration: PluginImageGenerationDeclaration | undefined, assertActive: () => void): PluginImageGenerationClient | undefined {
   if (!home || !declaration || definition.execution === "sandbox") return undefined;
+  // `imageconn-…` is the namespace the Host derives for a sandboxed package's slots; no declaration may bind under it (BL-491, S-91).
+  if (sandboxImageNamespaceName(declaration.store_name)) throw imagePortErrors.image_target_invalid("这个图片存储名保留给沙箱插件，不能声明");
   return createPluginImageGenerationClient(definition.manifest, createPluginImageGenerationPort(home.directory, declaration.store_name),
     { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission) }, declaration);
 }
 
 /** Connector owner manages bindings; agent-host owns every actual model dispatch. */
-function createPluginImageGenerationPort(home: string, namespace: string): PluginImageGenerationPort {
+export function createPluginImageGenerationPort(home: string, namespace: string): PluginImageGenerationPort {
   return {
     connections: () => imageConnectionViews(home),
     inspect: target => imageConnectionSnapshot(home, namespace, target),

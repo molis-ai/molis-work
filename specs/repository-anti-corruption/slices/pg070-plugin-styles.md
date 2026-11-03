@@ -109,3 +109,26 @@
 父片 page-assets 的 coding.js +45、workbench.js +642 红灯与旧 d8e 的构建绑定缺口继续保留；沿用已核实旧证据，不借本单改 ceiling、baseline、limits、CI 或重跑 171/full/浏览器/CSS 批。完成本候选后将精确 parent/head/diff、构建源绑定及 raw 交既有 REVIEW/TEST 双核；F2 亲读两份最终原文和 raw 后直接交 PIPE 与 Root，不等待载体 full/CI。
 
 作者验证：一次公共 FIFO 整体构建自然退出 0，`2026-10-25T19:58:47.012Z` 清单的 `c37d3c0aea786fa41658210d9cb917aa63c18ce8786bf5228222c3c9e6291803` 与公开重算一致。完整 styles-gate 22/22、既有 styles 11/11，自然退出 0，共 33 个用例；旧 aead 精确脚本（Git blob `e9c96c8ed077d177d7e171e3045163cb0d4ac9f0`）在另存的五个有限业务探针中 0/5、自然退出 1，修复脚本同样探针 5/5、自然退出 0，未把重叠探针加进 33。探针使用未改的真实构建 splitter/on-demand 函数，没有省略准备检查。真实 gate 对实际 merge-base aead 通过 5 插件 / 575 块；boundary、health（同父比较）、导入无混用均通过。预算文件、生产 splitter/注册/CSS 和资源门禁输入完整未改；raw 位于 `/tmp/molis-verify-2026-10-25/pg070-prefix-freeze/`。
+
+
+## 第 3 片：设置页样式表不再带 Coding 的样式（T-146，2026-10-30）
+
+状态：交付，待双核。范围：`apps/workbench/src/page-assets.ts` 的 `renderMolisWorkSettingsStylesheet()` 删掉 `${CODING_STYLES}` 与它的 import；Coding 的设置页（`plugins/native/coding/src/ui.ts` 的 `renderCodingSettings`）只画 `settings-document coding-settings`、`settings-section`、`mw-*` 控件和 `data-coding-*` 钩子，规则在外壳 `apps/workbench/src/styles/settings.ts:504-507`（`.coding-settings …`，保留），它的页面另外链接 `coding.css`（`pluginSettingsStyleLinks`），并继续链接 `git.css`、`files.css`（PG-070 第 1 片定的做法）。
+
+设置样式表的用户（`molis-work-settings.css` 的链接处：`apps/local-host/src/web-assets.ts:79` 路由、`settings-renderer.ts:103`、`project-settings-pages.ts:53`/`:106`、`plugin-store-unavailable.ts:31`、`primitive-catalog.ts:213`）都不画 `CODING_STYLES` 里的类：Coding 自己的规则在 `coding.css`，共用规则（`.tok-*`、`[data-coding-workbench] …`、`[data-coding-change-reader] …` 等）由工作台样式表带（`scripts/gates/plugin-styles.mjs` 的 5 插件 575 块里 Coding 9 块不变），设置页上连共用部分都没有用户。
+
+字节（宿主下发口径，经 `apps/local-host/src/served-page-text.ts` 的 `tightenServedCss`）：`/assets/molis-work-settings.css` **905,103 → 827,465（−77,638）**；`/assets/molis-work-plugins/coding.css` 74,624 不变；其余资源不变；没有新增资源、没有 `APPROVED_CEILINGS`（`tooling/gates/page-assets.json` 只降这一行，由 `--update --base origin/main` 写入）。原始样式文本里 `CODING_STYLES` 82,207 字节，收紧后整段差 77,638 字节。
+
+对插件与调用方的影响：无合同、Manifest、动作、API 快照变化；`plugins/native/coding/**` 未改（`CODING_STYLES` 导出保留，`registration.ts` 与 `tests/coding-board-origins.e2e.test.ts` 仍用）；`apps/workbench/package.json` 依赖不变（`builtin-plugins.ts`、`scripts/client/initialization.ts`、`scripts/settings.ts` 仍 import Coding 包）。
+
+验收：
+
+| 编号 | 行为与验收 |
+| --- | --- |
+| RAC-2590 | 设置样式表不含 Coding 的任何样式：自己的整段、共用的整段、`[data-coding-method-list]`、`.tok-keyword`、`[data-coding-change-reader] [data-coding-line]` 都不在；外壳 `.coding-settings .coding-method-body` 还在（正控） | `tests/plugin-styles.test.ts`；先红与变异见 T-146 的【方案】/PR |
+| RAC-2591 | Coding 的规则仍到得了用它的页面：`coding.css` 含只点名 Coding 类的规则、工作台样式表含共用规则、设置页链接 `coding`/`git`/`files` 三张且排在 settings.css 之后 | 同上 |
+| RAC-2592 | `apps/workbench/src/page-assets.ts` 不再出现 `molis-work-plugin-coding`/`CODING_STYLES` | 同上 |
+| RAC-2593 | 页面资源只有 settings.css 变小，变化量等于实测；没有新资源、没有放行 | `node scripts/gates/page-assets.mjs --base origin/main`、`tooling/gates/page-assets.json`、`pnpm page-assets:check` |
+| RAC-2594 | 行为不变：Coding 设置页、工作台内设置面板与框架页的样式照旧 | 既有浏览器用例 `tests/plugin-picker-pins.e2e.test.ts`、`tests/english-surfaces.e2e.test.ts`、`tests/hover-actions.e2e.test.ts`；最终头由验证线跑 |
+
+限制：设置页仍按 PG-070 第 1 片链接 `git.css`、`files.css`（`stylesheetUses` 来自 `clientUses`），本片不改；`styles/settings.ts:504-507` 四条外壳替 Coding 设置页写的规则不搬（去向由统筹另开一单）；`CHARACTERS_STYLES` 等别的插件整张样式仍进设置样式表，属 PG-070 余项。

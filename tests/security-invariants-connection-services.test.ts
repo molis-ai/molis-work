@@ -13,7 +13,7 @@ import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { activateConnectorConnection, createPluginConnectionsPort, pluginSlotScope, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { activateConnectorConnection, createPluginConnectionsPort, homeIntegrationRegistry, oauthEndpointFingerprint, pluginSlotScope, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
@@ -146,6 +146,13 @@ async function made(t: TestContext, service_id: string, completion: Parameters<t
   home ??= await mkdtemp(join(tmpdir(), "connection-tenants-home-"));
   const dir = home;
   t.after(() => rm(dir, { recursive: true, force: true }));
+  if (completion.kind === "oauth") {
+    // An authorization of the generic flow binds the connection to the plugin declaring its service (W5-11 slice 5, RAC-1087).
+    const owner = (await homeIntegrationRegistry(home)).oauthOwner(service_id)!, method = owner.method;
+    assert.ok(method?.kind === "oauth", `${service_id} declares its OAuth flow as data`);
+    const binding = { plugin_id: owner.plugin_id, publisher_id: owner.publisher_id, endpoint: oauthEndpointFingerprint(method) };
+    completion = { ...completion, protocol: { ...completion.protocol, binding } as never };
+  }
   const view = activateConnectorConnection(home, completion);
   const target = { ...BOUND, install_id: `install-tenant-${service_id}-${view.connection_id.slice(0, 8)}`, service_id };
   withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: target.slot_id, serviceId: service_id, connectionId: view.connection_id }));

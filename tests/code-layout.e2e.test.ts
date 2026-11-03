@@ -100,12 +100,29 @@ test("VUX-33: a long physical line remains readable while its colouring advances
     return new Promise(resolve => requestAnimationFrame(() => resolve({ ...initial, frameInputs: inputs.slice() })));
   })()`);
   assert.equal(first.text, source, "the uncoloured remainder is immediately present, without inserting newlines");
-  assert.deepEqual(first.inputs, [], "SYS-49: a large block leaves colouring to its first animation frame");
-  assert.deepEqual(first.frameInputs, [16_000], "a long line keeps the first-slice work bound without colouring the whole line in one frame");
+  assert.deepEqual(first.inputs, [], "SYS-49: a large block leaves colouring to a later animation frame");
+  // RAC-2074 (user 2026-10-29, T-281): the frame that lays the line out first is not coloured in; the slices start after it.
+  assert.deepEqual(first.frameInputs, [], "SYS-49: no colouring shares the frame that first lays the block out");
   await waitFor("matches(text)", 30_000);
   const inputs = await evaluate<number[]>("inputs.slice()");
+  assert.equal(inputs[0], 16_000, "a long line keeps the first-slice work bound without colouring the whole line in one frame");
   assert.ok(inputs.length > 1 && inputs.at(-1) === source.length && inputs.every((length, index) => length - (inputs[index - 1] ?? 0) <= 16_000));
   assert.equal(await evaluate<string>("code.textContent"), source);
+});
+
+test("VUX-33: a large block put in before it is on the page reads whole and is coloured once it is laid out", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
+  await waitFor("document.readyState === 'complete'");
+  await evaluate(BOOT);
+  // RAC-2077 (T-281): its colouring waits for its first layout instead of being dropped because it was not on the page yet.
+  await evaluate(`pre.remove(); window.text = ${JSON.stringify(SOURCE)}; paint.paintInto(code, text, 'ts')`);
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))");
+  assert.deepEqual(await evaluate("[code.textContent === text, code.querySelectorAll('[class^=tok-]').length]"), [true, 0], "off the page it reads whole and is not coloured yet");
+  await evaluate("document.body.prepend(pre)");
+  await waitFor("matches(text)", 30_000);
+  assertGeometry(await evaluate<Geometry>(codeGeometry), SOURCE);
 });
 
 test("VUX-33: Coding retains its pre and code line boxes, including text coloured before attachment", { timeout: 120_000 }, async t => {
@@ -122,7 +139,8 @@ test("VUX-33: Coding retains its pre and code line boxes, including text coloure
       ["13px", "20.8px", "12px", "19.2px"], "the production container and inline code have distinct line boxes");
     await evaluate(`(async () => { window.text = ${JSON.stringify(source)};
       if (${detached}) pre.remove(); paint.paintInto(code, text, 'ts');
-      if (!${detached}) await new Promise(requestAnimationFrame);
+      // RAC-2075: a large block's first coloured piece comes in a frame after its first layout.
+      while (!code.querySelector('.tok-keyword')) await new Promise(requestAnimationFrame);
       window.firstToken = code.querySelector('.tok-keyword'); if (${detached}) turn.append(pre);
       const range = document.createRange(); range.selectNodeContents(firstToken);
       getSelection().removeAllRanges(); getSelection().addRange(range); window.selected = getSelection().toString();

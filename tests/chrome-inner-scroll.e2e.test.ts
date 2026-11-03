@@ -33,7 +33,7 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed", "artifacts"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
+  for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "scroll-test" });
   catalog.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const expectContained = async (chrome: string, scroller: string) => {
@@ -144,7 +144,7 @@ test("Window chrome stays put while chooser, settings, Feed, Artifacts and Goals
   await expectContained(".workbench-bar", "[data-artifact-directory]");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-goal-stage-list]");
   await expectContained("[data-workspace-chrome]", "[data-goal-stage-list]");
   await expectContained(".workbench-bar", "[data-goal-stage-list]");

@@ -17,7 +17,8 @@ import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, mode
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
-import { createStations, settingsReadActions, viewPlacementProblems } from "./view-placement-declarations.js";
+import { pageRouteProblems } from "./page-routes.js";
+import { createStations, englishNameProblem, settingsReadActions, stageDataPlacementProblems, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -137,6 +138,8 @@ function inspectPresentation(manifest: Record<string, unknown>): void {
   const summary = typeof manifest.summary === "string" ? manifest.summary.trim() : null;
   if (manifest.summary !== undefined && (!summary || [...summary].length > SUMMARY_LIMIT)) invalid(`summary 必须是不超过 ${SUMMARY_LIMIT} 字的非空文字`);
   if (manifest.developer !== undefined && manifest.developer !== true) invalid("developer 只能写 true，不是开发者插件就不写");
+  const english = manifest.name_en === undefined ? null : englishNameProblem(manifest.name_en, "name_en");
+  if (english) invalid(english);
 }
 
 function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {
@@ -197,6 +200,7 @@ export function comparePluginVersions(left: string, right: string): number {
 function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, unknown>): void {
   const v2Blocks: Array<[string, unknown]> = [
     ["always_on", manifest.always_on],
+    ["name_en", manifest.name_en],
     ["ports", manifest.ports],
     ["events", manifest.events],
     ["routes", manifest.routes],
@@ -212,6 +216,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["attention", manifest.attention],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
+    ["ui.page_routes", ui.page_routes],
     ["ui.messages", ui.messages],
     ["ui.translations", ui.translations],
   ];
@@ -255,6 +260,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   ));
   problems.push(...inspectSkillDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
+  problems.push(...pageRouteProblems(parsed));
   problems.push(...messageDeclarationProblems(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
@@ -300,6 +306,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     }
     problems.push(...viewPlacementProblems(view, stations, readables));
   }
+  problems.push(...stageDataPlacementProblems(views));
   return problems;
 }
 

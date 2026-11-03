@@ -55,13 +55,15 @@ export function preparePagesFragmentOffers(input: FragmentOffersInput, kind: str
       : fragment.targets[0]?.text ?? "";
   if (!joined.trim()) return [];
   const version = typeof fragment.object.version === "number" ? fragment.object.version : Number(fragment.object.version);
+  // One bounded cut shared by every choice: 180000 characters never take more than 360000 units, so the whole text is not spread.
+  const text180000 = joined.length > 180_000 ? [...joined.slice(0, 360_000)].slice(0, 180_000).join("") : joined;
   return PAGES_FRAGMENT_CHOICES.filter(choice => (!choice.granularities || choice.granularities.includes(fragment.granularity))
     && (!choice.roles || fragment.granularity === "object" || roles.some(role => role && choice.roles!.includes(role))))
     .map(choice => ({
       offer_id: choice.offer_id, title: choice.title,
       action: { ...choice.action, ...(providerId ? { provider_id: providerId } : {}) },
       input: choice.offer_id === "synthesize" ? synthesizeInput(input)
-        : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: joined.length > 180_000 ? [...joined].slice(0, 180_000).join("") : joined, ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
+        : { id: fragment.object.id, ...COMMAND[choice.offer_id], text: text180000, ...(Number.isInteger(version) && fragment.granularity !== "objects" ? { expected_version: version } : {}) },
       // Several documents in hand have no place to write back to: the card says which ones it works on.
       ...(fragment.granularity === "objects" ? { summary: objectsSummary(choice.offer_id, fragment.targets) } : {}),
       ...(choice.offer_id === "synthesize" ? { editable: ["title", "instructions"] } : {}),

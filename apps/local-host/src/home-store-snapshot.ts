@@ -2,7 +2,7 @@ import { join, relative } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listPluginProjectDatabases } from "@molis-ai/molis-work-plugin-runtime";
 import { verifyPrologueNodeStorageContents } from "@molis-ai/molis-work-service-agent-host";
-import { inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotMetadata, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
+import { inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
 import { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "./project-catalog-contract.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -23,11 +23,6 @@ export interface SnapshotKeyDependency {
   readonly sha256: string;
 }
 export interface HomeStoreSnapshotPolicy {
-  /** Static owner declaration, consumed only by the leased offline backup path. */
-  readonly retained?: {
-    readonly database: { readonly file: string; readonly metadata: SqliteSnapshotMetadata };
-    readonly content: { readonly directory: string; readonly dependency: string };
-  };
   readonly omit?: string;
   readonly emptyOnly?: boolean;
   readonly entry?: (home: string, relativePath: string) => SnapshotDisposition;

@@ -52,7 +52,7 @@ test("a built-in plugin writes only the types its Manifest declares, each to the
 test("process items never reach the 成果库, the side panel's files or the system search", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-process-items-hidden-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "过程项", actor_id: "owner" }));
-  await withCatalog({ homeDirectory: home }, catalog => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }));
+  await withCatalog({ homeDirectory: home }, catalog => assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "owner" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found"));
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const token = resolveWebControlToken({ homeDirectory: home });

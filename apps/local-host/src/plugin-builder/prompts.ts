@@ -7,6 +7,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import ts from 'typescript';
+import { defineInstructionPrompt, type InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import type { AgentDefinitionRegistration } from '@molis-ai/molis-work-contracts/services/agent-definitions';
 import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-builder';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
@@ -108,12 +109,17 @@ export function promptVersions(release: AgentRelease, releases: readonly AgentRe
   return versions;
 }
 
+/** The same verified release instructions serve the broker, the definition and the Home's register. */
+export function releaseInstructions(release: AgentRelease, releases: readonly AgentRelease[]): readonly InstructionPrompt[] {
+  const versions = promptVersions(release, releases);
+  return Object.freeze(release.prompts.map(prompt => defineInstructionPrompt({ owner_id: release.pluginId, prompt_id: prompt.id,
+    version: versions.get(prompt.id) ?? release.version, title: prompt.title, purpose: prompt.purpose, used_by: [release.design.title], body: prompt.body })));
+}
+
 /** An installed generated plugin's prompts, registered with the Home's so the person sees and edits them. */
 export function generatedRegistration(release: AgentRelease, releases: readonly AgentRelease[], state: 'enabled' | 'disabled', pluginVersion: string): AgentDefinitionRegistration {
-  const versions = promptVersions(release, releases);
   return { owner_id: release.pluginId, source: { kind: 'plugin', plugin_id: release.pluginId, plugin_version: pluginVersion, title: release.design.title, origin: 'generated', state },
-    prompts: release.prompts.map(prompt => ({ prompt_id: prompt.id, version: versions.get(prompt.id) ?? release.version, kind: 'instruction' as const,
-      title: prompt.title, purpose: prompt.purpose, used_by: [release.design.title], body: prompt.body })), roles: [] };
+    prompts: releaseInstructions(release, releases).map(({ owner_id: _owner, used_by, ...prompt }) => ({ ...prompt, kind: 'instruction' as const, used_by: [...used_by] })), roles: [] };
 }
 
 export function registerGeneratedPrompts(home: string, registration: AgentDefinitionRegistration, scope?: string): void {

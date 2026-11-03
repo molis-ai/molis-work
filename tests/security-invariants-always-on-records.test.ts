@@ -123,7 +123,7 @@ const storePath = (home: string) => join(home, "plugin-runtime", "plugin-runtime
 function seedStore(home: string): DatabaseSync {
   mkdirSync(join(home, "plugin-runtime"), { recursive: true });
   const db = new DatabaseSync(storePath(home));
-  db.exec(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v3.sql", import.meta.url), "utf8"));
+  db.exec(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8"));
   return db;
 }
 
@@ -308,8 +308,8 @@ test("RAC-401 S-34 a query before Host startup records nothing and the real supe
 for (const [name, corrupt, expected] of [
   ["non-SQLite bytes", (file: string) => writeFileSync(file, "not a SQLite database"), /not a database/u],
   ["empty existing file", (file: string) => writeFileSync(file, ""), { code: "storage.schema_version_mismatch" }],
-  ["old baseline", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.schema_version_mismatch" }],
-  ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 3"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
+  ["wrong version", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.schema_version_mismatch" }],
+  ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 1"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
 ] as const) {
   test(`RAC-401 S-34 an existing Runtime store with ${name} is refused, never treated as missing or repaired by a query`, async t => {
     const f = await catalogFixture(t);
@@ -396,9 +396,9 @@ for (const corruption of ["version", "structure"] as const) {
         assert.deepEqual(new SqlitePluginConsentLedger(restored).consents(goals.plugin_id), consents);
         assert.deepEqual(new SqlitePluginRuntimeRepository(restored).list(), installs);
         // Restoring only the missing structure/version makes the next read authoritative again, while preserving every revoked row.
-        if (corruption === "version") restored.exec("PRAGMA user_version = 3");
+        if (corruption === "version") restored.exec("PRAGMA user_version = 1");
         else {
-          const schema = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v3.sql", import.meta.url), "utf8");
+          const schema = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
           const table = schema.match(/CREATE TABLE plugin_private_values \([\s\S]*?\n\);/u)?.[0];
           assert.ok(table); restored.exec(table);
         }

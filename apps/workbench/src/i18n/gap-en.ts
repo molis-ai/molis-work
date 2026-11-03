@@ -297,6 +297,7 @@ export const GAP_EN: Record<string, string> = {
   "连接检查通过，已保存。配置会用于下一轮执行。": "Connection check passed and saved. It applies to the next run.",
   "模型已连接，可以继续了。": "Model connected. You can carry on.",
   "请只选择已有连接，或填写新的 API Key": "Choose a saved connection, or enter a new API key, not both.",
+  "建于": "Made for",
   "API Key 太短": "The API key is too short.",
   "请填写 API Key，或选择一条已保存的连接": "Enter an API key, or choose a saved connection.",
   "请填写模型 ID（供应商文档里的模型名），或删掉空的一行。": "Enter a model ID (the model name in the provider's documentation), or delete the empty row.",

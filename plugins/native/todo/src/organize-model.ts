@@ -1,4 +1,4 @@
-import { fencedMaterials, instructed, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, MODEL_DATA_MAX_CHARS, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidate, type TodoCandidateKind, type TodoItem, type TodoPlacement } from "./contract.js";
 import { isTodoDate, isTodoTime, localDate } from "./dates.js";
 import { parseTodoQuickText } from "./quick-parse.js";
@@ -26,6 +26,11 @@ export interface TodoOrganizeParse {
 
 /** One model call reads at most this many characters of material; longer sets are read in parts (one material longer than this has a part of its own). */
 const TODO_ORGANIZE_PART_CHARS = 40_000;
+
+/** The Host prompt limit's data position, from the contract's one number (`MODEL_DATA_MAX_CHARS`): each model call's data (its part of the
+ * materials, the existing todos, the request) must stay within it; a call over it is refused before any model call, saying how much,
+ * instead of letting the Host refuse it after dispatch as a model failure. */
+export const TODO_ORGANIZE_DATA_MAX_CHARS = MODEL_DATA_MAX_CHARS;
 
 const KINDS: readonly TodoCandidateKind[] = ["request", "commitment", "waiting", "suggestion"];
 const PLACEMENTS: readonly TodoPlacement[] = ["project", "personal", "unassigned"];

@@ -7,7 +7,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { FEED_ACTION_PERMISSIONS, feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 async function fixture() {

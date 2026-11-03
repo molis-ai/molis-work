@@ -11,14 +11,17 @@ import type { CallConnectionsPort, SqlitePluginPrivateStorage } from '@molis-ai/
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
-import { sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
+import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from './installed-plugin-lifecycle.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
-import { capabilityCatalog, catalogCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { configuredModelChoices } from './configured-models.js';
+import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
+import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { hostNetwork } from './plugin-builder/network.js';
-import { generatedRegistration, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
+import { pluginAgentRegistration, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from './plugin-instructions.js';
+import { pluginHomeFor } from './home-side.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { studioStorage } from './plugin-builder/storage.js';
 import type { PluginPlatform } from './plugin-platform.js';
@@ -32,7 +35,7 @@ export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatfor
 
 /** The Home's integration registry, as an installed integration package reaches it (BL-530): its ids held while it runs, let go when it stops. */
 export interface HomeIntegrationsPort {
-  attach(manifest: PluginManifest, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
   detach(pluginId: string): Promise<void>;
 }
 
@@ -94,7 +97,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
       let snapshot: CatalogCapability[], revision: number;
       for (;;) {
-        revision = exposureRevision; snapshot = await capabilityCatalog(actions, options.actorId);
+        revision = exposureRevision;
+        try { snapshot = await capabilityCatalog(actions, options.actorId); }
+        catch (error) { if (isClosed()) return []; if (revision !== exposureRevision) continue; throw error; }
         if (isClosed()) return [];
         if (revision !== exposureRevision) continue;
         const costs = exposedOperationCosts([...exposed.values()].map(entry => entry.release), snapshot);
@@ -106,6 +111,17 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     return catalogPending;
   };
   const secrets = pluginSecrets(home, HOME_INSTALL_SCOPE, storage);
+  // The `model.generate` capability a package's `prompts.json` is for (BL-714): the Home's own registration of the platform capability,
+  // answering only this Home's installations, with the instructions the package registered under the Home.
+  const generate = createPluginModelGeneration({ homeDirectory: home,
+    declaredPrompts: async (pluginId, caller) => {
+      if (isClosed() || caller?.project_id !== null || !caller.plugin_install_id) throw staleInstallation('模型调用缺少个人空间的执行身份');
+      const record = recordFor(pluginId), installed = releaseFor(pluginId);
+      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw staleInstallation('模型调用的安装执行身份已失效');
+      return { kind: 'installed', registration: pluginAgentRegistration(definition(installed, approvedFor(pluginId) ?? installed.permissions))! };
+    },
+    selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(home)[0] ?? null; } });
+  let disposePlatform = () => {};
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   // Only the Home's own actions are in this catalog: the caller has no project, so an action of a project is not offered to it.
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean) => catalogCapabilities({ actions, catalog, live, author: pluginId => releaseFor(pluginId)?.design.title,
@@ -130,23 +146,27 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     const pluginId = release.pluginId, installId = recordFor(pluginId)?.install_id;
     if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
     const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.install_id === installId && now?.state === 'running'; };
-    if (!active()) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
+    if (!active() || !installId) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
     const token = Symbol(); attached.set(pluginId, token);
     const live = () => attached.get(pluginId) === token && active();
     const forget = () => { if (attached.get(pluginId) === token) attached.delete(pluginId); };
-    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, () => platform.supervisor.contribution(pluginId), live)) forget(); }
+    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
     catch (error) { forget(); throw error; }
   };
-  const promptScope = (installId: string) => JSON.stringify([null, HOME_INSTALL_SCOPE, installId]);
-  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') =>
-    registerGeneratedPrompts(home, generatedRegistration(release, [release], state, installedVersion(release)), promptScope(recordFor(release.pluginId)!.install_id));
+  const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
+    const record = recordFor(release.pluginId);
+    if (!record || record.version !== installedVersion(release)) return;
+    updatePluginAgentDefinitions(pluginHomeFor(home), definition(release, approvedFor(release.pluginId) ?? release.permissions), record.install_id, state, restored);
+  };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    forget(pluginId, installId) { unregisterGeneratedPrompts(home, pluginId, promptScope(installId)); forgetDefinitions(pluginId); } });
-  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); };
+    forget(pluginId, installId) { forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); } });
+  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
 
   try {
+    // Registered inside the guard: a start that fails from here on takes it back with the rest (`close`).
+    disposePlatform = registerPlatformCapabilities(actions, { generate });
     // One package that cannot start leaves its reason with its installation and starts nothing else less: the built-in plugins and the other packages go on.
     for (const record of records()) {
       try {
@@ -170,16 +190,30 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
 
   return {
     lifecycle, recordFor, releaseFor, records, recoveryErrors, close,
+    /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */
+    packageOf: (pluginId: string): InstalledRelease | undefined => {
+      const record = recordFor(pluginId);
+      return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
+    },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
     installPackage: (release: InstalledRelease, input: { consent: true }) => {
       assertHomePackageAllowed(release.packaged!.manifest);
-      // A Home package is not upgraded in place: a second confirmation of an installed plugin is refused before
-      // the lifecycle sees it, with the declared state code instead of the lifecycle's bare `Error` (S-80, BL-628).
-      if (recordFor(release.pluginId)) throw pluginErrors.state_invalid('这个插件已经装在 Home 里。Home 里的签名包不就地升级：先卸载（可保留数据），再装新包');
-      return lifecycle('install', release, input);
+      return lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input);
     },
     /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). An integration package is not one: it offers sources, no actions (BL-530). */
     running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item) && releaseFor(item.plugin_id)?.packaged?.manifest.kind !== 'integration').map(item => item.plugin_id),
+    /**
+     * The packages the Home draws a page for, by the key its pages go under (the plugin id): those that run, and those that are not
+     * switched off but did not come back (their page says why). One switched off or quarantined, one uninstalled, an integration package
+     * (no page) and one whose release cannot be read back (no Manifest to draw) are not.
+     */
+    pages: (): { key: string; manifest: PluginManifest }[] => records().flatMap(item => {
+      if (item.state !== 'running' && (!recoveryErrors.has(item.plugin_id) || item.state === 'disabled' || item.state === 'quarantined')) return [];
+      // Like `running`: a publisher the person took back has no page until its installation is stopped and says why.
+      if (item.state === 'running' && !standing.trusted(item)) return [];
+      const manifest = releaseFor(item.plugin_id)?.packaged?.manifest;
+      return manifest?.kind === 'app' && manifest.ui?.views?.some(view => view.slot === 'stage') ? [{ key: item.plugin_id, manifest }] : [];
+    }),
     refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },
     /** Stops the installations whose publisher the person took back since this last looked, their data kept. */
     reconcilePublishers: stops.reconcile,

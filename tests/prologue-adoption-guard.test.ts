@@ -45,8 +45,8 @@ async function fixture(yieldIt: boolean, onFirst?: () => void) {
   const requests: Array<{ who: "parent" | "child"; body: string }> = [];
   const errors: unknown[] = [];
   const respond = async (request: IncomingMessage, response: ServerResponse) => {
-    let raw = "";
-    for await (const chunk of request) raw += String(chunk);
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const body = JSON.parse(raw) as { system: unknown; tools?: Array<{ name: string }> };
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found", not counted as a run.
     const review = endingReviewAnswer(body, () => []);

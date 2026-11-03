@@ -38,9 +38,9 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
   </div>`;
 }
 
-function renderSettingsNav(
+export function renderSettingsNav(
   primitives: SettingsDirectoryPrimitives,
-  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: PluginIconName }[] }[],
+  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: PluginIconName; addressQuery?: string; addressHash?: string }[] }[],
   preset: string,
   label: string,
   pluginId: string,
@@ -59,7 +59,9 @@ function renderSettingsNav(
       icon: section.icon,
       density: "compact",
       current: section.id === preset,
-      attrs: { "data-settings-section": section.id },
+      attrs: { "data-settings-section": section.id,
+        ...(section.addressQuery ? { "data-settings-address-query": section.addressQuery } : {}),
+        ...(section.addressHash ? { "data-settings-address-hash": section.addressHash } : {}) },
     })).join("")}`).join(""),
   });
 }

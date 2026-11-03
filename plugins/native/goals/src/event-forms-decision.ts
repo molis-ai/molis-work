@@ -1,4 +1,4 @@
-import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView } from "./contract/goals.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 
 /** The user decision and its exact agreement-change comparison; the agreement form factory keeps the same public return. */

@@ -176,7 +176,7 @@ export const NAVIGATION_FEED_SOURCES_PART = `
       feedConfigView = view;
       showFeedSetup("config", selectedFeedTask);
     };
-    const setFeedTask = (taskId, persist = true) => {
+    const setFeedTask = (taskId, persist = true, intent = "open") => {
       const available = document.querySelector('[data-feed-source-rail] [data-feed-task="' + CSS.escape(taskId || "") + '"]');
       const next = available ? taskId : "all";
       const changed = selectedFeedTask !== next;
@@ -194,7 +194,7 @@ export const NAVIGATION_FEED_SOURCES_PART = `
       document.querySelectorAll('button[data-feed-view]:not([data-feed-view="messages"])').forEach(button => button.hidden = !isSource);
       const sync = document.querySelector("[data-feed-current-sync]");
       if (sync) { sync.hidden = !isSource; sync.dataset.feedSourceSync = next; sync.disabled = available?.dataset.feedSourceCanSync !== "true" || available?.dataset.feedSourceState === "syncing"; }
-      if (feedWorkbench) { feedWorkbench.dataset.selectedSource = next; feedWorkbench.dataset.railOpen = "false"; feedWorkbench.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", "false"); feedWorkbench.querySelector("[data-feed-source-menu]")?.removeAttribute("open"); }
+      if (feedWorkbench) { feedWorkbench.dataset.selectedSource = next; if (intent !== "restore" || changed) { feedWorkbench.dataset.railOpen = "false"; feedWorkbench.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", "false"); feedWorkbench.querySelector("[data-feed-source-menu]")?.removeAttribute("open"); } }
       document.querySelectorAll(".feed-source-tabs").forEach((tabs) => { tabs.hidden = !isSource; });
       if (changed) { collapseFeedStage(); setFeedAddOpen(false); }
       filterFeedItems(true, false);

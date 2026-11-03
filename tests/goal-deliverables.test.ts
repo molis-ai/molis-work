@@ -6,7 +6,7 @@ import { LocalProjectDatabase, seedDemoGoals, openProjectVersionStores } from "@
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome } from "./fixtures/test-home.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
-import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-plugin-goals/contract";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const controlToken = "goal-deliverables-test-control-token-0123456789";

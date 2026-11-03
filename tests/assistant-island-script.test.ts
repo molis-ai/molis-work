@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
@@ -67,4 +68,34 @@ test("the bottom bar measures its line with its chips on it and folds parts off 
   const fit = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const fitInput = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
   assert.match(fit, /compose\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete compose\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
   assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
+});
+
+// RAC-2571: the script is cut by job into twelve parts joined in place (W5-10 batch A, T-060), so the main file stays under the
+// giant-unit limit. Each part is one String.raw constant (the main template is raw: a plain template would turn its \n and \d into
+// other characters), and the main file joins each on a line of its own, which keeps the line breaks around it as they were.
+test("RAC-2571: the bottom-bar script is twelve String.raw parts joined in place, and the main file stays under 770 lines", () => {
+  const dir = new URL("../apps/workbench/src/scripts/client/", import.meta.url);
+  const main = readFileSync(new URL("assistant-island.ts", dir), "utf8");
+  assert.ok(main.split("\n").length <= 770, `assistant-island.ts has ${main.split("\n").length} lines`);
+  const parts = {
+    "assistant-choosers.ts": "ASSISTANT_CHOOSERS_PART",
+    "assistant-browser-handback.ts": "ASSISTANT_BROWSER_HANDBACK_PART",
+    "assistant-layout.ts": "ASSISTANT_LAYOUT_PART",
+    "assistant-conversation.ts": "ASSISTANT_CONVERSATION_PART",
+    "assistant-side-kit.ts": "ASSISTANT_SIDE_KIT_PART",
+    "assistant-side-path.ts": "ASSISTANT_SIDE_PATH_PART",
+    "assistant-strip.ts": "ASSISTANT_STRIP_PART",
+    "assistant-tabs.ts": "ASSISTANT_TABS_PART",
+    "assistant-notices.ts": "ASSISTANT_NOTICES_PART",
+    "assistant-materials.ts": "ASSISTANT_MATERIALS_PART",
+    "assistant-composer.ts": "ASSISTANT_COMPOSER_PART",
+    "assistant-page-messages.ts": "ASSISTANT_PAGE_MESSAGES_PART",
+  };
+  for (const [file, name] of Object.entries(parts)) {
+    const source = readFileSync(new URL(file, dir), "utf8");
+    assert.deepEqual([...source.matchAll(/^export const (ASSISTANT_[A-Z_]+_PART) = String\.raw`/gm)].map(found => found[1]), [name], `${file} exports ${name} as one String.raw template`);
+    assert.equal(source.match(/^export /gm)?.length, 1, `${file} exports nothing else`);
+    assert.ok(source.split("\n").length < 800, `${file} has ${source.split("\n").length} lines`);
+    assert.equal(main.split("\n").filter(line => line === "${" + name + "}").length, 1, `the main file joins ${name} once, on a line of its own`);
+  }
 });

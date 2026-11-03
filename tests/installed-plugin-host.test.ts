@@ -1,5 +1,6 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
@@ -31,13 +32,14 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandb
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
 
-/** `neverInstalled`: the Runtime has no row for the plugin yet, as for a plugin that is published but has never been installed. */
-async function publishedFixture(home: string, name: string, lookup = false, secretRefs: string[] = [], neverInstalled = false) {
+/** `neverInstalled`: the Runtime has no row for the plugin yet, as for a plugin that is published but has never been installed.
+ * `fixedPluginId`: the generated plugin id to use instead of a random one, so a test can control where it sorts. */
+async function publishedFixture(home: string, name: string, lookup = false, secretRefs: string[] = [], neverInstalled = false, fixedPluginId?: string) {
   const databasePath = join(home, name + '.sqlite'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
   const draft = builder.create('An unfinished draft must not resume when an installed plugin runs');
   const waiting = builder.update(draft.id, draft.revision, value => { value.active = { token: 'interrupted-draft', stage: 'design' }; value.phase = 'designing'; });
-  const buildId = randomUUID(), pluginId = 'io.molis.work.generated.' + buildId;
+  const buildId = randomUUID(), pluginId = fixedPluginId ?? 'io.molis.work.generated.' + buildId;
   const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
     { id: 'save', kind: 'command', input: { type: 'object', additionalProperties: false, required: ['value'], properties: { value: { type: 'string' } } }, output: { type: 'string' }, effects: { storage: ['write'] }, errors: [], examples: [{ input: { value: 'value' }, output: 'value' }] },
     { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] },
@@ -1090,4 +1092,99 @@ test('RAC-1199 closing the Host aggregates a Runtime read failure, revokes the i
     await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
     await rm(home, { recursive: true, force: true });
   }
+});
+
+// RAC-2406 T-172 review / T-275: the Host close's own call site, not only the shared closePlugin that the project's RAC-1922/1923 pin.
+// An installation whose record is gone when the close comes to it is one failure of the aggregate, its instance is let go, and the other
+// installation still stops kept enabled. Both plugin ids are fixed so the close order (enabledPluginIds sorts its keys) is the same every
+// run: the record that goes is first, then last. The first order is where "keep going after a failure" is observable — with the record that
+// goes last there is nothing after it the loop could skip.
+for (const [order, gonePluginId, keptPluginId] of [
+  ['first', 'io.molis.work.generated.close-order-a-gone', 'io.molis.work.generated.close-order-z-kept'],
+  ['last', 'io.molis.work.generated.close-order-z-gone', 'io.molis.work.generated.close-order-a-kept'],
+] as const) test(`RAC-2406 closing the Host keeps going when the installation record is gone ${order} in the close order`, { ...mac, timeout: 90_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-record-gone-close-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project', false, [], false, keptPluginId);
+  // A second installation in the same project, so the close has another one to keep going with.
+  const store = new LocalProjectDatabase(fixture.databasePath);
+  let second: { pluginId: string; installId: string } | undefined;
+  try {
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage);
+    const buildId = randomUUID(), pluginId = gonePluginId;
+    const contract: SandboxPluginContract = { version: 1, pluginId, revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+      { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] }] };
+    const bundlePath = join(home, buildId + '.mjs'); await writeFile(bundlePath, "export const operations={read:async()=>'empty'};");
+    const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
+      design: { id: 'one', catalog: 'actions/1', title: 'Second fixture', description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
+      nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
+    builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+    const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
+    const { install } = runtime.install({ trust: { level: 'unsigned' }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
+    second = { pluginId, installId: install.install_id };
+  } finally { store.close(); }
+  assert.ok(second);
+  const gone = second, kept = fixture.install;
+  const rig = await hostWithProject(home, fixture);
+  let saved: Record<string, unknown> | undefined;
+  try {
+    const installed = await rig.control(), platform = installed.platform;
+    assert.deepEqual(installed.installations().map(entry => entry.state), ['running', 'running'], 'both installations run before the close');
+    assert.ok(platform.runtime.contribution(gone.installId), 'the installation whose record goes has a contribution before the close');
+    assert.ok(platform.runtime.contribution(kept.install_id), 'the installation that stays keeps its contribution before the close');
+    // The close walks enabledPluginIds (sorted ascending): the order is exactly both plugin ids, in the order this case built them.
+    // The expected array is written per case rather than sorted, so swapping the two fixture ids for the two orders also breaks the
+    // labels; comparing the whole array still fails when the close order is empty (an indexOf would see -1 === -1).
+    const closeOrder = platform.supervisor.enabledPluginIds();
+    const expectedOrder = order === 'first' ? [gone.pluginId, fixture.release.pluginId] : [fixture.release.pluginId, gone.pluginId];
+    assert.deepEqual(closeOrder, expectedOrder, `the close order is exactly both plugin ids, ascending (the ${order} one goes)`);
+    saved = await rig.host.withProject(fixture.ref, runtime => runtime.store.db.prepare('SELECT * FROM plugin_runtime_installs WHERE install_id = ?').get(gone.installId) as Record<string, unknown> | undefined);
+    assert.ok(saved, 'the second record exists before the close');
+    await rig.host.withProject(fixture.ref, runtime => { runtime.store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(gone.installId); });
+    await assert.rejects(rig.host.close(), (error: unknown) => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /安装插件停止失败/);
+      assert.equal(error.errors.length, 1, 'one failure for the record that is gone, none for the installation that closes normally');
+      assert.equal((error.errors[0] as { code?: string }).code, 'plugin.definition_missing');
+      return true;
+    });
+    assert.equal(platform.runtime.contribution(gone.installId), null, 'the installation whose record is gone keeps no contribution');
+    const closed = new LocalProjectDatabase(fixture.databasePath);
+    try {
+      assert.equal(new SqlitePluginRuntimeRepository(closed.db).get(kept.install_id)?.state, 'installed', 'the other installation stopped kept enabled');
+      assert.equal(new SqlitePluginRuntimeRepository(closed.db).get(gone.installId), null);
+    } finally { closed.close(); }
+    for (const pluginId of [fixture.release.pluginId, gone.pluginId]) assert.equal(platform.supervisor.state(pluginId)?.code, 'plugin.revoked', `${pluginId} is revoked`);
+  } finally {
+    if (saved) {
+      const closed = new LocalProjectDatabase(fixture.databasePath);
+      try {
+        if (!new SqlitePluginRuntimeRepository(closed.db).get(gone.installId)) {
+          const columns = Object.keys(saved);
+          closed.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(', ')}) VALUES (${columns.map(column => '@' + column).join(', ')})`).run(saved);
+        }
+      } finally { closed.close(); }
+    }
+    await rig.host.close().catch(error => { if (!(error instanceof AggregateError)) throw error; });
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+// RAC-2615: the child hooks before any application import; this parent already imported the Host.
+test('RAC-2615 controlled real Home lifecycle replaces and restores secrets without a production testing API', { ...mac, timeout: 180_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 't141-child-'));
+  try {
+    const env = { PATH: process.env.PATH, HOME: directory, CFFIXED_USER_HOME: directory, TMPDIR: directory,
+      XDG_CONFIG_HOME: directory, XDG_CACHE_HOME: directory, XDG_DATA_HOME: directory,
+      MOLIS_WORK_HOME: join(directory, 'molis'), MOLIS_WORK_SECRET_BACKEND: 'file', MOLIS_WORK_ENCRYPTION_KEY: '',
+      MOLIS_HELPER_SIGNING_IDENTITY: '-', NODE_ENV: 'test', MOLIS_WORK_SLOT_HELD: process.env.MOLIS_WORK_SLOT_HELD };
+    const child = spawn(process.execPath, ['--unhandled-rejections=strict', '--import', 'tsx', new URL('./fixtures/home-upgrade-lifecycle.mjs', import.meta.url).pathname], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const stop = () => { if (child.pid) try { process.kill(-child.pid, 'SIGTERM'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; } };
+    t.signal.addEventListener('abort', stop, { once: true });
+    t.after(() => { t.signal.removeEventListener('abort', stop); stop(); });
+    let output = ''; child.stdout.on('data', chunk => { output += chunk; }); child.stderr.on('data', chunk => { output += chunk; });
+    const code = await new Promise<number | null>((resolve, reject) => { child.once('error', reject); child.once('exit', resolve); });
+    assert.equal(code, 0, output);
+    for (const scenario of ['success', 'failure', 'edit', 'disable', 'reenable', 'disabled']) assert.ok(output.includes('lifecycle: ' + scenario + ' passed'), output);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

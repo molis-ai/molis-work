@@ -4,6 +4,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
 
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
@@ -49,13 +50,20 @@ const personalEntries = defineSearchEntriesAction("memos.search.entries", person
 function source(notes: Note[] = []): Source {
   return { notes: new Map(notes.map(note => [note.id, note])), lists: 0, reads: 0, fail: false, availability: { available: true } };
 }
-function register(service: ActionService, state: Source, provider: { provider_id: string; project_id?: string; plugin_id?: string }) {
+function register(service: ActionService, state: Source, provider: { provider_id: string; project_id?: string; plugin_id?: string },
+  capabilities: { entries?: string; reader?: string } = {}) {
+  // A second provider in the same project needs its own capability ids: the registry holds one provider per (id, version, project).
+  const ownEntries = capabilities.entries ? defineSearchEntriesAction(capabilities.entries, kinds, "笔记", ["notes:read"]) : entries;
+  const ownReader = capabilities.reader ? defineSubjectContextAction(capabilities.reader, "note", "笔记", ["notes:read"]) : reader;
+  // RAC-2738: the spread comes after the default, so a caller that passes `plugin_id: undefined` explicitly overrides `"notes"` with
+  // undefined instead of keeping it. That is how the tests write a provider without its own plugin id, and why the discarded reader's
+  // `where` falls back to the provider id. Not a bug — keep this order if the helper changes.
   return service.registerProvider({
     provider: { title: "笔记插件", kind: "plugin", plugin_id: provider.plugin_id ?? "notes", ...provider },
     availability: () => state.availability,
-    definitions: [entries, reader],
+    definitions: [ownEntries, ownReader],
     handlers: [
-      bindSearchEntriesHandler(entries, async () => {
+      bindSearchEntriesHandler(ownEntries, async () => {
         state.lists += 1;
         state.onList?.();
         await state.hold;
@@ -63,7 +71,7 @@ function register(service: ActionService, state: Source, provider: { provider_id
         return [...state.notes.values()].map((note): SearchEntry => ({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title,
           summary: note.secret ? "（私密）" : "", updated_at: null, content: note.secret ? "summary" : "context", open: { surface: "notes", id: note.id } }));
       }),
-      { ...reader, handle: (_caller, input) => {
+      { ...ownReader, handle: (_caller, input) => {
         state.reads += 1;
         const note = state.notes.get((input as { subject_id: string }).subject_id);
         if (!note) throw state.absent?.() ?? new ActionError("actions.subject_unavailable", "笔记已删除");
@@ -86,23 +94,27 @@ function registerPersonal(service: ActionService, memos: Note[]) {
 
 const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "memos:read", "todo:read", "search:read"] });
 
-async function fixture(t: import("node:test").TestContext, options: { freshMs?: number; clock?: () => number } = {}) {
+async function fixture(t: import("node:test").TestContext, options: { freshMs?: number; clock?: () => number; onError?: (error: unknown, where: string) => void } = {}) {
   const home = await mkdtemp(join(tmpdir(), "system-search-"));
   const actions = new ActionService();
   let now = 1_000_000;
   let index = openTextSearchIndex({ homeDirectory: home });
   const make = () => new SearchService({ index, clock: options.clock ?? (() => now), freshMs: options.freshMs ?? 60_000, budgetMs: 5_000, refreshDelayMs: 5,
-    indexer: async project_id => ({ client: actions, caller: owner(project_id) }) });
+    indexer: async project_id => ({ client: actions, caller: owner(project_id) }), ...(options.onError ? { onError: options.onError } : {}) });
   let search = make();
   t.after(async () => { await search.close(); index.close(); await rm(home, { recursive: true, force: true }); });
   return {
     home, actions,
     get search() { return search; },
     tick(ms: number) { now += ms; },
-    async reopen(damage: "none" | "remove" | "corrupt" = "none") {
+    async reopen(damage: "none" | "remove" | "corrupt" | "version" = "none") {
       await search.close(); index.close();
-      if (damage !== "none") for (const suffix of ["", "-wal", "-shm"]) { const file = homeSqlitePath(home, "search") + suffix; if (existsSync(file)) rmSync(file); }
+      if (damage === "remove" || damage === "corrupt") for (const suffix of ["", "-wal", "-shm"]) { const file = homeSqlitePath(home, "search") + suffix; if (existsSync(file)) rmSync(file); }
       if (damage === "corrupt") writeFileSync(homeSqlitePath(home, "search"), Buffer.alloc(8192, 0x5a));
+      if (damage === "version") {
+        const db = new DatabaseSync(homeSqlitePath(home, "search"));
+        try { db.exec("UPDATE search_meta SET value = '2' WHERE key = 'schema'"); } finally { db.close(); }
+      }
       index = openTextSearchIndex({ homeDirectory: home }); search = make();
     },
   };
@@ -422,7 +434,7 @@ test("disable, re-enable and uninstall follow the plugin's lifecycle", async t =
   assert.deepEqual(ids(await ask(f, owner("a"), "灵光")), []);
 });
 
-test("restart keeps the index; a deleted or corrupt index file is rebuilt with the same results", async t => {
+test("RAC-2370 restart keeps the index; a missing, corrupt or wrong-version cache rebuilds the same results", async t => {
   const f = await fixture(t);
   const notes = source(Array.from({ length: 1200 }, (_, index) => ({ id: `n${index}`, title: `记录 ${index}`, body: index % 100 === 0 ? `关键词 甲乙丙 ${index}` : `普通内容 ${index}`, version: 1 })));
   register(f.actions, notes, { provider_id: "notes-a", project_id: "a" });
@@ -437,6 +449,14 @@ test("restart keeps the index; a deleted or corrupt index file is rebuilt with t
   assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);
   await f.reopen("corrupt");
   assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);
+  await f.reopen("version");
+  assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);
+  const current = new DatabaseSync(homeSqlitePath(f.home, "search"), { readOnly: true });
+  try {
+    assert.equal(current.prepare("SELECT value FROM search_meta WHERE key = 'schema'").get()!.value, "1");
+    assert.equal(current.prepare("PRAGMA integrity_check").get()!.integrity_check, "ok");
+    assert.deepEqual(current.prepare("PRAGMA foreign_key_check").all(), []);
+  } finally { current.close(); }
   const rebuilt = await f.search.rebuild({ client: f.actions, caller: owner("a") }, { scope: "project" });
   assert.equal(rebuilt.cleared, 1200);
   assert.deepEqual(ids(await ask(f, owner("a"), "甲乙丙", { limit: 50 })), before);
@@ -493,4 +513,83 @@ test("an action shaped like the retired query source is an ordinary action: the 
 test("the Host's search actions are well-formed directory entries", () => {
   assert.deepEqual(inspectActionDeclarations(Object.values(searchActions), undefined), []);
   assert.equal(SEARCH_PROVIDER_ID, "system.search");
+});
+
+// RAC-2673: a reader the caller may not use (any more) is left out of the query, told by the refusal's kind (its own, or the platform table's
+// for a platform code) whatever its code, whether the asynchronous re-check or the synchronous tail finds it.
+// RAC-2674: anything else a reader's check throws still ends the query; the MCP grant check's code without its kind is not a refusal.
+const readerRefusing = (where: "validate_authority" | "assert_authority_current", thrown: Error): ActionCallContext => {
+  const check = (reference?: { capability_id: string }) => { if (reference?.capability_id === reader.capability_id) throw thrown; };
+  return where === "validate_authority" ? { ...owner("a"), validate_authority: async reference => check(reference) }
+    : { ...owner("a"), assert_authority_current: reference => check(reference) };
+};
+for (const where of ["validate_authority", "assert_authority_current"] as const) {
+  test(`RAC-2673 a reader refused by its kind is left out of the query, whatever its code (${where})`, async t => {
+    const f = await fixture(t);
+    register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]), { provider_id: "notes", project_id: "a" });
+    assert.deepEqual(ids(await ask(f, owner("a"), "合同")), ["a1"], "with its reader the caller finds it");
+    for (const refusal of [new ActionError("fixture.reader_withheld", "不再交给这个调用者", { kind: "forbidden" }), new ActionError("actions.forbidden", "没有读取权限"),
+      new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销", { kind: "forbidden" })]) {
+      assert.deepEqual(ids(await ask(f, readerRefusing(where, refusal), "合同")), [], `${refusal.code}: the reader is left out, and with it what only it would show`);
+    }
+  });
+  test(`RAC-2674 any other failure of a reader's check still ends the query, the grant check's code without its kind included (${where})`, async t => {
+    const f = await fixture(t);
+    register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]), { provider_id: "notes", project_id: "a" });
+    assert.deepEqual(ids(await ask(f, owner("a"), "合同")), ["a1"]);
+    for (const failure of [new ActionError("fixture.reader_broken", "读取器坏了", { kind: "invalid" }), new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销"), new Error("读取器坏了")]) {
+      await assert.rejects(ask(f, readerRefusing(where, failure), "合同"), (error: unknown) => error === failure,
+        `${failure instanceof ActionError ? failure.code : "a plain Error"}: not a refusal, so the query fails as before`);
+    }
+  });
+}
+
+// RAC-2715: a reader discarded because its check is refused leaves exactly one trace through the package's own onError: its plugin id
+// in `where` and the error's code — never the error's message, the query or any content. Both discard sites are driven — the
+// asynchronous re-check and the synchronous tail — and both halves of the identifier: a plugin id, or the provider id when a provider
+// has none. The discarding itself is unchanged.
+for (const where of ["validate_authority", "assert_authority_current"] as const) {
+  test(`RAC-2715 a discarded reader leaves one record with its plugin id and code, and nothing of its message or the query (${where})`, async t => {
+    for (const scenario of [
+      { label: "a provider with its own plugin id", plugin_id: "io.molis.work.notes" as string | undefined, expected: "search.reader:io.molis.work.notes" },
+      { label: "a provider without one", plugin_id: undefined as string | undefined, expected: "search.reader:notes" },
+    ]) {
+      const records: Array<{ error: unknown; where: string }> = [];
+      const f = await fixture(t, { onError: (error, where) => { records.push({ error, where }); } });
+      register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]),
+        { provider_id: "notes", project_id: "a", plugin_id: scenario.plugin_id });
+      register(f.actions, source([{ id: "b1", title: "B 项目合同", body: "乙方付款条款", version: 1 }]), { provider_id: "memos", project_id: "a", plugin_id: "memos" },
+        { entries: "memos.search.entries", reader: "memos.subject.read" });
+      const response = await ask(f, readerRefusing(where, new ActionError("fixture.reader_withheld", "不再交给这个调用者", { kind: "forbidden" })), "合同");
+      assert.deepEqual(ids(response), ["b1"], `${scenario.label}: the refused reader is left out; the other reader's result still comes back`);
+      assert.equal(records.length, 1, `${scenario.label}: exactly one record for the one discarded reader`);
+      const record = records[0]!;
+      assert.equal(record.where, scenario.expected, `${scenario.label}: where is the plugin id, or the provider id when it has none`);
+      assert.ok(record.error instanceof ActionError, "the record carries the error's code");
+      assert.equal((record.error as ActionError).code, "fixture.reader_withheld");
+      assert.equal((record.error as ActionError).message, "", "the error's message is not recorded");
+      assert.doesNotMatch(JSON.stringify(records), /不再交给这个调用者|合同/, "nothing of the message or the query reaches the outlet");
+    }
+  });
+}
+
+// RAC-2737: the trace carries the code only. A discarded reader's own details, cause, kind and message must not reach the outlet: the
+// record is exactly the plain error shape, so its own property names are the assertion that pins what is absent.
+test("RAC-2737 a discarded reader's record carries the code only, never the details or cause it was refused with", async t => {
+  const records: Array<{ error: unknown; where: string }> = [];
+  const f = await fixture(t, { onError: (error, where) => { records.push({ error, where }); } });
+  register(f.actions, source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]),
+    { provider_id: "notes", project_id: "a", plugin_id: "io.molis.work.notes" });
+  const original = new ActionError("fixture.reader_withheld", "不再交给这个调用者",
+    { kind: "forbidden", details: { ids: ["a1"] }, cause: new Error("the notes store broke") });
+  await ask(f, readerRefusing("validate_authority", original), "合同");
+  assert.equal(records.length, 1, "one trace for the one discarded reader");
+  const record = records[0]!;
+  assert.ok(record.error instanceof ActionError, "the record carries the error's code");
+  assert.equal(record.error.code, "fixture.reader_withheld");
+  assert.equal(record.error.message, "");
+  assert.deepEqual(Object.getOwnPropertyNames(record.error).sort(), ["code", "message", "name", "stack"],
+    "only the plain error shape: no details, cause or kind from the refusal");
+  assert.equal("details" in record.error, false, "the refusal's details are not carried");
+  assert.equal("cause" in record.error, false, "the refusal's cause is not carried");
 });

@@ -10,7 +10,8 @@ import { pageTerminalOwnership, type PageTerminalAccess } from "./pty-page-acces
 type ClientMessage =
   | { type: "auth"; token: string }
   | { type: "page-auth"; pageId: string }
-  | (PtySpawnRequest & { type: "spawn" })
+  /** Attach only (S-103 ⑦): a terminal is started by the Host, never by a message on this channel. */
+  | { type: "spawn"; panelId: string; attachOnly: true; cols?: number; rows?: number }
   | { type: "write"; panelId: string; data: string }
   | { type: "resize"; panelId: string; cols: number; rows: number }
   | { type: "kill"; panelId: string };
@@ -138,20 +139,22 @@ export function attachMolisWorkPtySocket(
           send(ws, { type: "ready" });
           return;
         }
+        // Every connection, the control token's included, only attaches to, writes to, resizes and ends what the Host started.
+        if (!("panelId" in message) || typeof message.panelId !== "string" || !message.panelId) throw new Error("终端请求无效");
+        // A refusal names its panel, so the page can tell which terminal it was about.
+        const refuse = (text: string) => Object.assign(new Error(text), { panelId: message.panelId });
+        if (message.type === "spawn" && (message.attachOnly !== true || Object.keys(message).some(key => !["type", "panelId", "attachOnly", "cols", "rows"].includes(key))))
+          throw refuse("只能连接已经创建的终端");
+        if (message.type === "write" && (typeof message.data !== "string" || message.data.length > 65536)) throw refuse("终端输入无效");
+        if ((message.type === "resize" || message.type === "spawn") && [message.cols, message.rows].some(value => value !== undefined && (!Number.isInteger(value) || value < 1 || value > 1000))) throw refuse("终端尺寸无效");
         if (pageAccess) {
-          if (!("panelId" in message) || typeof message.panelId !== "string") throw new Error("终端请求无效");
-          if (message.type === "spawn" && (message.attachOnly !== true || Object.keys(message).some(key => !["type", "panelId", "attachOnly", "cols", "rows"].includes(key))))
-            throw new Error("插件页面只能连接已经创建的终端");
-          if (message.type === "write" && (typeof message.data !== "string" || message.data.length > 65536)) throw new Error("终端输入无效");
-          if ((message.type === "resize" || message.type === "spawn") && [message.cols, message.rows].some(value => value !== undefined && (!Number.isInteger(value) || value < 1 || value > 1000))) throw new Error("终端尺寸无效");
           await pageAccess.assertPanel(message.panelId);
           pageSockets.get(ws)?.panels.add(message.panelId);
         }
         if (message.type === "spawn") {
-          if (!message.panelId) throw new Error("缺少面板标识");
-          if (!message.attachOnly && !message.command?.trim()) throw new Error("缺少启动命令");
           try {
-            const result = host.spawn(message);
+            const result = host.spawn({ panelId: message.panelId, attachOnly: true, ...(message.cols === undefined ? {} : { cols: message.cols }),
+              ...(message.rows === undefined ? {} : { rows: message.rows }) });
             send(ws, {
               type: "spawned",
               panelId: message.panelId,

@@ -41,7 +41,7 @@ export const CONNECTOR_CLIS: Readonly<Record<string, CliDefinition>> = {
 interface CliConfiguration extends ConnectorProtocolConfiguration { protocol: "cli"; fingerprint: string; binary: string; installation_id?: string }
 export class ConnectorCliError extends Error {}
 function definition(service: string): CliDefinition {
-  const value = CONNECTOR_CLIS[service];
+  const value = Object.hasOwn(CONNECTOR_CLIS, service) ? CONNECTOR_CLIS[service] : undefined;
   if (!value) throw new ConnectorCliError("此服务没有已配置的官方 CLI");
   return value;
 }

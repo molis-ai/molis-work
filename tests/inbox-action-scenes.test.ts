@@ -7,10 +7,10 @@ import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { inboxActions, inboxContentActions, inboxNextScene, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
 import { feedContentActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
-import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import type { FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import type { FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("FI-1 RAC-482 binding a published rule goes through the plugin's own scene and refuses drafts, unknown rules, read-only callers and rules of another scene", async () => {

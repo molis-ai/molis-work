@@ -2,7 +2,7 @@ import type {
   GovernanceApplicationApi,
   GovernanceQueryApi,
   GovernanceRecordsApi,
-} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+} from "../contract/governance-collaboration.js";
 
 import {
   GovernanceRepository,

@@ -1,6 +1,6 @@
 # BL-628：装进 Home 的非内置插件由沙箱宿主的 Home 实例承载（设计稿）
 
-状态：已实现 P1～P5，未开 PR（2026-10-26，防腐线 ac-clients-1 片；分支 `claude/bl628-sandboxed-home-plugins`，基线 main `2b3dc51de`）。D1～D8 经统筹审定、D1 经用户 2026-10-26 弹窗确认（S-80 只对「签名固定 + 沙箱」放开）；号段 RAC-960～979、BL-710～719，本稿不占新的 S 号（扩 S-80、S-84、S-91）。验收对照见 §5；没做的见 BL-710～715。
+状态：P1～P5 已实现并合入 main（2026-10-26 起稿，防腐线 ac-clients-1 片）；余项 BL-710～714 的设计见 [pg011-pg017-remaining](pg011-pg017-remaining.md)，BL-715 由 T-138 做（2026-10-30）。D1～D8 经统筹审定、D1 经用户 2026-10-26 弹窗确认（S-80 只对「签名固定 + 沙箱」放开）；号段 RAC-960～979、BL-710～719，本稿不占新的 S 号（扩 S-80、S-84、S-91）。验收对照见 §5；没做的见 BL-710～715。
 
 ## 1. 现状（事实）
 
@@ -101,10 +101,10 @@ assertHomeScopeAllowed(manifest, trust, execution)
 
 ### 3.8 不做
 
-- 项目范围动作对 Home 沙箱包可达（BL-710）。
-- 签名包的就地升级与回滚（BL-711，同 T2-FIX-05 的原因）。
-- 创作台生成的（`unsigned`）插件装进 Home（BL-712；创作台随 BL-377 重做，那时再定）。
-- Home 级沙箱包的页面进入工作台导航的位置与图标设计（BL-713，界面归插件内容的挂载点，不在这一片）。
+- 项目范围动作对 Home 沙箱包可达（BL-710）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §8）。
+- 签名包的就地升级（BL-711，同 T2-FIX-05 的原因；回滚不做，用户 2026-10-30 定）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §3）。
+- 创作台生成的（`unsigned`）插件装进 Home（BL-712；创作台随 BL-377 重做，那时再定）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §4）。
+- Home 级沙箱包的页面进入工作台导航的位置与图标设计（BL-713，界面归插件内容的挂载点，不在这一片）（→ 见 [pg011-pg017-remaining](pg011-pg017-remaining.md) §5）。
 - `local_tools`（BL-626）、项目库、双实例。
 
 ## 4. 分片与顺序
@@ -137,6 +137,14 @@ P1～P3 在闸没开时不改任何外部可见的行为，可以先做；P4 单
 | RAC-971 | 清理：不保留数据的卸载后，私有存储、批准记录、提示词登记都没有；保留数据的卸载后私有存储在、重装找回同一个安装 ID；发布者固定与保留的包文件不受卸载影响。同上 |
 | RAC-972 | 删项目对 Home 包无副作用：Home 包的数据与实例不因删项目而变，别的项目仍然可达。同上 |
 | RAC-973 | 项目侧行为不变：P1 的收窄不改变项目里已装沙箱包的任何既有断言（`installed-plugin-*`、`plugin-sandbox*`、`security-invariants-plugin-install*`、`plugin-runtime*` 等原样过）。 |
+| RAC-2600 | 设置页的已安装视图（BL-715，T-138）：`installedPluginViews` 给每行必有的 `recovery_error`，条目带恢复错误时就是它，不带时为 `null`，其余字段不变。`tests/plugin-trust-view.test.ts` |
+| RAC-2601 | 个人空间列表带恢复错误：运行中的 Home 包 `recovery_error` 为 `null`；删掉它保存的包再开宿主，仍被列出、`state` 照旧、`recovery_error` 含「找不到已安装的插件包」。`tests/home-plugin-settings.test.ts` |
+| RAC-2602 | 个人空间列表先对账撤销：撤销发布者后，只读个人空间列表就看到包是 `disabled`；经个人空间入口启用被 `plugin.publisher_revoked` 拒，保留数据卸载成功。`tests/home-plugin-settings.test.ts` |
+| RAC-2603 | 个人空间入口的停用、启用、卸载三个动作只给本人，要宿主设置入口的第三份凭据：别的受众、别的入口的凭据文字、手写同文、代人调用、项目内调用都被拒，输入里写 `project_id`、`user_action`、`actor_id` 被 schema 拒，都没走到 `homeControl`（S-94）。`tests/security-invariants-plugin-permissions.test.ts` |
+| RAC-2604 | 三条 HTTP 路径 `/api/settings/plugin-permissions/{disable,enable,uninstall}`：没有令牌、别的来源、GET、插件页面都被拒，体里多写身份是 `actions.input_invalid`；对不是装进来的包（宿主随带的）是 `plugin.state_invalid` 且仍在运行；项目入口也够不着（S-94）。`tests/security-invariants-plugin-permissions-http.test.ts` |
+| RAC-2605 | 经个人空间入口停用、启用、卸载一个 Home 包：停用后各项目看不到它的动作，启用后回来，删数据卸载后列表没有它、`hasPackage` 为假、私有数据没了；此前经项目入口停用被 `plugin.state_invalid` 拒、它仍在运行。`tests/home-plugin-settings.test.ts` |
+| RAC-2606 | 页面脚本：Home 行用 `installed(plugin, homeSend, revoked, homeAct)`，`homeAct` 发往 `/api/settings/plugin-permissions/` 加步骤名；项目行的按钮仍默认发往项目路由；恢复错误与撤销提示用 `el(…)` 画，脚本里没有 `innerHTML`。`tests/security-invariants-plugin-permissions-http.test.ts` |
+| RAC-2607 | 项目列表带恢复错误：项目里的签名包删掉保存的包再开宿主，`plugins.installed.list@3` 仍列出它、`recovery_error` 非空，正常运行的为 `null`。`tests/home-plugin-settings.test.ts` |
 
 ## 6. 裁定（2026-10-26：D1 经用户弹窗确认，D2～D8 统筹按推荐采纳；D6 的 S-80 行写「用户 2026-10-26 弹窗决定」）
 

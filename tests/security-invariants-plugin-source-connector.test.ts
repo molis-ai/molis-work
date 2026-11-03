@@ -12,7 +12,7 @@ import type { IntegrationProviderPort, PluginDefinition, PluginHostServices, Plu
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { ConnectorPullReceipt, ConnectorSignalDraft } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import type { ConnectorRawEvent } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { createPluginConnectorSourceClient, runInPluginAction, type PluginConnectorPort } from "@molis-ai/molis-work-plugin-runtime";
+import { assertPluginActionCurrent, createPluginConnectorSourceClient, runInPluginAction, type PluginConnectorPort } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
@@ -218,12 +218,13 @@ async function hostRig(t: TestContext, options: { home?: string; sync?: (binding
   });
   const port = createConnectorSourcePort({ home, registry: () => registry });
   const target = { plugin_id: PLUGIN, install_id: INSTALL, slot_id: "github", service_id: "github", project_id: "p-1", record_key: "src-1" };
-  const run = { signal: new AbortController().signal, current() {}, async beforeEffect() {} };
+  const retained: Array<() => void> = [];
+  const run = { signal: new AbortController().signal, current() {}, async beforeEffect() {}, retainProvider(validate: () => void) { retained.push(validate); } };
   const connect = (serviceId = "github") => withConnectorConnections(home, store => store.createToken({ serviceId, displayName: "Work", token: SECRET_VALUE }));
   const bind = (connectionId: string, scope = target, serviceId = "github") => withConnectorConnections(home, store => store.bind({
     scopeId: pluginBindingScope({ install_id: scope.install_id, project_id: scope.project_id, record_key: scope.record_key }), pluginId: scope.plugin_id, slotId: scope.slot_id, serviceId, connectionId }));
   const request = { integration_id: "github", cursor: null as unknown };
-  return { home, port, target, run, connect, bind, request, bindings, syncs, registry: await registry };
+  return { home, port, target, run, retained, connect, bind, request, bindings, syncs, registry: await registry };
 }
 const needsAuth = (receipt: ConnectorPullReceipt) => !receipt.result.ok && receipt.result.failure === "needs_auth";
 
@@ -443,4 +444,40 @@ test("S-97 RAC-1023: through the platform, a plugin pulls with the person's bind
   withConnectorConnections(home, store => store.disconnect(account.connection_id));
   assert.equal(needsAuth(await pull(both)), true);
   assert.deepEqual(await both.in(services => services.sourcePull!.connector!.accounts(["github"])), { github: { bound: false } });
+});
+
+
+// RAC-2615: a provider failure is still an outcome of that provider. The platform must hold its guard before awaiting it.
+test("RAC-2615-OUTCOME the Runtime retains both successful and ordinary failed provider outcomes for later writes", async () => {
+  for (const fails of [false, true]) {
+    let live = true, writes = 0;
+    const calls = fresh(), upstream = new Error("Fixture upstream failure");
+    const { client, inAction } = rig(stub(calls, { async pull(_target, _request, run) {
+      calls.pull += 1;
+      run.retainProvider(() => { if (!live) throw new ActionError("actions.provider_replaced", "原提供实例已变化"); });
+      if (fails) throw upstream;
+      return RECEIPT;
+    } }));
+    await inAction(async () => {
+      if (fails) await assert.rejects(client.pull(pullRequest), error => error === upstream);
+      else assert.deepEqual(await client.pull(pullRequest), RECEIPT);
+      const write = () => { assertPluginActionCurrent({ install_id: INSTALL, installation_generation: "g1" }); writes += 1; };
+      write();
+      live = false;
+      assert.throws(write, code("actions.provider_replaced"), "catching the provider outcome cannot discard its authority check");
+      await assert.rejects(client.pull(pullRequest), code("actions.provider_replaced"));
+    });
+    assert.equal(writes, 1, "only an outcome of the still-current provider could be committed");
+    assert.equal(calls.pull, 1, "the stale invocation cannot dispatch another provider request");
+  }
+});
+
+test("RAC-2615-HOST the Host source port retains the actual registry provider for its consumer", async t => {
+  const f = await hostRig(t), account = f.connect();
+  f.bind(account.connection_id);
+  assert.equal((await f.port.pull(f.target, f.request, f.run)).result.ok, true);
+  assert.equal(f.retained.length, 1);
+  f.retained[0]!();
+  await f.registry.disable(f.registry.integration("github")!.plugin_id);
+  assert.throws(f.retained[0]!, code("plugin.integration_unavailable"));
 });

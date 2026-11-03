@@ -6,6 +6,9 @@ export class SandboxError extends Error {
   constructor(readonly code: string, message: string, readonly outcome?: 'unknown') { super(message); this.name = 'SandboxError'; }
 }
 
+/** A call the Host's side refuses as not the person's to allow (`sandbox.not_authorized`), for the Host's own ports that must answer the package with the sandbox's code. */
+export const sandboxNotAuthorized = (message: string): SandboxError => new SandboxError('sandbox.not_authorized', message);
+
 export function assertJson(value: unknown, depth = 0, budget = { remaining: 50_000 }): asserts value is SandboxJson {
   if (--budget.remaining < 0 || depth > 32) throw new SandboxError('sandbox.invalid_json', 'JSON structure exceeds limits');
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
@@ -102,7 +105,7 @@ export function assertMatches(schema: SandboxSchema, value: unknown, path = '$',
   }
 }
 
-const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase', 'homeDatabase', 'projects', 'connections', 'materials', 'ownerFiles', 'model', 'background'] as const;
+const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase', 'homeDatabase', 'projects', 'connections', 'materials', 'ownerFiles', 'model', 'modelSettings', 'imageGeneration', 'background'] as const;
 export function assertEffects(effects: unknown): asserts effects is SandboxEffects {
   if (!effects || typeof effects !== 'object' || Array.isArray(effects)) throw new SandboxError('sandbox.invalid_contract', 'Effects must be an object');
   for (const [key, values] of Object.entries(effects)) {
@@ -111,6 +114,8 @@ export function assertEffects(effects: unknown): asserts effects is SandboxEffec
     if (key === 'networkDomains' && values.some(v => !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Network effects require exact lowercase DNS domains');
     if (key === 'materials' && values.some(v => v !== 'read' && v !== 'fetch' && v !== 'fetch_local' && v !== 'original')) throw new SandboxError('sandbox.invalid_contract', 'Invalid materials access');
     if (key === 'model' && values.some(v => v !== 'read' && v !== 'invoke')) throw new SandboxError('sandbox.invalid_contract', 'Invalid model access');
+    if (key === 'modelSettings' && values.some(v => v !== 'read' && v !== 'save')) throw new SandboxError('sandbox.invalid_contract', 'Invalid model settings access');
+    if (key === 'imageGeneration' && values.some(v => v !== 'read' && v !== 'generate' && v !== 'bind')) throw new SandboxError('sandbox.invalid_contract', 'Invalid image generation access');
     if (key === 'projects' && values.some(v => v !== 'exist')) throw new SandboxError('sandbox.invalid_contract', 'Invalid projects access');
     if (key === 'background' && values.some(v => !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Background effects name operations of the contract');
     if (key === 'connections' && values.some(v => !/^[a-z][a-z0-9-]{0,63}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Connection effects name a slot of the Manifest');
@@ -136,6 +141,8 @@ export function assertContract(contract: unknown): asserts contract is SandboxPl
     if (!id(op.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid operation id');
     if (op.kind !== 'query' && op.kind !== 'command') throw new SandboxError('sandbox.invalid_contract', 'Operation kind must be query or command');
     assertSchema(op.input); assertSchema(op.output); assertEffects(op.effects);
+    if ((op.effects.imageGeneration?.includes('generate') || op.effects.imageGeneration?.includes('bind')) && !op.effects.networkDomains?.length) throw new SandboxError('sandbox.invalid_contract', 'Image generation names the address it reaches in networkDomains');
+    if (op.kind === 'query' && (op.effects.modelSettings?.includes('save') || op.effects.imageGeneration?.some(v => v !== 'read'))) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot save model settings, generate images or bind image connections');
     if (op.kind === 'query' && (op.effects.storage?.includes('write') || op.effects.artifacts?.includes('write') || op.effects.projectDatabase?.includes('write') || op.effects.homeDatabase?.includes('write') || op.effects.ownerFiles?.includes('write') || op.effects.model?.includes('invoke') || op.effects.materials?.some(v => v !== 'read') || op.effects.events?.length || op.effects.background?.length)) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot declare writes, a model request, a page fetch or saved original files, background work, or publish events');
     if (!Array.isArray(op.errors) || op.errors.some(e => !id(e.code) || typeof e.description !== 'string') || !unique(op.errors.map(e => e.code)) || !Array.isArray(op.examples) || !op.examples.length) throw new SandboxError('sandbox.invalid_contract', 'Operations require errors and examples');
     for (const example of op.examples) {

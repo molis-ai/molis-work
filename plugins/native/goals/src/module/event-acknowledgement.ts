@@ -4,7 +4,7 @@ import type {
   GoalEventAcknowledgementReference,
   GoalEventAcknowledgementsApi,
   GoalEventMutationResult,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { requestHash, type GoalsCommandContext } from "./command-support.js";
 import { goalErrors } from "./errors.js";
 import type { StoredWorkEvent } from "./event-facts-work-event-records.js";

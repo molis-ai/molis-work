@@ -10,8 +10,8 @@ export class ProjectsRepository {
   readonly workspaces: WorkspaceRepository;
   readonly deletions: ProjectDeletionRepository;
 
-  constructor(readonly db: ProjectsSqliteDatabase) {
-    this.projects = new ProjectRecordsRepository(db);
+  constructor(readonly db: ProjectsSqliteDatabase, projectsDirectory: string) {
+    this.projects = new ProjectRecordsRepository(db, projectsDirectory);
     this.workspaces = new WorkspaceRepository(db);
     this.deletions = new ProjectDeletionRepository(db);
   }
@@ -27,7 +27,6 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     CREATE TABLE IF NOT EXISTS projects (
       project_id TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
-      database_path TEXT NOT NULL UNIQUE,
       source TEXT NOT NULL CHECK (source IN ('created')),
       data_class TEXT NOT NULL CHECK (data_class IN ('user', 'regenerable_demo')),
       created_at TEXT NOT NULL,

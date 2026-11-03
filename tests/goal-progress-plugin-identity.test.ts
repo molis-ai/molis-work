@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";

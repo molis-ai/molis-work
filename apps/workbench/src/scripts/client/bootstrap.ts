@@ -141,7 +141,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let pluginWorkbench = null;
     let globalSearchPalette = null;
     let desktopDirectoryOrigin = null;
-    let activeDesktopSurface = document.body.dataset.desktopSurface || "goal";
+    let activeDesktopSurface = document.body.dataset.desktopSurface || "goals";
     let activeFeedPreset = feedDirectory?.dataset.feedPreset || "feed";
     let selectedFeedItem = feedList?.querySelector("[data-feed-entry-id].is-selected")?.dataset.feedEntryId || "";
     let selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";

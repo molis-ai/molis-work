@@ -3,14 +3,16 @@ import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { declaredArtifactTypes } from "./artifact-type-registry.js";
-import { renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderCharacters, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { renderGoalsReadRequest, renderGoalsPageRequest } from "@molis-ai/molis-work-plugin-goals/page";
+import { matchPageRoute } from "./page-routes.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
-import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
+import { renderGoalArtifactContext } from "./artifact-library-http.js";
 import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -51,13 +53,13 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
  */
 async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
   store: LocalProjectDatabase; projectId: string; homeDirectory: string | undefined;
-  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[]; readonly workspaces: ProjectPluginSurfacePorts["workspaces"] };
+  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] };
   pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">;
   stageModel: (projectPluginId: string, view: MolisWorkWebView) => unknown;
 }): Promise<MolisWorkWebView> {
   const { store, homeDirectory, pluginServices } = input;
   const surfacePorts = { ...pluginServices, store, projectId: input.projectId, actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml,
-    translate: (value: string) => value, workspaces: input.configuration.workspaces, routePrefix: view.route_prefix };
+    translate: (value: string) => value, routePrefix: view.route_prefix };
   const builtin = await projectPluginStages(surfacePorts, view, input.configuration, input.stageModel);
   view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtin.html], plugin_stage_ids: [...(view.plugin_stage_ids ?? []), ...builtin.ids],
     unavailable_plugin_stages: [...(view.unavailable_plugin_stages ?? []), ...builtin.unavailable] };
@@ -122,17 +124,14 @@ export function createLocalGoalsReadHttp(ports: {
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
   ): Promise<boolean> {
     if (request.method !== "GET") return false;
-    const resolved = resolveGoalsReadRoute(url.pathname, url.searchParams);
-    if (!resolved) return false;
-    if ("error" in resolved) { sendJson(response, resolved.status, { error: resolved.error }); return true; }
-    const route = resolved.route;
-    const view = await readWebView();
-    const selected = route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection);
-    const renderedGoalsRead = renderWorkbenchGoalsReadRoute(route, {
+    const renderedGoalsRead = await renderGoalsReadRequest(request.method, matchPageRoute(url), async route => {
+      const view = await readWebView();
+      return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
+    }, ({ view, selected }) => ({
       refresh: (goalId, collection) => renderMolisWorkRefreshFragment(selected, goalId, collection === "archive", collection === "trash"),
       momentum: (goalId, collection) => renderMolisWorkMomentumFragment(view, goalId, collection),
       document: (goalId, collection) => renderGoalDocumentFragment(selected, goalId, collection),
-    });
+    }));
     if (renderedGoalsRead) {
       if ("error" in renderedGoalsRead) {
         sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error });
@@ -153,14 +152,11 @@ export function createLocalGoalsReadHttp(ports: {
     store?: LocalProjectDatabase,
     pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
-    const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
-      request.method, url.pathname, readWebView,
+    const renderedGoalsPage = await renderGoalsPageRequest(
+      request.method, matchPageRoute(url), readWebView,
       async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
         const desktopShell = isDesktopShellRequest(request, url);
-        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => ({
-          ...catalog.projectPluginMembership(options.project!.project_id),
-          workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
-        })) : null;
+        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;
         // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
         if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
         // The project's Runtime draws its plugins' panels and stages; one that is not running gets the unavailable shell (W5-06).

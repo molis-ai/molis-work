@@ -1,4 +1,4 @@
-import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack, PlanningMethodPackInput } from "../../contract/goals.js";
 import { parseJson, type GoalsSqliteDatabase } from "../repository.js";
 import { normalizePlanningMethodPack } from "./method-packs.js";
 

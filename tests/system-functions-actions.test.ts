@@ -7,10 +7,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { functionsActions, publishedFunctionAction, functionContextActions } from "@molis-ai/molis-work-module-functions";
+import { functionsActions, publishedFunctionAction, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRuleRecord, JudgmentRulePrimitive, JudgmentRuleCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
-import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:invoke"] };

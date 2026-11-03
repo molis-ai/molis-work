@@ -14,6 +14,8 @@
 
 2026-10-27 治理排期补充：[全平台产品与架构治理](../product-flow-governance/spec.md)已完成首轮静态盘点。现有各轨道实施时采用其相对顺序：先材料与已有工作恢复，再默认连接到实际使用，再同范围批准及发布启用衔接，再流程/提示词/个人设置简化，并持续补齐全部功能的真实路径。具体发现、依赖和退出条件只维护在治理需求 §6 与核查记录；这里不复制派工表，不改原负责人、Memory 暂停或防腐收尾前不开工的安排。授权规则以本轮已定需求为准：有效授权内连续执行；Coding 的可选低风险 AI 审批不替代显式要求的真人票数；团队发布等明确的人审仍保留。批准需求已同步，现有代码和仓库保护未因此改变。
 
+11-02 只补需求：全产品文案与按需帮助并进 [visual-ui-experience](../visual-ui-experience/spec.md#copy-guidance)，引导接续并进 [Onboarding §3.15](../onboarding-coverage/spec.md#315-从页面帮助到渐进式引导)。新增 VUX-51～59、ONB-47～49 尚未实现或验收；需求维护 Codex，D/F 与各功能轨道保留原归属。视觉线移入部分完成清单，原有一百一十一片和局部验收不代表新增全产品要求已完成。
+
 ## 1. 起点：防腐收尾之后的代码
 
 防腐线的收口范围是 §1 的 2026-10-18 那一行：W5、W6 全做完，[privileges.md](../repository-anti-corruption/privileges.md) 的行全部清掉。按这个范围，后面的需求面对的是这样一份代码：
@@ -28,6 +30,18 @@
 - main 之外还有两条没合入的线，都写在防腐收尾之前的插件数据形状上：个人云同步（`personal` 分支，比 main 多 24 个提交、少 175 个，最新 10-25，改动有四分之一在 `plugins/native/`）；CGS 自媒体创作（`codex/cgs-formal-integration-20261013`，停在 10-14，落后 main 1159 个提交）。怎样接见 3.2 节。
 
 阶段 0 的第一件事，是拿真正收尾后的 main 把这一节核一遍，对不上的地方先改本文再开工。
+
+### 1.1 2026-11-02 对照代码的预核
+
+在 main `885728c79` 上只读核了一遍；#1725 合入后，阶段 0 照此再核一次：
+
+- 防腐线还没收尾：[privileges.md](../repository-anti-corruption/privileges.md) 的 114 行里还有 11 行待做（PG-011、017、045、046、060、064、070、078、093、094、111）；W6 收口 #1725（954 个文件）在跑全量；真实 Home 清空重建和本人验收的窗口还没开。
+- PG-070 还剩 Characters 的样式留在两张共用表里（`apps/workbench/src/characters/styles.ts`、`apps/workbench/src/page-assets.ts`），字体皮肤语言 C 段的前提还没满足。
+- 构建期装配名单只剩 Alchemist 与插件创作台（`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`）。宿主 `apps/local-host/src` 仍有 692 个文件、约 6.8 万行。
+- `personal` 分支比 main 多 24 个提交、少 554 个（3.2 节的 175 是 10-26 的数）；CGS 分支少 1538 个。
+- 第 5 节的独占文件变了三处：`apps/local-host/src/coding-surface.ts` 与 `plugins/native/coding/src/client.ts` 已不在；`assistant-island.ts` 已拆成 `apps/workbench/src/scripts/client/assistant-*.ts` 共 24 个文件；助理的 `methods()` 现在在 `apps/local-host/src/assistant/assistant-work-reads.ts`。第 5 节已按此改，热点也重量了。
+- BACKLOG 有 23 行本文没有点名，多数是 10-28 之后新加的沙箱包与 Home 包余项；去处补在 3.8 节末行。
+- 依赖图补上了原来只写在正文里的几条边（M1 之前要落的合同、换包窗口一、创作台迁到 Plugin Runtime），去掉了「核心插件同步 → 语言与样式整体切换」这条互等。C 轨按包拆成三个写手，这改了原来「C 轨一个写手」的安排，确认前按原安排执行（第 7 节第 17 项）。
 
 ## 2. 怎么排
 
@@ -63,7 +77,6 @@
 | [computer-use](../computer-use/spec.md) | 能力已合入，等真机（BL-325） | 0：真机验收后归档；BL-326、BL-327 留在 BACKLOG |
 | [ai-development-handbook](../ai-development-handbook/spec.md) | 正文已写 | 0：BL-320 你验收；BL-321（ADH-23）随技能包在 1·C 做 |
 | [prologue-memory-strategy](../prologue-memory-strategy/spec.md) | #1101、#1059 在途，P0 的形成、召回、SDK 接入未完 | 0：两个 PR 收掉；P0 余项仍属 1·C；沿原暂停边界，恢复授权前不启动 |
-| [visual-ui-experience](../visual-ui-experience/spec.md) | 一百一十一片已做 | VUX-16、VUX-17、VUX-18 并进统一输入框（1·A）；VUX-33、VUX-35 1·D；本人验收 0 |
 | 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../plugin-project-database/spec.md)、[dual-instance-plugins](../dual-instance-plugins/spec.md)、[plugin-project-partition](../plugin-project-partition/spec.md) | 随 W6-06 收尾 | 防腐线自己归档 |
 | BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401 | 已合入，只差你试用 | 0：一张验收单，一次走完 |
 | 右栏选一段放进文稿（产品建议 F1；#712、#720） | 已合入；没用真实材料走过，落点只有 Pages | 0：真实 Shelf → Pages 走一遍，连同 #784 的 QA-030 复验；下一个落点等走完再定 |
@@ -72,6 +85,7 @@
 
 | 需求 | 剩什么 | 去处 |
 | --- | --- | --- |
+| [visual-ui-experience](../visual-ui-experience/spec.md) | 原一百一十一片记录保留；VUX-16～18、VUX-33、VUX-35 与本人验收未完；新增全产品文案与按需帮助 VUX-51～59 尚未实现 | 原输入余项 1·A、视觉/性能余项 1·D；1·D/F 共同设计文案与引导，2·D 统筹各入口落实、F 接续准备流程，各功能轨道改自己的表面；全产品逐项验收 |
 | [ai-input-receipts](../ai-input-receipts/spec.md) | Goal 页「来自对话的输入」BL-314；交付说明入口 BL-315、步骤板 BL-316；有效要求的评测 BL-317；浏览器实走 BL-319；跨轮 BL-148；补充改了哪些文件 BL-162；阶段 5、6（BL-318） | 2·A；阶段 5 并进主动助理（3·A），阶段 6 各场景各写小 spec |
 | [prologue-adoption](../prologue-adoption/spec.md) | A5 重核 BL-309；写后检查进时间线 BL-301、子任务写后检查 BL-302、截图 BL-303；P5 协作 BL-307；P6 旧路径退出 BL-308；结构化生成 BL-306 | BL-309、BL-301～303 在 1·C；BL-307、BL-308 进换包窗口一（2·C）；BL-306 随工作台升级的 Alchemist 场景（阶段 4） |
 | [ai-interaction-experience](../ai-interaction-experience/spec.md) | 第二批入口 BL-341（PPT、Pages、Cognia）；卡片撤销 BL-343（合同改动）；同排推荐 BL-344（你看实物）；验证 BL-345；键盘多选 BL-340；Coding 目标芯片 BL-342 | BL-343、BL-344 在 2·A；BL-341、BL-340 在 2·E；BL-342 在 2·B（用新输入框） |
@@ -114,6 +128,8 @@
 | [prologue-context-strategy](../prologue-context-strategy/spec.md) | 来源预算、trace、新鲜度、压缩 | 评审后 3·C，配合主动助理 |
 | [prologue-mcp-strategy](../prologue-mcp-strategy/spec.md) | MCP 服务器信任、发现、健康、认证 | 评审后 3·C，配合服务接入收尾 |
 | [prologue-tool-strategy](../prologue-tool-strategy/spec.md) | 工具面、搜索、结果预算 | 评审后 3·C |
+| [intelligent-surfaces](../intelligent-surfaces/spec.md) | 智能呈现与操作层（11-02 新增）：插件声明对象能怎样展示、能做什么、别人能放在它哪里；平台先做确定组合，助理再把插件内容、平台内容与 MCP、Skill 组合成此刻的操作面，注入插件内外、对话、项目讨论、等你与首页 | 分四片，跨阶段 1～4，见表后 |
+| [work-mainline](../work-mainline/spec.md) | 主线（11-02 新增）：用户把手头的事项（平台的轻量容器，Goal、待办等可以变成事项）按自己的分组和顺序排好，从顶部像切换项目那样切到一件事，主区、标签、右侧、助理范围和等你一起换；事项容器与排列归新的主线服务，插件对象的内容仍归插件 | 1·D 与 PFG 的工作台统一一起设计；2·C1 合同（M1 之前）、2·C3 主线服务包、2·D 切换器与按事项的工作台状态、2·E/B Goals 与 Coding 来源；整理视图与助理范围 2～3·A/D/E；助理建议 3·A，跨设备随 G |
 
 **字体、皮肤与语言分五段**（[实现方案](../font-and-skin-system/implementation-plan.md) 第 11 节）：
 
@@ -126,6 +142,32 @@
 | E 整体交付 | 全量回归、所有入口、发行物与手册；真实 Home 的存量维护（先备副本，动手前弹窗问） | 3·D 末 |
 
 动作文字与结果摘要（FSS-40、FSS-41）你 10-23 定暂不实现。语言覆盖和翻译缺口记在该 spec 的 §6.1，随 C 段一起收。
+
+**智能呈现怎样接进来。** 按 [intelligent-surfaces](../intelligent-surfaces/spec.md) §13 的四片排，前两片只用确定组合，不等模型、技能包或采集：
+
+1. **1·C1/D/B/E，A 落对话那处**：
+   - C1 先开呈现声明的合同 PR，在 Manifest 里自成一段声明（第 5 节规则 1），连同 SDK 里的校验与确定组合（作者和平台共用的工具放在 SDK），排在 M1 之前；
+   - D 做名字片、行、卡片、速览四种形态与组件板「呈现形态」一节，和 Work Brief、基础首页要的公共呈现组件是同一套，与 1·C/D 那份公共来源／呈现一起设计，不做两套；
+   - Goals、Inbox 的声明在 E，Coding 的声明在 B；
+   - 对话里的对象引用由 A 落（规则 7）；项目讨论（`packages/im-ui`，不归任何轨道独占）和等你随 D 落。
+2. **2·D/E，A 接决定请求与验收卡**：
+   - D 做活卡、嵌入、证据链、交接卡、决定请求、验收卡，以及首页、Shelf 与插件之间的挂载位；
+   - E 补 Pages、Dataset、待办、Feed、工作流程的声明；
+   - 决定请求与验收卡接 2·C 的显式人审合同和个人助理的逐项交付与返工，由 A 接进对话；
+   - 证据链读 2·C 接通的采集与历史；
+   - 声明里的显示文字从第一片起就用 `ui.messages` 的稳定键，C 段切换窗口里 E 不改这些声明（规则 3）。
+3. **3·C2/C3/A/E**：
+   - C3 新开组合服务的 `horizontal/` 包，助理组合经 C2 的 `horizontal/agent-host` 调模型；
+   - 跨插件与 MCP、Skill 的操作面要等技能包与 MCP、Tool 两份策略，并与 3·A 主动助理用同一份交付体验；
+   - 外部 Agent 读到的文本形态随动作目录一起出；
+   - 3·C 的端到端评测接住「呈现、采用、纠正」；
+   - 其余插件的声明在 3·E 补完。
+4. **3·D/E 到阶段 4**：
+   - 生成插件与创作台声明呈现，要等创作台与生成插件迁到 Plugin Runtime（图中 PBR）；
+   - 操作面保存成视图或生成页面，复用 2·C 的生成页面运行时；
+   - 导出形态和创作台整体升级一起在阶段 4 收尾。
+
+每片落完，按该 spec §14 的 IUI 编号验收；`[人工]` 几条在每片末尾的本人验收单里。
 
 ### 3.4 重做与新方向（已合并的需求不另起文档）
 
@@ -143,7 +185,7 @@
 | 事项 | 去处 |
 | --- | --- |
 | 签名与公证（BL-021；产品建议 A1） | 1·F；2026-10-27 已定使用现有个人 Apple Developer 账号，凭据接入与发行物验证待实施 |
-| 数据升级链与升级前自动备份（产品建议 A2、C-2）；真实 Home 维护 BL-157、BL-413、BL-583、BL-487（每一项动手前弹窗问） | 1·F 起，2·F 收尾 |
+| 数据升级链与升级前自动备份（产品建议 A2、C-2），从各库的第 1 版起算。真实 Home 按用户 10-30 的决定清空重建、不迁移（旧 Home 整个搬开，不删），由你说「开始」；BL-413 的 v8 → v9 迁移、BL-583 的改名、BL-487 的旧 Sessions 清理随重建逐行核掉，BL-157 已不在 BACKLOG | 重建随防腐收尾；升级链及其余按 [upgrade-continuity](../upgrade-continuity/spec.md) 分八片，见表后「升级后持续可用怎样接进来」 |
 | 运行条件：常驻、休眠后补跑、错过的怎样显示（产品建议 A5；BL-030、BL-645、BL-352） | 1·F |
 | 对外许可口径（产品建议 A4，在官网仓库） | 0 |
 | 原生组件随包预置与首次自检（产品建议 H14） | 2·F |
@@ -152,6 +194,24 @@
 | 在别的应用里选中送进 Work：macOS App Intents、服务菜单、快捷指令（产品建议 F3） | 3·F |
 | 自动更新、定时在线备份、可选崩溃上报（M2；BL-115） | 3·F |
 | 经同意、存在本机的使用统计（产品建议 I9；BL-169），建在工作记录上 | 3·F |
+
+**升级后持续可用怎样接进来。** [upgrade-continuity](../upgrade-continuity/spec.md) 承诺：装上新版本后，旧 Home、库、插件和保存的引用都接着能用。用户 11-02 同意，库的升级链从统一起点（真实 Home 清空重建、各库回到第 1 版）起算，不等 M1；动作与 Manifest 仍按对抗式审查第五遍的决定，阶段一在原版本上直接改，从 M1 起开过渡期。分八片：
+
+1. **阶段 0（C1）——U0 规则。** 与版本归一、真实 Home 重建同一批，改合同变更流程 §3 第 4 条、`AGENTS.md`、c-end-readiness C-2 的起点。
+2. **阶段 0 末到 1 前段，统一起点后第一次改库结构之前必须就位：**
+   - **U1 升级链机制（C1，`packages/storage`）：** 宿主启动与打开库的那几处按规则 4 一起落；
+   - **U2 金样 Home 与回放（C1 写回放，F 管发版留金样）：** 与 U1 并行，门禁等 U1 合入后再打开。
+3. **阶段 1 后段：**
+   - **U3 按主人隔离、较新的库只拒绝这一个（C1 与 D）**；
+   - **U4 插件声明升级段（C1）：** 走 Manifest 的合同快照排队，可延到阶段 2 前段。
+4. **阶段 2，M1 之前就位：**
+   - **U5 合同过渡期（C1；A、E 接各自的保存引用）：** M1 当天生效，与 U1～U4 并行；
+   - **U6 演练与回退（F）：** M1 的前置，与签名公证同在 F 轨。
+5. **阶段 3：**
+   - U6 接自动更新（M2，3·F）；
+   - **U7 整份导出与导入（F 与 C1）：** 和引导的完整导入导出一起。
+
+依赖：U0 → U1 → U3、U4、U6 → M1；U2 与 U1 并行；U5 与 U1～U4 互不相干，只在 M1 前会合。换包窗口（规则 2）要先过金样回放；个人同步（G）的协议要接受上一版客户端。
 
 ### 3.6 体验债与插件小功能（独立片，按批填空做）
 
@@ -165,14 +225,15 @@
 
 防腐收尾时，BACKLOG §7、§8 的条目会被做掉或写明不做的理由。阶段 0 把剩下的按所在包归进对应轨道，作为该轨道的填空项。现在就看得出去处的几组：
 
-- 翻译余项（BL-118、BL-455～464、BL-545、BL-546、BL-567、BL-636）：随字体皮肤语言的 C 段切换（2·D）。
+- 翻译余项（BL-118、BL-455～464、BL-545、BL-546、BL-567）：随字体皮肤语言的 C 段切换（2·D）。
 - 写后检查（BL-160、BL-171、BL-220、BL-390）：1·C，和 BL-301～303 一起。
 - 要 Prologue 上游改的（BL-031、BL-137、BL-172、BL-173、BL-175、BL-176）：列进最近的换包窗口。
 - 记忆的误记与默认（BL-037、BL-093）：随记忆 P0（1·C）。
 - 模型能力造成的（BL-089、BL-104）：按「模型能力问题不打补丁」处理，不单独排。
-- 代码改名（[术语表](../../docs/system/GLOSSARY.md) 第 5 节）：R-A 只改标识符的，按所在包作各轨道的填空；R-B 要改存量数据或合同，逐项先问你，放进真实 Home 维护（2·F）。第 6 节文档里的旧称，各轨道改到哪份文档顺手改。
+- 代码改名（[术语表](../../docs/system/GLOSSARY.md) 第 5 节）：R-A 只改标识符的，按所在包作各轨道的填空；R-B 要改存量数据或合同的，R-B1～R-B8 已定不做（2026-10-26 统筹，W5-14 只管内部名），保持原名记在术语表 R-C；R-B9 源码已改，存量随真实 Home 清空重建、不迁移（用户 2026-10-30），不再逐项问。第 6 节文档里的旧称，各轨道改到哪份文档顺手改。
 - 助理里「工作 / 工作简报 / 任务 / 受托工作 / 子工作」选定对外的词（产品建议 H4），1·A 开工前定，写进术语表。
 - 工程流程（统筹做，不占轨道）：产品子集并入 `Verify`（W2-16）、新成员从零上手的步骤（[并行开发](../../docs/system/PARALLEL-DEVELOPMENT.md) 第 12 节），以及 3.8 节「工程流程」一行。
+- 对抗式审查（[报告](../../docs/reviews/adversarial-review-2026-11-01.md) §15、§17）的整治：SDK 收拢的几项——文档记录的移动、复制与固定版发布（N12），插件页面的 `dom` 与 `request` 工具（N13），日期与时区（N15），整字截断（N16）——排在阶段 1 前段的 C1 队列，先于风险、Work Brief 等新插件和字体皮肤语言 C 段：新插件不再照抄重复的实现，C 段也少改几份副本；这些合同改动都在 M1 之前落。其余各项按所在包作各轨道的填空，排期由统筹定。
 
 ### 3.8 BACKLOG 其余条目的去处
 
@@ -181,13 +242,75 @@
 | 去处 | 条目 |
 | --- | --- |
 | 随防腐线收（收尾时逐条核；没做掉的，按所在包归进轨道） | BACKLOG §8 全部：BL-080、081、085、086、088、117、121～124、127、324、531、532、635、637～639、646、647、657、680、695；§5、§7 里挂着防腐切片或 PG 的：BL-072、130、136、178、375、378、381、382、386、500、505、507、508、520、522、525～527、530、550、568、575～577、579～582、584、586～589、616、617、619～623、625～628。其中 BL-130 随 W6-03 的 Skill 重写一起核 |
-| A 助理与输入 | 1·A：BL-033（确认卡与建议卡的 Tab 顺序）、BL-393（输入法用例）随输入框；2·A：BL-032（只说不做时续做一次）、BL-042（真实模型跑搜索）；3·A：BL-038（动态交互的待定参数）、BL-101（侧栏浏览器的输入） |
+| A 助理与输入 | 1·A：BL-033（确认卡与建议卡的 Tab 顺序）、BL-393（输入法用例，已随 T-044 做完）；2·A：BL-032（只说不做时续做一次）、BL-042（真实模型跑搜索）；3·A：BL-038（动态交互的待定参数）、BL-101（侧栏浏览器的输入） |
 | B Coding | 1·B：BL-246（问卷回执一闪而过）、BL-310～313（QA-009～012 的真实链路证明）、BL-540（判断一轮被切断的时间界限）；2·B：BL-051（子任务预算与重试）、BL-182（重试记成本人的补充）、BL-566（成果正文的读取边界）；BL-141（Coding 客户端翻译）随 2·D 的 C 段 |
 | C 平台与 Prologue | 1·C：BL-323（`remember` 待认可时的工具结果）、BL-367（插件 `stop` 钩子没有时限）、BL-569（安全不变量门禁漏扫 e2e 用例）、BL-392（Runtime 显示名散在几处）、BL-070（Outbox，随同步合同）；2·C：BL-371（运行时能力加会话间发信，随子代理）、BL-034（没接的 Prologue 能力，按窗口清单逐项挑）；3·C：BL-052（五家原生 Agent 实操，随 Sessions 重做）、BL-166（技能包定制）、BL-128（引用声明的语义一致性，等你定） |
 | D 外观与语言 | 1·D：BL-041（无项目时没有搜索入口）、BL-138（窄问卷卡的标题）、BL-543（设置地址把查询参数原样带过去）、BL-544（侧视图插件框没加载完就能点）；2·D：BL-139（「开始」译成 Started）随 C 段 |
 | E 插件 | 2·E：BL-129（首页事项不分撤不回，随情境 W4）；3·E：BL-039（片段级动作只有四个插件提供，随 W5、W6） |
 | F 首次使用与发布 | 1·F：BL-106、BL-107（引导里的项目简介与后台继续，随 onboarding-coverage）、BL-108（MCP 启动器找不到 Home 的服务）；2·F：BL-110（桌面里管理项目导航卡住）、BL-126（维护六收尾核对，随真实 Home 维护） |
 | 工程流程（统筹） | BL-142、BL-143、BL-412（偶发失败的用例）、BL-565（共享核心 PR 的全量证据进 required CI）、BL-328（真实模型小评测的命令） |
+| 11-02 补点名 | 随防腐线收（用户 10-30 定 PG-011、PG-017 的余项做完再关行）：BL-491、493、710、711、713、714，以及 PG-017 关行前要核的 BL-916；1·C：BL-701、910、915、918（沙箱包的可选权限、终端、卸载、生图上限），BL-812（平台包吞掉的错误）、BL-814（Runtime 动作调用的成本）、BL-901（插件包 `./contract` 的 API 快照）、BL-911（委托调用的受众）、BL-913（终端记录的坏值）；3·C：BL-692～694（外部集成，随服务接入收尾）；1·D：BL-912（Home 包在标签条上的图标）；1·E：BL-803、819、821（Goals 认本人、读坏时的报错） |
+
+### 3.9 按类型与决策
+
+多人分头做时，每一项先看这里：它属于哪几类，开工前有没有要人定的事。类型和决策标记的写法见[需求开发流程](development-workflow.md)第 1.2 节；跨几类的都标，主要的在前。「要决策」写的是开工前或某一片之前要定的事；做的过程中碰到预警情形（流程第 6 节），照样发预警。新需求立项时在这里加一行，做完删行。
+
+| 节 | 需求 | 类型 | 决策 |
+| --- | --- | --- | --- |
+| 3.1 | 三份性能 spec（diff-frame、long-turn、attention-aggregate） | 体验与效果（性能） | 直接做：核对后归档 |
+| 3.1 | [pr-review-remediation](../pr-review-remediation/spec.md)、[repository-cleanup](../repository-cleanup/spec.md) | 底层与架构 | 直接做：归档 |
+| 3.1 | [status-ring-system](../status-ring-system/spec.md) | 横向能力（公共组件）、体验与效果 | 要决策：视觉验收（你） |
+| 3.1 | [plugin-tab-groups](../plugin-tab-groups/spec.md) | 产品线（工作台） | 直接做：核对后归档 |
+| 3.1 | 空列表新建、首页静默刷新与三份引导小 spec | 体验与效果、产品线（引导、Goals） | 要决策：待体验项你验收 |
+| 3.1 | [issue-home-v0](../issue-home-v0/spec.md) | 产品线（Issue 插件） | 直接做：BL-149 合入或关掉后归档 |
+| 3.1 | [computer-use](../computer-use/spec.md) | 产品线（助理） | 要决策：真机验收（你） |
+| 3.1 | [ai-development-handbook](../ai-development-handbook/spec.md) | 横向能力（AI 方法） | 要决策：BL-320 你验收 |
+| 3.1 | [prologue-memory-strategy](../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | 要决策：恢复授权前不启动（原暂停） |
+| 3.1 | 防腐线自己的四份 | 底层与架构 | 直接做：随防腐线收 |
+| 3.1 | BACKLOG「待你验收」各条 | 跨线 | 要决策：你一次走完验收单 |
+| 3.1 | 右栏选一段放进文稿 | 产品线（工作台）、横向能力（落点） | 要决策：下一个落点等实走后定 |
+| 3.2 | [visual-ui-experience](../visual-ui-experience/spec.md) | 体验与效果、横向能力（文案与按需帮助） | 要决策：本人验收；新增文案与帮助的界面定样 |
+| 3.2 | [ai-input-receipts](../ai-input-receipts/spec.md) | 产品线（助理）、横向能力（回执） | 直接做；阶段 6 各场景写小 spec 时再定 |
+| 3.2 | [prologue-adoption](../prologue-adoption/spec.md) | 横向能力（AI 运行时）、底层与架构 | 直接做：按换包窗口 |
+| 3.2 | [ai-interaction-experience](../ai-interaction-experience/spec.md) | 产品线（助理、各插件）、横向能力（卡片撤销合同） | 要决策：同排推荐看实物（BL-344） |
+| 3.2 | [context-program](../context-program/spec.md) 一组 | 产品线（工作台、各插件）、横向能力（落点、情境动作） | 要决策：W4 起各片的界面定样 |
+| 3.2 | [assistant-service-connections](../assistant-service-connections/spec.md) | 横向能力（服务接入）、产品线（助理） | 要决策：正式 OAuth 与真实账号（你办） |
+| 3.2 | [coding-plugin 下一阶段](../coding-plugin/next-requirements.md) | 产品线（Coding） | 直接做：Q1～Q8 已定 |
+| 3.2 | 个人云同步 | 横向能力（同步）、底层与架构、产品线（同步） | 要决策：合入方式（第 7 节第 13 项）；部署与账号（你办） |
+| 3.2 | CGS 自媒体创作 | 产品线（CGS 插件）、横向能力（技能包） | 要决策：插件本体重做与否（第 7 节第 14 项） |
+| 3.3 | [unified-input-voice](../unified-input-voice/spec.md) | 横向能力（输入组件）、产品线（助理、Coding、首页）、体验与效果 | 要决策：界面定样；其余 10-27 已定 |
+| 3.3 | [skill-packs](../skill-packs/spec.md) | 横向能力（技能包、合同） | 直接做 |
+| 3.3 | [work-brief](../work-brief/spec.md) | 产品线（首页与简报）、横向能力（公共来源与呈现） | 要决策：综合首页的界面定样 |
+| 3.3 | [observation-collection](../observation-collection/spec.md) | 横向能力（采集）、底层与架构 | 直接做：合同按 C1 排队 |
+| 3.3 | 平台端到端效果评测 | 横向能力（评测） | 直接做 |
+| 3.3 | [proactive-assistant](../proactive-assistant/spec.md) | 产品线（助理）、横向能力（后台任务） | 要决策：交互切片的界面定样 |
+| 3.3 | [coding-harness-optimization](../coding-harness-optimization/spec.md) | 体验与效果（性能、可靠性）、产品线（Coding） | 直接做 |
+| 3.3 | [agent-approval](../agent-approval/spec.md) | 横向能力（授权与人审）、底层与架构 | 直接做：10-28 已对齐 |
+| 3.3 | [subagent-interaction](../subagent-interaction/spec.md) | 产品线（助理、Coding）、横向能力（Prologue 子代理） | 要决策：入口与动线的界面定样 |
+| 3.3 | [coding-quality-assurance](../coding-quality-assurance/spec.md)、[automation-recommender](../automation-recommender/spec.md)、[code-modernization](../code-modernization/spec.md) | 产品线（Coding） | 直接做 |
+| 3.3 | [product-flow-governance](../product-flow-governance/spec.md) | 跨线：体验与效果、横向能力（资料、目录、工作台） | 要决策：改变现行规则的整改 |
+| 3.3 | [onboarding-coverage](../onboarding-coverage/spec.md) | 产品线（引导）、横向能力（场景与设置） | 要决策：首日旅程的界面定样 |
+| 3.3 | [font-and-skin-system](../font-and-skin-system/spec.md) | 横向能力（外观与语言）、体验与效果 | 要决策：皮肤方向定样；C 段怎样切（第 7 节第 20 项） |
+| 3.3 | [risk-plugin](../risk-plugin/spec.md) | 产品线（风险插件） | 要决策：总览与复查的高保真定样 |
+| 3.3 | Skill、Context、MCP、Tool 四份 Prologue 策略 | 横向能力（AI 运行时） | 要决策：四份整体评审 |
+| 3.3 | [intelligent-surfaces](../intelligent-surfaces/spec.md) | 横向能力（呈现与组合）、产品线（工作台、助理） | 要决策：呈现形态定样；负责人 |
+| 3.3 | [work-mainline](../work-mainline/spec.md) | 产品线（工作台）、横向能力（主线服务） | 要决策：切换器的界面定样 |
+| 3.4 | Sessions 重做 | 产品线（Sessions）、横向能力（会话历史与控制） | 要决策：会话交互与技术方案 |
+| 3.4 | 首日旅程 | 产品线（引导） | 要决策：界面定样（随 onboarding-coverage） |
+| 3.4 | [插件创作工作台升级](../plugin-builder-upgrade/spec.md) | 产品线（创作台）、横向能力（场景组装） | 要决策：合同与交互（该 spec 第 7 节） |
+| 3.4 | 团队协作首版 | 产品线（团队）、横向能力（同步与实时编辑）、底层与架构（身份与访问） | 要决策：协作协议与细粒度规则 |
+| 3.4 | 团队记忆 | 产品线（团队）、横向能力（记忆） | 要决策：形成、融合与使用策略 |
+| 3.4 | 分享做法与成品 | 横向能力（导出导入） | 直接做 |
+| 3.5 | 签名与公证 | 产品线（发布） | 要决策：凭据接入（你办） |
+| 3.5 | 数据升级链与真实 Home 重建 | 底层与架构 | 要决策：重建由你说「开始」；升级链直接做 |
+| 3.5 | 运行条件、原生组件预置、App Intents、使用统计 | 产品线（发布）、底层与架构 | 直接做 |
+| 3.5 | 对外许可口径 | 产品线（发布） | 要决策：口径（你） |
+| 3.5 | 菜单栏角标与系统通知 | 产品线（发布）、横向能力（Attention） | 要决策：界面定样 |
+| 3.5 | 兼容起点 | 底层与架构 | 要决策：M1 的范围（第 7 节第 18 项） |
+| 3.5 | 自动更新、在线备份、崩溃上报（M2） | 产品线（发布）、底层与架构 | 直接做；账号与服务你办 |
+| 3.6 | 体验债三批 | 体验与效果、产品线（各插件） | 直接做：独立片，照组件板已有控件改 |
+| 3.7 | 散在各处的平台小项 | 横向能力、底层与架构 | 直接做；助理对外用词（H4）1·A 开工前要定 |
+| 3.8 | BACKLOG 其余条目 | 按所在轨道 | 直接做：按轨道填空；工程流程由统筹做 |
 
 ## 4. 依赖
 
@@ -214,6 +337,7 @@ flowchart LR
   OC --> OG[生成页面预览校验与恢复]
   WB --> OG
   FA[字体皮肤语言 A 段] --> OG
+  S0 --> FA
   OC --> OS[场景能力与设置读写]
   OI --> ON[首次与项目场景闭环]
   OG --> ON
@@ -273,8 +397,7 @@ flowchart LR
   TD --> SC[个人同步合同]
   TD --> TP[关键并发与断线验证]
   SC --> SY[个人同步核心插件]
-  SY --> FC
-  FC --> SY2[其余插件与真机同步]
+  SY --> SY2[其余插件与真机同步]
   SY2 --> TEAM[完整团队协作]
   TP --> TEAM
   TEAM --> TM[团队记忆]
@@ -284,7 +407,18 @@ flowchart LR
   OT --> SH
   SP --> CGS[CGS 创作技能包]
   M1[M1 发版] --> COMPAT[合同改动带读取兼容]
+  SP --> M1
+  FA --> M1
+  SC --> M1
+  OC --> M1
+  COL --> M1
+  W1 -.-> BT
+  W1 -.-> ON
+  S0 --> PBR[创作台与生成插件迁到 Plugin Runtime]
+  PBR --> PB
 ```
+
+虚线是只在阶段 1 核出当前 SDK 缺口时才成立的依赖。
 
 几条硬依赖，排序时不能反过来：
 
@@ -299,38 +433,46 @@ flowchart LR
 - Coding 质量保证需要子代理入口和已对齐的授权／人审合同；只有明确要求人审的范围才等待对应票数。已有许可直接执行，AI 低风险代批不计作真人批准；代码现代化在质量保证之后。
 - 字体皮肤语言 C 段要求 PG-070、PG-071 已落地；创作台诊断、交互切片和必要合同前移，正式生成插件交付在 C 段之后，采用新的样式与文字。新能力插件完整交付不等待阶段 3 的完整质量保证产品，可复用现有评审与验证；场景组装合同在 3·C 细化、阶段 4 完成 Alchemist。它复用生成页面公共能力，不依赖 Onboarding 产品验收。
 - BL-023 目录模型已定。C/D 先交公共资料身份、目录授权／读写与选择器，B 接 Coding/Git，F 接材料引导；统一标签、分屏和定位在 D 落。Files 必须等消费者、历史引用、快照／选区和过程项的主人接好并回读通过后退役，不以目录 UI 完成代替。
-- 个人同步要按防腐收尾后的插件数据形状（声明的表、分区库、双实例）重接；核心插件的同步声明在 C 段窗口之前合完，其余插件在窗口之后。身份、版本、权限及实时编辑共同设计先于同步合同；人与 AI 同改、撤权及断线恢复的关键验证在阶段 2，完整团队产品再等待个人同步和团队访问能力。
+- 个人同步要按防腐收尾后的插件数据形状（声明的表、分区库、双实例）重接；同步声明与 C 段切换互不等待，只是窗口期间不合入改 Manifest 的同步 PR（第 5 节规则 3）。身份、版本、权限及实时编辑共同设计先于同步合同；人与 AI 同改、撤权及断线恢复的关键验证在阶段 2，完整团队产品再等待个人同步和团队访问能力。
 - 周期报告要先有跨项目的只读汇总（产品建议 D5）：system-search 明确不跨项目，汇总读的是工作记录。
 - Sessions 的历史发现、读取和项目归属先进入阶段 2 的引导接续；持续跟进、控制与交接在阶段 3 完成。逐产品／入口保留全量清单，分段交付不缩小厂商范围，也不要求全部控制能力成为基础材料路径的前置。
 - 合同改动多的地基排在 M1 之前（第 2 节「兼容起点」）；团队未来全部合同不为赶 M1 提前冻结，后续按正式兼容流程演进。
+- 创作台生成的插件要与别的插件同等待遇：新能力插件正式交付之前，先把创作台与生成插件迁到 Plugin Runtime（privileges 的 PG-083，本轮绕过的那一行），并让沙箱包拿得到 PG-017 给的服务（BL-916 一类）。图里是 PBR → PB。
+- 换包窗口一只在阶段 1 核出主对话、后台任务或项目助理团缺 SDK 能力时才挡这两项（图中虚线）；核出不缺就不等窗口。
 
 ## 5. 冲突面与轨道
 
 自 10-12 起合入 main 的 PR 里，改得最多的代码文件：`scripts/gates/page-assets.mjs`（127 次）、`apps/local-host/src/index.ts`（79）、`apps/workbench/src/scripts/client/assistant-island.ts`（55）、`tests/ci-product-subset.txt`（55）、`plugins/native/coding/src/client.ts`（47）、`packages/contracts/src/platform/plugin.ts`（46）、`apps/local-host/src/assistant/assistant-service.ts`（43）、`packages/design-system/src/styles/craft-finish.ts`（41）。防腐收尾后宿主入口会变薄，阶段 0 重新量一次；其余几处正是后面需求最密的地方，所以按它们分轨道：
 
+11-02 重量（10-19 起 main 的 694 个提交，不算文档与快照）：`scripts/gates/page-assets.mjs` 118 次、`apps/local-host/src/index.ts` 65、`tests/ci-product-subset.txt` 36、`packages/contracts/src/platform/plugin.ts` 35、`pnpm-lock.yaml` 31、`apps/local-host/src/project-plugins.ts` 31、`packages/plugin-runtime/src/index.ts` 30、`apps/local-host/src/web-request.ts` 30、`scripts/workspace-packages.mjs` 28、`assistant-island.ts` 28。宿主入口仍是第二热的文件；宿主与工作台外壳的几个热文件不归任何轨道，按规则 4 一起落。
+
 | 轨道 | 这条轨道独占的文件 | 主要的活 | 建议谁做 |
 | --- | --- | --- | --- |
-| A 助理与输入 | `apps/workbench/src/scripts/client/assistant-island.ts`、`apps/local-host/src/assistant/`、`packages/contracts/src/services/assistant.ts`、共用输入组件、助理的词典 | 统一输入框、个人助理的引导接点、回执余项、每日简报、主动助理 | Claude（交互与视觉） |
-| B Coding | `plugins/native/coding/`、`apps/local-host/src/coding-surface.ts`、Git、Diff 及 Files 退役涉及的现有消费者 | harness、下一阶段、质量保证、代码现代化 | Claude 主写，边界清楚的小片给 Codex |
-| C 平台与 Prologue | `horizontal/agent-host/`、`vendor/prologue-sdk/`、`packages/contracts/src/platform/`、`packages/plugin-sdk/`、`packages/plugin-runtime/` | 公共资料/目录合同、技能包、场景/角色/页面公共合同与运行时、采集与评测、授权及人审、Prologue 采用与换包、记忆、各需求书 | Claude（兼管合同评审） |
-| D 外观与语言 | `packages/design-system/`、`apps/workbench/src/i18n/`、ui-host、`DESIGN.md`、平台设置页 | 工作台标签/分屏/导航、公共资料呈现、VUX 收尾、字体皮肤语言、生成页面承载与交互预览、「授权与放行」一页（产品建议 H1） | Claude |
+| A 助理与输入 | `apps/workbench/src/scripts/client/assistant-*.ts`（`assistant-island.ts` 已拆成 24 个）、`apps/local-host/src/assistant/`、`packages/contracts/src/services/assistant.ts`、共用输入组件、助理的词典 | 统一输入框、个人助理的引导接点、回执余项、每日简报、主动助理 | Claude（交互与视觉） |
+| B Coding | `plugins/native/coding/`、Git、Diff 及 Files 退役涉及的现有消费者 | harness、下一阶段、质量保证、代码现代化 | Claude 主写，边界清楚的小片给 Codex |
+| C1 合同与 SDK | `packages/contracts/src/platform/`、`packages/plugin-sdk/`（UI 子路径除外）、`packages/plugin-runtime/`、`tooling/gates/api/`、`tooling/gates/actions/` | 公共资料/目录、技能包、场景/角色/页面、同步、授权及人审的合同；沙箱包与 Runtime 的缺口；对抗式审查的 SDK 收拢；合同评审 | Claude（兼管合同评审） |
+| C2 AI 运行时 | `horizontal/agent-host/`、`horizontal/memory/`、`vendor/prologue-sdk/` | Prologue 采用与换包窗口、记忆、Skill/Context/MCP/Tool 四份策略、子代理的 Prologue 一半 | Claude |
+| C3 平台新服务 | 每项服务一个新的 `horizontal/<服务>/` 包（用户 11-01 定新的平台服务不进宿主，宿主只做装配） | 观测和采集、评测、Sessions 历史与控制、场景与生成页面的运行时、Attention 的提醒与唤醒；一个包一个写手，包之间并行 | 按包分派 |
+| D 外观与语言 | `packages/design-system/`、`apps/workbench/src/i18n/`、ui-host、`packages/contracts/src/ui/` 与 `ui.ts`、`packages/plugin-sdk/src/ui.ts`（字体皮肤语言 A 段落在这里）、`DESIGN.md`、平台设置页 | 工作台标签/分屏/导航、公共资料呈现、VUX 收尾、字体皮肤语言、生成页面承载与交互预览、「授权与放行」一页（产品建议 H1） | Claude |
 | E 插件 | Coding 一族以外的 `plugins/native/<插件>/`、新插件包 | 体验债、风险、工作简报本体、创作台的插件侧实现、场景所需插件配置与结果落点、情境 W4～W6、插件小功能 | Codex 独立片为主，界面定样由 Claude |
 | F 场景引导与发布 | `apps/desktop/`、安装器、`docs/releases/`、引导页与引导路由 | 首次/项目/任务引导完整路径、设置映射、首日旅程；运行条件、签名与升级、正式 OAuth | Codex；账号、证书、真实 Home 只能你办 |
-| G 个人同步 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务（位置由 1·C 的合同 PR 定）；各插件 Manifest 里的同步声明按规则 4 一起落 | 同步合同、Worker、各插件接入、两台真电脑验收 | 接着 `personal` 分支原来的会话做，合同由 C 轨评审；部署和真实账号只能你办 |
+| G 个人同步 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落 | 同步合同、Worker、各插件接入、两台真电脑验收 | 接着 `personal` 分支原来的会话做，合同由 C 轨评审；部署和真实账号只能你办 |
+
+本文里的「C 轨」「1·C」指 C1～C3 合起来，按所改的包落到其中一个写手。「建议谁做」一列写在 10-31 设备 A 的 Codex 全线接手之前，开工前按第 7 节第 22 项重定。
 
 规则：
 
-1. **合同先行。** 要改 Manifest、SDK 或 `packages/contracts` 的，先单独开一个只改合同的小 PR（带 `pnpm api:update`、`pnpm actions:update` 的快照），C 轨评审、尽快合；功能 PR 叠在它后面。同一时间只有一个合同 PR 在途；共同设计可并行，写合同按实际依赖串行。技能包、场景与生成页面、情境 W4、卡片撤销、字体皮肤语言 A 段的合同改动按这条排队，先核已有合同能否复用。
+1. **合同先行。** 要改 Manifest、SDK 或 `packages/contracts` 的，先单独开一个只改合同的小 PR（带 `pnpm api:update`、`pnpm actions:update` 的快照），C 轨评审、尽快合；功能 PR 叠在它后面。合同 PR 按快照排队：`tooling/gates/api/` 下同一份子路径快照同一时间只有一个合同 PR 在途，不同子路径可以并行；Manifest（`packages/contracts/src/platform/plugin.ts`，快照 10-19 起改过 48 次）最热，C1 先把它按功能拆成几段声明，技能包、同步、场景、语言样式各改各的。共同设计可并行，写合同按实际依赖串行。技能包、场景与生成页面、情境 W4、卡片撤销、字体皮肤语言 A 段的合同改动按这条排队，先核已有合同能否复用。
 2. **换包窗口。** 每个阶段最多换一次 Prologue 包，放在阶段中段。这一阶段要上游补的东西提前列进窗口清单一起提，窗口外不换包。阶段 1 不换包：记忆 P0 沿原暂停与负责人边界，恢复授权后只做不需上游的部分；要上游的仍进窗口一，排期不等于解除暂停。阶段 2 的窗口一装子代理、P5 协作；记忆 SDK 余项仅在原暂停解除后纳入，并补项目助理团、主对话与后台任务所必需且当前 SDK 尚缺的能力，已有合同直接复用；阶段 3 的窗口二装 Skill、Context、MCP、Tool 四份策略要的上游能力。
-3. **切换窗口。** 字体皮肤语言的 C 段（全部插件的文字与样式一次切换）占一个窗口。窗口里 E 轨不改插件的界面文字和样式，只做逻辑；G 轨不改插件的 Manifest；新插件在窗口之前就按新格式写，不留到窗口里转。
-4. **同路径一起落。** 碰同一批聚合文件（`scripts/gates/page-assets.mjs`、`tests/ci-product-subset.txt`、`packages/contracts/src/platform/dom-events.ts`、`pnpm-lock.yaml`）的 PR 按批落规则合成批 PR，冲突由统筹一次解。
+3. **切换窗口。** 字体皮肤语言的 C 段（全部插件的文字与样式一次切换）占一个窗口。窗口里 E 轨不改插件的界面文字和样式，只做逻辑；G 轨不合入改 Manifest 的 PR；新插件在窗口之前就按新格式写，不留到窗口里转。窗口只管合入的时段：阶段 2、3 的 G 行写的「C 段窗口之前合完」「窗口之后」，按「不在窗口期间合入」读，同步与切换谁先做完谁先落，不互相等待。
+4. **同路径一起落。** 碰同一批聚合文件（`scripts/gates/page-assets.mjs`、`tests/ci-product-subset.txt`、`packages/contracts/src/platform/dom-events.ts`、`pnpm-lock.yaml`，以及不归任何轨道的宿主与外壳热文件：`apps/local-host/src/index.ts`、`project-plugins.ts`、`project-host.ts`、`web-request.ts`、`plugin-host-services.ts`、`home-plugin-executor.ts`，`apps/workbench/src/index.ts`、`immersive-shell.ts`，`scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`，`tooling/gates/actions/*.tsv`、`giant-exceptions.json`、`error-owners.json`）的 PR 按批落规则合成批 PR，冲突由统筹一次解。
 5. **新插件按实际依赖安排。** 风险等独立新包可放空档；Work Brief 与首页合并后需要 C/D 先交公共来源／呈现和挂载，E 再接综合首页与简报核心，不能仍按完全独立的新包安排。各轨道只修改自己负责的部分。
 6. **一条轨道一个会话跨到底。** 同一条轨道在各阶段尽量由同一个会话接着做，少交接；开发本身也讲工作接得上。
-7. **借文件由主人落。** 别的轨道的需求要改某条轨道独占的文件时，由那条轨道的会话落这处改动，需求方叠在后面。阶段 1 已知两处：技能包要改助理的 `methods()`（`apps/local-host/src/assistant/assistant-service.ts`），harness R2 要改委派入口（`apps/local-host/src/assistant/assistant-executor.ts`），都在 A 轨。A 轨先落这两处小改动，再开输入框的大改。场景引导同理：F 轨负责需求与完整路径，个人助理接点由 A 落，角色/设置/Runtime 公共能力由 C 落，工作台页面与视觉由 D 落，插件配置和工作流程由 E 落；F 不横跨这些独占文件另写一套。
+7. **借文件由主人落。** 别的轨道的需求要改某条轨道独占的文件时，由那条轨道的会话落这处改动，需求方叠在后面。阶段 1 已知两处：技能包要改助理的 `methods()`（`apps/local-host/src/assistant/assistant-work-reads.ts`），harness R2 要改委派入口（`apps/local-host/src/assistant/assistant-executor.ts`），都在 A 轨。这两处和输入框的文件不重叠，对应合同就绪时插进来，不挡输入框的大改；阶段 1 A 行的「先……再……」按这条读。场景引导同理：F 轨负责需求与完整路径，个人助理接点由 A 落，角色/设置/Runtime 公共能力由 C 落，工作台页面与视觉由 D 落，插件配置和工作流程由 E 落；F 不横跨这些独占文件另写一套。
 
 ### 5.1 C 轨按实际依赖排队
 
-C 轨先交共用能力，再接消费者；下面是队列，不是增加负责人或同时开启多个 writer：
+C 轨先交共用能力，再接消费者。下面的队列由 C1～C3 三个写手按包并行推进：C1 的合同按快照排队，C2 跟换包窗口，C3 一个服务包一个写手；同一个包、同一份合同快照仍只有一个写手（第 7 节第 17 项确认前，按原来的单写手执行）：
 
 1. **阶段 1 前段**：公共资料／目录及工作台所需合同、授权边界核对；B/D/F 可接入后，做技能包、首页与场景必要合同，同时核对主对话与后台任务能复用的输入、TaskBoard、执行及恢复合同。
 2. **阶段 1 后段**：采集设计和评测案例、Sessions 历史合同；与 G 共同设计身份／版本／权限／并发，再定同步合同。创作台设计只补实测发现的缺口，Memory 仍遵守原暂停。
@@ -357,6 +499,8 @@ C 轨先交共用能力，再接消费者；下面是队列，不是增加负责
 
 ### 阶段 1：基础路径与共同设计
 
+文案与引导：D 与 F 按 VUX-51～59、ONB-47～49 清点全产品入口，先做首次使用、再次使用和缺项/失败恢复的高保真切片，确定名称、按钮、默认内容与帮助时机。各轨道提供真实能力、状态和配置来源；新要求不阻塞 Onboarding 已有材料基础路径，也不依赖完整字体/皮肤系统才开始设计。
+
 - **A**：在相关合同已具备时先落两处借给别的轨道的小改动（规则 7：技能包的 `methods()`、harness R2 的委派入口）；再做统一输入框的文字部分（unified-input-voice §3～§5，连同 VUX-16、VUX-17、VUX-18 和送达方式的键位）。一份组件，首页、助理、Coding 三处换上；与 D 做主对话持续接单和后台任务可视化的高保真交错路径，C 核输入、协作与运行合同，设计不启动后台产品实现。
 - **B**：在 C/D 公共资料和目录能力后接 Coding/Git，沿统一导航处理查看与执行；harness A 批（R1 目录到真实执行、R2 委派配置与诊断、R3 规则与模式，都是 P0）；C 批的 R7 Coding 渲染稳定；TaskBoard 与计划卡编号、状态一致（BL-161、BL-164）；时间线把没有退出码的命令显示成成功（BL-222）。
 - **C**：技能包（含 ADH-23 BL-321 和设计内容包 BL-165 的格式）；记忆 P0 非上游部分在原暂停解除后沿原负责人推进；Prologue 采用 A5 重核（BL-309）与写后检查余项；观测和采集的现状盘点与设计（覆盖、历史版本、公共查询、访问、保留及开销），同步准备评测案例；公共资料与目录合同先供 B/D/F 使用；与 G 共同设计个人同步及团队实时编辑的身份、版本、权限、并发和恢复，再落同步合同；Sessions 来源与历史读取盘点；根据 F 的高保真与设置映射，核现有角色/配置/页面能力，补场景和生成页面的必要公共合同，按 §5.1 的 C 轨顺序排队；创作台所需的缺口先通过真实任务核对。
@@ -368,6 +512,8 @@ C 轨先交共用能力，再接消费者；下面是队列，不是增加负责
 **退出**：主对话与后台任务的连续交办、进展、控制及恢复已给出可操作切片，公共合同可复用部分与必要缺口清楚；三处入口用同一个输入框；一个只有内容的技能包能装上，助理和 Coding 都看得见、用得了；harness A 批在真实目录、真实模型下实走通过；风险和 Work Brief 两个插件能装、能用，基础首页在未安装 Work Brief 时可用，启用后的综合首页与停用恢复走通且共用来源／呈现；Schedule 的任务能读待办、Inbox、日程、目标；采集设计与评测案例可审阅，覆盖和缺口清楚；个人同步与实时协作的共同设计已形成，同步所需合同已定；公共资料、目录、工作台导航在 Coding 及另一消费者中接通；创作台真实断点及可操作切片已给出；引导的完整路径已有可操作高保真，所有全局/项目/插件设置有出现时机与保存主人，场景与生成页面必要合同已定，实施可进入阶段 2。
 
 ### 阶段 2：个人工作完整可用
+
+D 统筹全产品文案与按需帮助，各功能轨道在所属表面落实，F 接通从当前缺项进入准备并返回原任务的路径。复用现有语言系统与配置/进度，不另建事实来源；已实现入口逐项验收，后续新增或生成页面随所属功能采用同一规则。覆盖与体验未完成时不把这项归为“只差本人验收”。
 
 - **A**：先接个人助理与引导的上下文、问题及继续入口；复用 C 的公共合同，接通明确交办任务的后台执行、主对话及时答复、任务可视化、输入归属、控制及恢复，按个人助理 PWA-127～140 验证，保留人工体验项。此项不等采集和简报；每日状态简报先有 C 轨的真实采集与历史查询再接（产品建议 E0：只报变化、取不到的标过期、底部三个能点的下一步），由场景技能包驱动、Schedule 按时跑、写进同一 Work Brief 并在综合首页呈现，Feed 归属及计数随公共来源核对（BL-098）；回执余项 BL-314～317、BL-148、BL-162；卡片撤销 BL-343 与同排推荐 BL-344；本机语音（真机验收麦克风、中文输入法、中英混说）。
 - **B**：harness B 批（R4 上下文、R5 完成闭环、R6 环境准备、R14 估点与进度）；下一阶段 A 期（说明文件与 `/init`、斜杠命令、图片输入、代码智能，开工前先核哪些已有）；Coding 目标芯片 BL-342。
@@ -425,8 +571,14 @@ C 轨先交共用能力，再接消费者；下面是队列，不是增加负责
 | 12 | 验收方式：逐项本人试用，还是像 09-30 那样委托验证 | 阶段 0 |
 | 13 | 个人云同步怎样合入：按收尾后的形状重接（本文建议）、整支变基，还是先停 | 阶段 0 对账之后、1·C 同步合同之前 |
 | 14 | CGS：七项 Skill 改成内容技能包之外，插件本体按新 SDK 重做还是放下 | 2·C（Skill），3·C（插件本体） |
-| 15 | 术语表 R-B 的改名（改存量数据或合同的那几项）逐项做不做 | 2·F 的真实 Home 维护 |
+| 15 | **已定（2026-10-26）**：R-B1～R-B8 不做（W5-14 只管内部名），保持原名记在[术语表](../../docs/system/GLOSSARY.md) R-C；R-B9 源码已改，存量随真实 Home 清空重建、不迁移（用户 2026-10-30） | 不再卡住任何步骤；真实重建另等用户“开始” |
 | 16 | 引用声明之间要不要查语义一致（BL-128） | 3·C |
+| 17 | C 轨按包拆成 C1 合同与 SDK、C2 AI 运行时、C3 平台新服务三个写手（本文 11-02 已按此写）：C 轨在阶段 1～3 各有 9、11、13 项，第 3 节的去处有 36% 落在 C，单写手加「一次一个合同 PR」会让其他轨道等它。建议拆 | 阶段 1 起的 C 轨 |
+| 18 | M1 的范围：现在 M1 等于阶段 2 的整个退出条件（约二十条，含两个 Home 之间的同步、团队关键协作验证、Sessions 全部厂商、语言与皮肤整体切换），1·F 做好的签名与公证要等最慢的那条。建议 M1 只要：能装到第二台 Mac、升级不丢数据、材料基础路径、统一输入框、技能包，其余在 M1 之后按兼容流程接；读取兼容仍按[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)从 M1 起算 | 2·F、兼容起点 |
+| 19 | 首条场景闭环要等 7 个上游（含生成首页的整套能力与 Sessions 历史）。建议先交不带 AI 生成首页的基础闭环，生成首页随后接上；需求不变，只拆退出条件 | 2·F |
+| 20 | 字体皮肤语言 C 段：维持一次整体切换（窗口里冻结 E、G），还是 PG-070、PG-071 落地后按插件逐个切（切换期间平台同时认新旧两种文字格式，属于过渡机制，要你批准并写进防腐线的保留机制） | 2·D 末 |
+| 21 | 阶段 0 能不能在 #1725 合入后就开始，不等真实 Home 重建与本人验收窗口（这两项照常进行，只挡依赖它们的步骤） | 阶段 0 |
+| 22 | 各轨道由谁做：第 5 节「建议谁做」写在 10-31 Codex 全线接手之前；每台机器同时只跑一个构建、一个测试，七条轨道同时开工要靠 CI 或多台设备 | 阶段 0 |
 
 ## 8. 不排进本路径的
 
@@ -444,6 +596,6 @@ C 轨先交共用能力，再接消费者；下面是队列，不是增加负责
 ## 9. 怎样维护本文
 
 - 每段结束时，把做完的条目从 BACKLOG 删掉（照 BACKLOG 的规矩，在提交说明里写编号），归档做完的 spec，在本文对应阶段后面写一行「完成（日期，PR 号）」。
-- 新冒出来的需求先进 BACKLOG 或新 spec，再按第 2 节的三条和第 4 节的依赖插进某一段的某条轨道；不另起一份排期。
+- 新冒出来的需求先进 BACKLOG 或新 spec，再按第 2 节的三条和第 4 节的依赖插进某一段的某条轨道；不另起一份排期。一项需求从立项到收尾怎样走（分档、开工前检查、界面定样、要你拍板的事），见[需求开发流程](development-workflow.md)。新需求同时在第 3.9 节标上类型与决策，做完删掉那一行。
 - 第 5 节的热点每段重量一次；轨道独占的文件变了就改表。
 - 四段都走完，或者本文被新的排期取代时，按 [specs/README.md](../README.md) 的规则归档。

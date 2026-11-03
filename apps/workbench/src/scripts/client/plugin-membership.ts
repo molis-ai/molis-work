@@ -33,9 +33,11 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     keys(root.querySelectorAll('[data-side-tab]'), (node) => node.dataset.sideTab),
   ].join('|');
   // A plugin's stage page. The workbench moves the pages it shows out of the pool, so "there" means anywhere on the page.
-  const poolOf = (root) => [...root.querySelectorAll('[data-surface-pool] > [data-work-surface]')];
+  // A stage is a surface not inside another one, on both sides: Goals' sits in the canvas shell, not directly in the pool.
+  const topLevel = (node) => !node.parentElement?.closest('[data-work-surface]');
+  const poolOf = (root) => [...root.querySelectorAll('[data-surface-pool] [data-work-surface]')].filter(topLevel);
   const stageOf = (root, id) => poolOf(root).find((node) => node.dataset.workSurface === id) || null;
-  const livePage = (id) => [...document.querySelectorAll('[data-work-surface="' + CSS.escape(id) + '"]')].filter((node) => !node.parentElement?.closest('[data-work-surface]'));
+  const livePage = (id) => [...document.querySelectorAll('[data-work-surface="' + CSS.escape(id) + '"]')].filter(topLevel);
 
   const attrs = (live, next, keep = []) => {
     for (const attr of [...live.attributes]) if (!keep.includes(attr.name) && !next.hasAttribute(attr.name)) live.removeAttribute(attr.name);

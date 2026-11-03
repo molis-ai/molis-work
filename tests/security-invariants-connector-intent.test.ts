@@ -118,14 +118,17 @@ for (const service of ["gmail", "notion"]) test(`S-37 ASC-34: ${service} dedicat
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token") return Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
-    if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: "work@example.test" });
     if (url === "https://api.notion.com/v1/users/me") return Response.json({ object: "user", id: "bot", type: "bot", bot: { owner: { type: "workspace", workspace: true } } });
     return realFetch(input, init);
   });
-  const started = await home.web.post<{ authorizationUrl: string }>(`/api/settings/connectors/${service}/oauth/start`, {
-    client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id,
-    redirect_uri: `${home.origin}/api/feed/connectors/gmail/oauth/callback` });
-  const consent = new URL(started.authorizationUrl), redirect = consent.searchParams.get("redirect_uri")!;
+  // Gmail runs the generic flow (W5-11 slice 6): its requests leave by `sendPublicHttps`, and its registered callback is the service's alias.
+  if (service === "gmail") oauthNetwork(t, url => url === "https://oauth2.googleapis.com/token" ? Response.json({ access_token: "fixture-dedicated-access", refresh_token: "fixture-dedicated-refresh", expires_in: 3600 })
+    : Response.json({ sub: "google-account", email: "work@example.test" }));
+  const started = service === "gmail"
+    ? await home.web.post<{ authorization_url: string }>("/api/settings/connectors/methods/oauth/start", { service_id: "gmail", client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id })
+    : await home.web.post<{ authorizationUrl: string }>("/api/settings/connectors/notion/oauth/start", { client_id: "fixture-app", client_secret: "fixture-client-secret", display_name: "Work", setup_id: prepared.authorization_id,
+      redirect_uri: `${home.origin}/api/feed/connectors/gmail/oauth/callback` });
+  const consent = new URL("authorization_url" in started ? started.authorization_url : started.authorizationUrl), redirect = consent.searchParams.get("redirect_uri")!;
   hold(home.home, "latest");
   const response = await fetch(`${redirect}?state=${consent.searchParams.get("state")}&code=fixture-code`, { redirect: "manual" });
   assert.equal(response.headers.get("location"), `/capabilities/connections?setup=${prepared.authorization_id}`);

@@ -64,9 +64,9 @@ test("RAC-255 BL-385: a Home with no Characters library has nothing to clear and
   const old = home(t);
   seed(old);
   const file = join(old, "characters", "characters.sqlite"), db = new DatabaseSync(file);
-  db.exec("PRAGMA user_version = 1"); db.close();
+  db.exec("PRAGMA user_version = 2"); db.close();
   const bytes = readFileSync(file);
-  assert.throws(() => purgeCharactersProject(old, "doomed"), error => error instanceof SqliteSchemaVersionError && error.found === 1);
+  assert.throws(() => purgeCharactersProject(old, "doomed"), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 1);
   assert.deepEqual(readFileSync(file), bytes, "the refusal writes nothing");
   writeFileSync(file, bytes);
 });

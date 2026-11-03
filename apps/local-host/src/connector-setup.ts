@@ -26,8 +26,8 @@ export const connectorSetupAction: ActionDefinition = {
 };
 
 type ConnectorSetupInput = Omit<ConnectorSetupPlan, "expected_revision"> & { expected_revision: string | null };
-function selectedPlan(home: string, input: ConnectorSetupInput): ConnectorSetupPlan {
-  const service = listConnectorSettingsCards().find(row => row.connector_id === input.service_id);
+async function selectedPlan(home: string, input: ConnectorSetupInput): Promise<ConnectorSetupPlan> {
+  const service = (await listConnectorSettingsCards(home)).find(row => row.connector_id === input.service_id);
   const method = service?.method_options?.find(row => row.kind === input.method);
   if (!method || !["in_app", "paste"].includes(method.support)) throw errors.unsupported(`所选服务标识或方式没有可执行接入处理器。请向 connectors.methods.read 传入 {}，从完整目录读取 connector_id；通用 HTTP/SSE MCP 地址使用 service_id: ${CUSTOM_MCP_SERVICE}、method: mcp，不需另行登记服务。`);
   if (!input.display_name.trim()) throw errors.invalid("请填写连接名称");
@@ -51,7 +51,7 @@ function selectedPlan(home: string, input: ConnectorSetupInput): ConnectorSetupP
 
 export function connectorSetupHandler(home: string): ActionHandlerBinding {
   return { capability_id: connectorSetupAction.capability_id, version: 1, handle: async (caller, input) => {
-    const plan = selectedPlan(home, input as ConnectorSetupInput);
+    const plan = await selectedPlan(home, input as ConnectorSetupInput);
     await caller.beforeEffect();
     const request = prepareConnectorAuthorization(home, plan, { actor_id: caller.actor_id, project_id: caller.project_id,
       ...(caller.runtime_session_id ? { runtime_session_id: caller.runtime_session_id } : {}) });

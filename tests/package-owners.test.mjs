@@ -30,6 +30,7 @@ const errorsFor = (overrides) => ownerErrors({ codeowners: codeowners(), ssot: s
 const rowFor = (text, packagePath) => text.split("\n").find((line) => line.startsWith(`| \`${packagePath}\` |`));
 const reviewedBy = (handle) => WORKSPACE_PACKAGES.filter((item) => item.owner.handles.includes(handle)).map((item) => item.path).sort();
 
+// RAC-2843 / RA4-01 and RAC-2847 / RA4-05: registry ownership follows the migrated implementation and workbench directory.
 test("the committed CODEOWNERS and the SSOT 归属 column are what the owner rules produce", () => {
   assert.deepEqual(checkPackageOwners(root, WORKSPACE_PACKAGES), []);
   assert.equal(codeowners(), renderCodeowners(WORKSPACE_PACKAGES));
@@ -125,9 +126,9 @@ test("W5-15: the 包成熟度 column carries the registry's words from the four-
   assert.match(errors(text.replace(absent, absent.replace("`absent`", "`slice`"))), /包成熟度 of packages\/exchange is "slice", the registry says "absent"/);
   // A cell without a word in backticks is a hand edit, not a value.
   assert.match(errors(text.replace(shelf, shelf.replace("`slice`", "slice"))), /names no word in backticks, expected "slice"/);
-  // A target row inside a package follows that package: apps/workbench/src/functions carries apps/workbench's word.
-  const functions = rowFor(text, "apps/workbench/src/functions");
-  assert.match(errors(text.replace(functions, functions.replace("`production`", "`slice`"))), /包成熟度 of apps\/workbench\/src\/functions is "slice", the registry says "production"/);
+  // A target row inside a package follows that package: apps/workbench/src/judgment-rules carries apps/workbench's word.
+  const functions = rowFor(text, "apps/workbench/src/judgment-rules");
+  assert.match(errors(text.replace(functions, functions.replace("`production`", "`slice`"))), /包成熟度 of apps\/workbench\/src\/judgment-rules is "slice", the registry says "production"/);
   // The column itself must stay in every package table.
   assert.match(errors(text.replace(`| ${MATURITY_COLUMN} | 迁移 / 实现 Goal |`, "| 迁移 / 实现 Goal |")), /has no "包成熟度" column/);
 });
@@ -142,7 +143,7 @@ test("a package added to the workspace needs a SSOT row, and a row inside a pack
   const row = `| \`plugins/native/probe\` | 探针 | 来源 | \`partial\` | 目标 |`;
   const written = renderSsot(ssot().replace(rowFor(ssot(), "plugins/native/todo"), `${rowFor(ssot(), "plugins/native/todo")}\n${row}`), [...WORKSPACE_PACKAGES, added]);
   assert.ok(rowFor(written, "plugins/native/probe").endsWith(`| 内置插件：${LEAD} |`));
-  assert.equal(rowFor(ssot(), "apps/workbench/src/functions").split("|").at(-2).trim(), "共享核心：@yijunw0212");
+  assert.equal(rowFor(ssot(), "apps/workbench/src/judgment-rules").split("|").at(-2).trim(), "共享核心：@yijunw0212");
 });
 
 test("the command checks without arguments and exits 0 on the committed files", () => {

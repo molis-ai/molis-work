@@ -1,4 +1,5 @@
 import { browserErrors, isBrowserError } from "./errors.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -758,8 +759,15 @@ function loadFailure(errorText: string): string {
   return `页面没有打开（${errorText}）。可以刷新重试。`;
 }
 
-function safeFilename(name: string): string {
-  return name.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_").slice(0, 200) || "download";
+/** A download's file name: what the file system forbids is replaced, and a name over 200 UTF-16 units is cut in whole characters,
+ * keeping its extension (a cut between the halves of a character would leave a lone half, which a header cannot carry). */
+export function safeFilename(name: string): string {
+  const cleaned = name.replace(/[\\/:*?"<>|\u0000-\u001f]/gu, "_");
+  const extension = /\.([A-Za-z0-9]{1,10})$/u.exec(cleaned)?.[0] ?? "";
+  const room = 200 - extension.length;
+  const base = cleaned.slice(0, cleaned.length - extension.length);
+  const kept = cutHead(base, room);
+  return kept + extension || "download";
 }
 
 /** A browser host started on first use, forbidding the loopback origin of the server that owns it. Its getter also

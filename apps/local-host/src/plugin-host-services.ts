@@ -42,6 +42,7 @@ import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
+import { pluginTerminalFor } from "./plugin-terminal-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -73,7 +74,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined, withdrawPages: (() => void) | undefined;
   let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
-  const dispose = () => { active = false; stopped = true; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  let terminal: ReturnType<typeof pluginTerminalFor>;
+  const dispose = () => { active = false; stopped = true; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); } };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
@@ -99,19 +101,21 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     scheduler = pluginSchedulerFor(manifest, context, projectLibrary?.client, options.scheduler, assertActive, {
       client: options.actions.client, plugin_caller: pluginCaller, provider_id: providerId, record: () => options.record?.(context.install_id) ?? null });
     agents = pluginAgentsFor(options.home, manifest, context, pluginCaller, () => options.record?.(context.install_id) ?? null);
+    // A project instance has no owner files of its own: only a sandboxed package has them here, and the sandbox is refused the terminal at start.
+    terminal = options.home ? pluginTerminalFor({ home: options.home.directory, manifest, context, ownerFiles: undefined, assertActive }) : undefined;
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client,
       database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db,
         { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
-      background: background?.client, directory: directory?.client,
+      background: background?.client, directory: directory?.client, terminal: terminal?.client,
       projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),
-      revoke: () => { active = false; withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); }, dispose };
+      revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     dispose();
     throw error;
@@ -208,6 +212,8 @@ interface SessionParts {
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
   /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
   readonly directory: PluginDirectoryService | undefined;
+  /** Interactive terminals started by the plugin's own user commands, only when the Manifest declares `terminal:run` (`pluginTerminalFor`, S-103). */
+  readonly terminal: import("@molis-ai/molis-work-contracts/platform/plugin").PluginTerminalClient | undefined;
   /** Whether project ids the plugin holds still exist, only when the Manifest declares `projects:exist` (`pluginProjectsFor`, S-96). */
   readonly projects: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectsClient | undefined;
 }
@@ -246,6 +252,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.sourcePull === undefined ? {} : { sourcePull: parts.sourcePull }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
+      ...(parts.terminal === undefined ? {} : { terminal: parts.terminal }),
       ...(parts.projects === undefined ? {} : { projects: parts.projects }),
       ...coordinationServices(options, manifest, context, parts),
     }) });

@@ -30,7 +30,7 @@ pnpm --filter @molis-ai/molis-work-service-knowledge build
 - 负责：资料的查找结果（卡片）、按所属插件现在的正文给出分节、按分节或位置读原文、在指定资料里逐行查找；只在调用者自己的项目里。
 - 不负责：插件的表与正文（各插件的对象读取器）、索引（`horizontal/search`）、权限授予（动作服务与各入口）、模型调用（以后的整理经 `horizontal/agent-host`）。
 - 公开入口：`@molis-ai/molis-work-service-knowledge`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/knowledge`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同；系统搜索由 Host 作为端口传入，不 import 搜索包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只取 `whole-units` 的整字截，与其它层同一份规则）。方向：只依赖合同与公开 SDK；系统搜索由 Host 作为端口传入，不 import 搜索包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 每次读取都向所属插件的对象读取器读，带调用者的授权（`retainActionAuthority`）；所属插件的拒绝保留它自己的错误码，不改写成别的。
   - 只读调用者自己项目里的资料；没有项目的调用者被拒绝（`knowledge.scope`），查找结果里不带个人或别的项目的内容。
@@ -38,7 +38,7 @@ pnpm --filter @molis-ai/molis-work-service-knowledge build
   - 逐行查找只认字面文字，不接受正则，一次最多 20 份资料，每行最多 400 字。
   - 不保存任何正文或读取结果。
 - 后台整理逐份读取当前来源和排除状态；项目删除先取消整理，再由存储清除记录，晚到目录和模型结果不写回。同轮 read/grep 在授权复核后同步分配额度并保存回执，拒绝的调用不花额度。交错回归见 `tests/knowledge-cards.test.ts`、`tests/knowledge-reads.test.ts`、`tests/security-invariants-knowledge-lifecycle.test.ts`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/knowledge-service.test.ts tests/security-invariants-knowledge.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/knowledge-service.test.ts tests/security-invariants-knowledge.test.ts tests/knowledge-locate-budget.test.ts`
 - 相关手册：[specs/archive/project-knowledge/spec.md](../../specs/archive/project-knowledge/spec.md)、[docs/horizontal/knowledge.md](../../docs/horizontal/knowledge.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

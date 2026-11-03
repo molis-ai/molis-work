@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { ResolvedPlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { savePersonalMethod } from "./fixtures/personal-planning.js";

@@ -19,8 +19,8 @@ import { FOLLOW_STYLES } from "../scroll-follow.js";
  * and `prefers-reduced-motion` removes the travel rather than merely shortening them.
  */
 
-const SEGMENTED = ":is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group, .plugin-rail-items, .assistant-island-card)";
-const RAIL_SEGMENTED = ":is(.plugin-rail-items, .assistant-island-card)";
+const SEGMENTED = ":is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group, .plugin-rail-items)";
+const RAIL_SEGMENTED = ".plugin-rail-items";
 const SEGMENT_CURRENT = ':is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active)';
 
 export const MICRO_INTERACTION_STYLES = `
@@ -168,10 +168,7 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
   };
 
   const syncSegment = (track) => {
-    const islandOpen = track.classList.contains("assistant-island-card")
-      ? track.querySelector(':scope > [aria-expanded="true"]')
-      : null;
-    const current = islandOpen || track.querySelector(":scope > " + SEGMENT_CURRENT);
+    const current = track.querySelector(":scope > " + SEGMENT_CURRENT);
     const box = track.getBoundingClientRect();
     const slot = current && current.getBoundingClientRect();
     if (!current || !slot.width || !box.width) { track.removeAttribute("data-seg-thumb"); track.style.removeProperty("--seg-tint"); return; }

@@ -6,14 +6,14 @@ import type {
   PlanningMetric,
   PlanningProposalItem,
   PlanningRelationChange,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../../contract/goals.js";
 
 export type {
   GoalChangeImpact,
   PlanningGraphIssue,
   PlanningMetric,
   PlanningRelationChange,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../../contract/goals.js";
 
 type ActiveRelation = Pick<GoalRelationRecord, "relation_id" | "from_goal_id" | "to_goal_id" | "type" | "state">;
 

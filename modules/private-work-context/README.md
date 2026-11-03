@@ -52,7 +52,7 @@ node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-co
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)）。
 - 不变量：
   - Runtime 项目绑定由 `createRuntimeContextModule` 在同一连接内装配；Repository 不对包外导出，Host 只提供项目创建与补偿端口，并调用绑定、创建并绑定及清理服务。
-  - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `createLedger` 并复用事务连接。
+  - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `ledger`（`createRuntimeContextModule` 的选项，类型 `ContextLedgerApi`）并复用事务连接。
   - 项目关系缺失时拒绝（`work.context.project_relation_missing`），不猜测绑定。
   - 本包不打开 `<home>/sessions/`：那是已下线 Sessions 的旧存储，只由 Host 的存储登记（备份与卸载清理仍认得它）持有，删除要在备份副本上另做（SC-5）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-context-entry.test.ts tests/runtime-binding-error-codes.test.ts tests/session-project-binding-router.test.ts tests/project-deletion-owners.test.ts`（构建后）。

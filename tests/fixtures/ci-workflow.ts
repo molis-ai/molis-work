@@ -26,13 +26,13 @@ export function jobBlock(name: string, text = workflow): string {
 export const QUEUE_CHECK_JOB = "queue-check";
 
 /**
- * The jobs `verify` waits for that decide the required check. `queue-check` is among its needs only to let a push to main that the
- * merge queue already verified pass (T-129); it runs no test and decides nothing on a pull request or in the queue.
+ * The jobs `verify` waits for that decide the required check. `queue-check` permits reuse of a verified push; `test-selection`
+ * supplies the evidence for a permitted PR skip. Both are auxiliary dependencies, not required test results.
  */
 export function blockingJobs(text = workflow): string[] {
   const needs = /^    needs: \[([^\]]*)\]$/m.exec(jobBlock("verify", text))?.[1];
   assert.ok(needs, "verify lists its needs on one line");
-  return needs.split(",").map((name) => name.trim()).filter((name) => name && name !== QUEUE_CHECK_JOB);
+  return needs.split(",").map((name) => name.trim()).filter((name) => name && name !== QUEUE_CHECK_JOB && name !== "test-selection");
 }
 
 /** The `node scripts/run-tests.mjs …` lines of the blocking jobs, each as its list of words. */

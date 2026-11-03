@@ -70,7 +70,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 门禁对公告也只查「主人的文件里有人发」，不查「只有主人发」，所以下面两条登记为公告、却有主人以外的文件在发的事件它拦不住（`--report` 会列出）。它们同样是待清的差距，不是批准的例外；清的时候改成经主人发，或者改登记的种类：
 
 - `molis-work:goal-document-loaded`（主人 `tab-workspace`）：`plugins/native/goals/src/navigation-client.ts` 在自己装完 Goal 文档后也直接发它，不经 `tab-workspace`。
-- `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/functions/client-events.ts`（判断规则页，`client.ts` 的一部分）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
+- `molis-work:select-item`（主人 `tab-workspace`）：`apps/workbench/src/judgment-rules/client-events.ts`（判断规则页，`client.ts` 的一部分）在自己的行被点击、或地址指定了某条规则时，给自己的界面根发它；`apps/workbench/src/scripts/client/deferred-plugin-client.ts` 在按需装载的界面装好之后，把先前被它截住的那一次补发出去。前者不是工作台在宣布「打开了某项」，后者是重放，都不是主人的决定。
 
 （`molis:surface-focus` 登记为 `request`，不是公告：发它的是各个界面，听它的是主人 `context-actions`。主人自己在 `context-actions.ts` 里也发它，那是替只声明了对象、不自己上报焦点的界面，按人的文字选区代发。）
 

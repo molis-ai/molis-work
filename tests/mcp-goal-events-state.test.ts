@@ -12,7 +12,7 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { managementGoals } from "./goal-management-caller.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import type { GoalEventClosureResult, GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventClosureResult, GoalEventStateView } from "@molis-ai/molis-work-plugin-goals/contract";
 
 function localType() {
   return {

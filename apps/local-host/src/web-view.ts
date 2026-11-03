@@ -7,7 +7,6 @@ import type { LocalProjectDatabase } from "./project-database.js";
 import { currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
 import { listFeedSourceCatalog } from "./source-vocabulary.js";
-import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { shownProjectPlugins } from "./plugin-registry.js";
 
@@ -25,11 +24,11 @@ interface MolisWorkWebViewCacheEntry {
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
-type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "schedule_jobs" | "schedule_tasks" | "schedule_operations">;
+type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "stage_data">;
 const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] });
 
 /**
- * A page looks for the areas of the plugins a project may not have (Feed, Inbox, Schedule, Artifacts) on every request. "Not enabled" or no registered action is
+ * A page looks for the areas of the plugins a project may not have (Feed, Inbox, declared stage reads, Artifacts) on every request. "Not enabled" or no registered action is
  * the answer it is looking for, so the Host keeps no row in the call log about that refusal (nor about the Feed timer's pull every 30
  * seconds in a project without Feed); any other refusal still leaves one.
  * The answer is wanted only while the call that looks is pending, so each call gets a scope of its own: in one scope around a
@@ -101,15 +100,13 @@ export async function cachedMolisWorkWebView(
   cache.set(options.databasePath, { cursor, optionsFingerprint, view: base });
   // Plugin state does not share the Goals journal cursor. Never cache it behind that cursor,
   // and always use each owner's current authority, even when the base page is a cache hit.
-  const [feed, inbox, schedule, connections] = await Promise.all([
+  const [feed, inbox, connections] = await Promise.all([
     optionalPluginQuery(actions, feedQueryActions.snapshot, {}),
     optionalPluginQuery(actions, inboxActions.list, {}),
-    optionalPluginQuery(actions, scheduleActions.list, {}),
     optionalPluginQuery(actions, feedQueryActions.connections, {}),
   ]);
   return { ...base, feed: { ...(feed ?? emptyFeed()), inbox_entries: [...(inbox?.entries ?? [])] },
     feed_source_catalog: feed ? listFeedSourceCatalog() : [], feed_connector_auth: connections,
-    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [], schedule_operations: schedule?.operations ?? [],
     // Read per request, like the plugin state above, never kept behind the Goals cursor.
     developer_mode: developerMode() };
 }

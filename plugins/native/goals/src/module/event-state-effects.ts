@@ -19,7 +19,7 @@ import type {
   RequestGoalDecisionInput,
   ResumeGoalEventWorkInput,
   SubmitGoalEventClosureInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { requestHash } from "./command-support.js";
 import {
   affectedExistingRequirementIds,

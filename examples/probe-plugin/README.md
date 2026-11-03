@@ -5,9 +5,6 @@ It ships in no build and is not a workspace package here: `tests/probe-plugin.te
 `plugins/native/probe`, runs the generator and `pnpm install`, builds, and walks the lifecycle in a one-off Home. Its id is written
 only in this package.
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
-
 ## 开发要求
 
 - 负责：用几条笔记兑现平台读的声明：一个路由、可撤销的命令、搜索来源、文件来源、一个后台作业、一个方法。

@@ -185,3 +185,63 @@ test("RAC-329 a caller without images:files:write can read and list but can neit
   await assert.rejects(limited.invoke(actions.delete, { id: done.id }), { code: "actions.forbidden" });
   assert.equal(assetFiles(f.home).length, 1, "the file is still there");
 });
+
+// T-212 (MISC 「T-208 起草」): the checks Images makes itself count characters, the unit the action schemas' maxLength counts, not UTF-16 units.
+// WIDE (U+1F7E2) is one character and two units. The edges: prompt 32000, request id 128, size 64, connection name 100.
+const WIDE = "\u{1F7E2}";
+
+for (const count of [16_001, 32_000]) {
+  test(`RAC-2115 a prompt of ${count} two-unit characters (${count * 2} units) is started, kept whole and sent to the provider`, async t => {
+    const f = await imageRuntimeFixture(t), client = f.client(), { connection } = await f.connection();
+    const prompt = WIDE.repeat(count);
+    const { job } = await client.invoke(actions.start, { request_id: `wide-prompt-${count}`, connection_id: connection.id, prompt });
+    assert.ok(job.prompt === prompt, "the job keeps the whole prompt");
+    const done = await imageTerminal(client, job.id);
+    assert.equal(done.status, "succeeded", done.error);
+    assert.ok(done.prompt === prompt, "the stored job keeps the whole prompt");
+    assert.equal(f.calls.length, 1, "the provider was called once");
+  });
+}
+
+test("RAC-2116 a request id of 128 two-unit characters is accepted and still deduplicates the same submission", async t => {
+  const f = await imageRuntimeFixture(t), client = f.client(), { connection } = await f.connection();
+  const input = { request_id: WIDE.repeat(128), connection_id: connection.id, prompt: "长请求号" };
+  const { job } = await client.invoke(actions.start, input);
+  assert.ok(job.request_id === input.request_id, "the job keeps the whole request id");
+  assert.equal((await imageTerminal(client, job.id)).status, "succeeded");
+  assert.equal((await client.invoke(actions.start, input)).job.id, job.id);
+  assert.equal(f.calls.length, 1, "the same submission did not call the provider again");
+});
+
+test("RAC-2117 the limits Images checks itself count characters: a size of 64 two-unit characters and a service name of 100 are accepted, one more is refused", async t => {
+  const f = await imageRuntimeFixture(t), client = f.client(), { connection } = await f.connection();
+  const start = (request_id: string, size: string) => client.invoke(actions.start, { request_id, connection_id: connection.id, prompt: "尺寸边界", size });
+  const { job } = await start("size-64", WIDE.repeat(64));
+  assert.ok(job.size === WIDE.repeat(64), "the job keeps the whole size");
+  await imageTerminal(client, job.id); // Only admission is under test here; what the vendor does with such a size is not.
+  await assert.rejects(start("size-65", WIDE.repeat(65)), { code: "images.invalid", message: /最多 64 个字符/ });
+  const named = await f.client(null).invoke(actions.saveConnection, { ...f.input, name: WIDE.repeat(100) });
+  assert.ok(named.connection.name === WIDE.repeat(100), "the saved service keeps the whole name");
+  await assert.rejects(f.client(null).invoke(actions.saveConnection, { ...f.input, name: WIDE.repeat(101) }), { code: "images.invalid", message: /最多 100 个字符/ });
+});
+
+test("RAC-2118 ordinary text keeps its edges: 64 characters of size pass, 65 are refused, padding is trimmed before counting, blank is refused", async t => {
+  const f = await imageRuntimeFixture(t), client = f.client(), { connection } = await f.connection();
+  const start = (request_id: string, size: string) => client.invoke(actions.start, { request_id, connection_id: connection.id, prompt: "普通边界", size });
+  const edge = await start("plain-64", "a".repeat(64));
+  assert.equal(edge.job.size, "a".repeat(64)); await imageTerminal(client, edge.job.id);
+  const padded = await start("plain-padded", `  ${"a".repeat(64)}\n`);
+  assert.equal(padded.job.size, "a".repeat(64), "the check and the stored size are of the trimmed text"); await imageTerminal(client, padded.job.id);
+  const none = await start("plain-empty", "");
+  assert.equal(none.job.size, "", "an empty size means no size"); await imageTerminal(client, none.job.id);
+  await assert.rejects(start("plain-65", "a".repeat(65)), { code: "images.invalid", message: /最多 64 个字符/ });
+  await assert.rejects(start("plain-blank", "   "), { code: "images.invalid", message: /尺寸不能为空/ });
+});
+
+test("RAC-2119 the action schema stays the outer gate: one character past its maximum is refused before Images is reached", async t => {
+  const f = await imageRuntimeFixture(t), client = f.client(), { connection } = await f.connection();
+  const input = { request_id: "past-schema", connection_id: connection.id, prompt: "界限" };
+  await assert.rejects(client.invoke(actions.start, { ...input, prompt: WIDE.repeat(32_001) }), { code: "actions.input_invalid" });
+  await assert.rejects(client.invoke(actions.start, { ...input, request_id: WIDE.repeat(129) }), { code: "actions.input_invalid" });
+  assert.deepEqual((await client.invoke(actions.list, {})).jobs, []); assert.equal(f.calls.length, 0);
+});

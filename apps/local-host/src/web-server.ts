@@ -198,7 +198,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
     pty.host = attachMolisWorkPtySocket(server, controlToken, storageHome);
-    server.once("close", bindPluginTerminalHost(storageHome, pty.host));
+    server.once("close", bindPluginTerminalHost(storageHome, pty.host, { webUrl: () => loopbackWebOrigin(server) }));
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),

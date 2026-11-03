@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { ShelfItemKind } from "./contract.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 
 export const MAX_EDIT_BYTES = 512 * 1024;
 const TEXT_EDIT_EXTENSIONS = new Set([
@@ -22,10 +23,26 @@ export function isEditableShelfItem(item: { kind: ShelfItemKind; name: string; s
   return TEXT_EDIT_EXTENSIONS.has(ext);
 }
 
-export function safeFilename(value: string): string {
+/** The name both stored names start from: a basename, no NUL, backslashes as "_", trimmed, never empty. */
+const cleanedName = (value: string): string => {
   const base = path.basename(value).replaceAll("\0", "").replaceAll("\\", "_").trim() || "untitled";
-  if (base === "." || base === "..") return "untitled";
-  return base.slice(0, 180);
+  return base === "." || base === ".." ? "untitled" : base;
+};
+
+/** A file's stored name: at most 180 UTF-16 units, cut between whole characters, keeping its trailing extension. */
+export function safeFilename(value: string): string {
+  const base = cleanedName(value);
+  if (base.length <= 180) return base;
+  const extension = /\.([A-Za-z0-9]{1,10})$/u.exec(base)?.[0] ?? "";
+  const room = 180 - extension.length;
+  const stem = base.slice(0, base.length - extension.length);
+  return cutHead(stem, room) + extension;
+}
+
+/** A folder's stored name: at most 180 UTF-16 units, cut between whole characters; a dotted tail is no extension here. */
+export function safeFolderName(value: string): string {
+  const base = cleanedName(value);
+  return cutHead(base, 180);
 }
 
 /** Folder entries stay inside the folder: no absolute paths, no `..`. */

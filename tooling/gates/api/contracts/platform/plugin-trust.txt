@@ -57,6 +57,7 @@ export interface PluginInstalledView {
     readonly permissions: readonly PluginInstalledPermissionView[];
     readonly jobs: readonly PluginJobView[];
     readonly consents: readonly PluginConsentRecord[];
+    readonly recovery_error: string | null;
 }
 
 export interface PluginJobView {

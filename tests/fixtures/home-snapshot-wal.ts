@@ -27,10 +27,10 @@ export async function snapshotWalWriter(t: TestContext, file: string) {
 if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2]) {
   const database = new DatabaseSync(process.argv[2]);
   database.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;");
-  const insert = database.prepare("INSERT INTO sessions (session_id,runtime_id,title,metadata_json) VALUES (?,?,?,?)");
-  insert.run("wal-committed", "codex", "LATEST_COMMITTED_FROM_WAL", "{}");
+  const insert = database.prepare("INSERT INTO memory_markers (actor_id,key,at,body) VALUES (?,?,?,?)");
+  insert.run("wal-committed", "snapshot-proof", "time", JSON.stringify({ text: "LATEST_COMMITTED_FROM_WAL" }));
   database.exec("BEGIN IMMEDIATE");
-  insert.run("wal-uncommitted", "codex", "MUST_NOT_BE_CAPTURED", "{}");
+  insert.run("wal-uncommitted", "snapshot-proof", "time", JSON.stringify({ text: "MUST_NOT_BE_CAPTURED" }));
   process.once("message", message => {
     assert.equal(message, "stop"); database.exec("ROLLBACK"); database.close(); process.disconnect();
   });

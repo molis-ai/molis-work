@@ -39,13 +39,13 @@ const helper = (name: string, lines: number) => `export function ${name}() {\n${
 const manifest = (name: string) => JSON.stringify({ name }, null, 2) + "\n";
 
 // The fixture mimics the parts of the repository the gates read. Plugins: one (build-time, Host files named for it), two
-// (started by the Runtime), artifacts (the Host files say "artifact"). Everything it contains is the baseline.
+// (started by the Runtime), images (a plural directory name, kept literally). Everything it contains is the baseline.
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-structure-gates-"));
   git("init", "-q", "-b", "main");
   git("commit", "-q", "--allow-empty", "-m", "init"); // `--table` reads the log
   put("tooling/gates/limits.json", JSON.stringify({ file: 2000, classLines: 2000, classMethods: 200, functionLines: 2000, vendoredPrologueSdk: 2 }, null, 2) + "\n");
-  for (const name of ["one", "two", "artifacts"]) {
+  for (const name of ["one", "two", "images"]) {
     put(`plugins/native/${name}/package.json`, manifest(`@fx/plugin-${name}`));
     put(`plugins/native/${name}/src/index.ts`, `export const ${name} = 1;\n`);
   }
@@ -398,8 +398,8 @@ const violations: Scenario[] = [
     expect: [/new Host file named for a plugin: apps\/local-host\/src\/two-actions\.ts/] },
   { name: "a new <plugin>-native-plugin-http.ts file in the Host", mutate: () => put("apps/local-host/src/two-native-plugin-http.ts", "export const handleTwo = () => 1;\n"),
     expect: [/new Host file named for a plugin: apps\/local-host\/src\/two-native-plugin-http\.ts/] },
-  { name: "a Host file for a plugin directory under its singular name", mutate: () => put("apps/local-host/src/artifact-actions.ts", "export const artifactActionProvider = () => ({});\n"),
-    expect: [/new Host file named for a plugin: apps\/local-host\/src\/artifact-actions\.ts/] },
+  { name: "a Host file for a plugin with a plural directory name", mutate: () => put("apps/local-host/src/images-actions.ts", "export const imagesActionProvider = () => ({});\n"),
+    expect: [/new Host file named for a plugin: apps\/local-host\/src\/images-actions\.ts/] },
   { name: "another registerProvider line in project-host.ts", mutate: () => put("apps/local-host/src/project-host.ts", read("apps/local-host/src/project-host.ts").replace("  registry.registerProvider(searchProvider());\n", "  registry.registerProvider(searchProvider());\n  registry.registerProvider(searchProvider());\n")),
     expect: [/registerProvider calls in apps\/local-host\/src\/project-host\.ts 2 → 3/] },
   { name: "registerProvider in a new Host file", launder: true, mutate: () => put("apps/local-host/src/wiring.ts", "export const wire = (registry: { registerProvider(p: unknown): void }) => registry.registerProvider({});\n"),
@@ -465,6 +465,7 @@ test("things the structure gates do not count", () => {
     put("apps/local-host/src/index.ts", read("apps/local-host/src/index.ts") + 'export { more } from "./more.js";\nexport type { Extra } from "./extra.js";\n'); // named re-exports are not `export *`
     put("apps/local-host/src/search-actions.ts", read("apps/local-host/src/search-actions.ts") + "export const more = 1;\n"); // not named for a plugin
     put("apps/local-host/src/twofold-helper.ts", "export const helper = 1;\n"); // starts with "two" but is not "two-…"
+    put("apps/local-host/src/artifact-actions.ts", "export const artifactActionProvider = () => ({});\n"); // RAC-2341: Artifact is a platform Module, not a remaining Plugin alias.
     put("modules/alpha/src/api.ts", read("modules/alpha/src/api.ts") + "export class Safe { private repository = 1; protected store = 2; }\n"); // private member
     // The typed-capability rule does not count: an extractor that only reads a definition's type, an action reference or an
     // action definition (they carry no `operation`, or carry `action`), and `.register(…)` on receivers that register nothing typed.
@@ -594,7 +595,7 @@ test("the report flags hybrid plugins and prints the new numbers", () => {
   const base = JSON.parse(gate("--report", "--json", "--base", "main").out);
   assert.deepEqual(base.head, base.base, "the head is the merge-base here");
   assert.deepEqual(base.head.hostEntryExports, { "apps/local-host/src/index.ts#export-star": 3 });
-  assert.deepEqual(base.head.pluginOutsideMentions, { "artifacts#outside-files": 0, "one#outside-files": 3, "two#outside-files": 3 });
+  assert.deepEqual(base.head.pluginOutsideMentions, { "images#outside-files": 0, "one#outside-files": 3, "two#outside-files": 3 });
   assert.deepEqual(Object.keys(base.head.hostPluginFiles).sort(), ["apps/local-host/src/one-actions.ts#actions", "apps/local-host/src/one-native-plugin-http.ts#native-plugin-http"]);
   assert.deepEqual(base.head.registerProviderSites, { "apps/local-host/src/project-host.ts#register-provider": 2 });
   assert.deepEqual(base.head.hybridPlugins, {});

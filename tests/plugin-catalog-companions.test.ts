@@ -53,9 +53,10 @@ test("每个目录里的插件都在导航条上有自己的一格", () => {
   }
 });
 
-test("没被启用的插件不会出现在导航条上", () => {
+test("没被启用的插件不会出现在导航条上，平台成果入口始终可见", () => {
   const rail = railEntries(["goals"]).map((entry) => entry.id);
-  assert.deepEqual(rail, ["goals"]);
+  assert.deepEqual(rail, ["goals", "artifacts"]);
+  assert.deepEqual(railEntries([]).map(entry => entry.id), ["artifacts"]);
 });
 
 

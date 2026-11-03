@@ -35,7 +35,7 @@ export async function homeContextStdio(t: TestContext, options: { home: string; 
     env: { ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
       HOME: options.home, MOLIS_WORK_HOME: options.omitHome ? "" : options.home, MOLIS_WORK_RUNTIME_ID: "codex", MOLIS_WORK_WEB_URL: options.origin,
       MOLIS_WORK_WORK_CONTEXT_ID: options.workContext ?? "context-stdio-session", MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
-      MOLIS_WORK_PANEL_ID: options.panelId ?? "", MOLIS_WORK_GOAL_ID: "", MOLIS_WORK_SESSION_ID: "", CODEX_THREAD_ID: "",
+      MOLIS_WORK_PANEL_ID: options.panelId ?? "", MOLIS_WORK_FOCUS_ID: "", MOLIS_WORK_SESSION_ID: "", CODEX_THREAD_ID: "",
       CLAUDE_CODE_SESSION_NAME: options.sessionTitle ?? "",
       PWD: options.workspace ?? process.cwd(),
     }, stderr: "pipe" });

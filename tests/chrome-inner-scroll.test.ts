@@ -40,7 +40,7 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.ok(workbench.includes("immersive-plugin-stage > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-pane-body > .goal-canvas-shell"));
   assert.ok(workbench.includes("tab-workspace { position: absolute; inset: 0"));
-  assert.ok(workbench.includes("[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .assistant-island, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim)"));
+  assert.ok(workbench.includes("[data-pane-embedded] .immersive-workspace > :is(.plugin-stack, .plugin-rail, .tree-pane, .tree-resizer, .immersive-titlebar, .workspace-chrome, .mobile-tabs, .immersive-sidebar-scrim)"));
   assert.ok(workbench.includes(":is(.immersive-plugin-stage > .immersive-market, .tab-workspace-exclusive > .immersive-market, .tab-pane-body > .immersive-market) { overflow: hidden; display: flex; flex-direction: column;"));
   assert.ok(workbench.includes("plugin-market-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;"));
   assert.match(workbench, /\.plugin-market-search \{[\s\S]*min-height: 40px/);
@@ -78,13 +78,12 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.doesNotMatch(workbench, /padding: 8px 6px 10px/);
   assert.match(workbench, /\.plugin-stack \{\n    grid-column: 1; grid-row: 2;/);
   assert.match(workbench, /\.plugin-rail \{\n    flex: 1;/);
-  assert.match(workbench, /\.plugin-rail-items,[\s\S]*\.plugin-rail \.personal-sidebar-footer,[\s\S]*\.assistant-island-card \{[\s\S]*background: var\(--nav-raised\);/);
+  assert.match(workbench, /\.plugin-rail-items,[\s\S]*\.plugin-rail \.personal-sidebar-footer \{[\s\S]*background: var\(--nav-raised\);/);
   assert.match(workbench, /\.plugin-rail-items \{[\s\S]*flex: 1;/);
   assert.doesNotMatch(workbench, /\.plugin-rail-items \[data-plugin-id="market"\]/);
-  assert.match(workbench, /:is\(\.plugin-rail, \.assistant-island\) \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
+  assert.match(workbench, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.plugin-rail \.immersive-plugin-link\[aria-current\] svg \{ color: var\(--ink\)/);
-  assert.match(workbench, /\.assistant-island \{/);
   assert.match(workbench, /\.assistant-composer \{[\s\S]*width: min\(480px, calc\(100vw - 88px\)\);[\s\S]*max-height: min\(620px, 85vh\);[\s\S]*border-radius: 16px;[\s\S]*flex-direction: row;/);
   assert.match(workbench, /:not\(\.assistant-composer-input\)/);
   assert.match(workbench, /input\.assistant-composer-input:is\(:hover, :focus, :focus-visible\) \{[\s\S]*outline: none;[\s\S]*border: 0;/);
@@ -155,4 +154,17 @@ test("Functions and Form editors scroll inside their pinned workspace", () => {
   assert.match(workbench, /plugin-stage-workspace > \.form-workspace \{ flex: 1; min-height: 0; \}/);
   assert.doesNotMatch(settings, /plugin-stage-workspace > \.functions-editor \{ flex: none;/);
   assert.doesNotMatch(workbench, /plugin-stage-workspace > \.form-workspace \{ flex: none;/);
+});
+
+test("RAC-1823 no served stylesheet has a rule for the assistant island's classes, and the rail has none for a market entry", () => {
+  // Nothing writes the classes `assistant-island` and `assistant-island-card` any more. The attribute data-assistant-island and
+  // the variable --assistant-island-row are live and are not matched by a dotted class.
+  const sheets = {
+    arrival: renderMolisWorkArrivalStylesheet(),
+    settings: renderMolisWorkSettingsStylesheet(),
+    workbench: renderMolisWorkWorkbenchWithPluginStylesheets(),
+  };
+  for (const [name, sheet] of Object.entries(sheets)) assert.doesNotMatch(sheet, /\.assistant-island/, `the ${name} sheet has no rule for .assistant-island or .assistant-island-card`);
+  assert.doesNotMatch(sheets.workbench, /\.plugin-rail \[data-plugin-id="market"\]/, "the rail draws no market entry, so it has no rule for one");
+  assert.match(sheets.workbench, /body\.immersive-workbench \.plugin-rail \.plugin-rail-item \{\s*width: 36px; height: 32px; min-height: 32px; padding: 0; flex: none;/, "and the rail's own tile rule is still there");
 });

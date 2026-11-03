@@ -9,7 +9,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { command, sessionId, evaluate, waitFor, click, openGoalFrame, navigate, origin, projectId} = b;
   const catalog = await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-  for (const plugin_id of ['feed','artifacts'] as const) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'icon-tabs'});
+  for (const plugin_id of ["feed"] as const) catalog.addProjectPlugin({project_id:projectId!,plugin_id,actor_id:'icon-tabs'});
   catalog.close();
   await command('Emulation.setDeviceMetricsOverride', {width:1440,height:900,deviceScaleFactor:1,mobile:false}, sessionId);
   await navigate(() => command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
@@ -23,7 +23,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   assert.equal(await evaluate("document.querySelector('.tab-item [data-tab-close]')"), null);
   await click('[data-titlebar-tabs] [data-tab-add]');
   await click('[data-tab-menu-action=open-goals]');
-  await waitFor("document.body.dataset.desktopSurface==='goal'");
+  await waitFor("document.body.dataset.desktopSurface==='goals'");
   await openGoalFrame('.tree-node[data-select-goal=CORE]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");
   const coreId=await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");

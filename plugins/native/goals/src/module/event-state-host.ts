@@ -6,7 +6,7 @@ import type {
   GoalEventSystemPayload,
   GoalRecord,
   GoalSystemWorkEventRecord,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 
 export interface GoalEventStateHost {

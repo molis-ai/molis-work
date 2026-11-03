@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalTreeProposalItemInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalItemInput } from "@molis-ai/molis-work-plugin-goals/contract";
 import { goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 

@@ -15,7 +15,7 @@ import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, SANDBOX_I
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createCallConnectionsClient, type CallConnection, type CallConnectionsPort, type PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
 import { createSandboxRunner, DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
-import { createCallConnectionsPort, sandboxIntegrationContribution, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createCallConnectionsPort, homeIntegrationRegistry, oauthEndpointFingerprint, sandboxIntegrationContribution, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ConnectorProtocolStore } from "@molis-ai/molis-work-service-connector-host";
 import { createFileSecretStore, homeSqlitePath, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
@@ -38,7 +38,7 @@ function fakePort() {
   };
   return { sent, port };
 }
-const github: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", service_id: "github", connection_id: "c-1" };
+const github: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-feedprobe", service_id: "github", connection_id: "c-1" };
 
 test("S-95: the call's own connection takes only the reserved slot, no record key, reads only, never releases", async () => {
   const { sent, port } = fakePort(), ended = new AbortController();
@@ -144,7 +144,7 @@ test("S-95: a service the platform's table does not have reaches only the origin
   const { seen, testServer, lookup } = await standIn(t, ["api.example-feed.com", "evil.example.com"]);
   const { directory, token } = await home(t);
   const port = createCallConnectionsPort(directory, { lookup, allowAddress: () => true, testServer });
-  const declared: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", service_id: "example-feed", connection_id: token("example-feed"), origins: ["https://api.example-feed.com"] };
+  const declared: CallConnection = { plugin_id: "io.molis.work.example.feedprobe", install_id: "install-feedprobe", service_id: "example-feed", connection_id: token("example-feed"), origins: ["https://api.example-feed.com"] };
 
   const answer = await port.request(declared, dispatch("https://api.example-feed.com/items"));
   assert.equal(answer.authenticated, true);
@@ -160,7 +160,17 @@ test("S-95: a service the platform's table does not have reaches only the origin
 
 // This covers the shared registered-service OAuth transport branch, not admission of a second package claiming GitHub's service id.
 // The process, SDK proxy, connections broker, Host port, TLS request and OAuth resolver below are all the production implementations.
-test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or resend after its call is withdrawn", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
+// W5-11 slice 5 (RAC-1085; 用户 10-27 定：只存新令牌, 【王一骏裁定 T-063 · 更正】): a refresh already sent is not aborted when its call is
+// cancelled. Its answer keeps only the rotated access token, refresh token and expiry, and the cancelled call sends nothing more. A call
+// that loses its authority keeps nothing (tests/security-invariants-oauth-shared-refresh.test.ts).
+test("S-95 S-97 FI-C-02 RAC-1085: the real sandbox broker sends nothing more after its call is cancelled, and keeps only the rotated credentials of the refresh it already sent", { skip: process.platform !== "darwin", timeout: 30_000 }, t => brokerLeavesRefresh(t, "cancelled"));
+
+// T-218 M1 (RAC-2463): the broker's lifetime of the call is the platform's, not the plugin's own signal. Stopping the sandboxed integration
+// (switched off or removed: the runner aborts its calls with `sandbox.stopped`) while its refresh is out keeps nothing: neither the rotated
+// credentials nor anything of the configuration.
+test("S-95 RAC-2463: the real sandbox broker stopped while its call's refresh is out keeps nothing of the answer", { skip: process.platform !== "darwin", timeout: 30_000 }, t => brokerLeavesRefresh(t, "stopped"));
+
+async function brokerLeavesRefresh(t: TestContext, leaves: "cancelled" | "stopped") {
   // The refresh leaves by `sendPublicHttps` (W5-11 slice 4), so the token endpoint is answered on github.com by the same stand-in.
   let entered!: () => void, release!: () => void, exchanges = 0, tokenAbandoned: Promise<boolean> | undefined;
   const reached = new Promise<void>(done => { entered = done; }), wait = new Promise<void>(done => { release = done; });
@@ -184,8 +194,12 @@ test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or
       accessRef: `${prefix}access`, refreshRef: `${prefix}oauth`, expiresRef: `${prefix}expires` }));
     const db = new DatabaseSync(homeSqlitePath(directory, "connectors")), protocols = new ConnectorProtocolStore(db);
     t.after(() => { if (db.isOpen) db.close(); });
+    // Bound to the plugin declaring GitHub now, as an authorization of the generic flow leaves it (RAC-1087).
+    const owner = (await homeIntegrationRegistry(directory)).oauthOwner("github")!, method = owner.method;
+    assert.ok(method?.kind === "oauth", "GitHub declares its OAuth flow as data");
     const configuration = { connectionId: id, sessionId: id, serviceId: "github", protocol: "oauth" as const,
-      displayName: "Sandbox OAuth", clientId: "fixture-client", origin: "http://localhost:19358", redirectUri: "http://localhost:19358/callback", context: {}, settings: {} };
+      displayName: "Sandbox OAuth", clientId: "fixture-client", origin: "http://localhost:19358", redirectUri: "http://localhost:19358/callback", context: {}, settings: {},
+      binding: { plugin_id: owner.plugin_id, publisher_id: owner.publisher_id, endpoint: oauthEndpointFingerprint(method) } };
     protocols.save(configuration);
     t.mock.method(globalThis, "fetch", async () => assert.fail("no OAuth request goes through the global fetch"));
     const port = createCallConnectionsPort(directory, { testServer, lookup, allowAddress: () => true }), requests: Promise<void>[] = [];
@@ -211,26 +225,38 @@ test("S-95 S-97 FI-C-02: the real sandbox broker cannot persist a 401 refresh or
       connections: (_binding, control) => createCallConnectionsClient(observed, { ...github, connection_id: id }, SLOT, control) });
     const bound = proxy.bind({ source_id: "source-a", connection_id: id, credential_ref: null, config: {} }), abort = new AbortController();
     const pending = bound.connector_driver.poll({ cursor: null }, connectorControl({ signal: abort.signal }));
-    const rejected = assert.rejects(pending, /cancel|withdrawn|abort|取消|结束/iu);
+    const rejected = leaves === "cancelled" ? assert.rejects(pending, /cancel|withdrawn|abort|取消|结束/iu) : assert.rejects(pending);
     try {
       await reached;
       assert.equal(seen.length, 1, "the original TLS request reached the service and returned 401");
-      abort.abort(new Error("sandbox call withdrawn"));
-      // The stand-in answers in this process: wait until it sees the connection go, or its answer would race the client's abort.
-      assert.equal(await tokenAbandoned, true, "the cancelled call ended the token request before its answer");
+      if (leaves === "cancelled") abort.abort(new DOMException("sandbox call cancelled", "AbortError"));
+      else await runner.stop();
       release();
       await rejected;
       // SandboxRunner can answer cancellation first; the real Host request must also finish before checking its storage effects.
       await Promise.all(requests);
+      if (leaves === "stopped") {
+        assert.equal(await tokenAbandoned, false, "the stopped call did not end the token request it had sent");
+        assert.equal(exchanges, 1);
+        assert.equal(seen.length, 1, "the stopped call did not send the second data request");
+        assert.deepEqual(Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)])), saved, "nothing of the refresh's answer is written back");
+        assert.deepEqual(protocols.get(id), configuration, "nothing of the configuration is written");
+        assert.equal(withConnectorConnections(directory, store => store.require(id)).updated_at, account.updated_at);
+        return;
+      }
+      assert.equal(await tokenAbandoned, false, "the cancelled call did not end the token request it had sent");
       assert.equal(exchanges, 1);
-      assert.equal(seen.length, 1, "the cancelled refresh did not send the second data request");
-      assert.deepEqual(Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)])), saved);
-      assert.deepEqual(protocols.get(id), configuration);
+      assert.equal(seen.length, 1, "the cancelled call did not send the second data request");
+      const kept = Object.fromEntries(Object.keys(saved).map(ref => [ref, secret.get(ref)]));
+      assert.deepEqual([kept[`${prefix}access`], kept[`${prefix}oauth`], kept[`${prefix}client`]], ["late-access", "late-refresh", saved[`${prefix}client`]],
+        "only the rotated credentials are written back");
+      assert.notEqual(kept[`${prefix}expires`], saved[`${prefix}expires`]);
+      assert.deepEqual(protocols.get(id), configuration, "nothing but the credentials is written");
       assert.equal(withConnectorConnections(directory, store => store.require(id)).updated_at, account.updated_at);
       assert.equal(port.describe({ ...github, connection_id: id }).state, "connected", "cancellation is not a refresh refusal");
     } finally { release(); await runner.stop(); }
   });
-});
+}
 
 test("S-95 S-97 FI-C-02: current is checked after the final DNS authorization wait before sending", { timeout: 30_000 }, async t => {
   const { seen, testServer, lookup } = await standIn(t, ["api.github.com"]), { directory, token } = await home(t);

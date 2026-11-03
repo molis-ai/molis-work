@@ -63,9 +63,9 @@ const PLACEHOLDER = /\{([A-Za-z_]\w*)\}/g;
 const SHARED_OWNER = "common";
 // Where English goes for a renderer or host file that has no dictionary of its own: the Workbench's list of renderer gaps.
 const GAP_DICTIONARY = "apps/workbench/src/i18n/renderer-gap-en.ts";
-const FUNCTIONS_DICTIONARY = "apps/workbench/src/functions/en.ts";
+const FUNCTIONS_DICTIONARY = "apps/workbench/src/judgment-rules/en.ts";
 // The one file that builds the catalog the Host serves (`EN`, read by apps/workbench/src/i18n.ts): it imports the plugins'
-// dictionaries, the Workbench's own and functions/en.ts. Keep this in step with it when the catalog is assembled elsewhere.
+// dictionaries, the Workbench's own and judgment-rules/en.ts. Keep this in step with it when the catalog is assembled elsewhere.
 export const SERVED_ROOT = "apps/workbench/src/i18n/en.ts";
 const SERVED_CATALOG = "EN";
 export const MESSAGES_ROOT = "apps/workbench/src/builtin-plugins.ts";
@@ -702,7 +702,7 @@ export function summarise(scan) {
 
 // The dictionary nearest to the file that makes the call (same owner, longest shared directory), else the list of gaps.
 const suggestDictionary = (scan, file) => {
-  if (file.startsWith("apps/workbench/src/functions/") && scan.dictionaryFiles.has(FUNCTIONS_DICTIONARY)) return FUNCTIONS_DICTIONARY;
+  if (file.startsWith("apps/workbench/src/judgment-rules/") && scan.dictionaryFiles.has(FUNCTIONS_DICTIONARY)) return FUNCTIONS_DICTIONARY;
   const owner = ownerOf(file);
   const own = [...scan.dictionaryFiles].filter((candidate) => ownerOf(candidate) === owner);
   if (owner === "workbench" || !own.length) return scan.dictionaryFiles.has(GAP_DICTIONARY) ? GAP_DICTIONARY : own[0] ?? "the owner's dictionary";

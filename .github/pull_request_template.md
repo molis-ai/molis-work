@@ -2,9 +2,18 @@
 
 <!-- 一两句：解决什么问题，用户或调用方看到的变化。对应的 spec / 问题编号。 -->
 
+## 开工前检查
+
+<!-- 分档与检查项见 specs/post-anticorruption-roadmap/development-workflow.md。 -->
+
+- [ ] 档位：小修 / 独立片 / 大需求；类型（产品线 / 体验与效果 / 横向能力 / 底层与架构，跨几类都写）
+- [ ] 小修：第 4 节涉及的项与结论写在这里；独立片与大需求：贴 spec 里「开工前检查」一节和统筹审过的评论
+- [ ] 新页面、新交互、新控件或视觉方向变化：贴 spec 决策记录里定样的决定；不涉及写「不涉及」
+- [ ] 预警（第 6 节）：触发了哪几种情形，预警卡和 spec 里结论的链接；没有触发写「无」
+
 ## 验证
 
-CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Biome 静态检查）及其变异用例、Rust（fmt、clippy）与 Swift 检查（macOS）、shell 脚本检查、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；另有两个暂不挡合并的作业：Linux 探针只记录哪些非浏览器测试文件在 Linux 上通过；产品子集（`tests/ci-product-subset.txt`，含 5 个浏览器冒烟）跑用户动线上的一部分产品用例，不稳定的文件记在 `tests/quarantine.json`（`docs/system/PACKAGE-BOUNDARIES.md`「产品子集作业」，约两周后并入 `Verify`）；清单自己的规则由健康门禁检查，重命名或删除清单里的用例要同步改 `tests/ci-product-subset.txt`。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
+CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Biome 静态检查）及其变异用例、Rust（fmt、clippy）与 Swift 检查（macOS）、shell 脚本检查、Goal 边界与存储基线、启动器类型检查、动作与插件合同（`pnpm test:contracts`）、单一外壳与成果声明门禁、密钥扫描（推送前先跑 `pnpm secrets:check`）、炼金术士测试；安全不变量（`pnpm test:security`）与产品子集（`tests/ci-product-subset.txt`，含 5 个浏览器冒烟，跑用户动线上的一部分产品用例，不稳定的文件记在 `tests/quarantine.json`，见 `docs/system/PACKAGE-BOUNDARIES.md`「产品子集作业」）也挡合并：合并队列里跑整套；PR 上 some 跑选中项，whole 或选择故障仍跑整套，只允许选择成功且对应 mode 明确 none 的跳过；Linux 探针不挡合并，只记录哪些非浏览器测试文件在 Linux 上通过；清单自己的规则由健康门禁检查，重命名或删除清单里的用例要同步改 `tests/ci-product-subset.txt`。产品用例的全量回归在本机跑，写明结果；排时段、集成分支、基线比对的做法见 `docs/system/PARALLEL-DEVELOPMENT.md`：
 
 - [ ] 改过 `*/src`、`scripts` 或 `package.json` 后已整体 `pnpm build`
 - [ ] 健康门禁对照 merge-base 通过：`node scripts/check-health-gates.mjs --base origin/main`（CI 也这样比，在 PR 里 `--update` 放不过变大的）；数字变小就用 `--update --base origin/main` 在本 PR 更新 `tooling/gates/baseline.json`
@@ -44,7 +53,7 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 <!-- 2026-10-20 复审后补：评审、全量和 main 基线都以最终 head 为准，不以合并后的补跑替代。 -->
 
 - [ ] 最后一轮评审的「要改」已全部落实，或被评审明确豁免；评论里贴出对应提交/验证
-- [ ] 共享核心（`packages/contracts`、`plugin-sdk`、`plugin-runtime`、`horizontal/agent-host` 等）在最终 head 上跑完 full-suite，贴运行链接，没有取消/失败分片
+- [ ] 共享核心（`packages/contracts`、`packages/kernel`、`plugin-sdk`、`plugin-runtime`、`horizontal/agent-host`、`modules`）在最终 head 上跑完 full-suite，贴运行链接，没有取消/失败分片
 - [ ] 在最终 head 上跑过 `pnpm health:check`、`pnpm boundary:check`、页面资源与 `pnpm secrets:check`（或写明由统筹跑）
 - [ ] stacked PR 写明父 PR；MERGEED 不等于在 main，父 PR 已合入、目标分支确认后才算完成
 - [ ] 合并队列通过后回读 main 上的合并提交，确认文件树与验证过的 head 一致

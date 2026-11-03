@@ -3,6 +3,8 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 test("search exposes keyboard selection and offers a touch dismissal that returns focus", { timeout: 60_000 }, async t => {
@@ -122,4 +124,75 @@ test("narrow settings reveal the chosen page and ignore a slower obsolete sectio
   await click('[data-directory-panel=project-settings] [data-settings-section=general]');
   await waitFor("document.querySelector('[data-work-surface=project-settings] [data-settings-panel=general]')");
   assert.equal(await evaluate("document.querySelector('[data-work-surface=project-settings]').closest('[inert]') === null"), true);
+});
+
+
+test("RAC-2800 RAC-2802: native search chords cross the Todo bridge without stealing handled or terminal input", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "todo");
+  const store = openTodoStore(b.homeDirectory);
+  const item = (() => { try { return store.create({ title: "Search from notes", notes: "Keep these notes", placement: "project" },
+    { actor: "user", actorId: "web-user", projectId: b.projectId!, projectIds: [] }).item; } finally { store.close(); } })();
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=todo&openItem=${item!.id}` }, b.sessionId));
+  const notes = '[data-todo-field=notes]';
+  await child.waitFor(`document.querySelector('${notes}')?.value === 'Keep these notes'`);
+  // Document bubble runs before the production window-bubble bridge; the final window observer runs after it.
+  // On the unfixed bridge, final=false proves this delivered event was not consumed anywhere on that route.
+  await child.evaluate(`(() => {
+    window.searchKeys = [];
+    const record = (event, phase) => { if (!['KeyK','KeyF'].includes(event.code)) return;
+      window.searchKeys.push({phase, trusted:event.isTrusted, key:event.key, code:event.code, meta:event.metaKey, ctrl:event.ctrlKey,
+        prevented:event.defaultPrevented, composing:event.isComposing, repeat:event.repeat,
+        field:event.target.getAttribute('data-todo-field'), terminal:!!event.target.closest('[data-tui-pane],.xterm'), focused:document.activeElement===event.target}); };
+    document.addEventListener('keydown', event => record(event, 'before-window'));
+    window.addEventListener('keydown', event => record(event, 'after-bridge'));
+  })()`);
+  const press = async (code: string, modifiers = 4) => {
+    for (const type of ['keyDown','keyUp']) await b.command('Input.dispatchKeyEvent', {type, code,
+      key:code === 'Escape' ? 'Escape' : code.slice(3).toLowerCase(), modifiers,
+      windowsVirtualKeyCode:code === 'Escape' ? 27 : code.charCodeAt(3)}, b.sessionId);
+  };
+  const state = "({open:document.querySelector('[data-global-search-dialog]').open, focused:document.activeElement===document.querySelector('[data-global-search]')})";
+  const opened = "document.querySelector('[data-global-search-dialog]').open && document.activeElement===document.querySelector('[data-global-search]')";
+  const closed = "!document.querySelector('[data-global-search-dialog]').open";
+  await child.click(notes);
+  const url = await b.evaluate('location.href');
+  await press('KeyK');
+  const receipt = await child.evaluate<Array<Record<string, unknown>>>('window.searchKeys');
+  t.diagnostic('RAC-2800 native K receipt: ' + JSON.stringify(receipt));
+  assert.deepEqual(receipt[0], {phase:'before-window',trusted:true,key:'k',code:'KeyK',meta:true,ctrl:false,
+    prevented:false,composing:false,repeat:false,field:'notes',terminal:false,focused:true});
+  try { await b.waitFor(opened, 2000); }
+  catch (error) { assert.deepEqual(await b.evaluate(state), {open:true,focused:true}, 'RAC-2800 delivered native K must open and focus global search; receipt=' + JSON.stringify(receipt)); throw error; }
+  assert.equal(receipt[1]?.prevented, true, 'the successful bridge consumes its own chord');
+  await press('KeyK'); await b.waitFor(closed); // K keeps its toggle behavior in the shell.
+  await child.click(notes); await press('KeyF'); await b.waitFor(opened);
+  await b.evaluate("document.querySelector('[data-global-search-close]').focus()");
+  await press('KeyF'); await b.waitFor(opened); // F focuses the same already-open dialog.
+  await press('Escape', 0); await b.waitFor(closed);
+  assert.equal(await b.evaluate('location.href'), url);
+  assert.equal(await child.evaluate(`document.querySelector('${notes}').value`), 'Keep these notes');
+
+  // RAC-2802: this fixture consumes a real event at document bubble, before the bridge's window listener.
+  await child.evaluate(`(() => { window.consumedSearchKey = false;
+    document.addEventListener('keydown', event => { if(event.code==='KeyK'){ event.preventDefault(); window.consumedSearchKey=event.isTrusted; } }, {once:true}); })()`);
+  await child.click(notes); await press('KeyK');
+  assert.equal(await child.evaluate('window.consumedSearchKey'), true);
+  await b.evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await b.evaluate(closed), true, 'a bridge-before handled native key remains handled');
+  // A DOM-only terminal target checks selector exclusion; it does not claim a running terminal/Agent test.
+  await child.evaluate(`(() => { const pane=document.createElement('div'); pane.dataset.tuiPane='';
+    pane.style='position:fixed;inset:20px;z-index:99999;background:white'; pane.innerHTML='<textarea data-terminal-probe></textarea>'; document.body.append(pane); })()`);
+  await child.click('[data-terminal-probe]'); await press('KeyK'); await press('KeyF');
+  await b.evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await b.evaluate(closed), true, 'terminal input must not reach search');
+  const terminal = await child.evaluate<Array<{prevented:boolean;terminal:boolean;trusted:boolean}>>('window.searchKeys.slice(-4)');
+  assert.ok(terminal.every(event => event.terminal && event.trusted && !event.prevented), JSON.stringify(terminal));
+  await child.evaluate("document.querySelector('[data-tui-pane]').remove()");
+  await child.click(notes);
+  // Local synthetic state probes exercise composing/repeat, never substitute for the native positive path.
+  await child.evaluate(`(() => { for (const state of [{repeat:true},{isComposing:true}]) document.activeElement.dispatchEvent(new KeyboardEvent('keydown',
+    {key:'k',code:'KeyK',metaKey:true,bubbles:true,cancelable:true,...state})); })()`);
+  await b.evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await b.evaluate(closed), true);
 });

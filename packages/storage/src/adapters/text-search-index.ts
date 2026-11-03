@@ -21,7 +21,7 @@ import type { HomeStoreDeclaration } from "../home-stores.js";
  * which removes pair-matches that are not a real substring and gives the snippet and hit position.
  */
 export const TEXT_SEARCH_STORE = "search";
-const SCHEMA_VERSION = "2";
+const SCHEMA_VERSION = "1";
 const MAX_CANDIDATES = 400;
 const SNIPPET_BEFORE = 36;
 const SNIPPET_LENGTH = 160;

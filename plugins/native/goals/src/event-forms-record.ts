@@ -1,4 +1,4 @@
-import type { GoalEventStateView, GoalEventTypeDefinition } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventStateView, GoalEventTypeDefinition } from "./contract/goals.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 import type { GoalEventDocumentView } from "./event-document-model.js";
 import type { EventFormShared } from "./event-forms-shared.js";

@@ -1,9 +1,9 @@
 import type { ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalAction } from "./action-contract.js";
-import { text, count, boolean, array, object, nullable, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { boardSnapshotSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, count, boolean, array, object, nullable, enumeration } from "./contract/goal-actions.js";
+import { boardSnapshotSchema } from "./contract/goal-actions.js";
 import { goalPolicySchema, goalPolicyBindingSchema } from "./configuration-actions.js";
-import { goalRecordSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalRecordSchema } from "./contract/goal-actions.js";
 import { GOALS_PRESENTATION_STATES } from "./document-view.js";
 import { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";

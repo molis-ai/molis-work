@@ -16,6 +16,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |
 | 界面 | `DESIGN.md`、`specs/craft-finish/spec.md`，组件板 `/__ui/catalog` |
 | 仓库里放什么：评审截图、根目录杂项、vendored 补丁 | `docs/system/REPOSITORY-HYGIENE.md` |
+| 开一项需求：分几档、开工前对照防腐要求检查什么、界面先定样、什么要用户拍板 | `specs/post-anticorruption-roadmap/development-workflow.md` |
 | 某项任务 | `specs/<task>/spec.md`，开头写状态句；完成后按 `specs/README.md` 归档（成为现行规范的不归档，改原文） |
 | 多个会话、工作树、子代理同时开发 | `docs/system/PARALLEL-DEVELOPMENT.md`：枢纽文件、构建与浏览器用例排时段、子代理与并发的 Agent（第 5.1 节：不跑全量、只按 pid 停进程、测试份数）、集成分支跑全量、基线比对、共享 Agent 锁、清理、PR 体量 |
 | 改合同（导出、动作 schema、Manifest、MCP 工具名、库结构） | `docs/system/CONTRACT-CHANGES.md`：现在不留兼容期；读取兼容的流程，从第一个装到开发机之外的版本开始 |

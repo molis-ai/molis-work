@@ -251,6 +251,67 @@
 | 工程流程（统筹） | BL-142、BL-143、BL-412（偶发失败的用例）、BL-565（共享核心 PR 的全量证据进 required CI）、BL-328（真实模型小评测的命令） |
 | 11-02 补点名 | 随防腐线收（用户 10-30 定 PG-011、PG-017 的余项做完再关行）：BL-491、493、710、711、713、714，以及 PG-017 关行前要核的 BL-916；1·C：BL-701、910、915、918（沙箱包的可选权限、终端、卸载、生图上限），BL-812（平台包吞掉的错误）、BL-814（Runtime 动作调用的成本）、BL-901（插件包 `./contract` 的 API 快照）、BL-911（委托调用的受众）、BL-913（终端记录的坏值）；3·C：BL-692～694（外部集成，随服务接入收尾）；1·D：BL-912（Home 包在标签条上的图标）；1·E：BL-803、819、821（Goals 认本人、读坏时的报错） |
 
+### 3.9 按类型与决策
+
+多人分头做时，每一项先看这里：它属于哪几类，开工前有没有要人定的事。类型和决策标记的写法见[需求开发流程](development-workflow.md)第 1.2 节；跨几类的都标，主要的在前。「要决策」写的是开工前或某一片之前要定的事；做的过程中碰到预警情形（流程第 6 节），照样发预警。新需求立项时在这里加一行，做完删行。
+
+| 节 | 需求 | 类型 | 决策 |
+| --- | --- | --- | --- |
+| 3.1 | 三份性能 spec（diff-frame、long-turn、attention-aggregate） | 体验与效果（性能） | 直接做：核对后归档 |
+| 3.1 | [pr-review-remediation](../pr-review-remediation/spec.md)、[repository-cleanup](../repository-cleanup/spec.md) | 底层与架构 | 直接做：归档 |
+| 3.1 | [status-ring-system](../status-ring-system/spec.md) | 横向能力（公共组件）、体验与效果 | 要决策：视觉验收（你） |
+| 3.1 | [plugin-tab-groups](../plugin-tab-groups/spec.md) | 产品线（工作台） | 直接做：核对后归档 |
+| 3.1 | 空列表新建、首页静默刷新与三份引导小 spec | 体验与效果、产品线（引导、Goals） | 要决策：待体验项你验收 |
+| 3.1 | [issue-home-v0](../issue-home-v0/spec.md) | 产品线（Issue 插件） | 直接做：BL-149 合入或关掉后归档 |
+| 3.1 | [computer-use](../computer-use/spec.md) | 产品线（助理） | 要决策：真机验收（你） |
+| 3.1 | [ai-development-handbook](../ai-development-handbook/spec.md) | 横向能力（AI 方法） | 要决策：BL-320 你验收 |
+| 3.1 | [prologue-memory-strategy](../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | 要决策：恢复授权前不启动（原暂停） |
+| 3.1 | 防腐线自己的四份 | 底层与架构 | 直接做：随防腐线收 |
+| 3.1 | BACKLOG「待你验收」各条 | 跨线 | 要决策：你一次走完验收单 |
+| 3.1 | 右栏选一段放进文稿 | 产品线（工作台）、横向能力（落点） | 要决策：下一个落点等实走后定 |
+| 3.2 | [visual-ui-experience](../visual-ui-experience/spec.md) | 体验与效果、横向能力（文案与按需帮助） | 要决策：本人验收；新增文案与帮助的界面定样 |
+| 3.2 | [ai-input-receipts](../ai-input-receipts/spec.md) | 产品线（助理）、横向能力（回执） | 直接做；阶段 6 各场景写小 spec 时再定 |
+| 3.2 | [prologue-adoption](../prologue-adoption/spec.md) | 横向能力（AI 运行时）、底层与架构 | 直接做：按换包窗口 |
+| 3.2 | [ai-interaction-experience](../ai-interaction-experience/spec.md) | 产品线（助理、各插件）、横向能力（卡片撤销合同） | 要决策：同排推荐看实物（BL-344） |
+| 3.2 | [context-program](../context-program/spec.md) 一组 | 产品线（工作台、各插件）、横向能力（落点、情境动作） | 要决策：W4 起各片的界面定样 |
+| 3.2 | [assistant-service-connections](../assistant-service-connections/spec.md) | 横向能力（服务接入）、产品线（助理） | 要决策：正式 OAuth 与真实账号（你办） |
+| 3.2 | [coding-plugin 下一阶段](../coding-plugin/next-requirements.md) | 产品线（Coding） | 直接做：Q1～Q8 已定 |
+| 3.2 | 个人云同步 | 横向能力（同步）、底层与架构、产品线（同步） | 要决策：合入方式（第 7 节第 13 项）；部署与账号（你办） |
+| 3.2 | CGS 自媒体创作 | 产品线（CGS 插件）、横向能力（技能包） | 要决策：插件本体重做与否（第 7 节第 14 项） |
+| 3.3 | [unified-input-voice](../unified-input-voice/spec.md) | 横向能力（输入组件）、产品线（助理、Coding、首页）、体验与效果 | 要决策：界面定样；其余 10-27 已定 |
+| 3.3 | [skill-packs](../skill-packs/spec.md) | 横向能力（技能包、合同） | 直接做 |
+| 3.3 | [work-brief](../work-brief/spec.md) | 产品线（首页与简报）、横向能力（公共来源与呈现） | 要决策：综合首页的界面定样 |
+| 3.3 | [observation-collection](../observation-collection/spec.md) | 横向能力（采集）、底层与架构 | 直接做：合同按 C1 排队 |
+| 3.3 | 平台端到端效果评测 | 横向能力（评测） | 直接做 |
+| 3.3 | [proactive-assistant](../proactive-assistant/spec.md) | 产品线（助理）、横向能力（后台任务） | 要决策：交互切片的界面定样 |
+| 3.3 | [coding-harness-optimization](../coding-harness-optimization/spec.md) | 体验与效果（性能、可靠性）、产品线（Coding） | 直接做 |
+| 3.3 | [agent-approval](../agent-approval/spec.md) | 横向能力（授权与人审）、底层与架构 | 直接做：10-28 已对齐 |
+| 3.3 | [subagent-interaction](../subagent-interaction/spec.md) | 产品线（助理、Coding）、横向能力（Prologue 子代理） | 要决策：入口与动线的界面定样 |
+| 3.3 | [coding-quality-assurance](../coding-quality-assurance/spec.md)、[automation-recommender](../automation-recommender/spec.md)、[code-modernization](../code-modernization/spec.md) | 产品线（Coding） | 直接做 |
+| 3.3 | [product-flow-governance](../product-flow-governance/spec.md) | 跨线：体验与效果、横向能力（资料、目录、工作台） | 要决策：改变现行规则的整改 |
+| 3.3 | [onboarding-coverage](../onboarding-coverage/spec.md) | 产品线（引导）、横向能力（场景与设置） | 要决策：首日旅程的界面定样 |
+| 3.3 | [font-and-skin-system](../font-and-skin-system/spec.md) | 横向能力（外观与语言）、体验与效果 | 要决策：皮肤方向定样；C 段怎样切（第 7 节第 20 项） |
+| 3.3 | [risk-plugin](../risk-plugin/spec.md) | 产品线（风险插件） | 要决策：总览与复查的高保真定样 |
+| 3.3 | Skill、Context、MCP、Tool 四份 Prologue 策略 | 横向能力（AI 运行时） | 要决策：四份整体评审 |
+| 3.3 | [intelligent-surfaces](../intelligent-surfaces/spec.md) | 横向能力（呈现与组合）、产品线（工作台、助理） | 要决策：呈现形态定样；负责人 |
+| 3.3 | [work-mainline](../work-mainline/spec.md) | 产品线（工作台）、横向能力（主线服务） | 要决策：切换器的界面定样 |
+| 3.4 | Sessions 重做 | 产品线（Sessions）、横向能力（会话历史与控制） | 要决策：会话交互与技术方案 |
+| 3.4 | 首日旅程 | 产品线（引导） | 要决策：界面定样（随 onboarding-coverage） |
+| 3.4 | [插件创作工作台升级](../plugin-builder-upgrade/spec.md) | 产品线（创作台）、横向能力（场景组装） | 要决策：合同与交互（该 spec 第 7 节） |
+| 3.4 | 团队协作首版 | 产品线（团队）、横向能力（同步与实时编辑）、底层与架构（身份与访问） | 要决策：协作协议与细粒度规则 |
+| 3.4 | 团队记忆 | 产品线（团队）、横向能力（记忆） | 要决策：形成、融合与使用策略 |
+| 3.4 | 分享做法与成品 | 横向能力（导出导入） | 直接做 |
+| 3.5 | 签名与公证 | 产品线（发布） | 要决策：凭据接入（你办） |
+| 3.5 | 数据升级链与真实 Home 重建 | 底层与架构 | 要决策：重建由你说「开始」；升级链直接做 |
+| 3.5 | 运行条件、原生组件预置、App Intents、使用统计 | 产品线（发布）、底层与架构 | 直接做 |
+| 3.5 | 对外许可口径 | 产品线（发布） | 要决策：口径（你） |
+| 3.5 | 菜单栏角标与系统通知 | 产品线（发布）、横向能力（Attention） | 要决策：界面定样 |
+| 3.5 | 兼容起点 | 底层与架构 | 要决策：M1 的范围（第 7 节第 18 项） |
+| 3.5 | 自动更新、在线备份、崩溃上报（M2） | 产品线（发布）、底层与架构 | 直接做；账号与服务你办 |
+| 3.6 | 体验债三批 | 体验与效果、产品线（各插件） | 直接做：独立片，照组件板已有控件改 |
+| 3.7 | 散在各处的平台小项 | 横向能力、底层与架构 | 直接做；助理对外用词（H4）1·A 开工前要定 |
+| 3.8 | BACKLOG 其余条目 | 按所在轨道 | 直接做：按轨道填空；工程流程由统筹做 |
+
 ## 4. 依赖
 
 ```mermaid
@@ -535,6 +596,6 @@ D 统筹全产品文案与按需帮助，各功能轨道在所属表面落实，
 ## 9. 怎样维护本文
 
 - 每段结束时，把做完的条目从 BACKLOG 删掉（照 BACKLOG 的规矩，在提交说明里写编号），归档做完的 spec，在本文对应阶段后面写一行「完成（日期，PR 号）」。
-- 新冒出来的需求先进 BACKLOG 或新 spec，再按第 2 节的三条和第 4 节的依赖插进某一段的某条轨道；不另起一份排期。
+- 新冒出来的需求先进 BACKLOG 或新 spec，再按第 2 节的三条和第 4 节的依赖插进某一段的某条轨道；不另起一份排期。一项需求从立项到收尾怎样走（分档、开工前检查、界面定样、要你拍板的事），见[需求开发流程](development-workflow.md)。新需求同时在第 3.9 节标上类型与决策，做完删掉那一行。
 - 第 5 节的热点每段重量一次；轨道独占的文件变了就改表。
 - 四段都走完，或者本文被新的排期取代时，按 [specs/README.md](../README.md) 的规则归档。

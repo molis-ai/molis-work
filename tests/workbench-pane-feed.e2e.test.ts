@@ -80,7 +80,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-search]').value`), "not found in this source", "splitting a neighbour must preserve existing content state");
   const sash = await evaluate<{x:number;y:number;hit:boolean}>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),r=node.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/4;window.t403SashNode=node;window.t403SashTrace=[];const record=event=>{t403SashTrace.push({type:event.type,trusted:event.isTrusted,pointerId:event.pointerId,buttons:event.buttons,x:event.clientX,y:event.clientY,at:event.timeStamp,connected:node.isConnected,captured:node.hasPointerCapture(event.pointerId),target:event.target.outerHTML?.slice(0,120)});t403SashTrace.splice(0,Math.max(0,t403SashTrace.length-12))};const types=['pointerdown','pointermove','pointerup','pointercancel','gotpointercapture','lostpointercapture','mousedown','mousemove','mouseup'];types.forEach(type=>document.addEventListener(type,record,true));window.t403StopSash=()=>types.forEach(type=>document.removeEventListener(type,record,true));return {x,y,hit:node.contains(document.elementFromPoint(x,y))}})()");
   assert.equal(sash.hit,true,'the real sash is the hit target before the press');
-  const sizing = () => evaluate("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),down=t403SashTrace.find(event=>event.type==='pointerdown');return {trace:t403SashTrace,node:{connected:t403SashNode.isConnected,same:node===t403SashNode,rect:node.getBoundingClientRect().toJSON()},viewport:[innerWidth,innerHeight],visibility:document.visibilityState,focus:document.hasFocus(),ratio:node.getAttribute('aria-valuenow'),captured:down?node.hasPointerCapture(down.pointerId):false,body:document.body.className,workspace:document.querySelector('[data-tab-workspace]').className,iframeGuard:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>getComputedStyle(frame).pointerEvents)}})()");
+  const sizing = () => evaluate<{ ratio: string; captured: boolean; iframeGuard: string[]; trace: Array<{ type: string; trusted: boolean; buttons: number }> }>("(()=>{const node=document.querySelector('[data-direction=row] [data-tab-sash]'),down=t403SashTrace.find(event=>event.type==='pointerdown');return {trace:t403SashTrace,node:{connected:t403SashNode.isConnected,same:node===t403SashNode,rect:node.getBoundingClientRect().toJSON()},viewport:[innerWidth,innerHeight],visibility:document.visibilityState,focus:document.hasFocus(),ratio:node.getAttribute('aria-valuenow'),captured:down?node.hasPointerCapture(down.pointerId):false,body:document.body.className,workspace:document.querySelector('[data-tab-workspace]').className,iframeGuard:[...document.querySelectorAll('iframe.tab-content-frame')].map(frame=>getComputedStyle(frame).pointerEvents)}})()");
   const resizeStages: unknown[] = [];
   const dispatch = async (params: Record<string, unknown>) => {
     const sent = { phase: 'CDP sent', params, at: Date.now() }; resizeStages.push(sent);
@@ -92,7 +92,12 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await dispatch({ type: "mouseMoved", x:sash.x, y:sash.y });
   try {
     await dispatch({ type: "mousePressed", x:sash.x, y:sash.y, button: "left", clickCount: 1 });
-    resizeStages.push({phase:'down',state:await sizing()});
+    const pressed = await sizing();
+    resizeStages.push({phase:'down',state:pressed});
+    // T405-FULL-10: protect the very first trusted movement into the adjacent iframe.
+    assert.equal(pressed.ratio, '50');
+    assert.equal(pressed.captured, true);
+    assert.ok(pressed.iframeGuard.length > 0 && pressed.iframeGuard.every(value => value === 'none'));
     await dispatch({ type: "mouseMoved", x: sash.x + 90, y: sash.y, button: "left", buttons: 1 });
     resizeStages.push({phase:'move',state:await sizing()});
   } finally {
@@ -102,6 +107,11 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   }
   ratio = await evaluate("document.querySelector('[data-direction=row] [data-tab-sash]').getAttribute('aria-valuenow')");
   assert.notEqual(ratio, "50");
+  const released = await sizing();
+  assert.ok(released.trace.some(event => event.type === 'pointermove' && event.trusted && event.buttons === 1));
+  assert.ok(released.trace.some(event => event.type === 'pointerup' && event.trusted));
+  assert.equal(released.captured, false);
+  assert.ok(released.iframeGuard.every(value => value !== 'none'), 'the released gesture restores iframe input');
   } catch (error) {
     t.diagnostic('T405 pane resize failed '+JSON.stringify(resizeStages));
     throw error;

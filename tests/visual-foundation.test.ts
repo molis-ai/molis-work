@@ -88,8 +88,8 @@ test("primary and danger buttons keep semantic foregrounds across Light and Dark
   const arrivalStyles = renderMolisWorkArrivalStylesheet();
   const settingsStyles = renderMolisWorkSettingsStylesheet();
   const workbenchStyles = renderMolisWorkWorkbenchStylesheet();
-  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #292a2c;[\s\S]*--action-ink: #ffffff;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"[\s\S]*--action: #ecebe8;[\s\S]*--action-ink: #252628;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #2d4f6c;[\s\S]*--action-ink: #ffffff;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"[\s\S]*--action: #dbe6ef;[\s\S]*--action-ink: #17212b;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--danger-action: var\(--red\);[\s\S]*--danger-action-ink: var\(--page\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[\s\S]*background: var\(--action\);[\s\S]*color: var\(--action-ink\);/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mw-btn--primary[^{}]*\{[^}]*background: var\(--action\) !important/);
@@ -102,13 +102,13 @@ test("primary and danger buttons keep semantic foregrounds across Light and Dark
 
 // Soft Workbench (DESIGN.md → Colors, Shapes): pearl desk, white surface, 14px surface corner.
 test("visual foundation ships one Soft Workbench world across workbench and settings", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /--page: #eeefef;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--page: #eef3f7;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--shadow-soft: 0 1px 2px/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--paper: #ffffff;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--paper: #fcfdfe;/);
   // spec → 第三轮 · 视觉精修: muted and faint darkened a step so captions reach 4.5:1 on paper.
-  assert.match(VISUAL_FOUNDATION_STYLES, /--muted: #636569;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #6a6c70;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #292a2c;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--muted: #586574;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #616d7a;/);
+  assert.match(VISUAL_FOUNDATION_STYLES, /--action: #2d4f6c;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 14px;/);
   assert.match(renderMolisWorkWorkbenchStylesheet(), /body\[data-board-view\] \.document-pane,[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
   assert.match(renderMolisWorkWorkbenchStylesheet(), /\.tree-node\.is-selected \{[^}]*background: var\(--nav-active\);[^}]*box-shadow: none;/);
@@ -409,10 +409,10 @@ test("visual foundation gives every Focus detail one responsive section deck", (
   assert.match(renderMolisWorkWorkbenchStylesheet(), /\.relation-goal-id, \.relation-path, \.relation-reason[\s\S]*background: transparent !important;/);
 });
 
-// Soft Workbench (DESIGN.md → Colors, Focus): copper focus replaces the inset ink stroke, `--blue` now
-// resolves to copper, and the reading surface aliases the shell family (graphite primary).
+// Soft Workbench (DESIGN.md → Colors, Focus): mist-blue focus replaces the inset ink stroke, `--blue` now
+// resolves to the accent, and the reading surface aliases the shell family (ink-blue primary).
 test("final interaction texture keeps Light and Dark type readable on distinct surfaces", () => {
-  assert.match(INTERACTION_TEXTURE_STYLES, /--page: #eeefef;[\s\S]*--paper: #ffffff;[\s\S]*--ink: #292a2c;[\s\S]*--muted: #636569;[\s\S]*--faint: #6a6c70;/); // 4.5:1 captions
+  assert.match(INTERACTION_TEXTURE_STYLES, /--page: #eef3f7;[\s\S]*--paper: #fcfdfe;[\s\S]*--ink: #1f2b37;[\s\S]*--muted: #586574;[\s\S]*--faint: #616d7a;/); // 4.5:1 captions
   assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--blue: var\(--accent\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--focus-stroke: 2px solid var\(--focus-ring\);/);
@@ -423,7 +423,7 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.match(INTERACTION_TEXTURE_STYLES, /\n  \.goal-status \{ --goal-status-tone: var\(--tone-idle\); \}\n  \.goal-status,\n  body\[data-desktop-shell="true"\] \.goal-status \{/);
   assert.match(
     INTERACTION_TEXTURE_STYLES,
-    /data-resolved-theme="dark"[\s\S]*--page: #1c1d20;[\s\S]*--paper: #242528;[\s\S]*--ink: #f0efed;[\s\S]*--muted: #a2a19e;[\s\S]*--faint: #979693;/, // Dark faint lifted a step for 4.5:1 (spec → 第三轮 · 对比度)
+    /data-resolved-theme="dark"[\s\S]*--page: #141a20;[\s\S]*--paper: #1b2229;[\s\S]*--ink: #e8eef3;[\s\S]*--muted: #9aa8b5;[\s\S]*--faint: #8e9ba8;/, // Dark faint lifted a step for 4.5:1 (spec → 第三轮 · 对比度)
   );
   const workbench = renderMolisWorkWorkbenchStylesheet();
   const arrival = renderMolisWorkArrivalStylesheet();

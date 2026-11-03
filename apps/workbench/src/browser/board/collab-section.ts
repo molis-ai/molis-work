@@ -1,8 +1,7 @@
 /**
- * The board's 协作零件 section and its palette switch (apps/workbench/src/collab-specimens.ts, board-palettes.ts), both
- * proposals for review. The specimens answer: a check counts when it has evidence, a topic switches, the Assistant's line
- * changes, an answer folds the card to one line (and comes back), and sending waits until every platform is reviewed. The
- * palette switch restates the shell tokens on the page and keeps the choice in the address.
+ * The program of the board's 协作零件 section (apps/workbench/src/collab-specimens.ts), a proposal for review. The specimens
+ * answer: a check counts when it has evidence, a topic switches, the Assistant's line changes, an answer folds the card to one
+ * line (and comes back), and sending waits until every platform is reviewed.
  */
 const root = document.getElementById("collab");
 const pressed = (node: Element) => node.getAttribute("aria-pressed") === "true";
@@ -82,24 +81,3 @@ if (root) {
     line = next;
   }, 1800);
 }
-
-const marks = (option: HTMLElement) => {
-  const group = option.closest("[data-board-palettes]");
-  if (!group) return;
-  nodes(group, "[data-board-palette-option]").forEach((node) => {
-    const on = node === option;
-    node.classList.toggle("is-current", on);
-    node.setAttribute("aria-pressed", String(on));
-  });
-};
-const applied = document.querySelector<HTMLElement>(`[data-board-palette-option="${document.documentElement.dataset.boardPalette ?? "current"}"]`);
-if (applied) marks(applied);
-document.addEventListener("click", (event) => {
-  const option = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-board-palette-option]") : null;
-  if (!option) return;
-  const id = option.dataset.boardPaletteOption ?? "current", url = new URL(location.href);
-  if (id === "current") { delete document.documentElement.dataset.boardPalette; url.searchParams.delete("palette"); }
-  else { document.documentElement.dataset.boardPalette = id; url.searchParams.set("palette", id); }
-  history.replaceState(null, "", url.href);
-  marks(option);
-});

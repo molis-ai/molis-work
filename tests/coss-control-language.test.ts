@@ -155,10 +155,10 @@ test("product stylesheets stop painting mw-btn fills through descendant button r
 test("the way in shares the workbench tokens in both themes", () => {
   const arrival = renderMolisWorkArrivalStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  assert.match(workbench, /--page: #eeefef/);
-  assert.match(workbench, /--page: #1c1d20/);
-  assert.match(arrival, /--page: #eeefef/);
-  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #1c1d20/);
+  assert.match(workbench, /--page: #eef3f7/);
+  assert.match(workbench, /--page: #141a20/);
+  assert.match(arrival, /--page: #eef3f7/);
+  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #141a20/);
   assert.match(arrival, /\.arrival \{[^}]*background: var\(--desk\)/);
   assert.match(arrival, /\.stage-sheet \{[^}]*background: var\(--paper\)/);
   assert.doesNotMatch(arrival, /--ob-page|--ob-window|--onboarding-/);

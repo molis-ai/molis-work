@@ -179,7 +179,7 @@ fi
       await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
       await browser.evaluate(`document.documentElement.dataset.resolvedTheme = ${JSON.stringify(theme)}`);
       // Soft Workbench: the Shelf reading side is the shared soft surface in each theme.
-      await waitFor(`getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === ${JSON.stringify(theme === "dark" ? "#292a2d" : "#fafaf9")}`);
+      await waitFor(`getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === ${JSON.stringify(theme === "dark" ? "#1f272f" : "#f5f8fb")}`);
       if (width === 820) await waitFor("document.querySelector('[data-shelf-stage]').classList.contains('is-narrow')");
       await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
       const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);

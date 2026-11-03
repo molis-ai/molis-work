@@ -15,7 +15,6 @@ import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-
 import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
 import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { COLLAB_SECTION_SCRIPT, COLLAB_SECTION_STYLES, renderCollabSection } from "./collab-specimens.js";
-import { BOARD_PALETTE_BOOTSTRAP, BOARD_PALETTE_STYLES, renderBoardPaletteSwitch } from "./board-palettes.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
@@ -69,7 +68,7 @@ export function renderMolisWorkBarSpecimen(): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>底栏样例 · Molis Work</title>
-  <script>${THEME_BOOTSTRAP_SCRIPT}${BOARD_PALETTE_BOOTSTRAP}</script>
+  <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
 </head>
 <body class="immersive-workbench mw-bar-specimen-page">
@@ -224,15 +223,15 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>组件板 · Molis Work</title>
-  <script>${THEME_BOOTSTRAP_SCRIPT}${BOARD_PALETTE_BOOTSTRAP}</script>
+  <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
-  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${BOARD_PALETTE_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
+  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
   <header class="mw-catalog-top">
     <h1>Molis Work 组件板</h1>
-    <div class="mw-catalog-top__tools">${languages}${themes}${skins}${renderBoardPaletteSwitch()}</div>
+    <div class="mw-catalog-top__tools">${languages}${themes}${skins}</div>
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>

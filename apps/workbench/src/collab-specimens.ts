@@ -107,7 +107,7 @@ function reviewSpecimen(): string {
 export function renderCollabSection(): string {
   const faces = [YOU, ZHE, ASSISTANT, CODEX, CLAUDE].map((entry) => `<span class="mw-collab-face">${who(entry, "lg")}<span>${entry.name}</span></span>`).join("");
   return `<section class="mw-catalog__section" id="collab" data-primitive="collab"><h2>协作零件</h2>
-    <p class="mw-catalog__hint">定样，还没进产品：从四份介绍演示稿（一句抱怨到修好、一句闲聊到一个插件、每日选题、一条热点到发出去）里提出的协作零件，拍板后搬进设计系统。人是圆的，AI 是方的；AI 留下的痕迹（它带来的说明、它听到的那半句、串起同一件事的线）先用现有的铜色，「谁在做」用不用颜色区分还没定。示例数据。</p>
+    <p class="mw-catalog__hint">定样，还没进产品：从四份介绍演示稿（一句抱怨到修好、一句闲聊到一个插件、每日选题、一条热点到发出去）里提出的协作零件，拍板后搬进设计系统。人是圆的，AI 是方的；AI 留下的痕迹（它带来的说明、它听到的那半句、串起同一件事的线）用强调色，「谁在做」用不用颜色区分还没定。示例数据。</p>
     <div class="mw-catalog__specimens">
       ${specimen("谁 · 人是圆的，AI 是方的", `<div class="mw-collab-faces">${faces}</div>`)}
       ${specimen("谁在接 · 人在前，交给的 AI 叠在后面", `<div class="mw-collab-row">${owner("你 · Codex", YOU, CODEX)}${owner("阿哲 · Claude Code", ZHE, CLAUDE)}${owner("阿哲验收", ZHE)}</div>`)}

@@ -1,56 +1,56 @@
 ---
 name: Molis Work Soft Workbench
-description: A pearl desk holding one continuous white work surface, a resident bottom bar for navigation and conversation, graphite actions, copper focus and quiet motion.
+description: A mist-blue desk holding one continuous near-white work surface, a resident bottom bar for navigation and conversation, ink-blue actions, mist-blue focus and quiet motion.
 colors:
-  desk: "#eeefef"
-  paper: "#ffffff"
-  surface-soft: "#fafaf9"
-  rail: "#f5f5f3"
-  ink: "#292a2c"
-  ink-soft: "#5c5d60"
-  muted: "#636569"
-  faint: "#6a6c70"
-  line: "#e9e9e7"
-  line-strong: "#d5d6d4"
+  desk: "#eef3f7"
+  paper: "#fcfdfe"
+  surface-soft: "#f5f8fb"
+  rail: "#e9f0f6"
+  ink: "#1f2b37"
+  ink-soft: "#45525f"
+  muted: "#586574"
+  faint: "#616d7a"
+  line: "#e0e8ef"
+  line-strong: "#c9d5e0"
   nav-hover: "ink 5%"
   nav-active: "ink 8%"
   nav-press: "ink 11%"
-  action: "#292a2c"
-  action-hover: "#3d3e41"
+  action: "#2d4f6c"
+  action-hover: "#3a6283"
   action-ink: "#ffffff"
-  accent: "#93604b"
-  accent-strong: "#7a4d3a"
-  accent-soft: "#f6eee8"
-  green: "#42775d"
-  amber: "#8a5c18"
-  red: "#b03d45"
-  scrim: "rgba(21, 23, 29, .16)"
-  popover: "#ffffff"
+  accent: "#3c6e98"
+  accent-strong: "#2e5778"
+  accent-soft: "#e4eef7"
+  green: "#367556"
+  amber: "#8c5f0c"
+  red: "#b2454c"
+  scrim: "rgba(24, 38, 54, .16)"
+  popover: "#fcfdfe"
   on-accent: "#ffffff"
-  dark-desk: "#1c1d20"
-  dark-paper: "#242528"
-  dark-surface-soft: "#292a2d"
-  dark-rail: "#2e2f32"
-  dark-ink: "#f0efed"
-  dark-ink-soft: "#c0beba"
-  dark-muted: "#a2a19e"
-  dark-faint: "#979693"
-  dark-line: "#36373b"
-  dark-line-strong: "#4c4d50"
+  dark-desk: "#141a20"
+  dark-paper: "#1b2229"
+  dark-surface-soft: "#1f272f"
+  dark-rail: "#26303a"
+  dark-ink: "#e8eef3"
+  dark-ink-soft: "#bac6d1"
+  dark-muted: "#9aa8b5"
+  dark-faint: "#8e9ba8"
+  dark-line: "#2c3640"
+  dark-line-strong: "#3f4b57"
   dark-nav-hover: "ink 7%"
   dark-nav-active: "ink 11%"
   dark-nav-press: "ink 15%"
-  dark-action: "#ecebe8"
-  dark-action-hover: "#ffffff"
-  dark-action-ink: "#252628"
-  dark-accent: "#d6a18a"
-  dark-accent-strong: "#e8c0ad"
-  dark-accent-soft: "#382f2b"
-  dark-green: "#8db99d"
-  dark-amber: "#d9b67b"
-  dark-red: "#ee858c"
+  dark-action: "#dbe6ef"
+  dark-action-hover: "#f0f5f9"
+  dark-action-ink: "#17212b"
+  dark-accent: "#8fb8dc"
+  dark-accent-strong: "#b5d1ea"
+  dark-accent-soft: "#1e2d3b"
+  dark-green: "#86c0a0"
+  dark-amber: "#d8b46e"
+  dark-red: "#ec8a90"
   dark-scrim: "rgba(0, 0, 0, .5)"
-  dark-popover: "#2c2d31"
+  dark-popover: "#232c35"
   tone-progress: "{colors.accent}"
   tone-attention: "{colors.amber}"
   tone-blocked: "{colors.red}"
@@ -227,29 +227,29 @@ A later layer never re-declares a colour or metric with a different number; the 
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--desk` (`--page`, `--nav-bg`) | `#eeefef` | `#1c1d20` | Titlebar, bottom bar, the space around sheets |
-| `--paper` (`--surface`, `--panel`, `--canvas`) | `#ffffff` | `#242528` | The work sheet, dialogs, menus, the composer; `--canvas` is a full-pane canvas inside the sheet |
-| `--surface-soft` | `#fafaf9` | `#292a2d` | Plugin directory columns, inner blocks, pane tab strips |
-| `--rail` (`--wash`) | `#f5f5f3` | `#2e2f32` | Local groups, read-only fields, secondary buttons at rest |
-| `--ink` | `#292a2c` | `#f0efed` | Titles and body |
-| `--ink-soft` | `#5c5d60` | `#c0beba` | Directory titles, secondary copy, glyphs |
-| `--muted` / `--faint` | `#636569` / `#6a6c70` | `#a2a19e` / `#979693` | Captions, counts, placeholders (`--faint` is the WCAG floor on paper) |
-| `--line` / `--line-strong` | `#e9e9e7` / `#d5d6d4` | `#36373b` / `#4c4d50` | Hairlines where a boundary carries meaning |
+| `--desk` (`--page`, `--nav-bg`) | `#eef3f7` | `#141a20` | Titlebar, bottom bar, the space around sheets |
+| `--paper` (`--surface`, `--panel`, `--canvas`) | `#fcfdfe` | `#1b2229` | The work sheet, dialogs, menus, the composer; `--canvas` is a full-pane canvas inside the sheet |
+| `--surface-soft` | `#f5f8fb` | `#1f272f` | Plugin directory columns, inner blocks, pane tab strips |
+| `--rail` (`--wash`) | `#e9f0f6` | `#26303a` | Local groups, read-only fields, secondary buttons at rest |
+| `--ink` | `#1f2b37` | `#e8eef3` | Titles and body |
+| `--ink-soft` | `#45525f` | `#bac6d1` | Directory titles, secondary copy, glyphs |
+| `--muted` / `--faint` | `#586574` / `#616d7a` | `#9aa8b5` / `#8e9ba8` | Captions, counts, placeholders (`--faint` is the WCAG floor on paper) |
+| `--line` / `--line-strong` | `#e0e8ef` / `#c9d5e0` | `#2c3640` / `#3f4b57` | Hairlines where a boundary carries meaning |
 | `--nav-hover` / `--nav-active` / `--nav-press` | ink 5 / 8 / 11% | ink 7 / 11 / 15% | Row hover, selected row, press — composite over any surface |
 
 Body copy uses ink or ink-soft, never muted. Do not stack extra opacity on faint or muted type. Every text token meets 4.5:1 on its own surface in both themes (checked separately for Light and Dark). Browser defaults never show through: `accent-color`, `caret-color`, `::selection`, `mark`, `::placeholder` and autofill all take tokens, and there is no system blue anywhere in the interface.
 
-**Layers.** Light: desk → paper, with floating things on the same white separated by `--lift-3` alone. Dark shows three distinct layers — desk `#1c1d20`, paper `#242528`, and `--popover` `#2c2d31` for menus, popovers, dialogs and the Assistant panel — edged by a light ring instead of a heavier shadow.
+**Layers.** Light: desk → paper, with floating things on the same near-white separated by `--lift-3` alone. Every plane is tinted toward the accent's blue; there is no large neutral grey (user 2026-11-03). Dark shows three distinct layers — desk `#141a20`, paper `#1b2229`, and `--popover` `#232c35` for menus, popovers, dialogs and the Assistant panel — edged by a light ring instead of a heavier shadow.
 
 ### Primary
 
-Graphite `--action` (`#292a2c`, Dark `#ecebe8`) with `--action-ink` fills the primary button, a selected choice, the selected Home day, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover`. There is exactly one filled primary per decision.
+Ink blue `--action` (`#2d4f6c`, Dark `#dbe6ef`), the accent's deep shade, with `--action-ink` fills the primary button, a selected choice, the selected Home day, a selected canvas node or board card, the toast and the tooltip. Hover uses `--action-hover`. There is exactly one filled primary per decision.
 
-Copper `--accent` (`#93604b`, Dark `#d6a18a`) marks keyboard focus, text links, work in progress (`--tone-progress`), the Dock's current dot, the Home now-line and a field's focus halo. `--accent-soft` is its wash (new-item landing, copper tags). The historical names `--blue`, `--blue-dark`, `--blue-soft` and `--focus` resolve to copper so older consumers follow automatically. Copper never fills a primary button.
+Mist blue `--accent` (`#3c6e98`, Dark `#8fb8dc`) marks keyboard focus, text links, work in progress (`--tone-progress`), the Dock's current dot, the Home now-line and a field's focus halo. `--accent-soft` is its wash (new-item landing, accent tags). The historical names `--blue`, `--blue-dark`, `--blue-soft` and `--focus` resolve to the accent. The accent never fills a primary button. The palette was chosen on the component board from three candidates (mist, celadon, indigo; user 2026-11-03): immersive for long work, not sharp, no brown-red.
 
 ### Status
 
-`--green` marks completion, `--amber` attention and remaining work, `--red` a failed result. The shared state ring uses graphite for neutral states and `--status-interruption` (warm brown) for interrupted work. Partial completion combines green and amber; a result requiring review uses an amber ring and a small exclamation point. Existing status labels retain their domain wording and tone. A status is always a label or glyph plus its colour, never colour alone.
+`--green` marks completion, `--amber` attention and remaining work, `--red` a failed result. The shared state ring uses the action ink for neutral states and `--status-interruption` (a greyed blue) for interrupted work. Partial completion combines green and amber; a result requiring review uses an amber ring and a small exclamation point. Existing status labels retain their domain wording and tone. A status is always a label or glyph plus its colour, never colour alone.
 
 ### Plugin identity
 
@@ -420,12 +420,21 @@ Do not ship operating-system chrome as the product UI. A closed select may look 
 
 ## Components
 
+### Reading load
+
+Four rules every part keeps (user 2026-11-03):
+
+- **A button has a boundary.** A button with words is filled (primary, danger), washed (secondary) or outlined (ghost); it never reads as plain text. Only an icon-only button and a link inside a sentence are bare.
+- **Several kinds of content are separated.** When one area holds more than one kind of thing, each kind gets its own tag or container, and the kinds differ in colour too, from the palette's own tones so they stay in key: a record Molis checked on `--green-soft`, what an AI says about itself on `--accent-soft` with a dashed edge, what waits on the person on `--amber-soft` (the supplement receipt, the operation card's target and effect).
+- **A row is one line.** A row's name, its state (a tag in its state's colour) and its facts (time, count, where it lives, cut first when room runs out) sit on one line; a state never drops below the name. A choice that needs its explanation (an onboarding source) and reading content (a plugin's record) are not rows.
+- **Files and lists sit in containers.** A list of files or records is a list of containers on paper with a light shadow, not bare lines of text: a changed file is one line with its number, its path (shortened from the front so the name stays), and its added and removed counts as green and red tags.
+
 ### Buttons
 
-- **Primary** (`mw-btn--primary`): graphite fill, `--action-ink`, 500 weight, 8px corners, 32px, `--lift-1`; hover `--action-hover`. One per decision.
+- **Primary** (`mw-btn--primary`): ink-blue fill, `--action-ink`, 500 weight, 8px corners, 32px, `--lift-1`; hover `--action-hover`. One per decision.
 - **Secondary** (`mw-btn--secondary`): borderless `--control-fill` wash, ink text; hover one step deeper. Its size is the button's own (`--sm` 28, default 32, `--lg` 36 with 15px words, 16px padding and 16px glyphs), like every variant.
-- **Ghost** (`mw-btn--ghost`): transparent until hover (`--nav-hover`), press `--nav-press`.
-- **Link** (`mw-btn--link`): copper text, underline on hover.
+- **Ghost** (`mw-btn--ghost`): transparent with a `--line-strong` outline, so a button with words never reads as plain text (user 2026-11-03); hover `--nav-hover`, press `--nav-press`. A ghost that is only an icon stays bare.
+- **Link** (`mw-btn--link`): accent text, underline on hover; only inside a sentence.
 - **Danger** (`mw-btn--danger`): red fill with page-coloured text, for the step that actually destroys something (usually inside an alert dialog). `mw-btn--danger-outline` is red text with a faint red boundary for a destructive entry point.
 - Icon-only buttons carry an accessible name and a tooltip. A disabled filled button (primary, danger) fades whole and drops its lift; a disabled wash, ghost, outline or link keeps its ground and only its ink turns `--faint`, so it never vanishes into the sheet. A loading button keeps its width: without a glyph the spinner stands in for its words; with one, the spinner takes the glyph's place and the words stay.
 - A toggle on its own (`mw-toggle` outside a toggle group) is a 28px ghost tool whose pressed state is `--nav-active`, like a pressed tool in a bar; inside a group it is a segment of the track.

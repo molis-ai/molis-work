@@ -181,6 +181,13 @@ const SPECIMEN_SCRIPT = `
 })();`;
 
 /**
+ * The board scrolls inside `.mw-catalog`; without it being their containing block, the specimens' visually hidden labels
+ * (`.mw-sr-only`, absolutely positioned) overflowed the page itself, so a jump from the index scrolled the whole page up by
+ * the header's height and hid the header — with the page's own scrolling turned off, there was no way back.
+ */
+const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative}";
+
+/**
  * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and
  * plugin-row sections are written through it and their frames start in it (the older sections are Chinese only).
  */
@@ -216,7 +223,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}${BOARD_PALETTE_BOOTSTRAP}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
-  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${BOARD_PALETTE_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}</style>
+  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${BOARD_PALETTE_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}

@@ -41,6 +41,21 @@ export function reachEntry(homeDirectory: string | undefined, pluginId: string):
     ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { personal: true, project_plugin_id: pluginId } : undefined);
 }
 
+/**
+ * The judgement of whether this project reaches the plugin behind a provider, by the same rule `projectActionAvailability` applies:
+ * the project's shown plugins are read once here, and each Manifest id is resolved to its catalog key (`reachEntry`) before asking.
+ * `undefined` is "not this list's to judge" — a Runtime plugin (installed per project, its grants are its own), where the caller keeps
+ * the old rule. Returned once, so a caller outside the catalog's callback never holds its database open.
+ */
+export function projectPluginJudge(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
+  homeDirectory: string | undefined): (pluginId: string) => boolean | undefined {
+  const reachable = projectReachablePlugins(catalog, projectId, homePluginsOutsideBuild(homeDirectory));
+  return pluginId => {
+    const entry = reachEntry(homeDirectory, pluginId);
+    return entry ? pluginReachable(entry, reachable) : undefined;
+  };
+}
+
 /** Bundled plugins use the existing project installation record; Runtime plugins enforce their own grants. */
 export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, homeDirectory: string) {
   const entryOf = (action: Pick<ActionView, "provider">) => action.provider.plugin_id ? reachEntry(homeDirectory, action.provider.plugin_id) : undefined;

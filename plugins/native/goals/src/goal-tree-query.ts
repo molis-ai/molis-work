@@ -1,6 +1,6 @@
 import { treeErrors } from "./goal-tree-errors.js";
-import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi } from "./contract/goals.js";
+import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
 import type { GoalTreeApplicationApi, GoalTreeProposalListQuery, GoalTreeProposalListResult } from "./goal-tree-contract.js";
 import { GoalTreeBaselineQuery } from "./proposal-baselines.js";
 

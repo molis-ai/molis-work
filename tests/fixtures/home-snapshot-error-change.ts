@@ -31,7 +31,7 @@ export function changeSnapshotSource(kind: string, source: string, observed: (st
       const writer = new DatabaseSync(source);
       try {
         if (kind === "sqlite-version") writer.exec("PRAGMA user_version = 999");
-        else if (kind === "sqlite-owner") writer.prepare("UPDATE session_meta SET value=? WHERE key='owner'").run("replacement-owner");
+        else if (kind === "sqlite-owner") writer.prepare("UPDATE catalog_meta SET value=? WHERE key='owner'").run("replacement-owner");
         else if (kind === "sqlite-schema") writer.exec("CREATE TABLE external_change (value TEXT)");
         else throw new Error("Unknown snapshot fixture mutation");
       } finally { writer.close(); }

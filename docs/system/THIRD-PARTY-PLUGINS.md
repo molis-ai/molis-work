@@ -1,6 +1,6 @@
 # 第三方插件：安装方案
 
-状态：方案，2026-10-08 按 origin/main `31c357df` 核实。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。2026-10-25 补：安装的信任等级与声明同意（第 4.1 节）已有设计与分片，见 `specs/repository-anti-corruption/slices/ac-trust-install.md`；本文第 3、4 节的命令与受信表按它落地，落地进度也以它的 §7 为准。
+状态：方案，2026-10-08 按 origin/main `31c357df` 核实。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。2026-10-25 补：安装的信任等级与声明同意写在第 4.1 节；本文第 3、4 节的命令与受信表按它落地。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「第三方插件」：用户自行安装插件的路径目前不存在，给出方案（安装命令、签名信任、市场入口、沙箱边界），不在本步实现。扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.2，内置插件的迁移计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)。
 
@@ -15,7 +15,7 @@
 - `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径与超过 64 MiB 的包，不执行 glob 或生命周期脚本（`package-files.ts`）。
 - 发布者身份是 Ed25519 公钥的指纹：`ed25519:sha256:<spki 的哈希>`（`pluginPublisherIdentity`，`packages/plugin-runtime/src/package-verification.ts`），Manifest 的 `publisher.signature` 必须等于它，`signPluginPackage` 不一致就拒绝；`verifyPluginPackage(bundle, 可信公钥)` 验签，没签名的包「不是已验证发行物」。
 - Runtime 的安装、授权、升级、回滚、停用、卸载，安装记录有 `execution: "host" | "sandbox"`（`packages/contracts/src/platform/plugin.ts`）。`execution: "sandbox"` 的插件必须带明确的授权清单才能安装（`packages/plugin-runtime/src/index.ts`、`supervisor.ts`）。
-- 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/plugin-builder/installed.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `UNSUPPORTED_PLATFORM`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
+- 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/plugin-builder/installed.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `sandbox.unsupported_platform`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
 - 升级兼容声明：`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`（`docs/platform/PLUGIN-DEVELOPMENT.md`「插件版本升级」）。
 - 方针：`docs/platform/PLUGIN-PLATFORM.md` §2 写明「官方可安装生态由官方发布并审核；第三方源码由用户自行构建和安装」，签名变化视为新插件，旧授权、存储和提供方绑定不继承。
 
@@ -66,11 +66,20 @@ molis-work plugin trust list | revoke <publisher_identity>
 
 ### 4.1 信任等级与要同意的声明（ac-trust，2026-10-25）
 
-安装只有一条路，按信任等级走（等级表在 `specs/repository-anti-corruption/slices/ac-trust-install.md` §2.1，这里不重抄）：
+安装只有一条路：取证据、判定信任、预览、本人确认（`host` 等级由宿主代为同意）、安装、启动。「判定信任」产出三个等级之一，等级只回答「谁给的证据」，不回答这个插件重不重要；之后要不要确认、跑不跑沙箱、提供方身份、声明要不要同意，都由等级加插件自己的声明算出，没有按插件名或按「是否内置」开的分支。等级由宿主给（安装的 `trust`），不从 Manifest、包字段或调用输入读（S-34）。
 
-- `host`：代码在宿主构建里，宿主代为同意并记账（`granted_by: "host_build"`），不弹窗，跟着宿主的构建升降版本（`docs/releases/POLICY.md` 第 7.9 节）。
-- `pinned`：包的发布者已固定（本节上文的受信表），每次安装、升级、回滚都验签，在沙箱里跑；权限提升与需要同意的声明仍要确认。
-- `unsigned`：没有可验的发布者（比如创作台的产物），每次安装都确认，权限逐项给，没有「全部允许」，在沙箱里跑。
+| | `host` | `pinned` | `unsigned` |
+| --- | --- | --- | --- |
+| 证据 | `PluginDefinition` 对象就是宿主启动名单里的那个（按对象身份，不看 Manifest 写什么），代码编进宿主构建 | 包里带 Ed25519 公钥，公钥指纹等于 Manifest 的 `publisher.signature`，签名验得过，并且这个指纹在 Home 的发布者表里已被人固定 | 没有可验的签名。来源是封闭清单，只有两个：开发目录（`--allow-unsigned-development`）和创作台产物；新增来源要改本文并经统筹。`molis-work plugin install` 对没签名的包一律拒绝，没签名的包走不到这个等级 |
+| 验签 | 不需要 | 每次安装、升级都验，每次启动重验包与入口代码（用户主动回滚不支持，见 [插件开发](../platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)） | 不适用 |
+| 首次确认 | 不弹窗；宿主按声明代为同意并记账（`granted_by: "host_build"`） | 发布者首次出现：显示指纹，人固定后才继续；同一发布者之后的包不再重复固定，权限提升与需要同意的声明仍要确认 | 每次安装都确认，权限逐项给，没有「全部允许」 |
+| 执行 | 宿主进程（`execution: "host"`） | 沙箱（`execution: "sandbox"`） | 沙箱；唯一的进程内例外是 `plugin dev` 刚加载出的那一个定义对象（`inProcess.admit`，S-75 ⑥） |
+| 权限 | 必需的总有，可选的按人留下的给，全新安装可选的默认全开（`docs/releases/POLICY.md` 第 7.8 节） | 必需的，加人确认的可选权限 | 同 `pinned` |
+| `always_on`、默认连线、默认输入组 | 默认同意 | 必须显式同意 | 必须显式同意 |
+| 动作提供方身份 | `plugin_id` | `plugin-install-<sha256(plugin_id, publisher.signature) 前 32 位>`（`installIdentity`） | 同 `pinned` |
+| 升级与版本 | 一律跟宿主构建（`recordToFollow`，`docs/releases/POLICY.md` 第 7.9 节） | 同发布者、版本更高、授权不扩 | 同 `pinned` |
+
+「跑不跑沙箱」是这张表的结果：`host` 以外的等级一律沙箱，安装前检查 Manifest 能不能映射到沙箱形态（第 5 节），映射不了的在安装时拒绝并说明（`plugin.declaration_invalid`），不降级成宿主进程。`host` 等级不能配沙箱定义（`plugin.grant_denied`）。
 
 Manifest 里有三类声明会改变这个插件在别处的效果，安装预览里单列，每一类单独同意或拒绝，`host` 以外的等级都要显式同意：
 
@@ -82,7 +91,7 @@ Manifest 里有三类声明会改变这个插件在别处的效果，安装预�
 
 同意是同意账本（Home 级，Plugin Runtime 拥有）里的一行，带同意的人（`user` 或 `host_build`）和当时的 Manifest 摘要；声明变了就是新的一项，要新的同意。本人随时可以撤回，各等级一样：撤回只写 `revoked_at`，之后常开名单、默认连线都不再认这一行，宿主也不会再为随它发布的插件代为同意。撤销发布者（上文 `trust revoke`）是另一件事：停用这个发布者所有已装插件，不删同意的行。
 
-落地进度：信任等级、账本和发布者固定表的表结构是 T1，常开按账本生成是 T3，默认连线与默认组要同意是 T4，撤回是 T5，安装身份与 id 前缀是 T6；安装服务、预览与 `plugin install` 命令是 T2（已做：沙箱包的公开格式见 [插件开发](../platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)，S-84），同意撤回是 T5，发布者撤销是 T5b（已做，S-87），界面是 T7（已做），以设计稿 §7 为准。
+落地进度：信任等级、账本和发布者固定表的表结构是 T1，常开按账本生成是 T3，默认连线与默认组要同意是 T4，撤回是 T5，安装身份与 id 前缀是 T6；安装服务、预览与 `plugin install` 命令是 T2（已做：沙箱包的公开格式见 [插件开发](../platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)，S-84），同意撤回是 T5，发布者撤销是 T5b（已做，S-87），界面是 T7（已做）。
 
 用户没有采纳的另两种做法：
 
@@ -98,7 +107,7 @@ Manifest 里有三类声明会改变这个插件在别处的效果，安装预�
 - 第三方不能：在宿主进程里执行代码；在页面里放脚本；直接读写文件或联网；读别的插件的私有存储。
 - **`methods`**（2026-10-08 决定）：第三方 Manifest 声明的 `methods`（给其他 Agent 的方法）和内置插件一样登记：安装启动时登记，停用、卸载、升级时收回（切片 W4-02）。校验沿用 Manifest 的规则（`tools` 只能是业务工具），没有正文的方法不登记（`docs/platform/PLUGIN-DEVELOPMENT.md`「给其他 Agent 的方法」）。方法正文是文本不是代码，怎样随包携带由 W4-02 的设计定。
 - 需要扩展的地方：沙箱合同今天只表达 `operations`，而第三方包的 Manifest 可以有 `routes`、`ui.views`、`events`、`ports`。阶段一只接受 Manifest 里这些字段能映射到沙箱合同的子集（动作和平台目录里的界面），映射不了的在安装时明确拒绝并说明。`kind: "integration"`（轮询外部服务）需要一个「轮询操作加信号草稿」的沙箱合同，放到阶段二。
-- **平台限制**：Seatbelt 只在 macOS 上有；在别的系统上，第三方安装要明确拒绝（失败即关闭，沿用 `UNSUPPORTED_PLATFORM`），直到 C 端计划里的无 `sandbox-exec` 沙箱落地。
+- **平台限制**：Seatbelt 只在 macOS 上有；在别的系统上，第三方安装要明确拒绝（失败即关闭，沿用 `sandbox.unsupported_platform`），直到 C 端计划里的无 `sandbox-exec` 沙箱落地。
 
 ## 6. 市场入口
 

@@ -85,9 +85,12 @@ function splitOf(pack: BuiltinPluginWorkbenchPack): SplitStylesheet | null {
   return split;
 }
 
-/** What the shared workbench sheet holds of the plugins' styles: everything a framed plugin does not bring itself. */
-export function pluginWorkbenchStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
-  return packs.map((pack) => splitOf(pack)?.shared ?? pack.stylesheet ?? "").join("");
+/**
+ * What the shared workbench sheet holds of the plugins' styles in one layer: everything a framed plugin does not bring itself.
+ * The sheet puts the "beneath-shell" layer before the shell's own layers and the "over-shell" one after them (`stylesheetLayer`).
+ */
+export function pluginWorkbenchStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, layer: "over-shell" | "beneath-shell" = "over-shell"): string {
+  return packs.filter((pack) => (pack.stylesheetLayer ?? "over-shell") === layer).map((pack) => splitOf(pack)?.shared ?? pack.stylesheet ?? "").join("");
 }
 
 /** A framed plugin's own sheet (`/assets/molis-work-plugins/<id>.css`), or null when all its rules are shared. */
@@ -99,6 +102,23 @@ export function pluginOnDemandStylesheet(id: string, packs: readonly BuiltinPlug
 /** The sheets a plugin's frame links: its own, then those of the plugins whose classes it draws. */
 function framedStyles(pack: BuiltinPluginWorkbenchPack, packs: readonly BuiltinPluginWorkbenchPack[]): string[] {
   return [...new Set([pack.project_plugin_id, ...(pack.stylesheetUses ?? [])])].filter(id => pluginOnDemandStylesheet(id, packs) !== null);
+}
+
+/** The rules every plugin's settings pages draw with, for the settings sheet and the workbench sheet (settings open inside a project). */
+export function pluginSettingsStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
+  return packs.map((pack) => pack.settingsStylesheet ?? "").join("");
+}
+
+/** Every plugin's settings script, for a settings page the shell draws as a whole page of its own. */
+export function pluginSettingsClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
+  return packs.map((pack) => pack.settingsClient ?? "").join("");
+}
+
+/** The factories a plugin registers for the page the shell draws for it (`pageClients`); a plugin that registers none stops the build. */
+export function pluginPageClients(id: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): Readonly<Record<string, string>> {
+  const clients = packs.find((pack) => pack.project_plugin_id === id)?.pageClients;
+  if (!clients) throw new Error(`${id} registers no page clients`);
+  return clients;
 }
 
 /** The links a plugin's settings page needs beside the host's own settings sheet: the sheets its frame would link (PG-070). */

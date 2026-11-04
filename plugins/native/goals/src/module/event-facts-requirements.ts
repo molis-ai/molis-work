@@ -4,7 +4,7 @@ import type {
   GoalEventRequirementRevisionInput,
   GoalEventRequirementStatus,
   GoalRecord,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import type { GoalsCommandContext } from "./command-support.js";
 import type { GoalEventFactsConfig } from "./event-facts-config.js";
 import type { GoalEventFactsRepository } from "./event-facts-repository.js";

@@ -73,9 +73,9 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:modules/context-ledger
-      '@molis-ai/molis-work-module-functions':
+      '@molis-ai/molis-work-module-judgment-rules':
         specifier: workspace:*
-        version: link:modules/functions
+        version: link:modules/judgment-rules
       '@molis-ai/molis-work-module-private-work-context':
         specifier: workspace:*
         version: link:modules/private-work-context
@@ -88,9 +88,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:plugins/native/plugin-builder
@@ -347,9 +344,9 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:../../modules/context-ledger
-      '@molis-ai/molis-work-module-functions':
+      '@molis-ai/molis-work-module-judgment-rules':
         specifier: workspace:*
-        version: link:../../modules/functions
+        version: link:../../modules/judgment-rules
       '@molis-ai/molis-work-module-private-work-context':
         specifier: workspace:*
         version: link:../../modules/private-work-context
@@ -362,9 +359,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:../../plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder
@@ -552,12 +546,12 @@ importers:
       '@molis-ai/molis-work-integration-rss':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/rss
+      '@molis-ai/molis-work-module-artifacts':
+        specifier: workspace:*
+        version: link:../../modules/artifacts
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:../../plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder
@@ -666,6 +660,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   horizontal/memory:
     dependencies:
@@ -708,6 +705,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   modules/attention-resumption:
     dependencies:
@@ -730,7 +730,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
-  modules/functions:
+  modules/judgment-rules:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -891,15 +891,6 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@22.20.1)(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(tsx@4.23.11))
 
-  plugins/native/artifacts:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
-      '@molis-ai/molis-work-plugin-sdk':
-        specifier: workspace:*
-        version: link:../../../packages/plugin-sdk
-
   plugins/native/coding:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -968,6 +959,16 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+      marked:
+        specifier: ^18.0.11
+        version: 18.0.11
+      sanitize-html:
+        specifier: ^2.17.7
+        version: 2.17.7
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/files:
     dependencies:
@@ -1038,6 +1039,13 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/issues:
     dependencies:
@@ -1137,6 +1145,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
 
   plugins/native/ppt:
     dependencies:

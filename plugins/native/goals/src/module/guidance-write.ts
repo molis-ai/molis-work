@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type {
   ProjectGuidanceKind,
   ProjectGuidanceRevisionRecord,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 import { sqliteJson, type GoalsRepository } from "./repository.js";
 

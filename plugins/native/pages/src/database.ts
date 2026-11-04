@@ -45,5 +45,5 @@ const PAGES_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "Pages 文稿�
   { table: "page_imports", column: "project_id" },
 ] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const PAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PAGES_PROJECT_ROWS, store_name: "pages", version: 2,
+export const PAGES_DATABASE: HomePluginDatabaseDeclaration = { project_rows: PAGES_PROJECT_ROWS, store_name: "pages", version: 1,
   read_permission: "pages:read", write_permission: "pages:write", schema: PAGES_SCHEMA };

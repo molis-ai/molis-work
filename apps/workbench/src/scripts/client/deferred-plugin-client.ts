@@ -31,11 +31,14 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     scripts.set(url, waiting); return waiting;
   };
   const settle = (root, state) => { root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = state; };
-  const prepare = root => {
+  const prepare = (root, intent = "open") => {
+    if (intent === "restore" && root?.dataset.uiClientState === "failed") return Promise.resolve();
     if (!root || !root.hasAttribute('data-deferred-surface') || root.closest('[hidden], [data-surface-pool]')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
-    const pack = packs.find(pack => pack.id === root.dataset.workSurface);
+    const pack = packs.find(pack => pack.id === (root.dataset.pluginClient || root.dataset.workSurface));
     if (!pack) return Promise.resolve();
+    // A real reopen replaces this surface's previous failure, just as its retry button does.
+    for (const retry of root.querySelectorAll(':scope > div > [data-ui-client-retry]')) retry.parentElement.remove();
     const template = root.querySelector(':scope > template[data-deferred-content]');
     if (!pack.plugin_id && template) { root.append(template.content); template.remove(); }
     root.inert = true; root.setAttribute('aria-busy', 'true'); root.dataset.uiClientState = 'loading';
@@ -43,6 +46,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
       try {
         if (pack.plugin_id) {
           await load('/assets/molis-work-plugin-frame.js');
+          globalThis.molisPluginFrames.assets.configure(host.paneMessages);
           if (!root.isConnected || scope.signal.aborted) return;
           if(root.closest('[hidden], [data-surface-pool]')){mounting.delete(root);settle(root,'idle');return;}
           await globalThis.molisPluginFrames.mount(root, host, pack);
@@ -71,12 +75,12 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Preserve the most recent open/close intent until the actual client is listening.
   document.addEventListener('molis-work:select-item', event => {
     const root = event.target.closest?.('[data-deferred-surface]');
-    if (!root) return; selections.set(root, event.detail); event.stopImmediatePropagation(); void prepare(root);
+    if (!root) return; selections.set(root, event.detail); event.stopImmediatePropagation(); void prepare(root, event.detail?.intent === "restore" || event.detail?.invalidate ? "restore" : "open");
   }, true);
   const visible = () => document.querySelectorAll('[data-deferred-surface]').forEach(root => {
     if (!root.closest('[hidden], [data-surface-pool]') && root.dataset.uiClientState !== 'failed') void prepare(root);
   });
   scope.observe(new MutationObserver(visible), document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'], childList: true });
   visible();
-  return { prepare, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
+  return { prepare, frameAssets: async () => { await load('/assets/molis-work-plugin-frame.js'); globalThis.molisPluginFrames.assets.configure(host.paneMessages); return globalThis.molisPluginFrames.assets; }, ready: id => prepare(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]')) };
 }`;

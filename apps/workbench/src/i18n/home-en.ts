@@ -22,6 +22,7 @@ export const HOME_EN: Record<string, string> = {
   "回到手边的内容": "Back to what's at hand",
   "你的节奏，你的工作空间。": "Your pace, your workspace.",
   "找到下一步": "Find the next step",
+  "自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断": "Automatic judgment only considers the actions Feed has been granted; grant more in permissions or judge manually if you need them.",
   "阅读与留下": "Read and keep",
   "处理待办": "Handle what's waiting",
   "回到会话": "Back to your sessions",
@@ -29,5 +30,4 @@ export const HOME_EN: Record<string, string> = {
   "看看安排": "See what's scheduled",
   "记下灵感": "Jot down an idea",
   "概览": "Overview",
-  "Goal 视图": "Goal view",
 };

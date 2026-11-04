@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionMetadata } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { goalsActions, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";

@@ -63,7 +63,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
-    const withCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
+    const baseCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
+    let boundCatalog: LocalWebCatalogRunner | undefined;
+    const withCatalog: LocalWebCatalogRunner = (settings, operation) => (boundCatalog ?? baseCatalog)(settings, operation);
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
     const catalogAvailability = projectActionAvailability(withCatalog, storageHome);
@@ -102,7 +104,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     let releaseTransport: (() => void) | undefined;
     try {
     // The Host, including a borrowed one, cannot relinquish its lease while this transport still owns storage.
-    localHost.configurePersonalPlanning(storageHome, withCatalog);
+    boundCatalog = localHost.configurePersonalPlanning(storageHome, baseCatalog);
     releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
     if (platform.openCatalog) catalogAccess = localHost.ensureWebCatalog(storageHome, platform.openCatalog);
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
@@ -198,7 +200,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
     pty.host = attachMolisWorkPtySocket(server, controlToken, storageHome);
-    server.once("close", bindPluginTerminalHost(storageHome, pty.host));
+    server.once("close", bindPluginTerminalHost(storageHome, pty.host, { webUrl: () => loopbackWebOrigin(server) }));
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),

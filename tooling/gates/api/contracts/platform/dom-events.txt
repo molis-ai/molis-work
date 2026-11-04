@@ -170,8 +170,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "announcement";
     readonly owner: "tab-workspace";
     readonly on: "element";
-    readonly detail: "{ itemId, quiet? }";
-    readonly summary: "The workbench opened an item in a plugin surface; the surface shows it. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.";
+    readonly detail: "{ itemId?, quiet?, view?, panel?, intent?, invalidate? }";
+    readonly summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.";
 }, {
     readonly name: "molis-work:settings-embed";
     readonly kind: "announcement";
@@ -428,19 +428,12 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "none";
     readonly summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.";
 }, {
-    readonly name: "workbench-feed-task";
+    readonly name: "workbench-open-group";
     readonly kind: "request";
     readonly owner: "tab-workspace";
     readonly on: "document";
-    readonly detail: "{ taskId }";
-    readonly summary: "Make the current tab show a Feed task. Also posted to a framed Feed pane as a message.";
-}, {
-    readonly name: "workbench-open-group";
-    readonly kind: "request";
-    readonly owner: "navigation-feed";
-    readonly on: "document";
     readonly detail: "{ surface, id }";
-    readonly summary: "Open a group of the Feed directory.";
+    readonly summary: "Open the named plugin default page with its current group selection; the layout owner selects the pane and tab.";
 }];
 
 export declare const DOM_EVENT_PREFIXES: readonly ["molis-work:", "molis:", "workbench-"];
@@ -468,7 +461,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.";
     };
     readonly assistant: {
-        readonly files: readonly ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"];
         readonly state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.";
     };
     readonly "context-actions": {
@@ -510,10 +503,6 @@ export declare const PAGE_STATE_OWNERS: {
     readonly "immersive-navigation": {
         readonly files: readonly ["apps/workbench/src/scripts/client/immersive-navigation.ts"];
         readonly state: "The application chrome around the work area, including the Goal work mode.";
-    };
-    readonly "navigation-feed": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/navigation-feed.ts", "apps/workbench/src/scripts/client/navigation-feed-sources.ts", "apps/workbench/src/scripts/client/navigation-feed-stage.ts"];
-        readonly state: "The Feed directory: its groups, the open group and the selected Feed task.";
     };
     readonly "goal-selection": {
         readonly files: readonly ["apps/workbench/src/scripts/client/refresh-decisions.ts", "apps/workbench/src/scripts/client/initialization.ts"];

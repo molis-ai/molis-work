@@ -1,5 +1,5 @@
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-export { goalAction } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export { goalAction } from "./contract/goal-actions.js";
 
 /** Trusted transport identity; business inputs cannot replace it. An unknown kind stays unknown rather than inferred. */
 export function goalActor(caller: ActionCallContext) {

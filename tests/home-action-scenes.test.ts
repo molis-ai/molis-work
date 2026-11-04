@@ -10,11 +10,11 @@ import { ActionError, bindActionClient, type ActionCallContext, type ActionDefin
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
-import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import { HOME_DOCK_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
-import { withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { homeActions, homeDockScene, homeDockBindingId, HOME_ACTION_PERMISSIONS, createHomeJudgmentTrigger } from "../apps/local-host/dist/home-actions.js";
 import { seedBoard } from "./fixtures/goal-application.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -74,7 +74,7 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     const cache = new Map();
     const viewOptions = { databasePath, projectId: reference.project_id, homeDirectory: home };
     const view = await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
-    assert.equal("home_dock_suggested_behavior_ids" in view.feed.feed_items.find(row => row.item_id === item.item_id)!, false, "WebView no longer holds a second copy of Home recommendations");
+    assert.equal("feed" in view, false, "the cached platform WebView holds no Feed aggregate or second copy of Home recommendations");
     denied = "functions.published.system_pick_home_dock";
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, []);
     await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);

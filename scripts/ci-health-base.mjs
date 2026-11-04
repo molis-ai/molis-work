@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CI helper for the health gates (specs/repository-anti-corruption §5a): prints the commit to hand to
+// CI helper for the health gates (specs/archive/repository-anti-corruption §5a): prints the commit to hand to
 // `check-health-gates.mjs --base`, after making sure the clone holds what the gate reads there (that commit, the
 // merge-base of it and HEAD, and their trees) without fetching the whole history.
 //

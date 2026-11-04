@@ -1,8 +1,8 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -12,13 +12,14 @@ const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
 const TOKEN = "goals-risk-test-control-token-0123456789";
 
 test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined,
+    true);
   if (!browser) return;
   const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId, reloadPage } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: "feed", actor_id: "ui-audit" });
-  catalog.close();
+  const inboxView = await pluginFrameBrowser(t, browser, "inbox");
+  await addProjectPlugin(browser.web, projectId!, "feed");
+
   const source = createLocalFeedSourceService(browser.store.db, DEMO_PROJECT_ID).register({ kind: "web_query", query: "界面修复" }).source;
   const item = createLocalFeedApplication(browser.store.db).ingestItem({
     source,
@@ -74,7 +75,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   const stylesheet = await (await fetch(`${origin}/assets/molis-work-workbench.css`)).text();
   assert.match(stylesheet, /\[data-inbox-workbench\]\s*\.inbox-reference-detail\s*>\s*\.feed-detail-header h1\s*\{\s*width:\s*100%;\s*max-width:\s*none;?\s*\}/);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click("[data-tab-split]");
   await click('[data-layout-split="right"]');
   await waitFor("document.querySelectorAll('iframe.tab-content-frame').length === 2", 15_000);
@@ -88,17 +89,17 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
       embedded: frame.contentDocument?.body?.dataset.paneEmbedded || ''
     })))`);
     const panes = JSON.parse(paneState) as { surface: string }[];
-    if (panes.length === 2 && panes.every((pane) => pane.surface === "goal")) break;
+    if (panes.length === 2 && panes.every((pane) => pane.surface === "goals")) break;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  assert.match(paneState, /"surface":"goal".*"surface":"goal"/, paneState);
+  assert.match(paneState, /"surface":"goals".*"surface":"goals"/, paneState);
   const panes = await evaluate<{ plugin: string | null; surface: string | undefined; homeHidden: boolean | undefined }[]>(`[...document.querySelectorAll('iframe.tab-content-frame')].map(frame => ({
     plugin: new URL(frame.src).searchParams.get('panePlugin'),
     surface: frame.contentDocument?.body?.dataset.desktopSurface,
     homeHidden: frame.contentDocument?.querySelector('[data-work-surface=home]')?.hidden,
   }))`);
   assert.deepEqual(panes.map((pane) => pane.plugin), ["goals", "goals"]);
-  assert.deepEqual(panes.map((pane) => pane.surface), ["goal", "goal"]);
+  assert.deepEqual(panes.map((pane) => pane.surface), ["goals", "goals"]);
   assert.ok(panes.every((pane) => pane.homeHidden !== false));
   await shot("01-goals-split-1280x800.png");
   await click("[data-tab-split]");
@@ -108,8 +109,8 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     surface: document.body.dataset.desktopSurface,
     frameSurfaces: [...document.querySelectorAll('iframe.tab-content-frame')].filter(frame => !frame.hidden).map(frame => frame.contentDocument?.body?.dataset.desktopSurface || '')
   })`);
-  assert.equal(afterClose.surface, "goal");
-  assert.ok(afterClose.frameSurfaces.every((surface) => surface === "goal"), JSON.stringify(afterClose));
+  assert.equal(afterClose.surface, "goals");
+  assert.ok(afterClose.frameSurfaces.every((surface) => surface === "goals"), JSON.stringify(afterClose));
 
   const splitPlugin = async (plugin: string, surface: string, file: string) => {
     await click(`[data-plugin-strip] [data-plugin-id="${plugin}"]`);
@@ -157,13 +158,13 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await size(1920, 902);
   await reloadPage();
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor("document.querySelectorAll('[data-inbox-row]').length > 0");
-  const tabs = await evaluate<number[]>(`[...document.querySelectorAll('[data-inbox-row]')].filter(row => row.getClientRects().length).map(row => row.tabIndex)`);
+  await inboxView.waitFor("document.querySelectorAll('[data-inbox-row]').length > 0");
+  const tabs = await inboxView.evaluate<number[]>(`[...document.querySelectorAll('[data-inbox-row]')].filter(row => row.getClientRects().length).map(row => row.tabIndex)`);
   assert.ok(tabs.length > 0);
   assert.ok(tabs.every((tabIndex) => tabIndex === 0), JSON.stringify(tabs));
-  await evaluate("[...document.querySelectorAll('[data-inbox-row]')].find(row => row.textContent.includes('Inbox 详情标题宽度'))?.click()");
-  await waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
-  const title = await evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean }>(`(() => {
+  await inboxView.evaluate("[...document.querySelectorAll('[data-inbox-row]')].find(row => row.textContent.includes('Inbox 详情标题宽度'))?.click()");
+  await inboxView.waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
+  const title = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean }>(`(() => {
     const h1 = document.querySelector('[data-inbox-detail]:not([hidden]) h1');
     const header = h1.closest('.feed-detail-header');
     const box = h1.getBoundingClientRect();
@@ -176,8 +177,8 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   await shot("05-inbox-title-1920x902.png");
   const titleAt = async (width: number, height: number, file: string) => {
     await size(width, height);
-    await waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
-    const box = await evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean; lines: number }>(`(() => {
+    await inboxView.waitFor("document.querySelector('[data-inbox-detail]:not([hidden]) h1')");
+    const box = await inboxView.evaluate<{ h1: number; header: number; maxWidth: string; overflow: boolean; lines: number }>(`(() => {
       const h1 = document.querySelector('[data-inbox-detail]:not([hidden]) h1');
       const header = h1.closest('.feed-detail-header');
       const style = getComputedStyle(h1);

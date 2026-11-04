@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorRecordActions, CONNECTOR_RECORDS_READ, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -63,4 +63,22 @@ test("ASC-16 ASC-25: stopping a connection aborts its pending record read even i
   await rejected;
   assert.equal(aborted, true);
   assert.equal(withConnectorConnections(home.home, store => store.require(selected.connection_id).enabled), true);
+});
+
+// RAC-2417: a cli connection whose service id names a prototype member has no record adapter, exactly like an unregistered service.
+test("RAC-2417 a cli connection whose service id names a prototype member has no record adapter", async t => {
+  const home = await openTestHome(t);
+  const [unknown, prototype] = withConnectorConnections(home.home, store => [
+    store.saveCli({ serviceId: "no-such-service", displayName: "Unknown", externalId: "unknown-cli", accountLabel: "unknown" }),
+    store.saveCli({ serviceId: "constructor", displayName: "Prototype", externalId: "prototype-cli", accountLabel: "prototype" }),
+  ]);
+  const read = (id: string) => home.host.homeActionClient().invoke(caller, connectorRecordActions.read, { connection_id: id });
+  const refusal = async (id: string) => {
+    const error = await read(id).then(() => null, (failure: unknown) => failure);
+    assert.ok(error instanceof ActionError, `an error, not ${String(error)}`);
+    return { code: error.code, message: error.message };
+  };
+  const missing = await refusal(unknown!.connection_id);
+  assert.equal(missing.code, "connector.records.unsupported", "a CLI without a record adapter is refused by the records contract");
+  assert.deepEqual(await refusal(prototype!.connection_id), missing);
 });

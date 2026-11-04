@@ -18,8 +18,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readProjectGuidance } from "./goal-callers.js";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
+import { readProjectGuidance, type ProjectGuidanceFacts } from "./goal-callers.js";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -304,7 +303,7 @@ async function checkActionInput(authorized: { context: ActionCallContext; servic
  * into an instruction, which is a different claim.
  */
 async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
-  let view: ProjectGuidanceView;
+  let view: ProjectGuidanceFacts;
   try {
     const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
     view = await readProjectGuidance(localHost.actionClient(reference), reference);

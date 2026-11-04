@@ -96,7 +96,7 @@ function emptyView(): MolisWorkWebView {
 test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图标用 idea", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(LINGGUANG_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes("lingguang"), false);
-  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "artifacts"] as const;
+  const enabled = ["goals", ...PERSONAL_PLUGIN_IDS, "files"] as const;
   assert.equal(railEntries([...enabled]).some((item) => item.id === "lingguang"), false);
   const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");
@@ -113,7 +113,7 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
   const view = {
     ...emptyView(),
     enabled_plugins: ["goals", "lingguang", "issues"],
-    plugin_stage_ids: [LINGGUANG_UI_CONTRIBUTION_ID],
+    plugin_stage_surfaces: [{ contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, surface: "workbench" }],
     plugin_stages: ['<section data-work-surface="lingguang" data-stage="host"></section>'],
   } as MolisWorkWebView;
   const owner = renderMolisWorkWeb(withHostPluginFacts(view));
@@ -121,7 +121,7 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
   assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's stage is kept once");
   assert.doesNotMatch(html, /data-lingguang="directory"/, "the fallback did not render a second Lingguang stage");
   assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
-  assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
+  assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_surfaces: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
     "without the host's stage, Lingguang comes from its Manifest stage");
 
   const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;

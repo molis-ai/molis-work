@@ -1,6 +1,6 @@
 # 文档引用与仓库形状门禁
 
-`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，`docs/` 下不放原始采集和开发机路径，页面里的 DOM 事件都在合同里登记。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
+`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，`docs/` 下不放原始采集和开发机路径，页面里的 DOM 事件都在合同里登记。现行实现口径归本文；历史设计来源：[specs/archive/repository-anti-corruption](../../specs/archive/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
 入口引入五处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）、`table-owners.mjs`（库与表的 owner，见下一节）、`kernel-contextual.mjs`（内核的两半，见再下一节）和 `dual-instance.mjs`（双实例插件，见「双实例插件」一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 
@@ -25,6 +25,8 @@
 | `contracts` 没有占位子路径 | `contract-placeholders.mjs` | `contract placeholder: descriptor-only, unused contracts subpath in ./<子路径>` | 占位子路径 = 源文件只导出一个 `ContractDescriptor` 常量，且仓内没有 import、也没有包的 `contract` 元数据指向它。没有基线，出现一个就失败（W2-01 已删掉原来的六个）。要用就放类型进去，不用就别加；`platform/kernel`、`platform/testing` 是描述符，但有包把它们声明为自己的合同入口，不算占位 |
 | `docs/` 下没有原始采集和开发机路径 | `doc-raw-data.mjs` + `tooling/gates/limits.json` 的 `docsJsonBytes` | `raw data in docs: docs/<文件> is <n> bytes, over the …` / `raw data in docs: docs/<文件>:<行>: /Users/<名> is a path on a developer's machine …` | 原始采集放在仓库之外；路径写成 `~/.molis-work`、`~/<路径>` 或仓库相对路径。`archive/` 也查，没有基线，没有例外名单。口径与阈值的依据见下面「文档里的原始数据」 |
 | 页面事件都登记了 | `dom-events.mjs` + `packages/contracts/src/platform/dom-events.ts` | `DOM events: <文件>:<行> dispatches "<名>", which is not registered` / `… listens to …` / `… is registered but no source dispatches or listens to it` / `… owned by "<主人>", but none of its files … it` | 新事件在合同的 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码同一个改动，然后 `pnpm api:update`；名字写成字符串字面量（或「条件 ? 字面量 : 字面量」）。删了事件就删条目，主人的文件搬了就改 `PAGE_STATE_OWNERS`。不扫测试文件、`scripts/gates/`、夹具和构建产物。没有基线，直接挂在入口 `check-health-gates.mjs` 的 `absolute` 里（不经 `doc-gates.mjs`）；突变用例在 `tests/dom-events-contract.test.ts`（不在 `doc-reference-gates.test.ts`，CI 里单独一步）；`node scripts/gates/dom-events.mjs --report` 列出谁发谁听，并指出对不上的地方（那是线索不是失败，但真实代码里的每一条都要写进 UI Platform 的「现状与例外」，由同一个测试文件核对）。规则与登记含义见 [UI Platform](../../docs/platform/UI-PLATFORM.md#页面里的事件与状态归属) |
+
+包清单和存储版本登记同由健康门禁入口直接检查：`package-inventory.mjs` 只读 [PACKAGE-BOUNDARIES.md「现行包清单」](../../docs/system/PACKAGE-BOUNDARIES.md#7-现行包清单)，`store-versions.mjs` 只读 [CONTRACT-CHANGES.md「存储版本变更登记」](../../docs/system/CONTRACT-CHANGES.md#存储版本变更登记)，当前库版本仍读 CHECKLIST 第 3 节。两表不再从防腐 spec 取值，不双读或缺失兜底；完整口径、负例与已知局限见 [tooling/gates/README.md](../../tooling/gates/README.md)。
 
 ## 文档里的原始数据
 
@@ -78,16 +80,16 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 ## 双实例插件（`dual-instance.mjs`，S0-2b-2）
 
-双实例插件是一个 `plugin_id`、一份 Manifest，分两半：Home 一半是 Home 目录里 `runtime`（Home 实例的代码）写了 `dual_instance: true` 的条目（运行范围本身是 Manifest 的，PG-011；标记只来自宿主的登记，S-48），项目一半是同一份登记的 `project_runtime`（PG-067），或项目启动名单 `apps/local-host/src/project-plugins.ts` 里手写的一条（工厂要宿主端口的，今天只有 Files）（[specs/dual-instance-plugins](../../specs/dual-instance-plugins/spec.md)）。配错的宿主启动时已经拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；这个门禁在评审时就说出来，再加一条宿主不查的。入口 `check-health-gates.mjs` 在 `absolute()` 里单独引入它，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。它只新增检查，不放宽任何已有规则。
+双实例插件是一个 `plugin_id`、一份 Manifest，分两半：Home 一半是 Home 目录里 `runtime`（Home 实例的代码）写了 `dual_instance: true` 的条目（运行范围本身是 Manifest 的，PG-011；标记只来自宿主的登记，S-48），项目一半是同一份登记的 `project_runtime`（PG-067），或项目启动名单 `apps/local-host/src/project-plugins.ts` 里手写的一条（工厂要宿主端口的，今天只有 Files）（平台行为见 [PLUGIN-DEVELOPMENT 双实例插件](../../docs/platform/PLUGIN-DEVELOPMENT.md#双实例插件)）。配错的宿主启动时已经拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；这个门禁在评审时就说出来，再加一条宿主不查的。入口 `check-health-gates.mjs` 在 `absolute()` 里单独引入它，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。它只新增检查，不放宽任何已有规则。
 
 | 项 | 说明 |
 | --- | --- |
 | 怎么判 | 用 TypeScript 语法树读，不执行。插件按包名认：Home 条目取 `runtime.package_name`，项目一半取 `project_runtime.package_name`，或看启动名单里 `definition: create…(…)` 的工厂从哪个包导入。目录条目由 `catalog-entries.mjs` 给出，和别的看目录的门禁（`home-runtime-entries.mjs`、包边界检查）同一份读法 |
 | D1 标记与两份名单 | 带 `dual_instance` 的 Home 条目要有同一个包的项目一半（`project_runtime` 或启动名单里的条目）；同一个包两半都在，Home 条目就要带标记。`dual_instance` 只写字面量 `true`（或不写） |
 | D2 两半都随宿主发 | 目录条目都随宿主发，所以启动名单里的项目一半写 `trust: HOST_BUILD_TRUST`（`project_runtime` 的由宿主给） |
-| D3 没有可选权限 | 用户 2026-10-20 定（U1）：带标记的插件，Manifest 的每条权限都是对象字面量，写字面量 `required: true`。宿主不查这一条，只有门禁查；不带标记的插件不受影响 |
+| D3 权限的必需与否可读 | 用户 2026-11-01 定（U1 更新）：带标记的插件，Manifest 的每条权限都是对象字面量，`required` 明写字面量 `true` 或 `false`；展开、缺失、表达式或不认识的写法都拒绝（可选权限由 Runtime 按 Home 上限约束）。宿主不查这一条，只有门禁查；不带标记的插件不受影响 |
 | 失败时说什么 | `<目录条目文件>: runtime.dual_instance marks <包> as a dual-instance plugin, but … starts no project half of it`、`<项目一半所在的文件>: <包> is also a Home catalog entry (…); a plugin with both halves says runtime.dual_instance: true on its Home entry`、`<目录条目文件>: cannot tell which plugin package project_runtime starts…`、`…: the project half of the dual-instance plugin <包> must say trust: HOST_BUILD_TRUST…`、`…: the dual-instance plugin <包> has a permission that is not \`required: true\` as a literal (…)`，以及下面「读不到的」几种 |
-| 怎么办 | D1：要么给 Home 条目加标记、在登记上写 `project_runtime`，要么两边都不放；D2：项目条目写 `trust: HOST_BUILD_TRUST`；D3：把可选权限改成必需（双实例插件的两份授权记录不能分叉），或者不做双实例 |
+| 怎么办 | D1：要么给 Home 条目加标记、在登记上写 `project_runtime`，要么两边都不放；D2：项目条目写 `trust: HOST_BUILD_TRUST`；D3：把每条权限的 `required` 写成字面量 `true` 或 `false` |
 | 读不到的（已知限制） | 读不懂的写法报错，不放过：带标记条目的 Manifest、权限列表或某一条权限不是门禁能跟到的写法（展开、算出来的 `required`、函数调用），以及项目条目的 `definition` 不是导入工厂的调用（`cannot read the Manifest…`、`cannot read the permissions…`、`cannot tell which plugin package the entry … starts`）。跟名字只跟插件自己的相对文件（`import`、`export { … } from`、`export *`、顶层 `const`，去掉 `as`、`satisfies` 和括号）；用函数造的 Manifest 不跟。项目启动名单里写在别的文件、再拼进来的条目读不到 |
 
 验证：`node scripts/run-tests.mjs tests/health-gates-dual-instance.test.ts`。每条规则在内存里的小树上违反一次，必须报出对应的话；仓库自己的树没有问题；入口里的接线在临时仓库里验证，`--base main` 要失败。文件名落在 CI「Health gates reject what they claim to」那一步的 `tests/health-gates-*.test.ts` 里，不用改 `ci.yml`。

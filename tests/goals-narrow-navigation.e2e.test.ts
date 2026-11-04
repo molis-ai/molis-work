@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
@@ -92,6 +93,7 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { store, before, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, showGoalStageList } = browser;
+  const inbox = await pluginFrameBrowser(t, browser, "inbox");
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -122,7 +124,9 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   assert.equal(state.directory, "root");
   assert.equal(state.drawer, false);
   assert.equal(isHiddenFromUse(state.tree), true);
-  assert.ok(await evaluate("document.querySelector('[data-inbox-stage-shell]')?.getBoundingClientRect().height > 180"));
+  await inbox.waitFor("document.querySelector('[data-inbox-stage-shell]')?.getBoundingClientRect().height > 180");
+  const inboxBox = await evaluate<{top:number;bottom:number;height:number}>("document.querySelector('[data-work-surface=inbox] iframe[data-plugin-frame=inbox]').getBoundingClientRect().toJSON()");
+  assert.ok(inboxBox.height > 180 && inboxBox.top >= 0 && inboxBox.bottom <= 844, JSON.stringify(inboxBox));
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor(`document.querySelector(".tree-pane").dataset.desktopDirectory === "root" && !document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 

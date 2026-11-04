@@ -5,6 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -59,7 +60,7 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
@@ -86,6 +87,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
+  const inbox = await pluginFrameBrowser(t, browser, "inbox"), feed = await pluginFrameBrowser(t, browser, "feed");
   const app = openProjectVersionStores(store);
   installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
   for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
@@ -97,7 +99,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
-  assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]'))"), true, "the platform Artifact entry is present without Plugin membership");
   // The market is yours everywhere, so it is a button at the head of the switcher rather than among this project's plugins.
   assert.equal(await evaluate("Boolean(document.querySelector('.plugin-rail-items [data-plugin-id=market]'))"), false);
   assert.equal(await evaluate("document.querySelector('.plugin-picker-extend[data-global-menu] [data-work-surface-open=market]')?.dataset.pluginId"), "market");
@@ -128,12 +130,26 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await evaluate(`(()=>{const s=document.querySelector('[data-market-project]');s.value=${JSON.stringify(projectId)};s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   // This project: the page changes in place (the switcher's entry wakes, nothing is loaded again).
   await evaluate("window.__stayedOnPage = true");
-  await click('[data-market-add="artifacts"]');
-  await waitFor("document.querySelector('[data-market-add=artifacts]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=artifacts]').classList.contains('is-available')");
+  assert.equal(await evaluate("document.querySelector('[data-market-add=artifacts]')"), null, "the platform is not a market Plugin");
+  const membership = async (project_id: string) => (await browser.web.get<{ projects: { project_id: string; plugins: string[] }[] }>("/api/settings/project-plugins")).projects.find(row => row.project_id === project_id)!.plugins;
+  for (const project_id of [projectId!, otherId]) {
+    const before = await membership(project_id);
+    assert.equal(before.includes("artifacts"), false);
+    for (const operation of ["post", "delete"] as const) {
+      await assert.rejects(browser.web[operation](`/api/settings/projects/${project_id}/plugins`, { plugin_id: "artifacts" }),
+        (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
+    }
+    assert.deepEqual(await membership(project_id), before, "rejected platform membership operations do not change members");
+  }
+  await click('[data-market-add="files"]');
+  await waitFor("document.querySelector('[data-market-add=files]').dataset.marketMembership === 'added' && !document.querySelector('[data-plugin-tile=files]').classList.contains('is-available')");
   assert.equal(await evaluate("window.__stayedOnPage === true"), true, "adding to this project does not load the page again");
+  const afterAdd = await evaluate<{ project_id: string; plugins: string[] }[]>("fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects)");
+  assert.equal(afterAdd.find(item => item.project_id === projectId)!.plugins.includes("files"), true);
+  assert.equal(afterAdd.find(item => item.project_id === otherId)!.plugins.includes("files"), false, "only the selected project gains Files");
   await waitFor("document.body.dataset.desktopSurface === 'market' && !document.querySelector('[data-market-project]').disabled");
-  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='成果';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["artifacts"]);
+  await evaluate("(()=>{let q=document.querySelector('[data-market-search]');q.value='Files';q.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-market-plugin]:not([hidden])')].map(x=>x.dataset.marketPlugin)"), ["files"]);
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.querySelector('[data-artifact-directory] .artifact-version-list')");
   await evaluate("window.__workbenchInstance=document.querySelector('[data-workspace]')");
@@ -142,20 +158,22 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   assert.equal(await evaluate("window.__workbenchInstance===document.querySelector('[data-workspace]')"), true);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + otherId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]'))"), true, "the platform Artifact entry is present without Plugin membership");
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=feed]'))"));
   assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=inbox]'))"));
   await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-inbox-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.match(await evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
+  await waitFor("document.body.dataset.desktopSurface === 'inbox' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await inbox.waitFor("document.querySelector('[data-inbox-stage-shell]')");
+  assert.match(await inbox.evaluate<string>("document.querySelector('[data-inbox-stage-group-empty]')?.textContent || document.querySelector('[data-inbox-detail-empty]')?.textContent || ''"), /现在没有需要你介入的事项/);
   assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
-  await waitFor("document.body.dataset.desktopSurface === 'feed' && Boolean(document.querySelector('[data-feed-stage-directory]'))");
-  assert.equal(await evaluate("document.querySelector('[data-feed-views]')"), null);
+  await waitFor("document.body.dataset.desktopSurface === 'feed'");
+  await feed.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-list]')");
+  assert.equal(await feed.evaluate("document.querySelector('[data-feed-views]')"), null);
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
+  assert.ok(await feed.evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-task=all]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-feed-list]')?.closest('#goal-tree-pane')"), null);
+  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-list]')"), null);
 });
 
 test("Project entry lands at home, while refresh preserves work and Goal links remain direct", { timeout: 60_000 }, async (t) => {
@@ -166,7 +184,8 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  // RAC-1934: Goals opens on the surface named by its id, as every plugin does (T-114).
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await evaluate("document.querySelector('[data-goal-collapse]')?.click(); document.querySelector('[data-board-view-tab=canvas]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && document.querySelector('[data-goal-node-workspace]')?.hidden !== false");
@@ -183,7 +202,7 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   })()`);
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   const linkedGoal = goalId === "CORE" ? "WEB" : "CORE";
   await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(linkedGoal) }, sessionId));
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === " + JSON.stringify(linkedGoal) + " && document.querySelector('[data-goal-frame-surface]')?.hidden === false");

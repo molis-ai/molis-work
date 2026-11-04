@@ -141,7 +141,8 @@ test("Home planning actions use the plugin's Home library, require trusted users
     assert.deepEqual(saved.method.default_requirements, input.method.default_requirements);
     assert.deepEqual(libraryMethods(home), [saved.method]);
     assert.deepEqual(host.status().projects, [], "saving a Home template creates no project Runtime");
-    assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listProjects()), []);
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    assert.deepEqual(await withHostCatalog({ homeDirectory: home }, c => c.listProjects()), []);
     assert.equal((await bindActionClient(other.homeActionClient(), () => user).invoke(personalPlanningActions.list, {})).methods.some(m => m.method_id === input.method.method_id), false);
     const second = await actions.invoke(personalPlanningActions.save, { method: { ...input.method, name: "Version two" } });
     assert.equal(second.method.version, saved.method.version + 1); assert.equal(second.method.created_at, saved.method.created_at);
@@ -212,7 +213,8 @@ test("Home Web and official unbound MCP consume the same planning actions and li
     assert.equal((await sdk.listTools()).tools.some(t => t.name === name), false);
     assert.equal((await sdk.callTool({ name, arguments: {} })).isError, true);
     assert.deepEqual(host.status().projects, []);
-    assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listProjects()), []);
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    assert.deepEqual(await withHostCatalog({ homeDirectory: home }, c => c.listProjects()), []);
   } finally {
     await sdk.close(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true });
   }

@@ -158,3 +158,45 @@ test("RAC-1699: the exported fill page counts an answer's length in characters l
     assert.equal(after.listSubmissions(form.id, b.projectId!)[0]!.answers.words, wide(4000));
   } finally { after.close(); }
 });
+
+test("RAC-1981: an exported file is named after the title cut at 80 characters, not at 80 UTF-16 units: a title of 80 characters with two-unit ones keeps its whole name, and no name ends in half a character", { timeout: 90_000 }, async t => {
+  // Pages allows a title of 80 characters (store.ts normalizeTitle). One 🟢 is one character but two UTF-16 units, so "a" + 79 of them is 80 characters in 159 units:
+  // a cut at unit 80 falls in the middle of the 40th 🟢, so the file used to be named after 39 of them and half of the next.
+  const long = "a" + "🟢".repeat(79);
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "pages");
+  const store = openPagesStore(b.homeDirectory);
+  const pages = (() => { try { return [long, "Q3 plan/draft: v2"].map(title => store.create({ project_id: b.projectId!, title, body: { type: "doc", content: [paragraph("Body")] } })); } finally { store.close(); } })();
+  // The page is opened again for each document, which reloads the browser page, so the download sink is captured again each time.
+  const exportedNames = async (page: { id: string }, formats: string[]) => {
+    await open(b, "pages", page.id, child); await captureDownloads(b);
+    for (const format of formats) { await child.click("[data-pages-more]"); await child.click(`[data-pages-export="${format}"]`); }
+    await b.waitFor(`window.contentDownloads.length===${formats.length} && window.contentDownloads.every(file=>file.content)`);
+    return (await downloads(b)).map(file => file.name);
+  };
+  assert.deepEqual(await exportedNames(pages[0]!, ["md", "html"]), [long + ".md", long + ".html"], "the 80-character title is the whole file name");
+  // RAC-1984: a title that fits keeps its words, and the characters a file name cannot hold still become underscores.
+  assert.deepEqual(await exportedNames(pages[1]!, ["md"]), ["Q3 plan_draft_ v2.md"]);
+});
+
+test("RAC-1982: the excerpts of several picked documents go to the Assistant cut at 1500 UTF-16 units on a whole character", { timeout: 90_000 }, async t => {
+  // Pages sends each picked document's title and text up to 1500 units (browser/context.ts objectsFocus). One 🟢 is one character but two units.
+  // "Cut", a line break and "x" are 5 units, so unit 1500 is the first half of a 🟢; "Fit", a line break and "yy" are 6, so a 🟢 ends exactly at unit 1500.
+  const wide = (count: number) => "🟢".repeat(count);
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "pages");
+  const store = openPagesStore(b.homeDirectory);
+  const pages = (() => { try { return [{ title: "Cut", lead: "x" }, { title: "Fit", lead: "yy" }].map(({ title, lead }) => store.create({ project_id: b.projectId!, title, body: { type: "doc", content: [paragraph(lead + wide(1000))] } })); } finally { store.close(); } })();
+  await open(b, "pages", pages[0]!.id, child);
+  await b.evaluate("document.addEventListener('molis:surface-focus',event=>window.contentObjectsFocus=event.detail)");
+  await child.evaluate(`(() => { document.querySelector('button[data-page-id="${pages[1]!.id}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}));})()`);
+  await b.waitFor("window.contentObjectsFocus?.granularity==='objects'");
+  const focus = await b.evaluate<{ targets: { text: string; truncated?: boolean; ref: { id: string } }[] }>("window.contentObjectsFocus");
+  const shape = (value: string, expected: string) => ({ units: value.length, characters: [...value].length, same: value === expected });
+  const cut = focus.targets.find(target => target.ref.id === pages[0]!.id)!, fit = focus.targets.find(target => target.ref.id === pages[1]!.id)!;
+  assert.deepEqual(shape(cut.text, "Cut\nx" + wide(747)), { units: 1499, characters: 752, same: true }, "unit 1500 was the first half of a 🟢: the 747 whole ones before it are kept");
+  assert.equal(cut.truncated, true);
+  // RAC-1984: a 🟢 that ends exactly at the limit is kept.
+  assert.deepEqual(shape(fit.text, "Fit\nyy" + wide(747)), { units: 1500, characters: 753, same: true }, "a 🟢 that ends exactly at unit 1500 is kept");
+  assert.equal(fit.truncated, true);
+});

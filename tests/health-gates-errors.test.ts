@@ -11,7 +11,7 @@ import { CODE_SHAPE, measureErrors } from "../scripts/gates/error-scan.mjs";
 // @ts-expect-error the gate modules are plain .mjs
 import { errorOwnerProblems, readOwnerTable } from "../scripts/gates/error-owners.mjs";
 
-// specs/repository-anti-corruption W3-02-B (scripts/gates/error-*.mjs, tooling/gates/error-owners.json): the error model's four numbers
+// specs/archive/repository-anti-corruption W3-02-B (scripts/gates/error-*.mjs, tooling/gates/error-owners.json): the error model's four numbers
 // compared with the merge-base, and the table that says whose error a code is. As in tests/health-gates-structure.test.ts, each rule is
 // mutation-verified on a small scratch repository: one violation added on a branch makes `--base main` fail, `--update` (the laundering
 // move) neither hides it nor is accepted when it is given the merge-base, and what a rule must NOT flag stays green.

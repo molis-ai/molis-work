@@ -24,10 +24,10 @@ const declared = (): ActionSceneDefinition[] => BUILTIN_PLUGIN_CATALOG.flatMap(e
 test("RAC-484 the shipped Feed and Inbox scenes declare their rules, and the Functions Module has none of its own", async () => {
   const keys = declared().map(candidate => candidate.default_rule!.function_key).sort();
   assert.deepEqual(keys, [SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY].sort());
-  const files = await readdir(new URL("modules/functions/src/", ROOT));
+  const files = await readdir(new URL("modules/judgment-rules/src/", ROOT));
   assert.equal(files.includes("builtin.ts"), false, "no built-in rule file");
   for (const name of files) {
-    const text = await readFile(new URL(`modules/functions/src/${name}`, ROOT), "utf8");
+    const text = await readFile(new URL(`modules/judgment-rules/src/${name}`, ROOT), "utf8");
     assert.doesNotMatch(text, /system_(pick_home_dock|admit_inbox|pick_inbox_next)|SYSTEM_(HOME_DOCK|INBOX_ADMIT|INBOX_NEXT)_FUNCTION_KEY/, `${name} names a rule`);
   }
 });

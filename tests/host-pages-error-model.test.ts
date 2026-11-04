@@ -1,3 +1,4 @@
+// RAC-2812: complete Artifact HTTP error-model regression after the platform route rename.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -12,14 +13,14 @@ import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as artifactsModule from "@molis-ai/molis-work-module-artifacts";
-import * as functionsModule from "@molis-ai/molis-work-module-functions";
+import * as functionsModule from "@molis-ai/molis-work-module-judgment-rules";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import Database from "better-sqlite3";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
-// specs/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
+// specs/archive/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
 // project catalog's error class, the artifact edge's four classes, the project-reference class and the edge refusals' bare 403 are gone; a failure
 // is an ActionError with a code and a kind, and the status comes from the kind (SDK `actionHttpStatus`).
 //
@@ -156,8 +157,9 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   expect(capture(() => catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: "entry-1", host_declares_stable: true }, project_id: project.project_id, actor_id: "runtime", user_confirmed: false })),
     "work.context.user_confirmation_required", 400);
   // A live terminal is a conflict the person can resolve.
-  const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "user", user_confirmed: true });
-  const service = new hostModule.ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: id => id === panel.panel_id, releaseProject: async () => undefined });
+  const panel = await catalog.commit(() => catalog.terminalPanels.insert({ panel_id: "plugin-error-model-terminal", install_id: "fixture-install", project_id: project.project_id,
+    actor_id: "user", key: "terminal", subject: "goal-1", runtime: "command", launch_command: "/bin/cat", launch_args: [], title: "cat" }, directory));
+  const service = new hostModule.ProjectDeletionService(async (_options, operation) => operation(catalog), { isPanelAlive: id => id === panel.panel_id, releaseProject: async () => undefined });
   await assert.rejects(service.deleteProject(home, { project_id: project.project_id, actor_id: "user", delete_confirmed: true, idempotency_key: "delete-with-terminal" }),
     (error: unknown) => { expect(error, "catalog.project_terminal_live", 409); return true; });
   const tooOld = hostModule.catalogSchemaCompatibilityError(9, 8);
@@ -236,13 +238,14 @@ test("the plugin routes of the settings tell a missing project from every other 
   const token = "host-pages-error-model-control-token-0123456789";
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "设置项目", actor_id: "test" });
+  catalog.close();
   const { createMolisWorkWebServer } = await import("../apps/desktop/launchers/web/server.js");
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    catalog.close(); await rm(home, { recursive: true, force: true });
+    await rm(home, { recursive: true, force: true });
   });
   let sequence = 0;
   const call = async (method: "POST" | "DELETE", path: string, body: unknown) => {
@@ -456,9 +459,9 @@ test("the mapper, the catalog class, the artifact classes and the Functions clas
   const found = spawnSync("git", ["grep", "-n", "-E", `\\b(${OLD.join("|")})\\b`, "--", "apps", "packages", "modules", "plugins", "horizontal", "scripts", "tests", `:!${here}`],
     { cwd: REPOSITORY, encoding: "utf8" });
   assert.deepEqual([found.status, found.stdout.trim()], [1, ""], "no source names the removed classes or the mapper");
-  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/functions-http/route-error.ts")), false);
-  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/functions-http.ts", "apps/local-host/src/web-project-reference.ts",
-    "apps/local-host/src/artifact-native-plugin-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/functions/src"],
+  assert.equal(existsSync(join(REPOSITORY, "apps/local-host/src/judgment-rules-http/route-error.ts")), false);
+  const scan = spawnSync("git", ["grep", "-n", "-E", "new Error\\(", "--", "apps/local-host/src/judgment-rules-http.ts", "apps/local-host/src/web-project-reference.ts",
+    "apps/local-host/src/artifact-library-http.ts", "apps/local-host/src/artifact-document-import.ts", "apps/local-host/src/project-file-reference.ts", "modules/judgment-rules/src"],
   { cwd: REPOSITORY, encoding: "utf8" });
   const bare = scan.stdout.trim().split("\n").filter(line => line && !/\/\/ .*new Error\(|object required/.test(line));
   assert.deepEqual(bare, [], "a caller's mistake on these edges has a code (a bare Error would answer 500)");

@@ -149,7 +149,7 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
     additionalProperties: boolean;
 };
 
-export type ConnectorAuthKind = "github" | "gmail" | "notion" | "feishu" | "token" | "none";
+export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
 
 export interface ConnectorCallControl {
     readonly signal: AbortSignal;
@@ -258,6 +258,10 @@ export interface ConnectorConnectionStatus {
 export type ConnectorConnectionView = Pick<ConnectorConnectionRecord, "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source" | "enabled"> & {
     readonly state: ConnectorConnectionState;
     readonly target_origin?: string;
+    readonly declared_by?: {
+        readonly plugin_id: string;
+        readonly title: string;
+    };
     readonly mcp_endpoint?: string;
     readonly agent_available?: boolean;
 };
@@ -339,6 +343,11 @@ export interface ConnectorMethodOption {
             required?: boolean;
         }[];
         readonly note?: string;
+        readonly callback_path?: string;
+        readonly callback_host?: string;
+        readonly device?: {
+            readonly login_ready: boolean;
+        };
     };
     readonly cli?: {
         readonly binary: string;

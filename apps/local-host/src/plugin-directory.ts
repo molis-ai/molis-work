@@ -13,6 +13,7 @@ export interface DirectorySource {
   manifest(pluginId: string): {
     readonly plugin_id: string;
     readonly name: string;
+    readonly name_en?: string;
     readonly publisher: { readonly signature: string };
     readonly ui: { readonly views?: readonly UiViewDeclaration[] };
   } | undefined;
@@ -36,7 +37,7 @@ export function runningPluginDirectory(source: DirectorySource, home?: string): 
     if (!manifest || !state || state.status === "blocked") return [];
     const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === manifest.plugin_id
       && entry.manifest.publisher.signature === manifest.publisher.signature);
-    return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id, name: manifest.name,
+    return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id, name: manifest.name, ...(manifest.name_en !== undefined ? { name_en: manifest.name_en } : {}),
       chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ui: { views: manifest.ui.views ?? [] } }];
   });
 }
@@ -53,7 +54,7 @@ function builtinMarks(builtin: PluginRegistration, alwaysOn: readonly string[]):
  */
 export function builtinMarketDirectory(home?: string): PluginDirectoryEntry[] {
   const alwaysOn = home ? alwaysOnProjectPlugins(home) : [];
-  return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name,
+  return PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, ...(entry.manifest.name_en !== undefined ? { name_en: entry.manifest.name_en } : {}),
     chosen: true, ...builtinMarks(entry, alwaysOn), ui: { views: entry.manifest.ui.views ?? [] } }));
 }
 

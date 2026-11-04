@@ -4,7 +4,7 @@ import type {
   GoalEventRequirementStatus,
   GoalRecord,
   SetGoalEventAgreementInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { requestHash, type GoalsCommandContext } from "./command-support.js";
 import {
   agreementChangeEquals,

@@ -6,7 +6,7 @@ import { renderPluginRail } from '../apps/workbench/src/immersive-shell.ts';
 const escapeHtml = (value: unknown) => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 
 test('a plugin installed from the studio is a rail entry under 更多 that opens its own stage', () => {
-  const html = renderPluginRail({ L: value => value, escapeHtml, icon }, [], '',
+  const html = renderPluginRail({ L: value => value, escapeHtml, icon }, [],
     [{ id: 'app-9de886d4-ee8b-4024-a599-9fbba135933d', plugin_id: 'io.molis.work.generated.9de886d4-ee8b-4024-a599-9fbba135933d', name: '随手记 <b>', chosen: false,
       ui: { views: [{ view_id: 'app', slot: 'stage' as const, title: '随手记 <b>' }] } }]);
   const more = html.slice(html.indexOf('>更多<'), html.indexOf('>拓展<'));

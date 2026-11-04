@@ -2,7 +2,7 @@
 
 状态：0.3.0 发布候选。产品载体及现行内置插件清单（以 `plugins/native/*` 与构建后的 `BUILTIN_PLUGIN_CATALOG` 为准，2026-10-25 是 24 个）已统一为 0.3.0，版本脚本核对每个内置清单；第 7 节保留 2026-10-08 机制选择与实现的依据。GitHub 仅准备草稿，尚未公开发布。
 
-Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG 和一份发布前检查清单（含各库版本表与真实 Home 的处理）。这份策略落实用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「版本与发布策略」）：一个产品版本、0.3.0 发布候选；根包、桌面端、Tauri 跟同一版本，内置插件 Manifest 跟宿主版本；工作区包保持私有 0.0.0。
+Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG 和一份发布前检查清单（含各库版本表与真实 Home 的处理）。这份策略落实用户 2026-10-08 的决定（`specs/archive/repository-anti-corruption/spec.md` §1「版本与发布策略」）：一个产品版本、0.3.0 发布候选；根包、桌面端、Tauri 跟同一版本，内置插件 Manifest 跟宿主版本；工作区包保持私有 0.0.0。
 
 - 每次发布做什么、按什么顺序：[CHECKLIST.md](CHECKLIST.md)。
 - 改了什么：[CHANGELOG.md](CHANGELOG.md)（按版本）和 `v<版本>.md`（每个版本一篇发布说明）。
@@ -40,7 +40,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 **0.3.0 的例外（用户 2026-10-16 定）。** 准备 0.3.0 草稿的 #595 在发布之前就合进了 main，所以从 2026-10-16 12:31 UTC 起，main 与内置清单已是 0.3.0，而最近一次发布仍是 v0.2.0，与本节第一段不符。用户定：不退回 0.2.0；v0.3.0 按最终切版提交生成，切版前的发布 PR 把 `CHANGELOG.md`「汇集至」的提交、`v0.3.0.md` 的状态句与清单摘要表刷新到那个提交，再打 tag。打了 v0.3.0 的 tag 之后，这条例外失效。
 
-**同一个版本号会对应不同的构建。** main 上每个提交都叫最近一次发布的版本；安装器遇到版本相同、内容不同时会原子刷新（`docs/installation.md`「安装边界」），每次安装的 `release.json` 记下 `content_digest`（`apps/local-host/src/installer/home-release.ts`）。0.2.0 已经因此既指 2026-09-11 的 tag，也指之后装进开发机 Home 的两个差别很大的构建（2026-09-23 的安装版，和 2026-10-07 维护三时用 e1cd4906 的构建重装的那个，见 `specs/repository-anti-corruption/spec.md` §4.1「真实 Home 维护三已做」第 1、3 步）。所以：不是从 tag 构建的安装，只说「某提交的构建」，在维护记录里写提交与 `content_digest`，不说成某个版本。
+**同一个版本号会对应不同的构建。** main 上每个提交都叫最近一次发布的版本；安装器遇到版本相同、内容不同时会原子刷新（`docs/installation.md`「安装边界」），每次安装的 `release.json` 记下 `content_digest`（`apps/local-host/src/installer/home-release.ts`）。0.2.0 已经因此既指 2026-09-11 的 tag，也指之后装进开发机 Home 的两个差别很大的构建（2026-09-23 的安装版，和 2026-10-07 维护三时用 e1cd4906 的构建重装的那个，见 `specs/archive/repository-anti-corruption/spec.md` §4.1「真实 Home 维护三已做」第 1、3 步）。所以：不是从 tag 构建的安装，只说「某提交的构建」，在维护记录里写提交与 `content_digest`，不说成某个版本。
 
 ## 4. 每次发布的材料
 
@@ -50,9 +50,11 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 ## 5. 数据库版本与产品版本
 
-产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本才能。每个库只认一个当前版本，不符就拒绝（只有搜索索引这种可重建的派生库重建，角色库只拒绝更高的版本，MCP 授权文件读成空，密钥文件 `feed/secrets.json` 拒绝读取）；怎么记、记在哪、不符时怎样，都在检查清单的「各库版本表」里，并由脚本对照代码核对：改了某个库的版本而没改表、或新增了一个以 `SqliteBaseline` 常量声明的库而没列进表，CI 都会失败（脚本找不到的情况写在检查清单第 3 节）。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。这套「版本不符就拒绝、老 Home 先维护」只到第一个装到开发机之外的版本为止（用户 2026-10-08 的决定 #15，`specs/repository-anti-corruption/spec.md` §1）：发布那个版本的 PR 把起点写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md)（检查清单第 1 节第 2 项），从那以后库的版本变更要带升级路径，不再靠拒绝加一次性维护；升级机制现在还没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2（C-2）。
+产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本才能。每个库只认一个当前版本，不符就拒绝（只有搜索索引这种可重建的派生库重建；角色库同样严格拒绝不符版本，MCP 授权文件和密钥文件 `feed/secrets.json` 拒绝读取并保留原文件）；怎么记、记在哪、不符时怎样，都在检查清单的「各库版本表」里，并由脚本对照代码核对：改了某个库的版本而没改表、或新增了一个以 `SqliteBaseline` 常量声明的库而没列进表，CI 都会失败（脚本找不到的情况写在检查清单第 3 节）。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。这套「版本不符就拒绝、老 Home 先维护」只到第一个装到开发机之外的版本为止（用户 2026-10-08 的决定 #15，`specs/archive/repository-anti-corruption/spec.md` §1）：发布那个版本的 PR 把起点写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md)（检查清单第 1 节第 2 项），从那以后库的版本变更要带升级路径，不再靠拒绝加一次性维护；升级机制现在还没有，方案见 `specs/archive/repository-anti-corruption/c-end-readiness.md` §3.2（C-2）。
 
-W5-16 B1 的讨论库 1 → 2 按这条规则执行：运行时只认 2，维护在离线副本上先 list，保留旧链接、业务事实与敏感原件后再重建；中断标记存在时拒绝启动业务库。真正维护仍与 W5-17、Goals S9 的同一个授权窗口执行，当前功能 PR 不操作真实 Home。产品发布版本不因本片提前修改。
+2026-10-30 用户经统筹 #1332 6517794305 改为干净重建：本次保留各库现行完整结构，存储起点统一为 1；W5-16 B1 的讨论库 1→2、W5-17、Goals S9 等旧库维护路线取消，旧转换工具、旧结构夹具和演练删除。各片代码先验证合入，真实 Home 的搬开与重建另等用户说“开始”，步骤见检查清单第 4 节；此决定不授权提前停服务、安装或操作 Keychain，也不改变产品发布版本及外部版本之后的兼容策略。
+
+版本号相同、结构不同的旧库不在检查范围内；重建前不要用新构建打开旧 Home。已知例子：旧角色库曾为1但没有 `character_runs`；#661之前的连接库也曾为1；记忆账本旧1曾带 `facts` 表；MCP授权、Shelf目录、`feed/secrets.json` 和讨论库以前也有过版本1。数字重新从1起算不证明这些旧形状会被拒绝；原有明确的结构、路径、权限与密钥检查仍保留。这里只引用既有记录，没有重新读取真实Home。
 
 ## 6. 交付状态与尚缺项
 
@@ -69,9 +71,9 @@ W5-16 B1 的讨论库 1 → 2 按这条规则执行：运行时只认 2，维护
 ### 7.1 两种情形的共同背景
 
 - 有安装记录的只有 `startPlatform`（`apps/local-host/src/project-plugins.ts`）交给监督器的 `entries`（`projectPluginEntries()`）里的内置插件，名单以登记上的 `project_runtime` 为准、不在这里写死（2026-10-08 写下这条时是 Characters、Shelf、Coding、Files、Diff、Git、TextStats 这 7 个；Characters 按用户 2026-10-08 的决定会并进宿主，第 4 波；CHR-1 已做，2026-10-22：它不再是插件，已有项目库里的 Characters 记录没人启动也没人改，删除是 `docs/releases/CHECKLIST.md` 第 4.3 节维护八里的一项）。记录按项目存在 `projects/<project_id>/molis-work.db` 的 `plugin_runtime_installs` 表里（`PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL`，`packages/plugin-runtime/src/repository.ts:14`），每个版本与摘要的发行物存档在同库的 `plugin_runtime_release_artifacts`（`PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL`，`packages/plugin-runtime/src/release-artifacts.ts:30`，主键含 `manifest_digest`，`:36`）。别的内置插件走旧的装配，没有这种记录。
-- 清单的摘要覆盖整份 Manifest，不只是版本（`pluginManifestDigest`，`packages/plugin-runtime/src/identity.ts:5`）：动作、权限、成果类型、界面贡献，改任何一处摘要都变。清单里还嵌着从别处引进来的定义：每个清单的 `actions` 是插件里别的文件导出的动作表（Coding 是 `codingManifest` 的 `actions: [...CODING_ACTIONS, codingArtifactPreview]`，`plugins/native/coding/src/manifest.ts:108`），Coding 的 `capabilities.consumes` 当时由 contracts 的 `agentHostCapabilities`、`goalContextCapabilities`、`goalProgressCapabilities` 展开（当前已改为 `agentHostCapabilities` 与共享的 `goalPluginActions`）（同文件 `:60-62`）。所以不碰 `manifest.ts`，摘要也会变。
+- 清单的摘要覆盖整份 Manifest，不只是版本（`pluginManifestDigest`，`packages/plugin-runtime/src/identity.ts:5`）：动作、权限、成果类型、界面贡献，改任何一处摘要都变。清单里还嵌着从别处引进来的定义：每个清单的 `actions` 是插件里别的文件导出的动作表（Coding 是 `codingManifest` 的 `actions: [...CODING_ACTIONS, codingArtifactPreview]`，`plugins/native/coding/src/manifest.ts:108`），Coding 的 `capabilities.consumes` 当时由 contracts 的 `agentHostCapabilities`、`goalContextCapabilities`、`goalProgressCapabilities` 展开（当前已改为 `agentHostCapabilities` 与 Coding 自己就地声明的 `GOALS_ACTIONS`，见 `plugins/native/coding/src/goals-actions.ts`）（同文件 `:60-62`）。所以不碰 `manifest.ts`，摘要也会变。
 - 私有数据按 `install_id` 存（`SqlitePluginPrivateStorage.forPlugin` 按它读写 `plugin_private_values`，`packages/plugin-runtime/src/private-storage.ts:51`），所以任何做法都必须保留原来的安装记录，不能卸载再重装，否则私有数据成了孤儿。
-- 用户 2026-10-04 的决定写的是内置插件「启动时把安装记录升到宿主的版本……不再恢复旧发行物」（`specs/repository-anti-corruption/spec.md` §1 该日期的一行）。#237 只做了版本更高这一种：监督器对「更高」才直接放行（`#resolveInstalledEntry` 的 `directlyUsable`，`supervisor.ts:491-492`），其余情形仍恢复旧发行物。所以下面把 Runtime 也改成不恢复旧发行物的做法（A、E），算把那条决定补全到它没覆盖的情形，还是新增行为，由用户定；用户选了 A，按补全办（第 7.6 节第 2 条）。
+- 用户 2026-10-04 的决定写的是内置插件「启动时把安装记录升到宿主的版本……不再恢复旧发行物」（`specs/archive/repository-anti-corruption/spec.md` §1 该日期的一行）。#237 只做了版本更高这一种：监督器对「更高」才直接放行（`#resolveInstalledEntry` 的 `directlyUsable`，`supervisor.ts:491-492`），其余情形仍恢复旧发行物。所以下面把 Runtime 也改成不恢复旧发行物的做法（A、E），算把那条决定补全到它没覆盖的情形，还是新增行为，由用户定；用户选了 A，按补全办（第 7.6 节第 2 条）。
 - 这 7 个插件在 v0.2.0 里还不存在（`git ls-tree v0.2.0 plugins/native/` 只有 artifacts、feed、goals、work），没有任何已发布的构建写过这些安装记录：现有的记录全部来自开发机上的构建。
 
 ### 7.2 情形一：重置那一步（一次性）——A 之前的行为
@@ -119,7 +121,7 @@ W5-16 B1 的讨论库 1 → 2 按这条规则执行：运行时只认 2，维护
 **第 3 节确认与否，决定它是偶尔的疏漏还是常态。**
 
 - 重置之后，只装 tag 构建的 Home 不会碰到情形二：每次发布产品版本都升，内置清单跟着升，Runtime 向上跟。
-- 开发机的 Home 用主检出的构建（用户 2026-10-07 定，`specs/repository-anti-corruption/spec.md` §1「维护后真实 Home 用哪份代码」一行），一个版本号下会有很多个不同的构建。第 3 节「版本只在发布 PR 里改」一旦确认，内置清单（目标是等于产品版本）在两次发布之间不会升版本，每个改了清单（或清单引进的定义）的合并都是一次情形二，开发机的 Home 每次都会停在旧代码上，直到下一次发布。不确认第 3 节、改成「清单摘要一变就升版本」，情形二就不由规则造成，但上面的历史说明光靠约定拦不住，要靠第 7.5 节的门禁。
+- 开发机的 Home 用主检出的构建（用户 2026-10-07 定，`specs/archive/repository-anti-corruption/spec.md` §1「维护后真实 Home 用哪份代码」一行），一个版本号下会有很多个不同的构建。第 3 节「版本只在发布 PR 里改」一旦确认，内置清单（目标是等于产品版本）在两次发布之间不会升版本，每个改了清单（或清单引进的定义）的合并都是一次情形二，开发机的 Home 每次都会停在旧代码上，直到下一次发布。不确认第 3 节、改成「清单摘要一变就升版本」，情形二就不由规则造成，但上面的历史说明光靠约定拦不住，要靠第 7.5 节的门禁。
 - 所以第 3 节和第 7 节要一起定；第 7 节的选项 F 就是第 3 节的另一种答案。
 
 清单可以声明本版本为自己的兼容来源：`upgrade_compatibility.compatible_from_versions: ["0.3.0"]` 写在 0.3.0 的清单上是合法的（`inspectUpgradeCompatibility`，`packages/plugin-sdk/src/manifest.ts:134-137`），有它监督器就放行，改过的清单的代码会运行，记录里的摘要保持第一次安装时的值，不更新（`install` 里的 `compatibleSameVersion` 分支，`index.ts:195-208`）。但只在授权不变时有效：清单多要或少要一项权限，启动失败 `plugin.state_invalid`（同一分支里对 grants 的比较，`index.ts:199-202`）。用例「a same-version declaration lets the changed build run without touching the record」固定了这些。它帮不了情形一，因为低版本清单不能把更高的版本列成来源（第 7.2 节第三条，`inspectUpgradeCompatibility`，`packages/plugin-sdk/src/manifest.ts:138-140`）。
@@ -197,5 +199,5 @@ A 已经落地（第 7.8 节），下面是落地之前的临时规则，保留�
 跟着宿主的构建升降版本，是 `host` 等级安装的一部分，不是内置插件的特权，也不是某个条目手写的标记。
 
 - **判定与不跟的。** 见第 7.8 节「信任」一条：只有 `host` 等级的安装跟随；`pinned`、`unsigned` 不跟，版本不同仍是 `plugin.upgrade_required`，同版本摘要不同仍是 `plugin.definition_conflict`，升级只走「同发布者、版本更高、授权不扩」。
-- **为什么算安装信任。** 宿主换了构建，`host` 等级的记录下次启动就跟上，是因为代码就在宿主构建里，宿主为它担保；同意账本里 `granted_by: "host_build"` 的那些行是同一份担保，两处同来源。所以改 `host` 的发放条件，就是改这份担保，要走安装信任的评审（`specs/repository-anti-corruption/slices/ac-trust-install.md` §2.1），不能在某个条目上单独打开。
+- **为什么算安装信任。** 宿主换了构建，`host` 等级的记录下次启动就跟上，是因为代码就在宿主构建里，宿主为它担保；同意账本里 `granted_by: "host_build"` 的那些行是同一份担保，两处同来源。所以改 `host` 的发放条件，就是改这份担保，要走安装信任的评审（等级表见 [第三方插件](../system/THIRD-PARTY-PLUGINS.md) 第 4.1 节），不能在某个条目上单独打开。
 - **发版时怎么读。** 检查清单第 4.5 节核对的记录，只有 `host` 等级的会随发版被改；`pinned`、`unsigned` 的安装发版不动，也不该在核对里出现为「没跟上」。

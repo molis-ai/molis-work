@@ -53,7 +53,8 @@ export interface RuntimeSessionHostSignals {
   molis_work_session_id: string | null;
   native_runtime_session_id: string | null;
   surface_id: string | null;
-  goal_id: string | null;
+  /** What the host's terminal works on (`MOLIS_WORK_FOCUS_ID`, the subject a plugin gave its terminal): a hint for the resume view. */
+  focus_id: string | null;
   runtime_context: RuntimeWorkContext;
   project_suggestion_clues: RuntimeProjectSuggestionClue[];
 }

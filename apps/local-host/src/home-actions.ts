@@ -7,8 +7,8 @@ import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@mo
 import { ActionError, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
   type ActionClient, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOME_DOCK_SCENE_ID, INBOX_DISMISS_OPTION_ID, INBOX_DONE_OPTION_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
+import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-judgment-rules";
+import { withFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
 
 export const HOME_PROVIDER_ID = "system.home";
 
@@ -75,6 +75,8 @@ export interface HomeSceneServices {
   actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
   /** A running Host owns this connection; standalone scene callers use a scoped service. */
   readFunctions?: FunctionsActionPorts["read"];
+  /** Whether the project reaches the plugin behind a provider (`projectPluginJudge`), so an unavailable source the project lists is shown instead of taken for one it does not have. */
+  projectPlugins?: (projectId: string) => Promise<(pluginId: string) => boolean | undefined>;
 }
 
 export function homeActionProvider(home: string, projectId: string, services: HomeSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
@@ -184,7 +186,7 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
   return { provider: { provider_id: HOME_PROVIDER_ID, title: "首页", kind: "system", project_id: projectId },
     definitions: Object.values(homeActions), scenes: [homeDockScene], scene_handlers: [handler], handlers: [
       ...createHomeOfferHandlers(services.actions),
-      ...createHomeEventHandlers(services.actions, homeActions.recommendations),
+      ...createHomeEventHandlers(services.actions, homeActions.recommendations, services.projectPlugins),
       bind(homeActions.readJudgment, async (_input, caller) => {
         const capabilities: ActionView[] = [];
         for (const action of (await services.actions.discover(caller)).filter(action => action.action.kind === "judgment")) {

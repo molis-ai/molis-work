@@ -7,7 +7,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { FEED_ACTION_PERMISSIONS, feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 async function fixture() {
@@ -26,10 +26,11 @@ async function fixture() {
     const choice = input.includes("leave") ? "feed.open" : "inbox.admit";
     return { primitive: "choice", choice, noul: null, score: null, legend: null, probabilities: { [choice]: 1 }, confidence: null, model: record.model };
   } } };
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions });
   const history = () => withFunctionsService(home, service => service.listJudgments(), functions);
-  return { home, catalog, project, reference, caller, inputs, functions, host, history,
-    close: async () => { await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); } };
+  return { home, project, reference, caller, inputs, functions, host, history,
+    close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("Feed capture runs through the common scene, keeps judgment history and survives a reopen", async () => {

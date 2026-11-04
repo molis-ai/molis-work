@@ -143,7 +143,7 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await lingguang.evaluate(`document.querySelector('[data-work-surface=lingguang] [data-lingguang-id="${noteId}"]').click()`);
   await lingguang.waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
   await click('[data-dock-pin="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals'");
   await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
   await lingguang.waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
   assert.equal(await lingguang.evaluate("document.querySelector('[data-work-surface=lingguang]').dataset.expanded"), "true", "the open note is still open");

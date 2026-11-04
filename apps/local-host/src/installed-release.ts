@@ -3,7 +3,7 @@
  * is the other (`packaged`). Nothing here names how either was made.
  */
 import type { AgentRelease } from './installed-plugin-host.js';
-import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginManifest, SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginTrust } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 
 export const releaseVersion = (version: number) => `${version}.0.0`;
@@ -12,7 +12,7 @@ export const releaseVersion = (version: number) => `${version}.0.0`;
  * A packaged release runs under the Manifest it declared (checked against the sandbox form when the package was read) and the trust the
  * Host gave its install.
  */
-export type InstalledRelease = AgentRelease & { readonly packaged?: { readonly manifest: PluginManifest; readonly trust: PluginTrust } };
+export type InstalledRelease = AgentRelease & { readonly packaged?: { readonly manifest: PluginManifest; readonly trust: PluginTrust; readonly agentBodies?: readonly SandboxAgentBody[] } };
 
 /** The version the plugin's installation record carries. */
 export const installedVersion = (release: InstalledRelease): string => release.packaged?.manifest.version ?? releaseVersion(release.version);

@@ -1,20 +1,24 @@
 import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import type { SandboxServices, SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { sandboxedPluginDefinition } from './plugin-builder/installed.js';
 import type { CatalogCapability } from './plugin-builder/catalog.js';
 import type { InstalledRelease } from './installed-release.js';
 import { covered } from './installed-plugin-lifecycle.js';
+import { rememberInstalledActionSource } from './installed-action-registration.js';
 
 /** What a project's installed plugins and the Home's both build their sandboxed definitions from (BL-628). */
 export interface InstalledDefinitionPorts {
   catalog(): Promise<CatalogCapability[]>;
+  callCatalog?(context: SandboxServiceContext): Promise<CatalogCapability[]>;
   capabilityFor(live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']>;
   network: NonNullable<SandboxServices['network']>;
   /** Throws when the installation this identity names is no longer the running one. */
   assertInstalled(identity: Readonly<SandboxIdentity>): void;
   /** The earlier versions of a studio release a later one is compatible with; none for a package. */
   earlier(release: InstalledRelease): readonly number[];
+  /** A project package's executor has no Home services; hold only its verified Agent declarations while this definition runs. */
+  holdAgentDefinitions?(definition: PluginDefinition, installId: string): (() => void) | undefined;
   /** An integration package's definition (BL-530): only the Home's instance runs them, so only the Home gives this. */
   integration?(release: InstalledRelease, approved: SandboxEffects, assertLive: (identity: Readonly<SandboxIdentity>) => void): PluginDefinition;
 }
@@ -42,11 +46,24 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       const guard = <Context extends { identity: Readonly<SandboxIdentity>; signal: AbortSignal; beforeEffect?(): Promise<void> | void }>(context: Context): Context & { beforeEffect(): Promise<void> } => ({ ...context, beforeEffect: async () => {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
-      const value = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
-        capabilities: ports.catalog, assertLive: ports.assertInstalled,
+      const sandbox = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
+        capabilities: ports.callCatalog ?? ports.catalog, assertLive: ports.assertInstalled,
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
       }, release.packaged?.manifest);
+      let withdraw: (() => void) | undefined;
+      const value: PluginDefinition = release.packaged && ports.holdAgentDefinitions ? { ...sandbox,
+        async start(context) {
+          const held = ports.holdAgentDefinitions!(value, context.install_id); withdraw = held;
+          try { return await sandbox.start(context); }
+          catch (error) { if (withdraw === held) withdraw = undefined; held?.(); throw error; }
+        },
+        async stop(context) {
+          const held = withdraw; withdraw = undefined;
+          try { await sandbox.stop?.(context); } finally { held?.(); }
+        },
+      } : sandbox;
+      if (value !== sandbox) rememberInstalledActionSource(value, release);
       definitions.set(keyOf(release), { pluginId: release.pluginId, value });
       return value;
     },

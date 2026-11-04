@@ -14,6 +14,9 @@ export function childIntake(port: MessagePort, scope: FrameScope): void {
   });
 }
 
+/** Cut to at most `max` UTF-16 units (the Host counts units too) without ending on half of a two-unit character; a value inside the limit is returned as it is. */
+const cutWhole = (text: string, max: number): string => text.length <= max ? text : text.slice(0, max).replace(/[\ud800-\udbff]$/u, "");
+
 /**
  * A trusted, focused gesture of the page reaches the workbench's own handling of such a control, from the surface that holds the frame:
  * the surface (not the page) says which plugin and which kind of object it is, so the page can only name one of its own.
@@ -23,6 +26,6 @@ export function pageIntake(scope: FrameScope, frame: HTMLIFrameElement, root: HT
     if (!scope.visible || document.activeElement !== frame || !navigator.userActivation.isActive) return;
     if (typeof message.intake_id !== "string" || typeof message.id !== "string" || !message.id || message.id.length > 256) return;
     root.dispatchEvent(new CustomEvent("molis:context-intake", { bubbles: true,
-      detail: { intake_id: message.intake_id.slice(0, 40), id: message.id, title: String(message.title ?? "").slice(0, 200), text: String(message.text ?? "").slice(0, 4000) } }));
+      detail: { intake_id: message.intake_id.slice(0, 40), id: message.id, title: cutWhole(String(message.title ?? ""), 200), text: cutWhole(String(message.text ?? ""), 4000) } }));
   };
 }

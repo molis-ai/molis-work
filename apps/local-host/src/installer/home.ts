@@ -3,13 +3,13 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { SCHEMA_VERSION, INSTALLER_ID } from "./home-contract.js";
-import type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep, TextMutation, PromotedRelease, InstallManifest } from "./home-contract.js";
+import type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep, TextMutation, PromotedRelease, InstallManifest, InspectedSource } from "./home-contract.js";
 import { inspectSource, safeReleaseName } from "./home-source.js";
 import { inspectRelease, createRelease, promoteRelease, rollbackPromotedRelease } from "./home-release.js";
-import { ensureDirectory, writeOwnedText, readOwnedJson, replaceOwnedJson, pathState, rollbackTextMutations } from "./home-files.js";
+import { ensureDirectory, writeOwnedText, readInstalledRelease, replaceOwnedJson, pathState, rollbackTextMutations } from "./home-files.js";
 import { launcherSource } from "./home-launcher.js";
 import { resolveConfiguredHome } from "../product-home.js";
-import { prepareMemoryHome } from "../memory/memory-adoption.js";
+import { prepareMemoryHome } from "../memory/memory-initialization.js";
 
 /** Installs App-owned files and initializes a new Home's memory prefs; external Runtime configuration is separate. */
 
@@ -27,6 +27,7 @@ export async function installMolisWorkHome(
   const projectDirectory = path.join(homeDirectory, "projects");
   const logsDirectory = path.join(homeDirectory, "logs");
   const installManifestPath = path.join(configDirectory, "installation.json");
+  const { previousInstall, existingRelease } = await inspectExistingHomeInstall(homeDirectory, releaseDirectory, source);
   const writtenPaths: string[] = [];
   const preservedPaths: string[] = [];
   const removedPaths: string[] = [];
@@ -38,12 +39,6 @@ export async function installMolisWorkHome(
     initializedMemory = await prepareInstallHome(homeDirectory, [releasesDirectory, configDirectory, binDirectory, projectDirectory, logsDirectory]);
     if (initializedMemory) writtenPaths.push(homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE));
 
-    const existingRelease = await inspectRelease(
-      releaseDirectory,
-      source.version,
-      source.contentDigest,
-      source.bundledNodePath != null,
-    );
     let releaseChanged = false;
     if (existingRelease === "valid") {
       preservedPaths.push(releaseDirectory);
@@ -78,7 +73,6 @@ export async function installMolisWorkHome(
       else preservedPaths.push(launcherPath);
     }
 
-    const previousInstall = await readOwnedJson<InstallManifest>(installManifestPath);
     const releasePath = path.relative(homeDirectory, releaseDirectory);
     const installChanged =
       !previousInstall ||
@@ -160,6 +154,12 @@ export async function installMolisWorkHome(
     if (promoted) await rollbackPromotedRelease(promoted);
     throw error;
   }
+}
+
+async function inspectExistingHomeInstall(homeDirectory: string, releaseDirectory: string, source: InspectedSource) {
+  const previous = await readInstalledRelease(homeDirectory);
+  const existingRelease = await inspectRelease(releaseDirectory, source.version, source.contentDigest, source.bundledNodePath != null);
+  return { previousInstall: previous?.installation ?? null, existingRelease };
 }
 
 /** A failed installation keeps complete Home prefs; only the program files belong to release rollback. */

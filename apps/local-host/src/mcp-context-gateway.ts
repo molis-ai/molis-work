@@ -68,8 +68,8 @@ async function executeContext(owner: ContextGatewayOwner, body: Record<string, u
   check: () => void, update: (cache: ContextCacheUpdate) => void): Promise<string | null> {
   const withCatalog: LocalWebCatalogRunner = (options, operation) => owner.withCatalog(options, catalog => { check(); return operation(catalog); });
   const link = createRuntimePanelSessionLinker({ withCatalog: (homeDirectory, operation) => withCatalog({ homeDirectory }, catalog => operation({
-    aliasPanelSession: input => { check(); return catalog.desktopPanels.aliasSession(input); },
-  })), isMissingPanel: error => error instanceof ActionError && error.code === "catalog.panel_not_found" });
+    aliasTerminalSession: async input => { check(); await catalog.commit(() => { check(); catalog.terminalPanels.aliasSession(input); }); },
+  })), isMissingPanel: error => error instanceof ActionError && error.code === "actions.missing" });
   let linking: Promise<void> | undefined;
   const alias = () => linking ??= link(host, protocol.runtimeSessionId);
   if (body.operation === "alias") {

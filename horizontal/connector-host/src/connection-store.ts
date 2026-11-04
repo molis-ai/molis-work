@@ -1,5 +1,5 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { installationBindingsWhere, installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere } from "./plugin-binding-scopes.js";
+import { installationBindingsWhere, installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere, type PluginBindingTarget } from "./plugin-binding-scopes.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -9,6 +9,7 @@ import type {
   ConnectorConnectionView,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { ConnectorConnectionDeclarers, inConnectorTransaction, normalizeConnectorDeclarer, type ConnectorConnectionDeclarer } from "./connection-declarers.js";
 
 const SERVICE_ID = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/u;
 const CONNECTION_ID = /^(?:[0-9a-f]{8}-[0-9a-f-]{27,}|external-[0-9a-f]{24})$/u;
@@ -49,11 +50,13 @@ function connectionFromRow(row: Row): ConnectorConnectionRecord {
   };
 }
 
-function requiredText(value: unknown, label: string, max: number): string {
-  if (typeof value !== "string" || !value.trim() || value.trim().length > max) {
+/** Counts UTF-16 units, unless told otherwise: ids a port admits by characters (`bind`) must be counted the same way here. */
+function requiredText(value: unknown, label: string, max: number, counted: "units" | "characters" = "units"): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (typeof value !== "string" || !text || (counted === "characters" ? [...text].length : text.length) > max) {
     throw connectorErrors["connector.connection.invalid"](`${label}不能为空且最多 ${max} 个字符`);
   }
-  return value.trim();
+  return text;
 }
 
 export type ConnectorTokenInput = { serviceId: string; displayName: string; token: string; accountLabel?: string | null; authMethod?: "token" | "oauth" };
@@ -116,13 +119,23 @@ export const CONNECTOR_CONNECTIONS_SCHEMA = `
     origin TEXT NOT NULL,
     FOREIGN KEY(connection_id) REFERENCES connector_connections(connection_id)
   );
+  CREATE TABLE connector_connection_declarers (
+    connection_id TEXT PRIMARY KEY,
+    plugin_id TEXT NOT NULL,
+    install_id TEXT NOT NULL,
+    plugin_title TEXT NOT NULL,
+    FOREIGN KEY(connection_id) REFERENCES connector_connections(connection_id)
+  );
 `;
 
 /** Home-scoped metadata over the connectors store's baseline tables. Secret values only live in the existing SecretStore. */
 export class ConnectorConnectionStore {
+  /** The package each connection was made for (T-134): `declarers.get(id)`, and `declarers.pin(id, …)` once for a connection that is already there. */
+  readonly declarers: ConnectorConnectionDeclarers;
+
   constructor(private readonly db: DatabaseSync, private readonly secrets: ConnectorConnectionSecrets,
     private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void,
-    private readonly onBindingChange?: (binding: ConnectorBindingKey) => void) {}
+    private readonly onBindingChange?: (binding: ConnectorBindingKey) => void) { this.declarers = new ConnectorConnectionDeclarers(db); }
 
   list(serviceId?: string): ConnectorConnectionRecord[] {
     const sql = serviceId
@@ -159,12 +172,13 @@ export class ConnectorConnectionStore {
   }
 
   view(connection: ConnectorConnectionRecord): ConnectorConnectionView {
-    const targetOrigin = this.targetOrigin(connection.connection_id);
+    const targetOrigin = this.targetOrigin(connection.connection_id), declarer = this.declarers.get(connection.connection_id);
     return {
       connection_id: connection.connection_id, service_id: connection.service_id,
       display_name: connection.display_name, account_label: connection.account_label,
       auth_method: connection.auth_method, source: connection.source, enabled: connection.enabled, state: this.state(connection),
       ...(targetOrigin ? { target_origin: targetOrigin } : {}),
+      ...(declarer ? { declared_by: { plugin_id: declarer.plugin_id, title: declarer.plugin_title } } : {}),
     };
   }
 
@@ -192,17 +206,22 @@ export class ConnectorConnectionStore {
     return origin;
   }
 
-  createToken(input: ConnectorTokenInput): ConnectorConnectionRecord {
+  /** `declarer`: the signed package the service belongs to, when it is a package's (T-134); the connection and its pin are written together. */
+  createToken(input: ConnectorTokenInput, declarer?: ConnectorConnectionDeclarer): ConnectorConnectionRecord {
     const { serviceId, displayName, token } = normalizeConnectorTokenInput(input);
+    const pin = declarer && normalizeConnectorDeclarer(declarer);
     const connectionId = randomUUID();
     const ref = `connector-connection:${connectionId}:token`;
     const now = this.now().toISOString();
     this.secrets.put(ref, token);
     try {
-      this.db.prepare(`INSERT INTO connector_connections
-        (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(connectionId, serviceId, displayName,
-        input.accountLabel?.trim() || null, input.authMethod ?? "token", ref, null, null, "managed", null, now, now);
+      inConnectorTransaction(this.db, () => {
+        this.db.prepare(`INSERT INTO connector_connections
+          (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(connectionId, serviceId, displayName,
+          input.accountLabel?.trim() || null, input.authMethod ?? "token", ref, null, null, "managed", null, now, now);
+        if (pin) this.declarers.pin(connectionId, pin);
+      });
     } catch (error) {
       this.secrets.delete(ref);
       throw error;
@@ -353,8 +372,8 @@ export class ConnectorConnectionStore {
     // `plugin-installation:<install>`, or `…/project:<project>/record:<key>` for a `per_record` slot. One that does not read back is refused.
     const scope = requiredText(input.scopeId, "作用域", 512);
     if (isPluginBindingScope(scope) && !parsePluginBindingScope(scope)) throw pluginBindingErrors.scope_invalid("插件连接槽的作用域无效");
-    const plugin = requiredText(input.pluginId, "插件", 160);
-    const slot = requiredText(input.slotId, "用途", 160);
+    const plugin = requiredText(input.pluginId, "插件", 160, "characters");
+    const slot = requiredText(input.slotId, "用途", 160, "characters");
     this.db.prepare(`INSERT INTO connector_bindings (scope_id,plugin_id,slot_id,connection_id,updated_at)
       VALUES (?,?,?,?,?) ON CONFLICT(scope_id,plugin_id,slot_id) DO UPDATE SET connection_id=excluded.connection_id,updated_at=excluded.updated_at`)
       .run(scope, plugin, slot, connection.connection_id, this.now().toISOString());
@@ -391,10 +410,16 @@ export class ConnectorConnectionStore {
     return forgetBindings(this.db, match, this.onBindingChange);
   }
 
-  /** The installations that have a binding of any kind, so a caller can ask which of them are still installed (BL-596). */
-  bindingInstallationIds(): string[] {
-    const rows = this.db.prepare("SELECT DISTINCT scope_id FROM connector_bindings").all() as Array<{ scope_id: string }>;
-    return [...new Set(rows.flatMap(row => isPluginBindingScope(row.scope_id) ? parsePluginBindingScope(row.scope_id)?.install_id ?? [] : []))];
+  /**
+   * The plugins' bindings, each read back from its scope: installation slots and `per_record` ones, of every connection or of one. A caller
+   * asks which installations have any, to see which are still installed (BL-596), or what one connection is bound to, which the platform
+   * reports as its uses (`connectors.plugin_slot.usages`, T-121). A scope that is not a plugin's is a built-in consumer's, not listed.
+   */
+  pluginBindings(connectionId?: string): Array<PluginBindingTarget & { plugin_id: string; slot_id: string }> {
+    const rows = (connectionId === undefined
+      ? this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings ORDER BY scope_id, plugin_id, slot_id").all()
+      : this.db.prepare("SELECT scope_id, plugin_id, slot_id FROM connector_bindings WHERE connection_id = ? ORDER BY scope_id, plugin_id, slot_id").all(connectionId)) as Array<{ scope_id: string; plugin_id: string; slot_id: string }>;
+    return rows.flatMap(row => { const target = parsePluginBindingScope(row.scope_id); return target ? [{ ...target, plugin_id: row.plugin_id, slot_id: row.slot_id }] : []; });
   }
 
   unbind(scopeId: string, pluginId: string, slotId: string): void {
@@ -402,6 +427,14 @@ export class ConnectorConnectionStore {
       .run(scopeId, pluginId, slotId);
     if (result.changes) this.onBindingChange?.({ scope_id: scopeId, plugin_id: pluginId, slot_id: slotId });
   }
+}
+
+/**
+ * Every binding under one plugin name of one scope, such as the image namespace the Host derives for a sandboxed installation (BL-491); the accounts stay.
+ * A function over the connection, not a method, so the store stays inside its size limit.
+ */
+export function forgetPluginBindings(db: DatabaseSync, scopeId: string, pluginId: string, onBindingChange?: (binding: ConnectorBindingKey) => void): number {
+  return forgetBindings(db, { where: "scope_id = ? AND plugin_id = ?", parameters: [scopeId, pluginId] }, onBindingChange);
 }
 
 /** Deletes the bindings `match` selects and tells `onBindingChange` about each one that went. */

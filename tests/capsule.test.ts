@@ -7,7 +7,7 @@ import { createLocalHostCapsule, LocalProjectDatabase } from "@molis-ai/molis-wo
 import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
 const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(renderDesktopCapsuleShell);
 import { eventDirectoryPresentation, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
@@ -397,10 +397,9 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /capsule__goal-row/);
   assert.match(html, /aria-selected/);
   assert.match(html, /overflow-x: auto/);
-  // Soft Workbench (DESIGN.md → Colors, Typography): the capsule shares the shell tokens (copper accent) and the
-  // system font stack, with weight roles instead of a forced 400. The visual refinement darkened copper a step
-  // (#95624c → #93604b) so copper links and focus text reach 4.5:1 on paper (spec → 第三轮 · 对比度).
-  assert.match(html, /--accent: #93604b/);
+  // Soft Workbench (DESIGN.md → Colors, Typography): the capsule shares the shell tokens (mist-blue accent) and the
+  // system font stack, with weight roles instead of a forced 400. The accent reaches 4.5:1 on paper.
+  assert.match(html, /--accent: #3c6e98/);
   assert.match(html, /Noto Sans SC/);
   assert.doesNotMatch(html, /font-weight: 400 !important/);
   assert.doesNotMatch(html, /#4f6ff7/);

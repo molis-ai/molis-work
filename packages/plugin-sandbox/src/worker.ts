@@ -1,5 +1,5 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxModelChoice, SandboxModelResult, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxImageConnection, SandboxImageResult, SandboxImageState, SandboxModelChoice, SandboxModelResult, SandboxModelSettingsView, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
 /** The Host's cap for one original file, and the part the channel carries at a time (the broker holds the same two numbers). */
@@ -88,6 +88,17 @@ function sdk(callId: string): SandboxSdk {
       choices: () => answer<SandboxModelChoice[]>(invoke('model.choices', [])),
       availability: selection => answer<SandboxModelAvailability>(invoke('model.availability', [selection === undefined ? null : json(selection)])),
       complete: request => answer<SandboxModelResult>(invoke('model.complete', [json(request)])),
+      settings: {
+        read: () => answer<SandboxModelSettingsView>(invoke('model.settings.read', [])),
+        save: selection => answer<SandboxModelSettingsView>(invoke('model.settings.save', [json(selection)])),
+      },
+    },
+    imageGeneration: {
+      connections: () => answer<SandboxImageConnection[]>(invoke('imageGeneration.connections', [])),
+      inspect: target => answer<SandboxImageState>(invoke('imageGeneration.inspect', [json(target)])),
+      bind: async (target, connectionId) => { await invoke('imageGeneration.bind', [json(target), connectionId]); },
+      unbind: async slotId => { await invoke('imageGeneration.unbind', [slotId]); },
+      generate: request => answer<SandboxImageResult>(invoke('imageGeneration.generate', [json(request)])),
     },
     background: {
       start: (operation, input) => invoke('background.start', [operation, json(input)]) as Promise<string>,

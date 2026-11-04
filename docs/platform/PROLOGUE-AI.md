@@ -32,7 +32,7 @@
 | 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create.v1` / `agent.run.start.v1` / `agent.run.wait.v1` / `agent.run.control.v1`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：它发布的 Character 由 Coding 或助理的一轮按固定版本带上 |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
-宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（`tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED` 冻结名单里的那几个，词义见 `docs/system/GLOSSARY.md`）的宿主绑定文件，W5-11 的 A 半已收完（2026-10-26 核）：宿主里按插件写的拿模型绑定只剩 `apps/local-host/src/alchemist-prologue.ts` 一处，登记为例外，删除条件是 Alchemist 重做并进 Plugin Runtime（统筹 2026-10-26 定，不再挂在 W5-11 上）；`typesafe-prologue.ts` 是判断服务的 TypeSafe 推理适配，不是文本模型调用，`services.model` 不适用，随判断规则模块留着。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
+宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（只剩用户批过的两个例外 Alchemist、插件创作台，`tests/builtin-plugin-assembly-gate.test.ts` 的 `APPROVED_BUILD_TIME_EXCEPTIONS`；词义见 `docs/system/GLOSSARY.md`）的宿主绑定文件，W5-11 的 A 半已收完（2026-10-26 核）：宿主里按插件写的拿模型绑定只剩 `apps/local-host/src/alchemist-prologue.ts` 一处，登记为例外，删除条件是 Alchemist 重做并进 Plugin Runtime（统筹 2026-10-26 定，不再挂在 W5-11 上）；`typesafe-prologue.ts` 是判断服务的 TypeSafe 推理适配，不是文本模型调用，`services.model` 不适用，随判断规则模块留着。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
 
 不要为了统一把单次调用塞进 Agent 循环，也不要在插件或 Host 里直接依赖 `@prologue/sdk`——只有 `horizontal/agent-host` 声明了这个依赖（`scripts/workspace-packages.mjs`），其他包经它的公开入口使用。
 
@@ -81,18 +81,22 @@ SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象�
 
 ```text
 Coding 页面 → plugins/native/coding/src/routes.ts
-  → agent.run.start.v1@2 → AgentHost.start（horizontal/agent-host/src/index.ts）
+  → agent.run.start.v1@3 → AgentHost.start（horizontal/agent-host/src/index.ts）
       冻结角色（调用者这次激活的 Manifest 与定义里的 `agent_prompts`；没有调用者就没有角色，PG-051）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
   → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
-  ← agent.run.wait.v1@3 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
+  ← agent.run.wait.v1@4 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
+
+普通文字材料只有 `material_id/title/text`，模型的数据头是 `{title, material_id}`。只有实际固定引用才成对提供 `source_artifact_id/source_version`，其数据头保持 `{title, artifact_id, version}`；固定引用可能来自成果或过程项，原 owner 不变。两种材料的正文都逐字进入 SDK data 资源，头与正文合计不超过 20,000 UTF-16 units；半份或非法来源在派发前拒绝。冻结记录仅保留实际提供的来源，Work、Session、Question 与实时 Page 标识不能充当固定引用。
 
 **每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。
 
 正式 AgentHost Action 的启动输入允许既有 `original_input` 草稿和 `continued_from`，但 project/plugin/install/actor 只由 Host 调用上下文推导，冻结角色不从输入读。原件草稿不是本人证明：Host 仍比对受保护输入的安装、正文、作者、编号及首次时间。Run、Session 最新轮次与等待输出保留 canonical `original_input`，顶层未知字段仍拒绝。助理向通用执行方转交补充时，只匹配所选插件当前安装的精确 `run.control` Action/版本，原话通过 Host 上下文传递，不放进业务 `original` 字段。
+
+Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
 
 ## 4. 新增一个 AI 能力：调用骨架与可执行示例
 
@@ -145,7 +149,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 
 **等待一轮后台 Agent：`services.agents.run`**（`packages/contracts/src/platform/plugin-agents.ts`，`apps/local-host/src/plugin-agent-service.ts`）。项目插件声明 `agent:run` 与自己的角色，在声明同项权限的 concurrent command 或保留 job 中调用；只传角色、任务、标题、可选工作区 id 和至多十分钟的时限。平台从实际激活派生身份，核项目工作区，复用本 Home 的同一个 Prologue 与现行提示/记忆装配。完成时返回正文与会话/运行引用。原动作取消、停用、撤权、超时或等待人工交互时取消本次运行；不留下脱离原调用的 Agent，也不向插件开放其他运行的控制句柄。真实 Runtime、HTTP 模型与取消零写回归在 `tests/security-invariants-plugin-agents.test.ts`。
 
-**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke` 或只读的 `model:read`、平台有 Home，`context.services.model` 才存在（沙箱执行的包也有，经 broker 的 `sdk.model` 用，请求只写登记过的指令 id，PG-017 P1、S-66）；`model:read` 只开 `choices()` 与 `availability()`（二者认 `model:read` 或 `model:invoke`，既声明又持有其一即可），发请求的 `complete()` 只认 `model:invoke`；它不是 typed 能力，生成插件今天仍走 `model.generate`（创作台一侧还没接上 `sdk.model`，见 `specs/repository-anti-corruption/slices/pg017-sandbox-services.md` §4）。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时把它的声明改成「未运行」（设置里仍可看、可改，方法不给别的 Agent，卸载才删，PG-051 Q1 b），不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
+**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke` 或只读的 `model:read`、平台有 Home，`context.services.model` 才存在（沙箱执行的包也有，经 broker 的 `sdk.model` 用，请求只写登记过的指令 id，PG-017 P1、S-66）；`model:read` 只开 `choices()` 与 `availability()`（二者认 `model:read` 或 `model:invoke`，既声明又持有其一即可），发请求的 `complete()` 只认 `model:invoke`；它不是 typed 能力，生成插件今天仍走 `model.generate`（创作台一侧还没接上 `sdk.model`，见 `specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md` §4）。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时把它的声明改成「未运行」（设置里仍可看、可改，方法不给别的 Agent，卸载才删，PG-051 Q1 b），不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
 
 - **只在插件自己的动作里**：处理器所在的动作要在 `action.permissions` 里写 `model:invoke`，并且 `scheduling: "concurrent"`。Runtime 给每个动作处理器包一层（`action-scope.ts`，`AsyncLocalStorage`），记下正在执行的动作和这次调用的 `beforeEffect`；插件不传、也伪造不了。`start()`、路由、定时器、别的插件的动作、串行动作、没声明权限的动作里调用，在发出之前就以 `plugin.model_action_required`、`plugin.model_action_not_concurrent`、`plugin.model_permission_undeclared` 拒绝。
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
@@ -303,7 +307,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 - 通用（所有 AI 能力）：第 4–8 节。
 - Coding 专属：会话/轮次/计划/委派、子代理并行、跨轮摘要、Git 提交说明起草（`agent.draft-text.v1`）、协同与等待——见 `specs/coding-plugin/spec.md`，不要照搬到单次调用场景。
 - 插件创作台：专用代码 Agent 与沙箱，见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`。
-- 判断函数（Jev/TypeSafe）：系统级 `modules/functions`，场景绑定与消费见 `specs/action-architecture/spec.md`「函数调用与 Jev 判断」。
+- 判断函数（Jev/TypeSafe）：系统级 `modules/judgment-rules`，场景绑定与消费见 `specs/action-architecture/spec.md`「函数调用与 Jev 判断」。
 
 Coding 的后台 follower 按 activation 观察 Run，停止后取消等待并拒绝晚结果；Run 停止或待核对时发 `run-updated` 刷新提示。Git 从 Prologue Effect 与 dispatch 回执核对后的 ReviewQueue 新结果发 `operation-updated`，恢复历史保持静默。两者触发 Files/Git 重新读取现状，不声称一定改了文件，也不因通知失败重试原执行。
 
@@ -720,3 +724,8 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 - Anthropic，[Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)（2025-09-29）：上下文是有限的资源，要找能完整定义期望行为的最小一组高价值信息；系统 prompt 在「写死的脆弱逻辑」与「空泛的高层指引」之间找合适的高度；示例用少量多样的典型例子，不列边界情况清单；用引用按需取用信息；长任务用压缩、结构化笔记和子代理。对应本手册 12.4、13.1、13.3。
 - Anthropic，[Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)（2024-12-19，页面自己注明其中提到的工具已有变化）：先找最简单的方案，只在能证明结果更好时增加复杂度；workflow 是预先写好代码路径的编排，agent 由模型自己决定过程和工具；给模型的工具接口值得像人机界面一样用心设计，改参数让错误难犯。对应 12.3、13.4。文中的具体 API 与产品现状不照搬。
 - OpenAI，[Harness engineering](https://openai.com/index/harness-engineering/)：需求书于 2026-10-15 核对并引用，取「仓库知识要可发现、给 Agent 能看见结果的反馈环境、不把全部知识堆成一大段常驻指令」这一层意思。2026-10-16 再核对时页面要求人机验证，未能读到原文，本手册不在需求书之外引申。对应 17 节的入口做法与第 16 节。
+
+
+### 签名包的角色资料与方法
+
+签名 app 包的文字声明与 Native AgentManifest 不同，见 [插件开发手册](PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。助理的 `assistant.methods.read@2` 接收目录中的精确版本和安装引用，角色与方法以 `kind` 区分；签名正文、名字、用途都属于不可信 JSON 数据，不进入角色指令或 inlineMethods，也不扩展工具与目录授权。可编辑角色的来源引用与用户 revision 在原 AgentDefinitions 覆盖/history/uses 中保存；使用以有效 handoff 回执为界。取材后、每次新交付前复核来源与当前用户修订；有效历史不会因随后停用被改写。补充材料预算不足时明确拒绝整次发送，不能截坏正文或来源 JSON。

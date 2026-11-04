@@ -4,7 +4,7 @@ import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-wor
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { functionsConnectionStatus } from "./functions-host.js";
+import { functionsConnectionStatus } from "./judgment-rules-host.js";
 import { capabilitiesView } from "./web-capabilities.js";
 import { callDiagnosticsView } from "./web-call-diagnostics.js";
 import { connectorSettingsView } from "./web-connector-settings.js";

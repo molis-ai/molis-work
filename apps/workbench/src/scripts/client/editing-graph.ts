@@ -1,13 +1,12 @@
-import { GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT, GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { FRAME_CONTAINER_FACTORY_SCRIPT } from "./frame-container.js";
 import { TAB_WORKSPACE_FACTORY_SCRIPT } from "./tab-workspace.js";
-import { GOALS_RELATION_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
-import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { pluginPageClients } from "../../plugin-workbench.js";
+
+const GOALS_PAGE = pluginPageClients("goals");
 /** AP3 Workbench client segment: editing-graph. */
 export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const { updateRelationPreviews, updateAllRelationFormPreviews, handleGoalRelationChange,
-      handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_RELATION_CLIENT_FACTORY_SCRIPT})({
+      handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_PAGE.goalsRelation})({
         form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"),
         refreshBoard: (...args) => refreshBoard(...args),
         requireFormFacts: (...args) => requireFormFacts(...args),
@@ -37,7 +36,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     const showToast = (message,error=false) => {molisWorkRequest.toast(toast,typeof message==="string"?undefined:message,typeof message==="string"?message:undefined,{ms:2200});toast.dataset.mwState=error?"failed":"done";toast.classList.toggle("is-error",error);};
 
-    const { handleGoalPolicySubmit } = (${GOALS_POLICY_CLIENT_FACTORY_SCRIPT})({
+    const { handleGoalPolicySubmit } = (${GOALS_PAGE.goalsPolicy})({
       route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"), requireFormFacts, showToast,
       refreshBoard: (...args) => refreshBoard(...args),
       showFactorReceipt: (...args) => showFactorReceipt(...args),
@@ -48,7 +47,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const goalPageUrl = (goalId) => goalPageBase() + encodeURIComponent(goalId) + (document.body.dataset.nativeDesktop === "true" ? "?desktop=1" : "");
 
     const { readCreateDraft, refreshCreateChoices, openCreate, handleGoalDialogClick, handleGoalTrashSubmit,
-      bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT})({
+      bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_PAGE.goalsDialogs})({
         dialog, form, route, controlHeaders: molisWorkControlHeaders,
         refreshBoard: (...args) => refreshBoard(...args), updateRelationPreviews,
         currentLocale: () => document.documentElement.lang, translate: LFor("io.molis.work.goals"),
@@ -56,7 +55,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         clearCurrentGoalUiState: () => sessionStorage.removeItem(currentGoalUiStorageKey),
         navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
       });
-    const { handleGoalLifecycleClick } = (${GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT})({
+    const { handleGoalLifecycleClick } = (${GOALS_PAGE.goalsLifecycle})({
       route, controlHeaders: molisWorkControlHeaders, refreshBoard: (...args) => refreshBoard(...args),
       showToast, navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
     });
@@ -106,7 +105,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const { graphElement, loadGoalGraph, syncGoalWorkspace, updateGraphVisibility, readMomentumState,
       restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
       locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
-      (${GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT})({
+      (${GOALS_PAGE.goalsMomentum})({
         workspace, documentCollection, route, translate: LFor("io.molis.work.goals"),
         projectId: state.project?.project_id || state.snapshot.board.project_id,
         selectGoal: (...args) => selectGoal(...args),
@@ -119,7 +118,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         setNavigatorView: (...args) => setNavigatorView(...args),
       });
     const setWorkspaceMode = (view, persist = true, preserveMobile = false) => {
-      const graph = graphElement();
+      const graph = goalData ? graphElement() : null;
       const nextMode = view === "graph" && graph
         ? "graph"
         : view === "runtime" && tuiPane
@@ -130,7 +129,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       workspace.dataset.navigatorView = navigatorView;
       workspace.dataset.workspaceMode = nextMode;
       workspace.classList.toggle("is-graph-view", nextMode === "graph");
-      const canvasActive = Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goal";
+      const canvasActive = goalData && Boolean(workspace.querySelector("[data-goal-canvas-shell]")) && activeDesktopSurface === "goals";
       if (canvasActive) {
         documentPane.hidden = false;
         if (tuiPane) tuiPane.hidden = false;
@@ -148,8 +147,10 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         if (persist) queueSave();
         return;
       }
-      syncGoalWorkspace(nextMode, false);
-      documentPane.hidden = nextMode !== "focus";
+      if (goalData) {
+        syncGoalWorkspace(nextMode, false);
+        documentPane.hidden = nextMode !== "focus";
+      }
       if (tuiPane) tuiPane.hidden = nextMode !== "runtime";
       document.querySelectorAll("button[data-navigator-view]").forEach((button) => {
         const active = button.dataset.navigatorView === navigatorView;
@@ -173,6 +174,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
 
     frameContainer = (${FRAME_CONTAINER_FACTORY_SCRIPT})({
       translate: L, showToast,
+      frameAssets: () => deferredClients.frameAssets(),
+      visible: () => boardLifetime?.visible === true,
       visibleGoals: () => visibleGoals(),
       getSurface: () => activeDesktopSurface,
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
@@ -195,8 +198,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     });
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
-        prepareSurface: surface => deferredClients?.prepare(surface),
-        setFeedTask, setFeedAddOpen, showToast, paneMessages,
+        prepareSurface: (surface, intent) => deferredClients?.prepare(surface, intent),
+        showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,
         getSurface: () => activeDesktopSurface,
@@ -206,9 +209,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         setMobileView: (...args) => setMobileView(...args),
         applySelection: (goalId) => applySelection(goalId, false),
         loadGoalDocument: (goalId) => loadGoalDocument(goalId),
-        getDocumentGoalId: () => documentPane.querySelector("[data-goal-view]")?.dataset.goalView,
-        selectFeedItem: (...args) => selectFeedItem(...args),
-        selectInboxEntry: (...args) => selectInboxEntry(...args),
+        getDocumentGoalId: () => goalData ? documentPane.querySelector("[data-goal-view]")?.dataset.goalView : undefined,
         getProjectId: () => state.project?.project_id || state.snapshot.board.project_id,
         visibleGoals: () => visibleGoals(),
         showCanvas: () => frameContainer?.showCanvas(),

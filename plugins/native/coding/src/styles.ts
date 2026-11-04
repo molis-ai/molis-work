@@ -652,11 +652,19 @@ ${CODING_COMPOSER_BAR_STYLES}
   .coding-outcome .mw-btn,.coding-command > summary { min-height:44px; }
 }
 
-/* Session rows use the shared state ring; labels retain the session's own state. */
+/* Session rows use the shared state ring; labels retain the session's own state. One line per session: the title, its state
+   as a chip tinted by its own colour, then the time — the state never drops to a line of its own. */
 .coding-session-state { display:inline-flex; align-items:center; gap:4px; }
-.coding-session-state[data-state=running] { color:var(--blue); }
-.coding-session-state:is([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
-.coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
+.mw-dir-row.coding-session-row { height:32px; min-height:32px; align-items:center; padding-block:0; }
+.mw-dir-row.coding-session-row .mw-dir-row__icon { margin-top:0; }
+.mw-dir-row.coding-session-row .mw-dir-row__copy { grid-template-columns:minmax(0,1fr) auto auto; grid-template-rows:none; align-items:center; column-gap:8px; }
+.mw-dir-row.coding-session-row .mw-dir-row__headline { display:contents; }
+.mw-dir-row.coding-session-row .coding-session-state { order:1; height:20px; padding:0 7px 0 5px; border-radius:6px; background:color-mix(in srgb,currentColor 10%,transparent); color:var(--muted); font-size:11px; line-height:20px; }
+.mw-dir-row.coding-session-row .coding-session-time { order:2; }
+.mw-dir-row.coding-session-row .coding-session-state[data-state=running] { color:var(--blue); }
+.mw-dir-row.coding-session-row .coding-session-state:is([data-state=paused],[data-state=waiting-answer],[data-state=waiting-approval]) { color:var(--amber); }
+.mw-dir-row.coding-session-row .coding-session-state:is([data-state=failed],[data-state=reconcile-required]) { color:var(--red); }
+.mw-dir-row.coding-session-row .coding-session-state[data-state=done] { color:var(--green); }
 
 /* Streaming caret: sits after the last line the model has written so far. */
 .coding-turn.is-writing > :last-child::after,.coding-turn.is-writing:not(:has(> *))::after { content:""; display:inline-block; width:.45em; height:1.05em; margin-left:4px; vertical-align:-.15em; border-radius:1px; background:var(--ink); opacity:.55; }

@@ -1,4 +1,4 @@
-import type { GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalPolicy } from "./contract/goals.js";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mergeGoalPolicyFormValues, type GoalsPolicyBinding, type GoalsPolicyItem, type GoalsPolicyUiPrimitives } from "./policy-ui-model.js";
 

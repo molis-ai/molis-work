@@ -26,7 +26,7 @@ import { createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration
 import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// S-101 (docs/system/SECURITY-INVARIANTS.md), W5-11 slice 3 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md
+// S-101 (docs/system/SECURITY-INVARIANTS.md), W5-11 slice 3 (specs/archive/repository-anti-corruption/slices/w511-connector-oauth-declarations.md
 // §3.3, §3.4): the generic OAuth callback, judged in order. The Host is checked before the store; once the record is taken by its state,
 // every refusal ends it. Rules 1–7 refuse before any request; rules 8 and 9 refuse after the token request, and what it exchanged is
 // neither staged nor committed. A refusal writes only the taken record, the authorization's status and the cleared stage: no connection,
@@ -273,16 +273,22 @@ test("S-101 RAC-1084 rule 8: a reauthorization whose connection changed meanwhil
   } finally { h.close(); }
 });
 
-test("S-101 RAC-1083 every request of the generic flow refuses to follow a redirect, and the saved configuration pins no declaration", async () => {
+// W5-11 slice 5 (RAC-1087): the saved configuration keeps only the connection's binding (plugin, publisher, endpoint fingerprint); the
+// install, the method's fingerprint and the issuer stay in the pending record.
+test("S-101 RAC-1083 every request of the generic flow refuses to follow a redirect, and the saved configuration pins only the binding (RAC-1087)", async () => {
   const h = harness();
   try {
     const started = await h.start();
     await h.complete({ origin, state: h.stateOf(started), code: "code" });
     assert.ok(h.sent.length >= 2);
     for (const entry of h.sent) assert.equal(entry.redirect, "error", entry.url);
-    const saved = Object.keys(withConnectorProtocols(h.directory, store => store.get(started.connection_id)) ?? {});
+    const configuration = withConnectorProtocols(h.directory, store => store.get<ConnectorProtocolConfiguration & { binding?: Record<string, string> }>(started.connection_id))!;
+    const saved = Object.keys(configuration);
     assert.ok(saved.includes("clientId"));
     for (const key of ["plugin", "fingerprint", "issuer", "previousRevision"]) assert.equal(saved.includes(key), false, key);
+    assert.deepEqual(Object.keys(configuration.binding ?? {}).sort(), ["endpoint", "plugin_id", "publisher_id"]);
+    assert.deepEqual([configuration.binding!.plugin_id, configuration.binding!.publisher_id], ["io.molis.work.integration.catalog", "io.molis"]);
+    assert.match(configuration.binding!.endpoint!, /^[0-9a-f]{64}$/u);
   } finally { h.close(); }
 });
 

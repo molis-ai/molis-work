@@ -80,6 +80,12 @@ export const GOALS_PROPOSAL_STYLES = `  .goal-tree-proposal-summary { margin-top
   .goal-tree-proposal-acceptance li { margin: 4px 0; padding-left: 4px; }
   .goal-tree-proposal-acceptance li small { display: block; color: var(--muted); }`;
 
-export const GOALS_PROPOSAL_MOBILE_STYLES = `    .goal-tree-proposal-details { grid-template-columns: 1fr; }
-    .goal-tree-proposal-acceptance { grid-column: 1; }`;
+export const GOALS_DECISION_MOBILE_STYLES = `.decision-record-heading { align-items: flex-start; }
+.decision-guidance { grid-template-columns: 1fr; }
+.decision-guidance > section { border-right: 0; border-bottom: 1px solid var(--line); }
+.decision-guidance > section:last-child { border-bottom: 0; }
+.decision-scenario dl > div { grid-template-columns: 1fr; gap: 4px; }`;
+
+export const GOALS_PROPOSAL_MOBILE_STYLES = `.goal-tree-proposal-details { grid-template-columns: 1fr; }
+.goal-tree-proposal-acceptance { grid-column: 1; }`;
 

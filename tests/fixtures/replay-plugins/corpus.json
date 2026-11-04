@@ -1,16 +1,95 @@
 {
-  "about": "The plugins scripts/replay-plugins.mjs replays (W4-01): the public SDK sample, one built-in as pnpm pack ships it, and (to come) two or three plugins the studio generated with a real model in an isolated Home. Each names one action to call before and after an upgrade.",
+  "about": "W4-01 replay corpus: public SDK sample, packed built-in, a real model-generated counter, and a model-generated list backend with explicitly approved human acceptance/text adaptation. Signed samples use the real installation, upgrade and Host restart path on macOS; other platforms report unsupported.",
   "samples": [
     {
       "id": "plugin-sample",
-      "source": { "kind": "directory", "path": "../../../examples/plugin-sample", "entry": "index.mjs", "export": "default" },
-      "action": { "capability_id": "io.molis.work.example.notes.results.read", "version": 1, "input": {}, "expect": { "count": 0, "latest": null } }
+      "source": {
+        "kind": "directory",
+        "path": "../../../examples/plugin-sample",
+        "entry": "index.mjs",
+        "export": "default"
+      },
+      "action": {
+        "capability_id": "io.molis.work.example.notes.results.read",
+        "version": 1,
+        "input": {},
+        "expect": {
+          "count": 0,
+          "latest": null
+        }
+      }
     },
     {
       "id": "text-stats-packed",
-      "source": { "kind": "packed", "package": "plugins/native/text-stats", "entry": "dist/index.js", "export": "createTextStatsPlugin" },
-      "built_in": true, "project_plugin_id": "text-stats",
-      "action": { "capability_id": "text-stats.count", "version": 1, "input": { "text": "一行\nline" }, "expect": { "characters": 7, "utf8_bytes": 11, "lines": 2 } }
+      "source": {
+        "kind": "packed",
+        "package": "plugins/native/text-stats",
+        "entry": "dist/index.js",
+        "export": "createTextStatsPlugin"
+      },
+      "built_in": true,
+      "project_plugin_id": "text-stats",
+      "action": {
+        "capability_id": "text-stats.count",
+        "version": 1,
+        "input": {
+          "text": "一行\nline"
+        },
+        "expect": {
+          "characters": 7,
+          "utf8_bytes": 11,
+          "lines": 2
+        }
+      }
+    },
+    {
+      "id": "generated-counter",
+      "source": {
+        "kind": "signed-package",
+        "path": "generated-counter/v1.json",
+        "upgrade_path": "generated-counter/v2.json"
+      },
+      "action": {
+        "operation_id": "text.count",
+        "version": 1,
+        "input": {
+          "text": "一行\nline"
+        },
+        "expect": {
+          "characters": 7,
+          "utf8_bytes": 11,
+          "lines": 2
+        }
+      }
+    },
+    {
+      "id": "generated-list",
+      "source": {
+        "kind": "signed-package",
+        "path": "generated-list/v1.json",
+        "upgrade_path": "generated-list/v2.json"
+      },
+      "action": {
+        "operation_id": "items.list",
+        "version": 1,
+        "input": {},
+        "initial_expect": {
+          "items": []
+        },
+        "expect_texts": [
+          "周五整理资料"
+        ]
+      },
+      "write": {
+        "operation_id": "items.add",
+        "version": 1,
+        "input": {
+          "text": "周五整理资料"
+        },
+        "expect": {
+          "added": true
+        }
+      }
     }
   ]
 }

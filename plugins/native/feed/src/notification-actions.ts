@@ -3,7 +3,7 @@ import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, type PluginNotificationDelivery, ty
 import type { FeedApplication } from "./application.js";
 
 /**
- * Feed takes the platform's notifications (D6-2, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §4): a plugin that
+ * Feed takes the platform's notifications (D6-2, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §4): a plugin that
  * sends one writes it to the platform's queue, and the platform hands it to the receiver a Manifest declares in `notifications.receive`.
  * This action is that receiver. It is not a person's or a workflow's action: only the platform's notification service calls it (the
  * workflow audience with `PLUGIN_NOTIFICATION_DELIVERY_ACTOR`), and any other caller is refused.

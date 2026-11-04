@@ -1,9 +1,9 @@
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRecord } from "./contract/goals.js";
 import { goalAction } from "./action-contract.js";
-import { text, identifier, object, array, boolean, enumeration, goalStateSchema, goalHistoryPageSchema, eventType } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, object, array, boolean, enumeration, goalStateSchema, goalHistoryPageSchema, eventType } from "./contract/goal-actions.js";
 import { goalRelationSchema } from "./configuration-actions.js";
-import { planningMethodSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { planningMethodSchema } from "./contract/goal-actions.js";
 import { createGoalEventDocumentView, type GoalEventDocumentView, type GoalEventDocumentPorts } from "./event-document-model.js";
 import type { GoalsPlanningActionPorts } from "./planning-actions.js";
 import type { GoalHistoryQueryPorts } from "./history-query.js";
@@ -17,18 +17,21 @@ export const goalDocumentAction = goalAction<{ goal_id: string }, GoalEventDocum
     relations: array(goalRelationSchema), planning_methods: array(planningMethodSchema),
     transfer: object({ available: boolean, kind: enumeration(["resume_cancelled", "reopen_event_completed", null]) }), types: array(eventType) }));
 
-export function createGoalDocumentActionHandler(projectId: string, ports: {
+interface GoalDocumentPorts {
   goal(goalId: string): GoalRecord;
   events: GoalEventDocumentPorts;
   history: GoalHistoryQueryPorts;
   planning: GoalsPlanningActionPorts["planning"];
-}): ActionHandlerBinding {
-  return { ...goalDocumentAction, handle: (_caller, input) => {
-    const { goal_id } = input as { goal_id: string };
-    const goal = ports.goal(goal_id);
+}
+
+export function readGoalDocument(projectId: string, ports: GoalDocumentPorts, goalId: string): GoalEventDocumentView {
+    const goal = ports.goal(goalId);
     const snapshot = ports.history.snapshot();
     return createGoalEventDocumentView({ projectId, goal, ports: ports.events, snapshot,
-      relations: snapshot.relations.filter(r => r.from_goal_id === goal_id || r.to_goal_id === goal_id),
+      relations: snapshot.relations.filter(r => r.from_goal_id === goalId || r.to_goal_id === goalId),
       events: ports.history.journalEvents(), planning_methods: ports.planning.effectiveMethods(projectId) });
-  } };
+}
+
+export function createGoalDocumentActionHandler(projectId: string, ports: GoalDocumentPorts): ActionHandlerBinding {
+  return { ...goalDocumentAction, handle: (_caller, input) => readGoalDocument(projectId, ports, (input as { goal_id: string }).goal_id) };
 }

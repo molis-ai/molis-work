@@ -1,9 +1,6 @@
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
-import { cancelGmailOAuthFlow } from "./gmail-oauth.js";
-import { cancelNotionOAuthFlow } from "./notion-oauth.js";
-import { clearOAuthConnectionTarget } from "./connector-oauth-targets.js";
 import { cleanupConnectorInstallation } from "./connector-tool-cleanup.js";
 import type { ConnectorActivation } from "./connector-activation.js";
 
@@ -59,10 +56,6 @@ export function clearConnectorAuthorizationPresentation(home: string, id: string
   const value = readStored(home, id), protocol = value?.protocol;
   if (protocol) {
     withConnectorProtocols(home, store => store.discard(protocol.state));
-    runWithMolisWorkHome(home, () => {
-      if (protocol.service === "gmail") { cancelGmailOAuthFlow(protocol.state); clearOAuthConnectionTarget("gmail", protocol.state); }
-      if (protocol.service === "notion") cancelNotionOAuthFlow(protocol.state);
-    });
   }
   if (retainInstallation && value?.installation_id && value.installation_ready) {
     runWithMolisWorkHome(home, () => createFileSecretStore().put(reference(id), JSON.stringify({ installation_id: value.installation_id, installation_ready: true })));

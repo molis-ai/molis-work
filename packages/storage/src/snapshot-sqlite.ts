@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, realpathSync } from "node:fs";
+import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, readSync, realpathSync } from "node:fs";
 import Database from "better-sqlite3";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
@@ -36,48 +36,26 @@ export interface SqliteSnapshotInfo {
   readonly foreign_key_check: "ok";
 }
 
-export interface SqliteSnapshotMetadata {
-  readonly table: string;
-  readonly owner: string;
-  readonly version: number;
-}
-
-/** A storage owner's literal metadata declaration; only owner/schema_version, never business rows. */
-export function readSqliteSnapshotMetadata(
-  database: SqliteDatabase,
-  expected: SqliteSnapshotMetadata,
-): Readonly<Record<string, string | number>> {
-  if (
-    !/^[a-z][a-z0-9_]*$/u.test(expected.table) ||
-    !Number.isSafeInteger(expected.version) ||
-    expected.version < 1
-  )
-    throw invalid("快照版本元数据声明无效");
-  let rows: Array<{ key: string; value: string }>;
+/** Inspect a standalone archived backup. Reject WAL headers/sidecars before SQLite can create read marks. */
+export function inspectSnapshotSqlite(file: string, options: SqliteSnapshotOptions = {}): SqliteSnapshotInfo {
+  const before = snapshotFileStat(file);
+  const standalone = () => {
+    for (const suffix of ["-wal", "-shm", "-journal"])
+      if (lstatSync(file + suffix, { throwIfNoEntry: false })) throw invalid(`归档库必须是独立文件: ${file}`);
+  };
+  standalone();
+  const fd = openSync(file, "r"), header = Buffer.alloc(20);
+  try { if (readSync(fd, header, 0, 20, 0) !== 20 || header[18] !== 1 || header[19] !== 1) throw invalid(`归档库必须是独立 SQLite 文件: ${file}`); }
+  finally { closeSync(fd); }
+  options.signal?.throwIfAborted();
+  const database = new Database(file, { readonly: true, fileMustExist: true, timeout: 0 });
   try {
-    rows = database
-      .prepare(
-        `SELECT key, value FROM "${expected.table}" WHERE key IN ('owner', 'schema_version')`,
-      )
-      .all() as Array<{ key: string; value: string }>;
-  } catch (error) {
-    if (
-      error instanceof Database.SqliteError &&
-      (error.code === "SQLITE_ERROR" ||
-        error.code === "SQLITE_CORRUPT" ||
-        error.code === "SQLITE_NOTADB")
-    )
-      throw invalid("快照版本元数据表无效");
-    throw error;
-  }
-  const values = Object.fromEntries(rows.map(row => [row.key, row.value]));
-  if (
-    rows.length !== 2 ||
-    values.owner !== expected.owner ||
-    Number(values.schema_version) !== expected.version
-  )
-    throw invalid("退役存储的 owner 或版本不符，未生成快照");
-  return { owner: values.owner, schema_version: Number(values.schema_version) };
+    const result = inspect(database, file, options);
+    const after = snapshotFileStat(file);
+    if (before.dev !== after.dev || before.ino !== after.ino || before.mode !== after.mode || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) throw changed(file);
+    standalone(); options.signal?.throwIfAborted();
+    return result;
+  } finally { database.close(); }
 }
 
 function inspect(

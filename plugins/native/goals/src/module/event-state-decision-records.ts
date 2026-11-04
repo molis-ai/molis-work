@@ -8,7 +8,7 @@ import type {
   GoalEventDecisionRequestView,
   GoalEventScope,
   GoalEventTrustedAuthoritySource,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 import { EMPTY_SCOPE } from "./event-state-scope.js";
 

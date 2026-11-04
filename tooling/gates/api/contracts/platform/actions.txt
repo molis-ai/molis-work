@@ -321,6 +321,12 @@ export declare const ARTIFACT_CONTINUE_INPUT_TYPE = "molis.artifacts.continue.re
 
 export declare const ARTIFACT_CONTINUE_OUTPUT_TYPE = "molis.artifacts.continue.v1";
 
+export declare const ARTIFACT_LINK_SUBJECTS_BATCH = 200;
+
+export declare const ARTIFACT_LINK_SUBJECTS_INPUT_TYPE = "molis.artifacts.link_subjects.request.v1";
+
+export declare const ARTIFACT_LINK_SUBJECTS_OUTPUT_TYPE = "molis.artifacts.link_subjects.v1";
+
 export declare const ARTIFACT_PIN_INPUT_SCHEMA: {
     type: string;
     properties: {
@@ -390,6 +396,7 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly stage_scene_metadata?: StageSceneMetadataAuthority;
     readonly memory_read_mode?: "explicit" | "task";
     readonly memory_operation_id?: string;
     readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
@@ -576,7 +583,6 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
-    readonly words_of?: string;
 }
 
 export interface ActionProviderRegistration {
@@ -737,6 +743,7 @@ export interface ActionSceneTargetDefinition {
 
 export interface ActionSceneUsage extends ActionSceneBinding {
     readonly availability: ActionAvailability;
+    readonly function_title?: string;
 }
 
 export interface ActionSceneView {
@@ -823,6 +830,23 @@ export interface ArtifactContinueResult {
 export interface ArtifactLineHead {
     version: number;
     source_revision: number | null;
+}
+
+export interface ArtifactLinkSubject {
+    id: string;
+    title: string;
+    open: {
+        surface: string;
+        id: string;
+    };
+}
+
+export interface ArtifactLinkSubjectsInput {
+    ids: string[];
+}
+
+export interface ArtifactLinkSubjectsResult {
+    objects: ArtifactLinkSubject[];
 }
 
 export interface ArtifactPinInput {
@@ -2861,6 +2885,24 @@ export interface SearchSourceKind {
     surface: string;
 }
 
+export interface StageSceneMetadataAuthority {
+    readonly actor_id: string;
+    readonly audience: ActionAudience;
+    readonly entry: ExactActionReference;
+    readonly owner: {
+        readonly plugin_id: string;
+        readonly install_id: string;
+        readonly installation_generation: string;
+        readonly scope: "home" | "project";
+    };
+    readonly project_id: string | null;
+    readonly scenes: readonly {
+        readonly scene_id: string;
+        readonly version: number;
+    }[];
+    readonly actions: readonly ExactActionReference[];
+}
+
 export interface SubjectActionOffer {
     offer_id: string;
     title: string;
@@ -3191,6 +3233,8 @@ export declare function defineArtifactCompareAction(capabilityId: string, typeTi
 
 export declare function defineArtifactContinueAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactContinueInput, ArtifactContinueResult>;
 
+export declare function defineArtifactLinkSubjectsAction(capabilityId: string, objectTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactLinkSubjectsInput, ArtifactLinkSubjectsResult>;
+
 export declare function defineArtifactPinAction(capabilityId: string, subjectKind: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPinInput, ArtifactPinResult>;
 
 export declare function defineArtifactPreviewAction(capabilityId: string, typeTitle: string, permissions: readonly string[]): ActionDefinition<ArtifactPreviewInput, FileContent>;
@@ -3258,6 +3302,11 @@ export declare function isArtifactCompareAction(action: {
 }): boolean;
 
 export declare function isArtifactContinueAction(action: {
+    input_type?: string;
+    output_type?: string;
+}): boolean;
+
+export declare function isArtifactLinkSubjectsAction(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;

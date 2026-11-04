@@ -1,6 +1,7 @@
 # AP4 Desktop / Tauri Shell 迁移验收记录
 
 日期：2026-09-02  
+状态：文中的 `DesktopPanelService`、桌面面板路由与启动配方已随 T-148（S-103，2026-10-31）删除，工作终端改由 Goals 经 `services.terminal` 启动；下面是当时的验收记录。
 Goal：`goal-reorg-ap4`  
 完成等级：AP4 行为保持型迁移达到“内部完整”；安装与发布级验证由 DV4 继续
 

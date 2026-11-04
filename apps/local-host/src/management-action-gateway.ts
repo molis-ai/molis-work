@@ -35,7 +35,7 @@ export async function handleManagementActionHttp(request: IncomingMessage, respo
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const actions = bindGoalsManagementActions(host.actionClient(reference), reference, { signal: controller.signal });
     await withCallId(body.call_id, async () => {
-      try { const result = await actions.invoke(definition, body.input, body.evidence); if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() }); }
+      try { const result = await actions.invoke(definition, body.input as object, body.evidence); if (!response.destroyed) sendJson(response, 200, { result, ...recordedCallIdField() }); }
       catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, { ...refused.body, ...recordedCallIdField() }); }
     });
   } catch (error) { const refused = actionErrorResponse(error); if (!response.destroyed) sendJson(response, refused.status, refused.body); }

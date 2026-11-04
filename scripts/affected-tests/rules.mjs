@@ -1,5 +1,5 @@
 // The knobs of scripts/affected-tests.mjs: what counts as shared core, as UI, as a storage change, and how wide a match may be
-// before it is narrowed. The rule they encode is the user's 2026-10-03 validation-frequency decision (specs/repository-anti-corruption
+// before it is narrowed. The rule they encode is the user's 2026-10-03 validation-frequency decision (specs/archive/repository-anti-corruption
 // spec §1; docs/system/PARALLEL-DEVELOPMENT.md section 6): batch small changes, build once, run the tests this batch touches,
 // run the full suite only for a big change. tests/affected-tests.test.ts checks that every path named here still exists, so a
 // rename cannot leave a rule pointing at nothing.
@@ -17,10 +17,13 @@ export const FULL_REGRESSION = {
   /**
    * Whole packages that are shared core. `modules/` is every package under it. plugin-sdk joined on 2026-10-10 (spec §1, W3-03):
    * it holds the runtime tools that authors and the platform share, the execution lifetime, the Manifest and
-   * declaration rules the Kernel and Plugin Runtime apply, and the text comparison (all moved in by W3-03). The same list is in
-   * scripts/package-owners.mjs (SHARED_CORE) and docs/system/PARALLEL-DEVELOPMENT.md section 6.
+   * declaration rules the Kernel and Plugin Runtime apply, and the text comparison (all moved in by W3-03). plugin-runtime joined on
+   * 2026-10-30 and agent-host on 2026-10-30: docs/system/PARALLEL-DEVELOPMENT.md line 66 and the PR template count both as shared
+   * core. plugin-runtime is the Plugin Runtime's assembly and lifecycle (packages/plugin-runtime/README.md); agent-host is where model
+   * calls go through, the only package that depends on `@prologue/sdk`. The owners' list in scripts/package-owners.mjs (SHARED_CORE)
+   * decides who reviews a package and is not the same list: it also carries local-host and workbench.
    */
-  corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk"],
+  corePackages: ["packages/contracts", "packages/kernel", "packages/plugin-sdk", "packages/plugin-runtime", "horizontal/agent-host"],
   corePackagePrefixes: ["modules/"],
   /**
    * "local-host 的装配、workbench 外壳": 25 files, from three places (how each got on the list is checked against the READMEs by

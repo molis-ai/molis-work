@@ -4,12 +4,12 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
-import { comparePluginVersions } from '@molis-ai/molis-work-plugin-sdk';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
+import { assertUpgradeOf } from './package-upgrade.js';
 import { leaveRefusal, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 
@@ -33,13 +33,13 @@ export interface InstalledLifecycleContext {
   closed(): boolean;
   /** Whether the publisher behind a package installation is still trusted (BL-559); a record not from a package always is. */
   trusted(record: PluginInstanceRecord): boolean;
-  recordFor(pluginId: string): PluginInstanceRecord | undefined;
+  recordFor(pluginId: string, retryUninstall?: boolean): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
   definition(release: InstalledRelease, approved: SandboxEffects): PluginDefinition;
   expose(release: InstalledRelease, onFailure?: 'caller'): Promise<void>;
   withdraw(pluginId: string): void;
-  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled'): void;
+  registerPrompts(release: InstalledRelease, state: 'enabled' | 'disabled', restored?: boolean): void;
   /** Reminders and scheduled operations of one installation stop with it. */
   /** What the Host remembers of an uninstalled installation: its prompts and its code. */
   forget(pluginId: string, installId: string): void;
@@ -135,13 +135,12 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!installed?.packaged) throw new Error(c.recoveryErrors.get(pluginId) ?? '找不到已安装版本的包，不能升级');
     if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
     const next = release.packaged.manifest;
-    if (comparePluginVersions(next.version, record.version) <= 0) throw pluginErrors.upgrade_required('这个包的版本是 ' + next.version + '，不高于已装的 ' + record.version + '：不是升级');
-    if (!(next.upgrade_compatibility?.compatible_from_versions ?? []).includes(record.version)) throw pluginErrors.upgrade_required('这个包的清单没有声明能从已装的 ' + record.version + ' 直接升级（upgrade_compatibility.compatible_from_versions）');
+    assertUpgradeOf(next, record.version);
     return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release));
   };
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
-    const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId);
+    const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId, action === 'uninstall');
     if (action === 'install') {
       if (record) throw new Error('这个插件已经安装，可以直接打开或升级');
       if (!consent) throw new Error('安装前请确认插件要使用的权限');
@@ -183,6 +182,6 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
       await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;
     }
-    if (action === 'uninstall') await uninstall(release, record, grants.keepData === true);
+    if (action === 'uninstall') await uninstall(release, record, record.state === 'uninstalled' ? record.retain_private_data : grants.keepData === true);
   };
 }

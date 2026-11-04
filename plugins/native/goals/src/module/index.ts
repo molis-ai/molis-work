@@ -5,6 +5,7 @@ import type {
   CreateGoalInput,
   GoalEventAcknowledgementsApi,
   GoalEventFactsApi,
+  GoalEventStateApi,
   PlanningMethodPack,
   GoalsCommandApi,
   GoalsLifecycleApi,
@@ -12,7 +13,7 @@ import type {
   GoalsActorWrite,
   GoalPolicy,
   UpdateProjectGuidanceInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 import {
   GoalsCommandContext,
@@ -145,12 +146,9 @@ export { instantiatePlanningRequirementId, resolvePlanningEventAdoption } from "
 export {
   BUILTIN_PLANNING_METHOD_PACKS,
   PLANNING_METHOD_CATALOG_DIRECTORY,
-  TASK_CONTEXT_METHOD_IDS,
   compilePlanningMethodInstructions,
   composePlanningMethodPacks,
   loadBuiltinPlanningMethodPacks,
-  mergedCoverageRules,
-  methodPacksForReview,
   normalizePlanningMethodPack,
   resolvePlanningMethodPacks,
   validatePlanningMethodPack,
@@ -170,13 +168,15 @@ export type {
   CreateGoalIntentInput,
   GoalEventConfigView,
   GoalEventFactsApi,
+  GoalEventIntentApi,
   GoalEventLatestReports,
+  GoalEventStateApi,
   GoalEventStateView,
   GoalWorkEventRecord,
   GoalsPlanningApi,
   GoalsQueryApi,
   SaveProjectPlanningMethodInput,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 export type { GoalsJournal, GoalsSqliteDatabase } from "./repository.js";
 export { GoalInputBindings } from "./input-bindings.js";
 export { PersonalPlanningMethods } from "./planning/personal-methods.js";
@@ -184,7 +184,7 @@ export { PersonalPlanningMethods } from "./planning/personal-methods.js";
 /** Read-only Module assembly; callers do not construct Goals repositories. */
 export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal): {
   query: GoalsQueryApi;
-  events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner" | "readWorkState">;
+  events: Pick<GoalEventFactsApi, "readConfig" | "listEvents" | "listLatestEvents" | "listLatestTimeline" | "listLatestReports" | "readEvent" | "readCurrentRequirements" | "isEventStateOwner"> & { readonly state: Pick<GoalEventStateApi, "readWorkState"> };
 } {
   const repository = new GoalsRepository(db, journal);
   const context = new GoalsCommandContext(repository);
@@ -194,6 +194,6 @@ export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJo
   };
 }
 
-export { DEFAULT_GOAL_POLICY } from "./query.js";
-/** The module's refusals as declared, each with its kind (specs/repository-anti-corruption W3-02). */
+export { DEFAULT_GOAL_POLICY } from "./default-policy.js";
+/** The module's refusals as declared, each with its kind (specs/archive/repository-anti-corruption W3-02). */
 export { goalErrors } from "./errors.js";

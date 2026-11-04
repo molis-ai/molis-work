@@ -3,7 +3,7 @@ import type {
   GovernanceProvenanceApi,
   GoalEventTrustedAuthority,
   GoalTreeProposalItemProvenanceInput, GoalTreeProposalItemRecord,
-} from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+} from "../contract/governance-collaboration.js";
 
 /** Confirmation provenance belongs to Governance; a locator is not automatically a Ledger edge. */
 export class GovernanceProvenance implements GovernanceProvenanceApi {

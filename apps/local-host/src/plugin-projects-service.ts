@@ -1,6 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PROJECTS_EXIST_PERMISSION, type PluginDefinition, type PluginProjectsClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginProjectsClient, type PluginProjectsPort } from "@molis-ai/molis-work-plugin-runtime";
+import { hostLog } from "./host-log.js";
 import { pluginCatalogFor } from "./home-side.js";
 
 /**
@@ -24,8 +25,16 @@ export function pluginProjectsPort(home: string): PluginProjectsPort {
     async existing(ids) {
       const catalog = pluginCatalogFor(home);
       if (!catalog) throw new ActionError("actions.unavailable", "项目目录暂时读不到");
-      const present = await catalog({ homeDirectory: home }, projects => new Set(projects.listProjects().map(project => project.project_id)));
-      return new Set(ids.filter(id => present.has(id)));
+      try {
+        const present = await catalog({ homeDirectory: home }, projects => new Set(projects.listProjects().map(project => project.project_id)));
+        return new Set(ids.filter(id => present.has(id)));
+      } catch (error) {
+        // The catalog's own errors are the Host's answers and stay as they are; anything else (SQLite, the filesystem) can carry a local
+        // path or a library message, so it goes to the Host's log only and the plugin sees the one availability answer.
+        if (error instanceof ActionError) throw error;
+        hostLog.warn("plugins", "projects_catalog_unreadable", error);
+        throw new ActionError("actions.unavailable", "项目目录暂时读不到");
+      }
     },
   };
 }

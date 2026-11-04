@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
+import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-judgment-rules";
 
 const reference = { capability_id: "unknown.notes.save", version: 3, provider_id: "original-provider" };
 const criteria = [{ key: "save", description: "Save the note" }, { key: "skip", description: "No change" }];

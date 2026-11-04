@@ -15,6 +15,9 @@ interface GlobalSettingsSection {
   readonly icon: PluginIconName;
   readonly group: string;
   readonly kind: "host" | "plugin";
+  /** A plugin page's own address parameters (BL-543), space-joined for the row the shell reads; host pages read the shell's table. */
+  readonly addressQuery: string;
+  readonly addressHash: string;
 }
 
 interface HostSection { id: string; label: string; icon: PluginIconName; group: string; order: number }
@@ -46,7 +49,7 @@ const HOST_ORDER_END = 100;
 
 function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSection[] {
   const placed = [
-    ...HOST_SECTIONS.map((section) => ({ ...section, kind: "host" as const })),
+    ...HOST_SECTIONS.map((section) => ({ ...section, kind: "host" as const, addressQuery: "", addressHash: "" })),
     ...listPluginSettingsNavItems(shown).map((item) => ({
       id: item.section_id,
       label: item.label,
@@ -54,13 +57,15 @@ function globalSettingsSections(shown?: readonly string[]): GlobalSettingsSectio
       order: item.order ?? Number.MAX_SAFE_INTEGER,
       group: "",
       kind: "plugin" as const,
+      addressQuery: item.address.query,
+      addressHash: item.address.hash,
     })),
   ].sort((left, right) => left.order - right.order);
   let group = HOST_SECTIONS[0]!.group;
   return placed.map((section) => {
     if (section.kind !== "plugin") group = section.group;
     const own = section.kind === "plugin" ? (section.order < HOST_ORDER_END ? group : PLUGIN_GROUP) : section.group;
-    return { id: section.id, label: section.label, icon: section.icon, group: own, kind: section.kind };
+    return { id: section.id, label: section.label, icon: section.icon, group: own, kind: section.kind, addressQuery: section.addressQuery, addressHash: section.addressHash };
   });
 }
 

@@ -20,7 +20,7 @@ export interface MemoryPluginDatabase extends PluginDatabase {
 
 export function memoryPluginDatabase(schema: string, projects: readonly string[] = []): MemoryPluginDatabase {
   const raw = new DatabaseSync(":memory:");
-  // The project's root row, which a plugin's tables may point at (specs/plugin-project-database).
+  // The project's root row, which a plugin's tables may point at (specs/archive/plugin-project-database).
   raw.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY)");
   for (const project of projects) raw.prepare("INSERT INTO project_root (project_id) VALUES (?)").run(project);
   raw.exec(schema);

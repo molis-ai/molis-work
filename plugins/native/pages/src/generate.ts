@@ -39,11 +39,12 @@ export async function generatePagesFromMaterials(stores: PagesStores, caller: Pi
     result = await complete(prompt);
     signal?.throwIfAborted();
     const output = result.text.trim();
-    if (!output || output.length > 100_000) throw pagesErrors.invalid("模型返回的文稿为空或过长");
+    // A document of 100000 characters takes at most 200000 units: over that it is too long without being spread, and only the rest is counted once.
+    if (!output || output.length > 200_000 || [...output].length > 100_000) throw pagesErrors.invalid("模型返回的文稿为空或过长");
     const appendix = request.inputs.map((item, index) => {
       const link = item.url && /^https?:\/\//.test(item.url) ? `\n[打开研究包](${item.url.replaceAll("(", "%28").replaceAll(")", "%29")})` : "";
       const page = item.provenance.find(ref => ref.kind === "pages_document" && typeof ref.id === "string" && item.entry_id === `pages:${ref.id}`);
-      const back = `/projects/${encodeURIComponent(request.project_id)}/?${page ? `openPlugin=pages&openItem=${encodeURIComponent(String(page.id))}` : `inbox_entry=${encodeURIComponent(item.entry_id)}`}`;
+      const back = `/projects/${encodeURIComponent(request.project_id)}/?${page ? `openPlugin=pages&openItem=${encodeURIComponent(String(page.id))}` : `openPlugin=inbox&openItem=${encodeURIComponent(item.entry_id)}`}`;
       const boundary = item.provenance.some(ref => ref.truncated === true) ? "\n材料范围：已截断的节选，并非完整原文。" : "";
       return `### 材料 ${index + 1}：${item.title}\n来源：${item.source_label} · 采用版本 ${item.revision}${boundary}${link}\n[${page ? "返回 Pages 原文" : "返回 Inbox 材料"}](${back})\n\n${item.body}`;
     }).join("\n\n");

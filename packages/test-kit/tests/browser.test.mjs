@@ -37,37 +37,47 @@ test("the Chrome locator tries MOLIS_WORK_TEST_CHROME first, then the fixed plac
 const FAKE_CHROME = `#!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
-writeFileSync(process.env.FAKE_CHROME_REPORT, JSON.stringify({ args: process.argv.slice(2), pid: process.pid }));
+const report = { args: process.argv.slice(2), pid: process.pid, signals: [] };
+const save = () => writeFileSync(process.env.FAKE_CHROME_REPORT, JSON.stringify(report));
+save();
 const mode = process.env.FAKE_CHROME_MODE;
 if (mode === "exit") { process.stderr.write("first line\\nbad flag: --nonsense\\n"); process.exitCode = 1; }
 else {
-  process.on("SIGTERM", () => { if (mode !== "ignore-term") process.exit(0); });
+  process.on("SIGTERM", () => { report.signals.push({ signal: "SIGTERM", at: Date.now() }); save(); if (mode !== "ignore-term") process.exit(0); });
+  process.on("SIGUSR2", () => { report.signals.push({ signal: "SIGUSR2", at: Date.now() }); save(); process.exit(0); });
   if (mode === "helper-holds-stderr") {
     // Chrome's helper processes can inherit its stderr and outlive it: the pipe stays open for seconds after the main process is gone.
     const helper = spawn(process.execPath, ["-e", "setTimeout(() => {}, 4000)"], { detached: true, stdio: ["ignore", "ignore", "inherit"] });
     helper.unref();
-    writeFileSync(process.env.FAKE_CHROME_REPORT, JSON.stringify({ args: process.argv.slice(2), pid: process.pid, helperPid: helper.pid }));
+    report.helperPid = helper.pid; save();
   }
-  process.stderr.write("noise before the address\\nDevTools listening on ws://127.0.0.1:9/devtools/browser/fake\\n");
+  process.stderr.write("noise before the address\\nDevTools listening on " + (process.env.FAKE_CHROME_DEBUGGER || "ws://127.0.0.1:9/devtools/browser/fake") + "\\n");
   setInterval(() => {}, 1000);
 }
 `;
 
-async function withFakeChrome(mode, run) {
+async function withFakeChrome(mode, run, debuggerUrl) {
   const directory = await mkdtemp(join(tmpdir(), "test-kit-fake-chrome-"));
   const executable = join(directory, "fake-chrome.mjs");
   const report = join(directory, "report.json");
   await writeFile(executable, FAKE_CHROME);
   await chmod(executable, 0o755);
-  const previous = { mode: process.env.FAKE_CHROME_MODE, report: process.env.FAKE_CHROME_REPORT };
+  const previous = { mode: process.env.FAKE_CHROME_MODE, report: process.env.FAKE_CHROME_REPORT, debugger: process.env.FAKE_CHROME_DEBUGGER };
   process.env.FAKE_CHROME_MODE = mode;
   process.env.FAKE_CHROME_REPORT = report;
+  if (debuggerUrl === undefined) delete process.env.FAKE_CHROME_DEBUGGER;
+  else process.env.FAKE_CHROME_DEBUGGER = debuggerUrl;
   try { await run({ directory, executable, report: () => readFile(report, "utf8").then(JSON.parse) }); }
   finally {
-    for (const [key, value] of [["FAKE_CHROME_MODE", previous.mode], ["FAKE_CHROME_REPORT", previous.report]]) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    try {
+      const held = await readFile(report, "utf8").then(JSON.parse, error => { if (error.code !== "ENOENT") throw error; });
+      if (held?.pid && alive(held.pid)) process.kill(held.pid, "SIGKILL");
+    } finally {
+      for (const [key, value] of [["FAKE_CHROME_MODE", previous.mode], ["FAKE_CHROME_REPORT", previous.report], ["FAKE_CHROME_DEBUGGER", previous.debugger]]) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+      await rm(directory, { recursive: true, force: true });
     }
-    await rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -185,7 +195,7 @@ function textFrame(text) {
 /** Reads the (masked) text frames a client sent; keeps an incomplete tail for the next chunk. */
 function readFrames(buffer) {
   const messages = [];
-  let offset = 0;
+  let offset = 0, closed = false;
   while (buffer.length - offset >= 2) {
     const opcode = buffer[offset] & 0x0f;
     let length = buffer[offset + 1] & 0x7f;
@@ -198,42 +208,49 @@ function readFrames(buffer) {
     const payload = Buffer.from(buffer.subarray(offset + header + 4, offset + total));
     for (let index = 0; index < payload.length; index++) payload[index] ^= mask[index % 4];
     if (opcode === 0x1) messages.push(payload.toString("utf8"));
+    if (opcode === 0x8) closed = true;
     offset += total;
   }
-  return { messages, rest: buffer.subarray(offset) };
+  return { messages, rest: buffer.subarray(offset), closed };
 }
 
 /** A DevTools stand-in: `handle(message, reply, push)` answers each command; `push` sends an event to the client. */
 async function fakeDevTools(handle) {
   const received = [];
   const sockets = new Set();
+  const disconnected = Promise.withResolvers();
   const server = createServer();
+  let closing;
   server.on("upgrade", (request, socket) => {
     const accept = createHash("sha1").update(request.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
     socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
     sockets.add(socket);
-    socket.on("close", () => sockets.delete(socket));
+    socket.on("close", () => { sockets.delete(socket); if (!sockets.size) disconnected.resolve(); });
     socket.on("error", () => {});
     const push = (event) => socket.write(textFrame(JSON.stringify(event)));
     let pending = Buffer.alloc(0);
     socket.on("data", (chunk) => {
-      const { messages, rest } = readFrames(Buffer.concat([pending, chunk]));
+      const { messages, rest, closed } = readFrames(Buffer.concat([pending, chunk]));
       pending = rest;
       for (const text of messages) {
         const message = JSON.parse(text);
         received.push(message);
         handle(message, (result) => socket.write(textFrame(JSON.stringify({ id: message.id, ...result }))), push);
       }
+      if (closed) socket.end(Buffer.from([0x88, 0]));
     });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return {
     url: `ws://127.0.0.1:${server.address().port}/devtools/browser/fake`,
     received,
+    disconnected: disconnected.promise,
     dropConnections: () => { for (const socket of sockets) socket.destroy(); },
-    async close() {
-      for (const socket of sockets) socket.destroy();
-      await new Promise((resolve) => server.close(resolve));
+    close() {
+      return closing ??= (async () => {
+        for (const socket of sockets) socket.destroy();
+        await new Promise((resolve) => server.close(resolve));
+      })();
     },
   };
 }
@@ -244,6 +261,101 @@ async function withHarness(handle, options, run) {
   try { await run(harness, devtools); }
   finally { await harness.close(); await devtools.close(); }
 }
+
+test("T405-FULL-11 owned close requests normal shutdown once and waits for the real process exit; closing refuses new commands and event waits", { timeout: 5_000 }, async t => {
+  const requested = Promise.withResolvers();
+  const devtools = await fakeDevTools((message, reply) => {
+    assert.equal(message.method, "Browser.close");
+    requested.resolve(reply);
+  });
+  t.after(() => devtools.close());
+  await withFakeChrome("ready", async ({ directory, executable, report }) => {
+    const harness = await ChromeHarness.start(directory, { executable });
+    try {
+      const { pid } = await report();
+      let finished = false;
+      const first = harness.close(), second = harness.close();
+      first.then(() => { finished = true; }, () => { finished = true; });
+      assert.equal(first, second);
+      await assert.rejects(harness.command("AfterClosing"), /CDP connection closed before AfterClosing/);
+      await assert.rejects(harness.event("AfterClosing"), /CDP connection closed before AfterClosing/);
+      const reply = await Promise.race([requested.promise, first.then(() => assert.fail("close ended before requesting normal shutdown"))]);
+      reply({ result: {} });
+      assert.equal(finished, false, "the protocol request is not a process exit");
+      assert.equal(alive(pid), true, "the controlled browser has not exited yet");
+      // The stand-in exits only when this barrier opens, rather than when it received SIGTERM.
+      process.kill(pid, "SIGUSR2");
+      await first;
+      assert.equal(alive(pid), false);
+      assert.deepEqual((await report()).signals.map(item => item.signal), ["SIGUSR2"]);
+      await harness.close();
+      await devtools.disconnected;
+      assert.deepEqual(devtools.received.map(item => item.method), ["Browser.close"]);
+    } finally { await harness.close(); }
+  }, devtools.url);
+});
+
+test("T405-FULL-11 a normal-close reply without process exit still uses the bounded real signal fallback", { timeout: 5_000 }, async t => {
+  const devtools = await fakeDevTools((_message, reply) => reply({ result: {} }));
+  t.after(() => devtools.close());
+  await withFakeChrome("ignore-term", async ({ directory, executable, report }) => {
+    const chrome = await launchHeadlessChrome({ executable, profileDirectory: join(directory, "profile") });
+    const { pid } = await report(), started = Date.now();
+    const first = chrome.close(), second = chrome.close();
+    assert.equal(first, second);
+    await first;
+    assert.equal(alive(pid), false, "a successful protocol reply must not leave the browser alive");
+    const signals = (await report()).signals;
+    assert.equal(signals[0]?.signal, "SIGTERM");
+    assert.ok(signals[0].at - started >= 350, "normal close is given its bounded exit window before SIGTERM");
+    assert.ok(Date.now() - started < 3_000, "the original forced-exit budget stays bounded");
+    await devtools.disconnected;
+    assert.deepEqual(devtools.received.map(item => item.method), ["Browser.close"]);
+  }, devtools.url);
+});
+
+test("T405-FULL-11 a rejected normal-close command releases its socket and terminates the owned process", { timeout: 5_000 }, async t => {
+  const devtools = await fakeDevTools((_message, reply) => reply({ error: { code: -32601, message: "unavailable" } }));
+  t.after(() => devtools.close());
+  await withFakeChrome("ready", async ({ directory, executable, report }) => {
+    const chrome = await launchHeadlessChrome({ executable, profileDirectory: join(directory, "profile") });
+    const { pid } = await report();
+    await chrome.close();
+    assert.equal(alive(pid), false);
+    assert.deepEqual((await report()).signals.map(item => item.signal), ["SIGTERM"]);
+    await devtools.disconnected;
+    await chrome.close();
+    assert.deepEqual(devtools.received.map(item => item.method), ["Browser.close"]);
+  }, devtools.url);
+});
+
+test("T405-FULL-11 a borrowed connection closes only itself and leaves the browser process and endpoint usable", { timeout: 5_000 }, async t => {
+  const devtools = await fakeDevTools((_message, reply) => reply({ result: { available: true } }));
+  t.after(() => devtools.close());
+  await withFakeChrome("ready", async ({ directory, executable, report }) => {
+    const chrome = await launchHeadlessChrome({ executable, profileDirectory: join(directory, "profile") });
+    try {
+      const { pid } = await report();
+      const borrowed = await ChromeHarness.connect(chrome.debuggerUrl);
+      await borrowed.close();
+      assert.equal(alive(pid), true);
+      assert.deepEqual((await report()).signals, []);
+      const next = await ChromeHarness.connect(chrome.debuggerUrl);
+      try { assert.deepEqual(await next.command("StillAvailable"), { available: true }); }
+      finally { await next.close(); }
+      assert.deepEqual(devtools.received.map(item => item.method), ["StillAvailable"]);
+    } finally { await chrome.close(); }
+  }, devtools.url);
+});
+
+test("T405-FULL-11 failure to connect after launch still waits for the owned process to exit", { timeout: 5_000 }, async () => {
+  await withFakeChrome("ready", async ({ directory, executable, report }) => {
+    await assert.rejects(ChromeHarness.start(directory, { executable }), /CDP connection failed/);
+    const { pid, signals } = await report();
+    assert.equal(alive(pid), false);
+    assert.deepEqual(signals.map(item => item.signal), ["SIGTERM"]);
+  });
+});
 
 /**
  * Delays handing back the first `Profiler.stop` result, modelling a slow read of the sample. `run` gets `read`: `began`

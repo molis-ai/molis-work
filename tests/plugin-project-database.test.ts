@@ -221,7 +221,7 @@ test("a start list that declares a library wrongly does not start at all, and no
     assert.equal(homeStores().get("unlisted"), undefined);
     await refuse("not registered", [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: "unlisted" }), trust: { level: "host" } }], /没有登记/);
     await refuse("another baseline", [{ definition: withLibrary(probe().definition, { ...DECLARATION, version: 2 }), trust: { level: "host" } }], /基线不同/);
-    // PART-02 (specs/plugin-project-partition): a project's plugin keeps its data in the project already; only a Home plugin's library is split by project.
+    // PART-02 (specs/archive/plugin-project-partition): a project's plugin keeps its data in the project already; only a Home plugin's library is split by project.
     await refuse("partitioned", [{ definition: withLibrary(probe().definition, { ...DECLARATION, partition: "project" } as PluginDatabaseDeclaration), trust: { level: "host" } }], /Home 级插件/);
     for (const name of ["Dataset", "../data", "a/b", ""]) {
       await refuse(`name ${JSON.stringify(name)}`, [{ definition: withLibrary(probe().definition, { ...DECLARATION, store_name: name }), trust: { level: "host" } }], /库名|目录名/);
@@ -307,7 +307,8 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
       ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
       ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: library }] : []];
   });
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "feed-content", "form", "goals", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["cognia", "dataset", "feed-content", "form", "goals", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
+  assert.equal(homeStores().get("artifacts")?.owner, "modules/artifacts", "the platform's original files retain their Module owner");
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
     assert.equal(store?.owner, owner, path);

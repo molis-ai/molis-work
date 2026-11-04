@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import ts from "typescript";
 import { fileURLToPath } from "node:url";
 import { builtinCatalogText, checkProposalUiOwnership, hasWorkbenchUiContribution } from "../scripts/check-package-boundaries.mjs";
 import { CATALOG, catalogText } from "../scripts/gates/catalog-entries.mjs";
@@ -11,12 +12,14 @@ import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 test("DD2 UI guard rejects restored root implementations, bypassed mounts and legacy client handlers", () => {
-  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "apps/workbench/src/ui-composition.ts", "apps/workbench/src/scripts/client/events-accessibility.ts"]
+  const sources = ["apps/workbench/src/renderer.ts", "apps/workbench/src/index.ts", "plugins/native/goals/src/page/factories.ts", "plugins/native/goals/src/page/surfaces.ts", "apps/workbench/src/scripts/client/events-accessibility.ts"]
     .map(file => readFileSync(new URL(`../${file}`, import.meta.url), "utf8")
       + (file === "apps/workbench/src/index.ts" ? readFileSync(new URL("../apps/workbench/src/ui-composition.ts", import.meta.url), "utf8") : ""));
-  sources.splice(3, 0, "");
   sources.push(readFileSync(new URL("../apps/workbench/src/plugin-workbench.ts", import.meta.url), "utf8"));
   sources.push(builtinCatalogText(root));
+  const pageDirectory = new URL("../plugins/native/goals/src/page/", import.meta.url);
+  sources.push(readdirSync(pageDirectory).filter(name => name.endsWith(".ts")).map(name => readFileSync(new URL(name, pageDirectory), "utf8")).join("\n"));
+  sources.push(readFileSync(new URL("../apps/workbench/src/stage-renderers.ts", import.meta.url), "utf8"));
   assert.deepEqual(checkProposalUiOwnership(...sources), []);
   for (const name of ["renderGoalTreeProposalDecision", "renderContractProposal", "recentDecisionResults"]) {
     const changed = [...sources]; changed[0] += `\nfunction ${name}(view) { return oldRenderer(view); }`;
@@ -24,10 +27,41 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   }
   const unregistered = [...sources]; unregistered[6] = unregistered[6].replace(/contributions:\s*\[[^\]]*\]/gu, list => list.replace("goalsProposalUiContribution,", ""));
   assert.match(checkProposalUiOwnership(...unregistered).join("\n"), /registered with UiHost/);
-  const bypassed = [...sources]; bypassed[2] = bypassed[2].replace("createSurfaceRenderers<GoalsProposalRenderer", "oldRender<GoalsProposalRenderer");
+  const bypassed = [...sources]; bypassed[2] = bypassed[2].replace("surfaceRenderers<GoalsProposalRenderer", "oldRender<GoalsProposalRenderer");
   assert.match(checkProposalUiOwnership(...bypassed).join("\n"), /must mount/);
   const legacy = [...sources]; legacy[4] += '\nconst goalTreeDecisionForm = form.closest("[data-goal-tree-decision-form]");';
   assert.match(checkProposalUiOwnership(...legacy).join("\n"), /Goals client factory/);
+  // The chain from the Goals page to the registered contribution is pinned at each link (T-116 review): swapping any one is refused.
+  const replaced = (index, before, after) => {
+    assert.ok(sources[index].includes(before), `the actual chain contains ${before}`);
+    const changed = [...sources]; changed[index] = changed[index].replace(before, after);
+    assert.notEqual(changed[index], sources[index], "the negative changes the actual chain");
+    return changed;
+  };
+  const otherMount = replaced(8, "mount: mountContributionsOf(pluginId)", "mount: renderWorkbenchContribution");
+  assert.match(checkProposalUiOwnership(...otherMount).join("\n"), /must bind and forward mountContributionsOf\(pluginId\)/);
+  const otherOwner = replaced(8, "?.manifest.plugin_id ?? projectPluginId", "?.manifest.name ?? projectPluginId");
+  assert.match(checkProposalUiOwnership(...otherOwner).join("\n"), /pluginId from this projectPluginId's Manifest/);
+  const lostPort = replaced(7, "return { ...drawing, L, goalsL: L", "return { L, goalsL: L");
+  assert.match(checkProposalUiOwnership(...lostPort).join("\n"), /this model's drawing/);
+  const foreignDrawing = replaced(7, "const { drawing } = model;", "const { drawing } = otherModel;");
+  assert.match(checkProposalUiOwnership(...foreignDrawing).join("\n"), /this model's drawing/);
+  const overwritten = replaced(7, "return { ...drawing, L, goalsL: L", "return { ...drawing, mount: otherMount, L, goalsL: L");
+  assert.match(checkProposalUiOwnership(...overwritten).join("\n"), /without replacing mount/);
+  const bypassedPorts = replaced(7, "const page = createGoalsPage(ports);", "const page = createGoalsPage(otherPorts);");
+  assert.match(checkProposalUiOwnership(...bypassedPorts).join("\n"), /actual stage render/);
+  const bypassedPage = replaced(7, "const page = createGoalsPage(ports);", "const page = createOtherPage(ports);");
+  assert.match(checkProposalUiOwnership(...bypassedPage).join("\n"), /actual stage render/);
+  const bypassedFactory = replaced(7, "createGoalsRendererFactories(ports.mount)", "createGoalsRendererFactories(otherMount)");
+  assert.match(checkProposalUiOwnership(...bypassedFactory).join("\n"), /native factories from ports.mount/);
+  const unowned = [...sources]; unowned[1] = unowned[1].replace("}, pluginId).html", "}).html");
+  assert.match(checkProposalUiOwnership(...unowned).join("\n"), /mountContributionsOf must mount through the workbench host with the plugin's id as owner/);
+  const notDeclared = [...sources]; notDeclared[1] = notDeclared[1].replace("workbenchUiHost.mountDeclared(", "workbenchUiHost.render(");
+  assert.match(checkProposalUiOwnership(...notDeclared).join("\n"), /workbenchUiHost\.mountDeclared/);
+  const ownMount = [...sources]; ownMount[3] = ownMount[3].replace("return mount(contributionId, surface, model)", "return ownMount(contributionId, surface, model)");
+  assert.match(checkProposalUiOwnership(...ownMount).join("\n"), /mounted with the mount the shell gave it/);
+  const redrawn = [...sources]; redrawn[7] += "\nfunction renderContractProposal(view) { return oldRenderer(view); }";
+  assert.match(checkProposalUiOwnership(...redrawn).join("\n"), /plugins\/native\/goals\/src\/page: DD2 renderContractProposal/);
 });
 
 test("Workbench registration guard follows the pack registry and rejects broken wiring", () => {
@@ -47,7 +81,7 @@ test("Workbench registration guard follows the pack registry and rejects broken 
     assert.equal(hasWorkbenchUiContribution(`host.register(${name})`, "", name), true);
   }
   const retired = descriptors.replace("contributions: [feedUiContribution]", "contributions: [feedUiContribution, goalsLegacyProposalUiContribution]");
-  assert.match(checkProposalUiOwnership("", composition, composition, "", "handleGoalProposalSubmit(submittedForm, event)", registry, retired).join("\n"), /retired/);
+  assert.match(checkProposalUiOwnership("", composition, readFileSync(new URL("../plugins/native/goals/src/page/factories.ts", import.meta.url), "utf8"), "", "handleGoalProposalSubmit(submittedForm, event)", registry, retired).join("\n"), /retired/);
 });
 
 // W5-02: the catalog lists each plugin's own src/registration.ts; the guard reads the entry there, and only for a listed one.
@@ -84,4 +118,29 @@ test("RAC-566 a catalog or platform list written by hand is refused, by the gate
   assert.match(pluginRegistryProblems(byHand, WORKSPACE_PACKAGES).join("\n"), /builtin-plugins\.ts is out of date or edited by hand/);
   const platformByHand = edited(PLATFORM_FILE, () => "export const PLATFORM_PLUGIN_REGISTRATIONS = [];\n");
   assert.match(pluginRegistryProblems(platformByHand, WORKSPACE_PACKAGES).join("\n"), /plugin-registry\.generated\.ts is out of date or edited by hand/);
+});
+
+// RAC-2681: these two ports and the renderer factories remain in the Goals leaf modules.
+test("RAC-2681 Frame L and icon are function properties, not method signatures", () => {
+  const file = "plugins/native/goals/src/page/frame-stage.ts";
+  const source = ts.createSourceFile(file, readFileSync(path.join(root, file), "utf8"), ts.ScriptTarget.Latest, true);
+  const render = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "renderGoalFrameStage");
+  assert.ok(render);
+  const ports = render.parameters[0].type;
+  assert.ok(ports && ts.isTypeLiteralNode(ports));
+  for (const name of ["L", "icon"]) {
+    const member = ports.members.find(node => node.name?.getText(source) === name);
+    assert.ok(member && ts.isPropertySignature(member) && member.type && ts.isFunctionTypeNode(member.type), `${name} must be a function property`);
+  }
+});
+
+test("RAC-2681 Goals renderer factories import owner leaves without returning through the package root", () => {
+  const file = "plugins/native/goals/src/page/factories.ts";
+  const source = ts.createSourceFile(file, readFileSync(path.join(root, file), "utf8"), ts.ScriptTarget.Latest, true);
+  const imports = source.statements.filter(ts.isImportDeclaration);
+  assert.ok(imports.length > 0);
+  for (const entry of imports) {
+    assert.ok(ts.isStringLiteral(entry.moduleSpecifier));
+    assert.match(entry.moduleSpecifier.text, /^(?:\.\/ports|\.\/surfaces|\.\.\/(?:context|dialogs|document|factors|momentum|planning|policy|proposal|relation|status|tree)-ui(?:-model)?)\.js$/, "factory import must name its owner leaf");
+  }
 });

@@ -1,7 +1,7 @@
 import { ActionService, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
@@ -158,7 +158,7 @@ function completeView(definition: ActionDefinition, value: unknown): unknown {
     case agentHostCapabilities.waitRun.capability_id: return isRecord(value) ? { ...value, view: runView(value.view) } : value;
     case agentHostCapabilities.readSession.capability_id:
       return isRecord(value) ? { ...SESSION_VIEW, ...value, latest_run: value.latest_run ? runView(value.latest_run) : null } : value;
-    case agentHostCapabilities.startRun.capability_id: return isRecord(value) ? { frozen: {}, ...value } : value;
+    case agentHostCapabilities.startRun.capability_id: return isRecord(value) ? { ...value, frozen: { ...FROZEN, ...(isRecord(value.frozen) ? value.frozen : {}) } } : value;
     case agentHostCapabilities.readRunReviews.capability_id: return Array.isArray(value) ? value.map(entry => isRecord(entry) ? { receipt: null, ...entry } : entry) : value;
     case agentHostCapabilities.listSubagents.capability_id:
       return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;

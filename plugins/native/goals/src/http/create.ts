@@ -4,6 +4,7 @@ import { goalsFailure, goalsRoute } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsRoutePorts } from "./types.js";
 import { goalsActions } from "../actions.js";
+import { withinCharacters } from "../text-length.js";
 
 /** `goals.create`: a new Goal from the page's form, answered with its address. */
 export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
@@ -14,7 +15,7 @@ export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     const requiredText = (name: string, maximum = 4_000): string => {
       const result = typeof body[name] === "string" ? body[name].trim() : "";
       if (!result) throw new ActionError("actions.input_invalid", `${name} 不能为空`);
-      if (result.length > maximum) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
+      if (!withinCharacters(result, maximum)) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
       return result;
     };
     const optionalText = (name: string): string | undefined => {
@@ -23,7 +24,7 @@ export function goalCreateRoutes(ports: GoalsRoutePorts): PluginRouteBinding[] {
     };
     const draftText = (name: string, maximum = 4_000): string => {
       const result = typeof body[name] === "string" ? body[name].trim() : "";
-      if (result.length > maximum) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
+      if (!withinCharacters(result, maximum)) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
       return result;
     };
     const priority = body.priority == null ? undefined : Number(body.priority);

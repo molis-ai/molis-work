@@ -1,4 +1,4 @@
-import type { GoalWorkEventJudgment } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalWorkEventJudgment } from "../contract/goals.js";
 import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;

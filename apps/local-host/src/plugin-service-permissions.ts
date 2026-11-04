@@ -19,6 +19,7 @@ export const SCHEDULE_WRITE_PERMISSION = "schedule:write";
 export const NOTIFICATIONS_WRITE_PERMISSION = "notifications:write";
 export const PLUGINS_READ_PERMISSION = "plugins:read";
 export const STORAGE_PRIVATE_PERMISSION = "storage:private";
+export const TERMINAL_RUN_PERMISSION = "terminal:run";
 
 /** A service of `PluginHostServices` and the Manifest permissions it is built for. Services built from a declaration or an entry, not a permission, are not here. */
 export const HOST_SERVICE_PERMISSIONS: { readonly [Service in keyof PluginHostServices]?: readonly string[] } = Object.freeze({
@@ -30,6 +31,7 @@ export const HOST_SERVICE_PERMISSIONS: { readonly [Service in keyof PluginHostSe
   evidenceCollector: [PLUGIN_EVIDENCE_COLLECT_PERMISSION],
   directory: [DIRECTORY_READ_PERMISSION],
   localTools: [PLUGIN_LOCAL_TOOLS_PERMISSION],
+  terminal: [TERMINAL_RUN_PERMISSION],
   scheduler: [SCHEDULE_READ_PERMISSION, SCHEDULE_WRITE_PERMISSION],
   agents: [AGENT_RUN_PERMISSION],
   notifications: [NOTIFICATIONS_WRITE_PERMISSION],

@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistStudioRuntime, type AlchemistStudioRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import { LocalHost, MolisWorkLocalHost, ProjectDeletionService, molisWorkHostProjectReference, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
@@ -357,11 +357,11 @@ test("W5-01-ALC-LIFE-07: releasing one studio owner leaves the other owner's for
 
 test("W5-01-ALC-LIFE-04: ProjectDeletionService retries the same receipt only after retained studio cleanup succeeds", async t => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-deletion-retry-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const { ai } = controlledAlchemistAi();
   const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai } });
-  t.after(async () => { await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
-  const project = await catalog.createProject({ display_name: "Retained studio", actor_id: "owner" });
+  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Retained studio", actor_id: "owner" }));
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
   await host.actionClient(ref).invoke(caller, a.bootstrap, {});
@@ -369,7 +369,7 @@ test("W5-01-ALC-LIFE-04: ProjectDeletionService retries the same receipt only af
   const studio = owner.get(caller), closeDatabase = studio.database.close.bind(studio.database);
   let attempts = 0;
   t.mock.method(studio.database, "close", () => { if (++attempts === 1) throw new Error("close before directory removal"); return closeDatabase(); });
-  const service = new ProjectDeletionService(async (_options, run) => run(catalog), {
+  const service = new ProjectDeletionService(withCatalog, {
     isPanelAlive: () => false, releaseProject: path => host.closeProject(path),
   });
   const input = { project_id: project.project_id, actor_id: "owner", delete_confirmed: true, idempotency_key: "delete-retry" };

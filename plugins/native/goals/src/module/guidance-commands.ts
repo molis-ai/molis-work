@@ -4,7 +4,7 @@ import type {
   ProjectGuidanceView,
   UpdateProjectGuidanceInput,
   UpdateProjectGuidanceResult,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 
 import { GoalsCommandContext } from "./command-support.js";
 import { projectGuidanceView } from "./guidance.js";

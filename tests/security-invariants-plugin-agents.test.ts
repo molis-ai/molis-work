@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
@@ -29,7 +30,8 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   const started = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
   let requests = 0;
   const model = createServer(async (request, response) => {
-    let body = ""; for await (const chunk of request) body += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const body = Buffer.concat(chunks).toString("utf8");
     const aside = asideReply(body);
     if (!aside) {
       requests++; response.on("close", () => disconnected.resolve()); started.resolve();
@@ -42,7 +44,7 @@ async function fixture(t: TestContext, hold = false, interaction = false) {
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { release.resolve(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address === "object");
-  await seedConfiguredModels(f.home, [{ provider_id: "fixture", model_id: "fixture" }], `http://127.0.0.1:${address.port}`);
+  await seedConfiguredModels(f.home, [{ provider_id: "fixture", model_id: "fixture" }], `http://127.0.0.1:${address.port}`, f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog));
   const store = await f.host.withProject(project.reference, runtime => runtime.store);
   const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const actions = { registry: f.host.actionRegistry(project.reference), client: { ...f.host.actionClient(project.reference), ...f.host.syncActionClient(project.reference) }, project_id: project.project_id };

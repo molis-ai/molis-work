@@ -1,6 +1,6 @@
 import { treeErrors } from "./goal-tree-errors.js";
-import { goalRelationTypes, type CreateGoalInput, type GoalRelationRecord, type GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalTreeProposalItemRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import { goalRelationTypes, type CreateGoalInput, type GoalRelationRecord, type GoalsCommandApi } from "./contract/goals.js";
+import type { GoalTreeProposalItemRecord } from "./contract/governance-collaboration.js";
 
 const GOAL_RELATION_TYPES = new Set<GoalRelationRecord["type"]>(goalRelationTypes);
 

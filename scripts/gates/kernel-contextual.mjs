@@ -1,4 +1,4 @@
-// Gate: the two halves of packages/kernel (specs/repository-anti-corruption N-04, W3-04; decision N-03).
+// Gate: the two halves of packages/kernel (specs/archive/repository-anti-corruption N-04, W3-04; decision N-03).
 //
 // packages/kernel holds a core (the capability directory, dispatch, availability, grants and scene compatibility: index.ts,
 // action-service.ts, action-schema.ts, subject-offer-choices.ts, action-authorship.ts) and one platform product service

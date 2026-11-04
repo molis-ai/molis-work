@@ -8,12 +8,14 @@ interface PeriodicTask {
   run(): unknown;
   /** Called with a failed run's error, after it is recorded; the next run is tried at the next interval as usual. */
   onError?(error: unknown): void;
+  /** Called once by `stop()` after the timers are cleared; `stop()` waits for what it returns. For work the task started that outlives a run. */
+  onStop?(): unknown;
 }
 
 /**
  * The Host's periodic tasks, registered in one place (W4-09) instead of each owner holding its own `setInterval`. A run that
  * is still going when the next one is due is skipped, so a slow round never piles up behind itself. `stop()` clears every
- * timer and waits for the runs in flight; nothing is started after it.
+ * timer and waits for the runs in flight and for what a task's `onStop` returns; nothing is started after it.
  */
 export interface PeriodicTasks {
   /** Starts the task; the returned function stops it alone. */
@@ -52,8 +54,8 @@ export function createPeriodicTasks(): PeriodicTasks {
     stop() {
       stopped = true;
       return stopping ??= (async () => {
-        const running = [...tasks.keys()].map(remove).map(entry => entry?.current);
-        await Promise.all(running);
+        const removed = [...tasks.keys()].map(remove);
+        await Promise.all(removed.flatMap(entry => entry ? [entry.current, entry.task.onStop?.()] : []));
       })().catch(error => { stopping = undefined; throw error; });
     },
   };

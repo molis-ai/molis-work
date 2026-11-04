@@ -1,18 +1,21 @@
-import { GOALS_PANELS_CLIENT_FACTORY_SCRIPT, GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
+import { pluginPageClients } from "../../plugin-workbench.js";
+import { directoryWidth } from "../../directory-width.js";
+
+const GOALS_PAGE = pluginPageClients("goals");
 /** AP3 Workbench client segment: documents-state. */
 export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) => error instanceof DOMException && error.name === "AbortError";
 
     let reloadGoalEventDocument = async (_goalId, _restore) => false;
     let pendingEventRestore = null;
-    const goalEventDocumentApi = (${GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT})({
+    const goalEventDocumentApi = goalData ? (${GOALS_PAGE.goalsEventDocument})({
       documentPane, route, translate: LFor("io.molis.work.goals"), isAbortError,
       showError: (message) => showToast(message, true),
       showStatus: (message) => showToast(message, false),
       reloadDocument: (goalId, restore) => reloadGoalEventDocument(goalId, restore),
       controlHeaders: () => (typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" }),
-    });
-    const bindGoalEventDocument = (...args) => goalEventDocumentApi.bindGoalEventDocument(...args);
-    const openEventReader = (name) => goalEventDocumentApi.openEventReader(name);
+    }) : null;
+    const bindGoalEventDocument = (...args) => goalEventDocumentApi?.bindGoalEventDocument(...args);
+    const openEventReader = (name) => goalEventDocumentApi?.openEventReader(name);
 
     const activateFocusSection = (trigger) => {
       const card = trigger?.closest?.("[data-focus-section-card]");
@@ -65,7 +68,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     const { openEventReaderFromHash, eventReaderFromTargetId,
       setGoalFactor, goalFactorFromTargetId, goalFactorFromHash,
       handleGoalFactorClick, handleGoalFactorKeyboard,
-    } = (${GOALS_PANELS_CLIENT_FACTORY_SCRIPT})({
+    } = (${GOALS_PAGE.goalsPanels})({
       documentPane, activateFocusSection,
       queueSave: () => queueSave(),
       openEventReader,
@@ -83,9 +86,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       const immersive = document.body.classList.contains("immersive-workbench");
       if (immersive ? matchMedia("(max-width: 600px)").matches : matchMedia("(max-width: 760px)").matches && !workspace.classList.contains("is-desktop-tui")) return;
       if (!treeResizer) return;
-      const minimum = immersive ? 200 : 260;
-      const maximum = immersive ? Math.min(520, innerWidth - 360) : Math.min(520, Math.max(320, innerWidth * 0.48));
-      const width = Math.round(Math.min(maximum, Math.max(minimum, Number(value) || 240)));
+      const { minimum, maximum, width } = (${directoryWidth.toString()})(value, innerWidth, immersive);
       workspace.style.setProperty("--tree-width", width + "px");
       treeResizer.setAttribute("aria-valuemin", String(minimum));
       treeResizer.setAttribute("aria-valuemax", String(maximum));
@@ -114,52 +115,37 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     };
 
     const readUiState = () => {
-      rememberFeedPresetState();
       return ({
-      selected,
-      collapsed: getCollapsedTreeGoals(),
+      ...(goalData ? {
+        selected, collapsed: getCollapsedTreeGoals(), treeTop: treeScroll?.scrollTop || 0,
+        documentTop: activeDesktopSurface === "goals" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goals || 0),
+        statuses: getSelectedStatuses(), ...readMomentumState(),
+        workspaceMode: activeDesktopSurface === "goals" ? workspace.dataset.workspaceMode || "graph" : goalWorkspaceMode,
+        goalFactor: documentPane.querySelector('[data-goal-factor-tab][aria-selected="true"]')?.dataset.goalFactorTab || "relations",
+      } : {}),
       disclosures: [...document.querySelectorAll("[data-persist-open][open]")].map((item) => item.dataset.persistOpen),
-      treeTop: treeScroll?.scrollTop || 0,
-      documentTop: activeDesktopSurface === "goal" ? documentPane.scrollTop : Number(desktopSurfaceScroll.goal || 0),
       workSurface: activeDesktopSurface,
-      surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goal" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
+      surfaceScroll: { ...desktopSurfaceScroll, [activeDesktopSurface]: (activeDesktopSurface === "goals" ? documentPane : desktopWorkSurfaces.find(item => item.dataset.workSurface === activeDesktopSurface))?.scrollTop || 0 },
       treeWidth: parseFloat(workspace.style.getPropertyValue("--tree-width")) || (treePane.getBoundingClientRect().width > 44 ? treePane.getBoundingClientRect().width : 240),
       tuiWidth: workspace.classList.contains("is-tui-collapsed")
         ? parseFloat(workspace.style.getPropertyValue("--tui-width")) || undefined
         : tuiPane?.getBoundingClientRect().width,
-      statuses: getSelectedStatuses(),
       mobileView: workspace.dataset.mobileView || "tree",
       navigatorView,
-      workspaceMode: activeDesktopSurface === "goal" ? workspace.dataset.workspaceMode || "graph" : goalWorkspaceMode,
-      ...readMomentumState(),
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
-      feedPreset: activeFeedPreset,
-      feedSelected: selectedFeedItem,
-      feedTask: selectedFeedTask || "all",
-      feedQuery: feedSearch?.value || "",
-      feedSource: feedSourceFilter?.value || "all",
-      feedType: feedTypeFilter?.value || "all",
-      feedTime: feedTimeFilter?.value || "all",
-      feedStatus: feedStatusFilter?.value || "active",
-      feedSort: feedSort?.value || "newest",
-      feedPresets: feedPresetState,
-      sourceSelected: selectedSource,
-      sourceFilter: activeSourceFilter,
-      sourceDetailTab: sourceWorkbench?.querySelector('[data-source-detail="' + CSS.escape(selectedSource) + '"] [data-source-detail-tab][aria-selected="true"]')?.dataset.sourceDetailTab || "overview",
-      goalFactor: documentPane.querySelector('[data-goal-factor-tab][aria-selected="true"]')?.dataset.goalFactorTab || "relations",
       });
     };
 
     const applyUiState = (ui) => {
       desktopSurfaceScroll = ui?.surfaceScroll && typeof ui.surfaceScroll === "object" ? { ...ui.surfaceScroll } : {};
-      if (ui?.documentTop != null && desktopSurfaceScroll.goal == null) desktopSurfaceScroll.goal = Number(ui.documentTop || 0);
+      if (ui?.documentTop != null && desktopSurfaceScroll.goals == null) desktopSurfaceScroll.goals = Number(ui.documentTop || 0);
       goalWorkspaceMode = ui?.workspaceMode || "graph";
-      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || "goal");
+      const requestedDesktopSurface = ui?.workSurface === "sources" ? "feed" : (ui?.workSurface || (goalData ? "goals" : "home"));
       let nextDesktopSurface = desktopWorkSurfaces.some((candidate) => candidate.dataset.workSurface === requestedDesktopSurface)
         ? requestedDesktopSurface
-        : "goal";
+        : "home";
       if (ui?.treeWidth) setTreeWidth(ui.treeWidth, false);
       if (ui?.tuiWidth) setTuiWidth(ui.tuiWidth, false);
       setDirectoryCollapsed(ui?.directoryCollapsed === true, false);
@@ -170,74 +156,34 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
       }
-      restoreTreeCollapsed(ui?.collapsed);
+      if (goalData) restoreTreeCollapsed(ui?.collapsed);
       const disclosures = new Set(ui?.disclosures || []);
       document.querySelectorAll("[data-persist-open]").forEach((item) => {
         item.open = disclosures.has(item.dataset.persistOpen);
       });
-      syncGoalCollectionFolds();
-      setSelectedStatuses(ui?.statuses || []);
-      restoreMomentumState({
-        canvasView: ui?.canvasView,
-      });
-      filterTree("");
-      if (feedDirectory || feedWorkbench) {
-        activeFeedPreset = "feed";
-        const persistedPresets = ui?.feedPresets && typeof ui.feedPresets === "object"
-          ? ui.feedPresets
-          : {};
-        feedPresetState = {
-          feed: { ...defaultFeedPresetState(), ...(persistedPresets.feed || {}) },
-        };
-        if (!ui?.feedPresets) {
-          feedPresetState[activeFeedPreset] = {
-            selected: String(ui?.feedSelected || selectedFeedItem || ""),
-            task: String(ui?.feedTask || ui?.sourceSelected || "all"),
-            query: String(ui?.feedQuery || ""),
-            source: ui?.feedSource || "all",
-            type: ui?.feedType || "all",
-            time: ui?.feedTime || "all",
-            status: ui?.feedStatus || "active",
-            sort: ui?.feedSort || "newest",
-          };
-        }
-        if (ui?.directory === "sources" || ui?.workSurface === "sources") {
-          feedPresetState.feed = {
-            ...feedPresetState.feed,
-            task: String(ui?.sourceSelected || feedPresetState.feed.task || "all"),
-          };
-        }
-        setFeedPreset(activeFeedPreset, true);
-      }
-      if (sourceDirectory) {
-        const availableSourceFilters = new Set(["all", "account", "public", "attention"]);
-        activeSourceFilter = availableSourceFilters.has(ui?.sourceFilter) ? ui.sourceFilter : "all";
-        selectedSource = String(ui?.sourceSelected || selectedSource || "");
-        sourceDirectory.querySelectorAll("[data-source-filter]").forEach((button) => {
-          const active = button.dataset.sourceFilter === activeSourceFilter;
-          button.classList.toggle("is-active", active);
-          button.setAttribute("aria-pressed", String(active));
-        });
-        filterSources(true);
-        if (selectedSource) selectSource(selectedSource, false);
+      if (goalData) {
+        syncGoalCollectionFolds();
+        setSelectedStatuses(ui?.statuses || []);
+        restoreMomentumState({ canvasView: ui?.canvasView });
+        filterTree("");
       }
       setWorkspaceMode(ui?.workspaceMode || "graph", false, true);
-      if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false);
-      if (nextDesktopSurface === "feed" && selectedFeedItem) {
-        selectFeedItem(selectedFeedItem, false, true, false);
-      }
-      restoreGoalGraphViewport();
-      bindGoalEventDocument();
-      openEventReaderFromHash();
-      setGoalFactor(goalFactorFromHash() || (ui?.selected === selected ? ui?.goalFactor : "relations"), false);
-      const hashTargetId = decodeURIComponent(location.hash.slice(1));
-      const hashTarget = hashTargetId ? document.getElementById(hashTargetId) : null;
-      if (treeScroll) treeScroll.scrollTop = Number(ui?.treeTop || 0);
-      documentPane.scrollTop = hashTarget?.closest?.("[data-event-panel], [data-goal-factor-panel]") && activeDesktopSurface === "goal"
+      if (desktopWorkSurfaces.length) setDesktopWorkSurface(nextDesktopSurface, false, false, "restore");
+      let hashTargetId = "";
+      if (goalData) {
+        restoreGoalGraphViewport();
+        bindGoalEventDocument();
+        openEventReaderFromHash();
+        setGoalFactor(goalFactorFromHash() || (ui?.selected === selected ? ui?.goalFactor : "relations"), false);
+        hashTargetId = decodeURIComponent(location.hash.slice(1));
+        const hashTarget = hashTargetId ? document.getElementById(hashTargetId) : null;
+        if (treeScroll) treeScroll.scrollTop = Number(ui?.treeTop || 0);
+        documentPane.scrollTop = hashTarget?.closest?.("[data-event-panel], [data-goal-factor-panel]") && activeDesktopSurface === "goals"
         ? 0
-        : activeDesktopSurface === "goal" && ui?.selected === selected
+        : activeDesktopSurface === "goals" && ui?.selected === selected
           ? Number(ui?.documentTop || 0)
           : Number(desktopSurfaceScroll[activeDesktopSurface] || 0);
+      }
       const restoredMobileView = ui?.mobileView === "tui" || ui?.mobileView === "document" || ui?.mobileView === "tree"
         ? ui.mobileView
         : "tree";

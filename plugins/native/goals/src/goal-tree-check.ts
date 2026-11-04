@@ -1,8 +1,7 @@
-import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
-import { createHash } from "node:crypto";
-import type { GoalsQueryApi, GoalsPlanningApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeProposalCheckInput, GoalTreeProposalCheckResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import { requestHash } from "./module/command-support.js";
+import type { GoalsQueryApi, GoalsPlanningApi } from "./contract/goals.js";
+import type { GovernanceApplicationApi, GoalTreeProposalCheckInput, GoalTreeProposalCheckResult } from "./contract/governance-collaboration.js";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import { GoalTreeMaterializationApplication } from "./goal-tree-materialization.js";
@@ -102,8 +101,4 @@ export class GoalTreeCheckApplication implements Pick<GoalTreeApplicationApi, "c
     if (!text) throw treeErrors[code](message);
     return text;
   }
-}
-
-function requestHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
 }

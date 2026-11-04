@@ -1,9 +1,8 @@
-import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
+import { requestHash } from "./module/command-support.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createHash } from "node:crypto";
-import type { GoalsQueryApi, GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeProposalDecideInput, GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalsQueryApi, GoalsApplicationApi } from "./contract/goals.js";
+import type { GovernanceApplicationApi, GoalTreeProposalDecideInput, GoalTreeProposalItemRecord, ProposalAffectedObject } from "./contract/governance-collaboration.js";
 import type { GoalTreeApplicationApi, GoalTreeProposalDecisionResult } from "./goal-tree-contract.js";
 import type { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import type { GoalTreeInputReader } from "./goal-tree-inputs.js";
@@ -320,8 +319,4 @@ function nullableDialogueText(value: string | null | undefined): string | null {
   if (value == null) return null;
   const text = value.trim();
   return text || null;
-}
-
-function requestHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
 }

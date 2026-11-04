@@ -85,10 +85,6 @@ export const CHARACTERS_STYLES = `
   [data-character-publications] pre, .characters-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; line-height: 1.65; max-height: 45vh; overflow: auto; }
   .characters-dialog { width: min(42rem, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
   .characters-dialog p { font-size: 12px; color: var(--muted); }
-  .characters-settings-entry .characters-project-link { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px; margin: 0 -8px; border-radius: 8px; color: var(--ink); text-decoration: none; }
-  .characters-settings-entry .characters-project-link:hover { background: var(--nav-hover); }
-  .characters-settings-entry .characters-project-link span { flex: 1; }
-  .characters-settings-entry .characters-project-link svg { width: 14px; height: 14px; color: var(--muted); }
   @media (max-width: 760px) {
     .characters-steps { grid-template-columns: minmax(0, 1fr); }
     .characters-block-head { flex-direction: column; }
@@ -97,4 +93,13 @@ export const CHARACTERS_STYLES = `
     .characters-row-chevron { grid-row: 1; grid-column: 2; }
     .characters-savebar > button, .characters-block-actions > button, .characters-inline-actions > button { min-height: 44px; }
   }
+`;
+
+/** The global entry has project links, not the project editor or its terminal. */
+export const CHARACTERS_SETTINGS_ENTRY_STYLES = `
+  .characters-hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .characters-settings-entry .characters-project-link { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px; margin: 0 -8px; border-radius: 8px; color: var(--ink); text-decoration: none; }
+  .characters-settings-entry .characters-project-link:hover { background: var(--nav-hover); }
+  .characters-settings-entry .characters-project-link span { flex: 1; }
+  .characters-settings-entry .characters-project-link svg { width: 14px; height: 14px; color: var(--muted); }
 `;

@@ -4,16 +4,18 @@ import { runLocalDemoCli, runLocalUninstallCli } from "./cli-project-maintenance
 import { runV1Cli } from "./cli-project.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { runLocalHomeCli } from "./cli-home.js";
+import type { HomeRestoreCatalogInspector } from "./home-restore-contract.js";
 
 export interface LocalCliOptions {
   defaultSourceDirectory(): string;
   withCatalog: LocalWebCatalogRunner;
   runPlugin: CliCommandPorts["plugin"];
+  inspectCatalog?: HomeRestoreCatalogInspector;
 }
 
 export function runLocalCli(args: string[], options: LocalCliOptions): Promise<number> {
   return dispatchCli(args, {
-    home: runLocalHomeCli,
+    home: args => runLocalHomeCli(args, options.inspectCatalog),
     plugin: options.runPlugin,
     install: (args) => runLocalInstallCli(args, options.defaultSourceDirectory),
     service: runLocalServiceCli,

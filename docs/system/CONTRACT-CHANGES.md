@@ -2,11 +2,11 @@
 
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
 
-> **阶段二的起点（用户 2026-10-08 定，`specs/repository-anti-corruption/spec.md` §1「『不留兼容』何时结束」；路线图待决 #15）：第一个装到开发机之外的版本。** 用户 2026-10-29 又定「1.0.0 之前都是开发版本」：0.3.0 和 1.0.0 之前的其他版本都是开发版本，不是起点，所以起点不早于 1.0.0。开发机指参与开发的人（现在是用户和同事）用来开发和试用的机器。起点之前一律按阶段一的「不留兼容」做。
+> **阶段二的起点（用户 2026-10-08 定，`specs/archive/repository-anti-corruption/spec.md` §1「『不留兼容』何时结束」；路线图待决 #15）：第一个装到开发机之外的版本。** 用户 2026-10-29 又定「1.0.0 之前都是开发版本」：0.3.0 和 1.0.0 之前的其他版本都是开发版本，不是起点，所以起点不早于 1.0.0。开发机指参与开发的人（现在是用户和同事）用来开发和试用的机器。起点之前一律按阶段一的「不留兼容」做。
 >
 > 起点日期：**还没到，没有固定日期。** 起点发生时，发那个版本的 PR 在这里写下版本号、日期和提交，第 3 节标为已结束，第 4 节开始适用。第 5 节的前置要在那之前就位。
 
-起点之前，没有要保留的旧用户数据：2026-10-02 用户确认没有同事在用要保留的 Home（`specs/repository-anti-corruption/spec.md` §1），所以破坏性变更直接做，不留兼容代码。起点之后才有「读取兼容、写入严格」的兼容期，那时每一段兼容都要写明消费者和删除条件。本文把两个阶段都写下来，让起点一到就有流程可用，也让现在的做法有边界。
+起点之前，没有要保留的旧用户数据：2026-10-02 用户确认没有同事在用要保留的 Home（`specs/archive/repository-anti-corruption/spec.md` §1），所以破坏性变更直接做，不留兼容代码。起点之后才有「读取兼容、写入严格」的兼容期，那时每一段兼容都要写明消费者和删除条件。本文把两个阶段都写下来，让起点一到就有流程可用，也让现在的做法有边界。
 
 ## 1. 哪些算合同
 
@@ -24,16 +24,16 @@
 
 ## 2. 版本号的编号方案
 
-产品版本的编号方案已定（`specs/repository-anti-corruption/spec.md` §1，2026-10-08「版本与发布策略」）：一个产品版本，下一版 0.3.0；根包、桌面端、Tauri 跟同一版本，内置插件的 Manifest 跟宿主版本，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。这个方案的落地由路线图做，现在还没完成。
+产品版本的编号方案已定（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-08「版本与发布策略」）：一个产品版本，下一版 0.3.0；根包、桌面端、Tauri 跟同一版本，内置插件的 Manifest 跟宿主版本，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。这个方案的落地由路线图做，现在还没完成。
 
 能力定义的 `version`、Home 库的结构版本、对外合同 `$id` 里的版本是各自合同的版本，是代码里单独的字段，不跟产品版本走。本文规定「形状变了就升这份合同自己的版本」。
 
 ## 3. 阶段一：现在，不留兼容期
 
-1. **合同读写都只认现行取值**（`AGENTS.md` 硬约束）。破坏性变更直接改合同，不留旧版本解析、别名、兼容出口、读取时兜底历史取值。需要新增兼容或迁移逻辑的，要先写进 `specs/repository-anti-corruption` 的保留机制并经用户确认。
+1. **合同读写都只认现行取值**（`AGENTS.md` 硬约束）。破坏性变更直接改合同，不留旧版本解析、别名、兼容出口、读取时兜底历史取值。需要新增兼容或迁移逻辑的，要先写进本文「当前保留机制」并经用户确认。
 2. **同一个 PR 改完所有消费者**：仓库里的调用方、Skill 与手册、测试。PR 描述列出消费者和改了什么。先例（spec §1）：Casebook 改名（2026-10-04）要求「PR 里列出全部新旧 id」；MCP 连接工具去掉 `actor_id` 的决定（2026-10-07）写明 goal-advance Skill 与 `docs/mcp.md` 同步改。
 3. **有版本字段的合同，形状变了就升版本。** 这样固定了旧版本的引用不会被静默当成新形状：例如工作流固定的能力引用，失效时保留并报错，不换成新版本或另一个提供方（`specs/action-architecture/spec.md` §3「工作流存量内容站迁移」）。
-4. **存量数据由维护改成现行形状，读取时不兜底。** Home 的库：改建库基线并升结构版本，版本不符的库被拒绝（`applySqliteBaseline`），不就地升级，也不写迁移链。开发用的 Home 用一次性脚本升级或重建，脚本放会话临时目录，不进仓库产品代码（spec §1，2026-10-04）。真实 Home 的任何改动：先整份备份，在拷贝上演练，再动原库，并且要用户当次同意（spec §1，2026-10-02 至 10-07 各行）。
+4. **存量数据的处置由明确维护决定，读取时不兜底。** 每个库只留当前建库基线，版本不符就拒绝，不就地升级、不写迁移链。2026-10-30 已决定以现行完整结构干净重建，旧版本转换、采用、搬迁脚本与演练已取消；当前初始化、库 owner 和真实 Home 的边界见 [HOME-DATA.md](HOME-DATA.md)，执行步骤只归发布 [CHECKLIST.md 第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)。本节登记不授予旧数据转换或真实 Home 操作权限。
 5. **外部已经在用的名字**（Runtime 用的 MCP 工具名）：改动是产品决定，先问用户，在 spec §1 记一行，PR 里列新旧名，外部插件同步。
 6. **门禁守着**：源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，只许减少，新文件从零（`pnpm health:check`，`AGENTS.md` 健康门禁一条）。就地补表、测试引用包内部同样只许减少。
 
@@ -41,8 +41,57 @@
 
    **动作合同快照门禁**（`scripts/gates/action-contract-snapshot.mjs`，口径在 `tooling/gates/README.md`「动作合同快照」，跑在 `pnpm test:contracts` 的 `tests/action-contract-snapshot.test.ts`）：每个内置 Manifest 声明的动作与消费场景，一行一个 `capability_id@version`，写明提供方（Manifest 的 `plugin_id`，和宿主登记它用的提供方 id 各一列：固定引用里写的是后者）、种类、谁能调（受众、权限）和输入、输出 schema 的哈希，入库在 `tooling/gates/actions/`；所有内置插件启用时宿主还登记着、却没有 Manifest 声明的动作与消费场景（现在是首页的 `home.dock@1`，判断绑定固定的就是它和提供方 id），另记在同目录的 `host-actions.tsv` 与 `host-scenes.tsv`。源码与快照有任何不同就失败，并把变化分开列：**同一版本下形状变了**（schema、语义类型、主体、依赖与撤销声明等；已经固定了 `capability_id@version` 的引用会遇到另一份合同，要么升版本，要么在 PR 里写明为什么没有固定它的引用会坏）、**登记用的提供方 id 变了**（改名、原生与 Runtime 装配之间迁移、换了发布签名；该插件每个动作逐个列出，固定了旧 id 的引用会遇到 `actions.provider_changed`，要在同一个 PR 里列出并迁完）、谁能调变了、换了新版本、新增、删除。它只看形状和声明，不看函数体与语义；schema 里的 `title` 和 `description` 是文字，不算。有意改：`pnpm build` 后 `pnpm actions:update`，提交 `tooling/gates/actions/`，把命令打印的变化写进 PR「公开合同与 API 影响」一栏。
 
-7. **不算兼容、要保留的**：合同和 Schema 的版本号字段，插件升级声明 `compatible_from_versions` / `migratable_from_versions` 与发行物留存。它们是起点之后要用的机制，不是为旧数据留的（spec §1，2026-10-02「插件升级声明的机制」）。
+7. **当前保留机制**见下节：它们属于现行功能或依赖，不是兼容窗口，不允许据此增加历史格式读取。
 8. **破坏性变更要在升级须知里写一条。** 装新版本的人要动手的合同变更（MCP 工具名变了、固定的引用要重选、动作升了版本），在 `docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」里写一条：谁要动什么；发布时它随版本发出去。PR 描述照第 2 条列消费者，升级须知是给用户看的，两处都要。
+
+### 当前保留机制
+
+以下机制从防腐 spec §4.1 及已采用决定归回本文；兼容标记的历史数量仍留原 spec，不作为当前计数。阶段一不因登记而放宽门禁：源码兼容标记只许减少，新文件从零；新增兼容或迁移须先在这里写清目的、owner、消费者、允许边界和删除条件，并经用户确认，登记本身不能放行增长。
+
+| 机制 | 目的与允许边界 | owner 与移除条件 |
+| --- | --- | --- |
+| 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
+| pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
+| 产品文案中的「回填」与规划方法说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
+| 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
+| Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
+| 中文原文作为翻译键（2026-10-25 决定） | 现行翻译键机制；插件词典由插件在 Manifest 声明，平台同样加载内置与第三方插件，不在工作台导入插件词典 | [工作台「界面文字」](../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)及各插件词典 owner；稳定键接续按该处规则，不新增旧键读取兜底 |
+
+### 存储版本变更登记
+
+当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
+
+**库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
+
+| 位置 | 版本 | 改版本的提交 | 维护 |
+| --- | --- | --- | --- |
+| `projects/catalog.db` | 22 → 1 | W5-17（`feature/maintenance-w517-a`；统筹 #1332 6517794305） | 原迁移已取消，真实重建未开始。当前结构无projects.database_path，路径由可信Home与project_id推导；删除catalog维护脚本、旧结构夹具与演练。新建/错版拒绝及S-102在 `tests/catalog-path-derivation.test.ts`、`tests/security-invariants-project-storage.test.ts`。旧Home整体搬开后新建当前结构1，等全部代码合入/构建就绪后用户另说“开始”；不碰#1101分支。 |
+| `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `memory/memory.db` | 2 → 3 | 记忆策略 M1 第一片（`codex/memory-p0`，独立 PR 交付） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `memory/memory.db` | 3 → 4 | [Memory SDK 采用 PR #1064](https://github.com/molis-ai/molis-work/pull/1064)，`6bbacc107` | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `plugin-runtime/plugin-runtime.db` | 2 → 3 | ac-trust T1（`claude/ac-trust-t1`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](../../specs/archive/repository-anti-corruption/slices/platform-scenes-judgments-services.md)） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `assistant/assistant.db` | 2 → 3 | PG-036 C8-3（`claude/ac-coding-93b25f`；助理按执行方协议选执行方，工作正文的执行方改记插件标识） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
+| `projects/<project_id>/molis-work.db` | 11 → 1 | 干净Home第一片 | 不迁移旧库；保留现行完整DDL，只在干净Home创建1。旧Home搬开由统筹另获“开始”；错版仍拒绝，项目旧维护链已删。 |
+| `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同第一片 | Feed现行12表和索引不改，声明起点1；旧账本不升级。 |
+| `plugin-runtime/plugin-runtime.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `characters/characters.sqlite` | 2 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `functions/functions.db` | 4 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `assistant/assistant.db` | 3 → 1 | 干净Home第三片（统筹6517794305） | 原迁移已取消，升级SQL/旧结构/演练删除；当前DDL不变，新建与拒绝回归见 `slices/clean-home-core-stores.md`。真实重建未开始，等全部代码就绪后用户“开始”。 |
+| `issues/issues.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行完整DDL、owner与权限保留；旧Home整体搬开后新建，不升级旧数据。新建/重开/错版拒绝见 `slices/clean-home-plugin-stores.md`；真实重建等全部代码就绪后用户“开始”。 |
+| `form/form.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行问卷/回答/发布恢复结构和实体版本保留；旧Home整体搬开后新建，不转换旧数据；库起点1，不改动作版本。真实重建未开始。 |
+| `pages/pages.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 当前文稿/评论/发布恢复完整DDL保留；旧Home整体搬开后新建，不升级旧库；新建/重开及拒绝见本片，真实重建未开始。 |
+| `search/search.db` | 2 → 1 | 干净Home第四片（统筹6517794305） | 现行索引结构保留，元数据起点1；仍按既有派生缓存合同在缺失/损坏/版本不符时重建，从事实owner获得相同结果，不迁移业务库。真实Home未操作。 |
+| `memory/memory.db` | 4 → 1 | 干净Home第五片（统筹6517794305） | 原storage/Host/SDK显式采用路线已取消，工具/演练删除；现行DDL不变，新Home完整reviewed偏好，旧账本错版和不完整设置仍拒绝。SDK内部shape不改；真实重建等全部代码就绪后用户“开始”。 |
+| `server/server.sqlite` | 2 → 1 | 干净Home第六片（统筹6517794305） | 现行IM/身份/传输完整DDL归1，错版与错结构在可写打开前拒绝；旧邀请转换工具/演练删除，旧Home整体搬开后新建，真实未开始。 |
+| `feed/secrets.json` | 2 → 1 | 干净Home第六片（统筹6517794305 / 6518340875） | 只改外层文件格式号；AES-GCM、AAD、Home绑定及缺原key拒绝保持，不改Keychain或SDK内部形状；旧Home整体搬开，真实未开始。 |
+| `config/mcp-tools.json` | 3 → 1 | 干净Home第六片（统筹6517794305） | 现行逐客户端/动作精确授权字段归外层1，权限与撤销保持；旧Home整体搬开后用户重授权，不转换旧授权。 |
+| `shelf/catalog.json` | 2 → 1 | 干净Home第六片（统筹6517794305） | 当前item/job/clipboard字段不变，外层1；旧转换工具删除，坏格式不补造；旧Home整体搬开后新建。 |
+| `connectors/connectors.db` | 2 → 1 | 干净 Home 连接库片（统筹 #1332 6520836999） | [本片规格](../../specs/archive/repository-anti-corruption/slices/clean-home-connectors.md)；保留现行完整DDL（含授权结果表），旧库不迁移，用户批准开始后整份Home搬开重建；当前只有代码候选和临时Home验证，真实Home未操作。 |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -52,14 +101,14 @@
 2. **升版本，新旧并存**：新形状用新版本。能力注册新的 `version`，同一个 id 的旧版本继续可调用到窗口关闭；Home 的库加一段 `from → to` 的升级；插件 Manifest 按 SemVer 升主版本，并在 `upgrade_compatibility` 里写清哪些来源版本可以直接用、哪些可以迁移。
 3. **读取兼容，写入严格**：读取时接受旧版本并映射成新形状；写入只产生新版本。结果合同回显已存历史时，接受历史取值，写入侧不接受。
 4. **消费者清单**：窗口开始时列全：仓库内的调用方（用 `git grep` 找能力 id、工具名、导出名）、外部消费者（使用 MCP 工具的 Runtime 与 Skill）、已安装的插件（用户 Home 里的发行物，创作台生成的插件）。每一项写：谁负责迁、迁移 PR、状态。
-5. **删除条件**：每个窗口写一个可检查的条件，例如「清单里的消费者全部迁完，并且已经过一个发布版本，用户 Home 的库都已升到新版本」。条件满足后，一个 PR 删除兼容代码、兼容测试和登记行。**提议：** 兼容代码旁放带窗口编号的标记，登记表（第 6 节）有对应一行，门禁据此放行（第 5 节）。这是本文的提议，没有经过用户确认；`AGENTS.md` 要求新增兼容机制先写进 `specs/repository-anti-corruption` 的保留机制并经用户确认，所以起点之前要先过这一步。
+5. **删除条件**：每个窗口写一个可检查的条件，例如「清单里的消费者全部迁完，并且已经过一个发布版本，用户 Home 的库都已升到新版本」。条件满足后，一个 PR 删除兼容代码、兼容测试和登记行。**提议：** 兼容代码旁放带窗口编号的标记，登记表（第 6 节）有对应一行，门禁据此放行（第 5 节）。这是本文的提议，没有经过用户确认；`AGENTS.md` 要求新增兼容机制先写进本文「当前保留机制」并经用户确认，所以起点之前要先过这一步。
 6. **合同测试**：窗口里每一段兼容配两个测试：旧形状被读取并映射成新形状；写入只产生新形状。关窗口时和兼容代码一起删。
-7. **插件回放**：合同或运行时的变更，用存量插件样本回放，确认它们仍能加载（解析 Manifest、校验授权声明）、升级（按 `upgrade_compatibility`）、运行（调用一个动作）。工具是 `scripts/replay-plugins.mjs`（在构建好的工作区上跑，每个样本一份临时 Home），样本集在 `tests/fixtures/replay-plugins/corpus.json`：`examples/plugin-sample`、按 `pnpm pack` 打包的内置插件 text-stats（在它自己的位置上以打包的代码升级）；路线图 W4-01 的 2–3 个创作台生成的插件（隔离 Home 里用 MiniMax 真跑）还在补。`tests/replay-plugins.test.ts` 跑它，并确认坏样本会失败。把回放结果贴在 PR 里。
+7. **插件回放**：合同或运行时的变更，用存量插件样本回放，确认它们仍能加载（解析 Manifest、校验授权声明）、升级（按 `upgrade_compatibility`）、运行（调用一个动作）。工具是 `scripts/replay-plugins.mjs`（在构建好的工作区上跑，每个样本一份临时 Home），样本集在 `tests/fixtures/replay-plugins/corpus.json`：`examples/plugin-sample`、按 `pnpm pack` 打包的内置插件 text-stats（在它自己的位置上以打包的代码升级）；W4-01 的两个真实来源样本也已入库：MiniMax 生成的计数器，以及模型生成后端加用户批准人工验收／文案适配的清单，各目录 README 保留来源与失败边界。签包样本走真实 CLI 预览／确认 pin、同安装兼容升级和 Host 关闭重开；macOS 已有两份独立回放结果，其它平台明确报告 unsupported，不能把未运行算通过。原始模型源码是 source.json 数据夹具，回放只执行已签包中的真实 bundle。`tests/replay-plugins.test.ts` 跑它，并确认坏样本会失败。把回放结果贴在 PR 里。
 8. **PR 里写清楚**：公开 API 有没有变（快照 diff）、版本怎么变、消费者列表、删除条件。`.github/pull_request_template.md` 有对应的栏目。
 
 ## 5. 起点之前要先有的东西
 
-起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/repository-anti-corruption/spec.md` §10 为准：
+起点一到就要能用，所以这些要在起点之前就位。进度以 `specs/archive/repository-anti-corruption/spec.md` §10 为准：
 
 - 公开 API 快照（`packages/contracts` 各子路径和 `packages/plugin-sdk`）：**已就位**（路线图 W1-04，门禁见第 3 节第 6 条）。导出一变必须显式 `pnpm api:update`，PR 里写影响。
 - 动作合同快照（每个内置 Manifest 的 `capability@version`、提供方和 schema 哈希，进 `pnpm test:contracts`）：**已就位**（路线图 W2-15，门禁见第 3 节第 6 条）。schema 变了而版本没变，失败信息会单独点出来，由评审拦下；要不要在 CI 里对照 merge-base 直接拦死「同一版本下形状变化」，取决于「只加可选字段算不算形状变」（第 4 节开头把它列为阶段二才有的例外），这是合同语义，等用户定。
@@ -96,7 +145,9 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **`services.attention` 与 `services.contextLedger`，权限 `attention:read`/`attention:write`、`context-ledger:read`/`context-ledger:write`，Manifest v2 的 `attention: { subjects }`**（PG-087、PG-094 S9-0b）：新增、可选，没声明对应权限的插件拿到的是 `undefined`。写入加入插件当前的项目事务；对象的所有者（`owner_plugin_id`）由安装的可信 Manifest 记下，不从调用者输入读，`subjects` 只能是平台的封闭列表（`feed_item`、`goal_decision`、`source_fault`）里的种类。Attention 的条目与事件记录多一个**必需**字段 `owner_plugin_id`（`string | null`，null 是明确的「未指派」），`AttentionSubjectType` 改成上面的封闭列表，`deleteSubject` 多一个可选的所有者参数。自己构造这些记录的代码（测试替身）要补字段。
 - **页面与管理入口给出处，同一个写法（`user_action.message_ref` 一律 `web:<键>` / `management:<键>`，整份确认走请求头 `x-molis-work-whole-confirmation: 1`）**（PG-029 后半、PG-008 Goals 部分，PG-094 S12）：出处由宿主入口（`apps/local-host/src/entry-user-action.ts` 的 `entryUserAction`）给，不再各动作手写；页面一次请求的 `message_ref` 取该请求已有的一次性键（`x-molis-work-idempotency-key`，同一次操作的重试用同一把），管理入口取命令的 `idempotency_key`。此前存下来的决定记录里的 `web-decision:<键>`、`web-event-decision:<键>`、`management-tree-decision:<键>`、`management-event-decision:<键>` 不改（读取不兜底，也不用它们比对），之后新存的是新写法。树决定的"整份确认"此前由请求体里的 `confirm_all_pending` 带出，现在页面入口只认请求头，只有 Goals 方案页的"确认整份"控件会发；页面入口的权限不再手写，按每个动作在 Manifest 里声明的权限与已运行安装的授权逐请求求解（`localWebActionContext`）。
 - **结构提案的决定，请求身份不再含 `conversation_ref`、`message_ref`**（PG-094 S12）：这两个是入口给的审计定位，不是"决定了什么"；页面入口的 `message_ref` 现在取该请求的传输键，同一个业务键换一把传输键重试，仍重放原结果（`HTTP goal-tree decisions replay the original result with a stable business key` 照旧通过），同键不同内容仍被拒。决定记录里照旧存原来那条的定位。
-- **`artifacts.links` 多声明权限 `goals:read`**（PG-094 S12）：该动作为"交付它的 Goal"取标题，现在以调用者的身份问 Goals 的目录（`goals.directory.read`），不再经宿主私路读 Goals 的库；取不到就退回只显示 Goal id。调用它的客户端（页面、助手、MCP、工作流）要持有 `goals:read`；本机所有者与已安装 Goals 的项目照旧有。动作合同快照里 `artifacts.links` 一行的 `谁能调` 随之变，输入输出形状不变，版本不升。
+- **`artifacts.links` 多声明权限 `goals:read`**（PG-094 S12；**已被取代**：现状只要 `artifacts:read`，取标题改由下面 BL-646 那条的 link_subjects 做）：该动作为"交付它的 Goal"取标题，现在以调用者的身份问 Goals 的目录（`goals.directory.read`），不再经宿主私路读 Goals 的库；取不到就退回只显示 Goal id。调用它的客户端（页面、助手、MCP、工作流）要持有 `goals:read`；本机所有者与已安装 Goals 的项目照旧有。动作合同快照里 `artifacts.links` 一行的 `谁能调` 随之变，输入输出形状不变，版本不升。
+- **`artifacts.links` 的输出按声明链接的插件分组，新增「链接对象的名字」合同**（BL-646，T-113，2026-10-30）：输出从 `{ goals: [{ goal_id, title, role }], other }` 改成 `{ plugins: [{ plugin_id, plugin_title, objects: [{ id, title, role, proposal, open: { surface, id } }] }], other }`，`role` 只有 `input`、`output`，「提议的」另由 `proposal` 说；此前凡是命中已声明种类的边都被当成 Goal 列出、用 Goal 的目录查名字。名字与打开位置由声明那个链接种类的插件自己答：`platform/actions` 新增 `defineArtifactLinkSubjectsAction`、`isArtifactLinkSubjectsAction`（插件作者从 plugin SDK 取 `defineArtifactLinkSubjectsAction`、`ARTIFACT_LINK_SUBJECTS_BATCH` 和三个类型）（输入 `{ ids }`、输出 `{ objects: [{ id, title, open }] }`，按 input/output 类型识别），宿主以调用者身份调它，只收问过的 id；没有这个动作、调用失败或调用者读不了的，显示 id、按边的 `source.module` 打开。link_subjects 的受众与 `artifacts.links` 相同（user、agent、workflow、mcp），因为它以 `artifacts.links` 的调用者身份被问：MCP 或工作流调用方要同时被授予声明方的 link_subjects 才看得到名字（与此前要有 `goals.directory.read` 一样），没有就只看到 id。一次最多 200 个 id，成果库分批问；声明方给的 `open` 只认它自己的 surface，别的退回边的 module。被拒（`forbidden`、`not_found`，以及 MCP 客户端没被授予命名动作时的 `mcp.action_revoked`）就是「读不到」的回答，显示 id、不写日志；其余失败写进宿主日志（`artifacts.link_subjects_failed`）再显示 id。Goals 声明 `goals.artifacts.link_subjects@1`（`goals:read`）。**为什么不升 `artifacts.links@2`**（§3 第 6 条）：仓库里没有固定 `artifacts.links@1` 的工作流模板、场景或绑定，唯一调用方是宿主成果页，本次已改；阶段一没有要保留的 Home 数据；同版本换输出形状有先例（batch-25 #1194 的 `goals.subject.read@1` 等）。开发 Home 里固定了它的工作流会读到新形状，已写进 CHANGELOG 升级须知。动作合同快照里这一行的输出哈希随之变。**声明了 `artifacts.links` 的插件**要声明自己的 link_subjects 动作，否则它的对象只显示 id。本条取代上面 PG-094 S12 那条的取标题方式。
+- **`knowledge.locate` 升 @3，输出多一个 `omitted`；`platform/model-prompts` 新增 `MODEL_DATA_MAX_CHARS`**（T-132，RAC-2496～2499，2026-10-30）：选节时交给模型的分节树按整节放进宿主文字模型端口的数据位（`MODEL_DATA_MAX_CHARS` = 180,000 字，按码点数；此前端口的 `PROMPT_MAX_CHARS` 里直接写数字），每份轮流放、从分节树开头连续放，放不下的节整节不进、不截半节；`omitted` 是读到的分节树里没交给模型的节数（含每份 300 节之外的），0 也返回。按上限算五份分节树能到 23 万字以上，此前整次调用被端口拒绝。**为什么升版本**：输出 schema 是 `additionalProperties: false`，多一个必有字段就是形状变了（§3 第 3 条），不留 @2。仓库里没有固定 `knowledge.locate@2` 的工作流模板、场景或绑定（只有归档 spec 写过这个 id）；Agent、MCP 和工作流调用方读到的输出多一个整数字段，MCP 工具名不含版本、不变；开发 Home 里固定了 @2 的工作流引用会报错并保留，要重选，已写进 CHANGELOG 升级须知。`KnowledgeLocator` 的类型不变（它收到的输入已经放得下）；宿主的 `knowledgeModelLocator` 改用 `knowledgeLocateData(input)` 作数据，与 `locateSections` 量的是同一个字符串。动作合同快照里这一行换成 @3。
 - **`goals.board.initialize` 采纳启动时代做的看板**（PG-094 S12）：Goals 在项目启动时用根行代为开板（先于任何人要它）。人第一次明确初始化（如 `molis-work v1 init` 开一个目录库之外的库）时，若看板正是这一次启动时做的，就当作这次调用要的看板回答，并记成这次调用自己的回执（重试重放）；更早的运行或更早的调用做的看板，照旧以 `goals.board.exists` 拒绝。
 
 - **Manifest 的 `attention.inbox`：插件声明哪些种类的条目是人的 Inbox；Inbox 读取入口改按声明解析；Feed 不再能开 `goal_decision` 条目**（PG-094 S12，RAC-806～809，统筹 2026-10-25 定）：`attention` 在 `subjects` 之外可选地加 `inbox`（`subjects` 的子集，不空、不重复）；`AttentionQuery` 加 `listInbox(projectId, declared)` 与 `getInbox(projectId, entryId, declared)`，`declared` 是 `AttentionInboxDeclarations`（主人插件号 → 它声明的种类）。Inbox 是未归属条目，加上「主人声明了该种类」的有主条目，别的一律不解析（声明只对声明者自己的条目生效，A 声明的种类不会让 B 的条目出现）。宿主从项目库里运行中的安装、按发行物归档里的 Manifest 读出声明（`apps/local-host/src/plugin-inbox-declarations.ts`），Feed 的 `listInboxEntries`、`getInboxEntry`、`setInboxEntryStatus` 经 `FeedApplicationPorts.inboxDeclarations` 调这两个查询，代码里不点名任何插件。Goals 的 Manifest 声明 `inbox: ["goal_decision"]`。停用、卸载或发行物未归档的安装不贡献声明。同时 Feed 不再读 Goals 的表，`inbox.add` 一类入口对 `goal_decision` 一律以 `feed.invalid_transition` 拒绝（提醒由 Goals 自己开）。调用方的影响：不声明 `inbox` 的插件，它的有主条目不进 Inbox（照旧只经 `services.attention` 读）；想往 Inbox 手动加一个 Goal 的客户端会得到拒绝，没有正常路径依赖它。

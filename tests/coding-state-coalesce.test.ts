@@ -82,7 +82,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-// PG-054 (specs/repository-anti-corruption/privileges.md): Coding names no Runtime. A new session, and the methods and MCP servers the
+// PG-054 (specs/archive/repository-anti-corruption/privileges.md): Coding names no Runtime. A new session, and the methods and MCP servers the
 // project keeps, use the first Runtime in the platform's directory that can host a session (there is no per-project choice yet, BL-372); what
 // a Runtime offers is read from its own capability matrix, never from its id.
 

@@ -1,9 +1,9 @@
-import { assembleMcpCatalog } from "@molis-ai/molis-work-app-local-host";
+import { MCP_TOOLS, assembleMcpCatalog } from "@molis-ai/molis-work-app-local-host";
 import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionDefinition, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MCP_TOOLS, RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { RUNTIME_MCP_TOOLS, molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { functionsActions } from "@molis-ai/molis-work-module-functions";
+import { functionsActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { formActions, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
@@ -45,6 +45,7 @@ async function grantActions(home: string, connection: MolisWorkRuntimeConnection
 async function listToolNames(server: MolisWorkServer): Promise<string[]> {
   await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {} } });
   const listed = await server.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) as { result: { tools: Array<{ name: string }> } };
+  assert.ok(listed.result, JSON.stringify(listed));
   return listed.result.tools.map(tool => tool.name);
 }
 
@@ -125,7 +126,7 @@ test("runtime named call of a management platform tool is authority_denied, not 
   }
 });
 
-test("a new MCP connection restores a bound session before freezing project-scoped tools", async (t) => {
+test("RAC-2918: an embedded MCP owning its Home restores a bound session and discovers/invokes project tools", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-form-mcp-reconnect-"));
   const servers: MolisWorkServer[] = [];
   t.after(async () => {
@@ -162,4 +163,9 @@ test("a new MCP connection restores a bound session before freezing project-scop
   servers.push(second);
   const secondNames = await listToolNames(second);
   assert.ok(secondNames.includes(formList), secondNames.join(","));
+  const queried = await second.handleMessage({ jsonrpc: "2.0", id: 30, method: "tools/call",
+    params: { name: formList, arguments: {} },
+  }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+  assert.equal(queried.result.isError, false, queried.result.content[0]?.text);
+  assert.deepEqual(JSON.parse(queried.result.content[0]!.text).forms, []);
 });

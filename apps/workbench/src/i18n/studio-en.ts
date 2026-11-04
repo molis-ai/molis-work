@@ -10,6 +10,16 @@ import { BOARD_EN } from "./board-en.js";
  * name the studio's package (the assembly gate counts the files that do).
  */
 export const STUDIO_EN: Record<string, string> = {
+  "个人空间版本：下载签名包，在插件设置中导入并确认后使用。": "Personal-space version: download the signed package, then import and confirm it in plugin settings.",
+  "签名包可导入其他空间；本项目原有安装保持不变。": "Import the signed package into another space. The existing installation in this project is preserved.",
+  "安装到个人空间": "Install in personal space",
+  "发布者指纹": "Publisher fingerprint",
+  "下载签名包": "Download signed package",
+  "前往插件设置": "Open plugin settings",
+  "发布范围": "Publish to",
+  "首次发布后范围固定；要换范围，请创建新草稿。": "The first release fixes this scope. Create a new draft to publish to another scope.",
+  "切换范围后需重新检查已有代码和界面，不会调用模型。": "Changing scope requires checking the existing code and interface again. No model is called.",
+  "按此范围重新检查": "Check this scope again",
   "：": ": ",
   ...PLUGIN_COMPONENTS_EN,
   ...BOARD_EN,
@@ -269,7 +279,7 @@ export const STUDIO_EN: Record<string, string> = {
   "这个插件当前没有运行，请在创作台里启用": "This plugin is not running now. Enable it in the studio.",
   "找不到这个插件的已安装版本": "The installed version of this plugin was not found",
   // What the studio's routes answer when a request cannot go through (apps/local-host/src/plugin-builder/agent-surface.ts,
-  // plugins/native/plugin-builder/src/agent-workflow.ts and agent-store.ts). The page shows a message as a whole, or its
+  // studio-release.ts, plugins/native/plugin-builder/src/agent-workflow.ts, agent-publication.ts and agent-store.ts). The page shows a message as a whole, or its
   // opening sentence ending in "：" followed by the detail as the host wrote it. What the workflow raises while a build runs
   // (a model answer that fails validation, a gate or an acceptance that fails) is build-record text and stays as written (BL-125).
   "界面组件不存在": "That interface component does not exist",
@@ -296,7 +306,7 @@ export const STUDIO_EN: Record<string, string> = {
   "这个项目不能在这里启用插件": "Plugins cannot be enabled for this project here",
   "组件选择已失效": "The component selection is no longer valid",
   "没有可撤销的合同修订": "There is no contract revision to undo",
-  "全部功能和浏览器验收通过后才能发布": "You can publish only after all features and browser checks pass",
+  "目标范围的功能检查和浏览器验收全部通过后才能发布": "You can publish only after the feature checks and browser acceptance pass for the target scope",
   "发布版本不存在": "That published version does not exist",
   "未知构建操作": "Unknown build operation",
   "找不到这个创作草稿": "That draft was not found",

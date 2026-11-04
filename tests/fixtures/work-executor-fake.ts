@@ -1,6 +1,6 @@
 import { defineWorkExecutorActions, WORK_EXECUTOR_ROLES, type ActionDefinition, type ActionView, type WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
 
-// A plugin that is not Coding and speaks the work-executor protocol v1 (specs/repository-anti-corruption PG-036, C8-3): the six role
+// A plugin that is not Coding and speaks the work-executor protocol v1 (specs/archive/repository-anti-corruption PG-036, C8-3): the six role
 // actions at ids of its own, which the Assistant finds by their types and never by the ids or the plugin's name.
 
 /** The modes such an executor offers in its `state`. */

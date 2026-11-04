@@ -1,26 +1,41 @@
+import { MolisWorkLocalHost, projectActionAvailability, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+
+async function catalogWebHost(homeDirectory: string) {
+  let withCatalog = withMolisWorkProjectCatalog;
+  const availability = projectActionAvailability((options, run) => withCatalog(options, run), homeDirectory);
+  const host = new MolisWorkLocalHost({ homeDirectory,
+    actionAvailability: availability, sceneAvailability: availability,
+    projectRoutePrefix: projectId => `/projects/${encodeURIComponent(projectId)}`,
+    workspacesFor: projectId => withCatalog({ homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    workspaceFor: projectId => withCatalog({ homeDirectory }, catalog => workspaceRefFor(catalog, projectId)),
+  });
+  const access = host.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog);
+  withCatalog = host.configurePersonalPlanning(homeDirectory, access.withCatalog);
+  return { host, withCatalog, catalog: await withCatalog({ homeDirectory }, current => current) };
+}
 
 test("Project plugin HTTP persists only the selected project, rejects unauthorized input, and repeats without duplicate facts", async t => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-project-plugins-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const { host, catalog } = await catalogWebHost(homeDirectory);
   const first = await catalog.createProject({ display_name: "第一项目", actor_id: "test" });
   const second = await catalog.createProject({ display_name: "第二项目", actor_id: "test" });
   const token = "project-plugin-test-token-01234567890123";
-  const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });
+  const server = createMolisWorkWebServer({ homeDirectory, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    catalog.close(); await rm(homeDirectory, { recursive: true, force: true });
+    await host.close(); await rm(homeDirectory, { recursive: true, force: true });
   });
   let sequence = 0;
   const add = (projectId: string, plugin: string, authorized = true) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
@@ -38,9 +53,9 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
     assert.deepEqual(await response.json(), { project_id: second.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [] });
   }
   assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
-  const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
-  try { assert.deepEqual(reopened.listProjectPlugins(second.project_id), ["goals", "inbox", "schedule"]); }
-  finally { reopened.close(); }
+  await host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog)({ homeDirectory }, reopened => {
+    assert.deepEqual(reopened.listProjectPlugins(second.project_id), ["goals", "inbox", "schedule"]);
+  });
   const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added'").get(second.project_id).n, 1);
@@ -51,18 +66,18 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
 
 test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay idempotent", async t => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-feed-inbox-companion-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const { host, catalog } = await catalogWebHost(homeDirectory);
   const project = await catalog.createProject({ display_name: "信息流项目", actor_id: "test" });
   const inboxOnly = await catalog.createProject({ display_name: "只要 Inbox", actor_id: "test" });
   const token = "project-plugin-inbox-test-token-01234567890123";
-  const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });
+  const server = createMolisWorkWebServer({ homeDirectory, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    catalog.close(); await rm(homeDirectory, { recursive: true, force: true });
+    await host.close(); await rm(homeDirectory, { recursive: true, force: true });
   });
   let sequence = 0;
   const add = (projectId: string, plugin: string) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
@@ -98,18 +113,18 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
 
 test("Removing a project plugin leaves companions, removing a dependency takes dependents, and a personal plugin can be hidden then restored", async t => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-remove-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
+  const { host, catalog } = await catalogWebHost(homeDirectory);
   const project = await catalog.createProject({ display_name: "可移除", actor_id: "test" });
   const other = await catalog.createProject({ display_name: "旁观", actor_id: "test" });
   const token = "project-plugin-remove-test-token-01234567890123";
-  const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });
+  const server = createMolisWorkWebServer({ homeDirectory, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    catalog.close(); await rm(homeDirectory, { recursive: true, force: true });
+    await host.close(); await rm(homeDirectory, { recursive: true, force: true });
   });
   let sequence = 0;
   const change = (method: "POST" | "DELETE", projectId: string, plugin: string, authorized = true) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {

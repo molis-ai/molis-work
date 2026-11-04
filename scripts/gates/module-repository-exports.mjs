@@ -1,4 +1,4 @@
-// Modules export their Repositories and Stores (specs/repository-anti-corruption N-11, W1-05).
+// Modules export their Repositories and Stores (specs/archive/repository-anti-corruption N-11, W1-05).
 //
 // A Module's package entry (<package>/src/index.ts, the only subpath its package.json exports) is its public surface. A Module
 // is a package that scripts/workspace-packages.mjs classifies as kind "module" (modules/* and server, which has its own chat

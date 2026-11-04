@@ -61,7 +61,7 @@ test("RAC-1756: what a plugin offers other Agents is a Skill: SKILL_TOOLS keeps 
     import type { AgentDefinitionRegistration, AgentSkillRegistration, AgentSkillView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
     ${EXACT}
     export const registration: Exact<NonNullable<AgentDefinitionRegistration["methods"]>[number], AgentSkillRegistration> = true;
-    export const view: Exact<keyof AgentSkillView, "key" | "owner_id" | "source" | "skill_id" | "version" | "name" | "summary" | "tools"> = true;
+    export const view: Exact<keyof AgentSkillView, "kind" | "default_ref" | "install_id" | "key" | "owner_id" | "source" | "skill_id" | "version" | "name" | "summary" | "tools"> = true;
   `), []);
   assert.equal(typeErrors(`import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions"; export type T = [AgentMethodRegistration, AgentMethodView];`).length, 2);
 });

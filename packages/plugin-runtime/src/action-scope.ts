@@ -3,7 +3,7 @@ import { ActionError, requireSynchronous, type ActionDefinition, type ActionExec
 
 /**
  * One running instance of a Plugin. The Home half and the project half of a dual-instance plugin share `install_id` and differ in
- * `installation_generation` (specs/dual-instance-plugins U3), so a service compares both: a handle one half holds is not the other's.
+ * `installation_generation` (specs/archive/dual-instance-plugins U3), so a service compares both: a handle one half holds is not the other's.
  */
 export interface PluginInstance {
   readonly install_id: string;
@@ -53,6 +53,7 @@ interface PluginJobScope extends PluginInstance {
   readonly job: string;
   readonly caller: ActionCallContext;
   readonly begun: number;
+  readonly permission_checks?: object;
 }
 
 type PluginInvocationScope = PluginActionScope | PluginSceneScope | PluginJobScope;
@@ -78,8 +79,10 @@ const place = (begun: number | undefined) => begun ?? running.getStore()?.begun 
  */
 export interface PluginRouteCall {
   readonly route_id: string;
+  readonly instance?: PluginInstance;
 }
 const routes = new AsyncLocalStorage<PluginRouteCall>();
+const permissionCalls = new AsyncLocalStorage<PluginInstance>();
 
 /** Calls whose handler has returned, thrown or settled (`pluginInvocationOpen`), and routes ended before theirs did. */
 const ended = new WeakSet<object>();
@@ -88,7 +91,7 @@ const ended = new WeakSet<object>();
 function runOpen<S extends object, T>(store: AsyncLocalStorage<S>, scope: S, handle: () => T): T {
   const end = () => { ended.add(scope); };
   let result: T;
-  try { result = store.run(scope, handle); } catch (error) { end(); throw error; }
+  try { result = checkedPermissionResult(scope, store.run(scope, handle)) as T; } catch (error) { end(); throw error; }
   if (typeof (result as { then?: unknown } | null | undefined)?.then === "function") void (result as PromiseLike<unknown>).then(end, end);
   else end();
   return result;
@@ -126,7 +129,7 @@ export function insideOpenPluginCall(): boolean {
  * its scene's writes need (`pluginSceneEffectPassed`).
  */
 export function pluginSceneBeforeEffect(before: () => Promise<void>, effect: { passed: boolean }): () => Promise<void> {
-  return async () => { await before(); effect.passed = true; };
+  return async () => { await before(); assertHeldPluginResults(effect); effect.passed = true; };
 }
 
 /** Whether the callback `scope` runs for is a scene callback whose `beforeEffect` already returned. */
@@ -180,7 +183,7 @@ export function runInPluginJob<T>(scope: Omit<PluginJobScope, "begun"> & { reado
  * caller, and a timer set up in a lazily started Plugin's `start` would answer to it for good.
  */
 export function outsidePluginAction<T>(run: () => T): T {
-  return running.exit(() => routes.exit(run));
+  return running.exit(() => routes.exit(() => permissionCalls.exit(run)));
 }
 
 /** The action the calling code is running for, or nothing outside every action (`start`, a route, a timer set up elsewhere). */
@@ -207,8 +210,8 @@ export function assertPluginActionCurrent(instance: PluginInstance): void {
 }
 
 /**
- * A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. A model
- * answer the call was handed is checked again here too (`holdPluginModelResult`): what the call writes or asks for next may rest on it.
+ * A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. The
+ * provider outcomes this call uses are checked again here too (`holdPluginResult`), before anything based on them is committed.
  */
 export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope | undefined, instance: PluginInstance): void {
   if (!scope) return;
@@ -216,39 +219,96 @@ export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope |
   scope.caller.signal?.throwIfAborted();
   requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");
   scope.caller.signal?.throwIfAborted();
-  assertHeldPluginModelResults(heldKey(scope));
+  assertHeldPluginResults(heldKey(scope));
 }
 
 /**
- * Each model answer handed to a call, as the check that it may still be committed (`PluginModelResult.validateResult`). Kept under
+ * Each provider outcome a call uses, as the check that its provider remains current. Kept under
  * the call's `checked` record where it has one, which work that carries the call on shares, else under the scope itself.
  */
-const heldModelResults = new WeakMap<object, Array<() => void>>();
-const heldKey = (scope: PluginInvocationScope): object => ("checked" in scope && scope.checked) || scope;
+const heldResults = new WeakMap<object, Array<() => void>>();
+const heldKey = (scope: object): object => {
+  if ("checked" in scope && scope.checked && typeof scope.checked === "object") return scope.checked;
+  if ("effect" in scope && scope.effect && typeof scope.effect === "object") return scope.effect;
+  if ("permission_checks" in scope && scope.permission_checks && typeof scope.permission_checks === "object") return scope.permission_checks;
+  return scope;
+};
+const permissionResults = new WeakMap<object, Map<string, () => void>>();
+
+function permissionScope(instance: PluginInstance): object | undefined {
+  const invocation = running.getStore(), route = routes.getStore(), call = permissionCalls.getStore();
+  return inPluginInstance(invocation, instance) ? invocation : inPluginInstance(route?.instance, instance) ? route : inPluginInstance(call, instance) ? call : undefined;
+}
+
+/** A permission's producer check is captured once for this source call; later grants cannot replace it. */
+export function requirePluginPermission(instance: PluginInstance, permission: string, capture: () => (() => void) | undefined): void {
+  const scope = permissionScope(instance);
+  // A nested action of the same instance cannot shadow the source route/SDK call's already accepted permissions.
+  const route = routes.getStore(), call = permissionCalls.getStore();
+  if (route && route !== scope && inPluginInstance(route.instance, instance)) assertPluginPermissionChecks(heldKey(route));
+  if (call && call !== scope && inPluginInstance(call, instance)) assertPluginPermissionChecks(heldKey(call));
+  if (!scope) { capture()?.(); return; }
+  const key = heldKey(scope);
+  assertPluginPermissionChecks(key);
+  let held = permissionResults.get(key);
+  const previous = held?.get(permission);
+  if (previous) { previous(); return; }
+  const check = capture();
+  if (!check) return;
+  check();
+  if (!held) { held = new Map(); permissionResults.set(key, held); }
+  held.set(permission, check);
+  const results = heldResults.get(key);
+  if (results) results.push(check); else heldResults.set(key, [check]);
+}
+
+export function assertPluginPermissionChecks(key: object): void {
+  for (const check of permissionResults.get(key)?.values() ?? []) check();
+}
+
+/** The Host's original route control retains its identity and asks the active request's permission fence. */
+export function assertPluginRoutePermissions(): void {
+  const route = routes.getStore();
+  if (route) assertPluginPermissionChecks(route);
+}
+
+function checkedPermissionResult(scope: object, result: unknown): unknown {
+  const check = () => assertPluginPermissionChecks(heldKey(scope));
+  if (typeof (result as { then?: unknown } | null | undefined)?.then === "function") {
+    return Promise.resolve(result).then(value => { check(); return value; }, error => { check(); throw error; });
+  }
+  check(); return result;
+}
+
+/** An SDK consume call outside an action/scene/job/route still owns a request-local permission fence. */
+export function withPluginPermissionChecks<T>(instance: PluginInstance, run: () => T): T {
+  const scope = permissionScope(instance);
+  if (scope) return checkedPermissionResult(scope, run()) as T;
+  return runOpen(permissionCalls, { install_id: instance.install_id, installation_generation: instance.installation_generation }, run);
+}
 
 /**
- * Holds a model answer the model service handed to `scope` (PG-047): from then on every check the platform makes for the call
- * (`assertCapturedPluginActionCurrent`, so every write through a platform service and every nested call) and the call's own
- * `beforeEffect` returning (`pluginActionBeforeEffect`) run `validate` first, so an answer whose call or model binding is no
- * longer current is committed through none of them, whether the plugin checked it or not.
+ * Holds a provider's outcome for this invocation, including a pending request or an ordinary failure. Every platform write and nested
+ * call (`assertCapturedPluginActionCurrent`), and the action's own `beforeEffect` returning (`pluginActionBeforeEffect`), recheck it.
+ * The validator checks the producer only: calling the consumer's checks here would recurse into this same held result.
  */
-export function holdPluginModelResult(scope: PluginActionScope, validate: () => void): void {
-  const key = heldKey(scope), held = heldModelResults.get(key);
-  if (held) held.push(validate); else heldModelResults.set(key, [validate]);
+export function holdPluginResult(scope: PluginInvocationScope, validate: () => void): void {
+  const key = heldKey(scope), held = heldResults.get(key);
+  if (held) held.push(validate); else heldResults.set(key, [validate]);
 }
 
-function assertHeldPluginModelResults(key: object): void {
-  for (const validate of heldModelResults.get(key) ?? []) validate();
+function assertHeldPluginResults(key: object): void {
+  for (const validate of heldResults.get(key) ?? []) validate();
 }
 
 /**
- * The `beforeEffect` a plugin's action handler is given: the call's own, and once it returns, every model answer the call holds
- * checked again (`holdPluginModelResult`). Returning is one way the call passes its last authority check (`checked`).
+ * The `beforeEffect` a plugin's action handler is given: the call's own, and once it returns, every provider outcome the call holds
+ * checked again (`holdPluginResult`). Returning is one way the call passes its last authority check (`checked`).
  */
 export function pluginActionBeforeEffect(before: () => Promise<void>, checked: { passed: boolean }): () => Promise<void> {
   return async () => {
     await before();
-    assertHeldPluginModelResults(checked);
+    assertHeldPluginResults(checked);
     checked.passed = true;
   };
 }

@@ -1,4 +1,4 @@
-// Gate: specs/ keeps the shape specs/README.md promises (specs/repository-anti-corruption §4.12).
+// Gate: specs/ keeps the shape specs/README.md promises (specs/archive/repository-anti-corruption §4.12).
 //
 // The root of specs/ holds three things: specs in progress, current norms, and BACKLOG.md; everything else is in archive/.
 // So: nothing but README.md, BACKLOG.md, archive/ and spec directories is tracked at the root; every spec directory is in the

@@ -1,16 +1,18 @@
 import type { MolisWorkRuntimeContextHost, RuntimeProjectConnectionState } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkRuntimeContextResolution } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpWebUrl } from "./goal-presentation.js";
 import { buildMcpResumeView, type McpResumeFacts } from "./resume-view.js";
 import type { McpPresentationErrorFactory } from "./goal-presentation.js";
 
+/** What a Runtime is told of the project's guidance: the confirmed text its first turn starts with. */
+export interface McpGuidanceFacts { readonly runtime_prompt_prefix: string }
+
 type ProjectConnection = NonNullable<MolisWorkRuntimeContextResolution["connection"]>;
 
 export interface McpContextPresentationPorts {
   connection: RuntimeProjectConnectionState;
-  readGuidance(connection: ProjectConnection): Promise<ProjectGuidanceView>;
+  readGuidance(connection: ProjectConnection): Promise<McpGuidanceFacts>;
   readResumeFacts(connection: ProjectConnection, focusGoalIds: readonly string[]): Promise<McpResumeFacts>;
   createError: McpPresentationErrorFactory;
   contextSignal?(): AbortSignal;
@@ -43,7 +45,7 @@ export function createMcpContextPresenter(ports: McpContextPresentationPorts) {
     const guidance = connection ? await readOptional(() => ports.readGuidance(connection)) : { value: null };
     checkContext();
     const projectGuidance = guidance.value;
-    const hostFocus = host.goalId?.trim() || null;
+    const hostFocus = host.focusId?.trim() || null;
     const facts = connection ? await readOptional(() => ports.readResumeFacts(connection, hostFocus ? [hostFocus] : [])) : { value: null };
     checkContext();
     const resume = connection ? facts.value ? buildMcpResumeView(facts.value, hostFocus) : null

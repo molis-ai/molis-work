@@ -12,7 +12,7 @@
 
 与既有工作的关系：
 
-- [架构防腐](../repository-anti-corruption/spec.md)继续处理事实归属、依赖和平台边界。本专项核查这些实现怎样影响实际使用；代码分层合规不能单独证明流程顺畅，新增层次或状态也不是默认解法。
+- [架构防腐](../archive/repository-anti-corruption/spec.md)继续处理事实归属、依赖和平台边界。本专项核查这些实现怎样影响实际使用；代码分层合规不能单独证明流程顺畅，新增层次或状态也不是默认解法。
 - [Onboarding](../onboarding-coverage/spec.md)拥有具体引导行为。本专项以“已有文件夹 → 材料可用 → 模型整理 → 项目内继续工作”为第一条贯穿路径，找出共性原因，再由原主人修正需求和实现。[PR #1320](https://github.com/molis-ai/molis-work/pull/1320)中的场景、团队与新交互首页仍是独立需求；基础路径可靠应先于扩大这些体验，不能用新功能掩盖旧路径断裂。具体材料带入优化与 ONB 验收继续编入原 Onboarding 需求书；本专项不复制第二份功能需求，也不要求其等待全产品核查完成。
 - [服务接入](../assistant-service-connections/spec.md)拥有服务连接页面和对话接入的具体行为；默认直接连接、真实可用与跨入口复用要求写回该需求 §8.1。本专项核查把技术接线转嫁给普通用户的共性问题，覆盖全部服务。
 - [视觉体验](../visual-ui-experience/spec.md)、[AI 交互](../ai-interaction-experience/spec.md)、[快速创建](../quick-create/spec.md)继续拥有各自体验要求；本专项补齐跨入口、跨阶段与跨插件的连续工作核查。
@@ -164,7 +164,7 @@
 建立专项时核对了以下材料，用来确定边界；本次全平台静态核查的当前依据见上述记录：
 
 - 基线为 main `9efbf8d044`。[Onboarding 服务](../../apps/local-host/src/context-onboarding-service.ts)同时含中断恢复、来源修改的阶段限制和读取结果复用逻辑；[前端](../../apps/workbench/src/scripts/context-onboarding.ts)还维护视图、编辑和忙碌状态。这些事实说明需要联查前后端的转换与恢复，不能只改文案；本轮没有证明某条限制就是上述故障原因。
-- [既有动线走查](../repository-anti-corruption/frontend-flow-walk.md)标为部分完成，2026-10-09 的测试没有模型与连接，配置后回到任务也未验证。它是历史线索，不证明当前完整路径通过或仍有同样缺陷。
+- [既有动线走查](../archive/repository-anti-corruption/frontend-flow-walk.md)标为部分完成，2026-10-09 的测试没有模型与连接，配置后回到任务也未验证。它是历史线索，不证明当前完整路径通过或仍有同样缺陷。
 - 10-27 核查时，[真人批准门](../agent-approval/spec.md)原稿把各类 Agent 变更列入批准范围，并写有多票默认值；[AI 开发手册](../ai-development-handbook/spec.md)强调 context over control，且明确不是新增审批系统。10-28 已按用户决定将需求对齐为有效授权复用、显式人审及可选 Coding 低风险 AI 代批；当前生产执行与完整实操仍待验证，不因文档更新标为治理完成。
 
 2026-10-27 补充静态核对（main `e5b173438d`）：[连接引导](../../apps/workbench/src/settings-connector-guide.ts)已有按接入准备状态推荐登录及高级配置的分支，同时保留应用信息、回调、令牌和本机客户端配置；[连接页面](../../apps/workbench/src/settings-connectors.ts)已有直接登录入口，但部分连接后说明仍要求去 Coding 等处选择账号或工具。存在按钮和高级折叠不证明默认连接及后续工作完整；本轮未逐服务实测，不能据此断言所有服务均无可用登录路径。

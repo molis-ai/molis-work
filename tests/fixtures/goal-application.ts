@@ -3,8 +3,8 @@ import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger"
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { listProjectRoots, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import type { GoalEventAcknowledgementsApi, GoalInputBindingsApi, GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GovernanceApplicationApi } from "@molis-ai/molis-work-plugin-goals/contract";
+import type { GoalEventAcknowledgementsApi, GoalInputBindingsApi, GoalsApplicationApi } from "@molis-ai/molis-work-plugin-goals/contract";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import {

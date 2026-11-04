@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { catalogErrors } from "./project-catalog-contract.js";
-import { applySqliteBaseline, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, LocalSqliteStorage, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { openProjectPluginDatabases, type ProjectPluginDatabaseOutcome } from "./project-plugin-databases.js";
 
@@ -16,7 +17,7 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
   readonly pluginDatabases: ReadonlyMap<string, ProjectPluginDatabaseOutcome>;
 
   constructor(path: string, options: { existingOnly?: boolean } = {}) {
-    super(options.existingOnly ? inspectExistingDatabase(path) : path, { fileMustExist: options.existingOnly });
+    super(inspectDatabase(path, options.existingOnly ?? false), { fileMustExist: options.existingOnly });
     try {
       if (!options.existingOnly) applySqliteBaseline(this.db, path, PROJECT_DATABASE_BASELINE);
       this.pluginDatabases = options.existingOnly ? new Map() : openProjectPluginDatabases(this.db, path);
@@ -24,12 +25,17 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
   }
 }
 
-/** Recovery opens only a database already at this build's version, and changes nothing before it knows. */
-function inspectExistingDatabase(path: string): string {
+/** Reject before a writable connection can change journal mode; the normal baseline still rechecks after opening. */
+function inspectDatabase(path: string, existingOnly: boolean): string {
+  if (!existingOnly && !existsSync(path)) return path;
   const inspection = new LocalSqliteStorage(path, { readonly: true });
   try {
     const { user_version: version } = inspection.db.prepare("PRAGMA user_version").get() as { user_version: number };
-    if (version !== PROJECT_DATABASE_BASELINE.version) throw catalogErrors.project_recovery_unsupported_schema("catalog.project_recovery_unsupported_schema");
+    if (version !== PROJECT_DATABASE_BASELINE.version) {
+      if (existingOnly) throw catalogErrors.project_recovery_unsupported_schema("catalog.project_recovery_unsupported_schema");
+      const empty = !inspection.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
+      if (version !== 0 || !empty) throw new SqliteSchemaVersionError(path, version, PROJECT_DATABASE_BASELINE.version);
+    }
     return path;
   } finally { inspection.close(); }
 }

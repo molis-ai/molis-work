@@ -58,6 +58,19 @@ export interface SandboxEffects {
    */
   model?: Array<'read' | 'invoke'>;
   /**
+   * The Home's model settings of this package alone (`sdk.model.settings`, PG-017 BL-491): `read` the view of the models the person has enabled and
+   * the package's own selection; `save` chooses one of them, a command only. The package also declares nothing else: the Host derives the
+   * `model:read` / `model:invoke` rows of the Manifest from this key.
+   */
+  modelSettings?: Array<'read' | 'save'>;
+  /**
+   * The Home's image generation of this package alone (`sdk.imageGeneration`, PG-017 BL-491): `read` lists the person's image connections and
+   * inspects a slot; `generate` spends the person's image account and `bind` / `unbind` change which connection a slot uses, commands only. The Host
+   * derives the Manifest's rows from this key. A connection is used only at the address the person pinned it to, and `bind` / `generate`
+   * name an address among the operation's approved `networkDomains`.
+   */
+  imageGeneration?: Array<'read' | 'generate' | 'bind'>;
+  /**
    * The ids of this contract's command operations the operation may start in the background (`sdk.background.start`, PG-017 P3). Each is a
    * command of its own with no `background` effect, and the operation that starts it is a command too. The package also declares the Manifest's
    * `background_job` metadata on the action that runs the starting operation.
@@ -81,6 +94,15 @@ export interface SandboxOperationContract {
   output: SandboxSchema;
   errors: Array<{ code: string; description: string }>;
   effects: SandboxEffects;
+  /** A launcher's persistent business job, read by a query of this same package. Broker execution ids are separate, ephemeral handles. */
+  background_job?: {
+    status: string;
+    id: string;
+    input: string;
+    state: string;
+    done: readonly string[];
+    failed: readonly string[];
+  };
   examples: SandboxOperationExample[];
 }
 
@@ -213,6 +235,29 @@ export interface SandboxOriginalPart { data_base64: string; byte_length: number;
 /** A model the person configured in this Home, as it crosses the channel: names and capabilities, never an endpoint or a credential. */
 export interface SandboxModelSelection { provider_id: string; model_id: string }
 export interface SandboxModelChoice extends SandboxModelSelection { label: string; vision: boolean; reasoning_effort: boolean }
+/** The package's model settings as the Host shows them to it: the enabled providers by name and model, never an endpoint, a connection or a credential. */
+export interface SandboxModelSettingsView {
+  configured: boolean;
+  source: 'selection' | 'provider' | 'environment' | 'none';
+  selection?: SandboxModelSelection;
+  effective_selection?: SandboxModelSelection;
+  providers: Array<{ provider_id: string; name: string; enabled: boolean; has_credential: boolean; models: Array<{ model_id: string; display_name: string; enabled: boolean }> }>;
+}
+/** A business slot of the package's own image connections and the address it uses. */
+export interface SandboxImageTarget { slot_id: string; base_url: string }
+export interface SandboxImageConnection { connection_id: string; display_name: string; state: string; target_origin?: string }
+export interface SandboxImageState { connection_id: string | null; available: boolean; has_key: boolean; revision: string; reason?: string }
+export interface SandboxImageRequest extends SandboxImageTarget {
+  expected_revision: string;
+  protocol: 'openai-images' | 'gemini';
+  model: string;
+  prompt: string;
+  size?: string;
+  aspect_ratio?: string;
+}
+/** At most `SANDBOX_IMAGE_LIMITS.max_images` pictures and `max_bytes` bytes of picture in all, as base64: the channel carries a megabyte of JSON in all, and a result takes under half of it. */
+export interface SandboxImageResult { images: Array<{ base64: string; mime?: string }>; revision: string }
+export const SANDBOX_IMAGE_LIMITS = Object.freeze({ max_images: 4, max_bytes: 360 * 1024 });
 export type SandboxModelAvailability =
   | { available: true; runtime_label?: string; vision?: boolean }
   | { available: false; code: string; reason: string; runtime_label?: string; vision?: boolean };
@@ -327,6 +372,23 @@ export interface SandboxSdk {
     choices(): Promise<SandboxModelChoice[]>;
     availability(selection?: SandboxModelSelection): Promise<SandboxModelAvailability>;
     complete(request: SandboxModelRequest): Promise<SandboxModelResult>;
+    /** This package's own selection among the models the person enabled (`effects.modelSettings`); `save` takes a command and chooses, it cannot add a provider or an address. */
+    settings: {
+      read(): Promise<SandboxModelSettingsView>;
+      save(selection: SandboxModelSelection): Promise<SandboxModelSettingsView>;
+    };
+  };
+  /**
+   * The person's image generation (`effects.imageGeneration`). A connection is the person's: it reaches only the address they pinned it to, so
+   * `bind` and `generate` fail for a connection that was never used at that address. `generate` runs inside one of the package's own concurrent actions
+   * and the result is bounded by `SANDBOX_IMAGE_LIMITS`.
+   */
+  imageGeneration: {
+    connections(): Promise<SandboxImageConnection[]>;
+    inspect(target: SandboxImageTarget): Promise<SandboxImageState>;
+    bind(target: SandboxImageTarget, connection_id: string): Promise<void>;
+    unbind(slot_id: string): Promise<void>;
+    generate(request: SandboxImageRequest): Promise<SandboxImageResult>;
   };
   /**
    * Background work (`services.background`, PG-017 P3). `start` accepts one run of a command operation the calling operation declared in
@@ -354,6 +416,8 @@ export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' 
   | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
   | 'model.choices' | 'model.availability' | 'model.complete'
+  | 'model.settings.read' | 'model.settings.save'
+  | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate'
   | 'background.start' | 'background.cancel'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
@@ -373,7 +437,7 @@ export type SandboxHostMessage =
  * operations, with these schemas and effects. The platform names them, not the plugin; the Host's proxy calls them for each source and
  * reads what comes back as the source's pull. `account` is the one the plugin may leave out.
  */
-export const SANDBOX_INTEGRATION_OPERATIONS = { health: 'integration.health', poll: 'integration.poll', account: 'integration.account' } as const;
+export const SANDBOX_INTEGRATION_OPERATIONS = { health: 'integration.health', poll: 'integration.poll', account: 'integration.account', presentation: 'integration.presentation' } as const;
 /**
  * The slot an integration's requests use the source's own account through (S-95): the Host's proxy gives a pull the connection the person
  * chose for the source, for that one call. It is no slot of the Manifest's and nothing binds it.
@@ -416,5 +480,12 @@ export const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_
     kind: 'query', input: object({ ...SOURCE, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength) }, ['source_id', 'config_json', 'has_connection', 'cursor']),
     // Without `account_label` the source's label stays as it is.
     output: object({ account_label: text(256, 1) }, []), effects: {},
+  },
+  presentation: {
+    kind: 'query', input: object({ presentation_id: text(64, 1), cursor_json: text(SANDBOX_INTEGRATION_LIMITS.cursorLength) }, ['presentation_id']),
+    // The bounded sandbox schema has no nullable union. The same finite SourcePresentation travels as JSON and the shared SDK
+    // validator checks every field after decoding, including home_url:null, exactly as for an in-process presenter.
+    output: object({ presentation_json: text(32_768, 2) }, ['presentation_json']),
+    effects: {},
   },
 };

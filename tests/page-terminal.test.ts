@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createPageTerminal } from "@molis-ai/molis-work-app-workbench/terminal";
 
-// PG-053 (specs/repository-anti-corruption/slices/pg053-plugin-terminals.md): the terminal the shell gives a page it draws itself, and the
+// PG-053 (specs/archive/repository-anti-corruption/slices/pg053-plugin-terminals.md): the terminal the shell gives a page it draws itself, and the
 // rule that the workbench's terminal entry names no plugin. The Shelf and Characters clients that use it have their own tests.
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -122,6 +122,22 @@ test("RAC-902 the workbench's terminal entry and platform terminal import no plu
   assert.match(entry, /molisTerminalRenderer/u);
   assert.match(entry, /molisPageTerminal/u);
   assert.doesNotMatch(entry, /Shelf|Character|Goal/iu, "the entry lists no client of any plugin or Host surface");
+});
+
+test("RAC-2566 the workbench's terminal client only attaches: no spawn carries a program, folder or environment, and no Host panel route is named", () => {
+  const files = [join(ROOT, "apps/workbench/src/terminal-client.ts"), ...sources(join(ROOT, "apps/workbench/src/terminal"))];
+  let attaches = 0;
+  for (const file of files) {
+    const text = readFileSync(file, "utf8");
+    // Every message that names `spawn`, up to the object's end: only `panelId`, size and `attachOnly: true`, never a program to start.
+    for (const [message] of text.matchAll(/type: "spawn",?[^}]*\}/gu)) {
+      attaches++;
+      assert.match(message, /attachOnly: true/u, `${file}: ${message}`);
+      assert.doesNotMatch(message, /\b(command|args|cwd|env)\b/u, `${file}: ${message}`);
+    }
+    assert.doesNotMatch(text, /\/api\/panels|\/api\/goals\//u, `${file} names a Host panel route`);
+  }
+  assert.ok(attaches >= 2, "the page terminal and the work terminal both attach");
 });
 
 test("RAC-902 a surface's terminal client rides in that surface's own bundle and reaches the terminal only through the platform's", () => {

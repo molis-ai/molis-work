@@ -14,7 +14,7 @@ const sources = () => artifactProducerSources();
 test("RAC-419: the 成果库 module and plugin source name no Goal link kind and no Goals module", () => {
   const code = (directory: string) => readdirSync(new URL(`../${directory}/`, import.meta.url)).filter(file => file.endsWith(".ts"))
     .map(file => [`${directory}/${file}`, readFileSync(new URL(`../${directory}/${file}`, import.meta.url), "utf8")] as const);
-  const lines = [...code("modules/artifacts/src"), ...code("plugins/native/artifacts/src")].flatMap(([file, text]) =>
+  const lines = [...code("modules/artifacts/src"), ...code("apps/workbench/src/artifacts")].flatMap(([file, text]) =>
     text.split("\n").map((line, index) => [file, index + 1, line] as const).filter(([, , line]) => !/^\s*(?:\/\/|\*|\/\*)/u.test(line)));
   const offenders = lines.filter(([, , line]) => /["'`]goal\.(?:input|output)|module\s*===\s*["']goals["']|GOAL_ROLES/u.test(line)).map(([file, number]) => `${file}:${number}`);
   assert.deepEqual(offenders, []);
@@ -22,9 +22,11 @@ test("RAC-419: the 成果库 module and plugin source name no Goal link kind and
 
 test("RAC-420: the link kinds are the ones Goals' Manifest declares, each as the module Goals writes its edges as", () => {
   const kinds = artifactLinkKinds(sources());
-  assert.deepEqual([...kinds].map(([kind, value]) => [kind, value.role, value.proposal, value.module]).sort(), [
-    ["goal.input", "input", false, "goals"], ["goal.input.proposal", "input", true, "goals"],
-    ["goal.output", "output", false, "goals"], ["goal.output.proposal", "output", true, "goals"],
+  // The declaring Plugin rides along, so 「被谁引用」 lists each edge under the Plugin that owns its kind (BL-646).
+  const goals = goalsManifest.plugin_id;
+  assert.deepEqual([...kinds].map(([kind, value]) => [kind, value.role, value.proposal, value.module, value.plugin_id, value.plugin_title]).sort(), [
+    ["goal.input", "input", false, "goals", goals, "Goals"], ["goal.input.proposal", "input", true, "goals", goals, "Goals"],
+    ["goal.output", "output", false, "goals", goals, "Goals"], ["goal.output.proposal", "output", true, "goals", goals, "Goals"],
   ]);
   assert.deepEqual(goalsManifest.artifacts.links?.map(link => link.kind).sort(), [...kinds.keys()].sort());
   assert.equal(artifactLinkKinds(sources().filter(source => source.plugin_id !== goalsManifest.plugin_id)).size, 0, "Goals absent: no kinds");

@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -60,7 +60,8 @@ test("MOLIS_WORK environment is the only product env prefix", () => {
     assert.equal(readProductEnv("HOME"), undefined);
     process.env.MOLIS_WORK_HOME = "/tmp/molis-work-home";
     assert.equal(readProductEnv("HOME"), "/tmp/molis-work-home");
-    assert.equal(resolveMolisWorkHome(), "/tmp/molis-work-home");
+    // S-11 resolves a Home to its real path at entry: on macOS /tmp is a link to /private/tmp, so the env value is read through it.
+    assert.equal(resolveMolisWorkHome(), join(realpathSync("/tmp"), "molis-work-home"));
   } finally {
     restoreEnv("MOLIS_WORK_HOME", previousNext);
     restoreEnv("GOALBOARD_HOME", previousLegacy);

@@ -1,5 +1,6 @@
 import { UI_VIEW_GROUPS, UI_VIEW_HUES, UI_VIEW_RAILS, UI_VIEW_SLOTS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 /**
  * What the shell reads of one plugin that runs in the project (W5-06 余项 2, BL-388, BL-542): the declarations of its Manifest
@@ -12,6 +13,8 @@ export interface PluginDirectoryEntry {
   readonly id: string;
   readonly plugin_id: string;
   readonly name: string;
+  /** The English interface's name for it (the Manifest's `name_en`): drawn only where the shell draws `name` itself. */
+  readonly name_en?: string;
   /** Whether the project's plugin list chooses it (a built-in). Otherwise it is in the project because it runs there. */
   readonly chosen: boolean;
   /**
@@ -43,6 +46,8 @@ const key = (value: unknown): string | null => typeof value === "string" && KEY.
 
 function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>, chosen: boolean): UiViewDeclaration | null {
   const viewId = key(view.view_id), title = line(view.title, 80);
+  // A view that opens nothing from the rail has no title the shell draws, so its English is not kept.
+  const titleEn = view.slot === "navigator" || view.slot === "island" ? line(view.title_en, 80) : null;
   if (!viewId || !title || !(UI_VIEW_SLOTS as readonly string[]).includes(view.slot)) return null;
   const known = (name: unknown) => typeof name === "string" && icons.has(name) ? name : undefined;
   const station = view.creates ? key(view.creates.station) : null, createTitle = view.creates ? line(view.creates.title, 40) : null;
@@ -50,6 +55,7 @@ function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>, chose
   const icon = known(view.icon), startIcon = known(view.start?.icon);
   return {
     view_id: viewId, slot: view.slot, title,
+    ...(titleEn ? { title_en: titleEn } : {}),
     ...(icon ? { icon } : {}),
     ...(view.accepts_objects === true ? { accepts_objects: true } : {}),
     ...(typeof view.order === "number" && Number.isFinite(view.order) ? { order: view.order } : {}),
@@ -74,12 +80,12 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
   const seen = new Set<string>();
   const entries: PluginDirectoryEntry[] = [];
   for (const entry of directory.slice(0, MAX_ENTRIES)) {
-    const id = key(entry.id), pluginId = key(entry.plugin_id), name = line(entry.name, 80);
+    const id = key(entry.id), pluginId = key(entry.plugin_id), name = line(entry.name, 80), nameEn = line(entry.name_en, 80);
     if (!id || !pluginId || !name || seen.has(id)) continue;
     seen.add(id);
     const chosen = entry.chosen === true;
     const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons, chosen); return clean ? [clean] : []; });
-    entries.push({ id, plugin_id: pluginId, name, chosen, ...(chosen ? trustedMarks(entry) : {}), ui: { views } });
+    entries.push({ id, plugin_id: pluginId, name, ...(nameEn ? { name_en: nameEn } : {}), chosen, ...(chosen ? trustedMarks(entry) : {}), ui: { views } });
   }
   return entries;
 }
@@ -109,11 +115,11 @@ export function scriptJson(value: unknown): string {
 export interface ClientDirectoryEntry { readonly id: string; readonly accepts_objects: boolean; readonly hue: string | null }
 
 export function clientPluginDirectory(directory: PluginDirectory): ClientDirectoryEntry[] {
-  return directory.map(entry => ({
+  return [{ id: ARTIFACT_NAVIGATION.id, accepts_objects: true, hue: ARTIFACT_NAVIGATION.hue }, ...directory.map(entry => ({
     id: entry.id,
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),
     hue: entry.ui.views.find(view => view.hue !== undefined)?.hue ?? null,
-  }));
+  }))];
 }
 
 /** The directory element the page's scripts read once at start (`data-plugin-directory`). */

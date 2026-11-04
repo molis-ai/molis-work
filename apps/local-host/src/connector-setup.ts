@@ -3,8 +3,8 @@ import { prepareConnectorAuthorization, type ConnectorSetupPlan } from "./connec
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
-import { CUSTOM_MCP_SERVICE, mcpEndpointFor } from "./connector-mcp-endpoint.js";
-import { MCP_SERVERS } from "./connector-mcp.js";
+import { CUSTOM_MCP_SERVICE, mcpEndpointFor, mcpServerFor } from "./connector-mcp-endpoint.js";
+import { homeIntegrationRegistry } from "./builtin-integrations.js";
 
 const errors = defineErrorCodes("connector.setup", { unsupported: "unavailable", invalid: "invalid", changed: "conflict" });
 const id = { type: "string", pattern: "^[a-z0-9-]{1,100}$" };
@@ -26,15 +26,16 @@ export const connectorSetupAction: ActionDefinition = {
 };
 
 type ConnectorSetupInput = Omit<ConnectorSetupPlan, "expected_revision"> & { expected_revision: string | null };
-function selectedPlan(home: string, input: ConnectorSetupInput): ConnectorSetupPlan {
-  const service = listConnectorSettingsCards().find(row => row.connector_id === input.service_id);
+async function selectedPlan(home: string, input: ConnectorSetupInput): Promise<ConnectorSetupPlan> {
+  const service = (await listConnectorSettingsCards(home)).find(row => row.connector_id === input.service_id);
   const method = service?.method_options?.find(row => row.kind === input.method);
   if (!method || !["in_app", "paste"].includes(method.support)) throw errors.unsupported(`所选服务标识或方式没有可执行接入处理器。请向 connectors.methods.read 传入 {}，从完整目录读取 connector_id；通用 HTTP/SSE MCP 地址使用 service_id: ${CUSTOM_MCP_SERVICE}、method: mcp，不需另行登记服务。`);
   if (!input.display_name.trim()) throw errors.invalid("请填写连接名称");
   if (input.method !== "mcp" && [input.endpoint, input.authentication, input.transport].some(value => value !== undefined)) throw errors.invalid("服务地址与 MCP 认证选项只适用于 MCP 接入");
-  const endpoint = input.method === "mcp" ? mcpEndpointFor(MCP_SERVERS, input.service_id, input.endpoint) : undefined;
-  const server = MCP_SERVERS[input.service_id];
-  const authentication = input.service_id === "figma" && endpoint?.startsWith("https:") ? "oauth" : server?.auth;
+  const registry = input.method === "mcp" ? await homeIntegrationRegistry(home) : undefined;
+  const server = input.method === "mcp" ? mcpServerFor(input.service_id, registry?.mcpOwner(input.service_id)?.method, input.endpoint) : undefined;
+  const endpoint = input.method === "mcp" ? mcpEndpointFor(server ? { [input.service_id]: server } : {}, input.service_id, input.endpoint) : undefined;
+  const authentication = server?.auth;
   if (input.authentication && server && (authentication === "none" && input.authentication !== "none" || authentication === "oauth" && input.authentication !== "oauth" || server.stdio && input.authentication === "oauth")) {
     throw errors.invalid("所选认证方式不适用于该服务的这个地址");
   }
@@ -51,7 +52,7 @@ function selectedPlan(home: string, input: ConnectorSetupInput): ConnectorSetupP
 
 export function connectorSetupHandler(home: string): ActionHandlerBinding {
   return { capability_id: connectorSetupAction.capability_id, version: 1, handle: async (caller, input) => {
-    const plan = selectedPlan(home, input as ConnectorSetupInput);
+    const plan = await selectedPlan(home, input as ConnectorSetupInput);
     await caller.beforeEffect();
     const request = prepareConnectorAuthorization(home, plan, { actor_id: caller.actor_id, project_id: caller.project_id,
       ...(caller.runtime_session_id ? { runtime_session_id: caller.runtime_session_id } : {}) });

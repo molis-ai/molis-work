@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginContribution, PluginManifest, PluginRouteBinding, PluginRouteRequest, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginContribution, PluginManifest, PluginRouteBinding, PluginRouteRequest, PluginRouteResponse, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse, isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 
 import { endPluginRoute, runInPluginRoute, type PluginRouteCall } from "./action-scope.js";
@@ -16,6 +16,7 @@ import { endPluginRoute, runInPluginRoute, type PluginRouteCall } from "./action
  */
 export class OfferedContributions {
   readonly #offered = new Map<string, Offer>();
+  constructor(private readonly context: (installId: string) => PluginStartContext | undefined) {}
 
   get(installId: string): PluginContribution | undefined {
     return this.#offered.get(installId)?.contribution;
@@ -28,7 +29,7 @@ export class OfferedContributions {
   /** `manifest` is the one the activation was redeemed against: it says which routes stream. */
   set(installId: string, contribution: PluginContribution, manifest: PluginManifest): void {
     this.delete(installId);
-    this.#offered.set(installId, offer(contribution, manifest));
+    this.#offered.set(installId, offer(contribution, manifest, this.context(installId)));
   }
 
   delete(installId: string): void {
@@ -44,7 +45,7 @@ interface Offer {
 
 const stoppedAnswer = () => actionErrorResponse(new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"));
 
-function offer(contribution: PluginContribution, manifest: PluginManifest): Offer {
+function offer(contribution: PluginContribution, manifest: PluginManifest, context: PluginStartContext | undefined): Offer {
   if (contribution.kind !== "app" || !contribution.routes?.length) return { contribution, withdraw: () => undefined };
   // The router's own test for a streamed route (`routes.ts`), so a second kind of stream is never raced against the 403 and cut short.
   const streamed = new Set((manifest.routes ?? []).filter(route => route.stream !== undefined).map(route => route.route_id));
@@ -52,14 +53,18 @@ function offer(contribution: PluginContribution, manifest: PluginManifest): Offe
   let withdrawn = false;
   const answer = (binding: PluginRouteBinding, request: PluginRouteRequest): Promise<PluginRouteResponse> => {
     if (withdrawn) return Promise.resolve(stoppedAnswer());
-    const route: PluginRouteCall = { route_id: binding.route_id };
+    const route: PluginRouteCall = { route_id: binding.route_id, ...(context ? { instance: context } : {}) };
     let answerStopped: (response: PluginRouteResponse) => void = () => undefined;
     const ended = new Promise<PluginRouteResponse>(resolve => { answerStopped = resolve; });
     const end = () => { endPluginRoute(route); answerStopped(stoppedAnswer()); };
     waiting.add(end);
     // After a withdrawal the 403 has answered: an uncoded error the handler's tail throws then reaches only the race, and is dropped on
     // purpose. The request was answered and the tail's service calls do nothing (BL-411); no Host log records it yet.
-    const handled = new Promise<PluginRouteResponse>(resolve => resolve(runInPluginRoute(route, () => binding.handle(request)))).catch(codedAnswer);
+    const handled = new Promise<PluginRouteResponse>(resolve => resolve(runInPluginRoute(route, () => {
+      const permission = manifest.routes?.find(item => item.route_id === binding.route_id)?.permission;
+      if (permission) context?.requireGrant(permission);
+      return binding.handle(request);
+    }))).catch(codedAnswer);
     return (streamed.has(binding.route_id) ? handled : Promise.race([handled, ended])).finally(() => waiting.delete(end));
   };
   return {

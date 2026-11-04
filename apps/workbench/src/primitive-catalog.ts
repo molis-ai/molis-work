@@ -14,9 +14,11 @@ import { FOUNDATION_SPECIMEN_STYLES, renderFoundationSection } from "./foundatio
 import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-specimens.js";
 import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
 import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
+import { COLLAB_SECTION_SCRIPT, COLLAB_SECTION_STYLES, renderCollabSection } from "./collab-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
+import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 
 /**
  * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
@@ -28,7 +30,10 @@ const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "p
   "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
 
 /** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
-const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [{ id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" }];
+const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [
+  { id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" },
+  { id: ARTIFACT_NAVIGATION.id, name: ARTIFACT_NAVIGATION.label, icon: ARTIFACT_NAVIGATION.glyph },
+];
 
 /** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */
 function iconInventoryPlugins(): CatalogPluginIcon[] {
@@ -51,7 +56,7 @@ function renderBarSpecimen(): string {
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
   const bar = renderWorkbenchBar(primitives, {
     enabled: SAMPLE_PROJECT_PLUGINS,
-    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, "", builtinPluginDirectory()),
+    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;
@@ -80,7 +85,6 @@ export function renderMolisWorkBarSpecimen(): string {
 
 function renderBarSection(): string {
   return `<section class="mw-catalog__section" id="bar" data-primitive="bar"><h2>底栏与浮层</h2>
-    <p class="mw-catalog__hint">Workbench 组合的常驻底栏，在它自己的工作台环境里（与工作台同一份标记、样式与层叠）：左侧 Dock 菜单与常驻插件，中间插件切换与 Assistant 输入，右侧 Shelf、灵光、项目讨论与项目。菜单都从底栏向上长出；悬停出现提示，按下回弹，当前项是一小块抬起的工作面加铜色小点。可直接操作。</p>
     <iframe class="mw-catalog-bar-frame" src="/__ui/catalog/bar" title="底栏与浮层样例" loading="lazy"></iframe>
   </section>`;
 }
@@ -180,6 +184,16 @@ const SPECIMEN_SCRIPT = `
 })();`;
 
 /**
+ * The board scrolls inside `.mw-catalog`; without it being their containing block, the specimens' visually hidden labels
+ * (`.mw-sr-only`, absolutely positioned) overflowed the page itself, so a jump from the index scrolled the whole page up by
+ * the header's height and hid the header — with the page's own scrolling turned off, there was no way back. The index sticks
+ * to the top of that scroll area and is taller than it once the sections outnumber the window, so it scrolls on its own,
+ * held to the area's height (`cqh` of `.mw-catalog`, whose content box leaves out its 32px and 96px padding).
+ */
+const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;container-type:size}"
+  + "body.mw-catalog-page .mw-catalog__index{top:16px;max-height:calc(100cqh + 64px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}";
+
+/**
  * `say` is the page's translator and `lang` its language, which the board's own switch picks: the conditions, Assistant and
  * plugin-row sections are written through it and their frames start in it (the older sections are Chinese only).
  */
@@ -196,9 +210,17 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: "系统", current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
+  const skins = renderToggleGroup({
+    label: "皮肤",
+    items: [
+      { value: "soft", label: "默认", current: true, attrs: { "data-skin-option": "soft" } },
+      { value: "tray", label: "托盘", attrs: { "data-skin-option": "tray" } },
+      { value: "pill", label: "圆润", attrs: { "data-skin-option": "pill" } },
+    ],
+  });
   const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins() })
-    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
-    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
+    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a><a href="#collab" title="协作零件">协作零件</a></nav>`)
+    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n    ${renderCollabSection()}\n  </div>\n  <script>`);
   return `<!doctype html>
 <html lang="${lang === "en" ? "en" : "zh-CN"}">
 <head>
@@ -207,20 +229,17 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
-  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}</style>
+  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
   <header class="mw-catalog-top">
-    <div>
-      <h1>Molis Work 组件板</h1>
-      <p>Soft Workbench · 真实生产组件与组合 · HTML Slot 契约。开发工具，不进用户导航。</p>
-    </div>
-    <div class="mw-catalog-top__tools">${languages}${themes}</div>
+    <h1>Molis Work 组件板</h1>
+    <div class="mw-catalog-top__tools">${languages}${themes}${skins}</div>
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
-  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}</script>
+  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}${COLLAB_SECTION_SCRIPT}</script>
 </body>
 </html>`;
 }

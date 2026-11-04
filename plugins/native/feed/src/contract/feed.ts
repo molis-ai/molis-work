@@ -1,7 +1,7 @@
 import type { AttentionApi, AttentionReason } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export type FeedItemDisposition = "inbox" | "saved" | "promoted" | "processing" | "archived";
+export type FeedItemDisposition = "inbox" | "saved" | "promoted" | "archived";
 
 export interface FeedMaterialRecord {
   project_id: string;
@@ -103,7 +103,7 @@ export interface FeedCommands {
     projectId: string,
     itemId: string,
     goalId: string,
-    disposition: "promoted" | "processing",
+    disposition: "promoted",
   ): FeedItemRecord;
   deleteBySource(projectId: string, sourceId: string): string[];
 }
@@ -119,7 +119,6 @@ export interface FeedEvent {
     | "feed_item.restored"
     | "feed_item.saved"
     | "feed_item.promoted"
-    | "feed_item.processing"
     | "feed_item.archived"
     | "feed_item.inbox"
     | "feed_item.deleted";

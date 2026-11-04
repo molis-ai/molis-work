@@ -47,11 +47,12 @@ for (const additional of [false, true]) test(`ACA005-03/07 accepted MCP backgrou
     const target = additional ? peer : accept;
     await home.revoke(clientId, project.project_id, [target]); await home.grant(clientId, project.project_id, [target]);
     const code = additional ? "mcp.permission_revoked" : "mcp.action_revoked";
-    assert.throws(() => original.assertCurrent(), { code }); await assert.rejects(original(), { code });
+    // RAC-2670: either refusal is one by its kind, the withdrawn permission of a retained background task (mcp-background-authority.ts) included.
+    assert.throws(() => original.assertCurrent(), { code, kind: "forbidden" }); await assert.rejects(original(), { code, kind: "forbidden" });
     await mcp.client.invoke(mcp.caller, accept, {});
     assert.ok(retained); assert.notEqual(retained, original);
     await retained(); retained.assertCurrent();
-    assert.throws(() => original.assertCurrent(), { code }, "a fresh accepted task never revives the old one");
+    assert.throws(() => original.assertCurrent(), { code, kind: "forbidden" }, "a fresh accepted task never revives the old one");
   });
 
 for (const nested of [false, true]) test(nested

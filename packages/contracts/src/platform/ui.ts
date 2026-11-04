@@ -1,7 +1,10 @@
 import type { ContractDescriptor } from "./package.js";
-import type { ActionReference } from "./actions.js";
+import type { ActionAvailability, ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
+
+/** A renderer contract requirement, not a callable business capability. */
+export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: 1 } as const;
 
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
@@ -9,7 +12,8 @@ type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
 /** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
 export interface UiPageView<Element = unknown> {
-  readDocument(): Promise<string>;
+  /** An object's HTML uses this same owner and one declared main surface; the Host chooses its address. */
+  readDocument(query?: { object?: { id: string; surface: string }; signal?: AbortSignal }): Promise<string>;
   /** Replace the current own-action cleanup; null cancels it. The Host runs it before revoking this page. */
   onClosing(action: { reference: ActionReference; input: unknown } | null): void;
   refreshShell(): void;
@@ -19,7 +23,48 @@ export interface UiPageView<Element = unknown> {
 
 export interface UiPageActions {
   invokeAction<Output = unknown>(reference: ActionReference, input: unknown): Promise<Output>;
+  /** Metadata under this page's actual caller, consumes, grants and provider; no action is executed. */
+  actionAvailability(reference: ActionReference): Promise<ActionAvailability>;
 }
+
+/** The surface selected by the trusted shell; pack identity is independent of this mount. */
+export interface UiClientMount {
+  readonly contribution_id: string;
+  readonly surface: string;
+  readonly target_slot_id: string;
+}
+
+/**
+ * Public object reference on an owner's `data-frame-asset` row (`data-frame-subject-kind` and `data-frame-asset-id`).
+ * The Host takes only the original finite Frame display fields from authorized owner HTML. A reference or row box
+ * grants no Frame write; adding requires the person's Host picker or native Host drop.
+ */
+export interface UiFrameAssetReference {
+  readonly kind: string;
+  readonly id: string;
+}
+
+/** A finite same-owner navigation intent; the Host chooses the pane and installation. */
+export interface UiViewSelection {
+  readonly surface: string;
+  readonly id?: string;
+  readonly panel?: string;
+  readonly intent?: "open" | "select";
+}
+
+/** Only the current or explicitly chosen account; the account directory stays in the trusted Host. */
+export interface UiConnectionSlotChoice {
+  readonly connection_id: string;
+  readonly label: string;
+  readonly auth_method: string;
+  readonly state: string;
+}
+
+export type UiConnectionSlotRequest<Element = unknown> = {
+  readonly slot_id: string;
+  readonly record_key: string;
+  readonly signal?: AbortSignal;
+} & ({ readonly mode: "read" } | { readonly mode: "choose"; readonly anchor: Element });
 
 /** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
 export interface UiPageWorkspaces {
@@ -165,6 +210,158 @@ export interface UiSettingsDataDeclaration {
   readonly action: string;
 }
 
+/**
+ * The address parameters a plugin's settings page reads (BL-543, S-47). A plugin page may name a settings address
+ * (`molis-work:open-settings-path`); the shell keeps only what the page being opened reads, and every settings page is rendered with the
+ * defaults (`project`, `desktop`). A page that reads more lists those names explicitly — never a wildcard. Query names are
+ * `[A-Za-z0-9_-]{1,32}` (at most 8; `project`, `desktop`, `settings`, `settingsPath` and `embed` are the shell's own and cannot be named);
+ * fragments are written with their leading `#` (`#[A-Za-z0-9][A-Za-z0-9._~-]{0,31}`, at most 8).
+ */
+export interface UiSettingsAddressParamsDeclaration {
+  /** Query parameter names this page reads, besides the defaults. */
+  readonly query?: readonly string[];
+  /** Fragments this page reads, each with its leading `#`. */
+  readonly hash?: readonly string[];
+}
+
+/**
+ * Where a plugin's stage gets what it shows (T-133, PG-060): the same rule as `settings_data`. `action` is the `capability_id` of one of
+ * the same Manifest's own actions, a query for the person (audience `user`) that only reads, with one version. The Host calls it with no
+ * input (or with the request parameters `input` names), as the person in the project and with only that action's own permissions, and the stage receives the answer as
+ * `StagePageModel.data`; the Host knows no plugin by name for it. A stage that needs nothing of its own declares none.
+ */
+export interface UiStageDataDeclaration {
+  readonly action: string;
+  /** The same owner's read-only query for one object, called with exactly `{ object_id }`. */
+  readonly object_action?: string;
+  /**
+   * The request parameters the stage reads (T-116, PG-060): names of parameters the same Manifest's `page_routes` declare, in a path
+   * (`:name`) or in a query. When the page was opened by one of those routes, the Host takes exactly these parameters from the request,
+   * each as a string of at most {@link UI_PAGE_ROUTE_PARAM_LIMIT} characters, calls `action` with them as its input (`{ name: value }`,
+   * the ones the request carries) and hands them to the stage as `StagePageModel.request`. A parameter the Manifest does not name
+   * is never given, whatever the request carried, and nor is the path, the query string, the project's trusted identity or a one-time
+   * key. Omitted means the stage reads nothing from the request.
+   */
+  readonly input?: readonly string[];
+}
+
+/**
+ * The longest a parameter of a declared page route may be, in characters (Unicode code points). The Host refuses a longer one with the
+ * route's own rejection and never cuts it: a cut identifier would name another object.
+ */
+export const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
+
+/**
+ * A page the plugin answers at a GET path of the project (T-116, PG-060), declared as data so that the Host matches it with one matcher
+ * and knows no plugin by name for it. `path` is "/" or segments joined by "/", each a lowercase literal or `:name` (one non-empty,
+ * once-decoded segment, `name` in lowercase letters, digits and underscores); the Host takes the project's scope off first. `query`
+ * names the query parameters the route reads. The route's parameters are exactly the names in `path` and `query`; no other part of
+ * the request reaches the plugin through it. Two routes of one Manifest never answer the same path.
+ */
+export interface UiPageRouteDeclaration {
+  /** The route's name in this Manifest: lowercase letters, digits and hyphens. The plugin tells its routes apart by it. */
+  readonly route_id: string;
+  readonly path: string;
+  readonly query?: readonly string[];
+  /** Bounded declaration constants, disjoint from path/query names; the request cannot override them. */
+  readonly params?: Readonly<Record<string, string>>;
+}
+
+/** The finite page presentation a matched route's actual stage owner can publish during its synchronous render. */
+export interface StagePagePresentation {
+  readonly title?: string;
+  readonly body_attributes?: Readonly<Record<string, string | boolean | null | undefined>>;
+  readonly workspace_classes?: readonly string[];
+  readonly terminal_client?: boolean;
+  readonly open_stage?: boolean;
+  readonly bootstrap?: { readonly id: string; readonly value: unknown };
+  /** Surface ids of this same contribution, both targeting workbench.overlay. */
+  readonly overlays?: { readonly before_global_search?: string; readonly after_global_search?: string };
+}
+
+export interface StagePagePublisher {
+  /** Only effective during this main render; failed renders publish nothing. Never passed to another owner. */
+  publish(parts: StagePagePresentation): void;
+}
+
+/** The existing terminal pane's presentation model; routes are supplied by the content owner. */
+export interface StageTerminalPaneModel {
+  selected?: { goal_id: string; title: string; decomposition_state: string; fulfillment_state: string; statusHtml: string; event_work?: boolean };
+  children: readonly { goal_id: string; title: string; statusLabel: string; nextAction: string }[];
+  cliAvailability: Record<string, boolean>;
+  promptRoute: string;
+  terminalsRoute: string;
+  text: (value: string, vars?: Record<string, string | number>) => string;
+  icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
+}
+
+/** Existing shell drawing services, bound to this stage's owner and the current page. No execution authority. */
+export interface StagePageDrawing {
+  mount: (contributionId: string, surface: string, model: unknown) => string;
+  currentLocale: () => "zh" | "en";
+  listJoin: (values: readonly string[]) => string;
+  formatDocumentDate: (value: string | null | undefined) => string;
+  renderList: (values: string[], empty: string) => string;
+  prefixLocalLinks: (html: string, routePrefix: string, desktopShell?: boolean) => string;
+  renderReference: (value: string, label?: string) => string;
+  creatableKinds: readonly { readonly station: string; readonly title: string; readonly plugin_id: string }[];
+  /** Runs synchronously in that plugin's words and supplies its translator for cross-owner text. */
+  inPluginWords: <T>(pluginId: string, run: (translate: StagePagePrimitives["text"]) => T) => T;
+  renderTerminalPane: (model: StageTerminalPaneModel) => string;
+  renderHint: (options: { id: string; label: string; text?: string; html?: string; iconName?: string }) => string;
+  withDesktopQuery: (path: string) => string;
+  settingsContextHref: (path: string, project: { project_id: string } | null, desktop: boolean) => string;
+  /** Existing settings document services; omitted when drawing an embedded body. */
+  document?: {
+    readonly lang: string;
+    readonly navigation_html: string;
+    readonly client_i18n: string;
+    readonly request_client: string;
+    readonly foundation_client: string;
+    render(request: WorkbenchDocumentRenderRequest): string;
+  };
+}
+
+/** Page context supplied by the shell; business facts remain in the declared action's data. */
+export interface StagePageContext {
+  readonly project: { readonly project_id: string; readonly display_name: string } | null;
+  readonly demo: boolean;
+  readonly cli_availability: Record<string, boolean>;
+  /** Optional client-side projections already read by their owners for this page. */
+  readonly client_data?: Readonly<Record<string, unknown>>;
+}
+
+/** What the Host writes text and markup with on a plugin's stage, in the page's locale. */
+export interface StagePagePrimitives {
+  escape(value: unknown): string;
+  text(value: string, values?: Record<string, string | number>): string;
+  /** An icon of the Host's catalog by name. */
+  icon(name: string): string;
+  /** A time as the page shows it (short month, day, hours and minutes); a value that is not a time comes back as it is. */
+  formatDate(value: string): string;
+}
+
+/** The model every plugin's stage is drawn with, whoever draws it: the page's place and plugins, and the answer of its `stage_data` action. */
+export interface StagePageModel<Data = unknown> {
+  readonly route_prefix: string;
+  /** The plugins the page shows. */
+  readonly shown_plugins: readonly string[];
+  /** The `stage_data` action's answer; absent when the view declares none, or when the plugin is not there to answer. */
+  readonly data?: Data;
+  /**
+   * The request parameters the view's `stage_data.input` names that the request carried, as strings; never any other part of the request
+   * (T-116). Absent when the stage names none, or the page was not opened by one of the plugin's `page_routes`.
+   */
+  readonly request?: Readonly<Record<string, string>>;
+  /** One explicit main surface of the same actual owner; never a raw URL or arbitrary query. */
+  readonly object?: { readonly id: string; readonly surface: string };
+  readonly primitives: StagePagePrimitives;
+  readonly drawing?: StagePageDrawing;
+  readonly context?: StagePageContext;
+  /** Only the actual stage owner of the matched page route receives this request-local port. */
+  readonly page?: StagePagePublisher;
+}
+
 /** The platform facts the Host gives every plugin's settings page, in this one shape, whatever the plugin is. */
 export interface SettingsPageContext {
   /** The projects the person has, for a page that offers to open something in one. */
@@ -211,11 +408,17 @@ export interface UiViewDeclaration {
   readonly view_id: string;
   readonly slot: UiViewSlot;
   readonly title: string;
+  /**
+   * `navigator` and `island` views only: the title in the English interface (BL-636), one line of English of at most 80 characters.
+   * Left out, the English interface shows `title`; the Chinese interface always does. A view that opens nothing from the rail has
+   * no title the shell draws, so a `side`, `settings` or `stage` view that declares it is refused.
+   */
+  readonly title_en?: string;
   /** Contribution that renders this view. Defaults to `<plugin_id>.<view_id>`. */
   readonly contribution_id?: string;
   /**
-   * Icon name from the Host's own catalog. The Host resolves it and falls back
-   * to a default when it does not know the name; a Plugin never ships artwork
+   * Icon name from the platform's icon set (the SDK's `PLUGIN_ICON_NAMES`). The
+   * Manifest reader refuses a name outside the set; a Plugin never ships artwork
    * into the shell.
    */
   readonly icon?: string;
@@ -245,6 +448,15 @@ export interface UiViewDeclaration {
   readonly settings_data?: UiSettingsDataDeclaration;
   /** `settings` views only: request the Host's Agent Runtime list in `SettingsPageContext.runtimes`. Omission skips the query. */
   readonly settings_runtimes?: true;
+  /** `settings` views only: the extra address parameters this page reads (BL-543). Omitted means the defaults only. */
+  readonly settings_address?: UiSettingsAddressParamsDeclaration;
+  /**
+   * The view that opens the plugin's stage only (its `stage` view, else its `navigator` view): the read action that gives the stage its
+   * data. The Host calls it as the person and hands the answer to the stage, on the page and when the stage is redrawn in place.
+   */
+  readonly stage_data?: UiStageDataDeclaration;
+  /** The main surfaces mounted with the stage, in order. Defaults to `["workbench"]`; must include it exactly once. */
+  readonly stage_surfaces?: readonly string[];
   /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
   readonly creates?: UiViewCreateEntry;
   /** `navigator` and `island` views only: the project home's way to start with this plugin. */
@@ -403,6 +615,18 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   readonly root: Element;
   readonly scope: UiClientScope;
   readonly translate: UiClientTranslate;
+  readonly mount: UiClientMount | null;
+  /** Public navigation parameters of the enclosing workbench; they grant no action or record access. */
+  readonly search?: string;
+  readonly view: UiPageView<Element>;
+  openView(selection: UiViewSelection): void;
+  invalidateView(): void;
+  connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+  openItem(surface: string, itemId: string, title?: string): void;
+  openBeside(surface: string, itemId: string, title?: string): void;
+  openPlugin(surface: string, view?: string, panel?: string): void;
+  hideDirectory(): void;
+  showToast(message: string, failure?: boolean): void;
   /** From the owning Manifest; presentation only, never accepted as authority by the parent. */
   readonly pluginId: string;
   projectId(): string;
@@ -423,7 +647,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
 }
 
 /**
- * What a page asks of the Host over HTTP (specs/repository-anti-corruption W3-10). Every request goes out with
+ * What a page asks of the Host over HTTP (specs/archive/repository-anti-corruption W3-10). Every request goes out with
  * `cache: "no-store"` and none is ever sent twice by the helper: whether to ask again is the person's decision.
  */
 export interface UiRequestInit {

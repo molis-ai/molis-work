@@ -19,6 +19,7 @@ async function fixture(t: any, completeText: HostCompleteText | null = async () 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "Pages", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
+  catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   // Inbox reads an entry's material through Feed's `feed.items.material` as this caller (FI-6), which asks the source's account
@@ -27,8 +28,8 @@ async function fixture(t: any, completeText: HostCompleteText | null = async () 
     permissions: [...PAGES_ACTION_PERMISSIONS, ...INBOX_ACTION_PERMISSIONS, "connections:use", "evidence:read"] };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   await host.withProject(ref, () => undefined);
-  t.after(async () => { await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });
-  return { home, catalog, project, host, ref, caller, client, bound };
+  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  return { home, project, host, ref, caller, client, bound };
 }
 async function material(f: Awaited<ReturnType<typeof fixture>>) {
   return f.host.withProject(f.ref, runtime => {

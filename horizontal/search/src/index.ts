@@ -3,6 +3,7 @@ import {
   SUBJECT_CONTEXT_TYPE,
   SUBJECT_REFERENCE_TYPE,
   isSearchEntriesSource,
+  platformErrorKind,
   retainActionAuthority,
   requireSynchronous,
   SEARCH_ENTRIES_PAGE_LIMIT,
@@ -83,7 +84,8 @@ const entryKey = (kind: string, id: string) => `${kind}\u0000${id}`;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 300);
 
 function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[], views: readonly ActionView[],
-  personal: { access: SearchAccess; sources: readonly SourceView[]; views: readonly ActionView[] } | null, kinds?: readonly string[]) {
+  personal: { access: SearchAccess; sources: readonly SourceView[]; views: readonly ActionView[] } | null, kinds: readonly string[] | undefined,
+  report: (error: unknown, where: string) => void) {
   const checks = sources.map(source => {
     const own = personal?.sources.some(candidate => candidate.key === source.key) ? personal : null;
     const candidates = own ? own.views : views.filter(view => !personal?.views.includes(view));
@@ -92,14 +94,22 @@ function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[
       .map(view => ({ view, valid: true }));
     return { caller: own?.access.caller ?? caller, source, readers };
   });
-  const revokedReader = (error: unknown) => error instanceof ActionError && ["mcp.action_revoked", "actions.forbidden"].includes(error.code);
+  // A reader this caller may not use (any more) is left out of the query: told by the refusal's kind (its own, or the platform table's for a
+  // platform code), never by an owner's code. Anything else its check throws ends the query.
+  const revokedReader = (error: unknown): error is ActionError => error instanceof ActionError && (error.kind ?? platformErrorKind(error.code)) === "forbidden";
+  // A discarded reader leaves one trace with its code only: its plugin id goes in the outlet's `where`, never its message, the query or
+  // an object (the rule the call log follows: who and what failed, not what was asked or returned).
+  const discard = (reader: { view: ActionView; valid: boolean }, error: ActionError) => {
+    reader.valid = false;
+    report(new ActionError(error.code, ""), "search.reader:" + (reader.view.provider.plugin_id ?? reader.view.provider.provider_id));
+  };
   return {
     validate: async () => {
       for (const check of checks) {
         check.caller.signal?.throwIfAborted(); await check.caller.validate_authority?.(check.source.reference);
         for (const reader of check.readers) {
           try { await check.caller.validate_authority?.(referenceOf(reader.view)); }
-          catch (error) { if (!revokedReader(error)) throw error; reader.valid = false; }
+          catch (error) { if (!revokedReader(error)) throw error; discard(reader, error); }
         }
       }
     },
@@ -110,7 +120,7 @@ function queryAuthority(caller: ActionCallContext, sources: readonly SourceView[
         check.caller.signal?.throwIfAborted(); requireSynchronous(check.caller.assert_authority_current?.(check.source.reference));
         for (const reader of check.readers.filter(reader => reader.valid)) {
           try { requireSynchronous(check.caller.assert_authority_current?.(referenceOf(reader.view))); }
-          catch (error) { if (!revokedReader(error)) throw error; reader.valid = false; }
+          catch (error) { if (!revokedReader(error)) throw error; discard(reader, error); }
         }
       }
     },
@@ -234,7 +244,8 @@ export class SearchService {
     const offset = offsetOf(input.cursor, query);
     const scoped = searchScope(access.caller, input.scope);
     const before = await this.callerSources(access, scoped, input);
-    const authority = queryAuthority(access.caller, before.visible, before.views, before.personal, input.kinds);
+    const authority = queryAuthority(access.caller, before.visible, before.views, before.personal, input.kinds,
+      (error, where) => this.options.onError?.(error, where));
     await this.purgeDisabled(before.all);
     await this.catchUp(before.visible, scoped, access.caller, false, before.personal ? this.options.personalSpace : undefined);
     await authority.validate();

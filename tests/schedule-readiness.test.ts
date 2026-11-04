@@ -39,9 +39,8 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 /** A text model the way settings saves it: a connection holding the key, and a provider entry pointing at it. */
-async function configureModel(home: string): Promise<void> {
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  try {
+async function configureModel(home: string, withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]>): Promise<void> {
+  await withCatalog({ homeDirectory: home }, catalog => {
     const connection = withConnectorConnections(home, store => {
       const made = store.createToken({ serviceId: "model-api", displayName: "ready", token: "ready-fixture-key" });
       store.assertTarget(made.connection_id, "model-api", "http://127.0.0.1:9");
@@ -49,7 +48,7 @@ async function configureModel(home: string): Promise<void> {
     });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "ready", display_name: "ready", base_url: "http://127.0.0.1:9/v1",
       api_format: "openai-chat-completions", prompt_cache: "off", models: [{ model_id: "ready-model", enabled: true }] });
-  } finally { catalog.close(); }
+  });
 }
 
 test("the readiness action is a project query that reports what the Host reports, and the route maps to it", { timeout: 60_000 }, async () => withHome(async home => {
@@ -77,7 +76,7 @@ test("the readiness action is a project query that reports what the Host reports
     workspace = { ...verified, realpath_verified: false };
     assert.deepEqual(await bound.invoke(s.readiness, {}), { model: false, workspace: false }, "an unverified directory does not count");
     workspace = verified;
-    await configureModel(home);
+    await configureModel(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
     assert.deepEqual(await bound.invoke(s.readiness, {}), { model: true, workspace: true }, "the public model service reads settings saved after activation");
 
     // Missing both never stops a task from being made: the hint is advice, not a gate.
@@ -102,7 +101,7 @@ test("a Host that gives no readiness check answers the way other missing host po
 
 test("the create dialog carries two hidden hints, one per missing thing, and nothing in it blocks creating", () => {
   const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
-  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
+  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", shown_plugins: ["schedule"], data: { jobs: [], tasks: [] }, primitives: p } });
   const dialog = html.slice(html.indexOf("data-schedule-create-dialog"), html.indexOf("</dialog>", html.indexOf("data-schedule-create-dialog")));
   for (const kind of ["model", "workspace"]) {
     const hint = new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>`).exec(dialog)?.[0];
@@ -119,7 +118,7 @@ test("the create dialog carries two hidden hints, one per missing thing, and not
 
 test("each hint says where to fix it with a plain link: the model settings, and the project's workspace settings", () => {
   const p: ScheduleUiModel["primitives"] = { escape: String, icon: name => `<i data-icon="${name}"></i>`, text: zh, formatDate: value => value };
-  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", jobs: [], tasks: [], primitives: p } });
+  const html = scheduleUiContribution.render({ contribution_id: "io.molis.work.native.schedule.ui.v1", surface: "workbench", model: { route_prefix: "/projects/p1", shown_plugins: ["schedule"], data: { jobs: [], tasks: [] }, primitives: p } });
   const hint = (kind: string) => new RegExp(`<div[^>]*data-schedule-hint="${kind}"[^>]*>([\\s\\S]*?)</div>`).exec(html)?.[1] ?? "";
   assert.match(hint("model"), /<a href="\/settings\/models"[^>]*>打开模型设置<\/a>/, "the model settings are global, so the link carries no project prefix");
   assert.match(hint("workspace"), /<a href="\/projects\/p1\/settings\/workspaces"[^>]*>打开工作目录设置<\/a>/, "the workspace is bound in this project's settings");

@@ -13,7 +13,7 @@ import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { codingProductHost } from "./fixtures/coding-product-host.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
-// specs/repository-anti-corruption PG-036 (C8-2): Coding takes on work from the Assistant as an executor of the work-executor
+// specs/archive/repository-anti-corruption PG-036 (C8-2): Coding takes on work from the Assistant as an executor of the work-executor
 // protocol v1. Its six roles answer through the code its page runs, so a work handed over is a Coding session the page shows.
 
 const roles = Object.fromEntries(codingManifest.actions!.flatMap(row => {
@@ -41,9 +41,11 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
   const home = await mkdtemp(join(tmpdir(), "coding-executor-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "执行方", actor_id: "web-user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "web-user" });
   catalog.close();
   const workspace = { workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true as const, display_name: "fixture" };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace] });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
   const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
   const invoke = <Output>(role: WorkExecutorRole, input: unknown) => client.invoke(owner, roles[role], input) as Promise<Output>;
@@ -62,7 +64,7 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
     const before = await sessions();
     await assert.rejects(invoke("session.open", { title: "先选模型", mode: "plan" }), (error: { code?: string }) => error.code === "coding.executor_unprepared");
     assert.equal(await sessions(), before);
-    await seedConfiguredModels(home);
+    await seedConfiguredModels(home, undefined, undefined, withCatalog);
 
     // W5-01-CODING-73: the state names Coding's ways, the directory new rounds run in, and the project's directories.
     const state = await invoke<{ modes: { id: string }[]; default_mode: string; images: boolean; workspace_id: string | null; workspaces: unknown[]; mcp: unknown[] }>("state", {});

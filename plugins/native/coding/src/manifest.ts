@@ -6,7 +6,7 @@ import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-c
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
@@ -86,7 +86,7 @@ export const codingManifest: PluginManifest = {
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
       ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
-      ...Object.values(goalPluginActions).map(entry => entry.capability_id),
+      ...Object.values(GOALS_ACTIONS).map(entry => entry.capability_id),
       // The person's published Characters, and whether a version can run now (PG-086).
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,

@@ -1,5 +1,5 @@
 /**
- * Installing a plugin from a signed sandbox package (ac-trust T2, specs/repository-anti-corruption/slices/ac-trust-install.md §3.1). One path
+ * Installing a plugin from a signed sandbox package (ac-trust T2, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.1). One path
  * for every package: a preview that checks it and tells the person what installing means, then a confirmation that pins the publisher
  * (when the person says so), keeps the package and installs it under the trust that pin gives. Nothing is written before the package has
  * been verified and read: a package that is unsigned, signed by a key its Manifest does not name, altered, from a revoked publisher, or not in
@@ -7,7 +7,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { pluginErrors, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
@@ -17,7 +17,11 @@ import { readKeptSandboxPackage, type KeptSandboxPackage } from './sandbox-packa
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
-import { installedPermissionViews, installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
+import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
+import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
+import type { PermissionSwitchTarget } from './plugin-installed-view.js';
+import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
+import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -40,10 +44,12 @@ export interface PluginInstallPorts {
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
   control(projectId: string, pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
-  regrant?(projectId: string, installId: string, permission: string, granted: boolean): Promise<void>;
+  regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
   homeInstalled?(): Promise<InstalledPluginEntry[]>;
-  homeRegrant?(installId: string, permission: string, granted: boolean): Promise<void>;
+  homeRegrant?(installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
+  /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
+  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
   now?(): string;
 }
 
@@ -60,6 +66,7 @@ export interface PluginInstallPreviewResult {
    * Only an integration package's: the exact origins its requests with the person's account may reach, per service it declared them for
    * (S-95, BL-691). They are part of the signed package, so they stay what the person saw: another set comes only with another package and its own preview.
    */
+  agent_bodies?: Array<{ kind: 'role' | 'method'; name: string; excerpt: string; change?: 'added' | 'changed' | 'removed' }>;
   origins?: Array<{ service_id: string; title: string; origins: string[] }>;
 }
 
@@ -67,13 +74,27 @@ interface Held { bundle: PluginPackageBundle; pkg: KeptSandboxPackage; runtime_s
 
 const scopeOf = (manifest: KeptSandboxPackage['manifest']): 'home' | 'project' => manifest.runtime?.scope === 'home' ? 'home' : 'project';
 
+/** Two different ids on one dotted path (`io.a.b` and `io.a.b.c`), one below the other: the Runtime's test for ids that may not share a path (S-75). */
+const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.startsWith(`${a}.`);
+
 /**
  * A plugin id the Host's build ships, or one on its dotted path (`io.a.b` and `io.a.b.c`), is the Host's (S-75.2): a package takes neither,
  * in either range. The Runtime refuses it again when it installs; here it is refused at the preview, before anything is written (S-84).
  */
 const assertNotHostId = (pluginId: string): void => {
-  const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || id.startsWith(`${pluginId}.`) || pluginId.startsWith(`${id}.`));
+  const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || nested(id, pluginId));
   if (reserved) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与随宿主发布的 ${reserved} 冲突`);
+};
+
+/**
+ * An installed plugin of another publisher on the dotted path of a package's plugin id (`io.a.b` and `io.a.b.c`, either one below the other) refuses the
+ * package: only the same pinned key's ids may nest (S-75). The Runtime refuses it again when it installs; here it is refused at the confirmation, before
+ * the publisher is pinned or the package is kept (S-84). `installed` is what the package's Runtime holds that is not uninstalled.
+ */
+const assertIdPathFree = (pluginId: string, keyId: string, installed: readonly InstalledPluginEntry[]): void => {
+  const holder = installed.find(({ record }) => record.plugin_id !== pluginId && nested(record.plugin_id, pluginId)
+    && (record.publisher_trust !== 'pinned' || record.publisher_signature !== keyId));
+  if (holder) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与另一个发布者已装的 ${holder.record.plugin_id} 在同一条点分路径上，不能安装`);
 };
 
 export class PluginInstallService {
@@ -92,16 +113,28 @@ export class PluginInstallService {
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
     const { manifest } = pkg, runtime_scope = scopeOf(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
+    if (manifest.databases?.home) await validateSandboxHomeSchema(manifest.databases.home);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     await this.assertIntegrationsFree(manifest);
     assertNotHostId(manifest.plugin_id);
     for (const [id, entry] of this.held) if (entry.expires <= Date.now()) this.held.delete(id);
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value as string);
+    const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
+    const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');
+    // Only an upgrade has bodies to compare: any other package is refused at the confirmation (S-84), even when the kept one is gone.
+    const old = current && !upgradeRefusal(manifest, current.record.version) ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged?.agentBodies ?? [] : undefined;
+    const bodies = 'agentBodies' in pkg ? pkg.agentBodies : [];
+    const previewBody = (body: SandboxAgentBody, change?: 'added' | 'changed' | 'removed') => ({ kind: body.kind, name: body.name, excerpt: Array.from(body.body).slice(0, 200).join(''), ...(change ? { change } : {}) });
+    const agent_bodies = bodies.map(body => {
+      const previous = old?.find(item => item.kind === body.kind && item.entry_id === body.entry_id);
+      return previewBody(body, old === undefined ? undefined : !previous ? 'added' : previous.body !== body.body ? 'changed' : undefined);
+    });
+    for (const body of old ?? []) if (!bodies.some(item => item.kind === body.kind && item.entry_id === body.entry_id)) agent_bodies.push(previewBody(body, 'removed'));
     const preview_id = randomUUID();
     this.held.set(preview_id, { bundle, pkg, runtime_scope, key_id, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: Date.now() + PREVIEW_TTL_MS });
-    return { preview_id, name: manifest.name, runtime_scope, effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
+    return { preview_id, name: manifest.name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
-        permissions: permissionViews(manifest), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
+        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
         ? [{ service_id: service.service_id, title: service.title, origins: [...service.origins] }] : []) } : {} };
   }
@@ -136,17 +169,18 @@ export class PluginInstallService {
     await this.assertIntegrationsFree(held.pkg.manifest);
     const pin = this.pinOf(held.key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
-    // In a project, a package of a plugin already installed there is its upgrade, and only its own publisher's: another publisher's is refused
-    // before it can be pinned or kept, in a project or the Home. A Home package looks at the Home's installations of signed packages (an id of
-    // the Host's own plugins was refused at the preview), a project's at the project's. The Home does not upgrade a package in place (S-80,
-    // BL-628): its own publisher's is refused here too, before it is kept, with the code the Home's install answers.
+    // Each scope checks its own installations. Only the installed publisher can upgrade a signed package; another publisher is refused
+    // before it can be pinned or kept. An id belonging to the Host's own plugins was already refused at preview.
     const inHome = held.runtime_scope === 'home';
     const entries = inHome ? await (this.ports.homeInstalled?.() ?? []) : await this.ports.installed(held.project_id);
     const present = entries.find(item => item.record.plugin_id === held.pkg.manifest.plugin_id && (!inHome || item.record.publisher_trust === 'pinned'));
     if (present && present.record.publisher_signature !== held.key_id) {
       throw pluginErrors.definition_conflict(`这个插件已经由另一个发布者装进了${inHome ? ' Home' : '这个项目'}，两边不能互相替换：先卸载，再装`);
     }
-    if (present && inHome) throw pluginErrors.state_invalid('这个插件已经装在 Home 里。Home 里的签名包不就地升级：先卸载（可保留数据），再装新包');
+    // The two refusals the install makes after the package is kept, asked here instead: an id on the dotted path of another publisher's installed
+    // plugin (the Runtime's, S-75), and a package of the plugin's own publisher that is not its upgrade (the install lifecycle's, BL-623).
+    assertIdPathFree(held.pkg.manifest.plugin_id, held.key_id, entries);
+    if (present) assertUpgradeOf(held.pkg.manifest, present.record.version);
     if (!pin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
@@ -164,6 +198,13 @@ export class PluginInstallService {
   /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
   async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }, who: { project_id: string }): Promise<string> {
     return this.ports.control(who.project_id, input.plugin_id, action, { keep_data: input.keep_data });
+  }
+
+  /** The same for a signed package installed in the Home, from the Host settings door (BL-715). */
+  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }): Promise<string> {
+    const { homeControl } = this.ports;
+    if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
+    return homeControl(input.plugin_id, action, { keep_data: input.keep_data });
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }
@@ -186,34 +227,52 @@ export class PluginInstallService {
    */
   async setPermission(projectId: string, installId: string, permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
     const { regrant } = this.ports;
-    return this.switchPermission(() => this.ports.installed(projectId), regrant && (() => regrant(projectId, installId, permission, granted)), installId);
+    return this.switchPermission(() => this.ports.installed(projectId), regrant && (expected => regrant(projectId, installId, permission, granted, expected)), installId, permission, granted);
   }
 
   /** The same switch for a plugin that runs as the Home's own instance, shared by every project (BL-700, S-94). */
   async setHomePermission(installId: string, permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
     const { homeInstalled, homeRegrant } = this.ports;
     if (!homeInstalled) throw pluginErrors.state_invalid('这个宿主没有个人空间');
-    return this.switchPermission(homeInstalled, homeRegrant && (() => homeRegrant(installId, permission, granted)), installId);
+    return this.switchPermission(homeInstalled, homeRegrant && (expected => homeRegrant(installId, permission, granted, expected)), installId, permission, granted);
   }
 
-  private async switchPermission(list: () => Promise<InstalledPluginEntry[]>, regrant: (() => Promise<void>) | undefined, installId: string): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
+  private async switchPermission(list: () => Promise<InstalledPluginEntry[]>, regrant: ((expected: PermissionSwitchTarget) => Promise<void>) | undefined, installId: string,
+    permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
     const find = async () => (await list()).find(entry => entry.record.install_id === installId);
     const before = await find();
     if (!before?.manifest) throw pluginErrors.definition_missing('这里没有这个插件的安装，或读不到它安装时的声明');
+    if (granted) {
+      const requested = this.requested(before);
+      if (requested !== undefined && !requested.includes(permission)) throw pluginErrors.grant_denied('这个权限只是资源形状声明，本次操作没有请求，不能授予');
+    }
     if (!regrant) throw pluginErrors.state_invalid('这个宿主不能改插件的授权');
-    await regrant();
+    await regrant(before.record);
     const after = await find();
     if (!after?.manifest) throw pluginErrors.definition_missing('这个插件的安装已经不在');
     const held = new Set(before.record.grants);
-    return { install_id: installId, permissions: installedPermissionViews(after.manifest, after.record.grants),
+    return { install_id: installId, permissions: this.views([after])[0]!.permissions.slice(),
       changed: after.record.grants.length !== held.size || after.record.grants.some(grant => !held.has(grant)) };
+  }
+
+  private requested(entry: InstalledPluginEntry): readonly string[] | undefined {
+    if (entry.record.execution !== 'sandbox' || entry.record.publisher_trust !== 'pinned' || entry.manifest?.kind !== 'app') return undefined;
+    const saved = this.ports.packages.load(entry.record.plugin_id, entry.record.publisher_signature, entry.record.version);
+    return sandboxRequestedPermissions(saved.permissions);
+  }
+
+  private views(entries: InstalledPluginEntry[]): PluginInstalledView[] {
+    return installedPluginViews(entries.map(entry => {
+      try { return { ...entry, requestedPermissions: this.requested(entry) }; }
+      catch (error) { return { ...entry, manifest: undefined, recoveryError: error instanceof Error ? error.message : String(error) }; }
+    }), this.ports.ledger);
   }
 
   /** The Home's own plugins as the settings page shows them: the same view as a project's, for the instance every project shares. */
   async homeInstalled(): Promise<PluginInstalledView[]> {
-    return installedPluginViews(await (this.ports.homeInstalled?.() ?? []), this.ports.ledger);
+    return this.views(await (this.ports.homeInstalled?.() ?? []));
   }
 
   /** The project's installed plugins as their detail page shows them: trust, permissions, jobs and the person's agreements. */
-  async installed(projectId: string): Promise<PluginInstalledView[]> { return installedPluginViews(await this.ports.installed(projectId), this.ports.ledger); }
+  async installed(projectId: string): Promise<PluginInstalledView[]> { return this.views(await this.ports.installed(projectId)); }
 }

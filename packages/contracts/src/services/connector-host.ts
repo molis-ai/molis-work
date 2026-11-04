@@ -90,7 +90,7 @@ export interface ConnectorHostApi {
 }
 
 export type ConnectorDirectoryAvailability = "live" | "placeholder";
-export type ConnectorAuthKind = "github" | "gmail" | "notion" | "feishu" | "token" | "none";
+export type ConnectorAuthKind = "oauth" | "feishu" | "token" | "none";
 export type ConnectorDirectoryGroupId =
   | "mail"
   | "files"
@@ -126,7 +126,7 @@ export interface ConnectorMethodOption {
   readonly note: string;
   readonly links: readonly ConnectorSetupLink[];
   readonly mcp?: { readonly endpoint: string; readonly client_registration?: "dynamic" | "manual"; readonly note?: string };
-  readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string };
+  readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string; /** The local path the sign-in returns to by default; absent for the generic callback. */ readonly callback_path?: string; /** The loopback name that address is registered under, for a provider that takes no numeric IP (the page shows `http://<host>:<port><path>`). */ readonly callback_host?: string; /** Present when the service also declares the device grant: the person types a code on the service's page, and `login_ready` says whether the product has a client for it. */ readonly device?: { readonly login_ready: boolean } };
   readonly cli?: { readonly binary: string; readonly installed: boolean; readonly install_url: string; readonly setup_available?: boolean; readonly environment_fields?: readonly { readonly name: string; readonly label: string; readonly secret: boolean }[]; readonly note?: string };
 }
 
@@ -275,6 +275,8 @@ export type ConnectorConnectionView = Pick<ConnectorConnectionRecord,
   "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source" | "enabled"> & {
     readonly state: ConnectorConnectionState;
     readonly target_origin?: string;
+    /** The signed package a connection for its service was made for, and only it may use (T-134); none for a built-in or platform service. */
+    readonly declared_by?: { readonly plugin_id: string; readonly title: string };
     readonly mcp_endpoint?: string;
     readonly agent_available?: boolean;
   };

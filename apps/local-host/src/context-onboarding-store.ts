@@ -64,6 +64,8 @@ export interface ContextJourney {
   oauth_status?: "pending" | "connected" | "cancelled" | "failed";
   oauth_state?: string;
   oauth_expires_at?: number;
+  /** Whether the page that started the authorization is the desktop app's, so the return goes back to it. */
+  oauth_desktop?: boolean;
   /**
    * The summary's batches: the round, its batches done and in all; `notes` are the batches whose notes are staged (by digest).
    * `batches` counts every call of the summary, done and still to come (later rounds estimated from how much the notes shrink).
@@ -94,6 +96,11 @@ class ContextJourneyStore {
   }
   find(id: string): ContextJourney | null {
     const row = this.db.prepare("SELECT body FROM journeys WHERE id=?").get(contextJourneyId(id)) as { body: string } | undefined;
+    return row ? JSON.parse(row.body) as ContextJourney : null;
+  }
+  /** The journey waiting for this authorization state, if one is. */
+  waitingForOAuth(state: string): ContextJourney | null {
+    const row = this.db.prepare("SELECT body FROM journeys WHERE json_extract(body, '$.oauth_status') = 'pending' AND json_extract(body, '$.oauth_state') = ?").get(state) as { body: string } | undefined;
     return row ? JSON.parse(row.body) as ContextJourney : null;
   }
   latestIncomplete(): Pick<ContextJourney, "id" | "phase" | "updated_at"> & { title: string } | null {

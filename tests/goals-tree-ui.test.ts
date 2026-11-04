@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost, inWordsOf, registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchUiHost, inWordsOf, registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers } from "./goals-page-mount.js";
 import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { GOAL_DISPLAY_STATUSES, GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
@@ -11,7 +12,7 @@ const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp
 // Goals draws in its own words, declared in its Manifest (PG-071), as the Workbench renderer wires it.
 assert.deepEqual(registerPluginMessages(goalsManifest), []);
 const goalsL = inWordsOf(GOALS_PLUGIN_ID, L);
-const renderer = createWorkbenchGoalsTreeRenderer({ translate: goalsL, escapeHtml, icon, currentLocale, listJoin,
+const renderer = goalsRenderers.tree({ translate: goalsL, escapeHtml, icon, currentLocale, listJoin,
   renderStatus: status => `<span>${status}</span>`, renderActionStatus: status => `<span>${status}</span>`,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>`, displayStatuses: GOAL_DISPLAY_STATUSES });
 const item = (id: string, title = id, acceptedBy?: string): GoalsTreeItem => ({
@@ -25,12 +26,12 @@ const view = (goals: GoalsTreeItem[], relations: GoalRelationRecord[] = []): Goa
 test("Goals root directory contribution keeps its count, selection and navigation actions", () => {
   const active = renderer.renderGoalRootEntry(3, true);
   assert.match(active, /class="desktop-module-item is-current"/);
-  assert.match(active, /data-work-surface-open="goal" aria-current="page"/);
+  assert.match(active, /data-work-surface-open="goals" aria-current="page"/);
   assert.doesNotMatch(active, /data-directory-open/);
   assert.match(active, /<strong>Goals<\/strong><small>3 个 Goal<\/small>/);
   const inactive = renderer.renderGoalRootEntry(0, false);
   assert.doesNotMatch(inactive, /is-current|aria-current|data-directory-open/);
-  assert.match(inactive, /data-work-surface-open="goal"/);
+  assert.match(inactive, /data-work-surface-open="goals"/);
   assert.match(inactive, /<small>0 个 Goal<\/small>/);
 });
 

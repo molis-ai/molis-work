@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -8,7 +9,7 @@ import type {
   PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest, PluginProjectDatabaseTransaction, PluginAttentionWriter,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { createPluginPlatform, createSourcePullRuntime, listFeedSourceCatalog, DEMO_PROJECT_ID, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, createSourcePullRuntime, DEMO_PROJECT_ID, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createInboxContentHandlers, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { createEvidenceContentStore, type SecretStore } from "@molis-ai/molis-work-storage";
@@ -383,7 +384,7 @@ test("S-68 ATTN-OWNER-08 a real successful RSS pull resolves only the old source
   const values = new Map<string, string>();
   const secrets: SecretStore = { get: key => values.get(key) ?? null, put: (key, value) => { values.set(key, value); },
     delete: key => { values.delete(key); }, createIfAbsent(key, value) { if (values.has(key)) return false; values.set(key, value); return true; },
-    deleteIfPresent: key => values.delete(key), backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 2 }) };
+    deleteIfPresent: key => values.delete(key), backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 1 }) };
   const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "evidence") });
   let pulls = 0;
   const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createSourcePullRuntime({
@@ -395,7 +396,7 @@ test("S-68 ATTN-OWNER-08 a real successful RSS pull resolves only the old source
       { status: 200, headers: { "content-type": "application/rss+xml" } });
     },
   }));
-  const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+  const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
   const old = service.feed.createInboxEntry({ projectId: DEMO_PROJECT_ID, subjectType: "source_fault", subjectId: source.source_id, reason: "source_fault" }).entry;
   await ownedWrite(client, writer, { name: "source-alias", subject: "source_fault", target_id: source.source_id });
   const owned = createdOf(writer).entry;

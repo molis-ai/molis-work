@@ -18,7 +18,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "测试项目", actor_id: "web-user" });
   const otherProject = await catalog.createProject({ display_name: "另一个项目", actor_id: "web-user" });
-  for (const each of [project, otherProject]) catalog.addProjectPlugin({ project_id: each.project_id, plugin_id: "artifacts", actor_id: "web-user" });
+  for (const each of [project, otherProject]) assert.throws(() => catalog.addProjectPlugin({ project_id: each.project_id, plugin_id: "artifacts", actor_id: "web-user" }), (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
   catalog.close();
   const store = new LocalProjectDatabase(project.database_path);
   const token = "shelf-knowledge-test-control-0123456789abcdef";

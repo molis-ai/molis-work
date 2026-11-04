@@ -1,8 +1,10 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 test("search exposes keyboard selection and offers a touch dismissal that returns focus", { timeout: 60_000 }, async t => {
@@ -38,12 +40,13 @@ test("search exposes keyboard selection and offers a touch dismissal that return
 test("Feed creates two independent tasks in one page and shared controls keep readable dimensions", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { click, evaluate, waitFor, navigate, command, sessionId, projectId, origin } = b;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: 'feed', actor_id: 'ui-test' });
-  catalog.close();
+  const feedView = await pluginFrameBrowser(t, b, "feed");
+  await addProjectPlugin(b.web, projectId!, 'feed');
+
   await command('Emulation.setDeviceMetricsOverride', { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id=feed]');
+  await feedView.waitFor("document.querySelector('[data-feed-workbench]')");
   await evaluate(`{ const original = window.fetch; window.createdSources = []; window.fetch = async (url, options) => {
     const response = await original(url, options);
     if (options?.method === 'POST' && String(url).endsWith('/api/plugins/io.molis.work.feed/sources')) {
@@ -52,33 +55,40 @@ test("Feed creates two independent tasks in one page and shared controls keep re
     return response;
   }; }`);
   for (const [index, name] of ['设计观察', '独立的第二个任务'].entries()) {
-    await click('[data-feed-source-rail] [data-feed-add-toggle]');
-    await waitFor("document.querySelector('[data-feed-source-choices]').hidden === false");
-    await click('[data-feed-choose-kind=custom_rss]');
-    assert.equal(await evaluate("document.querySelector('[data-feed-add-name]').value"), '');
-    assert.equal(await evaluate("document.querySelector('[data-feed-source-register]').disabled"), false);
+    await feedView.click('[data-feed-source-rail] [data-feed-add-toggle]');
+    await feedView.waitFor("document.querySelector('[data-feed-source-choices]').hidden === false");
+    await feedView.click('[data-feed-choose-kind=custom_rss]');
+    assert.equal(await feedView.evaluate("document.querySelector('[data-feed-add-name]').value"), '');
+    assert.equal(await feedView.evaluate("document.querySelector('[data-feed-source-register]').disabled"), false);
     if (index === 0) {
-      const metrics = await evaluate<{ font: number; height: number; border: number }>(`(() => {
+      const metrics = await feedView.evaluate<{ font: number; height: number; border: number }>(`(() => {
         const trigger = document.querySelector('[data-feed-create-frequency]').parentElement.querySelector('[data-mw-select-trigger]');
         const style = getComputedStyle(trigger);
         return { font: parseFloat(style.fontSize), height: trigger.getBoundingClientRect().height, border: parseFloat(style.borderTopWidth) };
       })()`);
       assert.ok(metrics.font >= 13 && metrics.height >= 36 && metrics.border === 1, JSON.stringify(metrics));
-      await click('[data-feed-create-frequency] + [data-mw-select-trigger]');
-      const menu = await evaluate<{ font: number; height: number; bottom: number }>(`(() => {
+      await feedView.click('[data-feed-create-frequency] + [data-mw-select-trigger]');
+      const menu = await feedView.evaluate<{ font: number; height: number; bottom: number; viewportHeight: number }>(`(() => {
         const item = document.querySelector('.mw-select-picker__menu:popover-open [data-mw-select-option]');
         const rect = item.parentElement.getBoundingClientRect();
-        return { font: parseFloat(getComputedStyle(item).fontSize), height: item.getBoundingClientRect().height, bottom: rect.bottom };
+        return { font: parseFloat(getComputedStyle(item).fontSize), height: item.getBoundingClientRect().height, bottom: rect.bottom, viewportHeight: innerHeight };
       })()`);
-      assert.ok(menu.font >= 13 && menu.height >= 32 && menu.bottom <= 768, JSON.stringify(menu));
+      const offset = await evaluate<number>("document.querySelector('[data-work-surface=feed] iframe[data-plugin-frame=feed]').getBoundingClientRect().top");
+      assert.ok(menu.font >= 13 && menu.height >= 32 && menu.bottom <= menu.viewportHeight && offset + menu.bottom <= 768, JSON.stringify({menu,offset}));
       await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
-      assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true, 'Escape closes only the menu');
+      assert.equal(await feedView.evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true, 'Escape closes only the menu');
     }
-    await evaluate(`{ document.querySelector('[data-feed-add-name]').value = ${JSON.stringify(name)};
+    await feedView.evaluate(`{ document.querySelector('[data-feed-add-name]').value = ${JSON.stringify(name)};
       const url = document.querySelector('[data-feed-source-value=custom_rss]'); url.value = 'https://example.com/ui-${index}.xml';
     }`);
-    await click('[data-feed-source-register]');
-    await waitFor(`window.createdSources.length === ${index + 1} && document.querySelector('[data-feed-sources-dialog]').hidden && document.querySelector('[data-feed-source-rail] [data-feed-task="' + window.createdSources[${index}] + '"][aria-current=page]')`);
+    await feedView.click('[data-feed-source-register]');
+    await waitFor(`window.createdSources.length === ${index + 1}`);
+    const sourceId = await evaluate<string>(`window.createdSources[${index}]`);
+    try { await feedView.waitFor(`document.querySelector('[data-feed-sources-dialog]').hidden && document.querySelector('[data-feed-source-rail] [data-feed-task=${JSON.stringify(sourceId)}][aria-current=page]')`); }
+    catch (error) {
+      t.diagnostic('source creation owner state '+JSON.stringify(await feedView.evaluate(`({selected:document.querySelector('[data-feed-workbench]')?.dataset.selectedSource,view:document.querySelector('[data-feed-workbench]')?.dataset.feedView,dialog:{hidden:document.querySelector('[data-feed-sources-dialog]')?.hidden,busy:document.querySelector('[data-feed-sources-dialog]')?.getAttribute('aria-busy')},created:document.querySelector('[data-feed-add-form]')?.dataset.createdSourceId,error:document.querySelector('[data-feed-add-error]')?.textContent,rows:[...document.querySelectorAll('[data-feed-task]')].map(node=>({id:node.dataset.feedTask,current:node.getAttribute('aria-current')}))})`).catch(observation=>({observation:String(observation)}))));
+      throw error;
+    }
   }
   const ids = await evaluate<string[]>('window.createdSources');
   assert.equal(new Set(ids).size, 2);
@@ -122,4 +132,75 @@ test("narrow settings reveal the chosen page and ignore a slower obsolete sectio
   await click('[data-directory-panel=project-settings] [data-settings-section=general]');
   await waitFor("document.querySelector('[data-work-surface=project-settings] [data-settings-panel=general]')");
   assert.equal(await evaluate("document.querySelector('[data-work-surface=project-settings]').closest('[inert]') === null"), true);
+});
+
+
+test("RAC-2800 RAC-2802: native search chords cross the Todo bridge without stealing handled or terminal input", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "todo");
+  const store = openTodoStore(b.homeDirectory);
+  const item = (() => { try { return store.create({ title: "Search from notes", notes: "Keep these notes", placement: "project" },
+    { actor: "user", actorId: "web-user", projectId: b.projectId!, projectIds: [] }).item; } finally { store.close(); } })();
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/?openPlugin=todo&openItem=${item!.id}` }, b.sessionId));
+  const notes = '[data-todo-field=notes]';
+  await child.waitFor(`document.querySelector('${notes}')?.value === 'Keep these notes'`);
+  // Document bubble runs before the production window-bubble bridge; the final window observer runs after it.
+  // On the unfixed bridge, final=false proves this delivered event was not consumed anywhere on that route.
+  await child.evaluate(`(() => {
+    window.searchKeys = [];
+    const record = (event, phase) => { if (!['KeyK','KeyF'].includes(event.code)) return;
+      window.searchKeys.push({phase, trusted:event.isTrusted, key:event.key, code:event.code, meta:event.metaKey, ctrl:event.ctrlKey,
+        prevented:event.defaultPrevented, composing:event.isComposing, repeat:event.repeat,
+        field:event.target.getAttribute('data-todo-field'), terminal:!!event.target.closest('[data-tui-pane],.xterm'), focused:document.activeElement===event.target}); };
+    document.addEventListener('keydown', event => record(event, 'before-window'));
+    window.addEventListener('keydown', event => record(event, 'after-bridge'));
+  })()`);
+  const press = async (code: string, modifiers = 4) => {
+    for (const type of ['keyDown','keyUp']) await b.command('Input.dispatchKeyEvent', {type, code,
+      key:code === 'Escape' ? 'Escape' : code.slice(3).toLowerCase(), modifiers,
+      windowsVirtualKeyCode:code === 'Escape' ? 27 : code.charCodeAt(3)}, b.sessionId);
+  };
+  const state = "({open:document.querySelector('[data-global-search-dialog]').open, focused:document.activeElement===document.querySelector('[data-global-search]')})";
+  const opened = "document.querySelector('[data-global-search-dialog]').open && document.activeElement===document.querySelector('[data-global-search]')";
+  const closed = "!document.querySelector('[data-global-search-dialog]').open";
+  await child.click(notes);
+  const url = await b.evaluate('location.href');
+  await press('KeyK');
+  const receipt = await child.evaluate<Array<Record<string, unknown>>>('window.searchKeys');
+  t.diagnostic('RAC-2800 native K receipt: ' + JSON.stringify(receipt));
+  assert.deepEqual(receipt[0], {phase:'before-window',trusted:true,key:'k',code:'KeyK',meta:true,ctrl:false,
+    prevented:false,composing:false,repeat:false,field:'notes',terminal:false,focused:true});
+  try { await b.waitFor(opened, 2000); }
+  catch (error) { assert.deepEqual(await b.evaluate(state), {open:true,focused:true}, 'RAC-2800 delivered native K must open and focus global search; receipt=' + JSON.stringify(receipt)); throw error; }
+  assert.equal(receipt[1]?.prevented, true, 'the successful bridge consumes its own chord');
+  await press('KeyK'); await b.waitFor(closed); // K keeps its toggle behavior in the shell.
+  await child.click(notes); await press('KeyF'); await b.waitFor(opened);
+  await b.evaluate("document.querySelector('[data-global-search-close]').focus()");
+  await press('KeyF'); await b.waitFor(opened); // F focuses the same already-open dialog.
+  await press('Escape', 0); await b.waitFor(closed);
+  assert.equal(await b.evaluate('location.href'), url);
+  assert.equal(await child.evaluate(`document.querySelector('${notes}').value`), 'Keep these notes');
+
+  // RAC-2802: this fixture consumes a real event at document bubble, before the bridge's window listener.
+  await child.evaluate(`(() => { window.consumedSearchKey = false;
+    document.addEventListener('keydown', event => { if(event.code==='KeyK'){ event.preventDefault(); window.consumedSearchKey=event.isTrusted; } }, {once:true}); })()`);
+  await child.click(notes); await press('KeyK');
+  assert.equal(await child.evaluate('window.consumedSearchKey'), true);
+  await b.evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await b.evaluate(closed), true, 'a bridge-before handled native key remains handled');
+  // A DOM-only terminal target checks selector exclusion; it does not claim a running terminal/Agent test.
+  await child.evaluate(`(() => { const pane=document.createElement('div'); pane.dataset.tuiPane='';
+    pane.style='position:fixed;inset:20px;z-index:99999;background:white'; pane.innerHTML='<textarea data-terminal-probe></textarea>'; document.body.append(pane); })()`);
+  await child.click('[data-terminal-probe]'); await press('KeyK'); await press('KeyF');
+  await b.evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await b.evaluate(closed), true, 'terminal input must not reach search');
+  const terminal = await child.evaluate<Array<{prevented:boolean;terminal:boolean;trusted:boolean}>>('window.searchKeys.slice(-4)');
+  assert.ok(terminal.every(event => event.terminal && event.trusted && !event.prevented), JSON.stringify(terminal));
+  await child.evaluate("document.querySelector('[data-tui-pane]').remove()");
+  await child.click(notes);
+  // Local synthetic state probes exercise composing/repeat, never substitute for the native positive path.
+  await child.evaluate(`(() => { for (const state of [{repeat:true},{isComposing:true}]) document.activeElement.dispatchEvent(new KeyboardEvent('keydown',
+    {key:'k',code:'KeyK',metaKey:true,bubbles:true,cancelable:true,...state})); })()`);
+  await b.evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await b.evaluate(closed), true);
 });

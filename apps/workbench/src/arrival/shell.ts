@@ -1,6 +1,6 @@
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderWordmark } from "@molis-ai/molis-work-design-system";
-import { homePluginSideTabs, renderHomePluginNavigation } from "../home-plugin-navigation.js";
+import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
 import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 
 /**
@@ -35,6 +35,8 @@ interface ArrivalTitlebarOptions {
   tools?: boolean;
   /** Welcome's way to switch the theme before anything else is set. */
   theme?: boolean;
+  /** The packages installed in the Home, beside its built-in tools. */
+  home_plugins?: readonly HomePluginNavigationEntry[];
 }
 
 interface ArrivalDocumentOptions {
@@ -66,7 +68,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path))}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
+    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${global}</nav>`;
   }
 

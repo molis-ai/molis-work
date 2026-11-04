@@ -27,10 +27,12 @@ test("VUX-31: the project page and every plugin keep their first-painted geometr
   for (const [width, height] of WIDTHS) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     for (const id of SURFACES) {
-      await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/${id === "project" ? "" : `?openPlugin=${id}`}` }, sessionId));
+      const url = id === "im" ? `${origin}/im?embedded=1&project=${encodeURIComponent(projectId)}` : `${origin}/projects/${projectId}/${id === "project" ? "" : `?openPlugin=${id}`}`;
+      await navigate(() => command("Page.navigate", { url }, sessionId));
       // A tab another browser job put behind it runs no frames.
       await command("Page.bringToFront", {}, sessionId);
       await waitFor("document.readyState === 'complete'", 20_000);
+      if (id === "im") assert.equal(await evaluate("Boolean(document.querySelector('main[data-im-app].is-embedded'))"), true, "IM first paint loads its real document");
       await pause(2_000);
       const shifts = await evaluate<Array<{ value: number; moved: string[] }>>("window.__shifts");
       const score = shifts.reduce((sum, shift) => sum + shift.value, 0);
@@ -46,7 +48,7 @@ test("VUX-31: the project page and every plugin keep their first-painted geometr
 
 test("VUX-31: switching between plugins inside the page moves nothing that stays, at two widths", { timeout: 600_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId, click } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: OBSERVE }, sessionId);
   const order = [...SURFACES.filter((id) => id !== "project"), "home"], moved: string[] = [];
   let switches = 0;
@@ -59,7 +61,12 @@ test("VUX-31: switching between plugins inside the page moves nothing that stays
     // Twice round: the first visit loads each plugin, the second comes back to one already loaded.
     for (const round of [1, 2]) for (const id of order) {
       const from = await evaluate<number>("window.__shifts.length");
-      await evaluate(`molisWorkOpenPlugin(${JSON.stringify(id)})`);
+      // FULL15: actual navigation is input; keep measuring any later load shifts after the same 1500ms window.
+      if (id === "im") {
+        if (await evaluate("document.body.dataset.sideOpen!=='true'")) await click('[data-side-toggle]');
+        await click('[data-side-tab="discussion"]');
+        assert.equal(await evaluate("document.body.dataset.sideOpen==='true' && document.querySelector('[data-side-tab=discussion]')?.getAttribute('aria-selected')==='true'"), true);
+      } else await click(`[data-plugin-strip] [data-plugin-id="${id}"], [data-side-tab][data-side-plugin^="${id}/"]`);
       await pause(1_500);
       const shifts = (await evaluate<Array<{ value: number; moved: string[] }>>("window.__shifts")).slice(from), score = shifts.reduce((sum, shift) => sum + shift.value, 0);
       switches++;

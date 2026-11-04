@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import type { StagePageModel, UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import {
   DEMO_PROJECT_ID,
@@ -57,7 +58,14 @@ function overriding<T extends object>(target: T, override: Record<string, unknow
 /** The state with `contribution(pluginId)` answered by `change`, which gets the real answer; everything else is the real one. */
 function withContribution(state: State, change: (pluginId: string, real: unknown) => unknown): State {
   const real = state.platform!.supervisor;
-  const supervisor = overriding(real, { contribution: (pluginId: string) => change(pluginId, real.contribution(pluginId)) });
+  const decorated = new Map<string, { real: unknown; value: unknown }>();
+  const supervisor = overriding(real, { contribution: (pluginId: string) => {
+    const current = real.contribution(pluginId), cached = decorated.get(pluginId);
+    if (cached && cached.real === current) return cached.value;
+    const value = change(pluginId, current);
+    decorated.set(pluginId, { real: current, value });
+    return value;
+  } });
   return overriding(state, { platform: overriding(state.platform!, { supervisor }) });
 }
 
@@ -65,9 +73,9 @@ const stageOf = (html: readonly string[], surface: string) => html.find(item => 
 
 test("RAC-433 Coding's stage is its running instance's page through the generic channel, with the embedded plugins' directories and readers in the slots in Manifest order", async () => {
   await withProject(async (store, state) => {
-    const { html, ids, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
+    const { html, surfaces, unavailable } = renderProjectRuntimeStages(state, store, { shown: SHOWN, drawn: [], model: model() });
     assert.deepEqual(unavailable, []);
-    assert.equal(ids.length, 5, "one stage for each of the five plugins");
+    assert.equal(new Set(surfaces.map(item => item.contribution_id)).size, 5, "one stage for each of the five plugins");
     const coding = stageOf(html, "coding");
     assert.match(coding, /data-coding-workbench/);
     assert.match(coding, /data-coding-directory/);
@@ -138,11 +146,11 @@ test("RAC-436 an embedded surface that fails leaves its place empty and the page
 test("RAC-437 a companion whose page is not there gets the unavailable shell with the reason, not a stage the Host made up", async () => {
   await withProject(async (store, state) => {
     const missing = withContribution(state, (pluginId, real) => pluginId === "io.molis.work.diff" ? undefined : real);
-    const { html, unavailable, ids } = renderProjectRuntimeStages(missing, store, { shown: SHOWN, drawn: [], model: model() });
+    const { html, unavailable, surfaces } = renderProjectRuntimeStages(missing, store, { shown: SHOWN, drawn: [], model: model() });
     assert.equal(stageOf(html, "diff"), "");
     assert.deepEqual(unavailable.map(stage => stage.surface), ["diff"]);
     assert.ok(unavailable[0]!.reason.length > 0);
-    assert.ok(ids.includes("io.molis.work.native.diff.ui.v1"), "the shell's declared stages do not draw it again");
+    assert.ok(!surfaces.some(item => item.contribution_id === "io.molis.work.native.diff.ui.v1"), "a missing view has no rendered pair; the unavailable stage prevents catalog recovery");
     assert.match(stageOf(html, "coding"), /data-coding-workbench/);
   });
 });
@@ -156,13 +164,13 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   const importers = (pluginName: string) => readdirSync(dir).filter(file => file.endsWith(".ts"))
     .filter(file => new RegExp(`from "@molis-ai/molis-work-plugin-${pluginName}(/registration)?"`).test(readFileSync(join(dir, file), "utf8")));
   // Since PG-067 the supervisor starts a companion from its registration's `project_runtime`, and the Host reaches that registration
-  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package. Files is the one factory that
-  // needs Host ports, so `project-plugins.ts` also imports it (BL-616).
+  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package, Files included since its
+  // factory takes nothing from the Host (BL-616, RAC-2530).
   const registry = "plugin-registry.generated.ts";
   assert.deepEqual(importers("git"), [registry]);
   assert.deepEqual(importers("diff"), [registry]);
   assert.deepEqual(importers("text-stats"), [registry]);
-  assert.deepEqual(importers("files"), [registry, "project-plugins.ts"]);
+  assert.deepEqual(importers("files"), [registry]);
   assert.match(readFileSync(join(dir, "project-plugins.ts"), "utf8"), /projectRuntimeDeclarations\(\)[^;]*create\(\)/s, "the supervisor starts the companions from their registrations' project_runtime");
   // The one stage module draws any plugin's page from its declarations: it names no plugin. The Plugin Runtime and the plugin
   // SDK are the platform, not plugins, so their package names are not a plugin's name (#1274 reads the supervisor's state type).
@@ -200,5 +208,38 @@ test("RAC-449 every surface an embedded plugin puts into Coding's page targets a
       }
     }
     assert.deepEqual(targets.sort(), ["io.molis.work.files:browser-directory", "io.molis.work.files:browser-result", "io.molis.work.git:browser-directory", "io.molis.work.git:browser-result"]);
+  });
+});
+
+// RAC-2682: the actual route owner alone may publish; its nested owners cannot inherit the port.
+test("RAC-2682 only the actual page owner publishes and a failed main render adopts nothing", async () => {
+  await withProject(async (store, state) => {
+    for (const fail of [false, true]) {
+      const seen: Array<{ pluginId: string; surface: string; page: boolean }> = [];
+      const wrapped = withContribution(state, (pluginId, real) => {
+        const contribution = real as { kind?: string; views?: UiContribution<StagePageModel>[] } | undefined;
+        if (contribution?.kind !== "app") return real;
+        return { ...contribution, views: contribution.views?.map(view => ({ ...view, render: (request: Parameters<typeof view.render>[0]) => {
+          seen.push({ pluginId, surface: request.surface, page: Boolean(request.model.page) });
+          if (pluginId === codingManifest.plugin_id && request.surface === "workbench") {
+            request.model.page?.publish({ title: "Actual owner" });
+            if (fail) throw new Error("main render failed after publication");
+          }
+          return view.render(request);
+        } })) };
+      });
+      const result = renderProjectRuntimeStages(wrapped, store, { shown: SHOWN, drawn: [], page_owner: codingManifest.plugin_id,
+        model: () => ({ ...model()(), page: { publish() { assert.fail("caller-supplied publisher escaped"); } } }) });
+      assert.ok(seen.some(entry => entry.pluginId !== codingManifest.plugin_id && entry.surface !== "workbench"), "real nested surfaces were drawn");
+      assert.ok(seen.filter(entry => entry.pluginId !== codingManifest.plugin_id).every(entry => !entry.page), "neither foreign embedded nor foreign main surfaces receive the publisher");
+      if (fail) {
+        assert.equal(result.page, undefined);
+        assert.ok(result.unavailable.some(entry => entry.surface === "coding"));
+      } else {
+        assert.equal(result.page?.parts.title, "Actual owner");
+        assert.match(result.page!.html, /data-coding-workbench/);
+        assert.doesNotMatch(result.html.join(""), /data-coding-workbench/, "the page anchor is its only copy");
+      }
+    }
   });
 });

@@ -313,7 +313,43 @@ test('a case must choose a record before pressing a button that lives on records
     /remove 是 logs 每条记录上的按钮，先写 select logs/);
 });
 
-test('a list-type part over a query that returns one object becomes a summary', () => {
+test('RAC-2928 a wrapped collection requires an explicit array projection without changing its output contract', () => {
+  const output = { type: 'object', properties: { items: { type: 'array', items: { type: 'object', properties: {
+    id: { type: 'string', minLength: 1 }, text: { type: 'string' }, created_at: { type: 'string', format: 'date-time' },
+  }, required: ['id', 'text', 'created_at'], additionalProperties: false } } }, required: ['items'], additionalProperties: false };
+  const design = (read: unknown) => ({ operations: [
+    { id: 'items.list', kind: 'query', input: {}, output, effects: { storage: ['read'] }, examples: [{ input: {}, output: { items: [] } }] },
+  ], pages: [{ id: 'home', parts: [{ id: 'items-result', intent: 'collection', purpose: '清单',
+    props: { idField: 'id', titleField: 'text', emptyText: '清单还是空的' }, read }] }],
+  acceptance: [{ id: 'empty-list', steps: ['page home', 'expect items-result 清单还是空的'] }] });
+  for (const read of ['items.list', { op: 'items.list', show: 'missing' }, { op: 'items.list', show: 'items.text' }]) {
+    assert.throws(() => expandDesign(design(read), base, 'io.molis.work.generated.x', 'r', []),
+      /组件 items-result.*items\.list.*read\.show.*输出合同/);
+  }
+  const dropped: string[] = [];
+  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'items' }), base, 'io.molis.work.generated.x', 'r', dropped));
+  assert.equal(expanded.parts[0]!.intent, 'collection');
+  assert.deepEqual(expanded.parts[0]!.read, { operationId: 'items.list', input: {}, outputPath: 'items' });
+  assert.deepEqual(expanded.contract.operations[0]!.output, output);
+  assert.deepEqual(expanded.contract.operations[0]!.examples, [{ input: {}, output: { items: [] } }]);
+  assert.deepEqual(dropped, [], 'the host does not guess a field or rewrite the collection');
+});
+
+test('RAC-2928 nested collection wrappers reject missing and scalar projections without guessing among arrays', () => {
+  const design = (read: unknown) => ({ operations: [
+    { id: 'items.list', kind: 'query', input: {}, output: { result: { items: [{ text: 'string' }], archived: [{ text: 'string' }] }, count: 'integer' },
+      effects: { storage: ['read'] }, examples: [{ input: {}, output: { result: { items: [], archived: [] }, count: 0 } }] },
+  ], pages: [{ id: 'home', parts: [{ id: 'items-result', intent: 'collection', purpose: '清单', read }] }],
+  acceptance: [{ id: 'empty-list', steps: ['expect items-result 空'] }] });
+  for (const read of ['items.list', { op: 'items.list', show: 'result' }, { op: 'items.list', show: 'count' }]) {
+    assert.throws(() => expandDesign(design(read), base, 'io.molis.work.generated.x', 'r', []), /read\.show.*数组字段/);
+  }
+  const expanded = strict(expandDesign(design({ op: 'items.list', show: 'result.items' }), base, 'io.molis.work.generated.x', 'r', []));
+  assert.equal(expanded.parts[0]!.intent, 'collection');
+  assert.equal(expanded.parts[0]!.read!.outputPath, 'result.items');
+});
+
+test('RAC-2929 a list-type part over a query that returns one scalar summary keeps its output schema', () => {
   const design = { operations: [
       { id: 'water.today', kind: 'query', input: {}, output: { cups: 'integer 今天喝了几杯' }, effects: { storage: ['read'] }, examples: [{ input: {}, output: { cups: 0 } }] },
       { id: 'water.add', kind: 'command', input: {}, output: { cups: 'integer' }, effects: { storage: ['read', 'write'] }, examples: [{ input: {}, output: { cups: 1 } }] },
@@ -327,6 +363,12 @@ test('a list-type part over a query that returns one object becomes a summary', 
   const valid = validateAgentDesign(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped), [], [], contract => assertContract(contract));
   assert.equal(valid.parts[0]!.intent, 'description');
   assert.match(dropped.join(), /改用正文显示/);
+  assert.deepEqual(valid.contract.operations[0]!.output, { type: 'object', properties: {
+    cups: { type: 'integer', description: '今天喝了几杯' },
+  }, required: ['cups'], additionalProperties: false });
+  assert.deepEqual(valid.contract.operations[1]!.output, { type: 'object', properties: {
+    cups: { type: 'integer' },
+  }, required: ['cups'], additionalProperties: false });
 });
 
 test('real designer slips are normalized once, in the open: choices, optional marks, misplaced cases, display words and a closing bracket', () => {
@@ -728,4 +770,49 @@ test('a case that expects an operation to report its declared error is left to t
   // Real MiniMax answer (喝水打卡, round 6): the case expected the error's code on the button.
   const byCode = { ...design, acceptance: [design.acceptance[0], { id: 'undo_empty', description: '命令会返回 nothing_to_undo', steps: ['expect undo 撤销', 'submit undo', 'expect undo nothing_to_undo'] }] };
   assert.deepEqual(expandDesign(byCode, base, 'io.molis.work.generated.x', 'r', []).acceptance.map(test => test.id), ['add']);
+});
+
+test('RAC-2934 explicit negative acceptance validates bindings, fields, outcomes and every parameter', () => {
+  const raw = {
+    operations: [
+      { id: 'notes.list', kind: 'query', input: {}, output: [{ id: 'string', text: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
+      { id: 'notes.add', kind: 'command', input: { text: 'string(1..200)' }, output: { id: 'string' }, effects: { storage: ['write'] }, examples: [{ input: { text: 'one' }, includes: {} }] },
+    ],
+    pages: [{ id: 'home', parts: [
+      { id: 'editor', intent: 'input', purpose: '写', props: { requiredText: '正文不能为空' }, submit: 'notes.add' },
+      { id: 'notes', intent: 'collection', purpose: '看', props: { idField: 'id', titleField: 'text' }, read: 'notes.list' },
+    ] }],
+    acceptance: [{ id: 'negative', steps: [
+      { action: 'fill', componentId: 'editor', field: 'text', value: '' },
+      { action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' },
+      { action: 'faultRead', componentId: 'notes' },
+      { action: 'expect', componentId: 'notes', text: '读取失败' },
+      { action: 'retry', componentId: 'notes' },
+      { action: 'expectValue', componentId: 'editor', field: 'text', value: '' },
+    ] }],
+  };
+  const expand = (value: unknown) => strict(expandDesign(value, base, 'io.molis.work.generated.negative', 'negative', []));
+  const valid = expand(raw);
+  assert.deepEqual(valid.acceptance[0]!.steps, raw.acceptance[0]!.steps);
+  assert.equal(valid.parts[0]!.props.requiredText, '正文不能为空');
+  assert.deepEqual(parseStep('submit editor', valid.parts, 'positive'), { action: 'submit', componentId: 'editor' });
+  assert.deepEqual(parseStep('expect notes one', valid.parts, 'positive'), { action: 'expect', componentId: 'notes', text: 'one' });
+  const rejected = [
+    { step: { action: 'faultRead', componentId: 'notes', error: 'pretend' }, reason: /属性无效/ },
+    { step: { action: 'retry', componentId: 'notes', url: '/anywhere' }, reason: /属性无效/ },
+    { step: { action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'typeMismatch' }, reason: /valueMissing/ },
+    { step: { action: 'submitBlocked', componentId: 'editor', field: 'missing', reason: 'valueMissing' }, reason: /必填字段/ },
+    { step: { action: 'faultRead', componentId: 'editor' }, reason: /read query/ },
+    { step: { action: 'retry', componentId: 'editor' }, reason: /read query/ },
+    { step: { action: 'expectValue', componentId: 'editor', field: 'missing', value: '' }, reason: /没有可填写的字段/ },
+    { step: { action: 'expectValue', componentId: 'editor', field: 'text', value: 1 }, reason: /文字或 true\/false/ },
+  ];
+  for (const { step, reason } of rejected) {
+    const input = structuredClone(raw); input.acceptance[0]!.steps[0] = step as typeof input.acceptance[0]['steps'][number];
+    assert.throws(() => expand(input), reason);
+  }
+  const command = structuredClone(raw); command.operations[0]!.kind = 'command';
+  assert.throws(() => expand(command), /query|查询/);
+  const invalidProps = structuredClone(raw); Object.assign(invalidProps.pages[0]!.parts[0]!.props, { requiredText: 1 });
+  assert.throws(() => expand(invalidProps), /requiredText 必须是文字/);
 });

@@ -5,7 +5,7 @@ import type { FeedSourceRecord } from "./projection.js";
 import type { FeedHydrate } from "./item-hydration.js";
 
 /**
- * What the Inbox plugin asks of Feed (FI-6, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §1.2.6): Feed's own facts
+ * What the Inbox plugin asks of Feed (FI-6, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §1.2.6): Feed's own facts
  * — whether an item may enter the Inbox, the readable material of an item, the names an entry is shown under, and admitting an item —
  * behind public actions, so the Inbox needs no Feed code and no Feed table. Inbox declares them in its Manifest and calls them through
  * `services.actions`; the platform adds nothing for them.

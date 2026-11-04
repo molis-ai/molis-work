@@ -1,4 +1,4 @@
-import type { UiViewDeclaration } from "./ui.js";
+import type { UiPageRouteDeclaration, UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
@@ -116,6 +116,12 @@ export interface PluginManifest {
   plugin_id: string;
   version: string;
   name: string;
+  /**
+   * v2: the plugin's name in the English interface (BL-636), one line of English of at most 80 characters. The shell draws it where it
+   * draws the Manifest `name` itself (a plugin that has a stage and no navigator or island view); a navigator or island view's name is
+   * its own `title_en`, so one is never read for the other. Left out, the English interface shows `name`.
+   */
+  name_en?: string;
   kind: PluginKind;
   publisher: {
     publisher_id: string;
@@ -168,6 +174,8 @@ export interface PluginManifest {
     embedded_plugins?: string[];
     /** v2: where each contribution is placed. Absent means the Host places nothing. */
     views?: UiViewDeclaration[];
+    /** v2: the GET pages of the project the Plugin answers, as data the Host matches (T-116). A view's `stage_data.input` names parameters declared here. */
+    page_routes?: UiPageRouteDeclaration[];
     /**
      * v2: the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
      * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads
@@ -177,7 +185,7 @@ export interface PluginManifest {
     messages?: PluginMessagesDeclaration;
     /**
      * v2: English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
-     * stable keys (specs/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
+     * stable keys (specs/archive/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
      * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
      * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
      * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
@@ -202,7 +210,7 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
-  /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
+  /** The plugin's own tables, by scope (PG-020, specs/archive/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
   /** The plugin's own files in the Home (`services.ownerFiles`, PG-102): a root and its top-level entries, like `databases.home` declared here and nowhere else. */
   owner_files?: import("./plugin-owner-files.js").PluginOwnerFilesDeclaration;
@@ -226,6 +234,8 @@ export interface PluginManifest {
   connection_services?: readonly import("./plugin-integrations.js").PluginConnectionServiceDeclaration[];
   /** v2: what this plugin does with those services: pull a Feed source, or import a document (PG-046). */
   integrations?: readonly import("./plugin-integrations.js").PluginIntegrationDeclaration[];
+  /** Exclusive ids of pure source presentations supplied by this integration. */
+  source_presentations?: readonly string[];
   /** v2: kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** v2: the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */

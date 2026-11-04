@@ -13,17 +13,11 @@ import { filesRoutes } from "./routes.js";
  * Files as Plugin Runtime starts it.
  *
  * The Plugin owns the projections; the Host owns the directory grant and the
- * reads. Everything the Host must do arrives through `ports`, so a Files that
- * was given no reader simply reports it cannot open anything, rather than
- * failing at the first click.
+ * reads. Which folder Files browses is the project-settings action its
+ * Manifest consumes, asked on every read, so the factory takes nothing from
+ * the Host (BL-616): with no usable folder, each read says so instead.
  */
-export interface FilesPluginPorts {
-  /** Whether the Host can list and read under the bound workspace right now. */
-  readable?(): boolean;
-  onStop?(context: PluginStartContext): void | Promise<void>;
-}
-
-export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinition {
+export function createFilesPlugin(): PluginDefinition {
   return {
     manifest: filesManifest,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
@@ -52,13 +46,8 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
         },
       };
     },
-    async stop(context: PluginStartContext): Promise<void> {
-      await ports.onStop?.(context);
-    },
     async health(): Promise<{ ok: boolean; message: string }> {
-      return ports.readable === undefined
-        ? { ok: false, message: "宿主没有提供目录读取入口" }
-        : { ok: true, message: "就绪" };
+      return { ok: true, message: "插件已启动；浏览目录按项目设置读取" };
     },
   };
 }

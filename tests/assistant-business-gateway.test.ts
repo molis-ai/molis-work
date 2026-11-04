@@ -1145,7 +1145,8 @@ test("a card a page prepared from the person's selection is checked like the Ass
     // A page cannot place what the Assistant may not do, nor an input the capability would refuse.
     await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
     f.store.setActionEnabled("web-user", actionKey(card.reference), false);
-    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof ActionError && error.code === "assistant.action_revoked" && error.kind === "invalid");
+    // RAC-2675: the card rules' refusal of an action switched off for the Assistant is one by its kind.
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof ActionError && error.code === "assistant.action_revoked" && error.kind === "forbidden");
     f.store.setActionEnabled("web-user", actionKey(card.reference), true);
     await assert.rejects(f.service.offers.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
     // The click runs exactly what the card shows, once.
@@ -1191,16 +1192,37 @@ test("W3-A3a: a page's card goes into the named work only when it is the person'
   } finally { await f.close(); }
 });
 
-test("a material a round brought can be read back with its text for a preview, and a page from the browser says where it was", { timeout: 60_000 }, async t => {
+test("RAC-2921 Assistant.send keeps ordinary attachments and internal directories without Work artifact sources, and preserves preview text and origin", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [() => reply(undefined, "看过了。")]);
   try {
     const page = "来源：https://example.com/\n\nExample Domain\nThis domain is for use in illustrative examples.";
     const sent = await f.service.send({ text: "总结这个网页", request_id: "req-00000081",
-      materials: [{ material_id: "web-1", kind: "text", title: "网页 · Example Domain", explicit: true, text: page }] }, { project_ref: f.project });
+      materials: [{ material_id: "web-1", kind: "text", title: "网页 · Example Domain", explicit: true, text: page, source: { surface: "browser", title: "Example Domain" } }] }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "round");
     assert.equal((done.rounds[0]!.materials[0] as { text?: string }).text, undefined, "the work view stays small");
     const material = f.service.materials.material(sent.work.work_id, "web-1");
     assert.deepEqual([material.kind, material.title, material.text, material.url], ["text", "网页 · Example Domain", page, "https://example.com/"]);
+    const work = f.store.get("web-user", sent.work.work_id);
+    const frozen = (await f.adapter.read({ session_id: work.session_id!, run_id: sent.run_id! })).frozen.text_materials;
+    for (const id of ["situation", "capabilities", "material-web-1"]) assert.ok(frozen.some(item => item.material_id === id), `${id} comes from the production round assembler`);
+    for (const item of frozen) {
+      assert.equal(Object.hasOwn(item, "source_artifact_id"), false);
+      assert.equal(Object.hasOwn(item, "source_version"), false);
+    }
+    const request = f.requests[0] as { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> };
+    const texts = request.messages.flatMap(message => typeof message.content === "string" ? [message.content] : message.content.flatMap(part => part.type === "text" && part.text !== undefined ? [part.text] : []));
+    const resources = texts.filter(text => text.startsWith("Untrusted context data.")).map(text => JSON.parse(text.slice(text.indexOf("\n") + 1)) as { source: string; text: string });
+    const attachment = resources.find(resource => resource.text.startsWith('{"title":"材料：网页 · Example Domain"'));
+    assert.ok(attachment, "the ordinary attachment reaches the actual SDK provider request as data");
+    assert.equal(attachment.source, "source-hit");
+    assert.deepEqual(JSON.parse(attachment.text.split("\n")[0]!), { title: "材料：网页 · Example Domain", material_id: "material-web-1" });
+    assert.ok(attachment.text.endsWith(page), "the complete original body and its real URL are retained");
+    assert.match(attachment.text, /来源：Example Domain/u);
+    for (const resource of resources) {
+      const header = JSON.parse(resource.text.split("\n")[0]!);
+      assert.equal(Object.hasOwn(header, "artifact_id"), false);
+      assert.equal(Object.hasOwn(header, "version"), false);
+    }
     assert.throws(() => f.service.materials.material(sent.work.work_id, "missing"), /没有这份材料/);
   } finally { await f.close(); }
 });

@@ -206,7 +206,8 @@ test("Artifact navigation and export retain the selected catalog Project", async
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   const alpha = await catalog.createProject({ display_name: "Alpha results", actor_id: "fixture-user" });
   const beta = await catalog.createProject({ display_name: "Beta results", actor_id: "fixture-user" });
-  catalog.addProjectPlugin({ project_id: alpha.project_id, plugin_id: "artifacts", actor_id: "fixture-user" });
+  assert.throws(() => catalog.addProjectPlugin({ project_id: alpha.project_id, plugin_id: "artifacts", actor_id: "fixture-user" }),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
   catalog.close();
   const store = new LocalProjectDatabase(alpha.database_path);
   const library = openProjectVersionStores(store);

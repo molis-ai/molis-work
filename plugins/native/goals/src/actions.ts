@@ -1,9 +1,9 @@
-import { goalEntryActions, goalPluginActions, type GoalCreateActionInput, type GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export type { GoalCreateActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export type { GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { ActionError, defineSearchEntriesAction, defineSubjectContextAction, searchEntriesPage, searchText, subjectContext, type SearchEntriesInput, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalEntryActions, goalPluginActions, type GoalCreateActionInput, type GoalReadActionInput } from "./contract/goal-actions.js";
+export type { GoalCreateActionInput } from "./contract/goal-actions.js";
+export type { GoalReadActionInput } from "./contract/goal-actions.js";
+import { ActionError, defineArtifactLinkSubjectsAction, defineSearchEntriesAction, defineSubjectContextAction, searchEntriesPage, searchText, subjectContext, type ArtifactLinkSubjectsInput, type SearchEntriesInput, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { type GoalEventAcknowledgementsApi, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import { type GoalEventAcknowledgementsApi, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "./contract/goals.js";
 import { goalAction as action, goalActor, personAsked } from "./action-contract.js";
 import { goalsFragmentOffersAction, prepareGoalsFragmentOffers } from "./fragment-offers.js";
 import type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -17,11 +17,13 @@ import { goalsTreeActions, createGoalsTreeActionHandlers } from "./tree-actions.
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { goalsConfigurationActions, createGoalsConfigurationActionHandlers, type GoalsConfigurationActionPorts } from "./configuration-actions.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
-import { text, identifier, count, boolean, object, nullable, goalEventSchema, goalEventPageSchema, goalTimelineSchema, goalHistoryItemSchema, goalHistoryPageSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, count, boolean, object, nullable, goalEventSchema, goalEventPageSchema, goalTimelineSchema, goalHistoryItemSchema, goalHistoryPageSchema } from "./contract/goal-actions.js";
 import { listGoalDocumentHistory } from "./event-document-model.js";
 import { readGoalHistory, type GoalHistoryQueryPorts, type GoalHistoryReadResult } from "./history-query.js";
 import type { GoalDocumentHistoryQuery, GoalHistoryTimelinePage } from "./event-history-map.js";
-import { goalDocumentAction, createGoalDocumentActionHandler } from "./document-action.js";
+import { goalDocumentAction, createGoalDocumentActionHandler, readGoalDocument } from "./document-action.js";
+import { goalsStageAction, createGoalsStageActionHandler } from "./stage-action.js";
+import { buildGoalsDocumentCollection, readGoalsMembership } from "./document-collection.js";
 import type { GoalContractView } from "./goal-entry-contract.js";
 
 import { goalsBoardActions, createGoalsBoardActionHandlers } from "./library-actions.js";
@@ -43,6 +45,8 @@ export const goalsActions = {
   searchEntries: defineSearchEntriesAction("goals.search.entries", [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
   /** What part of anything the person has in hand can do for Goals (specs/archive/contextual-interaction). */
   fragmentOffers: goalsFragmentOffersAction,
+  /** 「被谁引用」 in the 成果库 (BL-646): the current Goals behind the link kinds Goals declares, by title; others are left out. */
+  linkSubjects: defineArtifactLinkSubjectsAction("goals.artifacts.link_subjects", "目标", ["goals:read"]),
   ...goalsBoardActions,
   ...goalsEventActions,
   ...goalsAcknowledgeActions,
@@ -68,6 +72,7 @@ export const goalsActions = {
   decide: goalDecisionAction,
   document: goalDocumentAction,
   collection: goalsCollectionAction,
+  stage: goalsStageAction,
   snapshot: goalEntryActions.snapshot,
   contract: goalPluginActions.contract,
   progressReceipt: goalPluginActions.receipt,
@@ -108,6 +113,12 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
   deliverables: Omit<GoalDeliverablePorts, "projectId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {
   const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId));
+  const currentGoal = (goalId: string) => {
+    try { return goalExists(goalId) ? readGoal(goalId) : null; } catch (error) {
+      if (error instanceof ActionError && error.code === "goals.not_found") return null;
+      throw error;
+    }
+  };
   return [
     ...createGoalsDeliverableActionHandlers({ ...deliverables, projectId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(projectId), goalId) }),
     ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId))),
@@ -120,6 +131,11 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
         content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id],
         open: { surface: "goals", id } });
     } },
+    // An id that is no current Goal (gone, archived, never one) is left out; the 成果库 shows it by id. One such id never fails the rest.
+    { ...goalsActions.linkSubjects, handle: (_caller, input) => ({ objects: (input as ArtifactLinkSubjectsInput).ids.flatMap(id => {
+      const goal = currentGoal(id);
+      return goal ? [{ id, title: goal.title, open: { surface: "goals", id } }] : [];
+    }) }) },
     { ...goalsActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareGoalsFragmentOffers(input as FragmentOffersInput, { cursor: goalId => {
       try { return readGoal(goalId) && events.readDirectoryItem(projectId, goalId) ? events.readState(projectId, goalId).goal_event_cursor : null; } catch { return null; }
     } }) }) },
@@ -142,6 +158,9 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     } },
     ...createGoalsBoardActionHandlers(projectId, board),
     createGoalsCollectionActionHandler(projectId, collection),
+    createGoalsStageActionHandler({ membership: () => readGoalsMembership(collection, projectId),
+      collection: membership => buildGoalsDocumentCollection(collection, projectId, membership),
+      document: goalId => readGoalDocument(projectId, { goal: readGoal, events, history, planning: planning.planning }, goalId) }),
     { ...goalsActions.snapshot, handle: () => history.snapshot() },
     { ...goalsActions.contract, handle: (_caller, input) => readContract((input as GoalReadActionInput).goal_id) },
     createGoalDocumentActionHandler(projectId, { goal: readGoal, events, history, planning: planning.planning }),

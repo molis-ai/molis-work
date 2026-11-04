@@ -9,7 +9,7 @@
  * renders (molis-work:plugins-changed carries the page) and fills them itself.
  *
  * What cannot be brought in line in place ends the old way, once: a plugin whose page parts cannot be changed after the page
- * loads (RELOAD_ON_MEMBERSHIP_IDS — none today), a part of the page this does not know changed, or a result that does not
+ * loads (RELOAD_ON_MEMBERSHIP_IDS — none today), the page-owner bootstrap appearing or leaving, another part this does not know changed, or a result that does not
  * match what the server renders. The page's state is saved and the page is loaded again.
  */
 export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
@@ -33,9 +33,11 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     keys(root.querySelectorAll('[data-side-tab]'), (node) => node.dataset.sideTab),
   ].join('|');
   // A plugin's stage page. The workbench moves the pages it shows out of the pool, so "there" means anywhere on the page.
-  const poolOf = (root) => [...root.querySelectorAll('[data-surface-pool] > [data-work-surface]')];
+  // A stage is a surface not inside another one, on both sides: Goals' sits in the canvas shell, not directly in the pool.
+  const topLevel = (node) => !node.parentElement?.closest('[data-work-surface]');
+  const poolOf = (root) => [...root.querySelectorAll('[data-surface-pool] [data-work-surface]')].filter(topLevel);
   const stageOf = (root, id) => poolOf(root).find((node) => node.dataset.workSurface === id) || null;
-  const livePage = (id) => [...document.querySelectorAll('[data-work-surface="' + CSS.escape(id) + '"]')].filter((node) => !node.parentElement?.closest('[data-work-surface]'));
+  const livePage = (id) => [...document.querySelectorAll('[data-work-surface="' + CSS.escape(id) + '"]')].filter(topLevel);
 
   const attrs = (live, next, keep = []) => {
     for (const attr of [...live.attributes]) if (!keep.includes(attr.name) && !next.hasAttribute(attr.name)) live.removeAttribute(attr.name);
@@ -63,18 +65,21 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   };
   // The stage pages that came with a plugin are put in the pool (they load their client when first shown, as every deferred
   // page does); the ones that went with a plugin are taken out. Pages the page already has are never replaced.
+  const stageKey = node => node.dataset.pluginOwner && node.dataset.pluginContribution && node.dataset.pluginSurface
+    ? [node.dataset.pluginOwner, node.dataset.pluginContribution, node.dataset.pluginSurface].join(":") : node.dataset.workSurface;
+  const ownerStages = (root, id) => [...root.querySelectorAll('[data-work-surface]')].filter(node => node.dataset.pluginSlot === "workbench.main" ? node.dataset.pluginClient === id : topLevel(node) && node.dataset.workSurface === id);
   const patchStages = (next, came, gone) => {
     const livePool = document.querySelector('[data-surface-pool]'); if (!livePool) return;
-    for (const id of gone) if (!stageOf(next, id)) livePage(id).forEach((node) => { host.untrackSurface?.(node); node.remove(); });
-    const nextNodes = poolOf(next);
+    for (const id of gone) {
+      const keys = new Set(ownerStages(next, id).map(stageKey));
+      ownerStages(document, id).forEach(node => { if (!keys.has(stageKey(node))) { host.untrackSurface?.(node); node.remove(); } });
+    }
     for (const id of came) {
-      const theirs = stageOf(next, id);
-      if (!theirs || livePage(id).length) continue;
-      const later = nextNodes.slice(nextNodes.indexOf(theirs) + 1).map((node) => node.dataset.workSurface).find((key) => livePool.querySelector(':scope > [data-work-surface="' + CSS.escape(key) + '"]'));
-      const node = document.importNode(theirs, true);
-      livePool.insertBefore(node, later ? livePool.querySelector(':scope > [data-work-surface="' + CSS.escape(later) + '"]') : null);
-      // The page keeps a list of its stage pages from when it loaded; a page that came since must be on it to be opened.
-      host.trackSurface?.(node);
+      const keys = new Set(ownerStages(document, id).map(stageKey));
+      for (const theirs of ownerStages(next, id)) {
+        if (keys.has(stageKey(theirs))) continue;
+        const node = document.importNode(theirs, true); livePool.append(node); host.trackSurface?.(node); keys.add(stageKey(node));
+      }
     }
   };
   // The sections a plugin has in the directory (Feed's, with its source directory), keyed by plugin; each goes where the server puts it.
@@ -126,12 +131,14 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
   const follow = async (pluginId, adding, before) => {
     let next;
     try { next = await fetchPage(); } catch { reload(); return; }
+    const ownerBoundaryChanged = Boolean(document.getElementById('molis-work-data')) !== Boolean(next.getElementById('molis-work-data'));
     const after = owned(next);
     const came = [...after].filter((id) => !before.has(id)), gone = [...before].filter((id) => !after.has(id));
     const wired = (rail()?.dataset.reloadPlugins || '').split(' ').filter(Boolean);
     if ([...came, ...gone].some((id) => wired.includes(id))) { reload(); return; }
     // What leaves is left first: a pane showing it goes back to where it was.
     gone.forEach((id) => host.leavePlugin?.(id));
+    if (ownerBoundaryChanged) { reload(); return; }
     const nextTiles = tiles(next);
     tiles().forEach((tile) => { const mate = nextTiles.find((other) => other.dataset.pluginTile === tile.dataset.pluginTile); if (mate) patchTile(tile, mate); });
     patchStages(next, came, gone); patchSections(next); patchRows(next); patchChoices(next);

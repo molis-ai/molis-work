@@ -1,8 +1,8 @@
-import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
-import { createHash, randomUUID } from "node:crypto";
-import type { GoalsQueryApi, GoalsApplicationApi, GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GovernanceApplicationApi, GoalTreeProposalSubmitInput, GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import { requestHash } from "./module/command-support.js";
+import { randomUUID } from "node:crypto";
+import type { GoalsQueryApi, GoalsApplicationApi, GoalRecord } from "./contract/goals.js";
+import type { GovernanceApplicationApi, GoalTreeProposalSubmitInput, GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import { GoalTreeProposalNormalizer } from "./proposal-normalizer.js";
@@ -179,8 +179,4 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
     if (!goal) throw treeErrors["goals.not_found"](`Goal 不存在: ${goalId}`);
     return goal;
   }
-}
-
-function requestHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
 }

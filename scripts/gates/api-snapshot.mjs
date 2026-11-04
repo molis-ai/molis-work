@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Public API snapshots (specs/repository-anti-corruption §4.13, slice W1-04): what plugins and other callers can import
+// Public API snapshots (specs/archive/repository-anti-corruption §4.13, slice W1-04): what plugins and other callers can import
 // from the contracts package (every subpath of its package.json "exports") and from the plugin SDK, written down in
 // tooling/gates/api/<package>/<subpath>.txt. The health gate fails when the source and the committed snapshot differ, so
 // an export that is added, removed or changed is never silent: the author refreshes the snapshot ON PURPOSE with

@@ -1,5 +1,5 @@
 import { treeErrors, type TreeErrorCode } from "./goal-tree-errors.js";
-import type { GoalTreeProposalDecisionAuthority, GoalTreeProposalItemDecisionInput, GovernanceProvenanceApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GoalTreeProposalDecisionAuthority, GoalTreeProposalItemDecisionInput, GovernanceProvenanceApi } from "./contract/governance-collaboration.js";
 import { GoalTreeProposalNormalizer, type NormalizedGoalTreeProposalItem } from "./proposal-normalizer.js";
 
 export interface NormalizedGoalTreeProposalDecision {

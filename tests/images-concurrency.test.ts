@@ -39,7 +39,8 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
   const counts = new Map<string, number>();
   const aborted = new Set<string>();
   const provider = createServer(async (req, res) => {
-    let raw = ""; for await (const chunk of req) raw += chunk;
+    const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const raw = Buffer.concat(chunks).toString("utf8");
     const { prompt } = JSON.parse(raw);
     counts.set(prompt, (counts.get(prompt) ?? 0) + 1); requests.set(prompt, res);
     res.on("close", () => { if (!res.writableEnded) aborted.add(prompt); });
@@ -54,7 +55,8 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
       const result = await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.images${path}`, { method, headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       const value = await result.json() as any; assert.equal(result.status, expected, JSON.stringify(value)); return value;
     };
-    await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    await withHostCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({
       context: { runtime_id: runtime, stable_work_context_id: `${runtime}-session`, host_declares_stable: true },
       project_id: project.project_id, actor_id: "user", user_confirmed: true,
     }));

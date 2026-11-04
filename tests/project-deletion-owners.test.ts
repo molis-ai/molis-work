@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
+import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, L, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, HomeConsentLedger, L, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
@@ -14,7 +15,7 @@ import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
-import { FUNCTIONS_STORE_BASELINE, createFunctionsService } from "@molis-ai/molis-work-module-functions";
+import { FUNCTIONS_STORE_BASELINE, createFunctionsService } from "@molis-ai/molis-work-module-judgment-rules";
 
 /** A Home with a catalog and two projects: `gone` is deleted by the tests, `kept` must come through untouched. */
 async function withHome<T>(run: (env: { home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>; gone: string; kept: string }) => Promise<T>): Promise<T> {
@@ -119,6 +120,52 @@ function orphaned(home: string): Record<string, number> {
 }
 const nothing = (left: Record<string, number>) => Object.fromEntries(Object.keys(left).map(key => [key, 0]));
 
+test("RAC-2648 project deletion revokes all Home installation consents through their owner, and absence does not create a Runtime library", async () => {
+  await withHome(async ({ home, catalog, gone, kept }) => {
+    const file = homeSqlitePath(home, "plugin-runtime"); assert.equal(existsSync(file), false);
+    const owner = projectDeletedHooksFor(home).owners().find(item => item.id === "plugin-project-reach")!;
+    await owner.clear(gone); assert.equal(existsSync(file), false);
+    const ledger = new HomeConsentLedger(home);
+    const grant = (project_id: string, install_id: string) => ledger.grantProjectReach({ plugin_id: "io.molis.work.example." + install_id, publisher_signature: "publisher", manifest_digest: "digest",
+      project_id, install_id, approved_capability_ids: ["goals.state"], at: "then" });
+    const a = grant(gone, "first"), second = grant(gone, "second"), b = grant(kept, "first");
+    const result = await catalog.deleteProject(deletion(gone));
+    assert.equal(result.deletion.owner_steps.find(item => item.owner_id === owner.id)?.state, "complete");
+    assert.ok(ledger.consent(a.consent_id)!.revoked_at); assert.ok(ledger.consent(second.consent_id)!.revoked_at);
+    assert.equal(ledger.consent(b.consent_id)!.revoked_at, null);
+    const history = ledger.consents(a.plugin_id); await owner.clear(gone); assert.deepEqual(ledger.consents(a.plugin_id), history);
+  });
+});
+
+test("RAC-2648 a ledger cleanup failure remains pending across catalog reopen, and a fixed project id is recreated only after its old consent is withdrawn", async () => {
+  await withHome(async ({ home, catalog, kept }) => {
+    const input = { actor_id: "test-user", user_confirmed: true }; await catalog.ensureDemoProject(input);
+    const ledger = new HomeConsentLedger(home), entry = { plugin_id: "io.molis.work.example.cleanup", publisher_signature: "publisher", manifest_digest: "digest", install_id: "same-install",
+      approved_capability_ids: ["goals.state"], at: "then" };
+    const old = ledger.grantProjectReach({ ...entry, project_id: DEMO_PROJECT_ID }), b = ledger.grantProjectReach({ ...entry, project_id: kept });
+    const file = homeSqlitePath(home, "plugin-runtime"), db = new Database(file);
+    try {
+      db.exec("CREATE TRIGGER refuse_reach_cleanup BEFORE UPDATE OF revoked_at ON plugin_consents WHEN OLD.kind = 'project_reach' BEGIN SELECT RAISE(ABORT, 'injected consent cleanup failure'); END");
+      const removed = await catalog.removeDemoProject({ ...deletion(DEMO_PROJECT_ID), idempotency_key: "reach-demo-remove" });
+      assert.equal(removed.deletion.cleanup_state, "pending");
+      assert.equal(removed.deletion.owner_steps.find(item => item.owner_id === "plugin-project-reach")?.state, "pending");
+      assert.equal(ledger.consent(old.consent_id)!.revoked_at, null);
+      await assert.rejects(() => catalog.ensureDemoProject(input), /清理/u);
+      assert.equal(catalog.listProjects().some(project => project.project_id === DEMO_PROJECT_ID), false);
+      db.exec("DROP TRIGGER refuse_reach_cleanup");
+    } finally { db.close(); }
+    catalog.close();
+    const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    try {
+      assert.equal((await reopened.ensureDemoProject(input)).status, "created");
+      assert.equal(reopened.listProjectDeletions().find(item => item.project_id === DEMO_PROJECT_ID)!.cleanup_state, "complete");
+      assert.ok(ledger.consent(old.consent_id)!.revoked_at);
+      assert.equal(ledger.consent(b.consent_id)!.revoked_at, null);
+      assert.equal(ledger.consents(entry.plugin_id).filter(row => row.subject === old.subject && !row.revoked_at).length, 0);
+    } finally { reopened.close(); }
+  });
+});
+
 test("deleting a project clears what every Home library keeps for it and leaves other projects alone", async () => {
   await withHome(async ({ home, catalog, gone, kept }) => {
     const goneSeed = seed(home, gone), keptSeed = seed(home, kept);
@@ -179,5 +226,30 @@ test("the delete dialog lists the library owners' data in the person's language"
     runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹", "the Host's page alone does not know it"));
     const pages = owners.find(owner => owner.label === "Pages 文稿与文件夹")!;
     runWithLocale("en", () => assert.equal(ownerLabel(pages), "Pages documents and folders"));
+  });
+});
+
+test("RAC-2457 deleting a project through the catalog removes the directory record it leaves with no project, and keeps one another project is in", async () => {
+  await withHome(async ({ home, catalog, gone, kept }) => {
+    const alone = join(home, "alone"), shared = join(home, "shared");
+    mkdirSync(alone, { recursive: true });
+    mkdirSync(shared, { recursive: true });
+    const bind = (projectId: string, workspace: string, thread: string) => catalog.bindRuntimeContext({
+      context: { runtime_id: "codex", stable_work_context_id: thread, host_declares_stable: true, workspace: { canonical_path: workspace, realpath_verified: false } },
+      project_id: projectId, actor_id: "test-user", user_confirmed: true,
+    });
+    bind(gone, alone, "thread-alone");
+    bind(gone, shared, "thread-shared-1");
+    bind(kept, shared, "thread-shared-2");
+    const directories = () => {
+      const db = new Database(catalog.databasePath, { readonly: true });
+      try { return (db.prepare("SELECT canonical_path FROM workspaces ORDER BY canonical_path").all() as Array<{ canonical_path: string }>).map(row => row.canonical_path); } finally { db.close(); }
+    };
+    assert.equal(directories().length, 2);
+
+    await catalog.deleteProject(deletion(gone));
+
+    assert.deepEqual(directories().map(directory => basename(directory)), ["shared"], "the directory only the deleted project was in is gone, the shared one stays");
+    assert.deepEqual(catalog.listWorkspaceMemberships().map(membership => membership.project_id), [kept]);
   });
 });

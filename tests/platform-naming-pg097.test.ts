@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { closeSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readlinkSync, readSync, rmSync, truncateSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readlinkSync, readSync, realpathSync, rmSync, truncateSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -13,7 +13,7 @@ const root = path.resolve(import.meta.dirname, "..");
 // Deliberate counterexamples are assembled, so this test's own current code is scanned too.
 const retiredHelperPrefix = ["MOLIS", "JELLY", ""].join("_");
 const retiredStorageName = ["resolve", "Feed", "SecurityDirectory"].join("");
-const slice = "specs/repository-anti-corruption/slices/ac-artifacts.md";
+const archivedSlice = "specs/archive/repository-anti-corruption/slices/ac-artifacts.md", currentProse = "docs/system/pg097-fixture.md";
 
 function textEncoding(prefix: Buffer): string | undefined {
   const bom = prefix.subarray(0, 2).toString("hex");
@@ -46,9 +46,7 @@ function trackedTextSnapshot(directory: string): ReadonlyMap<string, string> {
 function assertRetiredNameAbsent(snapshot: ReadonlyMap<string, string>, name: string): void {
   const offenders = [...snapshot].filter(([file, contents]) => {
     if (file.startsWith("specs/archive/") && file.endsWith(".md")) return false;
-    // Only the existing narrative rows describing the rename are exempt; code and new prose in this spec still count.
-    const text = file === slice ? contents.split("\n").filter(line => !/^(?:\| 平台存储与资源用插件命名：|\| 环境变量 |\| 符号与函数名：|\*\*A7 非目录部分已做|\| RAC-427 \|)/.test(line)).join("\n") : contents;
-    return text.includes(name);
+    return contents.includes(name);
   }).map(([file]) => file);
   assert.deepEqual(offenders, [], `retired name ${name} must not appear in current tracked text`);
 }
@@ -66,7 +64,7 @@ test("RAC-427: no current tracked text reads the retired helper variables; the m
 
 test("RAC-427: the platform storage function carries no Feed name, and the path it returns is unchanged", () => {
   assertRetiredNameAbsent(tracked, retiredStorageName);
-  runWithMolisWorkHome("/tmp/pg097-home", () => assert.equal(resolveHomeSecurityDirectory(), path.join("/tmp/pg097-home", "feed")));
+  runWithMolisWorkHome("/tmp/pg097-home", () => assert.equal(resolveHomeSecurityDirectory(), path.join(realpathSync("/tmp"), "pg097-home", "feed"), "S-11 resolves the Home to its real path at entry: on macOS /tmp is a link to /private/tmp, so the storage path is the real one"));
 });
 
 test("RAC-427: writing either retired name in previously omitted tracked text makes the real check fail", () => {
@@ -98,8 +96,9 @@ test("RAC-427: tracked text detection preserves Unicode, excludes only recorded 
     writeFileSync(path.join(directory, "unicode"), "中".repeat(2731) + retiredStorageName); // UTF-8 crosses the 8192-byte sniff boundary.
     writeFileSync(path.join(directory, "utf16"), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(retiredHelperPrefix, "utf16le")]));
     writeFileSync(media, `%PDF-1.7\n${retiredHelperPrefix}`);
-    mkdirSync(path.dirname(path.join(directory, slice)), { recursive: true });
-    writeFileSync(path.join(directory, slice), `| 环境变量 \`${retiredHelperPrefix}\` | old name |\n`);
+    for (const file of [archivedSlice, currentProse]) mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+    writeFileSync(path.join(directory, archivedSlice), `| 环境变量 \`${retiredHelperPrefix}\` | old name |\n`); // archived history stays exempt
+    writeFileSync(path.join(directory, currentProse), "current platform name\n");
     execFileSync("git", ["add", "."], { cwd: directory });
     // Sparse and larger than readFileSync's buffer limit: reading the whole media file would fail, without writing gigabytes.
     truncateSync(media, 3 * 1024 ** 3);
@@ -108,8 +107,8 @@ test("RAC-427: tracked text detection preserves Unicode, excludes only recorded 
     assert.equal(snapshot.get("unicode"), "中".repeat(2731) + retiredStorageName);
     assert.throws(() => assertRetiredNameAbsent(snapshot, retiredHelperPrefix), /utf16/);
     assertRetiredNameAbsent(new Map([...snapshot].filter(([file]) => file !== "utf16")), retiredHelperPrefix);
-    writeFileSync(path.join(directory, slice), `current code: ${retiredHelperPrefix}\n`);
-    assert.throws(() => assertRetiredNameAbsent(trackedTextSnapshot(directory), retiredHelperPrefix), /ac-artifacts\.md/);
+    writeFileSync(path.join(directory, currentProse), `current code: ${retiredHelperPrefix}\n`);
+    assert.throws(() => assertRetiredNameAbsent(trackedTextSnapshot(directory), retiredHelperPrefix), /pg097-fixture\.md/);
     unlinkSync(path.join(directory, "unicode"));
     assert.throws(() => trackedTextSnapshot(directory), { code: "ENOENT" });
   } finally { rmSync(directory, { recursive: true, force: true }); }

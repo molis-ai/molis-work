@@ -19,7 +19,7 @@ import {
   type KnowledgeSearchRequest,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeReader, locateSections, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeLocateDraft,
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeLocateData, knowledgeReader, locateSections, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeLocateDraft,
   type KnowledgeLocator, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
 import type { SearchService } from "@molis-ai/molis-work-service-search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
@@ -85,7 +85,7 @@ export function knowledgeModelLocator(homeDirectory: string): KnowledgeLocator |
   const generate = hostTextGeneration({ homeDirectory });
   if (!generate) return null;
   return async input => {
-    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, JSON.stringify(input)), KNOWLEDGE_LOCATE.prompt_id), {
+    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, knowledgeLocateData(input)), KNOWLEDGE_LOCATE.prompt_id), {
       structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 2000 });
     const draft = result.structured as KnowledgeLocateDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的选节结果");
@@ -107,19 +107,26 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     related: (projectId, query, limit, snippets) => ports.index.related(projectId, query, limit, snippets).map(document => ({ kind: document.kind, id: document.object_id, snippet: document.snippet })) });
   const cards = new KnowledgeCards(store, organizer);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const settling = new Set<Promise<void>>();
   let closed = false;
   // Something in the project changed with nobody searching: its sources are brought current with the owner's authority first, so
   // the catalog (each round's directory and counts, the cards) holds the new piece before anyone asks for it.
   const settle = async (projectId: string) => {
     if (ports.ownerContext) {
       const owner = await ports.ownerContext(projectId).catch(error => { ports.onError?.(error, "knowledge.catch_up"); return null; });
+      if (closed) return;
       if (owner) await service.catchUp({ client: ports.clientFor(owner), caller: owner }).catch(error => ports.onError?.(error, "knowledge.catch_up"));
     }
     if (!closed) await organizer.kick(projectId);
   };
   const changed = (projectId: string | null) => {
     if (closed || !projectId || timers.has(projectId)) return;
-    const timer = setTimeout(() => { timers.delete(projectId); void settle(projectId); }, KICK_DELAY_MS);
+    const timer = setTimeout(() => {
+      timers.delete(projectId);
+      const work = settle(projectId).finally(() => settling.delete(work));
+      settling.add(work);
+      void work.catch(error => ports.onError?.(error, "knowledge.catch_up"));
+    }, KICK_DELAY_MS);
     (timer as { unref?: () => void }).unref?.();
     timers.set(projectId, timer);
   };
@@ -184,6 +191,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
       await organizer.close();
+      await Promise.all([...settling]);
       store.close();
     },
   };

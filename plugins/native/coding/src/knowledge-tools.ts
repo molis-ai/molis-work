@@ -29,7 +29,7 @@ type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect">;
  * small, otherwise the pieces related to the round's words, titles and briefs only, so the Agent picks what to pull with its
  * tools. Null when the round cannot list knowledge, there is none, or the listing fails: the round goes on without it.
  */
-export async function knowledgeCatalogMaterial(actions: Pick<PluginActionClient, "invoke"> | undefined, tools: readonly ExactActionReference[], words: string, sessionId: string, control?: Control): Promise<AgentTextMaterial | null> {
+export async function knowledgeCatalogMaterial(actions: Pick<PluginActionClient, "invoke"> | undefined, tools: readonly ExactActionReference[], words: string, control?: Control): Promise<AgentTextMaterial | null> {
   const list = knowledgeActions.list;
   if (!actions || !tools.some(tool => tool.capability_id === list.capability_id && tool.version === list.version && tool.provider_id === KNOWLEDGE_PROVIDER_ID)) return null;
   try {
@@ -39,7 +39,7 @@ export async function knowledgeCatalogMaterial(actions: Pick<PluginActionClient,
     const whole = knowledgeCatalogWhole(first);
     const pieces = whole ? first.pieces : first.pieces.slice(0, KNOWLEDGE_CATALOG_RELATED);
     if (!pieces.length) return null;
-    return { material_id: "knowledge-catalog", source_artifact_id: sessionId, source_version: 1, title: "项目资料目录", text: knowledgeCatalogText({ total: first.total, whole, pieces }) };
+    return { material_id: "knowledge-catalog", title: "项目资料目录", text: knowledgeCatalogText({ total: first.total, whole, pieces }) };
   } catch (error) {
     if (control?.signal?.aborted) throw error;
     return null;

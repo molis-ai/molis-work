@@ -42,7 +42,6 @@ export {
   composeScheduledTaskPrompt,
 } from "./reply.js";
 export {
-  scheduleConversationFingerprint,
   listScheduleConversationTasks,
   getScheduleConversationTask,
   createScheduleConversationTask,

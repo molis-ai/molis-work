@@ -64,7 +64,7 @@ export const PAGE_STATE_OWNERS = {
     state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
   },
   assistant: {
-    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
+    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"],
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
@@ -106,10 +106,6 @@ export const PAGE_STATE_OWNERS = {
   "immersive-navigation": {
     files: ["apps/workbench/src/scripts/client/immersive-navigation.ts"],
     state: "The application chrome around the work area, including the Goal work mode.",
-  },
-  "navigation-feed": {
-    files: ["apps/workbench/src/scripts/client/navigation-feed.ts", "apps/workbench/src/scripts/client/navigation-feed-sources.ts", "apps/workbench/src/scripts/client/navigation-feed-stage.ts"],
-    state: "The Feed directory: its groups, the open group and the selected Feed task.",
   },
   "goal-selection": {
     files: ["apps/workbench/src/scripts/client/refresh-decisions.ts", "apps/workbench/src/scripts/client/initialization.ts"],
@@ -302,8 +298,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:select-item", kind: "announcement", owner: "tab-workspace", on: "element",
-    detail: "{ itemId, quiet? }",
-    summary: "The workbench opened an item in a plugin surface; the surface shows it. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.",
+    detail: "{ itemId?, quiet?, view?, panel?, intent?, invalidate? }",
+    summary: "The workbench projects its current item or finite view selection onto one plugin surface; invalidate asks it to reread its own document without a business payload. quiet: a reopen the person did not ask for (a reload, Back), so an item that is gone is forgotten without a word. Dispatched on the surface root, not bubbling.",
   },
   {
     name: "molis-work:settings-embed", kind: "announcement", owner: "settings-directory", on: "document",
@@ -478,14 +474,9 @@ export const DOM_EVENTS = [
     summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.",
   },
   {
-    name: "workbench-feed-task", kind: "request", owner: "tab-workspace", on: "document",
-    detail: "{ taskId }",
-    summary: "Make the current tab show a Feed task. Also posted to a framed Feed pane as a message.",
-  },
-  {
-    name: "workbench-open-group", kind: "request", owner: "navigation-feed", on: "document",
+    name: "workbench-open-group", kind: "request", owner: "tab-workspace", on: "document",
     detail: "{ surface, id }",
-    summary: "Open a group of the Feed directory.",
+    summary: "Open the named plugin default page with its current group selection; the layout owner selects the pane and tab.",
   },
 ] as const satisfies readonly DomEventDeclaration[];
 

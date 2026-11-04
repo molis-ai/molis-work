@@ -1,4 +1,4 @@
-import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalRelationRecord } from "./contract/goals.js";
 import type { GoalsTreeItem, GoalsTreeView, GoalVisibleStatus } from "./tree-ui-model.js";
 import type { GoalPresentationState } from "./tree-order.js";
 

@@ -1,12 +1,13 @@
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { rmSync } from "node:fs";
+import { realpathSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { clearInExistingHomeSqlite, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
 import { ownerFileHasCode, ownerFilePaths } from "./plugin-owner-files-paths.js";
 
 // A project's rows in a plugin's library of the Home, as the plugin declares them (`databases.home.project_rows`, PG-024): the
 // platform writes the statements from the declaration and runs them on its own connection to that one library, so deleting a project
-// runs no code of the plugin's (specs/repository-anti-corruption/slices/w5-02-registry.md §2). The SDK has checked the shape
+// runs no code of the plugin's (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §2). The SDK has checked the shape
 // (packages/plugin-sdk `project-rows-declarations.ts`); what it cannot see, that each column is one the schema really creates, is
 // checked here against the schema built in SQLite.
 
@@ -85,7 +86,27 @@ function removeNamedFiles(home: string, ownerFiles: PluginOwnerFilesDeclaration,
       if (ownerFileHasCode(error, "host.owner_file_invalid") || ownerFileHasCode(error, "host.owner_file_unsafe")) continue;
       throw error;
     }
-    if (target.stat?.isFile()) rmSync(target.path, { force: true });
+    if (!target.stat?.isFile()) continue;
+    // Between the check above and the removal, the declared directory can be swapped for a link pointing outside it. Ask again and by
+    // real path: a file whose parent is no longer exactly the declared directory is left (a name no longer the plugin's to have removed,
+    // not an error). This narrows the window to these two checks and the removal — Node has no unlinkat — it does not close it completely.
+    let fresh: ReturnType<typeof paths.inspect>;
+    try { fresh = paths.inspect(`${directory}/${name}`, "file"); }
+    catch (error) {
+      if (ownerFileHasCode(error, "host.owner_file_invalid") || ownerFileHasCode(error, "host.owner_file_unsafe")) continue;
+      throw error;
+    }
+    if (!fresh.stat?.isFile() || fresh.path !== target.path) continue;
+    let parent: string;
+    try { parent = realpathSync(dirname(target.path)); }
+    catch (error) {
+      // The directory can be gone while this runs (the name is then no longer the plugin's and is left, like a missing file); any other
+      // failure to look (EACCES, EIO, …) must not become a silent skip — the rows roll back so the next attempt finds the file again.
+      if (ownerFileHasCode(error, "ENOENT")) continue;
+      throw error;
+    }
+    if (parent !== join(realpathSync(home), ownerFiles.store_name, directory)) continue;
+    rmSync(target.path, { force: true });
   }
 }
 

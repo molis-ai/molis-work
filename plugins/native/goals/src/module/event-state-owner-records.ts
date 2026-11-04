@@ -2,7 +2,7 @@ import type {
   GoalEventAgreementView,
   GoalEventStateOwnerView,
   GoalEventWorkStatus,
-} from "@molis-ai/molis-work-contracts/modules/goals";
+} from "../contract/goals.js";
 import { rowText, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;

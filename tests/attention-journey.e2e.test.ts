@@ -1,6 +1,6 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -51,8 +51,7 @@ test("Kanban routes wheel by pointer and axis without switching axes at column b
 test("Frame picker adds a persistent reference in place; current tab, directory and form focus agree", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { command, sessionId, navigate, origin, click, evaluate, waitFor, projectId, reloadPage } = b;
-  const catalog = await openMolisWorkProjectCatalog({homeDirectory:b.homeDirectory});
-  catalog.addProjectPlugin({project_id:projectId!,plugin_id:"feed",actor_id:"attention-test"}); catalog.close();
+  await addProjectPlugin(b.web, projectId!, "feed");
   const app = new GoalProjectApplication(b.store);
   const goal = app.goalEvents.createIntent({project_id:DEMO_PROJECT_ID,title:"整理设计反馈",outcome:"明确下一轮体验改动",actor_id:"attention-test",actor_kind:"user",idempotency_key:"attention-intent"}).goal;
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计反馈"}).source;
@@ -89,11 +88,13 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   assert.match(await evaluate<string>("document.querySelector('[data-frame-picker-list]').textContent"),/没有匹配/);
   await evaluate("document.querySelector('[data-frame-picker-search]').value='核对键盘';document.querySelector('[data-frame-picker-search]').dispatchEvent(new Event('input',{bubbles:true}))");
   await click(`[data-frame-picker-asset="feed:${item.item_id}"]`);
+  await waitFor("!document.querySelector('[data-frame-picker]').open && [...document.querySelectorAll('[data-frame-block]')].some(block=>block.textContent.includes('核对键盘焦点'))");
   assert.equal(await evaluate("document.querySelector('[data-frame-picker]').open"),false);
   assert.equal(await evaluate("document.querySelector('[data-frame-block]').textContent.includes('核对键盘焦点')"),true);
   await reloadPage();
   await waitFor("document.querySelector('[data-frame-block]')?.textContent.includes('核对键盘焦点')");
   await click('.frame-goal-actions [data-frame-add-content]');
+  await waitFor(`document.querySelector('[data-frame-picker]').open && document.querySelector('[data-frame-picker-asset="feed:${item.item_id}"]')`);
   assert.equal(await evaluate(`document.querySelector('[data-frame-picker-asset="feed:${item.item_id}"]').disabled`),true);
   await command("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27},sessionId);
   await waitFor("!document.querySelector('[data-frame-picker]').open");
@@ -117,7 +118,7 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   await click('[data-tui-menu-cancel]');
   assert.equal(await evaluate("document.activeElement.matches('[data-tui-empty-add]')"),true);
   await click('[data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface==='goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded==='true'");
+  await waitFor("document.body.dataset.desktopSurface==='goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded==='true'");
   await evaluate(`document.querySelector('[data-momentum-node][data-goal-id="${goal.goal_id}"] [data-graph-frame]').click()`);
   await waitFor("!document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-frame-goal-title]').textContent"),"整理设计反馈", "explicit Frame entry overrides the saved work view");

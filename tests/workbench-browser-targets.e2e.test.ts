@@ -33,6 +33,30 @@ async function site(t: TestContext, title: string) {
   return { origin: `http://127.0.0.1:${address.port}`, uploads, effects: () => effects };
 }
 
+// T405-FULL-03: keep the original browser-open predicate and record only bounded public socket/DOM state on failure.
+async function observedSideBrowser(t: TestContext, browser: AuditBrowser, url: string): Promise<void> {
+  const messages: unknown[] = [];
+  const off = ['Network.webSocketFrameSent', 'Network.webSocketFrameReceived'].map(method => browser.on(method, (params, session) => {
+    if (session !== browser.sessionId) return;
+    const response = params.response as { opcode?: number; payloadData?: string } | undefined;
+    if (response?.opcode !== 1 || !response.payloadData) return;
+    try {
+      const message = JSON.parse(response.payloadData);
+      if (!['ready', 'state', 'error', 'attach', 'navigate', 'visible'].includes(message.type)) return;
+      messages.push({ method, type: message.type, state: message.state, message: message.message, input: message.input, viewport: message.viewport });
+      if (messages.length > 12) messages.shift();
+    } catch { /* Binary or unrelated socket messages are not diagnostic input. */ }
+  }));
+  try {
+    await browser.command('Network.enable', {}, browser.sessionId);
+    await openSideBrowser(browser, url);
+  } catch (error) {
+    const state = await browser.command('Runtime.evaluate', { expression: `(()=>{const q=s=>document.querySelector(s),view=q('[data-browser-view]'),canvas=q('[data-browser-canvas]');return {address:q('[data-browser-address]')?.value,stopHidden:q('[data-browser-action=stop]')?.hidden,coverHidden:q('[data-browser-cover]')?.hidden,cover:q('[data-browser-cover]')?.textContent.slice(0,500),live:q('[data-browser-live]')?.textContent,canvas:canvas?{width:canvas.width,height:canvas.height,box:canvas.getBoundingClientRect().toJSON()}:null,viewport:view?.getBoundingClientRect().toJSON(),tab:q('[data-side-tab=browser]')?.getAttribute('aria-selected'),requests:window.__auditRequests?.filter(r=>r.path.includes('/browser')).slice(-8)}})()`, returnByValue: true }, browser.sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic('T405 side browser open failed ' + JSON.stringify({ url, messages, state }));
+    throw error;
+  } finally { for (const stop of off) stop(); }
+}
+
 async function chooser(browser: AuditBrowser) {
   await clickBrowserPoint(browser, 100, 60);
   await browser.waitFor("!document.querySelector('[data-browser-sheet]').hidden && !!document.querySelector('[data-browser-action=file-pick]')", 15_000);
@@ -62,11 +86,11 @@ test("W2-18-BROWSER-UPLOAD-01 / W2-18-BROWSER-UPLOAD-02: a delayed FileReader fo
       window.__auditReaderWaiting = true;
       window.__auditReleaseReader = () => { read.call(this,file); };
     }; })()`);
-  await openSideBrowser(browser, a.origin + "/");
+  await observedSideBrowser(t, browser, a.origin + "/");
   const chooserA = await chooser(browser);
   await browser.click("[data-browser-action=file-pick]"); await setPickerFiles(browser, [files[0]!]);
   await browser.waitFor("window.__auditReaderWaiting === true");
-  await openSideBrowser(browser, b.origin + "/");
+  await observedSideBrowser(t, browser, b.origin + "/");
   const chooserB = await chooser(browser); assert.notEqual(chooserB, chooserA);
   await browser.click("[data-browser-action=file-pick]");
   await browser.evaluate("window.__auditReleaseReader()");
@@ -92,7 +116,7 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
   queue.request(review(browser, "review-A", a.origin));
   queue.registerDecisionHandler("review-A", async input => queue.decide(input));
   await browser.reloadPage();
-  await openSideBrowser(browser, a.origin + "/");
+  await observedSideBrowser(t, browser, a.origin + "/");
   await browser.waitFor("document.querySelector('[data-browser-approval]').textContent.includes('review-A')", 15_000);
   await armResponse(browser, "grant-A", "/api/browser/sites", "POST");
   await browser.click("[data-browser-action=approve-site]"); await waitHeld(browser, "grant-A");
@@ -107,7 +131,7 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
     await until(b.effects, value => value === 1, "B's reviewed effect");
     return queue.settle("review-B", { ok: true });
   });
-  await openSideBrowser(browser, b.origin + "/");
+  await observedSideBrowser(t, browser, b.origin + "/");
   await browser.waitFor("document.querySelector('[data-browser-approval]').textContent.includes('review-B')", 15_000);
   await armResponse(browser, "decision", "/api/agent/reviews/decide", "POST");
   await releaseResponse(browser, "grant-A"); await waitHeld(browser, "decision");
@@ -122,7 +146,7 @@ test("W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant de
   await queue.respond({ review_id: "review-B", decision: "reject", actor_id: "web-user" });
   await browser.click("[data-browser-action=sites]");
   await browser.waitFor(`document.querySelector('[data-browser-action=site-block]')?.dataset.scope === ${JSON.stringify(b.origin)}`);
-  await openSideBrowser(browser, a.origin + "/");
+  await observedSideBrowser(t, browser, a.origin + "/");
   await browser.click("[data-browser-action=site-block]");
   await until(async () => (await (await fetch(browser.origin + "/api/browser/sites")).json()).sites as Array<{ scope: string; decision: string }>,
     rows => rows.some(row => row.scope === b.origin && row.decision === "block"), "the displayed B scope is blocked");
@@ -136,7 +160,7 @@ test("W2-18-BROWSER-GRANT-01: a real Host rejection of the site save does not ap
   queue.request(review(browser, "save-rejected", a.origin));
   queue.registerDecisionHandler("save-rejected", async input => queue.decide(input));
   await browser.reloadPage();
-  await openSideBrowser(browser, a.origin + "/");
+  await observedSideBrowser(t, browser, a.origin + "/");
   await browser.waitFor("!!document.querySelector('[data-browser-action=approve-site]')", 15_000);
   await browser.evaluate(`(() => { const send=window.fetch;
     window.fetch=(input,init={})=>{if(String(input).endsWith('/api/browser/sites')&&init.method==='POST') {

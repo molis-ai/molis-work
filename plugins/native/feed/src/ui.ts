@@ -6,11 +6,15 @@ import type {
   FeedMaterialRecord,
 } from "./contract/feed.js";
 import type { SourceRecord } from "./contract/sources.js";
+import { FEED_PLUGIN_ID } from "./identity.js";
+import { buildFeedReaderUiModel, buildFeedStageUiModel } from "./stage-ui.js";
+import type { FeedReaderData, FeedStageData } from "./query-actions.js";
 import { renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
   UiRenderRequest,
+  StagePageModel,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   FEED_ARCHIVE_OPTION_ID,
@@ -173,26 +177,28 @@ export const feedUiDescriptor: UiContributionDeclaration = {
   ],
 };
 
-export const feedUiContribution: UiContribution<FeedUiModel | PersistedFeedDetailModel> = {
+export const feedUiContribution: UiContribution<FeedUiModel | PersistedFeedDetailModel | StagePageModel<FeedStageData | FeedReaderData>> = {
   descriptor: feedUiDescriptor,
-  render(request: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel>): string {
+  render(request: UiRenderRequest<FeedUiModel | PersistedFeedDetailModel | StagePageModel<FeedStageData | FeedReaderData>>): string {
+    const model = "entries" in request.model || "item" in request.model ? request.model : request.model.object
+      ? buildFeedReaderUiModel(request.model as StagePageModel<FeedReaderData>) : buildFeedStageUiModel(request.model as StagePageModel<FeedStageData>);
     switch (request.surface as FeedUiSurface) {
       case "directory":
-        return renderFeedDirectory(request.model as FeedUiModel);
+        return renderFeedDirectory(model as FeedUiModel);
       case "workbench":
-        return renderFeedWorkbench(request.model as FeedUiModel);
+        return renderFeedWorkbench(model as FeedUiModel);
       case "workbench-fragment":
-        return renderFeedWorkbenchFragment(request.model as FeedUiModel);
+        return renderFeedWorkbenchFragment(model as FeedUiModel);
       case "source-directory":
-        return renderSourceDirectory(request.model as FeedUiModel);
+        return renderSourceDirectory(model as FeedUiModel);
       case "source-workbench":
-        return renderSourceWorkbench(request.model as FeedUiModel);
+        return renderSourceWorkbench(model as FeedUiModel);
       case "overlays":
-        return renderFeedOverlays(request.model as FeedUiModel);
+        return renderFeedOverlays(model as FeedUiModel);
       case "persisted-detail":
-        return renderPersistedFeedItemDetail(request.model as PersistedFeedDetailModel);
+        return renderPersistedFeedItemDetail(model as PersistedFeedDetailModel);
       case "frame-block":
-        return renderFeedFrameBlock(request.model as PersistedFeedDetailModel);
+        return renderFeedFrameBlock(model as PersistedFeedDetailModel);
       default:
         throw new Error(`Feed UI surface ${(request as UiRenderRequest).surface} 不存在`);
     }
@@ -314,7 +320,7 @@ function renderFeedStageToolbar(model: FeedUiModel, count: number): string {
   const sourceOptions: readonly (readonly [string, string])[] = [["all", p.text("全部来源")], ...sourceLabels.map((label) => [label, label] as const)];
   const typeOptions = [["all", p.text("全部类型")], ["github", "GitHub"], ["gmail", "Gmail"], ["rss", "RSS / Atom"], ["other", p.text("其他类型")]] as const;
   const timeOptions = [["all", p.text("全部时间")], ["day", p.text("最近 24 小时")], ["week", p.text("最近 7 天")], ["month", p.text("最近 30 天")]] as const;
-  const statusOptions = [["active", p.text("未忽略")], ["all", p.text("全部状态")], ["feed", p.text("仅 Feed")], ["saved", p.text("已保存")], ["promoted", p.text("已升格")], ["processing", p.text("处理中")], ["archived", p.text("已忽略")]] as const;
+  const statusOptions = [["active", p.text("未忽略")], ["all", p.text("全部状态")], ["feed", p.text("仅 Feed")], ["saved", p.text("已保存")], ["promoted", p.text("已升格")], ["archived", p.text("已忽略")]] as const;
   const sortOptions = [["newest", p.text("最新在前")], ["oldest", p.text("最早在前")], ["source", p.text("按来源")], ["title", p.text("按标题")]] as const;
   const filterOptions = (kind: string, options: readonly (readonly [string, string])[], selected: string) =>
     options.map(([value, label]) => `<button class="feed-filter-option" type="button" role="radio" aria-checked="${value === selected}" data-feed-filter-option="${kind}" data-feed-filter-value="${p.escape(value)}"><span>${p.escape(label)}</span>${p.icon("check")}</button>`).join("");
@@ -335,7 +341,7 @@ function renderFeedStageItem(entry: FeedUiEntry, model: FeedUiModel): string {
   const visible = entry.preset === model.preset;
   return `<article class="feed-stage-item" role="listitem" data-feed-item-wrap="${p.escape(entry.entry_id)}"${visible ? "" : " hidden"}>
     <div class="feed-stage-item-line">
-      <button class="feed-stage-entry directory-list-row" type="button" aria-expanded="false" aria-controls="feed-reading-${p.escape(entry.entry_id)}" tabindex="-1" draggable="true" data-frame-asset="feed" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.summary)}" data-feed-entry-id="${p.escape(entry.entry_id)}"${entry.item_id ? ` data-feed-item-id="${p.escape(entry.item_id)}"` : ""}${entry.inbox_entry ? ` data-inbox-entry-id="${p.escape(entry.inbox_entry.entry_id)}" data-inbox-entry-revision="${entry.inbox_entry.revision}" data-inbox-subject-type="${entry.inbox_entry.subject_type}" data-inbox-reason="${entry.inbox_entry.reason}"` : ""} data-feed-entry-type="${entry.preset}" data-feed-entry-provider="${entry.provider}" data-feed-entry-attention-rank="${entry.attention_rank}" data-feed-entry-persisted="${entry.item ? "true" : "false"}" data-feed-entry-read="${entry.read ? "read" : "unread"}" data-feed-entry-source="${p.escape(entry.source_label)}" data-feed-entry-source-id="${p.escape(sourceId)}" data-feed-entry-task="${p.escape(model.sources.some((source) => source.source_id === sourceId) ? sourceId : "other")}" data-feed-entry-status="${p.escape(entry.disposition)}" data-feed-entry-time="${p.escape(entry.updated_at)}" data-feed-entry-title="${p.escape(entry.title)}" data-feed-entry-search="${p.escape(`${entry.title} ${entry.summary} ${entry.source_label}`.toLocaleLowerCase())}"><span class="feed-entry-meta"><span class="feed-entry-provider" aria-hidden="true">${p.icon(sourceIconName(entry.provider))}</span><span class="feed-entry-source">${p.escape(entry.source_label)}</span><time datetime="${p.escape(entry.updated_at)}">${p.formatDate(entry.updated_at)}</time></span><span class="feed-stage-leading"><span class="feed-entry-copy"><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><span class="feed-entry-preview">${p.escape(p.plainText(entry.summary))}</span></span></span><span class="feed-entry-foot">${renderFeedEntryStatus(entry, p)}</span></button>
+      <button class="feed-stage-entry directory-list-row" type="button" aria-expanded="false" aria-controls="feed-reading-${p.escape(entry.entry_id)}" tabindex="-1" data-frame-asset="feed" data-frame-subject-kind="feed_item" data-frame-asset-id="${p.escape(entry.entry_id)}" data-frame-asset-title="${p.escape(entry.title)}" data-frame-asset-caption="${p.escape(entry.summary)}" data-feed-entry-id="${p.escape(entry.entry_id)}"${entry.item_id ? ` data-feed-item-id="${p.escape(entry.item_id)}"` : ""}${entry.inbox_entry ? ` data-inbox-entry-id="${p.escape(entry.inbox_entry.entry_id)}" data-inbox-entry-revision="${entry.inbox_entry.revision}" data-inbox-subject-type="${entry.inbox_entry.subject_type}" data-inbox-reason="${entry.inbox_entry.reason}"` : ""} data-feed-entry-type="${entry.preset}" data-feed-entry-provider="${entry.provider}" data-feed-entry-attention-rank="${entry.attention_rank}" data-feed-entry-persisted="${entry.item ? "true" : "false"}" data-feed-entry-read="${entry.read ? "read" : "unread"}" data-feed-entry-source="${p.escape(entry.source_label)}" data-feed-entry-source-id="${p.escape(sourceId)}" data-feed-entry-task="${p.escape(model.sources.some((source) => source.source_id === sourceId) ? sourceId : "other")}" data-feed-entry-status="${p.escape(entry.disposition)}" data-feed-entry-time="${p.escape(entry.updated_at)}" data-feed-entry-title="${p.escape(entry.title)}" data-feed-entry-search="${p.escape(`${entry.title} ${entry.summary} ${entry.source_label}`.toLocaleLowerCase())}"><span class="feed-entry-meta"><span data-frame-drag-slot aria-hidden="true" style="display:inline-block;width:24px;height:24px;flex:0 0 24px;vertical-align:middle"></span><span class="feed-entry-provider" aria-hidden="true">${p.icon(sourceIconName(entry.provider))}</span><span class="feed-entry-source">${p.escape(entry.source_label)}</span><time datetime="${p.escape(entry.updated_at)}">${p.formatDate(entry.updated_at)}</time></span><span class="feed-stage-leading"><span class="feed-entry-copy"><strong title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><span class="feed-entry-preview">${p.escape(p.plainText(entry.summary))}</span></span></span><span class="feed-entry-foot">${renderFeedEntryStatus(entry, p)}</span></button>
     </div>
   </article>`;
 }
@@ -382,7 +388,7 @@ export function renderPersistedFeedItemDetail(model: PersistedFeedDetailModel, s
     return `<li><span>${p.icon("link")}</span><div><strong>${p.escape(material.title || material.source_name)}</strong><small>${p.escape([material.source_name, material.published_at ? p.formatDate(material.published_at) : ""].filter(Boolean).join(" · "))}</small>${material.preview ? `<p>${p.escape(material.preview)}</p>` : ""}${material.content ? `<details class="feed-material-content"><summary>${p.text("查看保存的正文")}</summary><div>${p.escape(material.content)}</div></details>` : material.content_ref && !material.content_available ? `<small class="feed-material-unavailable">${p.text("正文暂时不可读取")}</small>` : ""}</div>${href ? `<a href="${p.escape(href)}" target="_blank" rel="noopener noreferrer" aria-label="${p.text("打开原资料")}">${p.icon("arrow")}</a>` : ""}</li>`;
   }).join("") : `<li class="feed-material-empty">${p.icon("archive")}<p>${p.text("这条 Item 没有附带资料；正文和来源信息仍会进入处理上下文。")}</p></li>`;
   return `<article class="feed-detail" data-feed-detail="${p.escape(model.entry_id)}" data-feed-detail-item-type="feed" data-feed-detail-read="${item.read_at ? "read" : "unread"}"${selected ? "" : " hidden"}>
-    <header class="feed-detail-header"><div class="feed-detail-kicker"><span class="mw-status mw-status--progress">Feed</span><span class="mw-status mw-status--quiet">${p.escape(item.source_label || item.source_kind)}</span><span class="mw-status mw-status--${item.read_at ? "quiet" : "attention"}" data-mw-state="${item.read_at ? "read" : "unread"}" data-feed-read-state>${item.read_at ? p.text("已读") : p.text("未读")}</span><span class="mw-status mw-status--${model.inbox_active ? "attention" : "quiet"}"${model.inbox_active || ["saved", "processing", "archived"].includes(effectiveDisposition) ? ` data-mw-state="${model.inbox_active ? "answer" : effectiveDisposition === "saved" ? "material" : effectiveDisposition === "processing" ? "doing" : "archived"}"` : ""}>${p.escape(dispositionLabel(model.inbox_active ? "inbox" : effectiveDisposition, p))}</span></div><h1>${p.escape(item.title || p.text("未命名消息"))}</h1>${item.summary ? `<p>${p.escape(p.plainText(item.summary))}</p>` : ""}<div class="feed-detail-meta">${item.author ? `<span>${p.icon("user")}${p.escape(item.author)}</span>` : ""}<time datetime="${p.escape(item.source_updated_at)}">${p.formatDate(item.source_updated_at)}</time>${item.source_id ? `<button class="mw-btn mw-btn--link" type="button" data-open-source-record="${p.escape(item.source_id)}">${p.icon("settings")}${p.text("查看来源")}</button>` : ""}${itemUrl ? `<a href="${p.escape(itemUrl)}" target="_blank" rel="noopener noreferrer">${p.text("打开原文")}${p.icon("arrow")}</a>` : ""}</div></header>
+    <header class="feed-detail-header"><div class="feed-detail-kicker"><span class="mw-status mw-status--progress">Feed</span><span class="mw-status mw-status--quiet">${p.escape(item.source_label || item.source_kind)}</span><span class="mw-status mw-status--${item.read_at ? "quiet" : "attention"}" data-mw-state="${item.read_at ? "read" : "unread"}" data-feed-read-state>${item.read_at ? p.text("已读") : p.text("未读")}</span><span class="mw-status mw-status--${model.inbox_active ? "attention" : "quiet"}"${model.inbox_active || ["saved", "archived"].includes(effectiveDisposition) ? ` data-mw-state="${model.inbox_active ? "answer" : effectiveDisposition === "saved" ? "material" : "archived"}"` : ""}>${p.escape(dispositionLabel(model.inbox_active ? "inbox" : effectiveDisposition, p))}</span></div><h1>${p.escape(item.title || p.text("未命名消息"))}</h1>${item.summary ? `<p>${p.escape(p.plainText(item.summary))}</p>` : ""}<div class="feed-detail-meta">${item.author ? `<span>${p.icon("user")}${p.escape(item.author)}</span>` : ""}<time datetime="${p.escape(item.source_updated_at)}">${p.formatDate(item.source_updated_at)}</time>${item.source_id ? `<button class="mw-btn mw-btn--link" type="button" data-open-source-record="${p.escape(item.source_id)}">${p.icon("settings")}${p.text("查看来源")}</button>` : ""}${itemUrl ? `<a href="${p.escape(itemUrl)}" target="_blank" rel="noopener noreferrer">${p.text("打开原文")}${p.icon("arrow")}</a>` : ""}</div></header>
     <section class="feed-detail-body"><h2>${p.text("内容")}</h2><div class="feed-rich-content">${body}</div></section>
     ${item.tags.length ? `<section class="feed-detail-tags" aria-label="${p.text("标签")}">${item.tags.map((tag) => `<span>${p.escape(tag)}</span>`).join("")}</section>` : ""}
     ${item.materials.length ? `<details class="feed-materials"><summary>${p.icon("link")}<span>${p.text("附带资料")}</span><small>${p.text("{count} 项", { count: item.materials.length })}</small>${p.icon("chevron-down")}</summary><ul>${materials}</ul></details>` : ""}
@@ -423,8 +429,10 @@ function renderSourceConnection(model: FeedUiModel, source: FeedUiSource): strin
   if (!["gmail", "github", "connector"].includes(source.ui_kind)) return "";
   const p = model.primitives;
   const service = source.ui_kind === "connector" ? source.kind : source.ui_kind;
-  const current = typeof source.config.connection_id === "string" ? source.config.connection_id : "";
-  return `<div data-feed-connection-service="${p.escape(service)}"><label><span>${p.text("使用的账号连接")}</span><select data-source-config-field="connection_id" disabled><option value="${p.escape(current)}" selected>${p.escape(source.account_label || p.text("正在读取账号连接…"))}</option></select></label><p data-feed-connection-status role="status">${p.text("账号授权由 Connectors 统一管理，这里选择要使用的连接。")}</p><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, service))}">${p.text("在 Connectors 管理账号")}</a></div>`;
+  // The account is the person's binding on the platform: the source is the record of the service's `per_record` slot (T-121). The page
+  // names the plugin, the slot and the record; the Host finds the installation, and the account list is the person's own.
+  const slot = JSON.stringify({ plugin_id: FEED_PLUGIN_ID, slot_id: service, service_id: service, record_key: source.source_id });
+  return `<div data-feed-connection-service="${p.escape(service)}" data-plugin-record-slot="${p.escape(slot)}"${source.status === "disconnected" ? " data-feed-source-disconnected" : ""}><label><span>${p.text("使用的账号连接")}</span><select data-plugin-record-slot-account disabled><option value="" selected>${p.escape(source.account_label || p.text("正在读取账号连接…"))}</option></select></label><p data-feed-connection-status role="status">${p.text("账号授权由 Connectors 统一管理，这里选择要使用的连接。")}</p><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, service))}">${p.text("在 Connectors 管理账号")}</a></div>`;
 }
 
 function renderTaskConfigPanels(model: FeedUiModel): string {
@@ -481,7 +489,7 @@ function renderFeedSetupPanel(model: FeedUiModel): string {
 
           <p class="form-error" data-feed-add-error role="alert" hidden></p>
         </form>
-        <article class="feed-connector-card" data-feed-setup-kind="github" hidden><div><strong>GitHub</strong><em>${connectorLabel(model.connector_auth.github, "github")}</em></div><p>${p.text("GitHub 账号在全局设置 · Connectors 管理。Feed 用同一份连接拉通知。")}</p><a class="mw-btn mw-btn--primary" href="${p.escape(connectorSettingsHref(model, "github"))}">${p.text("打开 Connectors")}</a></article><article class="feed-connector-card" data-feed-setup-kind="gmail" hidden><div><strong>Gmail</strong><em>${connectorLabel(model.connector_auth.gmail, "gmail")}</em></div><p>${p.text("在 Connectors 授权 Gmail 后，当前项目的 Feed 会按邮箱关联来源。")}</p><a class="mw-btn mw-btn--primary" href="${p.escape(connectorSettingsHref(model, "gmail"))}">${p.text("打开 Connectors")}</a></article>
+        <article class="feed-connector-card" data-feed-setup-kind="github" hidden><div><strong>GitHub</strong><em>${connectorLabel(model.connector_auth.github, "github")}</em></div><p>${p.text("GitHub 账号在全局设置 · Connectors 管理。Feed 用同一份连接拉通知。")}</p><form class="feed-account-source" data-feed-add-account="github"><label><span>${p.text("来源名称")}</span><input data-feed-account-name required maxlength="80" value="GitHub"></label><button class="mw-btn mw-btn--primary" type="submit">${p.text("创建来源")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "github"))}">${p.text("打开 Connectors")}</a></article><article class="feed-connector-card" data-feed-setup-kind="gmail" hidden><div><strong>Gmail</strong><em>${connectorLabel(model.connector_auth.gmail, "gmail")}</em></div><p>${p.text("在 Connectors 授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。")}</p><form class="feed-account-source" data-feed-add-account="gmail"><label><span>${p.text("来源名称")}</span><input data-feed-account-name required maxlength="80" value="Gmail"></label><button class="mw-btn mw-btn--primary" type="submit">${p.text("创建来源")}</button></form><a class="mw-btn mw-btn--link" href="${p.escape(connectorSettingsHref(model, "gmail"))}">${p.text("打开 Connectors")}</a></article>
       </section>
       <section data-feed-task-configs hidden>${taskPanels}</section>
       <p class="form-error" data-feed-source-error role="alert" hidden></p><p class="feed-source-progress" data-feed-source-progress role="status" hidden></p>
@@ -592,7 +600,6 @@ function dispositionLabel(value: string, p: FeedUiPrimitives): string {
     inbox: p.text("已加入 Inbox"),
     saved: p.text("已保存为资料"),
     promoted: p.text("已升格为 Goal"),
-    processing: p.text("处理中"),
     archived: p.text("已忽略"),
   };
   return labels[value] ?? value;
@@ -604,14 +611,13 @@ function renderFeedEntryStatus(entry: FeedUiEntry, p: FeedUiPrimitives): string 
       inbox: { tone: "attention", icon: "inbox" },
       saved: { tone: "done", icon: "archive" },
       promoted: { tone: "progress", icon: "target" },
-      processing: { tone: "progress", icon: "waiting" },
       archived: { tone: "quiet", icon: "archive" },
     } as const;
     const mark = marks[entry.disposition as keyof typeof marks] ?? { tone: "idle" as const, icon: "dot" as const };
     return renderStatusMark({
       label: dispositionLabel(entry.disposition, p),
       tone: mark.tone,
-      icon: mark.icon, state: entry.disposition === "inbox" ? "answer" : entry.disposition === "saved" ? "material" : entry.disposition === "processing" ? "doing" : entry.disposition === "archived" ? "archived" : undefined,
+      icon: mark.icon, state: entry.disposition === "inbox" ? "answer" : entry.disposition === "saved" ? "material" : entry.disposition === "archived" ? "archived" : undefined,
       plain: true,
       className: "feed-entry-status",
     });
@@ -632,7 +638,6 @@ function destinationCopy(value: string, p: FeedUiPrimitives): readonly [string, 
     inbox: [p.text("已加入 Inbox"), p.text("Inbox 只保存需处理引用；原消息仍在 Feed")],
     saved: [p.text("已保存为资料"), p.text("完整消息、来源和已有资料保持关联")],
     promoted: [p.text("已升格为 Goal"), p.text("Goal 使用这条消息作为可追溯输入")],
-    processing: [p.text("正在处理"), p.text("关联 Goal 已打开，原消息仍保留")],
     archived: [p.text("已忽略"), p.text("默认列表不再显示，仍可从状态筛选恢复")],
   };
   return copy[value] ?? [value, p.text("原消息仍然保留")];

@@ -1,6 +1,6 @@
 import { requestErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
-import type { GovernanceRecordsApi, GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { GovernanceRecordsApi, GoalTreeProposalDecisionResult } from "../contract/governance-collaboration.js";
 import { GovernanceRepository, type GovernanceJournal, type GovernanceSqliteDatabase } from "./repository.js";
 
 /** Goal Tree submission, check and decision keys share one idempotent journal. */

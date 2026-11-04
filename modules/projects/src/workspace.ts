@@ -134,7 +134,6 @@ export class ProjectWorkspaceService {
     workspaceId: string,
     projectId: string,
     actorId: string,
-    removeEmptyWorkspace = true,
   ): boolean {
     return this.repository.transaction(() => {
       const changes = this.repository.workspaces.removeWorkspaceMembership(
@@ -142,7 +141,7 @@ export class ProjectWorkspaceService {
         this.requiredProjectId(projectId),
       );
       if (changes === 0) return false;
-      if (removeEmptyWorkspace) this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
+      this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
       this.appendEvent(projectId, "project.workspace_unlinked", this.requiredActorId(actorId), {
         workspace_id: workspaceId,
       });

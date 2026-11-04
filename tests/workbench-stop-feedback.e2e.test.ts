@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import test from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { setTimeout as delay } from "node:timers/promises";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { molisWorkHostProjectReference, type HomeBackgroundTaskRow } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -14,7 +15,7 @@ import { armResponse, openAuditBrowser, releaseResponse, waitHeld, type AuditBro
 async function backgroundCommand(browser: AuditBrowser, t: import("node:test").TestContext) {
   assert.ok(browser.localHost);
   const host = browser.localHost, projectId = browser.projectId!;
-  await withMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: projectId, plugin_id: "coding", actor_id: "audit" }));
+  await host.ensureWebCatalog(browser.homeDirectory, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: browser.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: projectId, plugin_id: "coding", actor_id: "audit" }));
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   const store = await host.withProject(reference, runtime => codingSessions(runtime.store));
   const at = new Date().toISOString(), sessionId = "audit-command-session", runtimeId = "audit-command-runtime";
@@ -48,9 +49,35 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
     },
   };
   host.ensureAgentService(browser.homeDirectory, () => { throw new Error("The web Host must own its Agent service"); }).agentHost.register(adapter);
-  return { sessionId, start, ended, allow: () => { denied = false; }, attempts: () => attempts,
-    pause: () => store.setState(noEffect, projectId, sessionId, "paused", new Date().toISOString()),
-    sync: async () => { const response = await fetch(browser.origin + "/projects/" + projectId + "/api/plugins/io.molis.work.coding/state"); assert.equal(response.status, 200); await response.text(); } };
+  const readProjection = async (signal?: AbortSignal): Promise<HomeBackgroundTaskRow> => {
+    const response = await fetch(browser.origin + "/api/attention", { signal });
+    assert.equal(response.status, 200);
+    const attention = await response.json() as { background_tasks: HomeBackgroundTaskRow[] | null };
+    assert.ok(Array.isArray(attention.background_tasks), "the owner background projection is readable");
+    const task = attention.background_tasks.find(row => row.project_id === projectId && row.surface === "coding" && row.id === sessionId);
+    assert.ok(task, "the fixture Coding task remains in its project's background projection");
+    assert.ok(Array.isArray(task.commands), "the owner projection supplies its commands");
+    return task;
+  };
+  const waitForObservation = async () => {
+    const signal = AbortSignal.timeout(10_000);
+    let task: HomeBackgroundTaskRow | undefined;
+    try {
+      // This query remains read-only; the activation's observation job owns the persistent projection.
+      const response = await fetch(browser.origin + "/projects/" + projectId + "/api/plugins/io.molis.work.coding/state", { signal });
+      assert.equal(response.status, 200); await response.text();
+      for (;;) {
+        task = await readProjection(signal);
+        if (task.commands.length === 0) return;
+        await delay(50, undefined, { signal });
+      }
+    } catch (error) {
+      t.diagnostic(JSON.stringify({ projectId, surface: "coding", sessionId, commands: task?.commands.map(command => command.task_id), ended: ended(), attempts }));
+      throw error;
+    }
+  };
+  return { sessionId, start, ended, readProjection, waitForObservation, allow: () => { denied = false; }, attempts: () => attempts,
+    pause: () => store.setState(noEffect, projectId, sessionId, "paused", new Date().toISOString()) };
 }
 
 test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its diagnostic; a lost reply is unknown with no retry; success stops the process and follows the owner projection", { timeout: 120_000 }, async t => {
@@ -62,7 +89,7 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   const stop = ".background-task-command button", alert = ".background-tasks-menu [role=alert]";
   await armResponse(browser, "stop-refused", "/stop", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-refused");
-  command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await command.pause(); await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor("!!document.querySelector('.background-task[data-state=paused]')");
   await releaseResponse(browser, "stop-refused");
   await browser.waitFor(`[...document.querySelectorAll('${alert}')].some(node=>node.textContent.includes('The fixture Runtime refused this stop')) && !document.querySelector('${stop}').disabled`);
@@ -76,18 +103,18 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   await browser.waitFor(`[...document.querySelectorAll('${alert}')].some(node=>node.textContent.includes('不知道这次操作有没有完成')) && !document.querySelector('${stop}').disabled`);
   assert.equal(command.ended(), true, "the actual accepted stop occurred even though its HTTP reply was lost");
   assert.equal(command.attempts(), 2, "the unknown operation was not retried");
-  await command.sync();
-  const afterUnknown = await (await fetch(browser.origin + "/api/attention")).json() as { background_tasks: Array<{ session_id: string; commands?: unknown[] }> };
-  assert.equal(afterUnknown.background_tasks.find(task => task.session_id === command.sessionId)?.commands?.length ?? 0, 0);
+  await command.waitForObservation();
+  const afterUnknown = await command.readProjection();
+  assert.equal(afterUnknown.commands.length, 0);
   await command.start();
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor("document.querySelector('.background-task-command code')?.textContent.includes('audit-command-2')");
   await armResponse(browser, "stop-success", "/stop", "POST");
   await browser.click(stop); await waitHeld(browser, "stop-success");
   assert.equal(command.ended(), true); assert.equal(command.attempts(), 3);
-  // Coding owns this persistent projection; its normal state read reconciles the actual Runtime result.
-  await command.sync(); await releaseResponse(browser, "stop-success");
+  // Wait for Coding's real observation job before the held success response prompts the page to read its projection.
+  await command.waitForObservation(); await releaseResponse(browser, "stop-success");
   await browser.waitFor("!document.querySelector('.background-task-command')");
-  const final = await (await fetch(browser.origin + "/api/attention")).json() as typeof afterUnknown;
-  assert.equal(final.background_tasks.find(task => task.session_id === command.sessionId)?.commands?.length ?? 0, 0);
+  const final = await command.readProjection();
+  assert.equal(final.commands.length, 0);
 });

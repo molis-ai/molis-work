@@ -120,7 +120,7 @@ test("VUX-31: switching the Goal in the work view keeps the old document until t
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await openGoalWork();
   await waitFor("document.querySelector('.document-pane [data-goal-view]')?.dataset.goalView === 'CORE' && document.querySelector('.document-pane').getClientRects().length > 0", 15_000);

@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
+import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentHostCapabilities, type AgentRunView, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentRunView, type AgentSessionView, type AgentRuntimeAdapter, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { callerPlugin, startPlugin, withReaderRole } from "./fixtures/plugin-callers.js";
 
 // BL-470, RAC-667: the nested objects of a run and a session view list the fields callers read, with their types. The action
 // service checks every result against the view's schema, so a nested field of the wrong shape is refused, while a field the
@@ -84,4 +90,75 @@ test("RAC-667 BL-470 a nested field of the wrong shape is refused, in the run vi
   const waiting = session(run());
   (waiting.queued_inputs![0] as { source: string }).source = "stranger";
   await assert.rejects(serviceAnswering(() => waiting).invoke(caller, readSession, [ref[0]]), { code: "actions.output_invalid" }, "a waiting input's source is one of three");
+});
+
+test("RAC-2922 real AgentHost registration accepts ordinary/fixed starts and refuses malformed sources before adapter.start; read/session/wait validate mixed frozen materials", async t => {
+  const root = await mkdtemp(join(tmpdir(), "agent-material-schema-"));
+  const localHost = new MolisWorkLocalHost({ completeText: null });
+  const directory = { canonical_path: root, realpath_verified: true };
+  const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.db"), projectId: "project-one" });
+  const composition = composeAgentHost({ localHost, workspaceFor: () => ({ ...directory, workspace_id: "work" }) });
+  const store = new LocalProjectDatabase(join(root, "plugins.sqlite"));
+  t.after(async () => { composition.dispose(); await localHost.close(); store.close(); await rm(root, { recursive: true, force: true }); });
+  const definitions = [agentHostCapabilities.createSession, agentHostCapabilities.startRun, agentHostCapabilities.readRun, agentHostCapabilities.readSession, agentHostCapabilities.waitRun];
+  const consumer = withReaderRole(callerPlugin("material-schema", "project", {}, definitions.map(definition => definition.capability_id)));
+  const starts: AgentStartRequest[] = [];
+  const capabilities = emptyCapabilityMatrix();
+  for (const name of Object.keys(capabilities) as Array<keyof typeof capabilities>) capabilities[name] = "supported";
+  let whole = session(null), view = run();
+  const runtime: AgentRuntimeAdapter = {
+    descriptor: { runtime_id: "material-fixture", display_name: "Materials", provider_version: "1", capabilities },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    async createSession(request) {
+      whole = { ...session(null), owner: { project_id: request.project_id, plugin_id: request.plugin_id, install_id: request.install_id, actor_id: request.actor_id },
+        session: { runtime_id: "material-fixture", session_id: "session-1" }, runs: [] };
+      return whole.session;
+    },
+    async start(request) {
+      starts.push(structuredClone(request));
+      view = run(); view.phase = "completed"; view.ended_at = view.started_at;
+      view.frozen = { ...view.frozen, directory, role_id: request.role_id, role_version: request.role!.version, execution: request.role!.execution,
+        text_materials: (request.text_materials ?? []).map(({ text: _text, ...metadata }) => metadata) };
+      whole.runs = [view.ref]; whole.latest_run = view;
+      return { ref: view.ref, frozen: view.frozen };
+    },
+    async readSession() { return whole; }, async read() { return view; },
+    observe(_ref, listener) { listener(view); return () => {}; }, async control() {},
+  };
+  composition.agentHost.register(runtime);
+  await startPlugin(localHost, reference, store, consumer, { actorId: "alice" });
+  const actions = consumer.actions("project-one"), agent = agentHostCapabilities;
+  const runtimeId = runtime.descriptor.runtime_id;
+  const own = await actions.invoke(agent.createSession, [runtimeId, { title: "Materials", directory }]);
+  const input = { session: own, directory, role_id: "reader", task: "Read the attached material" };
+  const plain = { material_id: "ordinary", title: "Ordinary", text: "An ordinary note" };
+  const fixed = { material_id: "fixed", title: "Fixed", text: "An immutable version", source_artifact_id: "actual-fixed", source_version: 7 };
+  assert.deepEqual([agent.startRun.version, agent.readRun.version, agent.readSession.version, agent.waitRun.version], [3, 4, 4, 4]);
+  for (const materials of [[plain], [fixed], [plain, fixed]]) {
+    await actions.invoke(agent.startRun, [runtimeId, { ...input, text_materials: materials }]);
+    assert.deepEqual(starts.at(-1)!.text_materials, materials, "each legal shape actually reached adapter.start");
+  }
+  const entered = starts.length;
+  const invalid: object[] = [
+    { source_artifact_id: "actual-fixed" }, { source_version: 7 },
+    ...[null, 4, "", "x".repeat(201)].map(source_artifact_id => ({ source_artifact_id, source_version: 7 })),
+    ...[null, "7", 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity].map(source_version => ({ source_artifact_id: "actual-fixed", source_version })),
+  ];
+  for (const fields of invalid) {
+    await assert.rejects(actions.invoke(agent.startRun, [runtimeId, { ...input, text_materials: [{ ...plain, ...fields }] }] as never), { code: "actions.input_invalid" });
+    assert.equal(starts.length, entered, "the input boundary rejected the source before adapter.start");
+  }
+  const expected = [{ material_id: plain.material_id, title: plain.title }, { material_id: fixed.material_id, title: fixed.title, source_artifact_id: fixed.source_artifact_id, source_version: 7 }];
+  const readAll = async () => [
+    (await actions.invoke(agent.readRun, [own, view.ref])).frozen.text_materials,
+    (await actions.invoke(agent.readSession, [own])).latest_run!.frozen.text_materials,
+    (await actions.invoke(agent.waitRun, [own, view.ref, null, 0])).view.frozen.text_materials,
+  ];
+  for (const materials of await readAll()) assert.deepEqual(materials, expected);
+  for (const fields of invalid) {
+    view.frozen.text_materials = [{ material_id: "bad", ...fields }] as AgentRunView["frozen"]["text_materials"];
+    await assert.rejects(actions.invoke(agent.readRun, [own, view.ref]), { code: "actions.output_invalid" });
+    await assert.rejects(actions.invoke(agent.readSession, [own]), { code: "actions.output_invalid" });
+    await assert.rejects(actions.invoke(agent.waitRun, [own, view.ref, null, 0]), { code: "actions.output_invalid" });
+  }
 });

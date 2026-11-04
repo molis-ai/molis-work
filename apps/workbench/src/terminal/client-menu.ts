@@ -23,6 +23,11 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
   let returnTarget = addBtn;
 
   const resumeId = () => String(new FormData(menu).get("resume_session_id") || "").trim() || undefined;
+  /** What Goals' `open` takes: a recipe of the platform (with the session to continue, if one was typed) or a command, never both. */
+  const openBody = (kind: string, command?: string) => {
+    const resume = resumeId();
+    return kind === "generic" ? { command } : { runtime: kind, ...(resume ? { resume_session_id: resume } : {}) };
+  };
 
   const setKind = (kind: string) => {
     selectedKind = kind;
@@ -114,17 +119,13 @@ export function createTerminalMenu(options: TerminalMenuOptions) {
           menu.querySelector<HTMLInputElement>("input[name=command]")?.focus();
           return;
         }
-        void options.openPanel({ runtime_kind: kind, resume_session_id: resumeId() });
+        void options.openPanel(openBody(kind));
       });
     });
     menu.addEventListener("submit", (event) => {
       event.preventDefault();
       const command = String(new FormData(menu).get("command") || "").trim();
-      void options.openPanel({
-        runtime_kind: selectedKind,
-        command: selectedKind === "generic" ? command : undefined,
-        resume_session_id: resumeId(),
-      });
+      void options.openPanel(openBody(selectedKind, command));
     });
   };
 

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { registration as feedRegistration } from "@molis-ai/molis-work-plugin-feed/registration";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPickerExtend, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
 import { builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
@@ -20,12 +22,13 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.match(html, /data-market-scope="all"/);
   assert.match(html, /data-market-scope="added"/);
   assert.match(html, /class="plugin-market-list"/);
-  assert.match(html, /data-market-add="artifacts"/);
-  assert.match(html, /data-market-runtime-id="io\.molis\.work\.artifacts"/);
+  assert.match(html, /data-market-add="coding"/);
+  assert.match(html, /data-market-runtime-id="io\.molis\.work\.coding"/);
+  assert.doesNotMatch(html, /data-market-add="artifacts"/);
   assert.match(html, /data-market-version hidden/);
   assert.match(html, /#icon-rss/);
   assert.match(html, /#icon-inbox/);
-  assert.match(html, /#icon-package/);
+  assert.match(html, /#icon-code/);
   assert.doesNotMatch(html, />Molis Work</);
   assert.doesNotMatch(html, /plugin-market-grid/);
   assert.doesNotMatch(html, /仅看已添加/);
@@ -73,7 +76,18 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   // No plugin borrows the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).
   assert.equal(tabIcons.alchemist, "zap");
   // Soft Workbench: Feed sorts one timeline inside its row list (the per-source folds became a source menu).
-  assert.match(script, /\[data-feed-rows\]/);
-  assert.doesNotMatch(script, /feedList\.insertBefore\(wrap, feedEmpty\)/);
+  const feed = feedRegistration.workbench!.clientFactory!;
+  const timeline = readFileSync(new URL("../plugins/native/feed/src/browser/stage.ts", import.meta.url), "utf8");
+  assert.match(feed, /\[data-feed-rows\]/);
+  assert.match(timeline, /const body = q\("\[data-feed-rows\]"\)/);
+  assert.match(timeline, /rows\.sort\([\s\S]*?\.forEach\(row => body\?\.append\(row\.closest\("\[data-feed-item-wrap\]"\) \|\| row\)\)/);
+  assert.doesNotMatch(feed, /feedList\.insertBefore\(wrap, feedEmpty\)/);
+  assert.equal(typeof new Function("return (" + feed + ")")(), "function");
   new Function(script);
+});
+
+test("RAC-1824 the market entry is looked for in the switcher's own group, and the update dot is lit on the switcher alone", () => {
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(`const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"]');`), "the market entry has one place to be found");
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(`updateCount.closest(".plugin-picker")?.toggleAttribute("data-market-updates", updates.length > 0);`), "the dot is lit on the switcher");
+  assert.doesNotMatch(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /data-plugin-strip\] \[data-plugin-id="market"\]|account-global-menu/, "neither the rail nor an account menu is looked at");
 });

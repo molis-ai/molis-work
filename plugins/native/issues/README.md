@@ -2,7 +2,7 @@
 
 在个人 Home 随手记下使用中遇到的问题，并看到自己记过的全部 Issue。项目切换不改变数据，没有项目也能用。页面、Work 助理与外部 MCP 调用同一组 `issues.*` 动作；外部 MCP 仍需在能力设置逐客户端授权。
 
-包名：`@molis-ai/molis-work-plugin-issues`。本地开发中的内置 Runtime 插件，不代表已经发布或完成用户验收。试用路径见 [试用说明](../../../specs/issue-home-v0/试用说明.md)，需求与验收见 [规格](../../../specs/issue-home-v0/spec.md)（首期体验为 ISSUE-35 至 ISSUE-41，页面自己起标题为 ISSUE-50 至 ISSUE-53）。
+包名：`@molis-ai/molis-work-plugin-issues`。本地开发中的内置 Runtime 插件，不代表已经发布或完成用户验收。试用路径见 [试用说明](../../../specs/archive/issue-home-v0/试用说明.md)，需求与验收见 [规格](../../../specs/archive/issue-home-v0/spec.md)（首期体验为 ISSUE-35 至 ISSUE-41，页面自己起标题为 ISSUE-50 至 ISSUE-53）。
 
 ## 怎么用
 
@@ -15,7 +15,7 @@
 
 ## 归属与接入
 
-- 插件 ID `io.molis.work.issues`，Home provider 同名，安装 ID 另行保存。业务 SQL、数据校验、动作、方法与页面归本包；数据库打开、安装、授权、执行和关闭归 Host。数据在 `{home}/issues/issues.db` 的 `issues` 表，基线 2；错版拒绝，不自动迁移。
+- 插件 ID `io.molis.work.issues`，Home provider 同名，安装 ID 另行保存。业务 SQL、数据校验、动作、方法与页面归本包；数据库打开、安装、授权、执行和关闭归 Host。数据在 `{home}/issues/issues.db` 的 `issues` 表，基线 1；错版拒绝，不自动迁移。
 - 原始描述不 trim、不改写；标题与类型必需，类型不替用户默认。图片随记录保存在同一数据库。
 - 页面录入走草稿：`issues.prepare@3`（只给页面）保存原文、原图和页面报告的所在位置（`page`，记为 `client_reported`）。`issues.name_draft@1`（只给页面，`concurrent`，权限 `issues:write` 加 `model:invoke`）读草稿，经 Host 的文字模型调一次（`services.model.complete`，`output: "json"`，90 秒、4000 token 上限），只要标题和类型：截图只在所用模型声明读图（`availability().vision`）时作为图片附上；只有截图、没有文字，而模型没有声明读图时，不调模型，返回固定的一句追问（写一句话说明问题，再整理），不写入；回答由插件检查（单行标题 1 到 200 字、类型三选一），用不了就报 `issues.model_reply_invalid`，不修补成记录；依据不足时返回那一句追问、不写入。能用就走 `issues.capture@1` 的写入路径一次写好，提交前在同一事务里复查回答（`validateResult`），写入人取调用上下文里的 actor。`issues.capture@1` 只带草稿 ID、标题和类型，总是新建 ID 等于草稿 ID 的记录，现在只给页面（手动保存）。模型只决定标题和类型，不复制原话和图片字节。草稿存在当前插件 Runtime 内，2 小时有效，停止或重启后需重新记录；未完成的最多 8 份，满了由最早的空闲草稿让位（它的页面可能已经不在，比如换了浏览器或清了本机数据），新的记录永远不会被挡住，让位的那条在原页面上可以手动保存。
 - `issues.capture@1` 与 `issues.create@2` 声明撤销：`issues.discard@1` 只删除记录后没改过（版本 1）的记录，改过就拒绝并说明。页面录入是人按下「记录」发起的，所以不再确认，保存后可以撤销；普通对话里被要求记录时，助理调 `issues.create`，工作里同样留「撤销」。

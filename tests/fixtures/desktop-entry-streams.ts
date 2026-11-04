@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
+import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./goal-terminal.js";
+
+/** The Goal whose terminal the shutdown journeys keep running (only Goals starts one; the channel attaches). */
+export const ENTRY_TERMINAL_GOAL = "SHUTDOWN";
 
 export function entryRequestHeaders(home: string, origin: string): Record<string, string> {
   return { origin, "content-type": "application/json", "x-molis-work-control-token": readFileSync(join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8").trim(), "x-molis-work-idempotency-key": randomUUID() };
@@ -18,6 +22,10 @@ export async function seedEntryProject(homeDirectory: string): Promise<string> {
   try {
     const project = await catalog.createProject({ display_name: "Shutdown stream fixture", actor_id: "test-user" });
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "files", actor_id: "test-user" });
+    const folder = join(homeDirectory, "entry-workspace");
+    mkdirSync(folder, { recursive: true });
+    await linkTerminalFolder(catalog, project.project_id, realpathSync(folder));
+    addTerminalGoal(project, ENTRY_TERMINAL_GOAL);
     return project.project_id;
   } finally { await catalog.close(); }
 }
@@ -64,8 +72,8 @@ function processAlive(pid: number): boolean {
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; return false; }
 }
 
-/** Real authenticated PTY WebSocket and a real child owned by that PTY. */
-export async function openEntryTerminal(t: TestContext, origin: string, home: string) {
+/** Real authenticated PTY WebSocket attached to a real child Goals started in the project (`seedEntryProject`), owned by the Host's PTY. */
+export async function openEntryTerminal(t: TestContext, origin: string, home: string, projectId: string) {
   const socket = new WebSocket(origin.replace("http:", "ws:") + "/pty", { origin });
   const closed = new Promise<void>(resolve => { socket.once("close", resolve); });
   await once(socket, "open");
@@ -79,8 +87,11 @@ export async function openEntryTerminal(t: TestContext, origin: string, home: st
     const child = pid ?? pidIn(pidFile);
     if (child && processAlive(child)) process.kill(child, "SIGKILL");
   });
+  const opened = await fetch(origin + goalTerminalsPath(projectId, ENTRY_TERMINAL_GOAL), { method: "POST", headers: entryRequestHeaders(home, origin),
+    body: JSON.stringify({ key: "shutdown", command: process.execPath, args: ["-e", 'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)', pidFile] }) });
+  assert.equal(opened.status, 200, await opened.clone().text());
   const spawned = once(socket, "message");
-  socket.send(JSON.stringify({ type: "spawn", panelId: "shutdown-fixture", command: process.execPath, args: ["-e", 'require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)', pidFile], cwd: home }));
+  socket.send(JSON.stringify({ type: "spawn", panelId: (await opened.json() as { panel_id: string }).panel_id, attachOnly: true }));
   const reply = JSON.parse(String((await spawned)[0]));
   const until = Date.now() + 2000;
   while (pidIn(pidFile) === 0 && Date.now() < until) await delay(20);

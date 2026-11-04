@@ -1,12 +1,12 @@
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
-import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isArtifactLinkSubjectsAction, isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 // The platform's table of 成果 types, read from what each producer's Manifest declares (PG-079, PG-064 in
-// specs/repository-anti-corruption/privileges.md; slices/ac-artifacts.md §3.3). It lives in the Host with the other platform
+// specs/archive/repository-anti-corruption/privileges.md; slices/ac-artifacts.md §3.3). It lives in the Host with the other platform
 // registrations (`plugin-registry.ts`); the workbench draws from what the Host hands it and exports none of it.
 
 /** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */
@@ -163,6 +163,14 @@ export function artifactReferrerActions(sources: readonly ArtifactProducerSource
     .map(action => ({ plugin_id: source.plugin_id, plugin_title: source.name, action })));
 }
 
+/** The plugins that name their own objects behind the link kinds they declare (「被谁引用」, BL-646), by plugin id. */
+export function artifactLinkSubjectActions(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ReadonlyMap<string, ArtifactProducerSource["actions"][number]> {
+  return new Map(sources.flatMap(source => {
+    const action = source.actions.find(item => isArtifactLinkSubjectsAction(item.action));
+    return action ? [[source.plugin_id, action] as const] : [];
+  }));
+}
+
 /** Each declared 成果 type: display name, preview and pin actions and owner. */
 export function artifactTypeDeclarations(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ReadonlyMap<string, ArtifactTypeDeclaration> {
   const declarations = new Map<string, ArtifactTypeDeclaration>();
@@ -186,9 +194,9 @@ export function declaredArtifactTypes(sources: readonly ArtifactProducerSource[]
  * names the other.
  */
 export function artifactLinkKinds(sources: readonly ArtifactProducerSource[] = artifactProducerSources()): ArtifactLinkKinds {
-  const kinds = new Map<string, { module: string; role: "input" | "output"; proposal: boolean }>();
+  const kinds = new Map<string, { module: string; plugin_id: string; plugin_title: string; role: "input" | "output"; proposal: boolean }>();
   for (const source of sources) for (const link of source.artifacts.links ?? []) {
-    if (!kinds.has(link.kind)) kinds.set(link.kind, { module: source.surface, role: link.role, proposal: link.proposal === true });
+    if (!kinds.has(link.kind)) kinds.set(link.kind, { module: source.surface, plugin_id: source.plugin_id, plugin_title: source.name, role: link.role, proposal: link.proposal === true });
   }
   return kinds;
 }

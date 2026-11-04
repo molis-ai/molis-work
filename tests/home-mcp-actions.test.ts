@@ -10,14 +10,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { feedSubjectAction, feedRuleActions, type FeedOutRuleRecord, type FeedRulePreview } from "@molis-ai/molis-work-plugin-feed";
-import { inboxActions, inboxNextScene } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxNextScene, type InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { inboxSubjectAction } from "../plugins/native/inbox/dist/content-actions.js";
 import { homeActions } from "../apps/local-host/dist/home-actions.js";
 import type { HomeEventsResult } from "../apps/local-host/dist/home-event-actions.js";
 import type { HomeActionOffers } from "../apps/local-host/dist/home-offer-actions.js";
-import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
+import { withFunctionsService } from "../apps/local-host/dist/judgment-rules-host.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { functionContextActions } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
 import { sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -54,7 +54,8 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
       return createLocalFeedApplication(runtime.store.db).ingestItem({ source, externalId: "home-mcp-material", title: "真实事项", summary: "待判断", body: "真实原文传入判断", occurredAt: new Date().toISOString(), attention: false }).item;
     });
     const entry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).ensureInboxEntryForFeedItem(project.project_id, item.item_id, "manual").entry);
-    await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "owner", user_confirmed: true }));
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    await withHostCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "owner", user_confirmed: true }));
     const origin = served.origin, prefix = `${origin}/projects/${project.project_id}`;
     const configured = await fetch(`${prefix}/api/home/dock-judgment`, { method: "POST", headers: {
       "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": "bind-home-mcp",
@@ -209,15 +210,20 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const inboxJudgment = await call(inboxActions.evaluateJudgment.capability_id, { entry_ids: [inboxEntry.entry_id] });
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, inboxJudgment.judgments);
     // The page's own view (the board) carries each entry's next judgment, read with the person's authority.
-    const readInbox = async () => (await (await fetch(`${prefix}/api/board`)).json() as { feed: { inbox_entries: { entry_id: string; next_judgment: JudgmentRecord | null }[] } }).feed.inbox_entries.find(entry => entry.entry_id === inboxEntry.entry_id)!;
-    assert.equal((await readInbox()).next_judgment?.judgment_id, inboxJudgment.judgments[0]!.judgment_id);
+    const readInbox = async () => {
+      const view = await (await fetch(`${prefix}/api/board`)).json() as { stage_data: { inbox: InboxStageData } };
+      const stage = view.stage_data.inbox;
+      assert.ok(stage.entries.some(entry => entry.entry_id === inboxEntry.entry_id), "the Web projection retains the original Inbox entry");
+      return stage.judgments.find(record => record.subject.id === inboxEntry.entry_id) ?? null;
+    };
+    assert.equal((await readInbox())?.judgment_id, inboxJudgment.judgments[0]!.judgment_id);
     await served.revoke(clientId, project.project_id, views(["functions.published.system_pick_inbox_next"]));
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, []);
-    assert.equal((await readInbox()).next_judgment?.judgment_id, inboxJudgment.judgments[0]!.judgment_id, "the local user keeps independent authority");
+    assert.equal((await readInbox())?.judgment_id, inboxJudgment.judgments[0]!.judgment_id, "the local user keeps independent authority");
     const unavailableInbox = await inboxTarget();
     assert.equal(unavailableInbox.availability.available, false); assert.equal(unavailableInbox.configuration_availability.available, true);
     await call(functionContextActions.configure.capability_id, configureInbox(unavailableInbox, false));
-    assert.equal((await readInbox()).next_judgment, null, "pausing the actual binding removes current advice from the cached page");
+    assert.equal(await readInbox(), null, "pausing the actual binding removes current advice from the cached page");
     assert.ok(withFunctionsService(home, service => service.listJudgments()).some(record => record.judgment_id === inboxJudgment.judgments[0]!.judgment_id));
 
   } finally {

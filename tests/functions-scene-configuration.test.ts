@@ -7,8 +7,8 @@ import { ActionError, bindActionClient, type ActionCallContext, type ActionScene
 import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { FEED_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
-import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
+import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";

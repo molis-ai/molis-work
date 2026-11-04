@@ -2,6 +2,7 @@ import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } fr
 import { createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable } from "@molis-ai/molis-work-module-private-work-context";
 import { createModelProviderTables } from "./model-provider-store.js";
+import { createPluginTerminalPanelTables } from "./plugin-terminal-panels.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, catalogErrors, catalogSchemaCompatibilityError, isOwnedCatalogOwner } from "./project-catalog-contract.js";
 
 export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
@@ -16,6 +17,7 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
   createRuntimeContextSetupRequestTable(db);
   createRuntimeContextSuggestionRejectionTable(db);
   createDesktopPanelTables(db);
+  createPluginTerminalPanelTables(db);
   createModelProviderTables(db);
   metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION);
 }
@@ -35,10 +37,9 @@ export function assertCurrentCatalog(storage: LocalSqliteStorage, databasePath: 
     throw catalogErrors.unsupported_schema(`Molis Work 项目目录数据库的版本是 ${version}，这个版本只认 ${CATALOG_SCHEMA_VERSION}，不就地升级: ${databasePath}`,
     );
   }
-  // The version alone cannot say whether the person's planning methods were moved out (the catalog and Goals' library share a release):
-  // a catalog that still holds the table would open and quietly show none of them.
+  // The current catalog has no personal planning table; accepting it would hide facts that belong to Goals' Home library.
   if (storage.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(PERSONAL_PLANNING_TABLE)) {
-    throw catalogErrors.unsupported_schema(`项目目录数据库里还有个人规划方法表 ${PERSONAL_PLANNING_TABLE}（现在放在 Goals 的 Home 库）：先退出 Molis Work，按顺序运行两步维护：一、node scripts/maintenance/goals-journal-names.mjs rename --home <Home 目录> --maintenance-window（S9-2：项目库里 Goals 的旧名事件、幂等记录与引用关系改成现行形状；没做完之前第二步不删这张表），二、node scripts/maintenance/goals-personal-planning-move.mjs move --home <Home 目录> --maintenance-window（个人规划方法搬到 Goals 的 Home 库）: ${databasePath}`);
+    throw catalogErrors.unsupported_schema(`项目目录数据库包含当前结构不接受的个人规划方法表 ${PERSONAL_PLANNING_TABLE}（现行事实属于 Goals 的 Home 库），不会打开或就地维护: ${databasePath}`);
   }
 }
 

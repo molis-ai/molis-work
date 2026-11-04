@@ -40,7 +40,7 @@ Coding 的 TaskBoard 按每项任务的 Story Point 加权展示整体预计进�
 | 发现 | 证据等级与当前判断 | 落点 |
 | --- | --- | --- |
 | Finder 默认执行器 `await` 回调版 `execFile`，立即返回 ChildProcess，输出流被当作空字符串，误报取消 | 旧检出最小真实进程实验复现；最新主线实现仍在。[目录选择器](../../apps/local-host/src/directory-picker.ts) | R1，待修 |
-| Coding 状态更新替换工具组与列表节点，可能重启动画并干扰阅读位置 | 新主线仍有 `innerHTML` 重建；旧专用旋转样式已被共享状态体系替换，不能继续把旧缓动当作当前根因；滚动与帧耗时未实测。[时间线](../../plugins/native/coding/src/timeline.ts)、[状态体系](../status-ring-system/spec.md) | R7，测量并修复 |
+| Coding 状态更新替换工具组与列表节点，可能重启动画并干扰阅读位置 | 新主线仍有 `innerHTML` 重建；旧专用旋转样式已被共享状态体系替换，不能继续把旧缓动当作当前根因；滚动与帧耗时未实测。[时间线](../../plugins/native/coding/src/timeline.ts)、[状态体系](../archive/status-ring-system/spec.md) | R7，测量并修复 |
 | 模型窗口被 Runtime 默认上限截住，Coding 固定 12,000 tokens 开始压缩，另有跨轮摘要 | 新主线静态确认；旧包默认窗口 120,000 仅是当时测量，不推定所有新版 SDK 仍相同。[冻结配置](../../horizontal/agent-host/src/adapters/prologue-frozen.ts)、[角色](../../plugins/native/coding/src/roles.ts)、[摘要](../../plugins/native/coding/src/history-digest.ts) | R4，待统一 |
 | 只把最后五条用户补充交给摘要模型；备用摘要不带执行中的补充 | 生产函数最小实验复现；最新主线及 Claude Coding 分支仍有对应逻辑 | Claude 输入回执需求 §20，P0 |
 | thinking 覆盖显式输出预算，记录 8,192、实际请求 32,768 | 旧检出通过真实适配器、SDK、本地 HTTP/SSE 模型替身复现；**最新主线已修正**，`runModelParams` 以显式预算优先，已有组合断言。本次未在新树重新运行测试。[参数解析](../../horizontal/agent-host/src/adapters/prologue-run-params.ts)、[用例](../../tests/model-thinking.test.ts) | R4，保留回归，不再列待修 |
@@ -83,7 +83,7 @@ Coding 的 TaskBoard 按每项任务的 Story Point 加权展示整体预计进�
 | [AI 输入回执](../ai-input-receipts/spec.md) §20 | 用户纠正缺口的唯一需求所有者，仍由 Claude 承接。本文只引用验收与依赖；不另建纠正功能、当前约定账或用户输入状态机 |
 | [Prologue 采用](../prologue-adoption/spec.md) | 统一 SDK 来源、TaskBoard、事件投影与已接入能力先对账。R14 沿用其 TaskBoard 唯一事实来源，在现行节点合同上补估点与汇总；不新建 Coding 私有任务板。不得拿旧包诊断重复开发新包已有功能 |
 | [Computer Use](../computer-use/spec.md) | 复用已有浏览器/桌面驱动和授权；本文只增加 Coding 场景、运行环境及多动作验收 |
-| [状态体系](../status-ring-system/spec.md)、[AI 交互](../ai-interaction-experience/spec.md) | 不重新设计一套 spinner、回执或输入控件；本文负责渲染稳定性与任务状态真实性 |
+| [状态体系](../archive/status-ring-system/spec.md)、[AI 交互](../ai-interaction-experience/spec.md) | 不重新设计一套 spinner、回执或输入控件；本文负责渲染稳定性与任务状态真实性 |
 | [Coding 质量保证](../coding-quality-assurance/spec.md) | 自检/交叉/对抗评审的设置与策略仍归原需求；本文先交付客观验证闭环，不把每次任务强制转成多评审流程 |
 | [Builder 既有需求](../archive/plugin-builder/spec.md) | 保留现有阶段和合同；据实操定位必要调整，不以归档中的旧状态判定今天已完成 |
 

@@ -1,3 +1,4 @@
+import { wholeEnds } from "../whole-characters.js";
 import { closingBlank } from "./blank.js";
 import { docText } from "./dom.js";
 import { fillGoalSelect } from "./menus.js";
@@ -71,7 +72,7 @@ function objectsFocus(page: PagesPage): SurfaceDetail | null {
     object: { kind: "pages_document", id: picked[0]!.id, version: picked[0]!.version, title: picked[0]!.title },
     targets: picked.slice(0, 8).map((record) => {
       const text = record.title + "\n" + docText(record.body);
-      return { kind: "object", role: "object", text: text.slice(0, 1500), ...(text.length > 1500 ? { truncated: true } : {}),
+      return { kind: "object", role: "object", text: wholeEnds(text.slice(0, 1500)), ...(text.length > 1500 ? { truncated: true } : {}),
         ref: { kind: "pages_document", id: record.id, version: record.version, title: record.title } };
     }) };
 }

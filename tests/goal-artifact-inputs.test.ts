@@ -18,7 +18,8 @@ const controlToken = "goal-artifact-inputs-control-token-0123456789";
 // specs/artifact-positioning A4b: a version in the 成果库 can be taken as a Goal's input, from the version's own detail.
 test("a 成果 version becomes a Goal's input from its detail, shows on the Goal and under 「被谁引用」, and can be removed", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: 'molis-work-goal-inputs-', actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: 'molis-work-goal-inputs-', actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);
@@ -51,7 +52,8 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   assert.deepEqual([recorded.input.reference, recorded.input.proposed, recorded.replayed], [{ artifact_id: "pages-brief", version: 2 }, false, false]);
   assert.equal((await (await post({ reference: { artifact_id: "pages-brief", version: 2 }, used: true })).json() as { replayed: boolean }).replayed, true);
   assert.match(await (await fetchProject(`${origin}/api/goals/V1/document`)).text(), /data-goal-input-fixed>[\s\S]*?<strong>[^<]+<\/strong><\/a><span class="goal-input-mode" data-goal-input-mode="fixed">固定的第 2 版<\/span>/);
-  assert.match(await detail(2), new RegExp(`href="/projects/${DEMO_PROJECT_ID}/goals/V1">[^<]+</a><span>输入</span>`));
+  // Listed under Goals and opened as a workbench item (BL-646, RAC-2085).
+  assert.match(await detail(2), /data-artifact-linked-plugin="io\.molis\.work\.goals"><li><a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="V1" data-workbench-item-title="[^"]+">[^<]+<\/a><span>输入<\/span>/u);
 
   // An archived version is neither offered nor accepted; removing keeps the version itself.
   library.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", artifact_id: "pages-brief", version: 1 });
@@ -67,7 +69,8 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
 // One entry for a Goal's inputs (artifact-positioning 五.1): an object taken as 「固定这一版」 is pinned by its owner first.
 test("a document taken as a Goal's input 「固定这一版」 is pinned by Pages and listed with the Goal's other inputs", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: 'molis-work-goal-inputs-pin-', actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: 'molis-work-goal-inputs-pin-', actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);
@@ -118,11 +121,12 @@ test("inputs from anyone but the person are proposals, kept apart from deliverab
   db.close();
 });
 
-// An input an Agent or an MCP client only proposed (specs/repository-anti-corruption §1, 2026-10-10) is shown for what it is, and the
+// An input an Agent or an MCP client only proposed (specs/archive/repository-anti-corruption §1, 2026-10-10) is shown for what it is, and the
 // person decides it from the Goal's own input list.
 test("a proposed Feed input shows on the Goal as pending with 认可 and 移除; the person's accept makes it confirmed, and removing takes it off", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "goal-inputs-accept", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "goal-inputs-accept", actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);

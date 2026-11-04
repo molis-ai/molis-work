@@ -81,7 +81,7 @@ export async function installedMcpHome(t: TestContext, install = installMolisWor
   };
   const env = (session: string) => ({ ...process.env, HOME: root, MOLIS_WORK_HOME: home, MOLIS_WORK_RUNTIME_ID: "codex",
     MOLIS_WORK_WEB_URL: origin, MOLIS_WORK_WORK_CONTEXT_ID: session, MOLIS_WORK_WORK_CONTEXT_STABLE: "true", MOLIS_WORK_SESSION_ID: "",
-    MOLIS_WORK_PANEL_ID: "", MOLIS_WORK_GOAL_ID: "", CODEX_THREAD_ID: "", CLAUDE_CODE_SESSION_NAME: "", PWD: root });
+    MOLIS_WORK_PANEL_ID: "", MOLIS_WORK_FOCUS_ID: "", CODEX_THREAD_ID: "", CLAUDE_CODE_SESSION_NAME: "", PWD: root });
   return { root, home, origin, installed, attempts, barrier, health, stopHost, env, configureWeb,
     async cleanupCase() { await closePeers(); await stopHost(); await cleanupCandidates(); },
     async connect(session: string, override?: NodeJS.ProcessEnv) {

@@ -71,18 +71,18 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench :is(.navigator-project-settings, .navigator-project-search, .navigator-project-notifications, .workspace-history-button, .tab-add-button, .tab-split-button) svg {
     width: var(--icon-md); height: var(--icon-md);
   }
-  body.immersive-workbench :is(.plugin-rail, .assistant-island) .immersive-plugin-link svg { color: var(--plugin-tint, var(--faint)); }
-  body.immersive-workbench :is(.plugin-rail, .assistant-island) .immersive-plugin-link:hover {
+  body.immersive-workbench .plugin-rail .immersive-plugin-link svg { color: var(--plugin-tint, var(--faint)); }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link:hover {
     background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 8%, transparent);
   }
-  body.immersive-workbench :is(.plugin-rail, .assistant-island) .immersive-plugin-link:hover svg { color: var(--plugin-tint, var(--ink-soft)); }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link:hover svg { color: var(--plugin-tint, var(--ink-soft)); }
 
   /* The current plugin keeps its own identity colour instead of one anonymous grey box. */
-  body.immersive-workbench :is(.plugin-rail, .assistant-island) .immersive-plugin-link[aria-current] {
+  body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current] {
     background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 12%, transparent);
   }
-  body.immersive-workbench :is(.plugin-rail, .assistant-island) .immersive-plugin-link[aria-current] svg { color: var(--plugin-tint, var(--ink)); }
-  body.immersive-workbench :is(.plugin-rail, .assistant-island) .immersive-plugin-link[aria-current]:hover {
+  body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current] svg { color: var(--plugin-tint, var(--ink)); }
+  body.immersive-workbench .plugin-rail .immersive-plugin-link[aria-current]:hover {
     background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 18%, transparent);
   }
   ${renderPluginTintBindings()}
@@ -275,7 +275,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     gap: 4px;
     padding: 4px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--control-fill);
     box-shadow: none;
   }
@@ -283,7 +283,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     min-height: 26px;
     padding: 0 12px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     color: var(--muted);
     font-size: 12px;

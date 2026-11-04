@@ -14,23 +14,23 @@ const GOALS_ACTIONS_FOR_PROMOTION: ActionReference[] = ["goals.directory.read", 
   .map(capability_id => ({ capability_id, version: 1, provider_id: "io.molis.work.goals" }));
 /** What an item action declares beyond the common shape: that it may run beside the queue, the actions it depends on, and that its records are a Session's (as Goals' own commands are). */
 interface ItemActionExtras { scheduling?: "concurrent"; required_actions?: ActionReference[]; authorship?: "session" }
-function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], extras: ItemActionExtras = {}): ActionDefinition<Input, Output> {
-  return { capability_id: `feed.items.${suffix}`, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", ...extras,
+function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema, permissions: string[], extras: ItemActionExtras = {}, version = 1): ActionDefinition<Input, Output> {
+  return { capability_id: `feed.items.${suffix}`, version, operation: "command", action: { title, description, kind: "operation", scope: "project", ...extras,
     audiences: ["user", "agent", "workflow", "mcp"], permissions,
     subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
 }
 
 export interface FeedItemResult { item: FeedItemRecord }
-export interface FeedPromoteResult { item: FeedItemRecord; goal_id: string; created: boolean; runtime_autofill: boolean }
+export interface FeedPromoteResult { item: FeedItemRecord; goal_id: string; created: boolean }
 /** Each command acts on the revision the caller read; a changed item is refused rather than overwritten. */
 export const feedItemActions = {
-  offers: defineSubjectOffersAction("feed.items.offers", ["feed_item"], "Feed 可用动作", ["feed:read"], [
+  offers: { ...defineSubjectOffersAction("feed.items.offers", ["feed_item"], "Feed 可用动作", ["feed:read"], [
     { offer_id: "feed.inbox", title: "加入 Inbox", action: { capability_id: "feed.items.inbox", version: 1 } },
     { offer_id: "feed.save", title: "保存为资料", action: { capability_id: "feed.items.disposition", version: 1 } },
-    { offer_id: "feed.promote", title: "升格为 Goal", action: { capability_id: "feed.items.promote", version: 1 } },
+    { offer_id: "feed.promote", title: "升格为 Goal", action: { capability_id: "feed.items.promote", version: 2 } },
     { offer_id: "feed.archive", title: "忽略", action: { capability_id: "feed.items.disposition", version: 1 } },
     { offer_id: "feed.restore", title: "恢复到 Feed", action: { capability_id: "feed.items.restore", version: 1 } },
-  ]),
+  ]), version: 2 },
   read: define<{ item_id: string }, FeedItemResult>("read", "标为已读", "把一条 Feed 消息标为已读；不改变它的去向", closed({ item_id: id }, ["item_id"]), itemResult, ["feed:read", "feed:write"]),
   inbox: define<{ item_id: string; expected_revision: number }, FeedItemResult>("inbox", "加入 Inbox", "按读取到的版本把这条消息加入 Inbox，并按当前 Inbox 规则判断下一步",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write", "inbox:write"], { scheduling: "concurrent" }),
@@ -38,10 +38,10 @@ export const feedItemActions = {
     closed({ item_id: id, disposition: { enum: ["saved", "archived"] }, expected_revision: revision }, ["item_id", "disposition", "expected_revision"]), itemResult, ["feed:read", "feed:write"]),
   restore: define<{ item_id: string; expected_revision: number }, FeedItemResult>("restore", "恢复到 Feed", "把已忽略或已处理的消息放回 Feed",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write"]),
-  promote: define<{ item_id: string; expected_revision: number; start_processing?: boolean }, FeedPromoteResult>("promote", "升格为 Goal", "为这条消息新建 Goal 并把它记为这个 Goal 的输入（用户升格记为已确认，助理、Agent、工作流和外部工具升格只记为待确认，等用户认可）；已关联且仍有效的 Goal 会直接复用。以调用者自己的权限调用 Goals 的 goals.directory.read、goals.create、goals.inputs.confirm，持精确动作授权的客户端要同时授权这三个动作；Goal 记在 Runtime 会话名下，经 MCP 调用须有稳定 Session",
-    closed({ item_id: id, expected_revision: revision, start_processing: { type: "boolean" } }, ["item_id", "expected_revision"]),
-    { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" }, runtime_autofill: { type: "boolean" } }, required: ["item", "goal_id", "created", "runtime_autofill"] },
-    ["feed:read", "feed:write", "goals:read", "goals:write"], { required_actions: GOALS_ACTIONS_FOR_PROMOTION, authorship: "session" }),
+  promote: define<{ item_id: string; expected_revision: number }, FeedPromoteResult>("promote", "升格为 Goal", "为这条消息新建 Goal 并把它记为这个 Goal 的输入（用户升格记为已确认，助理、Agent、工作流和外部工具升格只记为待确认，等用户认可）；已关联且仍有效的 Goal 会直接复用。以调用者自己的权限调用 Goals 的 goals.directory.read、goals.create、goals.inputs.confirm，持精确动作授权的客户端要同时授权这三个动作；Goal 记在 Runtime 会话名下，经 MCP 调用须有稳定 Session",
+    closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]),
+    { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" } }, required: ["item", "goal_id", "created"] },
+    ["feed:read", "feed:write", "goals:read", "goals:write"], { required_actions: GOALS_ACTIONS_FOR_PROMOTION, authorship: "session" }, 2),
 } as const;
 export const FEED_ITEM_ACTIONS: readonly ActionDefinition[] = Object.values(feedItemActions);
 
@@ -93,9 +93,9 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
     bind(feedItemActions.disposition, input => ({ item: feed.setDisposition(board, input.item_id, input.disposition, input.expected_revision) })),
     bind(feedItemActions.restore, input => ({ item: feed.restoreToFeed(board, input.item_id, input.expected_revision) })),
     bind(feedItemActions.promote, async (input, caller) => {
-      const { item, goal_id, created, runtime_autofill } = await ports.promote!({ projectId: board, routePrefix: "", itemId: input.item_id,
-        startProcessing: input.start_processing === true, expectedRevision: input.expected_revision }, caller);
-      return { item, goal_id, created, runtime_autofill };
+      const { item, goal_id, created } = await ports.promote!({ projectId: board, routePrefix: "", itemId: input.item_id,
+        expectedRevision: input.expected_revision }, caller);
+      return { item, goal_id, created };
     }, !!ports.promote),
   ];
 }

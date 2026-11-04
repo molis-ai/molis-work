@@ -6,7 +6,7 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openDualHome as openDual } from "./fixtures/dual-home.js";
 
-// DUAL-01, DUAL-02, DUAL-07, DUAL-08 and DUAL-10 (specs/dual-instance-plugins/spec.md), end to end in one Home: the Host starts the
+// DUAL-01, DUAL-02, DUAL-07, DUAL-08 and DUAL-10 (specs/archive/dual-instance-plugins/spec.md), end to end in one Home: the Host starts the
 // marked Home half and, in the project, the project half, and every entry reaches each half's actions: the local page, an MCP client
 // over the cross-process gateway, a workflow step's exact reference, and the plugin's own calls between its halves. The one provider
 // both halves register under (`provider()`, see the fixture) is what a grant or a pinned reference names.

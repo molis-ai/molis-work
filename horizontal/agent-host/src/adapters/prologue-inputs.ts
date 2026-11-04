@@ -102,6 +102,7 @@ export async function deliverSteer(input: AgentInputSend, ended: boolean, steer:
     return { input_id: kept.inputId, replayed: kept.replayed, delivered: "queued" };
   };
   if (ended || input.mode === "after-run") return keep();
+  beforeQueue?.();
   try {
     const taken = await steer({ ...one, ...(input.mode === "interrupt" ? { interrupt: true } : {}) });
     return { input_id: taken.steerId, replayed: taken.replayed, delivered: "run" };

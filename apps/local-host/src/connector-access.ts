@@ -2,14 +2,13 @@ import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/servic
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { connectorAccountControl, oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { CatalogLiveError, catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
+import { catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { ApiOAuthError, apiOAuthConnectionId, apiOAuthContext, readApiOAuthAccount, resolveApiOAuthToken } from "./connector-api-oauth.js";
-import { publicOAuthFetch, type OAuthNetwork } from "./connector-oauth-send.js";
-import { clearRefreshRefused, markRefreshRefused, tokenEndpointRefused } from "./connector-refresh-refusals.js";
-import { resolveUsableNotionToken } from "./notion-oauth.js";
-import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
+import type { OAuthNetwork } from "./connector-oauth-send.js";
+import { clearRefreshRefused, markRefreshRefused } from "./connector-refresh-refusals.js";
+import { replacedOAuthShape, REPLACED_OAUTH_NOTE } from "./connector-oauth-shape.js";
 import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { inspectCliConnection } from "./connector-cli.js";
@@ -54,6 +53,11 @@ export async function resolveApiConnection(home: string, id: string, control: Co
     catch (error) { await control.beforeEffect(); current(); if (refusedBy(error)) markRefreshRefused(home, connection); throw error; }
   };
   return runWithMolisWorkHome(home, async () => {
+    // An OAuth connection of the shape the generic flow replaced is not read: no request, no token branch (W5-11 §2.6, M4).
+    if (replacedOAuthShape(connection)) {
+      if (forceRefresh === "if_available") return null;
+      throw new ApiOAuthError(REPLACED_OAUTH_NOTE, connection.service_id, true);
+    }
     if (forceRefresh === "if_available" && (connection.auth_method !== "oauth" || !connection.refresh_ref
       || !createFileSecretStore().get(connection.refresh_ref))) return null;
     if (connection.auth_method === "cli") {
@@ -63,54 +67,15 @@ export async function resolveApiConnection(home: string, id: string, control: Co
     }
     const oauthId = apiOAuthConnectionId(connection.credential_ref ?? undefined);
     if (oauthId) {
-      const token = await refreshing(() => resolveApiOAuthToken(home, id, control, refresh, network && publicOAuthFetch(control, network)),
+      const token = await refreshing(() => resolveApiOAuthToken(home, id, control, refresh, undefined, undefined, network),
         error => error instanceof ApiOAuthError && error.refused);
       return { connection, token, authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
-    }
-    if (connection.auth_method === "oauth" && connection.service_id === "notion" && connection.refresh_ref) {
-      const token = await refreshing(() => resolveUsableNotionToken(id, control, refresh),
-        error => error instanceof CatalogLiveError && error.kind === "needs_auth" && tokenEndpointRefused(error.status));
-      if (!token) throw new Error("Notion 连接需要重新授权");
-      return { connection, token, authExtras: undefined, fetchImpl: undefined };
-    }
-    if (connection.auth_method === "oauth" && connection.service_id === "gmail" && connection.credential_ref && connection.refresh_ref && connection.expires_ref) {
-      const refs = { access: connection.credential_ref, refresh: connection.refresh_ref, expiresAt: connection.expires_ref };
-      const result = await refreshing(async () => {
-        const answer = await resolveUsableGmailAccessToken({ control, forceRefresh: refresh, tokenRefs: refs });
-        if (!answer.ok) throw Object.assign(new Error("Gmail 连接需要重新授权"), { refused: answer.status === "needs_auth" && answer.refused === true });
-        return answer;
-      }, error => (error as { refused?: boolean }).refused === true);
-      return { connection, token: result.accessToken, authExtras: undefined, fetchImpl: undefined };
     }
     if (forceRefresh === "if_available") return null;
     const token = connection.credential_ref ? createFileSecretStore().get(connection.credential_ref) : null;
     if (!token) throw new Error("所选连接凭据缺失，请重新授权");
     return { connection, token, authExtras: undefined, fetchImpl: undefined };
   });
-}
-
-/** Local authorization facts for model consumers; no remote material or secret leaves this port. */
-export async function inspectSourceAuthorization(home: string, source: {
-  kind: string; sync_kind: string; status: string; enabled: boolean;
-  config: Record<string, unknown>; credential_ref: string | null;
-}): Promise<{ authorized: boolean; connection_id: string | null; revision: string | null; reason?: string }> {
-  const id = typeof source.config.connection_id === "string" ? source.config.connection_id : null;
-  const denied = (reason: string, revision: string | null = null) => ({ authorized: false, connection_id: id, revision, reason });
-  const lifecycle = source.config._molis_work_lifecycle as { deleted_at?: string } | undefined;
-  if (!source.enabled || source.status !== "active" || lifecycle?.deleted_at) return denied("来源已暂停、断开或移除");
-  if (["manual", "public_source"].includes(source.sync_kind)) return { authorized: true, connection_id: null, revision: null };
-  try {
-    const connection = id ? withConnectorConnections(home, store => store.require(id, source.kind)) : null;
-    if (connection) {
-      if (!connection.enabled || connection.disconnected_at) return denied("连接已断开", connection.updated_at);
-      if (connection.auth_method === "cli") await inspectCliConnection(home, connection.connection_id);
-      else await resolveApiConnection(home, connection.connection_id, connectorAccountControl(home, connection.connection_id), source.kind);
-      const latest = withConnectorConnections(home, store => store.require(connection.connection_id));
-      if (!latest.enabled || latest.disconnected_at || latest.updated_at !== connection.updated_at) return denied("检查期间连接已改变", latest.updated_at);
-      return { authorized: true, connection_id: connection.connection_id, revision: connection.updated_at };
-    }
-    return denied("来源缺少当前有效的账号连接");
-  } catch { return denied("账号需要重新授权或 CLI 当前账号已改变"); }
 }
 
 /** What a preview reads with the connection once its account is checked: the service's first page, if its reader has one. */

@@ -1,3 +1,4 @@
+import type { SignedAgentReference, SignedAgentInstallation } from "./agent-definitions.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
@@ -220,7 +221,7 @@ export interface AssistantMaterial {
    */
   reference?: { hit_id: string } | { subject: { kind: string; id: string } };
   /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
-  method?: { method_id: string; version?: number; name?: string; plugin_title?: string };
+  method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
   image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
   /** In a work's view: an image the runtime no longer holds (the app restarted); it cannot be shown or sent again. */
@@ -581,7 +582,15 @@ export interface AssistantUsage {
 }
 
 /** A method a Plugin offers for business work that a work in this scope can use (registered with the Host). */
-export interface AssistantMethod {
+export interface AssistantMethodSelection {
+  method_id: string;
+  version?: number;
+  default_ref?: SignedAgentReference;
+  installation?: SignedAgentInstallation;
+}
+
+export interface AssistantMethod extends AssistantMethodSelection {
+  kind?: "role" | "method";
   /** `<plugin_id>/<skill_id>`. */
   method_id: string;
   plugin_id: string;
@@ -712,7 +721,7 @@ export interface AssistantRoundDiagnostics {
   } | null;
   /** What the round was given, and whether the person added it or it came from the page. */
   materials: Array<{ kind: AssistantMaterial["kind"]; title: string; explicit: boolean; draft?: boolean; object?: AssistantObjectRef;
-    capability?: { capability_id: string; version: number; provider_id: string }; method?: { method_id: string; version?: number } }>;
+    capability?: { capability_id: string; version: number; provider_id: string }; method?: AssistantMaterial["method"] }>;
   usage: { input: number; output: number; cached_input: number } | null;
   /** Calls that failed or whose outcome is not known, with the tool's own name and summary. */
   failures: Array<{ tool: string; target: string; state: "failed" | "unknown"; summary: string;

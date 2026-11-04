@@ -94,7 +94,7 @@ test("RAC-605 a plugin's name and declared texts come out escaped, and the direc
   assert.match(scriptJson({ text: HOSTILE }), /\\u003c\/script\\u003e\\u003cimg src=x onerror=alert\(1\)\\u003e\\u0026\\u2028tail/u);
   const parsed = JSON.parse(data) as Array<{ id: string; accepts_objects: boolean }>;
   assert.deepEqual(parsed.find(entry => entry.id === "evil"), { id: "evil", accepts_objects: true, hue: null }, "the client receives its routing fields without the unconsumed name");
-  assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "evil", accepts_objects: true, hue: null }], "the direct projection also omits the display name");
+  assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "evil", accepts_objects: true, hue: null }], "the direct projection keeps the platform route and omits display names");
   // Nothing the plugin wrote is markup in the page: its tag is text, its icon names no artwork.
   assert.doesNotMatch(html, /<img\b[^>]*src=x/u);
   assert.doesNotMatch(html, /<svg onload/u);
@@ -185,16 +185,16 @@ test("RAC-605-KEY-02 equal Manifest ids retain each entry's slots, chosen state,
   const other = installed("other", { order: 3 });
   const directory = pluginDirectoryFor([alpha, stage, other, beta]);
   const rail = railEntries(["beta"], directory);
-  assert.deepEqual(rail.map(item => [item.id, item.label, item.chosen]), [["beta", "beta nav", true], ["other", "Notes", false], ["alpha", "alpha nav", false], ["stage-runtime", "Stage runtime", false]]);
-  assert.deepEqual(railEntries([], directory).map(item => item.id), ["other", "alpha", "stage-runtime"], "only chosen entries need membership; other running entries still open their own stage");
+  assert.deepEqual(rail.map(item => [item.id, item.label, item.chosen]), [["beta", "beta nav", true], ["other", "Notes", false], ["alpha", "alpha nav", false], ["artifacts", "成果", false], ["stage-runtime", "Stage runtime", false]]);
+  assert.deepEqual(railEntries([], directory).map(item => item.id), ["other", "alpha", "artifacts", "stage-runtime"], "only chosen entries need membership; the platform and other running entries still open their own stage");
   assert.deepEqual(islandEntries(["beta"], directory).map(item => [item.id, item.label]), [["beta", "beta island"], ["alpha", "alpha island"]]);
   assert.deepEqual(settingsEntries(["beta"], directory).map(item => [item.plugin_title, item.plugin_id, item.view_id, item.contribution_id]),
     [["beta", pluginId, "preferences", `${pluginId}.preferences`], ["alpha", pluginId, "preferences", `${pluginId}.preferences`]], "shell keys do not rewrite Manifest or contribution identity");
   const tie = pluginDirectoryFor([entry("z-first", false, 1), entry("a-second", false, 1)]);
-  assert.deepEqual(railEntries([], tie).map(item => item.id), ["z-first", "a-second"], "equal order, Manifest id and view id retain declaration order, rather than sorting by shell key");
+  assert.deepEqual(railEntries([], tie).map(item => item.id), ["z-first", "a-second", "artifacts"], "equal order, Manifest id and view id retain declaration order, rather than sorting by shell key");
   const copied: PluginDirectoryEntry = { ...entry("copied-runtime", false, 1), name: "Same name", ui: { views: [{ view_id: "main", slot: "navigator", title: "Same title", order: 1 }] } };
   assert.deepEqual(railEntries(["copied-market"], pluginDirectoryFor([copied, { ...copied, id: "copied-market", chosen: true }])).map(item => item.id),
-    ["copied-runtime", "copied-market"], "identical untrusted names and view declarations still belong to their own shell keys");
+    ["copied-runtime", "copied-market", "artifacts"], "identical untrusted names and view declarations still belong to their own shell keys");
 });
 
 test("RAC-605-KEY-03 only a sanitized Runtime entry overrides its matching market key", () => {
@@ -222,7 +222,7 @@ test("RAC-619 the Host's marks (personal, always_on, companions) are kept only a
   assert.equal(many!.companions!.length, 32);
   assert.doesNotMatch(renderPluginDirectoryData([kept!]), /personal|always_on|companions/u, "the page's scripts get none of them");
   // RAC-619-CLIENT-03: the marked server entry exposes only the two routing fields, with no display or Host fields.
-  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "kept", accepts_objects: false, hue: null }]);
+  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "artifacts", accepts_objects: true, hue: "pink" }, { id: "kept", accepts_objects: false, hue: null }]);
 });
 
 test("RAC-605 the Host reads the directory from the Manifests the project's Runtime runs, built-in and installed alike", async () => {
@@ -323,7 +323,7 @@ test("RAC-606 the page carries the directory for its scripts: a plugin that decl
   assert.deepEqual(parsed.filter(entry => entry.accepts_objects).map(entry => entry.id).includes("notes"), true);
   assert.equal(parsed.find(entry => entry.id === "plain")?.accepts_objects, false);
   assert.equal(parsed.find(entry => entry.id === "pages")?.accepts_objects, true, "a built-in the Host did not list is the market's, read the same way");
-  assert.deepEqual(clientPluginDirectory(builtinPluginDirectory()).map(entry => entry.id), BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id));
+  assert.deepEqual(clientPluginDirectory(builtinPluginDirectory()).map(entry => entry.id), ["artifacts", ...BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id)]);
   assert.match(CLIENT_SCRIPT, /script\[data-plugin-directory\]/u);
   assert.doesNotMatch(CLIENT_SCRIPT, /\["artifacts",\s*"/u);
 });

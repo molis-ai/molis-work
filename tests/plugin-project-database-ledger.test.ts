@@ -9,7 +9,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 
-// specs/plugin-project-database: a plugin declares its tables in a project's library in its Manifest; the platform tries the
+// specs/archive/plugin-project-database: a plugin declares its tables in a project's library in its Manifest; the platform tries the
 // statements on an empty database, makes them the first time the plugin opens and records them in one ledger. The Host does not
 // call this yet (L1b), so these run on an in-memory library: the ledger, a stand-in for the project's root row, and one table of
 // someone else's.

@@ -1,4 +1,4 @@
-// What the CI product subset runs, and the rules its two files must keep (specs/repository-anti-corruption §4.7, W2-16, decision #14).
+// What the CI product subset runs, and the rules its two files must keep (specs/archive/repository-anti-corruption §4.7, W2-16, decision #14).
 //
 //   tests/ci-product-subset.txt   one test file per line (`tests/<name>.test.ts` or `.test.mjs`); blank lines and lines that start
 //                                 with # are comments. Non-browser files and 3 to 5 browser smokes in one list: a file the

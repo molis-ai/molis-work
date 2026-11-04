@@ -16,7 +16,7 @@ import type { ToolInstallControl } from "./connector-tool-process.js";
 export interface CliSetupInput { service_id: string; display_name: string; version: string; runtime_version?: string; registry?: string }
 export async function cliSetupPlan(home: string, input: CliSetupInput, signal?: AbortSignal): Promise<ConnectorSetupPlan> {
   if (!exactToolVersion(input.version)) throw connectorErrors["connector.connection.invalid"]("请选择正式客户端的固定版本");
-  const cli = CONNECTOR_CLIS[input.service_id], distribution = cli?.distribution;
+  const cli = Object.hasOwn(CONNECTOR_CLIS, input.service_id) ? CONNECTOR_CLIS[input.service_id] : undefined, distribution = cli?.distribution;
   if (!distribution) throw connectorErrors["connector.connection.invalid"]("此 CLI 需要原生发行物或额外模块；请查看该客户端的正式安装条件");
   if (!input.display_name.trim() || input.display_name.length > 100) throw connectorErrors["connector.connection.invalid"]("请填写连接名称");
   if ((distribution.kind === "native" || distribution.kind === "powershell") && input.registry) throw connectorErrors["connector.connection.invalid"]("原生客户端只从此适配已声明的官方发布源安装");

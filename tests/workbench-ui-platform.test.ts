@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import type { OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OwnedUiContribution, StagePagePublisher, UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
@@ -14,10 +14,15 @@ import {
   BUILTIN_PLUGIN_CATALOG,
   WORKBENCH_UI_SLOTS,
   createWorkbenchUiHost,
+  mountContributionsOf,
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
+  renderWorkbenchRefreshDocument,
+  renderStagePage,
 } from "@molis-ai/molis-work-app-workbench";
-import { UiHost, createSurfaceRenderer, createSurfaceRenderers, type UiSurfaceCallModel } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { surfaceRenderer, surfaceRenderers, type SurfaceCallModel } from "@molis-ai/molis-work-plugin-goals/page";
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -49,6 +54,15 @@ test("K1-01 document metadata keeps hostile markup inside its text and attribute
   assert.match(html, /<body title="O&#039;Reilly &amp; &lt;\/title&gt;&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;">/);
   assert.equal(html.match(/<body[^>]*>/)?.[0], '<body title="O&#039;Reilly &amp; &lt;/title&gt;&lt;img src=x onerror=&quot;alert(1)&quot;&gt;">');
   assert.doesNotMatch(html, /<img/);
+});
+
+test("RAC-2680/RAC-2682 Host refresh documents preserve content bytes, escape attributes and keep absent content empty", () => {
+  const body = '\n    <section data-document-pane>Content &amp; context</section>\n  ';
+  assert.equal(renderWorkbenchRefreshDocument({
+    body_html: body,
+    body_attributes: { "data-board-view": "archive", title: 'a" & <tag>', inert: true, hidden: false },
+  }), '<!doctype html><html><body data-board-view="archive" title="a&quot; &amp; &lt;tag&gt;" inert>' + body + '</body></html>');
+  assert.equal(renderWorkbenchRefreshDocument({ body_html: "", body_attributes: { "data-board-view": "current" } }), "");
 });
 
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {
@@ -115,7 +129,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
 });
 
 test("W5-06 UI Host mounts a surface in the slot its contribution declares, and only in a slot this host offers", () => {
-  const contribution: OwnedUiContribution<UiSurfaceCallModel<{ tag: string }>> = {
+  const contribution: OwnedUiContribution<SurfaceCallModel<{ tag: string }>> = {
     descriptor: {
       contribution_id: "io.molis.work.test.declared.v1",
       plugin_id: "io.molis.work.test",
@@ -152,10 +166,12 @@ test("W5-06 UI Host mounts a surface in the slot its contribution declares, and 
     (error) => error instanceof ActionError && error.code === "ui_host.contribution_not_found",
   );
 
-  // A renderer built from a method→surface map hands each call to the declared surface as { kind, args, primitives }.
-  const renderer = createSurfaceRenderers<{ renderPanel(value: string, count: number): string }, { tag: string }>(host, id, { renderPanel: "panel" })({ tag: "em" });
+  // A renderer built from a method→surface map hands each call to the declared surface as { kind, args, primitives }. The builder is the
+  // Goals page's (the one such builder); the mount it is given is the UiHost's `mountDeclared`, as the workbench gives it.
+  const mount = (contributionId: string, surface: string, model: unknown): string => host.mountDeclared({ contribution_id: contributionId, surface, model }).html;
+  const renderer = surfaceRenderers<{ renderPanel: (value: string, count: number) => string }, { tag: string }>(mount, id, { renderPanel: "panel" })({ tag: "em" });
   assert.equal(renderer.renderPanel("x", 2), '<em data-surface="panel">panel:x,2</em>');
-  const render = createSurfaceRenderer<(value: string) => string, { tag: string }>(host, id, "panel")({ tag: "b" });
+  const render = surfaceRenderer<(value: string) => string, { tag: string }>(mount, id, "panel")({ tag: "b" });
   assert.equal(render("y"), '<b data-surface="panel">panel:y</b>');
 });
 
@@ -182,6 +198,51 @@ function surfaceSlotProblems(
   }
   return problems;
 }
+
+test("T-116 a page is mounted only on its own plugin's contributions: another plugin's contribution id is refused by the host", () => {
+  const host = createWorkbenchUiHost();
+  const mountable = host.list().filter(item => (item.surfaces?.length ?? 0) > 0);
+  const own = mountable.find(item => item.plugin_id === GOALS_PLUGIN_ID), foreign = mountable.find(item => item.plugin_id !== GOALS_PLUGIN_ID);
+  assert.ok(own && foreign, "the workbench host holds Goals' contributions and another plugin's");
+  const code = (expected: string, kind?: string) => (error: unknown) => error instanceof ActionError && error.code === expected && (kind === undefined || error.kind === kind);
+  const mount = mountContributionsOf(GOALS_PLUGIN_ID, host);
+  // The Goals page's mount: a contribution another plugin owns is refused, whatever surface it names.
+  assert.throws(() => mount(foreign.contribution_id, foreign.surfaces![0]!.surface_id, {}), code("ui_host.plugin_denied", "forbidden"));
+  assert.throws(() => host.mountDeclared({ contribution_id: foreign.contribution_id, surface: foreign.surfaces![0]!.surface_id, model: {} }, GOALS_PLUGIN_ID), code("ui_host.plugin_denied"));
+  // Its own contribution passes the owner check: it stops at the next check (this surface is not declared), not at ownership.
+  assert.throws(() => mount(own.contribution_id, "no-such-surface", {}), code("ui_host.surface_invalid"));
+  assert.throws(() => mount("io.molis.work.absent.v1", "panel", {}), code("ui_host.contribution_not_found"));
+  // Without an owner the host mounts as before: the same foreign contribution is not refused for ownership.
+  assert.throws(() => host.mountDeclared({ contribution_id: foreign.contribution_id, surface: "no-such-surface", model: {} }), code("ui_host.surface_invalid"));
+});
+
+test("RAC-2682 page parts are a synchronous snapshot and overlays belong to the same contribution", () => {
+  const seen: string[] = [], value = { text: "original" };
+  let retained: StagePagePublisher | undefined;
+  const contribution: UiContribution<{ page?: StagePagePublisher }> = {
+    descriptor: { contribution_id: "page.probe", kind: "primary-page", label: "Page", slots: [], surfaces: [
+      { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
+      { surface_id: "dialog", target_slot_id: "workbench.overlay", format: "declarative-html" },
+    ] },
+    render({ model, surface }) {
+      seen.push(surface);
+      if (surface === "workbench") {
+        retained = model.page;
+        model.page?.publish({ title: "Original", bootstrap: { id: "data", value }, overlays: { before_global_search: "dialog" } });
+      } else assert.equal(model.page, undefined, "overlays cannot publish another page result");
+      return `<section>${surface}</section>`;
+    },
+  };
+  const rendered = renderStagePage(contribution, {}, "probe", true);
+  assert.deepEqual(seen, ["workbench", "dialog"]);
+  assert.equal(rendered.page?.before_global_search, "<section>dialog</section>");
+  retained!.publish({ title: "Too late" }); value.text = "mutated";
+  assert.equal(rendered.page?.parts.title, "Original");
+  assert.deepEqual(rendered.page?.parts.bootstrap?.value, { text: "original" });
+  assert.throws(() => renderStagePage({ ...contribution, render({ model }) {
+    model.page?.publish({ overlays: { before_global_search: "foreign-dialog" } }); return "main";
+  } }, {}, "probe", true), /Page overlay is not declared/);
+});
 
 test("W5-06 every surface a Workbench contribution declares names a slot the Workbench host offers, or one a plugin that embeds it opens", () => {
   const embeddedBy = new Map(BUILTIN_PLUGIN_CATALOG.map((entry) => [entry.manifest.plugin_id, entry.manifest.ui.embedded_plugins ?? []]));

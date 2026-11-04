@@ -1,17 +1,3 @@
-import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import type { FeedApi } from "./contract/feed.js";
-import type { SourcesApi } from "./contract/sources.js";
-
-/**
- * FD2 fixes the native Plugin's module-facing boundary. FD4 will add the UI
- * contribution without giving the Plugin ownership of either fact store.
- */
-export interface FeedNativePluginModules {
-  readonly feed: FeedApi;
-  readonly attention: AttentionApi;
-  readonly sources: SourcesApi;
-}
-
 export { feedRuleActions, createFeedRuleHandlers, type FeedRulePreview, type FeedJudgmentChoice, type FeedJudgmentCatalog } from "./rule-actions.js";
 export { feedItemActions, createFeedItemHandlers, promoteOffered, FEED_ITEM_ACTIONS, type FeedItemActionPorts, type FeedItemResult, type FeedPromoteResult } from "./item-actions.js";
 export { feedSourceActions, createFeedSourceHandlers, FEED_SOURCE_ACTIONS, type FeedSourceActionPorts, type FeedSourceRegistration, type FeedSourceRegistered } from "./source-actions.js";
@@ -80,7 +66,9 @@ export * from "./scenes.js";
 export { createFeedSceneRuntime, type FeedSceneHost, type FeedSceneJudgmentInput, type FeedSceneRuntimeOptions } from "./scene-runtime.js";
 export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 
-export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot } from "./query-actions.js";
+export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot, type FeedStageData, type FeedReaderData } from "./query-actions.js";
+export { buildFeedStageUiModel, buildFeedReaderUiModel } from "./stage-ui.js";
+export { feedSourcePresentationId } from "./source-presentation.js";
 export { feedNotificationActions, FEED_NOTIFICATION_ACTIONS, createFeedNotificationHandlers, type FeedNotificationPorts } from "./notification-actions.js";
 export { createFeedContentLedger, FEED_HOME_DATABASE, FEED_CONTENT_LEDGER_BATCH, type FeedContentLedger, type FeedContentLedgerStore, type FeedEvidenceCollector, type FeedContentHolder, type FeedContentRelease, type FeedContentReclaim } from "./content-ledger.js";
 export { feedContentLedgerActions, FEED_CONTENT_LEDGER_ACTIONS, createFeedContentLedgerHandlers } from "./content-ledger-actions.js";

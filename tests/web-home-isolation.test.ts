@@ -185,7 +185,9 @@ const withRequestFixture = async (run: (fixture: { base: string; host: MolisWork
   const project = catalog.getProject(created.project_id);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   // The policy the desktop gives its Host: a plugin the project has not installed answers "not enabled" (a refused call, so a row).
-  const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability(async (_, work) => work(catalog), home) });
+  catalog.close();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability((options, work) => withCatalog(options, work), home) });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const controlToken = "call-id-web-test-control-token-0123456789";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken });
   try {
@@ -200,7 +202,7 @@ const withRequestFixture = async (run: (fixture: { base: string; host: MolisWork
     await run({ base, host, projectId: project.project_id, goals, post });
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); catalog.close(); rmSync(home, { recursive: true, force: true });
+    await host.close(); rmSync(home, { recursive: true, force: true });
   }
 };
 

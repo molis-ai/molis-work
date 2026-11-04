@@ -9,10 +9,10 @@ import { CharacterRunsRepository, type CharacterRuns } from "./runs.js";
 
 /**
  * The one current schema of `characters/characters.sqlite`; any other version, or tables without one, is refused (repository-anti-corruption §4.1).
- * Version 2 adds `character_runs`, the native runs Characters records itself instead of the Sessions registry (Sessions cleanup SC-2, D3);
- * a version 1 store is brought to it by the maintenance in `tests/fixtures/characters-maintenance-v2.sql`, never on open.
+ * The current schema includes `character_runs`, the native runs Characters records itself (Sessions cleanup SC-2, D3).
+ * Clean Homes start at 1; an existing file at another version is not upgraded on open.
  */
-export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `CREATE TABLE character_drafts (
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `CREATE TABLE character_drafts (
   character_id TEXT PRIMARY KEY,
   owner_actor_id TEXT NOT NULL,
   revision INTEGER NOT NULL,

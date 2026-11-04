@@ -1,10 +1,10 @@
-import { guidanceKindSchema, projectGuidanceEntrySchema, projectGuidanceRevisionSchema, goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-export { projectGuidanceEntrySchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { guidanceKindSchema, projectGuidanceEntrySchema, projectGuidanceRevisionSchema, goalEntryActions } from "./contract/goal-actions.js";
+export { projectGuidanceEntrySchema } from "./contract/goal-actions.js";
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AddProjectGuidanceInput, AddProjectGuidanceResult, UpdateProjectGuidanceInput, UpdateProjectGuidanceResult,
-  ProjectGuidanceView, GoalsCommandApi } from "@molis-ai/molis-work-contracts/modules/goals";
+  ProjectGuidanceView, GoalsCommandApi } from "./contract/goals.js";
 import { goalAction, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array, enumeration } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, count, boolean, object, array, enumeration } from "./contract/goal-actions.js";
 
 type AddInput = Omit<AddProjectGuidanceInput, "project_id" | "actor_id">;
 type UpdateInput = Omit<UpdateProjectGuidanceInput, "project_id" | "actor_id">;

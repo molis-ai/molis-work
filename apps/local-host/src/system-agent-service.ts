@@ -18,7 +18,7 @@ import { memoryRuntime } from "./memory/memory-runtime.js";
 import { browserSurfacesFor } from "./browser/browser-surfaces.js";
 import { computerSurfacesFor } from "./computer/computer-surfaces.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
-import { prepareMemoryHome } from "./memory/memory-adoption.js";
+import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
@@ -111,7 +111,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       owners.delete(localHost);
     })().catch(error => { closing = undefined; throw error; });
     return service;
-  });
+  }, preflightMemoryHome);
 }
 
 /** Withdraw inference immediately; the Home's storage owner stays held until actual teardown finishes. */

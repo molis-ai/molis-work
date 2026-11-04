@@ -1,16 +1,7 @@
 export type { SideViewDocumentInput } from "./side-view-document.js";
-export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
-export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
-export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
-export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
-export { homeToolKeysScript } from "./home-plugin-navigation.js";
-export { createWorkbenchGoalsFragmentRenderer, type GoalsFragmentRenderers } from "./goals-fragment-renderer.js";
-export {
-  renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsReadRequest, renderWorkbenchGoalsPageRequest,
-  type GoalsReadRenderers, type WorkbenchGoalPageSelection,
-} from "./goals-document-routes.js";
+export { homeToolKeysScript, renderHomePluginNavigation, type HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 export { CLIENT_SCRIPT, MORE_STYLES, RESPONSIVE_STYLES, STYLES } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
@@ -34,22 +25,13 @@ export { createWorkbenchLocale, inWordsOf, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, 
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,
-  createWorkbenchGoalsContextRenderer,
-  createWorkbenchGoalsDialogsRenderer,
-  createWorkbenchGoalsDocumentRenderer,
-  createWorkbenchGoalsFactorsRenderer,
-  createWorkbenchGoalsMomentumRenderer,
-  createWorkbenchGoalsPlanningRenderer,
-  createWorkbenchGoalsPolicyRenderer,
-  createWorkbenchGoalsRelationRenderer,
-  createWorkbenchGoalsStatusRenderer,
-  createWorkbenchGoalsTreeRenderer,
   createWorkbenchUiHost,
+  mountContributionsOf,
   renderPluginSettingsContribution,
   renderWorkbenchDocument,
   WORKBENCH_UI_SLOTS,
 } from "./ui-composition.js";
-export { createWorkbenchFeedProjectionRenderer } from "./feed-projection-ui.js";
+export { renderWorkbenchRefreshDocument } from "./document-shell.js";
 export type { ProjectSettingsFoldId } from "./project-settings-folds.js";
 export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRenderer } from "./renderer.js";
 export { renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
@@ -57,10 +39,9 @@ export { parseConditionFrame, renderMolisWorkConditionsSpecimen } from "./condit
 export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
-export type { CapsuleGoalItem, CapsuleSnapshot, CapsuleState, CapsuleStateKind, CapsuleTab, CapsuleTabKind } from "./capsule-view.js";
 export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
-export { declaredStageContributionId, stageContributionId } from "./declared-stages.js";
+export { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {
@@ -81,8 +62,17 @@ export {
 } from "./settings-models.js";
 
 export { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients, pluginWorkbenchClientAsset } from "./plugin-workbench.js";
-export { pluginSettingsStyleLinks } from "./plugin-workbench.js";
+export { pluginPageClients, pluginSettingsClients, pluginSettingsStyleLinks, pluginSettingsStyles } from "./plugin-workbench.js";
 export { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./scripts/client/settings-directory.js";
+export { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
+export {
+  GLOBAL_SETTINGS_QUERY_EXTRAS,
+  HOME_SETTINGS_QUERY_EXTRAS,
+  PROJECT_ID_HASH_SECTION,
+  PROJECT_SETTINGS_QUERY_EXTRAS,
+  SETTINGS_ADDRESS_DEFAULTS,
+  SETTINGS_ADDRESS_HASHES,
+} from "./settings-address-params.js";
 export { selectorNames, splitPluginStylesheet } from "./plugin-styles.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
@@ -95,3 +85,5 @@ export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assista
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
+export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
+export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";

@@ -137,7 +137,7 @@ export function renderPptWorkbench(model: PptUiModel): string {
           </div>
           <label class="mw-field" data-ppt-outline-page-field hidden><span class="mw-field__label">${p.text("ppt.outline.page-label")}</span><select class="mw-select" data-ppt-outline-page></select></label>
           <p class="ppt-note" data-ppt-outline-page-note hidden></p>
-          <label class="mw-field" data-ppt-outline-text-field><span class="mw-field__label">${p.text("ppt.field.text")}</span><textarea class="mw-textarea ppt-outline-text" name="text" rows="10" required maxlength="20000" placeholder="# ${p.text("ppt.page.title")}&#10;## ${p.text("ppt.slide.title")}&#10;- ${p.text("ppt.slide.bullets")}&#10;> ${p.text("ppt.slide.notes-placeholder")}" data-ppt-outline-text></textarea></label>
+          <label class="mw-field" data-ppt-outline-text-field><span class="mw-field__label">${p.text("ppt.field.text")}</span><textarea class="mw-textarea ppt-outline-text" name="text" rows="10" required placeholder="# ${p.text("ppt.page.title")}&#10;## ${p.text("ppt.slide.title")}&#10;- ${p.text("ppt.slide.bullets")}&#10;> ${p.text("ppt.slide.notes-placeholder")}" data-ppt-outline-text></textarea></label>
           <div class="mw-toggle-group ppt-outline-modes" data-slot="toggle-group" role="radiogroup" aria-label="${p.text("ppt.outline.mode-label")}" data-ppt-outline-modes>
             <button class="mw-toggle is-current" type="button" role="radio" aria-checked="true" data-ppt-outline-mode="local">${p.text("ppt.outline.mode-local")}</button>
             <button class="mw-toggle" type="button" role="radio" aria-checked="false" data-ppt-outline-mode="ai">${icon("sparkles")}<span>${p.text("ppt.outline.mode-ai")}</span></button>

@@ -1,7 +1,7 @@
-import { ActionError, requireSynchronous, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { McpToolPreference } from "./mcp-settings-store.js";
 import { readMcpToolPreference, readMcpToolPreferenceSync } from "./mcp-settings-store.js";
-import { assertMcpActionAuthority, pinMcpActionGrants, resolveMcpActionContext } from "./mcp-action-grants.js";
+import { assertMcpActionAuthority, mcpGrantErrors, pinMcpActionGrants, resolveMcpActionContext } from "./mcp-action-grants.js";
 
 /** Opt-in by an actual MCP transport: preserve its stable actor/grants after an accepted command, not its socket. */
 export function mcpBackgroundAuthority(caller: ActionCallContext, home: string | undefined, preference: McpToolPreference,
@@ -11,11 +11,11 @@ export function mcpBackgroundAuthority(caller: ActionCallContext, home: string |
     caller.signal?.throwIfAborted(); requireSynchronous(assertHost());
     const pinned: readonly ActionReference[] = references.map(ref => Object.freeze({ ...ref }));
     const required = Object.freeze([...new Set(additionalPermissions)]);
-    if (!required.every(permission => caller.permissions.includes(permission))) throw new ActionError("mcp.permission_revoked", "不能保留当前未授权的权限");
+    if (!required.every(permission => caller.permissions.includes(permission))) throw mcpGrantErrors.permission_revoked("不能保留当前未授权的权限");
     const retained = { ...caller, signal: undefined };
     const checkPermissions = (views: readonly ActionView[], current: McpToolPreference) => {
       const permissions = resolveMcpActionContext(retained, originalCatalog(views, current), current).permissions;
-      if (!required.every(permission => permissions.includes(permission))) throw new ActionError("mcp.permission_revoked", "后台任务所需的原授权已撤销");
+      if (!required.every(permission => permissions.includes(permission))) throw mcpGrantErrors.permission_revoked("后台任务所需的原授权已撤销");
     };
     let currentCatalog = catalog;
     const check = () => {

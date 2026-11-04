@@ -9,7 +9,10 @@ import { createHash } from "node:crypto";
 export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetimeOptions } from "./execution-lifetime.js";
 import { parsePluginManifest } from "./manifest.js";
 
+export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
+export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
+export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
@@ -34,6 +37,7 @@ export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platfo
 export { defineAction } from "./actions.js";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
+export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRouteProblems, stageRequestParams, type DeclaredPageRouteMatch, type PageRouteMatch } from "./page-routes.js";
 /** One error model: raise `ActionError`s whose codes your plugin declares once with `defineErrorCodes`; the Host's edge answers them by kind. */
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, isCodedFailure, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
@@ -82,7 +86,8 @@ import type {
   PluginIntegrationContribution,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationAccountPresentation, IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationAccountPresentation, IntegrationBinding, SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+export { checkedSourcePresentation, checkedSourcePresentationInput } from "./source-presentation.js";
 
 
 
@@ -100,6 +105,7 @@ export function definePollingIntegrationPlugin(input: {
   createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
   /** How a source's account reads after a pull (the cursor it left); `null` keeps the source's label and configuration as they are. */
   presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
+  presentSource?(id: string, input: SourcePresentationInput): SourcePresentation | Promise<SourcePresentation>;
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
@@ -110,6 +116,7 @@ export function definePollingIntegrationPlugin(input: {
     async start(context) {
       return {
         kind: "integration",
+        ...(input.presentSource ? { presentSource: input.presentSource } : {}),
         bind(binding) {
           const provider = input.createProvider(context, binding);
           return pollingIntegrationBinding({ manifest: input.manifest, provider, ...(input.now ? { now: input.now } : {}),
@@ -248,7 +255,8 @@ export type { FragmentOffersInput, FragmentActionOffer, FragmentOfferChoice, Fra
 /**
  * 成果库 helpers for a type your plugin produces (declared in the manifest's `artifacts.produces`): preview a version as a file,
  * pin the current object as a new version (`nextPinnedVersion` numbers it), compare a version with its object, start new work
- * from a version, and list your objects that link to one.
+ * from a version, list your objects that link to one, and name your objects behind the link kinds you declare (`artifacts.links`,
+ * at most `ARTIFACT_LINK_SUBJECTS_BATCH` ids per call).
  */
 export {
   defineArtifactPreviewAction, bindArtifactPreview,
@@ -256,10 +264,12 @@ export {
   defineArtifactCompareAction, bindArtifactCompare, sameArtifactFields, objectOrMissing,
   defineArtifactContinueAction, bindArtifactContinue,
   defineArtifactReferrersAction, linkedArtifactVersion, linksToArtifactVersion,
+  defineArtifactLinkSubjectsAction, ARTIFACT_LINK_SUBJECTS_BATCH,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   ArtifactPreviewInput, ArtifactPinInput, ArtifactPinResult, ArtifactLineHead, ArtifactCompareInput, ArtifactCompareResult, ArtifactCompareState,
   ArtifactContinueInput, ArtifactContinueResult, ArtifactReferrersInput, ArtifactReferrer, ArtifactReferrersResult,
+  ArtifactLinkSubjectsInput, ArtifactLinkSubject, ArtifactLinkSubjectsResult,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Say what an action really does where its id would be misread (a `delete_preview` deletes nothing); `plugin: false` keeps it from generated plugins. */

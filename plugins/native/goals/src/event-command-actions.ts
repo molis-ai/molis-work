@@ -1,11 +1,11 @@
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { goalPluginActions } from "./contract/goal-actions.js";
 
-export { goalProgressResultSchema } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+export { goalProgressResultSchema } from "./contract/goal-actions.js";
 import type { ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEventClosureKinds, goalEventConcernActions, goalEventDecisionPurposes, type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult, type RecordGoalProgressSummaryInput, type ApplyGoalConcernInput, type GoalEventConcernResult, type RequestGoalDecisionInput, type GoalEventDecisionRequestResult, type CiteGoalDecisionInput, type GoalEventDecisionResult, type SetGoalEventAgreementInput, type GoalEventAgreementResult, type SubmitGoalEventClosureInput, type GoalEventClosureResult, type ResumeGoalEventWorkInput, type GoalEventResumeResult } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalEventClosureKinds, goalEventConcernActions, goalEventDecisionPurposes, type ConfigureGoalEventsApplicationInput, type ConfigureGoalEventsResult, type ReportGoalEventsInput, type ReportGoalEventsResult, type RecordGoalProgressSummaryInput, type ApplyGoalConcernInput, type GoalEventConcernResult, type RequestGoalDecisionInput, type GoalEventDecisionRequestResult, type CiteGoalDecisionInput, type GoalEventDecisionResult, type SetGoalEventAgreementInput, type GoalEventAgreementResult, type SubmitGoalEventClosureInput, type GoalEventClosureResult, type ResumeGoalEventWorkInput, type GoalEventResumeResult } from "./contract/goals.js";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import { goalAction as action, goalActor } from "./action-contract.js";
-import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, change, decisionRequest, decision, reason, closure, judgment, agreement } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { text, identifier, count, boolean, object, array, enumeration, nullable, goalConfigSchema, goalStateSchema, goalReportEventSchema, eventType, binding, scope, progress, concern, option, change, decisionRequest, decision, reason, closure, judgment, agreement } from "./contract/goal-actions.js";
 
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
 const version = { type: "integer", minimum: 1 };

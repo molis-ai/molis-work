@@ -4,7 +4,7 @@ import test from "node:test";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { recordedCallId, subjectOfferChoices, withCallId } from "@molis-ai/molis-work-kernel";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openTestHome } from "./fixtures/test-home.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -98,6 +98,8 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
     held = false; release.resolve(); const outcome = await pending;
     assert.ok(outcome.error instanceof ActionError);
     assert.equal(outcome.error.code, "mcp.permission_revoked");
+    // RAC-2671: across the MCP process hop the client reads it as a refusal (403, so `forbidden`), no longer as a mistake in its input (400).
+    assert.equal(outcome.error.kind, "forbidden");
     assert.equal(outcome.recorded, callId);
     assert.deepEqual((await actions.invoke(functionContextActions.history, {})).judgments, before, "neither successful consumption nor failure bookkeeping was saved");
     await home.host.withProject(project.reference, runtime => assert.deepEqual(createLocalFeedApplication(runtime.store.db).getInboxEntry(project.project_id, entry.entry_id), entry));

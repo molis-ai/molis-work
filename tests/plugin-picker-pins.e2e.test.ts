@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
 import { goalsQueryOf } from "./fixtures/goal-application.js";
 import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
@@ -21,13 +21,12 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   const b = await openGoalBrowser(t, "user");
   if (!b) return null;
   const { command, sessionId, evaluate, waitFor, origin, projectId } = b;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
-  try { catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "schedule", actor_id: "browser-test" }); } finally { catalog.close(); }
+  await b.web.delete(`/api/settings/projects/${projectId!}/plugins`, { plugin_id: "schedule" });
   await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-plugin-picker-toggle]')) && Boolean(document.querySelector('[data-plugin-tile]'))");
   await evaluate("window.__stayed = true; localStorage.removeItem('molis-work:dock-pins'); true");
-  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await b.click("[data-plugin-picker-toggle]");
   await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
   const centre = (selector: string) => evaluate<{ x: number; y: number }>(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) throw new Error('missing ' + ${JSON.stringify(selector)}); e.scrollIntoView({ block: 'nearest' }); const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
   const frames = () => evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -255,39 +254,54 @@ test("DOCK-08 a plugin that cannot change in place still brings the page back on
 test("DOCK-08 Feed comes in place: its pages fill, its source directory joins the directory and answers; and it goes again, and comes again", async t => {
   const b = await openPicker(t);
   if (!b) return;
-  // A project's Feed has no sources until some are added; two public ones for its directory to list, page and filter away.
+  // Keep the same source facts through both membership changes.
   const sources = createLocalFeedSourceService(b.store.db, goalsQueryOf(b.store).listProjectIds()[0]!);
   sources.register({ kind: "web_query", query: "进场" });
   sources.register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "plugin-picker" });
   const { evaluate, press, settled, stayed, waitFor, click } = b;
-  type Feed = { section: boolean; rows: number; details: number; header: number; choices: number; panels: string[] };
-  const feed = () => evaluate<Feed>(`({
+  const main = await pluginFrameBrowser(t, b, "feed"), directory = await pluginFrameBrowser(t, b, "feed:source-directory"), preview = await pluginFrameBrowser(t, b, "sources");
+  const projection = () => evaluate<{ section: boolean; panels: string[]; mounts: Array<{ contribution: string; surface: string; slot: string; producer: string }> }>(`({
     section: Boolean(document.querySelector('.directory-content-scroll > [data-plugin-section="feed"]')),
-    rows: document.querySelectorAll('[data-source-list] [data-source-entry-id]').length,
-    details: document.querySelectorAll('[data-source-workbench] [data-source-detail]').length,
-    header: document.querySelectorAll('[data-feed-source-header] [data-feed-task-toggle]:not([data-feed-task-toggle="all"])').length,
-    choices: document.querySelectorAll('[data-feed-sources-dialog] [data-feed-choose-kind]').length,
     panels: [...document.querySelectorAll('[data-directory-panel]')].map(panel => panel.dataset.directoryPanel),
+    mounts: [...document.querySelectorAll('[data-plugin-owner="io.molis.work.feed"]')].map(root=>({contribution:root.dataset.pluginContribution,surface:root.dataset.pluginSurface,slot:root.dataset.pluginSlot,producer:root.dataset.pluginProducer})),
   })`);
-  // The directory answers (its filter, its list and its add button reach what was found when it came), and the add button opens
-  // the setup panel, which is the page's own.
-  const probe = () => evaluate<{ hidden: boolean; empty: boolean; count: string; back: boolean; moved: boolean; setup: string; closed: boolean }>(`(async () => {
-    // The page's click handler is asynchronous: what a click does is read a moment after it.
-    const wait = () => new Promise(resolve => setTimeout(resolve, 150));
-    const rows = () => [...document.querySelectorAll('[data-source-list] [data-source-entry-id]')];
-    document.querySelector('[data-source-filter="account"]').click(); await wait();
-    const hidden = rows().every(row => row.hidden);
-    const empty = document.querySelector('[data-source-empty]').hidden === false;
-    const count = document.querySelector('[data-source-result-count]').textContent;
-    document.querySelector('[data-source-filter="all"]').click(); await wait();
-    const back = rows().every(row => !row.hidden);
-    rows()[0].focus(); rows()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); await wait();
-    const moved = rows()[1].classList.contains('is-selected');
-    document.querySelector('[data-source-directory] [data-feed-sources-open]').click(); await wait();
-    const setup = document.querySelector('[data-feed-workbench]').dataset.feedView + ':' + String(document.querySelector('[data-feed-sources-dialog]').hidden);
-    document.querySelector('[data-feed-sources-dialog] [data-feed-sources-close]').click(); await wait();
-    return { hidden, empty, count, back, moved, setup, closed: document.querySelector('[data-feed-sources-dialog]').hidden };
-  })()`);
+  type Feed = { section: boolean; rows: number; details: number; header: number; choices: number; panels: string[] };
+  const feed = async (): Promise<Feed> => {
+    const host = await projection();
+    if (!host.section) {
+      assert.deepEqual(host.mounts, [], "an absent section has no retained Feed owner wrappers");
+      return { ...host, rows: 0, details: 0, header: 0, choices: 0 };
+    }
+    const rows = await directory.evaluate<number>("document.querySelectorAll('[data-source-list] [data-source-entry-id]').length");
+    return { ...host, rows, ...await main.evaluate<{ details: number; header: number; choices: number }>(`({
+      details: document.querySelectorAll('[data-feed-task-configs] [data-source-detail]').length,
+      header: document.querySelectorAll('[data-feed-source-header] [data-feed-task-toggle]:not([data-feed-task-toggle="all"])').length,
+      choices: document.querySelectorAll('[data-feed-sources-dialog] [data-feed-choose-kind]').length,
+    })`) };
+  };
+  const probe = async () => {
+    await directory.click("details.source-filter-menu > summary");
+    await directory.click('[data-source-filter="account"]');
+    await directory.waitFor("[...document.querySelectorAll('[data-source-list] [data-source-entry-id]')].every(row=>row.hidden) && document.querySelector('[data-source-empty]').hidden===false");
+    const filtered = await directory.evaluate<{ hidden: boolean; empty: boolean; count: string }>(`({hidden:[...document.querySelectorAll('[data-source-list] [data-source-entry-id]')].every(row=>row.hidden),empty:document.querySelector('[data-source-empty]').hidden===false,count:document.querySelector('[data-source-result-count]').textContent})`);
+    await directory.click('[data-source-filter="all"]');
+    await directory.waitFor("[...document.querySelectorAll('[data-source-list] [data-source-entry-id]')].every(row=>!row.hidden)");
+    const back = await directory.evaluate<boolean>("[...document.querySelectorAll('[data-source-list] [data-source-entry-id]')].every(row=>!row.hidden)");
+    await directory.click("details.source-filter-menu > summary");
+    const ids = await directory.evaluate<string[]>("[...document.querySelectorAll('[data-source-list] [data-source-entry-id]')].map(row=>row.dataset.sourceEntryId)");
+    await directory.click(`[data-source-entry-id="${ids[0]}"]`);
+    await preview.waitFor(`document.querySelector('[data-source-detail="${ids[0]}"]')?.hidden===false`);
+    await b.key("ArrowDown", 40);
+    await directory.waitFor(`document.querySelector('[data-source-entry-id="${ids[1]}"]').classList.contains('is-selected') && document.activeElement?.dataset.sourceEntryId===${JSON.stringify(ids[1])}`);
+    const moved = await directory.evaluate<boolean>(`document.querySelector('[data-source-entry-id="${ids[1]}"]').classList.contains('is-selected')`);
+    await preview.waitFor(`document.querySelector('[data-source-detail="${ids[1]}"]')?.hidden===false`);
+    await directory.click("[data-feed-sources-open]");
+    await main.waitFor("document.querySelector('[data-feed-sources-dialog]').hidden===false && document.querySelector('[data-feed-source-choices]').hidden===false && document.querySelector('[data-feed-choose-kind]')?.checkVisibility()");
+    const setup = await main.evaluate<string>("document.querySelector('[data-feed-workbench]').dataset.feedView+':'+String(document.querySelector('[data-feed-sources-dialog]').hidden)");
+    await main.click("[data-feed-sources-close]");
+    await main.waitFor("document.querySelector('[data-feed-sources-dialog]').hidden && document.querySelector('[data-feed-workbench]').dataset.feedView==='messages'");
+    return { ...filtered, back, moved, setup, closed: await main.evaluate<boolean>("document.querySelector('[data-feed-sources-dialog]').hidden") };
+  };
   const before = await feed();
   assert.deepEqual({ section: before.section, rows: before.rows, details: before.details, header: before.header }, { section: false, rows: 0, details: 0, header: 0 }, "not in the project: the pages are empty shells and the directory has no section");
   assert.ok(!before.panels.includes("sources"));
@@ -295,6 +309,25 @@ test("DOCK-08 Feed comes in place: its pages fill, its source directory joins th
     await press(`${tile("feed")} [data-plugin-toggle]`);
     await settled("feed");
     assert.equal(await stayed(), true, `Feed ${round}: no reload`);
+    const host = await projection();
+    assert.deepEqual(host.mounts.map(({ contribution, surface, slot }) => ({ contribution, surface, slot })).sort((a,b)=>a.surface.localeCompare(b.surface)), [
+      { contribution: "io.molis.work.native.feed.ui.v1", surface: "source-directory", slot: "workbench.directory" },
+      { contribution: "io.molis.work.native.feed.ui.v1", surface: "source-workbench", slot: "workbench.main" },
+      { contribution: "io.molis.work.native.feed.ui.v1", surface: "workbench", slot: "workbench.main" },
+    ], "each real owner contribution/surface/slot appears exactly once");
+    assert.ok(host.mounts.every(mount=>mount.producer) && new Set(host.mounts.map(mount=>mount.producer)).size===1, "all three surfaces retain their actual producer binding");
+    await click(`${tile("feed")} > .plugin-rail-item`);
+    await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=feed]').hidden && document.querySelector('[data-plugin-picker-popover]').hidden");
+    await main.waitFor("document.querySelector('[data-feed-task-configs] [data-source-detail]') && document.querySelector('[data-feed-task-toggle]:not([data-feed-task-toggle=all])')");
+    // Exercise the declared directory slot; Feed's product entry opens its main surface.
+    await evaluate(`(() => {
+      const workspace=document.querySelector('[data-workspace]');
+      workspace.classList.remove('is-plugin-directory-empty','is-directory-collapsed');workspace.style.setProperty('--tree-width','240px');
+      document.querySelector('#goal-tree-pane').dataset.desktopDirectory='sources';
+      for(const section of document.querySelectorAll('[data-plugin-section]'))section.hidden=section.dataset.pluginSection!=='feed';
+      for(const panel of document.querySelectorAll('[data-directory-panel]'))panel.hidden=panel.dataset.directoryPanel!=='sources';
+    })()`);
+    await directory.waitFor("document.querySelectorAll('[data-source-list] [data-source-entry-id]').length>=2");
     const came = await feed();
     assert.equal(came.section, true, `Feed ${round}: its section is in the directory`);
     assert.ok(came.rows >= 2 && came.details === came.rows && came.header === came.rows, `its sources are listed, paged and in the header: ${JSON.stringify(came)}`);
@@ -306,23 +339,19 @@ test("DOCK-08 Feed comes in place: its pages fill, its source directory joins th
     assert.equal(answered.moved, true, "an arrow moves the selection");
     assert.match(answered.setup, /^add:false$/, "the add button opens the setup panel, which is the page's own");
     assert.equal(answered.closed, true, "and it closes");
-    // Its page: the entry opens Feed.
-    await click(`${tile("feed")} > .plugin-rail-item`);
-    await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=\"feed\"]').hidden");
-    // Choosing closes the switcher in the next frame; open it again only after that, as a person would.
-    await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
-    await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+    await evaluate(`window.t403PreviousFeedFrames=[...document.querySelectorAll('[data-plugin-owner="io.molis.work.feed"] iframe[data-plugin-frame]')]`);
+    await click("[data-plugin-picker-toggle]");
     await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
-    // Taking it away: asked once, then in place; the pane that showed it goes back, the directory loses the section.
     await press(`${tile("feed")} [data-plugin-toggle]`); await press(`${tile("feed")} [data-plugin-toggle]`);
     await waitFor(`document.querySelector(${JSON.stringify(tile("feed"))}).classList.contains('is-available') && !document.querySelector(${JSON.stringify(tile("feed"))}).classList.contains('is-busy')`);
+    assert.equal(await evaluate("t403PreviousFeedFrames.every(frame=>!frame.isConnected)"), true, "removal disconnects the actual previous frames");
     const gone = await feed();
     assert.deepEqual({ section: gone.section, rows: gone.rows, details: gone.details, header: gone.header }, { section: false, rows: 0, details: 0, header: 0 }, `Feed goes (${round}): back to the shells`);
     assert.ok(!gone.panels.includes("sources"));
     assert.notEqual(await evaluate("document.body.dataset.desktopSurface"), "feed", "the pane that showed it went back");
     assert.equal(await stayed(), true, "still no reload");
     await settled("feed");
-    if (round === "comes") await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden && document.querySelector('[data-plugin-picker-toggle]').click()");
+    if (round === "comes" && await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden")) await click("[data-plugin-picker-toggle]");
   }
 });
 

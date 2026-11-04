@@ -4,7 +4,7 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from '@molis-ai/molis-work-contracts/services/memory';
 import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
-import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
+import { goalPluginActions } from '@molis-ai/molis-work-plugin-goals/contract';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, designerCatalog, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/plugin-builder/catalog.js';
 import { deferred } from './fixtures/home-runtime.js';
@@ -54,7 +54,7 @@ test('the capability board is the project\'s action directory: platform, install
   assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'schedules.add')?.provider_id, SCHEDULE_OPERATION_PROVIDER_ID, 'scheduled operations belong to Schedule too');
 });
 
-// Decision 19 (specs/repository-anti-corruption, W2-03): no plugin uses memory and a generated plugin's call carries no Host-confirmed plugin
+// Decision 19 (specs/archive/repository-anti-corruption, W2-03): no plugin uses memory and a generated plugin's call carries no Host-confirmed plugin
 // identity, so the real declarations of memory.recall, memory.list and memory.write stay out of what a generated plugin may be granted.
 test('memory is closed to generated plugins: the board offers none of it and lists recall, list and write as not offered, with the reason', async () => {
   const { actions } = project();

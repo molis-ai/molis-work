@@ -44,6 +44,8 @@ Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做�
 
 连同本地历史删除来源时，同一次删除还清理拉取留在 Home 里的东西：先在事务内记下来源的 Material 与拉取收据所指的加密正文和各次拉取的 SEL 记录，提交后由 Host 注入的 `history` 端口删掉 SEL 记录，再把没有任何项目的 Material 或拉取收据引用的正文删掉；仍被别的来源或别的项目引用的正文保留，任何项目库读不出来时一律保留。每次拉取在运行收据的 `content_refs` 里记下它的 SEL 记录持有的正文（含没有留下 Item 的和中断的拉取），这是「SEL 记录引用什么」的 Molis 侧凭据。保留历史的删除不动它们。结果记在事件 `feed_source.history_released`。
 
+Feed 是双实例插件：每个项目一个项目实例（`createFeedPlugin`），Home 一个 Home 实例（`src/home-plugin.ts`）；两半同一份 Manifest，服务句柄不互借。Home 实例拥有「引用账」（`src/content-ledger.ts`，库 `FEED_HOME_DATABASE`，表 `feed_content_holds(content_ref, project_id, source_id)`）：证据正文按内容哈希存在 Home，几个项目的来源可以共用同一份，账记「这个项目的这个来源持有这份正文」，只记引用，不存内容，也读不到任何项目库。账总是引用的超集：拉取要写正文之前先 `feed.content.hold`（`hold` 返回后才写文件），来源的行从项目库删除、事务提交之后才 `feed.content.release`；崩溃只会多留一行（正文晚一点释放），不会少一行（误删仍被指着的正文）。用行不用计数，加减都幂等（`INSERT OR IGNORE`、按持有者 `DELETE`）。`release` 与 `reclaim`（收回一次失败、取消或中断的拉取多登记的）在 Home 库的一个写事务里先删本来源的行，再对每个候选正文问「还有人持有吗」，没有的才删文件，文件在事务提交之前删完，所以并发的 `hold` 要么看到行与文件都在，要么看到文件已不在而自己重写；一次最多 5000 条引用（`FEED_CONTENT_LEDGER_BATCH`，超出的分批），读不全就一律保留。三个动作只许 Feed 自己的项目实例（插件受众、调用方是 Feed、项目取自调用上下文，不读输入）调。项目实例每次启动由保留的后台作业 `feed-reconcile`（`src/runtime-reconcile.ts`）把自己库里所有正文的引用幂等 `hold` 一遍，并按本人绑定的账号核对账号来源的状态（连接变化时平台发 `host.connection.changed@1`，实例订阅它，事件不入库，漏掉的由启动对账补上），所以从外面带进来的库（恢复、导入、拷贝）不会让账少于引用。
+
 来源拉取和规则判断在项目队列外等待。Host 为同一数据库/项目/来源提供共享活动租约；不同幂等键也不能并发拉取同一来源。来源配置改变或原调用取消/撤权后，旧响应不提交结果和失败状态，原运行可在新调用中恢复。账号链路把相同执行检查传到 Listener 的每个异步提交点。
 
 `createFeedExactRouteResolver` 只负责 Feed 的 catalog RSS、自定义 RSS 和 YouTube 来源。公共 web query 路由、SEL intent 装配与证据密文保存由 Host/Storage 提供；Feed 通过注入端口使用它们，继续拥有来源策略、游标和同步提交。
@@ -96,7 +98,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 | `store/listener.ts` | `ListenerHost`：持久游标、租约、重试、隔离、原始事件投递与运行收据 | `listener_instances`、`listener_deliveries`、`feed_source_runs` |
 
 - 存取只经 `FeedSql`（`store/sql.ts`：`get`/`all`/`run`/`transaction`，同步，和 better-sqlite3 与平台的 `PluginDatabaseTransaction` 的交集）。存储层不 import 数据库驱动或 `@molis-ai/molis-work-storage` 的连接；`fromBetterSqlite(db)` 包 better-sqlite3 的连接，现在只给 `createDemoFeedApplication`（`apps/local-host/src/demo-feed-library.ts`）和测试用；Runtime 里的 Feed 在 `runtime-ports.ts` 用 `fromPluginReader(services.database)`（只读，写和事务都直接拒绝）和 `fromPluginTransaction(transaction)`（平台已开的写事务）包平台给的库。
-- 构造器只存引用：不执行建表语句、不缓存语句或连接、不读 `sqlite_master`。表由声明建（`FEED_PROJECT_DATABASE` 的 `schema` 是 `out-rules.ts` 与 `store/` 下四份建表语句的拼接，逐字同旧基线），所以每次调用现建一个 Module 是安全的（FI-6 的 `fromPluginTransaction` 依赖这一点）。测试要自己造库时，先执行对应的 `*_SCHEMA_SQL`。
+- 构造器只存引用：不执行建表语句、不缓存语句或连接、不读 `sqlite_master`。表由声明建（`FEED_PROJECT_DATABASE` 的 `schema` 是 `out-rules.ts` 与 `store/` 下四份建表语句的拼接，与本插件现行结构一致），所以每次调用现建一个 Module 是安全的（FI-6 的 `fromPluginTransaction` 依赖这一点）。测试要自己造库时，先执行对应的 `*_SCHEMA_SQL`。
 - 不变量：
   - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者；入口不导出 Repository 或 Store，也不转出 Storage 的证据正文库（RAC-170）。别的包不读写 `feed_materials`（`scripts/gates/table-owners.mjs`）。
   - 凭据正文不进 Source 记录，只存引用；来源想怎样被听（Sources）与实际游标、租约（Listener）是不同事实，不混。
@@ -104,7 +106,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
   - 收到 Signals 回执之前 Listener 不推进游标、不确认投递；同一来源的有效租约阻止重复消费，多次转换失败进入隔离，终态重放不再调用 Provider。
   - 运行账本 `feed_source_runs` 只由 `store/listener.ts` 读写；Listener 的表按来源 id 指向来源，不对 `feed_sources` 加外键，一个来源的运行记录经 `deleteListenerSourceState` 显式清掉。
   - 不直接创建 Goal，升格经 Goals 的公开入口；`linked_goal_id` 等兼容输出由 Ledger 推导，不恢复旧字段双写；外部标题、正文与链接是不可信输入，不成为指令。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-store-declaration.test.ts tests/project-maintenance-v11.test.ts tests/feed-module-repositories.test.ts tests/feed-goal-query.test.ts tests/feed-receive-chain.test.ts tests/feed-sources.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-contract-ownership.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-store-declaration.test.ts tests/feed-module-repositories.test.ts tests/feed-goal-query.test.ts tests/feed-receive-chain.test.ts tests/feed-sources.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-contract-ownership.test.ts`
 - 合同在本插件的公开入口 `@molis-ai/molis-work-plugin-feed/contract`（`src/contract/`：条目、来源、Signal 与 Listener 的状态，PG-111，T-110）；`sourceErrors`、`listenerErrors` 声明在主人是 `sources`、`listener` 的 `store/sources.ts`、`store/listener.ts`，经 `./store` 出口可见。集成插件交出的 `RawEventAdapter` 与订阅源回执 `RssFetchReceipt` 是平台的，在 `@molis-ai/molis-work-contracts/platform/plugin-source-pull`。
 
 ## 进一步阅读
@@ -117,4 +119,4 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 
 首页通过 `feed.home.events` 读取 Feed 的原事项与来源状态。已进入 Inbox 的材料或来源故障由 Inbox 提供，完成或忽略后不会作为原始 Feed 事项重复出现。普通材料按请求窗口筛选；需要处理的来源放到今天，并提供“查看来源”的分组导航。断连和同步异常分别说明，不把任意错误称为需要重新授权。关联 Goal 名称通过共同对象查询读取；无权读取 Goal 时保留 Feed 自己拥有的关联 ID。首页不再持有 Feed 分类或数据拼装分支。
 
-连接使用位置查询 `feed.connection.usages` 仅投影当前项目来源的 `config.connection_id`，给出已有来源同步动作与 source id，不返回邮件正文、游标或凭据。公开来源没有账号引用；暂停与原连接失效后不可据此执行同步。
+来源用哪个账号是本人在平台上按来源绑定的（`connectors.plugin_slot.bind@2`，槽即服务、记录即来源；T-121），Feed 不在来源配置里写连接 id、凭据引用或 token 引用；换账号是先断开（`feed.sources.disconnect`，清游标并释放绑定）再选。账号来源由 `feed.sources.add_account@1` 新建（GitHub、Gmail），新建时不带账号。连接的使用位置由平台的 `connectors.plugin_slot.usages@1` 报，Feed 不另报。

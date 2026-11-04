@@ -28,12 +28,22 @@ test("VUX-23/24: the split divider has a dead zone, follows, snaps with hysteres
   const guarded = () => evaluate<{ resizing: boolean; frames: string[] }>(`({ resizing: ${root}.classList.contains('is-resizing'), frames: [...document.querySelectorAll('iframe.tab-content-frame')].map(frame => getComputedStyle(frame).pointerEvents) })`);
   assert.equal(await value(), 50);
 
-  // A press and a 3 px wobble is still a click: nothing moves and nothing is guarded.
+  // T405-FULL-10: the candidate guards the first cross-frame movement, without changing or saving the ratio.
+  const beforeCandidate = await evaluate<string>(`localStorage.getItem('molis-work-tab-workspace:' + ${JSON.stringify(projectId)})`);
   await mouse("mousePressed", center.x);
+  const pressed = await guarded();
+  assert.equal(pressed.resizing, true);
+  assert.ok(pressed.frames.length > 0 && pressed.frames.every(value => value === "none"));
+  assert.equal(await value(), 50);
   await mouse("mouseMoved", center.x + 3);
-  assert.equal((await guarded()).resizing, false, "under the dead zone the press is only a candidate");
+  assert.equal((await guarded()).resizing, true, "under the dead zone the candidate still guards the frames");
+  assert.equal(await value(), 50, "the 3 px candidate does not move the divider");
   await mouse("mouseReleased", center.x, 0);
   assert.equal(await value(), 50);
+  const candidateEnded = await guarded();
+  assert.equal(candidateEnded.resizing, false);
+  assert.ok(candidateEnded.frames.every(value => value !== "none"), "a click releases the candidate's guard");
+  assert.equal(await evaluate<string>(`localStorage.getItem('molis-work-tab-workspace:' + ${JSON.stringify(projectId)})`), beforeCandidate, "the candidate does not persist a layout change");
 
   // Past it, the divider follows the pointer; the frames are guarded while it moves and released after.
   await mouse("mousePressed", center.x);

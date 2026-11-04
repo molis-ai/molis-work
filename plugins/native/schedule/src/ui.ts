@@ -1,5 +1,6 @@
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type {
+  StagePageModel,
   UiContribution,
   UiContributionDeclaration,
   UiRenderRequest,
@@ -28,6 +29,19 @@ export interface ScheduleUiModel {
   readonly primitives: ScheduleUiPrimitives;
 }
 
+/** What the stage is drawn from: the answer of `schedule.tasks.list`, the read its Manifest view declares (`stage_data`, T-133). */
+export interface ScheduleStageData {
+  readonly jobs: readonly ScheduleJobView[];
+  readonly tasks: readonly ScheduleConversationTaskView[];
+  readonly operations?: readonly ScheduledOperationView[];
+}
+
+/** The page's stage model as Schedule draws it: without an answer (Schedule not there to give one) the stage is empty. */
+export function scheduleUiModel(model: StagePageModel<ScheduleStageData>): ScheduleUiModel {
+  return { route_prefix: model.route_prefix, jobs: model.data?.jobs ?? [], tasks: model.data?.tasks ?? [], operations: model.data?.operations ?? [],
+    primitives: model.primitives };
+}
+
 export const scheduleUiDescriptor: UiContributionDeclaration = {
   contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
   kind: "primary-page",
@@ -40,14 +54,14 @@ export const scheduleUiDescriptor: UiContributionDeclaration = {
   slots: [],
 };
 
-export const scheduleUiContribution: UiContribution<ScheduleUiModel> = {
+export const scheduleUiContribution: UiContribution<StagePageModel<ScheduleStageData>> = {
   descriptor: scheduleUiDescriptor,
-  render(request: UiRenderRequest<ScheduleUiModel>): string {
+  render(request: UiRenderRequest<StagePageModel<ScheduleStageData>>): string {
     switch (request.surface as ScheduleUiSurface) {
       case "directory":
         return "";
       case "workbench":
-        return renderScheduleWorkbench(request.model);
+        return renderScheduleWorkbench(scheduleUiModel(request.model));
       default:
         throw new Error(`Schedule UI surface ${(request as UiRenderRequest).surface} 不存在`);
     }

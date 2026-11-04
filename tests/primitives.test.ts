@@ -4,6 +4,7 @@ import test from "node:test";
 import { escapeHtml, renderAttrs, renderButton, renderDirectoryPanel, renderDirectoryRow, renderField, renderInput, renderSlider } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   INTERACTION_TEXTURE_STYLES,
+  MICRO_INTERACTION_CLIENT_SCRIPT,
   MICRO_INTERACTION_STYLES,
   listedIconNames,
   registeredIconNames,
@@ -252,7 +253,8 @@ test("primitive controls keep authored states instead of a class dump", () => {
   // Soft Workbench (DESIGN.md → Buttons): links are copper.
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--link \{[^}]*color: var\(--accent\);/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-btn:disabled \{[^}]*background: var\(--control-fill\)/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:disabled,[\s\S]*background: var\(--action\)/);
+  // A disabled filled button gives up its fill for a flat wash; a loading one keeps its own look.
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn:is\(\.mw-btn--primary, \.mw-btn--secondary, \.mw-btn--danger\):disabled:not\(\[data-loading\]\) \{[^}]*background: color-mix\(in srgb, var\(--ink\) 5%, transparent\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-spinner \{[\s\S]*currentColor/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-catalog \.mw-btn \{ min-height: 44px/);
   // Soft Workbench (DESIGN.md → Focus): controls take the copper stroke, fields the copper border and halo.
@@ -317,7 +319,7 @@ test("catalog ships the Soft Workbench palette and complete icon library", () =>
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.mw-empty__mark/);
   assert.match(html, /class="mw-empty__mark"/);
   assert.match(INTERACTION_TEXTURE_STYLES, /\.feed-stage-entry:is\(\.is-selected, \.is-open, \[aria-selected="true"\]\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /:is\(\.plugin-rail, \.assistant-island\) \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--plugin-tint, var\(--faint\)\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link svg \{ color: var\(--faint\)/);
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.plugin-rail \.immersive-plugin-link:hover svg \{ color: var\(--ink-soft\)/);
   assert.deepEqual([...listedIconNames()].sort(), [...registeredIconNames()].sort());
@@ -358,7 +360,7 @@ test("empty states and calendars keep copy grouped and readable", () => {
 test("plugin rail reuses the segmented thumb and stages share the one arrival", () => {
   assert.match(MICRO_INTERACTION_STYLES, /\.plugin-rail-items/);
   assert.match(MICRO_INTERACTION_STYLES, /--seg-tint/);
-  assert.match(MICRO_INTERACTION_STYLES, /assistant-island-card/);
+  assert.doesNotMatch(MICRO_INTERACTION_STYLES, /assistant-island-card/, "RAC-1823: the island card left the rail, and its thumb rules with it");
   assert.match(MICRO_INTERACTION_STYLES, /aria-expanded="true"/);
   assert.match(MICRO_INTERACTION_STYLES, /\.is-arriving \{ animation: craft-rise var\(--dur-arrive, 420ms\)/);
   assert.match(MICRO_INTERACTION_STYLES, /\.assistant-composer\):popover-open/);
@@ -385,4 +387,11 @@ test("K1-01 shared HTML escaping protects text and both attribute quote delimite
   assert.equal(escapeHtml(undefined), "");
   assert.equal(escapeHtml(0), "0");
   assert.equal(escapeHtml(false), "false");
+});
+
+test("RAC-1823 the rail's thumb and texture rules name no assistant island, and the thumb reads the current option the one way", () => {
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /assistant-island/, "the texture layer has no rule for the island class");
+  assert.doesNotMatch(MICRO_INTERACTION_CLIENT_SCRIPT, /assistant-island/, "the thumb's script does not look for the island card");
+  assert.match(MICRO_INTERACTION_STYLES, /\.plugin-rail-items/, "the rail's own items are still a segmented track");
+  assert.match(MICRO_INTERACTION_CLIENT_SCRIPT, /const current = track\.querySelector\(":scope > " \+ SEGMENT_CURRENT\);/, "and its current option is the one marked current");
 });

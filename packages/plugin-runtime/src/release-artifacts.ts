@@ -39,8 +39,9 @@ export const PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL = `
 
 /** Code shipped by a trusted Native factory, stored inside the project Runtime database. */
 export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRuntimeReleaseArtifactRepository {
-  /** `declaredAttention`'s statement, prepared once: the Inbox asks it of every running installation on each check. */
+  /** `declaredAttention`'s statements, prepared once: the Inbox asks it of every running installation on each check. */
   private attention?: ReturnType<PluginRuntimeReleaseArtifactDatabase["prepare"]>;
+  private archived?: ReturnType<PluginRuntimeReleaseArtifactDatabase["prepare"]>;
   constructor(private readonly db: PluginRuntimeReleaseArtifactDatabase) {
     db.exec(PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL);
   }
@@ -54,13 +55,22 @@ export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRunti
 
   /**
    * The `attention` one build's Manifest declared, or null (the build is not archived, or declares none). The Inbox asks it of every running
-   * installation, so it is read in SQLite without parsing the build's module source.
+   * installation on each check. Whether the row is there is asked every time; what it declares is read out of the artifact once per
+   * database: a row is written once and never changed (`save`), and its key carries the digest of the Manifest in it.
    */
   declaredAttention(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): PluginAttentionDeclaration | null {
-    const row = (this.attention ??= this.db.prepare(`SELECT json_extract(artifact_json, '$.manifest.attention') AS attention FROM plugin_runtime_release_artifacts
-      WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`))
-      .get(pluginId, publisherSignature, version, manifestDigest) as { attention: string | null } | undefined;
-    return row?.attention ? JSON.parse(row.attention) as PluginAttentionDeclaration : null;
+    const key = artifactKey(pluginId, publisherSignature, version, manifestDigest), read = declaredAttentionOf(this.db);
+    if (!(this.archived ??= this.db.prepare(`SELECT 1 FROM plugin_runtime_release_artifacts
+      WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)).get(pluginId, publisherSignature, version, manifestDigest)) return null;
+    if (!read.has(key)) {
+      const row = (this.attention ??= this.db.prepare(`SELECT json_extract(artifact_json, '$.manifest.attention') AS attention FROM plugin_runtime_release_artifacts
+        WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`))
+        .get(pluginId, publisherSignature, version, manifestDigest) as { attention: string | null } | undefined;
+      if (!row) return null;
+      read.set(key, row.attention ?? null);
+    }
+    const attention = read.get(key);
+    return attention ? JSON.parse(attention) as PluginAttentionDeclaration : null;
   }
 
   list(pluginId: string, publisherSignature: string): PluginRuntimeReleaseArtifact[] {
@@ -120,6 +130,14 @@ function validateArtifact(artifact: PluginRuntimeReleaseArtifact): void {
     || !artifact.module_source.trim()) {
     throw new Error("Plugin Runtime 发行物身份不一致");
   }
+}
+
+/** The `attention` text each archived row declared (null: none), by `artifactKey`, for each database the archive is read from. */
+const declaredAttentions = new WeakMap<PluginRuntimeReleaseArtifactDatabase, Map<string, string | null>>();
+function declaredAttentionOf(db: PluginRuntimeReleaseArtifactDatabase): Map<string, string | null> {
+  let read = declaredAttentions.get(db);
+  if (!read) { read = new Map(); declaredAttentions.set(db, read); }
+  return read;
 }
 
 function artifactKey(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): string {

@@ -4,9 +4,9 @@
 
 ## macOS Desktop 安装包
 
-安装实现已迁至 Local Host；从源码安装前需完整构建，包括清理并重建所有 workspace 包。旧构建会被拒绝，已有安装不受这次拒绝影响。当前分发验收、实际 App 升级/恢复和独立 npm 消费证据集中在 [DV4 验收报告](../specs/molis-work-architecture-reorganization/dv4-validation.md)。本机内部包验证不代表 Apple 公证、Intel 实机或公开发布资格。
+安装实现已迁至 Local Host；从源码安装前需运行整体 `pnpm build`：workspace 包按构建记录增量重建，根入口与安装指纹重新生成；需要强制整体重建时用 `pnpm build:clean`。旧构建会被拒绝，已有安装不受这次拒绝影响。当前分发验收、实际 App 升级/恢复和独立 npm 消费证据集中在 [DV4 验收报告](../specs/molis-work-architecture-reorganization/dv4-validation.md)。本机内部包验证不代表 Apple 公证、Intel 实机或公开发布资格。
 
-普通 macOS 用户优先从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
+截至 2026-11-03，v0.3.0 安装包仍是未公开的发布草稿，最新公开正式版 v0.2.0 只有源码。当前试用走下面的仓库构建路径；发布范围与缺口见 [v0.3.0 发布记录](releases/v0.3.0.md)。公开安装包发布后，再从 [GitHub Releases](https://github.com/molis-ai/molis-work/releases) 按实际附件下载 `macos-arm64`（Apple Silicon）或 `macos-x64`（Intel）DMG，把 Molis Work 拖入 Applications 后启动。App 内含匹配架构的 Node、Molis Work Core 和生产依赖；首次打开才调用同一套 `molis-work install` 服务写入 `~/.molis-work`，随后启动本地 Web。它不会在首次启动时创建项目、接入 Runtime、创建 demo 或修改用户项目。
 
 开发者可以从仓库运行：
 
@@ -30,13 +30,13 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 从仓库本地安装请使用 `pnpm install:local`；这个唯一入口会先重新构建，再安装当前内容。直接对带 `src/` 的仓库执行 `molis-work install --source ...` 时，安装器会核对构建指纹，源码与 `dist` 不一致就停止，不会悄悄复制旧构建。release 同时记录内容摘要：版本相同但程序或 Skill 内容变化时会原子刷新，内容完全相同才返回“已经是最新状态”；刷新失败会恢复上一份 release，项目数据不参与替换。
 
-项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、DB 位置、可选 Session 绑定、workspace 与多个项目的历史关联，以及删除收据；不复制 Goal 事实，也不依赖 Git。当前已实现的 MCP 项目连接不保存目录默认项目，每个新 Session 都会拿到历史候选并询问。解绑关联不删除项目；删除项目及其 DB 必须单独确认。
+项目使用不可变的 `project_id` 区分，显示名称可以改名或重名；每个项目都有自己的 `molis-work.db`。`projects/catalog.db` 保存项目身份、可选 Session 绑定、workspace 与多个项目的历史关联，以及删除收据；项目库位置从 Home 与 project_id 推导（catalog1），不复制 Goal 事实，也不依赖 Git。当前已实现的 MCP 项目连接不保存目录默认项目，每个新 Session 都会拿到历史候选并询问。解绑关联不删除项目；删除项目及其 DB 必须单独确认。
 
 2026-10-28 的 [Sessions 需求](../specs/sessions-rebuild/spec.md)另已确定发现会话的归属目标：已明确且唯一的目录／仓库关系自动归入项目，不明确或多候选由 AI 建议、用户确认，不自动新建项目。该能力尚未实现，本页安装及 MCP 接入步骤仍描述当前行为；自动归属不替代实际访问与执行的有效授权。
 
 ### npm 路径上的飞书/Lark 连接器：两件已知并接受的事
 
-用户 2026-10-10 的决定：接受这两件事，写进安装说明和发布前检查，npm 路径照旧。归档的 `package.json` 不写 `overrides`，也不把 `@larksuiteoapi/lark-mcp` 的依赖树放进 `bundledDependencies`（决定记录见 [spec.md](../specs/repository-anti-corruption/spec.md) §1，来龙去脉见 [依赖与 SDK 方案](../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §3.5）。这两件事只在这条 npm 归档路径上存在。
+用户 2026-10-10 的决定：接受这两件事，写进安装说明和发布前检查，npm 路径照旧。归档的 `package.json` 不写 `overrides`，也不把 `@larksuiteoapi/lark-mcp` 的依赖树放进 `bundledDependencies`（决定记录见 [spec.md](../specs/archive/repository-anti-corruption/spec.md) §1，连接器在本机怎样启动见 [apps/local-host/README.md](../apps/local-host/README.md)，发布前怎么核对见 [发布前检查](releases/CHECKLIST.md)）。这两件事只在这条 npm 归档路径上存在。
 
 - **`basic-ftp` 的高危公告没有修，但只在一种配置下才会走到。** 连接器的包经 `proxy-agent`、`pac-proxy-agent`、`get-uri` 带进 `basic-ftp`，`npm install` 装出来的是 5.x（现在是 5.3.1），带公告 GHSA-c475-qrg2-pj4r（`Client.list()` 的解析器耗时随输入呈二次方增长，6.2.1 起修复）。仓库的 `pnpm-workspace.yaml` 把它覆盖到 6.2.1，但 npm 不读这个文件，也不认被装进来的依赖里写的 `overrides`，所以 6.2.1 只在仓库检出、从它复制出去的 Home release 与桌面安装包里，npm 归档里没有。这个 FTP 客户端只有在代理被配置成指向 FTP 上的 PAC 文件（代理环境变量 `HTTPS_PROXY` 一类写成 `pac+ftp://…`）时才会用到；连接器自己不设置这种代理，它只把你已经设置的代理变量传给子进程。没有这种配置，就走不到这个缺陷。
 - **`keytar` 在 Home 之外留下一项钥匙串和一个数据目录。** `keytar` 是 `lark-mcp` 的普通（不是可选）依赖，也是原生模块：`npm install` 时它运行自己的安装脚本（先下载预编译文件，默认来自 GitHub 发布页；下载不到再用 node-gyp 编译，需要编译工具链），两步都失败则整个 `npm install` 失败，即使你不用飞书/Lark 连接器。按该包 0.5.1 的代码（没有在构建出 `keytar` 的机器上实测），装好之后连接器每启动一次这个 MCP 子进程，该包都会读系统凭据库里服务名 `lark-mcp`、账户名 `encryption-key` 的一项（macOS 是登录钥匙串），没有就生成一个加密密钥写进去，并建出它的数据目录（macOS 是 `~/Library/Application Support/lark-mcp-nodejs`，其他系统在各自的用户数据目录下）。这是该包自己的行为，与是否保存登录无关；Molis Work 用环境变量传令牌，不会往那个目录写令牌文件。这些读写都在 Molis Work 的 Home 之外，不受 `MOLIS_WORK_HOME` 约束，也不联网，所以删除 Home 不会带走它们。仓库检出里 `keytar` 不构建（`pnpm-workspace.yaml` 的 `allowBuilds`），该包加载它失败后自己接住，不碰钥匙串；从仓库复制出去的 Home release 与桌面安装包带的是同一份未构建的依赖。
@@ -47,11 +47,11 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 ### 离线备份与恢复边界
 
-W5-16 正在实施离线 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]`，使用与 Host/Agent 相同的存储所有权和 SQLite backup API。当前 SDK 零源写密文认证与完整 restore 尚未闭合，不能把这一实现当作可交付恢复工具；用法、原 key/路径限制和失败清理见 [CLI 与开发](cli-and-development.md#home-离线快照)。
+在离线窗口运行 `molis-work home snapshot --to <新目录>` 捕获原 Home，或用 `molis-work home restore --from <快照目录>` 恢复。两者均可指定 `--home <原Home> [--json]`。快照通过 SQLite backup API 读取已提交数据，由原 SDK reader 核验密文。恢复先核对清单、原 key、各 owner 与 Memory 资格，随后保留待替换的原件。中途退出时，`molis-work home restore --recover` 按持久日志回滚或完成发布。用法与失败处理见[CLI 与开发](cli-and-development.md#home-离线快照)。
 
 操作任何离线副本前，退出 App，并按服务的所有权检查停止 Molis Work 服务及其他写入进程；仅退出窗口不保证后台停止。Catalog、全部项目/插件库、加密正文和原密钥依赖必须保持同一时点。外部工作区文件需单独备份。Keychain 或环境变量提供的原 key 不随 Home 文件复制，不能用新 key 替换丢失的旧 key；缺 key 必须明确拒绝，不能生成空数据冒充恢复。
 
-恢复只限原 Home 绝对路径和原 key，保留故障原件供回退。旧 [恢复测试](../tests/home-backup-recovery.test.ts) 只证明覆盖的 Catalog、项目、会话和成果路径；快照逐 owner 读回也不等于完整恢复发布、回滚或重启续写已完成，且不证明跨机器 Keychain 恢复与真实 Home/本人验收。
+恢复只适用于原 Home 绝对路径和原 key。隔离 Home 下的[恢复 CLI 用例](../tests/home-restore-cli.test.ts)与[中断恢复用例](../tests/security-invariants-home-restore-recovery.test.ts)覆盖恢复、回滚与续接。真实 Home 的可恢复备份和干净重建仍由[BL-928](../specs/BACKLOG.md)跟踪。
 
 已经从仓库安装过时，先拉取新内容，再走同一个安装入口。即使版本号没有变化，安装器也会比较实际内容并刷新程序和 Skill；用户项目、Runtime 配置和 demo 都不会被自动改写：
 

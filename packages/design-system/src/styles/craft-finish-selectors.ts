@@ -5,7 +5,7 @@ export const WORKBENCH = "body.immersive-workbench";
 export const SHELL = ":is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage)";
 /** The resident Assistant lives in the workbench bar; the chooser's bar is the same bar (body.immersive-workbench.arrival-page). */
 export const ASSIST = "body.immersive-workbench:not([data-pane-embedded])";
-export const RAIL_LINK = ":is(.plugin-rail, .assistant-island, .workspace-chrome) :is(.immersive-plugin-link, .navigator-project-search, .navigator-project-settings, .navigator-directory-toggle, .immersive-show-directory, .personal-account)";
+export const RAIL_LINK = ":is(.plugin-rail, .workspace-chrome) :is(.immersive-plugin-link, .navigator-project-search, .navigator-project-settings, .navigator-directory-toggle, .immersive-show-directory, .personal-account)";
 export const PAGES = "body:is(.immersive-workbench, .settings-page, .project-preferences-page)";
 /** A plugin's list page (not Feed or Coding, which lay out their own columns; not Jelly's calendar). */
 export const STAGE_SHELL = "body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface=\"jelly\"])";

@@ -9,6 +9,7 @@ import { runToolInstallProcess, toolInstallErrors, type ToolInstallControl } fro
 import { validateManagedToolSource, type ManagedToolSource } from "./connector-tool-source.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
+import { readSnapshotFile } from "@molis-ai/molis-work-storage";
 import type { LocalMcpConfiguration } from "./connector-local-mcp.js";
 
 interface ManagedToolInstallation { id: string; source: ManagedToolSource; executable: string; runtime_path: string[]; directory: string }
@@ -97,15 +98,29 @@ const object = (value: unknown): value is Record<string, unknown> => !!value && 
 const readyRecord = (value: unknown): value is ManagedToolInstallation & { ready: true } => object(value) && value.ready === true && typeof value.id === "string"
   && typeof value.directory === "string" && typeof value.executable === "string" && Array.isArray(value.runtime_path) && object(value.source) && typeof value.source.kind === "string";
 /** A completed candidate can resume protocol verification after failure, without another package installation. */
-export function readManagedConnectorTool(home: string, id: string, source?: ManagedToolSource): ManagedToolInstallation {
+function inspectManagedInstallation(home: string, id: string, source?: ManagedToolSource, archiveDataDirectory?: string): ManagedToolInstallation {
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(id)) throw toolInstallErrors.invalid("受管理安装标识无效");
   const directory = join(realpathSync(home), "runtime", "connectors", "installs", id);
   if (!existsSync(directory)) throw toolInstallErrors.invalid("受管理安装不存在，请重新准备接入");
   if (realpathSync(directory) !== directory) throw toolInstallErrors.invalid("受管理安装目录已改变");
   let value: unknown;
-  try { value = JSON.parse(readFileSync(join(directory, "installation.json"), "utf8")); }
+  try {
+    const record = archiveDataDirectory ? join(archiveDataDirectory, "runtime", "connectors", "installs", id, "installation.json") : join(directory, "installation.json");
+    value = JSON.parse(archiveDataDirectory ? readSnapshotFile(record, 1024 * 1024).toString("utf8") : readFileSync(record, "utf8"));
+  }
   catch { throw toolInstallErrors.invalid("安装所有权记录无法读取，请重新准备接入"); }
   if (!readyRecord(value) || value.id !== id || value.directory !== directory || source && JSON.stringify(value.source) !== JSON.stringify(source)
     || value.source.kind !== "powershell" && !value.executable.startsWith(`${directory}/`) || !existsSync(value.executable) || realpathSync(value.executable) !== value.executable) throw toolInstallErrors.invalid("已有安装与本次方案不符，请重新准备接入");
   return { id, directory, source: value.source, executable: value.executable, runtime_path: value.runtime_path };
+}
+
+/** Normal reads retain the same ready/source/executable validation and original record path. */
+export function readManagedConnectorTool(home: string, id: string, source?: ManagedToolSource): ManagedToolInstallation {
+  return inspectManagedInstallation(home, id, source);
+}
+
+/** Only the receipt is archived: the ready installation and executable must still be in the original actual Home. */
+export function inspectManagedConnectorToolSnapshot(home: string, id: string, archiveDataDirectory: string): ManagedToolInstallation {
+  if (realpathSync(archiveDataDirectory) !== archiveDataDirectory) throw toolInstallErrors.invalid("归档安装目录不能是链接");
+  return inspectManagedInstallation(home, id, undefined, archiveDataDirectory);
 }

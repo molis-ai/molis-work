@@ -100,9 +100,9 @@ test("Native plugin factory archives are bundled and rehydrated as exact definit
   const artifact = nativePluginReleaseArtifact<typeof createFilesPlugin>(
     "@molis-ai/molis-work-plugin-files",
     "createFilesPlugin",
-    factory => factory({ readable: () => true }),
+    factory => factory(),
   );
-  const current = createFilesPlugin({ readable: () => true });
+  const current = createFilesPlugin();
   const source = await artifact.capture();
   const restored = await artifact.restore(source);
   assert.deepEqual(restored.manifest, current.manifest);

@@ -1,30 +1,40 @@
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 test("project workbench adds tabs without replacing existing ones and keeps split panes", { timeout: 90_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {}, undefined, undefined, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, openGoalFrame, origin, projectId, homeDirectory } = browser;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  for (const plugin_id of ["feed", "inbox", "artifacts"] as const) {
-    catalog.addProjectPlugin({ project_id: projectId!, plugin_id, actor_id: "tab-workspace" });
+  // T405-17B5-UI-02: observing pane GETs does not wait for them or change the next CDP command.
+  const paneReads: Array<{ url: string; started: number; finished?: number }> = [];
+  const observePane = (request: import("node:http").IncomingMessage, response: import("node:http").ServerResponse) => {
+    if (request.method !== "GET" || !request.url?.includes("workbenchPane=")) return;
+    const read = { url: request.url, started: Date.now(), finished: undefined as number | undefined }; paneReads.push(read); if (paneReads.length > 12) paneReads.shift();
+    response.once("finish", () => { read.finished = Date.now(); });
+  };
+  browser.server?.on("request", observePane);
+  t.after(() => { browser.server?.off("request", observePane); });
+  for (const plugin_id of ["feed", "inbox"] as const) {
+    await addProjectPlugin(browser.web, projectId!, plugin_id);
   }
-  catalog.close();
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+
+  await browser.setViewport(1440, 1000);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]')?.disabled"), true);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=forward]')?.disabled"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('[data-workspace-history=back]')?.disabled === false");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('[data-workspace-history=back]')?.disabled === false");
   await click("[data-workspace-history=back]");
   await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=forward]')?.disabled"), false);
   await click("[data-workspace-history=forward]");
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
   await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("(() => { const home = document.querySelector('.tab-item[data-tab-kind=home][aria-current]')?.getBoundingClientRect(); const hist = document.querySelector('.workspace-history')?.getBoundingClientRect(); const scroll = document.querySelector('[data-titlebar-tabs] [data-tab-scroll]')?.getBoundingClientRect(); return Boolean(home && hist && scroll && home.left + 1 >= scroll.left && home.left + 1 >= hist.right - 1); })()"), true, "home tab stays fully to the right of history buttons");
@@ -32,7 +42,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 1);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=home]')?.hidden"), false);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && !document.querySelector('.tab-item[data-tab-kind=mother]') && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   // PTG-01 the Goals page is its plugin tab, current while the pane shows it.
   assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]')?.dataset.plugin"), "goals");
   assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]')?.hasAttribute('data-preview') || false"), false);
@@ -44,12 +54,18 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=home]') != null"), true);
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
+  // RAC-2687: the same Goal tab changes view, then returns to its absent/default Frame view.
+  const layoutKey = "molis-work-tab-workspace:" + projectId;
+  await click('[data-frame-goal-work]');
+  await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).panes.some(p=>p.tabs.some(t=>t.itemId==='CORE'&&t.view==='work'))`);
+  await click('[data-goal-collapse]');
+  await waitFor(`JSON.parse(localStorage.getItem(${JSON.stringify(layoutKey)})).panes.every(p=>p.tabs.filter(t=>t.itemId==='CORE').every(t=>!Object.hasOwn(t,'view')))`);
   assert.equal(await evaluate("document.querySelector('.tab-item[data-tab-kind=mother]')"), null);
   assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]').hasAttribute('data-preview')"), false);
   const coreTabId = await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('[data-goal-canvas-shell]')?.hidden && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('.tree-node[data-select-goal=\"INTERFACES\"]')?.getClientRects().length > 0");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin' && !document.querySelector('[data-goal-canvas-shell]')?.hidden && document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && document.querySelector('.tree-node[data-select-goal=\"INTERFACES\"]')?.getClientRects().length > 0");
   await openGoalFrame('.tree-node[data-select-goal="INTERFACES"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'INTERFACES'");
   const interfacesTabId = await evaluate<string>("document.querySelector('.tab-item[aria-current]').dataset.tabId");
@@ -88,7 +104,11 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await waitFor("document.querySelector('.tab-group[data-collapsed=true]') === null");
   await evaluate("document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
-  assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true);
+  try { assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), true); }
+  catch (error) {
+    const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200)})),frames:[...document.querySelectorAll('iframe.tab-content-frame')].map(f=>({pane:f.dataset.paneOwner,tab:f.dataset.paneTab,hidden:f.hidden,src:f.src,ready:f.contentDocument?.readyState,goal:f.contentDocument?.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
+    t.diagnostic("T405 workspace after split " + JSON.stringify({ paneReads, state })); throw error;
+  }
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden && strip.querySelector('[data-tab-id]'))"), true);
   assert.equal(await evaluate(`(() => {
     const panes = [...document.querySelectorAll('[data-tab-pane]')].sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
@@ -101,7 +121,7 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]')?.hidden"), false);
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item') != null"), true);
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1");
-  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(390, 844);
   await waitFor("innerWidth === 390");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
@@ -116,14 +136,49 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-plugin=goals][data-item-id=CORE]').length"), goalTabsBefore + 1);
   const mothersBefore = await evaluate<number>("document.querySelectorAll('.tab-item[data-tab-kind=mother]').length");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-tab-kind=mother]').length"), mothersBefore);
   assert.equal(await evaluate("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE]') != null"), true);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 1000);
   await evaluate(`(() => { for (let i = 0; i < 32; i += 1) document.querySelector("[data-tab-close]")?.click(); })()`);
   // Closing every tab, plugin tabs included, leaves the project's home.
   await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home]')");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.querySelectorAll('.tab-item').length === 1 && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
+});
+
+test("RAC-2687 the real cross-project placement card opens the associated Goal's generic work view", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
+  await addProjectPlugin(browser.web, projectId!, "pages");
+  const target = await createProject(browser.web, "PR2 destination");
+
+  await seedDemoGoals(target.database_path, target.project_id);
+  const pages = openPagesStore(homeDirectory);
+  const page = pages.create({ project_id: projectId!, title: "跨项目输入", body: { type: "doc", content: [] } });
+  pages.close();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  // A host-rendered object slot, using the public placement UI and the actual owner object, not a mocked response.
+  await evaluate(`(async () => {
+    const object={kind:'pages_document',id:${JSON.stringify(page.id)},project_id:${JSON.stringify(projectId)}};
+    await molisWorkRequest('/projects/'+${JSON.stringify(projectId)}+'/api/placement/link',{body:{object,project_id:${JSON.stringify(target.project_id)}}});
+    const slot=document.createElement('div');slot.dataset.placementSlot='';slot.id='pr2-placement-slot';
+    slot.setAttribute('data-assistant-context',JSON.stringify({object}));
+    slot.style.cssText='position:fixed;left:300px;top:160px;z-index:10';document.body.append(slot);
+    await molisPlacement.paintBar(slot);
+  })()`);
+  await click('#pr2-placement-slot .placement-bar');
+  await waitFor("Boolean(document.querySelector('.placement-panel [data-placement-action=goal]'))");
+  await click('.placement-panel [data-placement-action=goal]');
+  await waitFor(`Boolean(document.querySelector('dialog.placement-dialog input[name=goal][value="${target.project_id}|CORE"]'))`);
+  await click(`dialog.placement-dialog input[name=goal][value="${target.project_id}|CORE"]`);
+  await click('dialog.placement-dialog [data-placement-confirm]');
+  await waitFor("[...document.querySelectorAll('.placement-toast button')].some(b=>b.textContent==='打开 Goal')");
+  await navigate(() => evaluate("[...document.querySelectorAll('.placement-toast button')].find(b=>b.textContent==='打开 Goal').click()"));
+  await waitFor(`document.body.dataset.projectId===${JSON.stringify(target.project_id)} && document.querySelector('[data-goal-node-workspace]')?.hidden===false`);
+  const saved = await evaluate<string>(`localStorage.getItem('molis-work-tab-workspace:'+${JSON.stringify(target.project_id)})`);
+  assert.ok(JSON.parse(saved).panes.some((pane: { tabs: Array<{ itemId?: string; view?: string }> }) => pane.tabs.some(tab => tab.itemId === "CORE" && tab.view === "work")));
+  assert.doesNotMatch(saved, /"goalView"|"feedTask"/);
 });

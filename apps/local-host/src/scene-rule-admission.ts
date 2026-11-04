@@ -1,6 +1,6 @@
-import { functionsErrors } from "@molis-ai/molis-work-module-functions";
+import { functionsErrors } from "@molis-ai/molis-work-module-judgment-rules";
 import type { ActionProvider, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { admitSceneRules, ruleDeclarer } from "./functions-host.js";
+import { admitSceneRules, ruleDeclarer } from "./judgment-rules-host.js";
 import { HOME_PROVIDER_ID, homeDockScene } from "./home-actions.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 

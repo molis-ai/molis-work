@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "./connector-connection-store.js";
 
-/** The binding is stored once per Home under the plugin-slot id `functions`, which the judgment-rules service (modules/functions) reads; every caller uses that one binding. */
+/** The binding is stored once per Home under the plugin-slot id `functions`, which the judgment-rules service (modules/judgment-rules) reads; every caller uses that one binding. */
 const CONSUMER = "functions";
 
 export function selectedTypeSafeConnection(home: string) {

@@ -10,7 +10,7 @@ import { countRules, rulesInSharedSheet } from "../scripts/gates/plugin-styles.m
 import { pluginStylesBuildFixture } from "./fixtures/plugin-styles-build.ts";
 
 // PG-070 (RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts, per plugin, the rule
-// blocks that name it and are still there (the first slice's splitter; Goals' document styles, which page-assets imports
+// blocks that name it and are still there (the first slice's splitter; Goals' document styles, which its registered sheets put
 // straight into the shared sheets). A frame does not make the count zero and declaring a class shared does not hide a rule.
 // Each number only falls.
 //
@@ -217,6 +217,21 @@ test("RAC-769 PG070-PF-01 adding a prefix and lowering the count cannot omit the
   } finally { fixture.cleanup(); }
 });
 
+// A settings sheet goes whole into the settings and workbench sheets: every rule of it counts, so a plugin cannot move rules
+// there to leave the budget.
+test("RAC-2099 a registered settings sheet counts whole, and moving rules into it fails against the merge-base", () => {
+  const fixture = pluginStylesBuildFixture(work);
+  try {
+    fixture.writeBuild({ settingsStylesheet: ".probe-settings{display:grid}.shared-form label{color:red}" });
+    assert.deepEqual(JSON.parse(run(fixture.root, "--report", "--json").out).measured, { probe: 3 });
+    const caught = run(fixture.root, "--base", "main");
+    assert.equal(caught.code, 1, caught.out);
+    const laundered = run(fixture.root, "--update", "--base", "main");
+    assert.notEqual(laundered.code, 0, laundered.out);
+    assert.deepEqual(JSON.parse(fixture.budgetText()).plugins, { probe: 1 }, "--update does not write the growth");
+  } finally { fixture.cleanup(); }
+});
+
 test("RAC-769 PG070-PF-02 a legitimate new prefix can update and check with a positive remainder", () => {
   for (const args of [[], ["--base", "main"]]) {
     const fixture = pluginStylesBuildFixture(work);
@@ -338,7 +353,7 @@ test("RAC-769 this repository's own build freezes the shell-drawn rules and the 
   const reported = run(repoRoot, "--report", "--json");
   assert.equal(reported.code, 0, reported.out);
   const report = JSON.parse(reported.out) as { measured: Record<string, number>; budget: Record<string, number>; budgetPrefixes: Record<string, string[]> };
-  assert.deepEqual(Object.keys(report.measured).sort(), ["coding", "feed", "form", "goals", "plugin-builder"],
+  assert.deepEqual(Object.keys(report.measured).sort(), ["coding", "form", "goals", "plugin-builder"],
     "framed plugins keep only what their registration declares shared; the shell-drawn ones keep a frozen number");
   assert.deepEqual(report.budgetPrefixes?.["plugin-builder"], ["as-", "pb-"], "the studio prefixes are remembered so they cannot be dropped");
   for (const [id, rules] of Object.entries(report.measured)) assert.equal(report.budget[id], rules, `${id} is frozen at what this build measures`);

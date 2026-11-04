@@ -1,10 +1,10 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { outsidePluginAction } from "./action-scope.js";
-
+import { outsidePluginAction, requirePluginPermission } from "./action-scope.js";
 
 /** Every activation owns a fresh grant snapshot and revocation cell, including Home activations. */
-export function createActivationContext(record: PluginInstanceRecord, definition: PluginDefinition, providerId: string) {
+export function createActivationContext(record: PluginInstanceRecord, definition: PluginDefinition, providerId: string,
+  permissionBound?: (permission: string) => (() => void) | undefined) {
   let active = true;
   const grants = Object.freeze([...record.grants]);
   const context: PluginStartContext = Object.freeze({
@@ -20,9 +20,17 @@ export function createActivationContext(record: PluginInstanceRecord, definition
       if (!active || !grants.includes(permission)) {
         throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
       }
+      requirePluginPermission(context, permission, () => permissionBound?.(permission));
     },
   });
-  return { context, definition, revoke() { active = false; }, revoked() { return !active; } };
+  return { context, definition, capturePermission(permission: string) {
+    if (!active || !grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
+    const bound = permissionBound?.(permission);
+    return () => {
+      if (!active || !grants.includes(permission)) throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
+      bound?.();
+    };
+  }, revoke() { active = false; }, revoked() { return !active; } };
 }
 
 /**
@@ -33,6 +41,7 @@ export function createActivationContext(record: PluginInstanceRecord, definition
 export async function releaseUnrecorded(activation: { context: PluginStartContext; definition: PluginDefinition } | undefined, executor: PluginExecutor, revoke: () => void): Promise<never> {
   revoke();
   // A failing stop hook has nothing left to mark crashed: the missing record is the failure reported either way.
-  if (activation) await Promise.allSettled([outsidePluginAction(() => executor.stop(activation.definition, activation.context))]);
+  // The contract only says the hook returns a promise; an executor may throw before it does, and that must not escape the letting-go step.
+  if (activation) await Promise.allSettled([(async () => outsidePluginAction(() => executor.stop(activation.definition, activation.context)))()]);
   throw pluginErrors.definition_missing("Plugin installation 不存在");
 }

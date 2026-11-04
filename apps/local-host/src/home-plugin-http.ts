@@ -1,8 +1,10 @@
+import { withProjectReachInvocation } from "./plugin-project-reach-subject.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { declaredStageContributionId, inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { declaredStageContributionId, inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, renderStagePage, type RenderedStagePage, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -14,12 +16,14 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
-import type { HomeStageHalves } from "./project-plugin-stages.js";
+import { captureRuntimeStageOwner, type HomeStageHalves } from "./project-plugin-stages.js";
 import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
+import { installedStageSection } from "./installed-stage-section.js";
+import { FRAME_QUERY } from "./plugin-builder-surface.js";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
 export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly display_name?: string; reaches(pluginId: string): boolean } | null>;
@@ -31,7 +35,7 @@ export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly 
  */
 export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
   host: MolisWorkLocalHost, controlToken: string, csp: string, projectPlugins?: HomeRouteProjectPlugins): Promise<boolean> {
-  const prefixed = /^\/projects\/([^/]+)(\/(?:api\/plugins\/[^/]+\/.*|side\/[^/]+\/[^/]+))$/u.exec(incomingUrl.pathname);
+  const prefixed = /^\/projects\/([^/]+)(\/(?:api\/plugins\/[^/]+\/.*|side\/[^/]+\/[^/]+|plugins\/[^/]+))$/u.exec(incomingUrl.pathname);
   const url = prefixed ? new URL(prefixed[2]! + incomingUrl.search, incomingUrl) : incomingUrl;
   // A page's key is a shipped plugin's project key or another Home plugin's id (dotted); see HomePluginHost.registered.
   const sidePage = /^\/side\/([a-z0-9][a-z0-9.-]*)\/([a-z0-9-]+)$/u.exec(url.pathname);
@@ -39,8 +43,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
   // The Home's own registration names its pages and owns its routes, a plugin the build does not ship included (#679, S-31).
-  const registered = host.homePlugins.registered();
-  const entry = page ? registered.find(item => item.key === page[1]) : undefined;
+  const entry = page ? await registeredPage(host.homePlugins, page[1]!) : undefined;
   if (page && !entry) return false;
   const pluginId = entry?.manifest.plugin_id ?? route![1]!;
   if (!host.homePlugins.manifest(pluginId)) return false;
@@ -54,7 +57,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     sendLocalWebJson(response, missing.status, missing.body); return true;
   }
   if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
-  // A dual-instance plugin's routes are split between its halves (specs/dual-instance-plugins): the Home answers those its running half
+  // A dual-instance plugin's routes are split between its halves (specs/archive/dual-instance-plugins): the Home answers those its running half
   // binds and leaves every other declared route to the project's instance, next in the request chain. Only the Host's start list marks a plugin so.
   const split = Boolean(route) && !PLUGIN_MANAGEMENT_OPERATIONS.has(operation) && host.homePlugins.dualInstance(pluginId);
   let platform;
@@ -97,6 +100,19 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   }
   if (page && entry) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
+    // A signed package installed in the Home draws its stage with a page of its own, framed by the workbench or by the Home's page around it.
+    if (host.homePlugins.hasPackage(pluginId)) {
+      const surface = host.homePlugins.packageSurface(pluginId);
+      try {
+        const body = surface && url.searchParams.get("frame") === "workbench" ? host.homePlugins.packageDocument(pluginId, controlToken, project?.project_id ?? null)!
+          : renderHomePluginPage(pageEntry(entry), null, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
+            // A package that did not come back is not switched off, so "enable" would not mend it: its page says why and offers no switch.
+            { L, htmlLang, clientI18nScript }, false, false, project, surface ? `${project ? `/projects/${encodeURIComponent(project.project_id)}` : ""}/plugins/${encodeURIComponent(pluginId)}?${FRAME_QUERY}` : undefined, Boolean(surface));
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
+        response.end(body);
+      } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
+      return true;
+    }
     const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;
     const slot = sideView ? "workbench.side" : "workbench.main";
     const view = contribution?.kind === "app" ? contribution.views?.find(view => (!sideView || view.descriptor.contribution_id === sideView.contribution_id)
@@ -104,7 +120,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
     const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: { ...homeViewModel(pluginId), project_id: project?.project_id ?? null, route_prefix: project ? `/projects/${encodeURIComponent(project.project_id)}` : "", view_id: side } }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
-    response.end(renderHomePluginPage(pageEntry(entry), html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView), project));
+    response.end(renderHomePluginPage(pageEntry(entry), html, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView), project));
     return true;
   }
   if (["enable", "disable", "uninstall"].includes(operation)) {
@@ -135,7 +151,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const stop = () => abort.abort(new ActionError("actions.cancelled", "调用已取消"));
   const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
-  const plain = { ...pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, () => { if (host.lifecycle() !== "running" || platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件或宿主已停止"); }, pageAuthority?.assertCurrent), page_context: homePageContext(request, url, registered), project_title: project?.display_name };
+  const plain = { ...pluginRouteControl(pageAuthority ? AbortSignal.any([abort.signal, pageAuthority.signal]) : abort.signal, () => { if (host.lifecycle() !== "running" || platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件或宿主已停止"); }, pageAuthority?.assertCurrent), page_context: homePageContext(request, url, host.homePlugins.registered()), project_title: project?.display_name };
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
@@ -146,8 +162,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
       if (found instanceof ActionError) throw found;
     }, caller, { id: randomUUID() });
-    const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
-      execution: routed?.control ?? plain,
+    const execution = routed?.control ?? plain;
+    const dispatch = () => dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
+      execution,
       stop,
       readBody: async (request, maxBytes) => {
         // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
@@ -156,9 +173,25 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
           error instanceof Error ? error.message : "请求读取失败"); }
       },
     });
+    const handled = install && host.homePlugins.hasPackage(pluginId)
+      ? await withProjectReachInvocation(execution, project?.project_id ?? null, install, dispatch) : await dispatch();
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
   } finally { stop(); routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
+}
+
+/**
+ * The registered page for `key`. An installed package's page is registered once the Home has started, so the first request after a start
+ * may be that page: a key nothing registers yet waits for the Home and looks again (BL-713). A Home that did not start registers no
+ * package, so a key nothing registers is not this module's to answer: the page recovery that renders the unavailable Home does (S-34).
+ */
+async function registeredPage(homePlugins: HomePluginHost, key: string): Promise<ReturnType<HomePluginHost["registered"]>[number] | undefined> {
+  const find = () => homePlugins.registered().find(item => item.key === key);
+  const known = find();
+  if (known) return known;
+  try { await homePlugins.ready(); }
+  catch { return undefined; }
+  return find();
 }
 
 /**
@@ -251,46 +284,62 @@ function homeViewModel(pluginId: string) {
  * drawn here, the unavailable shell included, is reported by the contribution that would draw it, so the shell's declared
  * stages do not draw it again.
  */
-export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ html: string[]; ids: string[]; unavailable: UnavailablePluginStage[] }> {
-  if (!host) return { html: [], ids: [], unavailable: [] };
+export async function renderHomePluginStages(host?: HomePluginHost, options?: { project_id?: string; page_owner?: string; model(projectPluginId: string): unknown;
+  shown?: readonly string[]; views?: Readonly<Record<string, UiContribution & { readonly producer?: string } | null>> }) {
+  const html: string[] = [], overlays: string[] = [], panels: Record<string, string> = {};
+  const surfaces: Array<Pick<UiRenderRequest, "contribution_id" | "surface">> = [], unavailable: UnavailablePluginStage[] = [];
+  let page: RenderedStagePage | undefined;
+  if (!host) return { html, panels, overlays, surfaces, unavailable };
   let platform: HomePluginPlatform | undefined, failure: string | undefined;
   try { platform = await host.ready(); }
   catch (error) { failure = error instanceof Error ? error.message : String(error); }
-  // Each plugin the Home registers, with a shipped plugin's workbench surfaces (they decide whether it opens in the side panel only).
   const registered = host.registered().flatMap(entry => {
+    if (options?.shown && !options.shown.includes(entry.key)) return [];
     const registration = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id);
     if (registration && !declaredStageContributionId(registration)) return [];
     return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
   });
-  const ids: string[] = [], sideOnly = sideOpenedPlugins(registered);
-  const unavailable: UnavailablePluginStage[] = [];
-  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
-    const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest);
-    // A dual-instance plugin's stage is the half's that offers its view (`dualStageOwner`), shipped or not: here only when that is
-    // the Home half. Otherwise the project page draws it, and the Home's placeholder too when the Home half is the one to answer.
-    if (host.dualInstance(pluginId)) {
-      const view = stage ? homeStageView(host, platform, pluginId, stage) : undefined;
-      if (!view) return [];
-      ids.push(stage!);
-      return [view.render({ contribution_id: stage!, surface: "workbench", model: homeViewModel(pluginId) })];
+  const sideOnly = sideOpenedPlugins(registered);
+  const draw = (entry: (typeof registered)[number], view: UiContribution & { readonly producer?: string }) => {
+    const result = renderStagePage(view, options?.model(entry.project_plugin_id) ?? homeViewModel(entry.manifest.plugin_id), entry.project_plugin_id,
+      options?.page_owner === entry.manifest.plugin_id, request => view.render(request), { manifest: platform?.supervisor.manifest(entry.manifest.plugin_id) ?? entry.manifest, client: entry.workbench,
+        producer: view.producer ?? captureRuntimeStageOwner(platform, "home", entry)?.producer });
+    if (result.page) page = result.page;
+    if (result.html) html.push(result.html);
+    if (result.panels) panels[entry.project_plugin_id] = result.panels;
+    if (result.overlays) overlays.push(result.overlays);
+    surfaces.push(...result.surfaces);
+  };
+  for (const entry of registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)
+    || options?.views && Object.hasOwn(options.views, `home:${entry.project_plugin_id}`))) {
+    const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest), key = `home:${entry.project_plugin_id}`;
+    if (options?.views && !Object.hasOwn(options.views, key)) continue;
+    if (host.hasPackage(pluginId)) {
+      const surface = host.packageSurface(pluginId);
+      if (surface) html.push(installedStageSection({ pluginId, surface, label: entry.manifest.name, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+      else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
+      continue;
     }
-    if (stage) ids.push(stage);
-    const install = host.installation(pluginId);
-    const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
-    const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-    if (view) return [view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel(pluginId) })];
-    unavailable.push(homeUnavailableStage(host, platform, failure, entry));
-    return [];
-  });
-  return { html, ids, unavailable };
+    const view = options?.views ? options.views[key] : stage ? homeStageView(host, platform, pluginId, stage) : undefined;
+    if (!options?.views && host.dualInstance(pluginId) && !view) continue;
+    if (view) {
+      try { draw(entry, view); }
+      catch (error) { unavailable.push(homeUnavailableStage(host, platform, error instanceof Error ? error.message : String(error), entry)); }
+    } else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
+  }
+  return { html, panels, overlays, surfaces, unavailable, ...(page ? { page } : {}) };
 }
 
-/** The Home's placeholder for a plugin's stage: the start failure, else the supervisor's message, else what the instance's state says. */
+/**
+ * The Home's placeholder for a plugin's stage: the start failure, else why an installed package did not come back, else the
+ * supervisor's message, else what the instance's state says.
+ */
 function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform | undefined, failure: string | undefined,
   entry: { project_plugin_id: string; manifest: PluginManifest }): UnavailablePluginStage {
   const install = host.installation(entry.manifest.plugin_id);
   return { surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
-    reason: L(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) };
+    reason: L(failure ?? host.packageError(entry.manifest.plugin_id) ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message
+      ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) };
 }
 
 /** The running Home instance's view of this stage: the contribution the Manifest names, with its `workbench` surface. */
@@ -313,7 +362,8 @@ export async function homeStageHalves(host?: HomePluginHost): Promise<HomeStageH
   const outsideCatalog = host.registered().filter(entry => host.dualInstance(entry.manifest.plugin_id)
     && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id))
     .map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
-  return { outsideCatalog,
+  return { outsideCatalog, entries: host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest })),
+    owner: entry => captureRuntimeStageOwner(platform, "home", entry),
     dualInstance: pluginId => host.dualInstance(pluginId),
     half: (pluginId, contributionId) => ({ running: host.installation(pluginId)?.state === "running", view: homeStageView(host, platform, pluginId, contributionId) !== undefined }),
     unavailable: entry => homeUnavailableStage(host, platform, failure, entry) };

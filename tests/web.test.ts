@@ -252,7 +252,7 @@ function assertInlineScriptsCompile(html: string): void {
   }
 }
 
-function workSurfaceHtml(html: string, surface: "goal" | "feed"): string {
+function workSurfaceHtml(html: string, surface: "goals" | "feed"): string {
   const marker = `data-work-surface="${surface}"`;
   const start = html.indexOf(marker);
   assert.notEqual(start, -1, `missing ${surface} work surface`);
@@ -455,6 +455,17 @@ async function webProjectCatalogFixture() {
   }
 }
 
+function writeWebTestInstallation(homeDirectory: string, version: string): void {
+  const release = join(homeDirectory, "releases", "molis-work-" + version);
+  mkdirSync(release, { recursive: true }); mkdirSync(join(homeDirectory, "config"), { recursive: true });
+  writeFileSync(join(release, "release.json"), JSON.stringify({ schema_version: 1,
+    installer: "molis-work-home-install-v1", version, dependencies: "embedded", content_digest: "a".repeat(64),
+    created_at: "2026-01-01T00:00:00.000Z" }));
+  writeFileSync(join(homeDirectory, "config", "installation.json"), JSON.stringify({ schema_version: 1,
+    installer: "molis-work-home-install-v1", version, release_path: "releases/molis-work-" + version,
+    content_digest: "a".repeat(64), updated_at: "2026-01-01T00:00:00.000Z" }));
+}
+
 function webRuntimeIntegrationFixture(homeDirectory: string) {
   const userHomeDirectory = join(homeDirectory, "test-user-home");
   const release = join(homeDirectory, "releases", "molis-work-web-test");
@@ -466,12 +477,7 @@ function webRuntimeIntegrationFixture(homeDirectory: string) {
   mkdirSync(join(homeDirectory, "bin"), { recursive: true });
   mkdirSync(runtimeBin, { recursive: true });
   mkdirSync(userHomeDirectory, { recursive: true });
-  writeFileSync(join(homeDirectory, "config", "installation.json"), `${JSON.stringify({
-    schema_version: 2,
-    installer: "molis-work-home-install-v1",
-    version: "web-test",
-    release_path: "releases/molis-work-web-test",
-  }, null, 2)}\n`);
+  writeWebTestInstallation(homeDirectory, "web-test");
   writeFileSync(join(skill, "SKILL.md"), "---\nname: goal-advance\n---\n");
   writeFileSync(launcher, "#!/bin/sh\nexit 0\n");
   const codex = join(runtimeBin, "codex");
@@ -792,11 +798,7 @@ test("Web update onboarding is shown once per installed version", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-onboarding-update-"));
   await new MolisWorkLocalHost({ homeDirectory, completeText: null }).close();
   mkdirSync(join(homeDirectory, "config"), { recursive: true });
-  writeFileSync(join(homeDirectory, "config", "installation.json"), JSON.stringify({
-    installer: "molis-work-home-install-v1",
-    version: "1.0.0",
-    release_path: "releases/1.0.0",
-  }));
+  writeWebTestInstallation(homeDirectory, "1.0.0");
   const server = createMolisWorkWebServer({ homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
@@ -825,11 +827,7 @@ test("Web update onboarding is shown once per installed version", async () => {
     assert.equal(acknowledged.status, 200);
     assert.equal((await webFetch(`${origin}/`, { redirect: "manual" })).status, 200);
 
-    writeFileSync(join(homeDirectory, "config", "installation.json"), JSON.stringify({
-      installer: "molis-work-home-install-v1",
-      version: "1.1.0",
-      release_path: "releases/1.1.0",
-    }));
+    writeWebTestInstallation(homeDirectory, "1.1.0");
     const nextUpdate = await webFetch(`${origin}/`, { redirect: "manual" });
     assert.equal(nextUpdate.status, 302);
     assert.equal(nextUpdate.headers.get("location"), "/onboarding?mode=update");

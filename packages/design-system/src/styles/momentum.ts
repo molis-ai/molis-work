@@ -35,7 +35,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .tree-resizer::after, .tui-resizer::after { background: var(--line); }
   .document-pane { background: var(--paper); }
   /* Like .mw-loading (primitives.ts): a switch that answers within 250ms keeps the old view and shows no mark. */
-  .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goal"] > [data-goal-view] {
+  .document-pane[aria-busy="true"] > [data-goal-view], .document-pane[aria-busy="true"] > [data-work-surface="goals"] > [data-goal-view] {
     --busy-dim: 0; pointer-events: none; animation: mw-busy-dim var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
   .goal-document-loading {
@@ -268,8 +268,8 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .trash-restore-row,
   html[data-resolved-theme="dark"] .relation-copy .relation-path,
   html[data-resolved-theme="dark"] .relation-authority small { color: var(--ink-soft); }
-  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]):not([data-inline-title]),
-  html[data-resolved-theme="dark"] textarea,
+  html[data-resolved-theme="dark"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not(.mw-slider, .mw-input):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]):not([data-inline-title]),
+  html[data-resolved-theme="dark"] textarea:not(.mw-textarea),
   html[data-resolved-theme="dark"] select,
   html[data-resolved-theme="dark"] .tree-filter,
   html[data-resolved-theme="dark"] .tree-search input,
@@ -627,7 +627,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     html[data-density="compact"] body[data-board-view] .tree-scroll {
       padding: 4px 8px 8px;
     }
-    /* doubled class: keeps specificity 0,4,2 so the compact indent beats goal-canvas.ts's flat stage list (BL-121) */ html[data-density="compact"] body[data-board-view] .tree-children.tree-children {
+    /* compact keeps the subgoal indent: explicit 0,4,2 beats goal-canvas.ts's 0,4,1, no doubled class (BL-121 ③, T-337) */ html[data-density="compact"] body[data-board-view] .tree-children:not(:empty) {
       margin-left: 8px;
       padding-left: 4px;
     }

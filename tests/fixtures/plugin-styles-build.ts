@@ -19,10 +19,10 @@ export function pluginStylesBuildFixture(parent: string) {
   const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "-m", message); };
   const writeBudget = (plugins: Record<string, number>, prefixes: Record<string, string[]> = {}) =>
     put(BUDGET, `${JSON.stringify({ note: "fixture", plugins, prefixes }, null, 2)}\n`);
-  const writeBuild = ({ prefixes = [], stylesheet = PREFIX_SHEET, sharedClasses = ["probe-shared"] }:
-    { prefixes?: string[]; stylesheet?: string; sharedClasses?: string[] } = {}) => {
+  const writeBuild = ({ prefixes = [], stylesheet = PREFIX_SHEET, sharedClasses = ["probe-shared"], settingsStylesheet }:
+    { prefixes?: string[]; stylesheet?: string; sharedClasses?: string[]; settingsStylesheet?: string } = {}) => {
     const pack = { project_plugin_id: "probe", clientFactory: "() => {}", stylesheet,
-      stylesheetShared: sharedClasses, stylesheetPrefixes: prefixes };
+      stylesheetShared: sharedClasses, stylesheetPrefixes: prefixes, ...(settingsStylesheet ? { settingsStylesheet } : {}) };
     put("apps/workbench/dist/plugin-workbench.js", `import { pluginOnDemandStylesheet as onDemand } from ${JSON.stringify(workbenchEntry)};\n`
       + `export const BUILTIN_PLUGIN_WORKBENCH = ${JSON.stringify([pack])};\n`
       + "export const pluginOnDemandStylesheet = id => onDemand(id, BUILTIN_PLUGIN_WORKBENCH);\n");

@@ -53,7 +53,7 @@ export const MW_HUES: readonly MwHueSwatch[] = [
 ] as const;
 
 export const MW_SURFACES = [
-  { token: "--page", label: "Desk", role: "珍珠灰桌面" },
+  { token: "--page", label: "Desk", role: "雾蓝桌面" },
   { token: "--paper", label: "Surface", role: "连续白色工作面" },
   { token: "--surface-soft", label: "Soft", role: "目录列 · 内层块" },
   { token: "--rail", label: "Wash", role: "局部分组" },
@@ -69,10 +69,10 @@ export const MW_TYPE_TONES = [
 ] as const;
 
 export const MW_ACTION_TONES = [
-  { token: "--action", label: "Graphite", role: "主操作 · 选中" },
-  { token: "--action-ink", label: "On graphite", role: "主操作上的字" },
-  { token: "--accent", label: "Copper", role: "焦点 · 链接 · 进行中" },
-  { token: "--accent-soft", label: "Copper wash", role: "引用 · 高亮" },
+  { token: "--action", label: "Ink blue", role: "主操作 · 选中" },
+  { token: "--action-ink", label: "On action", role: "主操作上的字" },
+  { token: "--accent", label: "Mist blue", role: "焦点 · 链接 · 进行中" },
+  { token: "--accent-soft", label: "Mist wash", role: "引用 · 高亮" },
 ] as const;
 
 export const MW_STATUS_TONES = [
@@ -101,7 +101,7 @@ export const MW_CONTENT_SURFACES = [
   { token: "--content-ink", label: "Ink", role: "正文" },
   { token: "--content-muted", label: "Muted", role: "说明" },
   { token: "--content-line", label: "Line", role: "发丝" },
-  { token: "--content-accent", label: "Action", role: "主操作（石墨）" },
+  { token: "--content-accent", label: "Action", role: "主操作（墨蓝）" },
   { token: "--content-select", label: "Select", role: "选中" },
 ] as const;
 
@@ -160,34 +160,35 @@ export function renderPaletteTokens(theme: "light" | "dark"): string {
 
 /**
  * Soft Workbench shell: one source for every layer's base tokens — surfaces, type tones,
- * status, the copper accent, depth, corners, motion and focus. Foundation, the Coss
+ * status, the mist-blue accent, depth, corners, motion and focus. Foundation, the Coss
  * overlay, the interaction texture and the workbench base all call this instead of
  * restating values, so no later layer quietly wins with a different number.
  *
- * Surfaces: a pearl desk (`--page`/`--desk`), the continuous white work surface (`--paper`, and `--canvas`
+ * Surfaces: a mist desk tinted toward the accent's blue (`--page`/`--desk`), never a large grey, the continuous near-white work
+ * surface (`--paper`, and `--canvas`
  * for full-pane canvases inside it),
  * a warmer inner block and plugin directory columns (`--surface-soft`), chrome bars on the desk
  * (`--nav-bg`) and a wash for local groups (`--rail`).
- * Graphite is the primary action; copper marks focus, links, selection details and
- * work in progress. `--blue*` keep their historical names and now resolve to copper.
+ * The primary action is the accent's deep shade (ink blue); the accent marks focus, links, selection details and work in
+ * progress. Every text tone keeps 4.5:1 on the desk and its wash. `--blue*` are the accent under their historical names.
  */
 export function renderShellTokens(theme: "light" | "dark"): string {
   if (theme === "dark") {
     return [
-      "--page: #1c1d20; --desk: #1c1d20; --nav-bg: #1c1d20; --canvas: #242528;",
-      "--paper: #242528; --panel: #242528; --surface: #242528;",
-      "--surface-soft: #292a2d; --rail: #2e2f32; --wash: #2e2f32;",
-      "--ink: #f0efed; --text: #f0efed; --ink-soft: #c0beba;",
-      "--muted: #a2a19e; --faint: #979693;",
-      "--line: #36373b; --line-strong: #4c4d50;",
+      "--page: #141a20; --desk: #141a20; --nav-bg: #141a20; --canvas: #1b2229;",
+      "--paper: #1b2229; --panel: #1b2229; --surface: #1b2229;",
+      "--surface-soft: #1f272f; --rail: #26303a; --wash: #26303a;",
+      "--ink: #e8eef3; --text: #e8eef3; --ink-soft: #bac6d1;",
+      "--muted: #9aa8b5; --faint: #8e9ba8;",
+      "--line: #2c3640; --line-strong: #3f4b57;",
       "--nav-hover: color-mix(in srgb, var(--ink) 7%, transparent);",
       "--nav-active: color-mix(in srgb, var(--ink) 11%, transparent);",
       "--nav-press: color-mix(in srgb, var(--ink) 15%, transparent);",
-      "--nav-raised: #2c2d31;",
-      "--accent: #d6a18a; --accent-strong: #e8c0ad; --accent-soft: #382f2b; --status-interruption: #c7ae9b;",
+      "--nav-raised: #232c35;",
+      "--accent: #8fb8dc; --accent-strong: #b5d1ea; --accent-soft: #1e2d3b; --status-interruption: #8ea6bb;",
       "--blue: var(--accent); --blue-dark: var(--accent-strong); --blue-soft: var(--accent-soft); --focus: var(--accent);",
-      "--action: #ecebe8; --action-ink: #252628; --action-hover: #ffffff;",
-      "--green: #8db99d; --green-soft: #1f2b24; --amber: #d9b67b; --amber-soft: #33291b; --red: #ee858c; --red-soft: #3a2024;",
+      "--action: #dbe6ef; --action-ink: #17212b; --action-hover: #f0f5f9;",
+      "--green: #86c0a0; --green-soft: #1a2c24; --amber: #d8b46e; --amber-soft: #30291a; --red: #ec8a90; --red-soft: #36222a;",
       "--shadow-color: #000000; --edge-highlight: rgba(255, 255, 255, .05);",
       "--surface-shadow: 0 0 0 1px rgba(255, 255, 255, .035), 0 1px 2px rgba(0, 0, 0, .3);",
       "--shadow-soft: 0 1px 2px rgba(0, 0, 0, .32), 0 4px 12px -4px rgba(0, 0, 0, .4);",
@@ -197,33 +198,33 @@ export function renderShellTokens(theme: "light" | "dark"): string {
       "--lift-1: var(--shadow-soft); --lift-2: var(--shadow-raised); --lift-3: var(--shadow);",
       "--scrim: rgba(0, 0, 0, .5);",
       /* Dark reads as three layers at a glance: the desk, the work surface a step up, floating things a step above it. */
-      "--popover: #2c2d31; --brand-tile-light: #ffffff; --brand-tile-dark: #151618; --on-accent: #ffffff;",
+      "--popover: #232c35; --brand-tile-light: #ffffff; --brand-tile-dark: #11161b; --on-accent: #ffffff;",
     ].join(" ");
   }
   return [
-    "--page: #eeefef; --desk: #eeefef; --nav-bg: #eeefef; --canvas: #ffffff;",
-    "--paper: #ffffff; --panel: #ffffff; --surface: #ffffff;",
-    "--surface-soft: #fafaf9; --rail: #f5f5f3; --wash: #f5f5f3;",
-    "--ink: #292a2c; --text: #292a2c; --ink-soft: #5c5d60;",
-    "--muted: #636569; --faint: #6a6c70;",
-    "--line: #e9e9e7; --line-strong: #d5d6d4;",
+    "--page: #eef3f7; --desk: #eef3f7; --nav-bg: #eef3f7; --canvas: #fcfdfe;",
+    "--paper: #fcfdfe; --panel: #fcfdfe; --surface: #fcfdfe;",
+    "--surface-soft: #f5f8fb; --rail: #e9f0f6; --wash: #e9f0f6;",
+    "--ink: #1f2b37; --text: #1f2b37; --ink-soft: #45525f;",
+    "--muted: #586574; --faint: #616d7a;",
+    "--line: #e0e8ef; --line-strong: #c9d5e0;",
     "--nav-hover: color-mix(in srgb, var(--ink) 5%, transparent);",
     "--nav-active: color-mix(in srgb, var(--ink) 8%, transparent);",
     "--nav-press: color-mix(in srgb, var(--ink) 11%, transparent);",
-    "--nav-raised: #ffffff;",
-    "--accent: #93604b; --accent-strong: #7a4d3a; --accent-soft: #f6eee8; --status-interruption: #a18675;",
+    "--nav-raised: #fcfdfe;",
+    "--accent: #3c6e98; --accent-strong: #2e5778; --accent-soft: #e4eef7; --status-interruption: #6f8aa3;",
     "--blue: var(--accent); --blue-dark: var(--accent-strong); --blue-soft: var(--accent-soft); --focus: var(--accent);",
-    "--action: #292a2c; --action-ink: #ffffff; --action-hover: #3d3e41;",
-    "--green: #42775d; --green-soft: #e9f2ec; --amber: #8a5c18; --amber-soft: #f7f0e3; --red: #b03d45; --red-soft: #fbecec;",
-    "--shadow-color: #1c2233; --edge-highlight: transparent;",
-    "--surface-shadow: 0 1px 2px rgba(28, 34, 51, .03), 0 8px 24px -14px rgba(28, 34, 51, .1);",
-    "--shadow-soft: 0 1px 2px rgba(28, 34, 51, .05), 0 4px 12px -4px rgba(28, 34, 51, .08);",
-    "--shadow-raised: 0 3px 8px rgba(28, 34, 51, .035), 0 14px 42px -12px rgba(28, 34, 51, .14);",
-    "--shadow: 0 3px 9px rgba(28, 34, 51, .045), 0 20px 70px -15px rgba(28, 34, 51, .2);",
+    "--action: #2d4f6c; --action-ink: #ffffff; --action-hover: #3a6283;",
+    "--green: #367556; --green-soft: #e4f1ea; --amber: #8c5f0c; --amber-soft: #f6efdf; --red: #b2454c; --red-soft: #f9eaeb;",
+    "--shadow-color: #1c2a3a; --edge-highlight: transparent;",
+    "--surface-shadow: 0 1px 2px rgba(28, 42, 58, .03), 0 8px 24px -14px rgba(28, 42, 58, .1);",
+    "--shadow-soft: 0 1px 2px rgba(28, 42, 58, .05), 0 4px 12px -4px rgba(28, 42, 58, .08);",
+    "--shadow-raised: 0 3px 8px rgba(28, 42, 58, .035), 0 14px 42px -12px rgba(28, 42, 58, .14);",
+    "--shadow: 0 3px 9px rgba(28, 42, 58, .045), 0 20px 70px -15px rgba(28, 42, 58, .2);",
     "--control-shadow: var(--shadow);",
     "--lift-1: var(--shadow-soft); --lift-2: var(--shadow-raised); --lift-3: var(--shadow);",
-    "--scrim: rgba(21, 23, 29, .16);",
-    "--popover: #ffffff; --brand-tile-light: #ffffff; --brand-tile-dark: #151618; --on-accent: #ffffff;",
+    "--scrim: rgba(24, 38, 54, .16);",
+    "--popover: #fcfdfe; --brand-tile-light: #ffffff; --brand-tile-dark: #11161b; --on-accent: #ffffff;",
   ].join(" ");
 }
 
@@ -238,7 +239,7 @@ export function renderControlMetrics(): string {
 /** Theme-independent shape, motion and focus. Safe to restate in late layers: it carries no metrics. */
 export function renderShapeTokens(): string {
   return [
-    "--radius-item: 8px; --radius-control: 8px; --radius-surface: 14px;",
+    "--radius-item: 8px; --radius-control: 10px; --radius-surface: 14px;",
     "--control-border: color-mix(in srgb, var(--ink) 9%, transparent);",
     "--control-input: color-mix(in srgb, var(--ink) 12%, transparent);",
     "--control-fill: color-mix(in srgb, var(--ink) 4%, transparent);",
@@ -261,7 +262,7 @@ export function renderShapeTokens(): string {
  */
 export function renderPluginTintBindings(): string {
   const surfaces = [
-    ".plugin-rail [data-plugin-id]", ".assistant-island [data-plugin-id]", "[data-plugin-section]", "[data-directory-panel]",
+    ".plugin-rail [data-plugin-id]", "[data-plugin-section]", "[data-directory-panel]",
     "[data-market-plugin]", "[data-market-focus]", "[data-work-surface]", "[data-goal-canvas-shell]", ".tab-item[data-plugin]",
     "[data-settings-section=\"project-settings\"]",
   ];

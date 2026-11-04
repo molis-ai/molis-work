@@ -1,12 +1,13 @@
 import type { FrameConfig, FrameDown, FrameScope, FrameUp } from "./types.js";
 
-/** The trusted shell chooses which declared tool chords can cross this boundary. */
+/** The trusted shell chooses which search and declared tool chords can cross this boundary. */
 export function pageNavigation(scope: FrameScope, port: MessagePort, side: boolean) {
   let owner = document;
   if (parent !== window) {
     try { owner = parent.document; } catch { /* A foreign parent supplies no shell shortcuts. */ }
   }
   const shortcuts = [...owner.querySelectorAll<HTMLElement>("[data-side-keys]")].map(node => node.dataset.sideKeys!).filter(Boolean);
+  if (owner.querySelector("[data-global-search-dialog]")) shortcuts.push("Mod+K", "Mod+F");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
   const focus = () => { if (side && scope.visible && document.hasFocus()) port.postMessage({ type: "focus" } satisfies FrameDown); };
   scope.listen(window, "focus", focus);
@@ -25,14 +26,27 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   } };
 }
 
-export function childNavigation(port: MessagePort, scope: FrameScope, config: FrameConfig): void {
+export function childNavigation(port: MessagePort, scope: FrameScope, config: FrameConfig, itemTab: () => FrameConfig["itemTab"]): void {
   const openBehind = (raw: Event) => {
     const event = raw as MouseEvent;
-    if (event.type === "click" ? !event.metaKey && !event.ctrlKey : event.button !== 1) return;
+    const behind = event.type === "click" ? event.metaKey || event.ctrlKey : event.button === 1;
+    const ordinary = event.type === "click" && event.isTrusted && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+    if (!behind && !ordinary) return;
     const target = event.target instanceof Element ? event.target : null, rowSpec = config.recordRow ?? config.searchRow;
     if (!target || !rowSpec || target.closest("a[href]")) return;
     const row = target.closest<HTMLElement>(rowSpec.selector), id = row?.dataset[rowSpec.idDataset];
-    if (!row || !id || event.type === "click" && row.closest('[aria-multiselectable="true"]')) return;
+    if (!row || !id) return;
+    if (ordinary) {
+      const current = itemTab();
+      if (!current || current.itemId === id) return;
+      const control = target.closest('button,a[href],input,select,textarea,summary,[contenteditable="true"],[role="button"]');
+      if (control && control !== row && row.contains(control)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      port.postMessage({ type: "ui", name: "openItem", itemTabId: current.tabId,
+        args: [config.surface, id, row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || id] } satisfies FrameUp);
+      return;
+    }
+    if (event.type === "click" && row.closest('[aria-multiselectable="true"]')) return;
     event.preventDefault(); event.stopImmediatePropagation();
     port.postMessage({ type: "open-behind", itemId: id, title: row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || id } satisfies FrameUp);
   };
@@ -45,6 +59,7 @@ export function childNavigation(port: MessagePort, scope: FrameScope, config: Fr
     if (key.repeat || key.isComposing || key.defaultPrevented) return;
     const chord = (key.metaKey || key.ctrlKey ? "Mod+" : "") + (key.shiftKey ? "Shift+" : "")
       + (key.altKey ? "Alt+" : "") + key.code.replace(/^Key/, "");
+    if ((chord === "Mod+K" || chord === "Mod+F") && key.target instanceof Element && key.target.closest("[data-tui-pane],.xterm")) return;
     if (config.shortcuts.includes(chord)) { key.preventDefault(); port.postMessage({ type: "shortcut", keys: chord } satisfies FrameUp); }
     else if (config.side && key.key === "Escape" && !document.querySelector("dialog[open],:popover-open")) {
       key.preventDefault(); port.postMessage({ type: "close-side" } satisfies FrameUp);

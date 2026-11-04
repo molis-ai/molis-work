@@ -1,4 +1,3 @@
-import { GOALS_DECISION_COMMON_STYLES, GOALS_PROPOSAL_STYLES, GOALS_EVENT_DOCUMENT_STYLES } from "@molis-ai/molis-work-plugin-goals";
 export const MORE_STYLES = `
   .runtime-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 5px; overflow: hidden; }
   .runtime-grid > section { min-width: 0; min-height: 174px; padding: 12px 16px; border-right: 1px solid var(--line-strong); }
@@ -285,9 +284,6 @@ export const MORE_STYLES = `
   .history-list span { min-width: 0; display: grid; }
   .history-list strong, .history-list small { overflow-wrap: anywhere; }
   .history-list small { color: var(--muted); }
-${GOALS_DECISION_COMMON_STYLES}
-${GOALS_PROPOSAL_STYLES}
-${GOALS_EVENT_DOCUMENT_STYLES}
   .decision-reason { padding: 12px 16px; border-top: 1px solid var(--line); background: var(--page); display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: start; gap: 12px; }
   .decision-reason > span { padding-top: 8px; font-weight: 400; }
   .decision-reason textarea { width: 100%; min-width: 0; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--paper); resize: vertical; }

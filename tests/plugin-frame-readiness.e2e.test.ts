@@ -445,3 +445,141 @@ test("RAC-1490: a failed main path load releases its own guard, and retry starts
   ], "the retry writes the same single cycle again; the frame adds nothing");
   t.diagnostic(`RAC-1490: failed load ${clientRequests} bundle requests, ${first.length}+${second.length} observable guard writes`);
 });
+
+const failedGuardCycle = (previous: string | null) => [
+  { attribute: "inert", oldValue: null },
+  { attribute: "aria-busy", oldValue: null },
+  { attribute: "data-ui-client-state", oldValue: previous },
+  { attribute: "inert", oldValue: "" },
+  { attribute: "aria-busy", oldValue: "true" },
+  { attribute: "data-ui-client-state", oldValue: "loading" },
+];
+
+/** Only the new retry journeys use this fixture; the original seven cases keep their setup and assertions. */
+async function failedMainSurface(t: import("node:test").TestContext, holdSecond = false) {
+  const browser = await openGoalBrowser(t, true); if (!browser) return null;
+  await pluginFrameBrowser(t, browser, "lingguang");
+  const handlers = browser.server.listeners("request");
+  let requests = 0, release: (() => void) | undefined;
+  let arrived!: () => void;
+  const held = new Promise<void>(resolve => { arrived = resolve; });
+  browser.server.removeAllListeners("request");
+  browser.server.on("request", (request, response) => {
+    if (request.url === "/assets/molis-work-plugins/lingguang.js") {
+      requests++;
+      const fail = () => { if (!response.destroyed && !response.writableEnded) { response.writeHead(503, { "content-type": "text/javascript; charset=utf-8" }); response.end(""); } };
+      if (holdSecond && requests === 2) { release = fail; arrived(); } else fail();
+      return;
+    }
+    for (const handler of handlers) handler.call(browser.server, request, response);
+  });
+  const releaseHeld = () => { release?.(); release = undefined; };
+  t.after(() => { releaseHeld(); browser.server.removeAllListeners("request"); });
+  await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
+  await browser.waitFor("document.body.dataset.desktopSurface === 'home'");
+  await watchGuardWrites(browser);
+  await browser.click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+  await browser.waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.uiClientState === 'failed' && !!document.querySelector('[data-ui-client-retry]')", 30_000);
+  assert.equal(requests, 1);
+  assert.deepEqual(await guardWrites(browser), failedGuardCycle(null));
+  await browser.evaluate(`(() => {
+    const root = document.querySelector('[data-work-surface=lingguang]'), button = root.querySelector('[data-ui-client-retry]');
+    globalThis.__retryOwner = { root, button, notice: button.parentElement, pane: root.closest('[data-tab-pane]') };
+    globalThis.__mwGuardRecords = [];
+  })()`);
+  return { browser, requests: () => requests, releaseHeld, held };
+}
+
+async function retrySurface(browser: GoalBrowser) {
+  return browser.evaluate<{ sameRoot: boolean; samePane: boolean; rootCount: number; state: string; inert: boolean; busy: boolean; deferred: boolean; oldNoticeConnected: boolean; buttons: Array<{ original: boolean; owned: boolean; hit: boolean }> }>(`(() => {
+    const saved = globalThis.__retryOwner, roots = [...document.querySelectorAll('[data-work-surface=lingguang]')], root = roots[0];
+    return { sameRoot: root === saved.root, samePane: root.closest('[data-tab-pane]') === saved.pane && saved.pane.classList.contains('is-focused'), rootCount: roots.length,
+      state: root.dataset.uiClientState, inert: root.inert, busy: root.hasAttribute('aria-busy'), deferred: root.hasAttribute('data-deferred-surface'), oldNoticeConnected: saved.notice.isConnected,
+      buttons: [...document.querySelectorAll('[data-ui-client-retry]')].map(button => { const box = button.getBoundingClientRect(); return { original: button === saved.button,
+        owned: button.closest('[data-work-surface]') === saved.root, hit: button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) }; }) };
+  })()`);
+}
+
+// RAC-2794/2795/2796/2797: a legitimate second open may load again, but it replaces its own failure notice.
+test("RAC-2794 RAC-2797: reopening a failed plugin tab and then retrying runs three owned cycles with one usable notice", { timeout: 90_000 }, async t => {
+  const fixture = await failedMainSurface(t, true); if (!fixture) return;
+  const { browser } = fixture;
+  try {
+    assert.deepEqual(await retrySurface(browser), { sameRoot: true, samePane: true, rootCount: 1, state: "failed", inert: false, busy: false, deferred: true,
+      oldNoticeConnected: true, buttons: [{ original: true, owned: true, hit: true }] });
+    await browser.click('[data-titlebar-tabs] [data-tab-kind="plugin"][data-plugin="lingguang"] .tab-item-trigger');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([fixture.held, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("The reopened plugin did not request its client")), 10_000); })]); }
+    finally { clearTimeout(timer); }
+    assert.equal(fixture.requests(), 2);
+    assert.deepEqual(await retrySurface(browser), { sameRoot: true, samePane: true, rootCount: 1, state: "loading", inert: true, busy: true, deferred: true,
+      oldNoticeConnected: false, buttons: [] }, "a new mount removes only its root's old failure notice before loading");
+    assert.deepEqual(await guardWrites(browser), failedGuardCycle("failed").slice(0, 3));
+    fixture.releaseHeld();
+    await browser.waitFor("globalThis.__mwGuardRecords.length >= 6 && globalThis.__retryOwner.root.dataset.uiClientState === 'failed'", 30_000);
+    assert.deepEqual(await guardWrites(browser), failedGuardCycle("failed"));
+    assert.deepEqual(await retrySurface(browser), { sameRoot: true, samePane: true, rootCount: 1, state: "failed", inert: false, busy: false, deferred: true,
+      oldNoticeConnected: false, buttons: [{ original: false, owned: true, hit: true }] });
+    await browser.evaluate("globalThis.__mwGuardRecords = []");
+    await browser.click("[data-ui-client-retry]");
+    await browser.waitFor("globalThis.__mwGuardRecords.length >= 6 && globalThis.__retryOwner.root.dataset.uiClientState === 'failed'", 30_000);
+    assert.equal(fixture.requests(), 3);
+    assert.deepEqual(await guardWrites(browser), failedGuardCycle("failed"));
+    assert.deepEqual(await retrySurface(browser), { sameRoot: true, samePane: true, rootCount: 1, state: "failed", inert: false, busy: false, deferred: true,
+      oldNoticeConnected: false, buttons: [{ original: false, owned: true, hit: true }] });
+  } finally { fixture.releaseHeld(); }
+});
+
+// RAC-2794/2795/2796/2797: applying real refreshed data preserves a failed surface until an explicit retry.
+test("RAC-2794 RAC-2797: a real background Goal refresh preserves the failed plugin and its next retry", { timeout: 90_000 }, async t => {
+  const { boardSnapshot } = await import("./fixtures/goal-application.js");
+  const fixture = await failedMainSurface(t); if (!fixture) return;
+  const { browser } = fixture, prefix = `/projects/${browser.projectId}`, goalId = "RETRY-REFRESH";
+  const before = boardSnapshot(browser.store, browser.projectId!);
+  try {
+    await browser.evaluate(`(() => {
+      const original = fetch.bind(globalThis); globalThis.__retryOriginalFetch = globalThis.fetch;
+      let held = false;
+      globalThis.fetch = async (input, options) => {
+        const response = await original(input, options);
+        const pathname = new URL(typeof input === 'string' ? input : input.url, location.href).pathname;
+        if (!held && pathname === ${JSON.stringify(prefix + "/api/board/refresh")} && response.ok) {
+          const body = await response.clone().text(), parsed = new DOMParser().parseFromString(body, 'text/html');
+          if (parsed.querySelector('.tree-node[data-select-goal="${goalId}"]')) {
+            held = true; globalThis.__retryRefreshCursor = JSON.parse(parsed.querySelector('#molis-work-data').textContent).snapshot.cursor;
+            globalThis.__retryRefreshHeld = true;
+            await new Promise(resolve => { globalThis.__retryReleaseRefresh = resolve; });
+            globalThis.__retryRefreshDelivered = true;
+          }
+        }
+        return response;
+      };
+    })()`);
+    await browser.web.post(prefix + "/api/plugins/io.molis.work.goals/goals", {
+      goal_id: goalId, title: goalId, outcome: "Appear after another user's update", why: "Verify a real background refresh",
+      business_logic: "Refresh the directory without reopening its failed plugin", priority: 10, acceptance_criteria: ["The new Goal appears while the plugin still offers retry"],
+    });
+    const afterWrite = boardSnapshot(browser.store, browser.projectId!);
+    assert.ok(afterWrite.cursor > before.cursor);
+    assert.ok(afterWrite.goals.some(goal => goal.goal_id === goalId));
+    await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'))");
+    await browser.waitFor("globalThis.__retryRefreshHeld === true", 10_000);
+    assert.equal(fixture.requests(), 1); assert.deepEqual(await guardWrites(browser), []);
+    await browser.evaluate("globalThis.__retryReleaseRefresh()");
+    await browser.waitFor(`globalThis.__retryRefreshDelivered === true && Number(JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor) === Number(globalThis.__retryRefreshCursor) && !!document.querySelector('.tree-node[data-select-goal="${goalId}"]')`, 10_000);
+    assert.ok(await browser.evaluate<number>("Number(globalThis.__retryRefreshCursor)") >= afterWrite.cursor);
+    assert.deepEqual(boardSnapshot(browser.store, browser.projectId!), afterWrite, "refresh only projects the external Goal write; it adds no business history");
+    assert.deepEqual(await guardWrites(browser), [], "restoring the same failed surface after a completed refresh must not start another guard cycle");
+    assert.equal(fixture.requests(), 1);
+    assert.deepEqual(await retrySurface(browser), { sameRoot: true, samePane: true, rootCount: 1, state: "failed", inert: false, busy: false, deferred: true,
+      oldNoticeConnected: true, buttons: [{ original: true, owned: true, hit: true }] });
+    await browser.click("[data-ui-client-retry]");
+    await browser.waitFor("globalThis.__mwGuardRecords.length >= 6 && globalThis.__retryOwner.root.dataset.uiClientState === 'failed'", 30_000);
+    assert.equal(fixture.requests(), 2); assert.deepEqual(await guardWrites(browser), failedGuardCycle("failed"));
+    assert.deepEqual(await retrySurface(browser), { sameRoot: true, samePane: true, rootCount: 1, state: "failed", inert: false, busy: false, deferred: true,
+      oldNoticeConnected: false, buttons: [{ original: false, owned: true, hit: true }] });
+  } finally {
+    await browser.evaluate("globalThis.__retryReleaseRefresh?.(); if (globalThis.__retryOriginalFetch) globalThis.fetch = globalThis.__retryOriginalFetch");
+  }
+});

@@ -288,10 +288,10 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 
   assert.deepEqual(
     railEntries(["goals", "pages"]).map((entry) => entry.id),
-    ["goals", "pages"],
-    "只显示已启用的插件，且保持声明顺序",
+    ["goals", "pages", "artifacts"],
+    "平台成果入口始终存在，插件保持已启用集合和声明顺序",
   );
-  assert.deepEqual(railEntries([]), []);
+  assert.deepEqual(railEntries([]).map(entry => [entry.id, entry.chosen]), [["artifacts", false]]);
 
   assert.deepEqual(
     settingsEntries(everything).map((entry) => entry.plugin_id),
@@ -306,11 +306,11 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   // should be a decision somebody made, not something that arrives with a merge.
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
     // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
-    ["artifacts", "coding", "diff", "feed", "files", "git", "goals", "inbox", "schedule",
+    ["coding", "diff", "feed", "files", "git", "goals", "inbox", "schedule",
       "text-stats"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
-    [["coding", "Coding", "code"]],
+    [["coding", "Coding", "code"], ["artifacts", "成果", "package"]],
     "新插件的导航同样只由它自己的 Manifest 推导",
   );
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("shelf"), false, "个人插件不是项目可启用项");
@@ -360,10 +360,10 @@ test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it a
   const objectTabs = (directory: Parameters<typeof clientPluginDirectory>[0]) => clientPluginDirectory(directory).filter(entry => entry.accepts_objects).map(entry => entry.id);
   const entry = (id: string, views: Array<{ accepts_objects?: boolean }>) => ({ id, plugin_id: id, name: id, chosen: true,
     ui: { views: views.map((view, at) => ({ view_id: `v${at}`, slot: "stage" as const, title: id, ...view })) } });
-  assert.deepEqual(objectTabs([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["notes"]);
+  assert.deepEqual(objectTabs([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["artifacts", "notes"]);
   // The shipped plugins: search, placement and side files open these as an object's tab (Artifacts is the platform's own).
   // Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
-  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
+  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["artifacts", "goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
   // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
   const zh = pluginTabTitles(), en = pluginTabTitles(true);
   assert.deepEqual([zh.feed, zh.lingguang, zh.ppt, zh.workflows], ["Feed", "灵光", "PPT", "工作流程"]);

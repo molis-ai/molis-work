@@ -9,7 +9,7 @@ import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { EXECUTOR_MODES, roleOfCapability, roleViews } from "./fixtures/work-executor-fake.js";
 
-// S-62 (specs/repository-anti-corruption PG-036, C8-3): the Assistant takes a plugin as the executor of a work only by the
+// S-62 (specs/archive/repository-anti-corruption PG-036, C8-3): the Assistant takes a plugin as the executor of a work only by the
 // work-executor protocol and the plugin's id. A look-alike is not an executor; a plugin that is gone, unavailable or short of a role is
 // refused and no other one takes its place; and nothing in the Assistant names a plugin.
 
@@ -93,10 +93,10 @@ test("RAC-443 S-62 the Assistant names no plugin: assistant-coding.ts is gone an
   assert.deepEqual(found, []);
 });
 
-test("RAC-444 the Assistant store is at version 3 and refuses the store of version 2 it does not translate on read", () => {
-  assert.equal(ASSISTANT_STORE_BASELINE.version, 3);
+test("RAC-444 RAC-2365 the Assistant store starts at 1 and refuses a store of version 2 it does not translate on read", () => {
+  assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
   const db = new DatabaseSync(":memory:");
   db.exec(ASSISTANT_STORE_BASELINE.schema); db.exec("PRAGMA user_version = 2");
-  assert.throws(() => new AssistantStore(db), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 3);
+  assert.throws(() => new AssistantStore(db), error => error instanceof SqliteSchemaVersionError && error.found === 2 && error.expected === 1);
   db.close();
 });

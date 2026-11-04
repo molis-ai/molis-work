@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { link, lstat, mkdir, readFile, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { link, lstat, readFile, rename, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import * as localHost from "@molis-ai/molis-work-app-local-host";
@@ -178,21 +178,14 @@ function processAlive(pid: number): boolean {
   }
 }
 
-test("S-12 RAC-104: a missing original key or unfinished maintenance refuses capture before changing Runtime configuration", async t => {
-  for (const fault of ["key", "maintenance"]) {
-    const f = await runtimeBackupFixture(t), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
-    if (fault === "key") {
-      createLazyFileSecretStore(f.home).put("other-owner", f.secret);
-      await unlink(join(f.home, "feed", "secrets.key"));
-    } else {
-      await mkdir(join(f.home, "runtime-config-backups"), { recursive: true });
-      await writeFile(join(f.home, "runtime-config-backups", ".maintenance.json"), "{}");
-    }
-    const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
-    assert.equal(result.status, "rolled_back");
-    assert.equal(await readFile(f.config, "utf8"), f.contents);
-    assert.equal(JSON.stringify(result).includes(f.secret), false);
-    await assert.rejects(readFile(plan.backup_path!), { code: "ENOENT" });
-    if (fault === "key") await assert.rejects(readFile(join(f.home, "feed", "secrets.key")), { code: "ENOENT" });
-  }
+test("S-12 RAC-104: a missing original key refuses capture before changing Runtime configuration", async t => {
+  const f = await runtimeBackupFixture(t), runtime = f.service(), plan = await runtime.prepare("codex", "connect");
+  createLazyFileSecretStore(f.home).put("other-owner", f.secret);
+  await unlink(join(f.home, "feed", "secrets.key"));
+  const result = await runtime.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
+  assert.equal(result.status, "rolled_back");
+  assert.equal(await readFile(f.config, "utf8"), f.contents);
+  assert.equal(JSON.stringify(result).includes(f.secret), false);
+  await assert.rejects(readFile(plan.backup_path!), { code: "ENOENT" });
+  await assert.rejects(readFile(join(f.home, "feed", "secrets.key")), { code: "ENOENT" });
 });

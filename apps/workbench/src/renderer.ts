@@ -1,11 +1,6 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import type { FeedSupplementalEntry } from "./feed-projection-ui.js";
-import { createWorkbenchGoalsDocuments } from "./goals-documents.js";
-import { DEFAULT_GOAL_POLICY, composePlanningMethodPacks, GOALS_PLUGIN_ID, type WebGoalView } from "./goals-plugin.js";
-import { createWorkbenchGoalsRenderers } from "./goals-renderers.js";
 import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
-import { inWordsOf } from "./i18n.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
   renderMolisWorkArrivalStylesheet as renderArrivalCss,
@@ -29,16 +24,14 @@ export interface WorkbenchRendererPorts {
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
 export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
-  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale, goalsL = inWordsOf(GOALS_PLUGIN_ID, L);
+  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale;
   const { appendDesktopQueryToLocalHrefs, withDesktopQuery, bootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = ports.desktop;
-  const { formatDate, renderList, prefixLocalLinks } = createRendererHelpers({ L, dateTimeLocale, appendDesktopQueryToLocalHrefs });
-  const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, prefixLocalLinks });
-  const goals = createWorkbenchGoalsRenderers({ L, goalsL, currentLocale, listJoin, formatDate, renderList, defaultPolicy: DEFAULT_GOAL_POLICY });
-  const documents = createWorkbenchGoalsDocuments({ L, goalsL, formatDate, prefixLocalLinks, goals });
-
+  const helpers = createRendererHelpers({ L, dateTimeLocale, appendDesktopQueryToLocalHrefs });
+  const { prefixLocalLinks } = helpers;
   const THEME_BOOTSTRAP_SCRIPT = `${BASE_THEME_BOOTSTRAP_SCRIPT}${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}`;
 
   const { settingsContextHref, renderProjectSwitcher, renderDesktopProjectChrome, renderSettingsNavigation, renderProjectSettingsNavigation } = createWorkbenchSettingsNavigation({ L, escapeHtml, icon, withDesktopQuery });
+  const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, currentLocale, listJoin, helpers, withDesktopQuery, settingsContextHref });
 
   const projectChooserRenderer = createWorkbenchProjectChooserRenderer({ L, escapeHtml, icon, withDesktopQuery, htmlLang, renderIconSprite, controlTokenMeta, clientI18nScript, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT, dateTimeLocale });
 
@@ -56,33 +49,25 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   });
 
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = createWorkbenchProjectSettingsPages({
-    L, escapeHtml, formatDate, icon, htmlLang, listJoin, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery,
+    L, escapeHtml, icon, htmlLang, controlTokenMeta, clientI18nScript, renderIconSprite, withDesktopQuery,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-    navigation: { settingsContextHref, renderProjectSettingsNavigation, renderSettingsNavigation }, renderProjectPolicyDocument: goals.renderProjectPolicyDocument, composePlanningMethodPacks,
+    navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface,
   });
 
-  const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
-    createWorkbenchGoalsPageRenderer<WebGoalView, MolisWorkWebView, FeedSupplementalEntry>({
+  const { renderMolisWorkWeb } =
+    createWorkbenchGoalsPageRenderer<MolisWorkWebView>({
       L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
-      renderIconSprite, clientI18nScript, dataJson: documents.dataJson, prefixLocalLinks, renderWorkbenchDocument,
-      renderGoalDocument: documents.renderGoalDocument, renderTrashGoalDocument: documents.renderTrashGoalDocument,
-      goalsDocumentRenderer: documents.goalsDocumentRenderer, goalsTreeRenderer: goals.goalsTreeRenderer,
-      renderGoalProposals: (view) => goals.renderGoalTreeProposalList(view.snapshot.goal_tree_proposals, view),
-      renderCreateDialog: documents.renderCreateDialog, renderGoalTrashDialog: documents.renderGoalTrashDialog,
-      renderMomentumPlaceholder: goals.renderMomentumPlaceholder, renderGoalKanban: goals.renderGoalKanban, renderTuiPane: documents.renderTuiPane,
+      renderIconSprite, clientI18nScript, prefixLocalLinks, renderWorkbenchDocument,
       renderDesktopProjectChrome, renderProjectSwitcher,
-      renderFeedNativePluginSurface: stages.renderFeedNativePluginSurface, stageModel: stages.declaredStageModel,
+      stageModel: stages.declaredStageModel,
     });
   return {
     renderMolisWorkProjectIndex,
     renderMolisWorkProjectBrief,
     renderMolisWorkSettings,
-    renderPersistedFeedItemDetail: stages.renderPersistedFeedItemDetail,
-    renderFeedWorkbenchFragment: stages.renderFeedWorkbenchFragment,
-    renderInboxWorkbenchFragment: stages.renderInboxWorkbenchFragment,
-    renderScheduleWorkbenchFragment: stages.renderScheduleWorkbenchFragment,
-    renderGoalDocumentFragment: documents.renderGoalDocumentFragment,
-    renderMolisWorkMomentumFragment: documents.renderMolisWorkMomentumFragment,
+    stageFragmentModel: stages.stageFragmentModel,
+    declaredStageFragment: stages.declaredStageFragment,
+    declaredPageSurface: stages.declaredPageSurface,
     renderMolisWorkOnboarding,
     renderMolisWorkProjectSettingsHub,
     renderMolisWorkProjectGeneralSettings,
@@ -96,7 +81,6 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     renderMolisWorkSettingsStylesheet: (): string => renderSettingsCss(),
     renderMolisWorkWorkbenchClientScript: (): string => renderWorkbenchClient(),
     renderMolisWorkWeb,
-    renderMolisWorkRefreshFragment,
     declaredStageModel: stages.declaredStageModel,
     /** One plugin tab of the side panel, or null when that view is not declared by a plugin enabled here. */
     renderSideViewDocument: (input: Omit<SideViewDocumentInput, "lang" | "headHtml" | "clientI18nScript" | "themeBootstrapScript" | "translate"> & { controlToken: string }): string | null =>

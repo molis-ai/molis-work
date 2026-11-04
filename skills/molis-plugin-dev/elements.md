@@ -75,13 +75,13 @@ Manifest 里有三类声明会改变插件在别处的效果，安装预览把�
 ## UI
 
 - `ui.contributions`：contribution id 列表。
-- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（Host 图标名）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
+- `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（限平台图标集，集合外的名字 Manifest 读取即被拒）、`order`。可选 `accepts_objects`：这个插件的标签能按 id 打开一个对象，插件收 `molis-work:select-item`。当前搜索、放置卡和侧栏文件的对象标签名单由构建期插件目录派生；动态安装插件的运行时 Manifest 尚未接入这份名单（BL-388），声明字段本身仍适用。不声明的，命中打开插件页，有 `searchRow` 的再点那一行。
 - **槽（合同五选一）**：`navigator` 一级入口（底栏插件切换与 Dock）、`stage` 工作区工具面、`settings` 全局设置目录、`island` 底栏右侧的个人常驻入口（项目圆钮旁）、`side` 侧栏里的一个标签（见 [ui.md](ui.md#侧栏标签side)）。不要发明第六个。
 - 没有 `ui.commands`：界面命令没有一处调用，已取消（BL-363），Manifest 写了会被拒。
 - 贡献 descriptor 的 HTML Slot：`workbench.directory` / `workbench.main` / `workbench.overlay` / `workbench.settings` / `workbench.side`。`settings-page` 只能挂 settings。
 - `kind`：`primary-page` | `embedded` | `overlay` | `settings-page`。
 
-构建期 Native（冻结名单）：Host 注入 HTML primitives。  
+构建期 Native（只剩 Alchemist、插件创作台两个批过的例外）：Host 注入 HTML primitives。  
 经 Plugin Runtime 启动的插件（`app`，以及 Shelf 这样的 `native`）：`start()` 返回的 `views` 必须覆盖 Manifest 每一条，否则启动失败。
 
 ## HTTP
@@ -89,7 +89,7 @@ Manifest 里有三类声明会改变插件在别处的效果，安装预览把�
 两条路径，不要抄错：
 
 1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节（Home 级实例的路由默认 12 MiB），某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 45 000 000 字节，`packages/plugin-sdk/src/manifest.ts` 的 `MAX_ROUTE_BODY_BYTES`，超过的 Manifest 解析时被拒）。
-2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/alchemist`），由 `*-native-plugin-http.ts` 调用（Inbox、Feed 已迁走，路由写在各自的 Manifest `routes` 里，挂在 `/api/plugins/<plugin_id>/` 下）。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
+2. **构建期 Native（只剩批过的例外 Alchemist）**：Host 文件把短名接到产品 API（`/api/alchemist`），由 `*-native-plugin-http.ts` 调用（Inbox、Feed 已迁走，路由写在各自的 Manifest `routes` 里，挂在 `/api/plugins/<plugin_id>/` 下）。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
 
 写操作要 revision / 幂等；冲突可恢复。handler 用注入的 Module/端口，不 import 别的插件实现。
 
@@ -117,9 +117,11 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## Artifacts / ports
 
+- 成果库是平台界面与动作服务，不是可启停插件，也不能登记 `artifacts` 项目键或平台成果界面 id。提供方 `io.molis.work.artifacts` 及既有能力引用不变；插件用同一套 SDK 动作读写成果，不依赖成果 UI 实现。
 - `artifacts.produces/consumes`：成果，人要留存、引用的固定版本，进成果库。`artifact_type_id` + `schema_version`。消费方按类型匹配，不指定生产者插件。
 - 每种 `artifacts.produces` 写 `title`（显示名，如「文档」）与 `preview`（用 `defineArtifactPreviewAction` 定义、`bindArtifactPreview` 绑定的动作：只把这一版的 payload 转成 Markdown、CSV、文本或位图，不读存储）。工作对象能当场固定成一版的（Goal 收尾时交付），再写 `pin`：用 `defineArtifactPinAction(id, 对象种类, 显示名, 权限)` 定义，输入 `{subject_id}`，输出 `{artifact, recovered}`，内部就是你的「存为成果」；每种对象至多一个 owner；能当场固定的类型还要写 `compare`（`defineArtifactCompareAction` + `bindArtifactCompare`：读自己的对象、只比内容字段，答 same、changed、moved、missing（对象不在这个项目里时，`bindArtifactCompare` 的第五个参数告诉成果库它是否还在别处：移走不是删除），成果库据此提示「原对象之后改过了」「原对象已移到别处」）。能从某个成果类型的一版新建自己的对象的插件，在那个类型上写 `continue`（`defineArtifactContinueAction` + `bindArtifactContinue`，自己生产的写在 `produces`，只读取的写在 `consumes`），成果库给出「在 X 继续」；没有「继续」的类型要在门禁的例外名单里写明理由。门禁 `tests/artifact-type-gate.test.ts`。
 - 自己的对象能链接到成果库里的某一版（文档正文里的版本链接）的，加一个 `defineArtifactReferrersAction(id, 对象显示名, 读权限)` 查询：输入 `{reference}`，返回链接到这一版的对象（`subject`、`title`、`open`）。正文里认链接用 `linksToArtifactVersion(body, reference)`。成果详情的「被谁引用」按协议问每个声明了它的插件，不写名单（例：`pages.artifacts.referrers`）。
+- 在 Manifest `artifacts.links` 里声明了链接种类（自己的对象把某一版记为输入或产出，边写进上下文关联）的，再加一个 `defineArtifactLinkSubjectsAction(id, 对象显示名, 读权限)` 查询：输入 `{ids}`，返回这些 id 里现在还在、调用者读得到的对象（`id`、`title`、`open`），读不到的不返回（一个读不到的 id 不能让整批失败）；一次最多 200 个 id，`open` 只能指向你自己的 surface。受众由这个函数定成与 `artifacts.links` 相同，因为它以那个调用者的身份被问。「被谁引用」把你的对象列在你的插件名下，名字和打开位置就从这里来；没有这个动作，你的对象只显示 id（例：`goals.artifacts.link_subjects`）。
 - `process_items.produces/consumes`：过程项，插件之间交换的数据（快照、变更集、回执），记在生产插件名下，不进成果库、侧栏文件和搜索。一种类型要么是成果、要么是过程项。端口发布一律记成过程项；直接记用 `services.processItems.record`。
 - **新类型先写合同**（如 `packages/contracts/src/modules/workspace-artifacts.ts` 或该插件的 `modules/<id>.ts`），再声明 `produces`。只写端口、合同里没有这个类型，连不上。
 - `ports.inputs/outputs`：按 Artifact 类型连接，不指定生产者插件。声明输出口必须同时 `artifact:write` 且类型在 `process_items.produces`（或固定后再选择的成果在 `artifacts.produces`）。输入同理 `artifact:read` + `consumes`。
@@ -155,7 +157,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 处理前持久记录 delivering，确认前重查实例、版本和订阅。处理器已开始但崩溃或被撤销，结果未知则隔离，不能自动重试；启动失败且没有派出处理器时可以恢复。普通处理器异常记录后不自动重投，不能声称任意副作用 exactly-once。Host 关闭先 `await events.close()` 再关闭数据库。
 - 隔离事件由人从项目「插件 → 待核对的插件通知」核对，填写依据后明确 retry/skip。插件不能给自己恢复，普通启用不能补权。所见 revision、首条事件、安装世代与版本必须保持一致，决定及历史同事务保存；不替换原安装，不跳过后续事件。重试存在重复副作用的可能，必须在确认中说明。
 
-**总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：登记上有 `project_runtime` 或 `runtime` 的内置插件，以及已安装插件。Feed、Inbox 这类冻结名单里的构建期 Native 没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
+**总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：登记上有 `project_runtime` 或 `runtime` 的内置插件，以及已安装插件。构建期的两个例外（Alchemist、插件创作台）没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
 
 对照：Files 订阅 Coding/Git 的文件变更；Coding 发布 file-changed / workspace-invalidated。
 

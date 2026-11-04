@@ -176,6 +176,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
   // ✦ and 「带到助理」: what is in hand goes in the Assistant's strip, unsent; the person says what to do (spec §21.2 point 4).
   const bringToAssistant = () => { if (bus.focus) openAssistant(inHand(bus.focus)); };
 
+
   const starters = {
     focus: null,
     plan: null,
@@ -188,7 +189,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       return { context_id: ("start:" + object.kind + ":" + object.id + ":" + (object.version === undefined ? "" : String(object.version))).slice(0, 240),
         plugin_id: String(context.plugin_id || ""), activity: "browsing", granularity: "object",
         object: { kind: object.kind, id: object.id, ...(object.version !== undefined ? { version: object.version } : {}), ...(object.title ? { title: String(object.title) } : {}) },
-        targets: [{ kind: "object", role: "object", text: String(text).slice(0, 4000) }] };
+        targets: [{ kind: "object", role: "object", text: cutWhole(String(text), 4000) }] };
     },
     // Another plugin's action says whose it is, as on the row.
     items(plan, pluginId) {
@@ -233,7 +234,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     const detail = event.detail || {}, surface = event.target instanceof Element ? event.target.closest("[data-work-surface]") : null;
     const intake = typeof detail.intake_id === "string" ? detail.intake_id : "", id = typeof detail.id === "string" ? detail.id : "";
     if (!surface || !intake || !id) return;
-    const title = String(detail.title || "").trim().slice(0, 200), text = String(detail.text || "").slice(0, 4000);
+    const title = cutWhole(String(detail.title || "").trim(), 200), text = cutWhole(String(detail.text || ""), 4000);
     known().then((declared) => {
       const entry = declared[surface.getAttribute("data-work-surface")];
       if (!entry) throw new Error(L("这个页面还没有声明它的对象，不能放进去"));

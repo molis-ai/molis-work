@@ -4,8 +4,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryEvidenceInput } from "@molis-ai/molis-work-contracts/services/memory";
-import { openPrologueMemoryAdoption } from "@molis-ai/molis-work-service-agent-host";
-import { memoryRuntimePolicy } from "@molis-ai/molis-work-app-local-host";
 import type { MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { memoryServiceHome } from "./fixtures/memory-service-home.js";
 
@@ -15,7 +13,7 @@ const classification = { scenes: ["common"], lifecycle: "long-term" };
 const evidence = [{ kind: "external-note", text: "A historical observation", ref: "external:note-7" },
   { kind: "object", ref: '{ "kind": "document", "id": "doc-1" }' }];
 
-/** A genuine pre-adoption row with absent facts, written through the public SDK storage owner. */
+/** RAC-2375: a current SDK shape 8 record with absent facts, written through its public storage owner. */
 async function historical(f: Awaited<ReturnType<typeof memoryServiceHome>>) {
   await f.close();
   const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
@@ -24,17 +22,11 @@ async function historical(f: Awaited<ReturnType<typeof memoryServiceHome>>) {
   const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(f.home, "sdk") }) });
   try {
     await runtime.store.commit({ kind: "memories", id: "owner.project-project-a.historical.v1", expectedVersion: 0,
-      metadata: { scope: "owner.project-project-a", rowId: "historical", version: 1, state: "active", shape: 2 },
+      metadata: { scope: "owner.project-project-a", rowId: "historical", version: 1, state: "active", shape: 8 },
       secureBody: new TextEncoder().encode(JSON.stringify({ id: "historical", scope: "project", owner: "project-a", version: 1,
         text: "Historical publication convention", origin: "Imported record", tags: [], tombstoned: false,
         meta: { kind: "convention", source: "auto", classification, evidence }, createdAtMs: 0, updatedAtMs: 0 })) });
   } finally { await runtime.shutdown(); }
-  const maintenance = await openPrologueMemoryAdoption({ appVersion: "1.0.0", storageRoot: join(f.home, "sdk"),
-    scopes: [{ scope: "project", owner: "project-a" }], policy: memoryRuntimePolicy(() => { throw new Error("Maintenance has its own explicit authority"); }).policy });
-  try {
-    const page = await maintenance.adopt({ kind: "memory", scope: "project", owner: "project-a" });
-    assert.equal(page.outcome, "completed"); assert.deepEqual(page.issues, []);
-  } finally { await maintenance.close(); }
   return f.open();
 }
 

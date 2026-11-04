@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Which files of the two non-blocking test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull request
-// runs (T-130). The blocking jobs and `Verify` do not read this; a push to main, the nightly run and a manual run never ask it, so they
-// run both jobs whole, and the merge queue runs neither (decision #14).
+// Which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull request runs (T-130).
+// Both block (decision #14). On a PR, some runs selected files, whole runs both complete shards, and only a successful none
+// skips the corresponding job. Verify reads the selector result and both modes to authorize those skips. Selector faults retain
+// the complete runs. The merge queue, direct pushes, nightly and manual runs run both lists whole.
 //
 // For a pull request it asks scripts/affected-tests.mjs which tests the change touches (`--json --wide`: every limit lifted, so a
 // test that reaches a changed file only through a shared helper is selected too) and keeps, for each job, the files of that job's
@@ -20,7 +21,7 @@
 // Outputs, per job (`security_…`, `product_…`): `mode` (whole, some, none), `shards` (the matrix as JSON: [1] or [1, 2]); and the
 // files of `some`: `security_files` (space-separated, for scripts/run-tests.mjs) and `product_only` (an anchored regular expression
 // of the files, for `scripts/ci-product-subset.mjs --only`). Both are empty unless the mode is `some`, so an empty value means
-// "the whole list" to the jobs, which is also what they do when this job did not run or failed.
+// "the whole list" to the jobs; only a successful some on a PR supplies a selected list or shard count.
 // Exit: 0 whenever a decision was written (a `whole` that comes from a failure included), 2 on a usage error.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync, readdirSync } from "node:fs";
@@ -113,7 +114,7 @@ export function outputLines(decisions) {
 }
 
 function summary(decisions, base) {
-  const out = [`## PR test selection`, "", `Compared with \`${base}\`. The blocking jobs and \`Verify\` are not affected by this; the push to main and the nightly run run both jobs whole.`, ""];
+  const out = [`## PR test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. The merge queue runs both whole and waits for them.`, ""];
   const titles = { security: "Security invariants", product: "Product subset" };
   for (const [job, decision] of Object.entries(decisions)) {
     out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");

@@ -14,7 +14,7 @@ import { assertSandboxDeclarations, sandboxServicesFor, SANDBOX_NOT_GIVEN, SANDB
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { homeProbe } from "./fixtures/home-runtime.js";
 
-// S-60 (PG-017, specs/repository-anti-corruption/slices/pg017-sandbox-services.md): a sandboxed plugin is an install trust, not a second set
+// S-60 (PG-017, specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md): a sandboxed plugin is an install trust, not a second set
 // of permissions. The services it reaches are the ones the Host built for the activation from its Manifest and the person's grants, forwarded
 // through the broker. What the sandbox is not given is a refusal with a code when the installation starts, never a silent absence. This file
 // asserts those refusals; the per-service ones (over-reach, unapproved, after revoke) sit beside each service as it is given.
@@ -54,6 +54,9 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     // PG-112 RAC-734: the Manifest's local_tools (or the permission) asks for the Host's look for command-line tools, which answers with paths outside the sandbox.
     ["localTools", declaring({}, { local_tools: { tools: [{ tool_id: "probe", binaries: ["probe"] }] } }, [permission("local-tools:read", true)]), []],
     ["localTools", declaring({}, {}, [permission("local-tools:read", false)]), ["local-tools:read"]],
+    // S-103 RAC-2557: a terminal runs outside the sandbox with all of the person's rights (BL-910).
+    ["terminal", declaring({}, {}, [permission("terminal:run", true)]), []],
+    ["terminal", declaring({}, {}, [permission("terminal:run", false)]), ["terminal:run"]],
     // Project artifacts, process items, ports and events: each declaration, and the artifact permissions, ask for the services the sandbox is not given.
     ["artifacts", declaring({}, { artifacts: { produces: [{ type: "probe" } as never], consumes: [] } }), []],
     ["artifacts", declaring({}, { artifacts: { produces: [], consumes: [{ type: "probe" } as never] } }), []],

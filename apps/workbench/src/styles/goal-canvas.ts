@@ -481,7 +481,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-work-modebar svg { width: 14px; height: 14px; }
   body.immersive-workbench .goal-details-aside > .document-pane { display: flex; flex: 1; padding: 0; margin: 0; border: 0; min-width: 0; min-height: 0; width: auto; overflow: hidden; position: static; background: transparent; }
   body.immersive-workbench .goal-details-aside > .document-pane[hidden] { display: none !important; }
-  .goal-canvas-shell [data-work-surface="goal"] { display: flex; width: 100%; min-width: 0; min-height: 0; padding: 0; }
+  .goal-canvas-shell [data-work-surface="goals"] { display: flex; width: 100%; min-width: 0; min-height: 0; padding: 0; }
   .goal-canvas-shell .goal-event-document { display: flex; flex-direction: column; flex: 1; width: 100%; min-width: 0; min-height: 0; position: relative; container-type: normal; margin: 0; padding: 0; background: transparent; }
   .goal-canvas-shell .goal-node-workspace:not([data-view-mode="document"]) .goal-layout { display: contents; }
   .goal-workspace-hero { min-width: 0; min-height: 0; padding: 16px; flex: none; }
@@ -682,7 +682,7 @@ export const GOAL_CANVAS_STYLES = `
   .goal-node-workspace[data-view-mode="document"] .goal-details-aside { grid-column: 1; grid-row: 1; position: relative; inset: auto; width: auto; min-width: 0; max-width: none; border-left: 0; background: var(--paper); overflow: auto; overscroll-behavior: contain; }
   .goal-node-workspace[data-view-mode="document"] .goal-details-toggle { display: none; }
   body.immersive-workbench .goal-node-workspace[data-view-mode="document"] .goal-details-aside > .document-pane { display: block; overflow: visible; }
-  .goal-node-workspace[data-view-mode="document"] [data-work-surface="goal"] { display: block; }
+  .goal-node-workspace[data-view-mode="document"] [data-work-surface="goals"] { display: block; }
   .goal-node-workspace[data-view-mode="document"] .goal-event-document { display: block; height: auto; max-height: none; overflow: visible; max-width: 880px; margin: 0 auto; padding: 48px 48px 64px; }
   /* The document view scrolls as one page inside the rail: the wrapper and the document take their content height
      (the work view pins both to the rail and scrolls the timeline alone). A form still fills the rail when open. */

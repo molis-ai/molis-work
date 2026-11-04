@@ -5,7 +5,7 @@ import { renderDialog, renderMenu, renderMenuItem } from "./overlay.js";
 import { mark, section, specimen } from "./catalog-parts.js";
 
 export function choiceSection(): string {
-  return section("choice", "Choice", `<p class="mw-catalog__hint">几个并排的选项：白色小选项，选中后变成石墨并出现勾。用于引导步骤与偏好；很多条目的列表不用它。</p><div class="mw-catalog__specimens">
+  return section("choice", "Choice", `<div class="mw-catalog__specimens">
     ${mark("choice", specimen("按钮 · aria-pressed", `<div class="mw-choice-group" role="group" aria-label="主题" data-catalog-choice-group>${renderChoice({ label: "浅色", icon: "sun", selected: true })}${renderChoice({ label: "深色", icon: "moon" })}${renderChoice({ label: "跟随系统", icon: "system" })}</div>`))}
     ${specimen("链接 · aria-current", `<div class="mw-choice-group" role="group" aria-label="语言">${renderChoice({ label: "简体中文", href: "#choice", selected: true })}${renderChoice({ label: "English", href: "#choice" })}</div>`)}
   </div>`);
@@ -68,7 +68,7 @@ export function composeSection(): string {
     <div class="mw-compose__resizable">${renderToolbar({ body: `${renderButton({ label: "新建", variant: "primary", icon: "plus" })}${renderButton({ label: "筛选", variant: "secondary", icon: "filter" })}${renderButton({ label: "工作规划", variant: "ghost", icon: "workflow" })}` })}${renderDirectoryPanel({ pluginId: "compose-narrow", label: "目标", listLabel: "目标", listRole: "none", body: composeRows })}</div>
     <p class="mw-catalog__hint">拖动右下角改变宽度：窄于 420px 时工具条只留图标，名称仍是可访问名称。</p>
   </div>`;
-  return section("compose", "组合", `<p class="mw-catalog__hint">组件放在一起时依然精致：目录与详情、工具条与筛选、带错误的表单、对话框里的菜单、长内容与嵌套滚动、窄窗口与密度。都可以实际操作。底栏与它的浮层在工作台页面里由 Workbench 组合，见本页末尾。</p><div class="mw-catalog__specimens">
+  return section("compose", "组合", `<div class="mw-catalog__specimens">
     ${specimen("目录与详情", composeSplit)}
     ${specimen("工具条与筛选", composeToolbar)}
     ${specimen("带错误的表单", composeForm)}

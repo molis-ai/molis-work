@@ -10,8 +10,9 @@ const description = "  切换页面后输入消失。\n原文保留。\n";
 const title = "切换页面后输入消失";
 
 async function manual(t: TestContext) {
-  const b = await openGoalBrowser(t, "empty"); if (!b) return;
-  await issueModel(t, b.homeDirectory, { question: "free-text" });
+  const b = await openGoalBrowser(t, "empty", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { question: "free-text" }); },
+  }); if (!b) return;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/plugins/issues");
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
@@ -144,8 +145,11 @@ test("W2-18-ISSUE-02 ISSUE-15 an uncommitted capture is checked before an explic
 
 
 test("RAC-139 background naming with a malformed receipt reads the committed record instead of keeping a failed draft", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty"); if (!b) return;
-  const { namings } = await issueModel(t, b.homeDirectory);
+  let model!: Awaited<ReturnType<typeof issueModel>>;
+  const b = await openGoalBrowser(t, "empty", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory); },
+  }); if (!b) return;
+  const { namings } = model;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/plugins/issues");
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");

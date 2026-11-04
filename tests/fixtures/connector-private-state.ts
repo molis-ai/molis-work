@@ -30,7 +30,7 @@ export async function connectedPrivateCli(t: TestContext) {
   let observedBeforeDownload = false;
   const source = await createCliPackageFixture(t, home, async () => {
     const vault = JSON.parse(readFileSync(vaultPath, "utf8")) as { version: number; backend: string; entries: Record<string, string> };
-    observedBeforeDownload = vault.version === 2 && vault.backend === "aes-gcm-file"
+    observedBeforeDownload = vault.version === 1 && vault.backend === "aes-gcm-file"
       && Object.keys(vault.entries).some(ref => ref.startsWith("connector-authorization:")) && readFileSync(keyPath).length > 0;
   });
   const actions = f.host.homeActionClient();
@@ -46,7 +46,7 @@ export async function connectedPrivateCli(t: TestContext) {
     { authorization_id: prepared.authorization_id }) as { status: string }).status === "connected");
   await f.close(); await f.host.close();
   const vault = JSON.parse(readFileSync(vaultPath, "utf8")) as { version: number; backend: string; entries: Record<string, string> };
-  assert.equal(vault.version, 2); assert.equal(vault.backend, "aes-gcm-file");
+  assert.equal(vault.version, 1); assert.equal(vault.backend, "aes-gcm-file");
   assert.deepEqual(Object.keys(vault.entries), [], "finish must clear the last transient presentation");
   assert.equal(readFileSync(keyPath).equals(key), true, "the original platform key was retained");
   const installations = join(home, "runtime", "connectors", "installs"), ids = readdirSync(installations);

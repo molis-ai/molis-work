@@ -299,7 +299,7 @@ test("RAC-129-PLACEMENT: copying makes an independent object that remembers its 
 });
 
 test("Goals keeps a Goal's materials: bind once, list both ways, release keeps history", () => {
-  const records: import("@molis-ai/molis-work-contracts/modules/goals").GoalInputBindingRecord[] = [];
+  const records: import("@molis-ai/molis-work-plugin-goals/contract").GoalInputBindingRecord[] = [];
   const inputs = { list: () => records, register: (record: typeof records[number]) => { records.push(record); },
     deactivate: (_board: string, id: string) => { const row = records.find(item => item.binding_id === id); if (!row || row.state === "inactive") return false; (row as { state: string }).state = "inactive"; return true; } };
   const handlers = new Map(createGoalsInputActionHandlers("b", inputs, id => id === "g1").map(handler => [handler.capability_id, handler]));
@@ -319,9 +319,9 @@ test("Goals keeps a Goal's materials: bind once, list both ways, release keeps h
 test("an object keeps showing the Goals it serves after it moves out of their project, and a Home item shows its Goal too", async () => {
   const f = fixture();
   const goalReader = defineSubjectContextAction("goals.subject.read", "goal", "目标", ["goals:read"]);
-  const records = new Map<string, import("@molis-ai/molis-work-contracts/modules/goals").GoalInputBindingRecord[]>();
+  const records = new Map<string, import("@molis-ai/molis-work-plugin-goals/contract").GoalInputBindingRecord[]>();
   for (const project of ["personal", "q4"]) {
-    const rows: import("@molis-ai/molis-work-contracts/modules/goals").GoalInputBindingRecord[] = [];
+    const rows: import("@molis-ai/molis-work-plugin-goals/contract").GoalInputBindingRecord[] = [];
     records.set(project, rows);
     const inputs = { list: () => rows, register: (record: typeof rows[number]) => { rows.push(record); },
       deactivate: (_board: string, id: string) => { const row = rows.find(item => item.binding_id === id); if (!row || row.state === "inactive") return false; (row as { state: string }).state = "inactive"; return true; } };

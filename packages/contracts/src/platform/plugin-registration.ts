@@ -33,6 +33,12 @@ export interface PluginWorkbenchRegistration {
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
   /**
+   * Where the shared workbench sheet puts what it holds of `stylesheet`: "over-shell" (the default) after the shell's own
+   * layers, so the plugin's rules win ties with them; "beneath-shell" before those layers (the canvas, density, primitives and
+   * finish), for a page the shell draws and restyles, so the shell's later rules still win ties with the plugin's.
+   */
+  readonly stylesheetLayer?: "over-shell" | "beneath-shell";
+  /**
    * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespace (`.<project_plugin_id>-…`,
    * `[data-<project_plugin_id>-…]`) as a sheet of its own, which only the frames that need it link; every other rule stays in
    * the shared workbench sheet. These are the classes (no dot) of that namespace which something outside the plugin's own
@@ -54,6 +60,8 @@ export interface PluginWorkbenchRegistration {
    */
   readonly stylesheetUses?: readonly string[];
   readonly clientFactory?: string;
+  /** This factory handles each declared interactive surface in its own root/frame using Host mount metadata. */
+  readonly clientMounts?: "surfaces";
   /**
    * The shell sends `clientFactory` without its whole-line comments and indentation (the page does not run them). A script
    * whose multi-line strings or templates carry indentation as content cannot set this; tests/plugin-client-served.test.ts
@@ -69,6 +77,16 @@ export interface PluginWorkbenchRegistration {
   /** Browser dependencies prepared before this factory mounts. */
   readonly clientAssets?: readonly string[];
   readonly settingsClient?: string;
+  /**
+   * The rules of the settings pages this plugin's settings contributions draw. The settings sheet carries them, and so does the
+   * workbench sheet, where settings open inside a project.
+   */
+  readonly settingsStylesheet?: string;
+  /**
+   * For a plugin without a frame whose page the shell draws: the factories that page's script calls, by name. The shell takes
+   * them from this registration (`pluginPageClients`), never from the plugin's package.
+   */
+  readonly pageClients?: Readonly<Record<string, string>>;
   readonly searchRow?: PluginSearchRow;
   /**
    * The row a record is opened from on this plugin's page, where it differs from `searchRow`: ⌘/Ctrl- or middle-click on it
@@ -85,7 +103,7 @@ export interface PluginWorkbenchRegistration {
 /**
  * One plugin this build ships and its already exported implementations. This declaration grants no authority. 2026-10-18 改:
  * each plugin package writes its own and the catalog is generated from them (W5-02, PG-065 in
- * specs/repository-anti-corruption/privileges.md).
+ * specs/archive/repository-anti-corruption/privileges.md).
  */
 export interface PluginRegistration {
   /** The plugin's key inside a project (`^[a-z0-9][a-z0-9-]*$`); the Manifest's `plugin_id` stays its identity. */
@@ -118,15 +136,15 @@ export interface PluginRegistration {
     /**
      * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each
      * project's instance from its `project_runtime`, and each half offers only its share of the one Manifest. Trusted, as above:
-     * no Manifest or installed package can say it (S-48). Every permission of such a Manifest is required (specs/dual-instance-plugins).
+     * no Manifest or installed package can say it (S-48). Every permission of such a Manifest is required (specs/archive/dual-instance-plugins).
      */
     readonly dual_instance?: true;
   };
   /**
    * Each project's instance, which the Host's project supervisor starts from this declaration (PG-067). Trusted, as above. A plugin
-   * whose library is the Manifest's `databases.home` runs only where the project has a Home. A factory that needs ports from the
-   * Host is not declared here; it stays in apps/local-host/src/project-plugins.ts (only Files, BL-616). A dual-instance plugin
-   * declares this and `runtime` (Shelf).
+   * whose library is the Manifest's `databases.home` runs only where the project has a Home. The factory takes nothing from the Host:
+   * what a project instance needs from it is a platform service or an action its Manifest declares (BL-616). A dual-instance
+   * plugin declares this and `runtime` (Shelf).
    */
   readonly project_runtime?: {
     readonly create: () => PluginDefinition;

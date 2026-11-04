@@ -1,10 +1,10 @@
 import {
   actionMcpToolDefinition,
   isRuntimeContextMcpTool,
-  MCP_TOOLS,
   RUNTIME_MCP_TOOLS,
   type McpToolDefinition,
 } from "@molis-ai/molis-work-app-mcp";
+import { MCP_TOOLS } from "./mcp-platform-tools.js";
 import type { ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**

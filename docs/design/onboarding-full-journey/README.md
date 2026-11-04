@@ -1,6 +1,6 @@
 # Onboarding 全程：可点的定样（路线书第 04 批）
 
-状态：方向已定、细节等用户看样（2026-11-04 按「让版面说话」重做）。用户否掉了先前的三版（独立引导页、对话加方案草稿、在工作台里就地准备），定下全程都用打开软件时那套沉浸式全屏框架；这一版按它重做。产品代码还没写。
+状态：用户已批准（2026-11-04，按「让版面说话」重做后的第二版）。用户否掉了先前的三版（独立引导页、对话加方案草稿、在工作台里就地准备），定下全程都用打开软件时那套沉浸式全屏框架；这一版按它重做。产品代码还没写。
 
 这是参考原型，不是产品界面。需求来源是[场景搭建与渐进式 Onboarding](../../../specs/onboarding-coverage/spec.md)（§3.1～3.15、ONB-01～49）和[视觉体验 · 文案与按需帮助](../../../specs/visual-ui-experience/spec.md#copy-guidance)（VUX-51～59），排期见[第 04 批](../../../specs/post-anticorruption-roadmap/reference/batches/04.md)。框架照产品现有的到达样式（`apps/workbench/src/styles/arrival.ts`，来历见 [project-arrival-flow](../project-arrival-flow/README.md)）画；配色与图标取自第 03 批原型 `docs/design/workbench-shared-paths`（分支 `claude/roadmap-03-shared-design`，尚未合入），这里拷了一份（`base.css`、`icons.js`），没有改它。用户拍板后，定下的细节写进原需求 §10 的决策记录，再进产品代码（届时换成 `mw-*` 控件）。
 

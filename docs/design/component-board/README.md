@@ -40,4 +40,4 @@ python3 -m http.server 4422 --bind 127.0.0.1 --directory docs/design
 
 ## 已知的组件板缺陷
 
-- `.mw-items` 是 `display: grid; width: min(480px, 100%)`，列不是 `minmax(0, 1fr)`，窄屏下长标题会把整列撑出容器。原型里就地补了 `grid-template-columns: minmax(0, 1fr)`，交 D 轨在组件里修。
+- `.mw-items` 是 `display: grid; width: min(480px, 100%)`，列不是 `minmax(0, 1fr)`，窄屏下长标题会把整列撑出容器。原型里就地补了 `grid-template-columns: minmax(0, 1fr)`；D 轨在 [PR #1770](https://github.com/molis-ai/molis-work/pull/1770) 里修组件本身，合入后原型的补丁可以删掉。

@@ -10,7 +10,7 @@
 | [assistant-background-tasks/](assistant-background-tasks/README.md) | 个人助理的连续对话与后台任务：§12.8 的交错路径（连续交办、插问、补充、要你定、完成、回到对话）与排队、失败、停止、断线恢复的可点切片（三个方案） | 方案已定（2026-11-03：对话顶上的任务条），产品未实现；按剧本模拟 |
 | [plugin-studio-main-path/](plugin-studio-main-path/README.md) | 插件创作台主路径：从准备、想法、方案、构建、试用、安装到关掉后使用和从已装版本再改的可点切片，含组合已有能力和手动／助理接续、六种失败与恢复（三个方案） | 方案已定（2026-11-03：对话加阶段），产品未实现；按剧本模拟 |
 | [assistant-proactive-paths/](assistant-proactive-paths/README.md) | 个人助理的三条路径：安静准备与必要提醒（§4.2）、主动做法的观察试用与启用（§6.1）、多项交付的逐项核验与部分退回复核（§7.3.1），各含正常与异常情况的可点切片（每条三个方案） | 方案已定（2026-11-03：任务条里看准备、规则页里试用与回看、要求与成果对照），产品未实现；按剧本模拟 |
-| [unified-input/](unified-input/README.md) | 统一输入框：编辑器层、对 AI 的送达菜单、新键位与一次提示、发给谁、六种状态、插件扩展入口和 H4 用词的可点定样（每块三个方案，中英文、深浅色） | 方案已定（第 10 批，2026-11-04：七块都照推荐，H4 选方案一），产品未实现；按剧本模拟 |
+| [unified-input/](unified-input/README.md) | 统一输入框：编辑器层、对 AI 的送达菜单、新键位与一次提示、发给谁、六种状态、插件扩展入口和 H4 用词的可点定样（每块三个方案，中英文、深浅色） | 方案已定（第 10 批，2026-11-04：七块都照推荐，H4 选方案一；控件用组件板，三处组件板新增已标出），产品未实现；按剧本模拟 |
 | [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26；四项已拍板，视觉待用户验收），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
 | [runtime-and-recovery/](runtime-and-recovery/README.md) | 第 25、26 批合并定样：后台运行状态、某块暂不可用、更新与回退、安装自检、升级失败与恢复，每题两个方案加正常与异常状态 | 用户已定（2026-11-04，五题都选 A）；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |

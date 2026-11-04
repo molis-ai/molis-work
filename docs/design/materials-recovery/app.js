@@ -55,7 +55,13 @@
         const sent = S.v.envSent; // the person chose to send .env.local after looking
         const kind = (name) => K.renderFileKind(name.includes(".") && !name.startsWith(".") ? name : name + ".txt");
         const locName = (id) => P(LOCS.find((l) => l.id === id).name);
-        const note = (icon, text, tone = "") => `<p class="ob-note${tone ? " is-" + tone : ""}">${ic(icon, "sm")}<span>${text}</span></p>`;
+        // A dotfile with a second suffix (.env.local) names its kind by the first part: "ENV", not the cut-off "LOCA".
+        // (The board's renderFileKind reads the last suffix; noted for the kit.)
+        const fileRow = (o) => {
+          const html = K.renderFileRow(o), m = /^\.([^.]+)\.[^.]+$/.exec(o.name);
+          return m ? html.replace(K.renderFileKind(o.name), K.renderFileKind("x." + m[1])) : html;
+        };
+        const note = (icon, text, tone = "") => `<p class="mr-note${tone ? " is-" + tone : ""}">${ic(icon, "sm")}<span>${text}</span></p>`;
 
         // The problems, each with why and what can be done.
         const PROBLEMS = [
@@ -74,7 +80,7 @@
             if (s === "listing" && l.id === "dl" && !S.v.stopped) {
               caption = `${l.path} · ${L("正在看", "Looking in")} 2025/会议录音`; count = ""; status = tag(L("已找到 812 项…", "812 found…"), "running", "progress");
               noteText = L("还不知道一共多少，不显示百分比；已找到的可以先勾。", "The total isn't known yet, so no percentage; you can tick what's found already.");
-              rows = [K.renderFileRow({ name: "Gartner AI Agents 2026.pdf", size: "1.1 MB", check: { checked: true } }), K.renderFileRow({ name: "访谈纪要-李.docx", size: "64 KB", check: { checked: true } })];
+              rows = [fileRow({ name: "Gartner AI Agents 2026.pdf", size: "1.1 MB", check: { checked: true } }), fileRow({ name: "访谈纪要-李.docx", size: "64 KB", check: { checked: true } })];
             } else if (s === "listing" && l.id === "dl") {
               status = tag(L("已停止 · 812 项", "Stopped · 812 found"), "interrupted", "attention"); count = "6/812";
               noteText = L("停在这里了，已找到的 812 项都在；没看到的不会读。", "Stopped here; the 812 found are kept. What wasn't reached won't be read.");
@@ -93,38 +99,38 @@
             const tools = s === "listing" && l.id === "dl" ? (S.v.stopped ? btn(L("接着清点", "Resume"), { act: "scan-resume", icon: "play" }) : btn(L("停止", "Stop"), { act: "scan-stop", icon: "pause" }))
               : s === "denied" && l.id === "dl" ? btn(L("重新授权", "Grant again"), { act: "toast", arg: L("系统的文件夹授权窗口（模拟）", "The system's folder access window (sample)") }) + btn(L("本次跳过", "Skip this time"), { v: "ghost", act: "toast", arg: L("跳过下载，其余照常（模拟）", "Downloads skipped; the rest carries on (sample)") })
               : s === "empty" && l.id === "dl" ? btn(L("改成最近 30 天", "Last 30 days"), { act: "toast", arg: L("范围改成最近 30 天（模拟）", "Range set to 30 days (sample)") }) : "";
-            return `<div class="ob-loc${s === "denied" && l.id === "dl" ? " is-blocked" : ""}">${K.renderFileGroup({ glyph: l.icon, title: P(l.name), caption, count, status, rows, note: noteText })}${tools ? `<div class="ob-loc__tools">${tools}</div>` : ""}</div>`;
+            return `<div class="mr-loc${s === "denied" && l.id === "dl" ? " is-blocked" : ""}">${K.renderFileGroup({ glyph: l.icon, title: P(l.name), caption, count, status, rows, note: noteText })}${tools ? `<div class="mr-loc__tools">${tools}</div>` : ""}</div>`;
           }).join("");
           const picked = s === "denied" ? 217 : s === "empty" ? 186 : 223;
-          const big = s === "restored" ? `<div class="ob-big"><b>${picked}</b><span>${L("份 · 上次的选择", "items · your last choice")}</span>${tag(L("核对中", "Checking"), "running", "progress")}</div>`
-            : `<div class="ob-big"><b>${picked}</b><span>${L(`份 · ${s === "empty" ? 1 : s === "denied" ? 2 : 3} 个位置`, `items · ${s === "empty" ? 1 : s === "denied" ? 2 : 3} locations`)}</span>${s !== "empty" ? `<em>${L("重复 1 份只算一次", "1 duplicate counted once")}</em>` : ""}</div>`;
+          const big = s === "restored" ? `<div class="mr-big"><b>${picked}</b><span>${L("份 · 上次的选择", "items · your last choice")}</span>${tag(L("核对中", "Checking"), "running", "progress")}</div>`
+            : `<div class="mr-big"><b>${picked}</b><span>${L(`份 · ${s === "empty" ? 1 : s === "denied" ? 2 : 3} 个位置`, `items · ${s === "empty" ? 1 : s === "denied" ? 2 : 3} locations`)}</span>${s !== "empty" ? `<em>${L("重复 1 份只算一次", "1 duplicate counted once")}</em>` : ""}</div>`;
           const left = big + (s === "listing" ? note("clock", L("「下载」还在清点；其余两个位置已经好了，可以先往下走，清点完会补上。", "Downloads is still being listed; the other two are ready. You can go on — it fills in when done.")) : "")
             + (s === "denied" ? note("circle-alert", L("一个位置读不了，不影响另外两个。", "One location can't be read; the other two are fine."), "warn") : "")
             + note("shield", L("只读勾选的，原文件不改。", "Only ticked items are read; originals stay unchanged."));
-          return ob(c, { step: 0, q: L("这次读这些", "Read these this time"), left, right: `<div class="ob-scene">${groups}</div>`, primary: L("下一步", "Next"), primaryDisabled: s === "restored" });
+          return ob(c, { step: 0, q: L("这次读这些", "Read these this time"), left, right: `<div class="mr-scene">${groups}</div>`, primary: L("下一步", "Next"), primaryDisabled: s === "restored" });
         }
 
         // ---------- after reading (mixed / sensitive) ----------
         const used = 205, unused = 9, read = 214;
         const facts = [[L("发现", "Found"), "1,531"], [L("选中", "Ticked"), "223"], [L("读好", "Read"), String(read)], [L("用到摘要", "In the summary"), String(used)], [L("带进项目", "Into the project"), L("采用时", "On adopt")]];
-        const heldRow = (o = {}) => K.renderFileRow({ name: ".env.local", className: "is-why", size: sent ? L("已按你的选择发送去掉值的版本", "Sent without values, as you chose") : L("像是密钥（STRIPE_KEY=…），没发给模型", "Looks like secrets (STRIPE_KEY=…); not sent"), state: sent ? tag(L("已发送", "Sent"), "done", "done") : tag(L("没发送", "Held back"), "blocked", "hold") });
+        const heldRow = (o = {}) => fileRow({ name: ".env.local", className: "is-why", size: sent ? L("已按你的选择发送去掉值的版本", "Sent without values, as you chose") : L("像是密钥（STRIPE_KEY=…），没发给模型", "Looks like secrets (STRIPE_KEY=…); not sent"), state: sent ? tag(L("已发送", "Sent"), "done", "done") : tag(L("没发送", "Held back"), "blocked", "hold") });
         let right = "";
 
         if (scheme === "A") {
-          const readRows = [READ[4], READ[6], READ[9], READ[0], READ[8]].map(([n, , size, how]) => K.renderFileRow({ name: n, size, state: how === "content" ? badge(L("按内容认出", "By content"), "info") : how === "dup" ? badge(L("重复，只算一次", "Duplicate, once"), "neutral") : "" }));
-          const unusedRows = UNUSED.map(([n, , size]) => K.renderFileRow({ name: n, size, state: `<span class="mw-file-row__state">${L("读了，没用到", "Read, not used")}</span>` }));
+          const readRows = [READ[4], READ[6], READ[9], READ[0], READ[8]].map(([n, , size, how]) => fileRow({ name: n, size, state: how === "content" ? badge(L("按内容认出", "By content"), "info") : how === "dup" ? badge(L("重复，只算一次", "Duplicate, once"), "neutral") : "" }));
+          const unusedRows = UNUSED.map(([n, , size]) => fileRow({ name: n, size, state: `<span class="mw-file-row__state">${L("读了，没用到", "Read, not used")}</span>` }));
           const g = (o) => K.renderFileGroup(o);
-          right = `<div class="ob-scene">
-            ${g({ glyph: "lock", title: L("没发给模型 · 1 份", "Not sent to the model · 1"), caption: L("勾了它所在的文件夹，不等于同意外发", "Ticking its folder isn't consent to send it"), rows: [heldRow() + (sent ? "" : `<li class="ob-fix">${btn(L("看看哪几行", "See which lines"), { v: "ghost", act: "toast", arg: L("STRIPE_KEY、DATABASE_URL 两行（值不显示）", "Two lines: STRIPE_KEY, DATABASE_URL (values hidden)") })}${btn(L("仍要发送…", "Send anyway…"), { v: "ghost", act: "send-env" })}</li>`)], className: "is-hold" })}
-            ${g({ glyph: "circle-alert", title: L("读不了正文 · 4 份", "No readable text · 4"), caption: L("没有算成读好；原件都留着", "Not counted as read; the originals are kept"), rows: PROBLEMS.map((p) => K.renderFileRow({ name: p.n, size: p.why, className: "is-why" }) + (p.acts.length ? `<li class="ob-fix">${actBtns(p)}</li>` : "")), className: "is-warn" })}
+          right = `<div class="mr-scene">
+            ${g({ glyph: "lock", title: L("没发给模型 · 1 份", "Not sent to the model · 1"), caption: L("勾了它所在的文件夹，不等于同意外发", "Ticking its folder isn't consent to send it"), rows: [heldRow() + (sent ? "" : `<li class="mr-fix">${btn(L("看看哪几行", "See which lines"), { v: "ghost", act: "toast", arg: L("STRIPE_KEY、DATABASE_URL 两行（值不显示）", "Two lines: STRIPE_KEY, DATABASE_URL (values hidden)") })}${btn(L("仍要发送…", "Send anyway…"), { v: "ghost", act: "send-env" })}</li>`)], className: "is-hold" })}
+            ${g({ glyph: "circle-alert", title: L("读不了正文 · 4 份", "No readable text · 4"), caption: L("没有算成读好；原件都留着", "Not counted as read; the originals are kept"), rows: PROBLEMS.map((p) => fileRow({ name: p.n, size: p.why, className: "is-why" }) + (p.acts.length ? `<li class="mr-fix">${actBtns(p)}</li>` : "")), className: "is-warn" })}
             ${g({ glyph: "check", title: L(`读好了 · ${read} 份`, `Read · ${read}`), caption: L(`${used} 份用在了摘要里 · ${unused} 份读了没用到 · 12 份没有常见后缀，按内容认出`, `${used} used in the summary · ${unused} read but not used · 12 recognised by content`), rows: readRows.slice(0, 5), note: L(`另外 ${read - 5} 份`, `${read - 5} more`), className: "is-ok" })}
-            <details class="mw-collapsible ob-fold"><summary>${L(`读了没用到的 ${unused} 份`, `${unused} read but not used`)}</summary><div class="mw-collapsible__body"><ul class="mw-file-list">${unusedRows.join("")}</ul></div></details>
-            ${g({ glyph: "image", title: L("只留引用 · 3 张图", "Kept as references · 3 images"), caption: L("图片不读文字，项目里可以引用", "Images aren't read as text; they can be cited in the project"), rows: IMAGES.map(([n, , size]) => K.renderFileRow({ name: n, size })) })}
-            <details class="mw-collapsible ob-fold"><summary>${L("按规则没读 · 3 类 · 19,656 项", "Skipped by rule · 3 kinds · 19,656 items")}</summary><div class="mw-collapsible__body"><ul class="mw-file-list">${IGNORED.map(([n, d]) => K.renderFileRow({ name: n + "/", size: P(d), state: btn(L("这次读它", "Read it this time"), { v: "ghost", act: "toast", arg: L(`下次读取会带上 ${n}（模拟）`, `${n} is included next time (sample)`) }) })).join("")}</ul><p class="ob-rule">${L("依赖、版本记录和构建产物默认不读。.gitignore、.editorconfig 这类配置照常读；.env 这类可能含密钥的不外发。", "Dependencies, version history and build output are skipped by default. Config like .gitignore is read as usual; files like .env that may hold secrets are never sent out.")}</p></div></details>
+            <details class="mw-collapsible mr-fold"><summary>${L(`读了没用到的 ${unused} 份`, `${unused} read but not used`)}</summary><div class="mw-collapsible__body"><ul class="mw-file-list">${unusedRows.join("")}</ul></div></details>
+            ${g({ glyph: "image", title: L("只留引用 · 3 张图", "Kept as references · 3 images"), caption: L("图片不读文字，项目里可以引用", "Images aren't read as text; they can be cited in the project"), rows: IMAGES.map(([n, , size]) => fileRow({ name: n, size })) })}
+            <details class="mw-collapsible mr-fold"><summary>${L("按规则没读 · 3 类 · 19,656 项", "Skipped by rule · 3 kinds · 19,656 items")}</summary><div class="mw-collapsible__body"><ul class="mw-file-list">${IGNORED.map(([n, d]) => fileRow({ name: n + "/", size: P(d), state: btn(L("这次读它", "Read it this time"), { v: "ghost", act: "toast", arg: L(`下次读取会带上 ${n}（模拟）`, `${n} is included next time (sample)`) }) })).join("")}</ul><p class="mr-rule">${L("依赖、版本记录和构建产物默认不读。.gitignore、.editorconfig 这类配置照常读；.env 这类可能含密钥的不外发。", "Dependencies, version history and build output are skipped by default. Config like .gitignore is read as usual; files like .env that may hold secrets are never sent out.")}</p></div></details>
           </div>`;
         } else if (scheme === "B") {
           const filter = S.v.filter || "all";
-          const track = (n) => `<span class="ob-track" role="img" aria-label="${esc(L(`走到第 ${n} 步，共 5 步`, `Step ${n} of 5`))}"${c.fresh(L("五格走到哪：发现、选中、读好、用到、带进项目；组件板没有这个部件", "Five-cell progress: found, ticked, read, used, brought in; not on the board"))}>${[0, 1, 2, 3, 4].map((i) => `<i class="${i < n ? "on" : ""}${i === n && n < 4 ? " stop" : ""}"></i>`).join("")}</span>`;
+          const track = (n) => `<span class="mr-track" role="img" aria-label="${esc(L(`走到第 ${n} 步，共 5 步`, `Step ${n} of 5`))}"${c.fresh(L("五格走到哪：发现、选中、读好、用到、带进项目；组件板没有这个部件", "Five-cell progress: found, ticked, read, used, brought in; not on the board"))}>${[0, 1, 2, 3, 4].map((i) => `<i class="${i < n ? "on" : ""}${i === n && n < 4 ? " stop" : ""}"></i>`).join("")}</span>`;
           // One compact row per file, the board's renderFileRow at 04's density: type, name, source and size, five cells, status.
           // Only a row that needs you gets a second line, with the whole reason and its fix (the cells and that line are new on the board).
           const W = {
@@ -143,46 +149,46 @@
           const tabs = c.K.renderToggleGroup({ label: L("看哪些", "Show"), items: [["all", L("全部", "All")], ["issue", L(`要处理 ${issues}`, `Need you ${issues}`)], ["unused", L(`没用到 ${unused}`, `Not used ${unused}`)]].map(([v, l]) => ({ value: v, label: l, current: filter === v, attrs: { "data-act": "filter", "data-arg": v } })) });
           const row = (r) => {
             const [word, state, tone] = W[r.w];
-            return K.renderFileRow({ name: r.n, size: `${locName(r.loc)} · ${r.size}`, state: `<span class="ob-cells">${track(r.step)}${tag(word, state, tone)}</span>`, className: r.why ? "is-issue" : "" })
-              + (r.why ? `<li class="ob-why"${c.fresh(L("原因与补救：只给要处理的行加这一行；组件板没有这个槽位", "Reason and fix: a line only rows that need you get; not on the board"))}><span>${esc(r.why)}</span>${r.fix}</li>` : "");
+            return fileRow({ name: r.n, size: `${locName(r.loc)} · ${r.size}`, state: `<span class="mr-cells">${track(r.step)}${tag(word, state, tone)}</span>`, className: r.why ? "is-issue" : "" })
+              + (r.why ? `<li class="mr-why"${c.fresh(L("原因与补救：只给要处理的行加这一行；组件板没有这个槽位", "Reason and fix: a line only rows that need you get; not on the board"))}><span>${esc(r.why)}</span>${r.fix}</li>` : "");
           };
-          right = `<div class="ob-scene is-list">
-            <ol class="ob-funnel" aria-label="${L("五件事", "Five facts")}"${c.fresh(L("一排五个数：发现、选中、读好、用到、带进项目；组件板没有", "A row of five counts; not on the board"))}>${facts.map(([k, v], i) => `<li${i === 4 ? ' class="is-later"' : ""}><b>${v}</b><span>${k}</span></li>`).join("")}</ol>
-            <div class="ob-filter">${tabs}<span class="cap">${L("每一格：发现 · 选中 · 读好 · 用到 · 带进项目", "Cells: found · ticked · read · used · brought in")}</span></div>
-            <div class="ob-listbox"><ul class="mw-file-list ob-list" tabindex="0" aria-label="${L("每份材料", "Each file")}">${shown.map(row).join("")}<li class="ob-more">${L("样张只列出其中一部分", "The sample lists only some of them")}</li></ul></div>
-            <details class="mw-collapsible ob-fold"><summary>${L("按规则没读 · 19,656 项", "Skipped by rule · 19,656 items")}</summary><div class="mw-collapsible__body"><p class="ob-rule">${IGNORED.map(([n, d]) => `<code>${n}/</code> ${esc(P(d))}`).join("　")}</p></div></details>
+          right = `<div class="mr-scene is-list">
+            <ol class="mr-funnel" aria-label="${L("五件事", "Five facts")}"${c.fresh(L("一排五个数：发现、选中、读好、用到、带进项目；组件板没有", "A row of five counts; not on the board"))}>${facts.map(([k, v], i) => `<li${i === 4 ? ' class="is-later"' : ""}><b>${v}</b><span>${k}</span></li>`).join("")}</ol>
+            <div class="mr-filter">${tabs}<span class="cap">${L("每一格：发现 · 选中 · 读好 · 用到 · 带进项目", "Cells: found · ticked · read · used · brought in")}</span></div>
+            <div class="mr-listbox"><ul class="mw-file-list mr-list" tabindex="0" aria-label="${L("每份材料", "Each file")}">${shown.map(row).join("")}<li class="mr-more">${L("样张只列出其中一部分", "The sample lists only some of them")}</li></ul></div>
+            <details class="mw-collapsible mr-fold"><summary>${L("按规则没读 · 19,656 项", "Skipped by rule · 19,656 items")}</summary><div class="mw-collapsible__body"><p class="mr-rule">${IGNORED.map(([n, d]) => `<code>${n}/</code> ${esc(P(d))}`).join("　")}</p></div></details>
           </div>`;
         } else {
           const open = S.v.chip;
           const chips = [["ok", "check", L(`${read} 份读好`, `${read} read`), "done"], ["ref", "image", L("3 张只留引用", "3 references"), "idle"], ["unread", "circle-alert", L("4 份读不了", "4 unreadable"), "attention"], ["held", "lock", sent ? L("1 份已按你的选择发送", "1 sent as you chose") : L("1 份没发给模型", "1 held back"), sent ? "done" : "hold"], ["rule", "filter", L("19,656 项按规则没读", "19,656 skipped by rule"), "quiet"]];
           const list = {
-            ok: READ.slice(0, 6).map(([n, , size, how]) => K.renderFileRow({ name: n, size, state: how === "content" ? badge(L("按内容认出", "By content"), "info") : "" })).join("") + `<li class="ob-more">${L(`另外 ${read - 6} 份 · 其中 ${unused} 份没用到`, `${read - 6} more · ${unused} not used`)}</li>`,
-            ref: IMAGES.map(([n, , size]) => K.renderFileRow({ name: n, size })).join(""),
-            unread: PROBLEMS.map((p) => K.renderFileRow({ name: p.n, size: p.why, className: "is-why" }) + (p.acts.length ? `<li class="ob-fix">${actBtns(p)}</li>` : "")).join(""),
-            held: heldRow() + (sent ? "" : `<li class="ob-fix">${btn(L("仍要发送…", "Send anyway…"), { v: "ghost", act: "send-env" })}</li>`),
-            rule: IGNORED.map(([n, d]) => K.renderFileRow({ name: n + "/", size: P(d) })).join(""),
+            ok: READ.slice(0, 6).map(([n, , size, how]) => fileRow({ name: n, size, state: how === "content" ? badge(L("按内容认出", "By content"), "info") : "" })).join("") + `<li class="mr-more">${L(`另外 ${read - 6} 份 · 其中 ${unused} 份没用到`, `${read - 6} more · ${unused} not used`)}</li>`,
+            ref: IMAGES.map(([n, , size]) => fileRow({ name: n, size })).join(""),
+            unread: PROBLEMS.map((p) => fileRow({ name: p.n, size: p.why, className: "is-why" }) + (p.acts.length ? `<li class="mr-fix">${actBtns(p)}</li>` : "")).join(""),
+            held: heldRow() + (sent ? "" : `<li class="mr-fix">${btn(L("仍要发送…", "Send anyway…"), { v: "ghost", act: "send-env" })}</li>`),
+            rule: IGNORED.map(([n, d]) => fileRow({ name: n + "/", size: P(d) })).join(""),
           };
-          right = `<div class="ob-scene">
-            <div class="ob-card"><div class="ob-card__h">${ic("sparkles", "sm")}<b>${L("工作脉络", "How the work stands")}</b>${badge(L("按 205 份", "From 205"), "neutral")}</div>
+          right = `<div class="mr-scene">
+            <div class="mr-card"><div class="mr-card__h">${ic("sparkles", "sm")}<b>${L("工作脉络", "How the work stands")}</b>${badge(L("按 205 份", "From 205"), "neutral")}</div>
               <p>${L("官网改版在第二轮：首页英雄区已重做，订阅表单待接入支付［S12］；10-28 周会定下先做移动端［S41］。访谈里李提到注册太长［S77］。", "The website redesign is in its second round: the hero is redone, the subscribe form awaits payments [S12]; the 10-28 meeting put mobile first [S41]. Li said sign-up is too long [S77].")}</p></div>
-            <div class="ob-chips" role="group" aria-label="${L("读取结果", "Reading results")}"${c.fresh(L("结果签：组件板的状态签做成可点的筛选；可点这一点是新的", "Result chips: the board's status marks made clickable; the click is new"))}>${chips.map(([id, icon, label, tone]) => `<button type="button" class="ob-chip${open === id ? " is-open" : ""}" data-act="chip" data-arg="${id}" aria-expanded="${open === id}" data-tone="${tone}">${ic(icon, "sm")}<span>${label}</span>${ic("chevron-down", "xs")}</button>`).join("")}</div>
-            ${open ? `<div class="ob-chipbody" role="region"><ul class="mw-file-list">${list[open]}</ul></div>` : `<p class="cap ob-hint">${L("点一个结果，看是哪些文件。", "Pick a result to see which files.")}</p>`}
+            <div class="mr-chips" role="group" aria-label="${L("读取结果", "Reading results")}"${c.fresh(L("结果签：组件板的状态签做成可点的筛选；可点这一点是新的", "Result chips: the board's status marks made clickable; the click is new"))}>${chips.map(([id, icon, label, tone]) => `<button type="button" class="mr-chip${open === id ? " is-open" : ""}" data-act="chip" data-arg="${id}" aria-expanded="${open === id}" data-tone="${tone}">${ic(icon, "sm")}<span>${label}</span>${ic("chevron-down", "xs")}</button>`).join("")}</div>
+            ${open ? `<div class="mr-chipbody" role="region"><ul class="mw-file-list">${list[open]}</ul></div>` : `<p class="cap mr-hint">${L("点一个结果，看是哪些文件。", "Pick a result to see which files.")}</p>`}
           </div>`;
         }
 
         // Left: the read step (04), plus the one thing to decide when a file looks like secrets.
-        let left = `<ol class="ob-phases">
+        let left = `<ol class="mr-phases">
           <li class="is-done">${c.ring("done")}<span><b>${L("读 222 份", "Read 222")}</b><small>${L("214 份读好 · 3 张只留引用 · 4 份读不了 · 1 份没发送", "214 read · 3 references · 4 unreadable · 1 held back")}</small></span></li>
           <li class="is-done">${c.ring("done")}<span><b>${L("整理工作脉络", "Sum up the work")}</b><small>${L("用了 205 份", "Used 205")}</small></span></li></ol>`;
         if (s === "sensitive" && !sent) {
           const pick = S.v.envPick || "strip";
-          const opt = (v, t, d) => `<label class="ob-opt${pick === v ? " is-on" : ""}"><input type="radio" class="mw-radio" name="env" value="${v}" data-act="env-pick" data-arg="${v}"${pick === v ? " checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`;
-          left += `<div class="ob-ask" role="group" aria-labelledby="ob-ask-t"><div class="ob-ask__h" id="ob-ask-t">${ic("lock", "sm")}<b>${L("要把 .env.local 发给模型吗？", "Send .env.local to the model?")}</b></div>
+          const opt = (v, t, d) => `<label class="mr-opt${pick === v ? " is-on" : ""}"><input type="radio" class="mw-radio" name="env" value="${v}" data-act="env-pick" data-arg="${v}"${pick === v ? " checked" : ""}><span><b>${t}</b><small>${d}</small></span></label>`;
+          left += `<div class="mr-ask" role="group" aria-labelledby="mr-ask-t"><div class="mr-ask__h" id="mr-ask-t">${ic("lock", "sm")}<b>${L("要把 .env.local 发给模型吗？", "Send .env.local to the model?")}</b></div>
             <p>${L("里面有 2 行像密钥：STRIPE_KEY、DATABASE_URL。值不会显示在这里。", "Two lines look like secrets: STRIPE_KEY, DATABASE_URL. Values aren't shown here.")}</p>
             ${opt("strip", L("只发变量名，去掉值", "Send names only, without values"), L("模型知道要哪些配置，看不到值", "The model learns which settings exist, not their values"))}
             ${opt("raw", L("原样发送", "Send as is"), L("值会进入这次请求和模型服务商的记录", "Values go into this request and the provider's logs"))}
             ${opt("no", L("不发", "Don't send"), L("保持现在这样", "Keep it as it is"))}
-            <div class="ob-ask__acts">${btn(L("就这样", "Confirm"), { v: "primary", act: "env-confirm" })}${btn(L("取消", "Cancel"), { v: "ghost", act: "toast", arg: L("没有发送", "Nothing sent") })}</div></div>`;
+            <div class="mr-ask__acts">${btn(L("就这样", "Confirm"), { v: "primary", act: "env-confirm" })}${btn(L("取消", "Cancel"), { v: "ghost", act: "toast", arg: L("没有发送", "Nothing sent") })}</div></div>`;
         } else {
           left += note("shield", L("读到的文字存在这台 Mac 的这个项目里；整理时只把读好的交给你选的模型。", "Read text stays in this project on this Mac; only what was read goes to your model."));
         }
@@ -208,15 +214,15 @@
         const SUM_NEW = s === "add" ? L("官网改版在第二轮：首页英雄区已重做［S12］；11-04 周会定下先上移动端注册［S224］，设计评审要求把注册缩成两步［S225］。", "The redesign is in round two: the hero is redone [S12]; the 11-04 meeting put mobile sign-up first [S224], and the design review asks for a two-step sign-up [S225].")
           : s === "remove" ? L("官网改版在第二轮：首页英雄区已重做，订阅表单待接入支付［S12］；访谈里李提到注册太长［S77］。", "The redesign is in round two: the hero is redone, the subscribe form awaits payments [S12]; Li said sign-up is too long [S77].")
           : L("官网改版进入第二轮。已完成：首页英雄区［S12］。待定：支付接入［S12］、注册流程缩短［S77］。", "The redesign is in round two. Done: the hero [S12]. Open: payments [S12], a shorter sign-up [S77].");
-        const summaryCard = (body, o = {}) => `<div class="ob-card${o.stale ? " is-stale" : ""}${o.landed ? " is-landed" : ""}"><div class="ob-card__h">${ic("sparkles", "sm")}<b>${L("工作脉络", "How the work stands")}</b>${o.badge || ""}</div>${body ? `<p>${body}</p>` : `<div class="ob-skel" aria-hidden="true"><span class="mw-skeleton"></span><span class="mw-skeleton"></span><span class="mw-skeleton"></span></div><p class="cap">${L(`${model} 正在按新范围整理…`, `${model} is summing up the new scope…`)}</p>`}</div>`;
-        const lateNote = s === "late" ? `<div class="ob-late" role="status">${ic("history", "sm")}<span>${what}</span></div>` : "";
+        const summaryCard = (body, o = {}) => `<div class="mr-card${o.stale ? " is-stale" : ""}${o.landed ? " is-landed" : ""}"><div class="mr-card__h">${ic("sparkles", "sm")}<b>${L("工作脉络", "How the work stands")}</b>${o.badge || ""}</div>${body ? `<p>${body}</p>` : `<div class="mr-skel" aria-hidden="true"><span class="mw-skeleton"></span><span class="mw-skeleton"></span><span class="mw-skeleton"></span></div><p class="cap">${L(`${model} 正在按新范围整理…`, `${model} is summing up the new scope…`)}</p>`}</div>`;
+        const lateNote = s === "late" ? `<div class="mr-late" role="status">${ic("history", "sm")}<span>${what}</span></div>` : "";
         // Progress for the redo: reading only what changed, then the summary.
         const readLine = s === "add" ? (done ? L("补读 3 份 · 222 份沿用", "Read 3 new · 222 carried over") : L("补读第 2 / 3 份 · 222 份沿用", "Reading 2 of 3 new · 222 carried over")) : s === "remove" ? L("不用重读 · 220 份沿用", "Nothing to re-read · 220 carried over") : L("不用重读 · 222 份沿用", "Nothing to re-read · 222 carried over");
-        const phases = `<ol class="ob-phases">
+        const phases = `<ol class="mr-phases">
           <li class="${s === "add" && !done ? "is-run" : "is-done"}">${ring(s === "add" && !done ? "running" : "done")}<span><b>${L("读取", "Read")}</b><small>${readLine}</small></span></li>
           <li class="${done ? "is-done" : "is-wait"}">${ring(done ? "done" : s === "add" ? "waiting" : "running")}<span><b>${L("重出摘要和待办", "Redo the summary and to-dos")}</b><small>${done ? L(`${model} · 按新范围`, `${model} · new scope`) : s === "add" ? L("等补读完", "After the new ones are read") : L(`${model} · 第 1 / 2 批`, `${model} · batch 1 of 2`)}</small></span></li></ol>`;
         let left = "", right = "";
-        const finish = done ? "" : btn(L("模拟：整理完成", "Sample: finish"), { v: "ghost", act: "finish", cls: "ob-sim" });
+        const finish = done ? "" : btn(L("模拟：整理完成", "Sample: finish"), { v: "ghost", act: "finish", cls: "mr-sim" });
 
         if (scheme === "A") {
           const rows = [
@@ -226,20 +232,20 @@
             s === "model" || s === "late" ? ["sparkles", "redo", L("换成 DeepSeek-V4", "Switched to DeepSeek-V4"), L("连接用设置里存好的那一个", "Uses the connection saved in Settings")] : null,
             ["refresh", "redo", L("摘要和待办重出", "Summary and to-dos redone"), L("旧的不会当成新范围的结果", "The old ones won't pass as the new scope's")],
           ].filter(Boolean);
-          left = `<div class="ob-delta"${c.fresh(L("「这次只做这些」卡：行用组件板的行与图标块；整张卡是新的", "“Only this, this time”: board rows and tiles; the card itself is new"))}><div class="ob-delta__h">${L("这次只做这些", "Only this, this time")}</div>${rows.map(([icon, tone, t, d]) => `<div class="ob-delta__r is-${tone}"><span class="ob-tile">${ic(icon, "sm")}</span><span class="nm"><b>${esc(t)}</b><small class="ell" title="${esc(d)}">${esc(d)}</small></span></div>`).join("")}</div>${lateNote}${phases}${finish}`;
-          right = `<div class="ob-scene">${done ? summaryCard(SUM_NEW, { badge: badge(L("新范围", "New scope"), "success"), landed: true }) : summaryCard(SUM_OLD, { stale: true, badge: badge(L("旧范围 · 10:42", "Old scope · 10:42"), "neutral") }) + `<p class="ob-stale-note">${ic("info", "sm")}${L("这份是旧范围的，不能采用；新的出来后换掉它。", "This one is from the old scope and can't be adopted; it's replaced when the new one lands.")}</p>`}</div>`;
+          left = `<div class="mr-delta"${c.fresh(L("「这次只做这些」卡：行用组件板的行与图标块；整张卡是新的", "“Only this, this time”: board rows and tiles; the card itself is new"))}><div class="mr-delta__h">${L("这次只做这些", "Only this, this time")}</div>${rows.map(([icon, tone, t, d]) => `<div class="mr-delta__r is-${tone}"><span class="mr-tile">${ic(icon, "sm")}</span><span class="nm"><b>${esc(t)}</b><small class="ell" title="${esc(d)}">${esc(d)}</small></span></div>`).join("")}</div>${lateNote}${phases}${finish}`;
+          right = `<div class="mr-scene">${done ? summaryCard(SUM_NEW, { badge: badge(L("新范围", "New scope"), "success"), landed: true }) : summaryCard(SUM_OLD, { stale: true, badge: badge(L("旧范围 · 10:42", "Old scope · 10:42"), "neutral") }) + `<p class="mr-stale-note">${ic("info", "sm")}${L("这份是旧范围的，不能采用；新的出来后换掉它。", "This one is from the old scope and can't be adopted; it's replaced when the new one lands.")}</p>`}</div>`;
         } else if (scheme === "B") {
-          const row = (n, size, mark) => K.renderFileRow({ name: n, size, className: "ob-dr is-" + mark, state: mark === "add" ? badge(done ? L("新加 · 已读", "New · read") : L("新加", "New"), "success") : mark === "rem" ? badge(L("不再用", "Not used"), "neutral") : `<span class="mw-file-row__state">${L("沿用", "Kept")}</span>` });
+          const row = (n, size, mark) => K.renderFileRow({ name: n, size, className: "mr-dr is-" + mark, state: mark === "add" ? badge(done ? L("新加 · 已读", "New · read") : L("新加", "New"), "success") : mark === "rem" ? badge(L("不再用", "Not used"), "neutral") : `<span class="mw-file-row__state">${L("沿用", "Kept")}</span>` });
           const rows = [...(s === "add" ? ADD.map(([n, z]) => row(n, z, "add")) : []), ...(s === "remove" ? REM.map(([n, z]) => row(n, z, "rem")) : []), ...KEEP.map(([n, z]) => row(n, z, "keep"))];
-          left = `<p class="ob-lede">${what}</p>${lateNote}${phases}${finish}`;
-          right = `<div class="ob-scene">${done ? summaryCard(SUM_NEW, { badge: badge(L("新范围", "New scope"), "success"), landed: true }) : `<div class="ob-banner" role="status">${tag(L("按新范围重出中", "Redoing for the new scope"), "running", "progress")}<span class="cap">${L("旧摘要已收起，不会被采用", "The old summary is put away and can't be adopted")}</span></div>`}
-            ${K.renderFileGroup({ glyph: "folder-open", title: L(`材料 · ${s === "add" ? 225 : kept} 份`, `Materials · ${s === "add" ? 225 : kept}`), caption: s === "model" || s === "late" ? L("换模型不改材料", "Changing the model doesn't touch materials") : L("变化标在每一行", "Changes are marked on each row"), rows, note: L(`另外 ${kept - 3} 份沿用`, `${kept - 3} more carried over`), className: "ob-diff" + (c.S.marks ? "" : "") })}</div>`;
+          left = `<p class="mr-lede">${what}</p>${lateNote}${phases}${finish}`;
+          right = `<div class="mr-scene">${done ? summaryCard(SUM_NEW, { badge: badge(L("新范围", "New scope"), "success"), landed: true }) : `<div class="mr-banner" role="status">${tag(L("按新范围重出中", "Redoing for the new scope"), "running", "progress")}<span class="cap">${L("旧摘要已收起，不会被采用", "The old summary is put away and can't be adopted")}</span></div>`}
+            ${K.renderFileGroup({ glyph: "folder-open", title: L(`材料 · ${s === "add" ? 225 : kept} 份`, `Materials · ${s === "add" ? 225 : kept}`), caption: s === "model" || s === "late" ? L("换模型不改材料", "Changing the model doesn't touch materials") : L("变化标在每一行", "Changes are marked on each row"), rows, note: L(`另外 ${kept - 3} 份沿用`, `${kept - 3} more carried over`), className: "mr-diff" + (c.S.marks ? "" : "") })}</div>`;
         } else {
           const ver = S.v.ver || "new";
           const tabs = K.renderTabs({ label: L("摘要版本", "Summary version"), tabs: [{ id: "new", label: L("第 2 版 · 新范围", "v2 · new scope"), selected: ver === "new", attrs: { "data-act": "ver", "data-arg": "new" } }, { id: "old", label: L("第 1 版 · 旧范围", "v1 · old scope"), selected: ver === "old", attrs: { "data-act": "ver", "data-arg": "old" } }] });
           const phasesC = phases.replace(readLine, readLine + (s === "remove" ? L(" · 去掉 2 份", " · 2 removed") : s === "model" || s === "late" ? L(" · 换成 DeepSeek-V4", " · now DeepSeek-V4") : ""));
-          left = `<p class="ob-lede">${s === "late" ? L("旧的结果晚到了，没用。", "An old result came late and wasn't used.") : L("只重做受影响的部分。", "Only what's affected is redone.")}</p>${lateNote}${phasesC}${finish}`;
-          right = `<div class="ob-scene">${tabs}${ver === "old" ? summaryCard(SUM_OLD, { stale: true, badge: badge(L("只能看，不能采用", "View only"), "neutral") }) : done ? summaryCard(SUM_NEW, { badge: badge(L("可以采用", "Ready to adopt"), "success"), landed: true }) : summaryCard("")}</div>`;
+          left = `<p class="mr-lede">${s === "late" ? L("旧的结果晚到了，没用。", "An old result came late and wasn't used.") : L("只重做受影响的部分。", "Only what's affected is redone.")}</p>${lateNote}${phasesC}${finish}`;
+          right = `<div class="mr-scene">${tabs}${ver === "old" ? summaryCard(SUM_OLD, { stale: true, badge: badge(L("只能看，不能采用", "View only"), "neutral") }) : done ? summaryCard(SUM_NEW, { badge: badge(L("可以采用", "Ready to adopt"), "success"), landed: true }) : summaryCard("")}</div>`;
         }
         return ob(c, { step: 2, q: s === "late" ? L("接着用新范围", "Carrying on with the new scope") : L("按新范围整理", "Summing up the new scope"), left, right, primary: L("继续", "Continue"), primaryDisabled: !done });
       },
@@ -365,8 +371,8 @@
       },
       "walk-send": () => { c.S.draft = ""; c.S.v.w = 1; c.render(); walk(c, 1); },
       "walk-reset": () => { c.S.v = {}; c.S.draft = MSG(c.L); c.render(); },
-      "ob-next": () => c.toast(c.L("下一步（模拟）", "Next step (sample)"), "done"),
-      "ob-back": () => c.toast(c.L("上一步：你的选择都留着（模拟）", "Back: your choices are kept (sample)")),
+      "mr-next": () => c.toast(c.L("下一步（模拟）", "Next step (sample)"), "done"),
+      "mr-back": () => c.toast(c.L("上一步：你的选择都留着（模拟）", "Back: your choices are kept (sample)")),
     }),
   });
 
@@ -386,17 +392,17 @@
     const { L, K, ic, esc } = c;
     const STEPS = [Z("材料", "Materials"), Z("模型", "Model"), Z("读取与整理", "Read and sum up"), Z("补几件事", "A few questions"), Z("看方案", "Plan"), Z("采用", "Adopt")];
     const name = c.P(STEPS[p.step]);
-    const back = K.renderButton({ label: L("上一步", "Back"), variant: "secondary", size: "md", icon: "back", className: "ob-back", attrs: { "data-act": "ob-back", "aria-label": L("上一步", "Back") } });
-    const next = K.renderButton({ label: p.primary, variant: "primary", size: "md", key: "↵", disabled: p.primaryDisabled, attrs: { "data-act": "ob-next" } });
-    return `<div class="ob">
-      <header class="ob-title"><span class="ob-brand">${ic("brand", "sm")}Molis Work</span><span class="ob-crumb ell">${L("新建项目 · 官网改版", "New project · Website redesign")}</span></header>
-      <div class="ob-sheet"><div class="ob-welcome">
-        <div class="ob-left"><div class="ob-col"><div class="ob-head"><span class="ob-av">${ic("sparkles", "sm")}</span><h1 tabindex="-1">${esc(p.q)}</h1></div>${p.left}</div></div>
-        <div class="ob-right">${p.right}</div>
+    const back = K.renderButton({ label: L("上一步", "Back"), variant: "secondary", size: "md", icon: "back", className: "mr-back", attrs: { "data-act": "mr-back", "aria-label": L("上一步", "Back") } });
+    const next = K.renderButton({ label: p.primary, variant: "primary", size: "md", key: "↵", disabled: p.primaryDisabled, attrs: { "data-act": "mr-next" } });
+    return `<div class="mr">
+      <header class="mr-title"><span class="mr-brand">${ic("brand", "sm")}Molis Work</span><span class="mr-crumb ell">${L("新建项目 · 官网改版", "New project · Website redesign")}</span></header>
+      <div class="mr-sheet"><div class="mr-welcome">
+        <div class="mr-left"><div class="mr-col"><div class="mr-head"><span class="mr-av">${ic("sparkles", "sm")}</span><h1 tabindex="-1">${esc(p.q)}</h1></div>${p.left}</div></div>
+        <div class="mr-right">${p.right}</div>
       </div></div>
-      <footer class="ob-bar"><span class="ob-bar__start">${K.renderButton({ label: L("项目", "Projects"), variant: "ghost", size: "md", icon: "chevron-left", className: "ob-exit", attrs: { "data-act": "ob-back", "aria-label": L("项目", "Projects") } })}</span>
-        <span class="ob-bar__mid">${K.renderSteps({ total: STEPS.length, current: p.step, label: L("步骤", "Steps") })}<span class="ob-stepname">${p.step + 1}/${STEPS.length} · ${esc(name)}</span></span>
-        <span class="ob-bar__end">${back}${next}</span></footer>
+      <footer class="mr-bar"><span class="mr-bar__start">${K.renderButton({ label: L("项目", "Projects"), variant: "ghost", size: "md", icon: "chevron-left", className: "mr-exit", attrs: { "data-act": "mr-back", "aria-label": L("项目", "Projects") } })}</span>
+        <span class="mr-bar__mid">${K.renderSteps({ total: STEPS.length, current: p.step, label: L("步骤", "Steps") })}<span class="mr-stepname">${p.step + 1}/${STEPS.length} · ${esc(name)}</span></span>
+        <span class="mr-bar__end">${back}${next}</span></footer>
     </div>`;
   }
 
@@ -406,8 +412,8 @@
     const v = top && bottom ? "both" : top ? "start" : bottom ? "end" : "";
     if (v) el.dataset.more = v; else delete el.dataset.more;
   };
-  document.addEventListener("scroll", (e) => { if (e.target instanceof Element && e.target.matches(".ob-list")) edge(e.target); }, true);
-  const sync = () => document.querySelectorAll(".ob-list").forEach(edge);
+  document.addEventListener("scroll", (e) => { if (e.target instanceof Element && e.target.matches(".mr-list")) edge(e.target); }, true);
+  const sync = () => document.querySelectorAll(".mr-list").forEach(edge);
   new MutationObserver(sync).observe(document.getElementById("app"), { childList: true, subtree: true });
   addEventListener("resize", sync);
   sync();

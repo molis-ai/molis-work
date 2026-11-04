@@ -260,20 +260,21 @@ interface HomePageVersion {
   3. 外壳拿到后**再核一次**摘要，以入口 HTML 为底，把这一版的 JS、CSS 分别内联成 `<script>`、`<style>` 元素，整份写进框架的 `srcdoc`；页面文件里引用别的文件的 `<script src>`、`<link>` 由外壳换成内联，清单外的引用不加载。页面不能用内联 `style` 属性和内联事件（`style-src` 不给 `'unsafe-inline'`，这一点与插件页不同）。框架的 CSP 里 `script-src`、`style-src` 只有平台固定的框架脚本，加上这一版每个文件的 `'sha256-…'` 哈希源；`connect-src 'none'`，不给 `'unsafe-eval'`、`'unsafe-hashes'`。所以浏览器也按摘要把关：页面运行中拼出的脚本、内联事件、`eval` 都不执行。
   - 页面文件不走静态路由，也不进 `/assets/`，没有按地址取页面文件的第二条路。
   - 实现要改的：`apps/workbench/src/browser/plugin-frame/document.ts`（按页面版本组 `srcdoc` 与 CSP）、`parent.ts`（挂页面主体）；宿主侧页面网关 `apps/local-host/src/plugin-page-authority.ts`、`plugin-page-actions.ts`（认页面主体）。都随 P-4 列进冲突面（第 15 节第 14 项）。
-- **调用**：页面只经页面网关调动作。主体由外壳按框架填，页面自己写的不算。每次调用都核：动作在这一版声明的 `actions` 里，也在本人为这一版批准的集合里；动作的受众含 `plugin`（页面主体按 `plugin` 受众核，只给 `user` 的动作调不到）；目标项目就是页面所在的项目。调用记录里写页面主体和它的版本。
+- **主体从哪来**：照插件页的做法（`apps/local-host/src/plugin-page-authority.ts`）。外壳打开生成页面时请宿主开一条页面记录，宿主从调用上下文取项目、从首页服务读本项目此刻用的 `page_id@version`，记进页面记录、发回一个 `page_id`（页面记录的号）；外壳和页面都只拿这个号。网关每次调用按号从宿主的页面记录读主体，外壳或页面在请求里写的主体、项目、版本一律不认。换版、撤下、关页面、切项目后页面记录作废，号再用被拒。
+- **调用**：页面只经页面网关调动作。每次调用都核：动作在这一版声明的 `actions` 里，也在本人为这一版批准的集合里；动作的受众含 `plugin`（页面主体按 `plugin` 受众核，只给 `user` 的动作调不到）；目标项目就是页面所在的项目。调用记录里写页面主体和它的版本。
 - **批准**：只有本人在采用或恢复时批准，`home.pages.adopt@1`、`home.pages.restore@1` 只给 `user`。批准时列出这一版要用的每个动作和后果（会写、对外发、花钱），与安装确认的权限清单同一种呈现。恢复的那一版若用的动作没有超出它当初获准的集合，界面写「没有新增权限」，但仍由本人点一次恢复。
 - **失效**：换了首页、恢复了别的版本、页面被删、项目切换后，旧版本的在途调用在 `beforeEffect()` 处被拒，迟到的结果不写。
 - 页面拿不到宿主文件、凭据、私有库，也没有平台服务，只有页面网关。
 
 这是新的授权主体，按 AGENTS 的规矩登记安全不变量并配拒绝测试（第 10 节 P-4）：
 
-| 编号（暂定） | 不变量 | 拒绝测试要断言的 |
+| 编号 | 不变量 | 拒绝测试要断言的 |
 | --- | --- | --- |
-| S-131 | 生成页面只跑首页存下的、摘要相符的文件，文件只经 `home.pages.files.read@1` 送进框架 | 库里的正文被改过时 `files.read` 整版不给、外壳显示基础首页；外壳再核不符时不写进框架；哈希源之外的脚本（页面拼出的、内联事件）、`eval`、直接网络请求在真浏览器里不执行；页面主体调 `files.read` 被拒 |
-| S-132 | 页面主体只能调这一版声明并获准的动作，只在本项目，按 `plugin` 受众；试用主体只能调声明里的查询动作 | 声明外、未批准、只给 `user` 的动作，别的项目，都被拒；页面自称别的主体被外壳覆盖；试用主体调命令动作被拒 |
-| S-133 | 批准只由本人直接给（采用或恢复），换版或撤下后旧调用不生效 | 助理、插件、页面调 `adopt`／`restore` 被拒；`blueprints.adoption.apply`／`revert`／`remove` 嵌套调 `adopt`／`restore` 被拒（这两个动作只认没有上一层的本人调用）；换版后旧版本的在途调用在 `beforeEffect()` 被拒、不写记录 |
+| S-111 | 生成页面只跑首页存下的、摘要相符的文件，文件只经 `home.pages.files.read@1` 送进框架 | 库里的正文被改过时 `files.read` 整版不给、外壳显示基础首页；外壳再核不符时不写进框架；哈希源之外的脚本（页面拼出的、内联事件）、`eval`、直接网络请求在真浏览器里不执行；页面主体调 `files.read` 被拒 |
+| S-112 | 页面主体只能调这一版声明并获准的动作，只在本项目，按 `plugin` 受众；试用主体只能调声明里的查询动作 | 声明外、未批准、只给 `user` 的动作，别的项目，都被拒；请求里自带主体、项目或版本的不认（主体只从宿主的页面记录读），别的项目或已作废的页面记录号被拒；试用主体调命令动作被拒 |
+| S-113 | 批准只由本人直接给（采用或恢复），换版或撤下后旧调用不生效 | 助理、插件、页面调 `adopt`／`restore` 被拒；`blueprints.adoption.apply`／`revert`／`remove` 嵌套调 `adopt`／`restore` 被拒（这两个动作只认没有上一层的本人调用）；换版后旧版本的在途调用在 `beforeEffect()` 被拒、不写记录 |
 
-编号按「暂定」写，合同片落时由统筹核对、避开在途 PR 已用的号。第 7 节「采用不转交本人的同意」暂定 S-130。
+编号由合同台 2026-11-04 定：第 7 节「采用不转交本人的同意」是 S-110，首页三条是 S-111～S-113。
 
 ### 6.5 动作
 
@@ -295,7 +296,7 @@ interface HomePageVersion {
 - `apply` 做到这一步：存好草稿，把这一步标 `needs_approval`，返回 `page_id`、`version`。
 - 本人在首页服务自己的批准界面（第 6.4 节）点 `home.pages.adopt@1`。
 - 批准后本人用同一个 `request_id` 再调 `apply`；`home.read` 读到首页已是这一版，才标「已生效」。
-- `adopt`、`restore` 只认没有上一层的本人调用：`apply`、`revert`、`remove` 嵌套调它们一律被拒（S-133）。
+- `adopt`、`restore` 只认没有上一层的本人调用：`apply`、`revert`、`remove` 嵌套调它们一律被拒（S-113）。
 
 ### 6.6 平台签名入口（只给内容包）
 
@@ -331,7 +332,7 @@ interface HomePageVersion {
 
 - **安装只由本人确认。** `plugins.install.preview`／`confirm` 只接受本人的操作。`apply` 碰到要装的部分（缺的插件、草稿里新 Skill 打的内容包），把那一步标 `needs_install` 并返回 `plugins.install.preview` 的 `preview_id`；界面走普通的安装确认；装好后本人再调一次 `apply`（同一个 `request_id`），从那一步接着做。`apply` 自己从不调 `plugins.install.confirm`。
 - **嵌套调用带着本人的上下文。** `apply`、`revert`、`remove` 调主人的动作（`projects.plugins.set@1`、`skills.settings.set@1`、`characters.from_template@1`、各主人的设置写与采用动作）时：操作者、项目取自本人这次调用的上下文；子调用的授权按本人核，不按 `system.blueprints` 核；动作网关在调用记录里记下上一层（`blueprints.adoption.apply@1` 与它的调用 id）。`system.blueprints` 自己没有替人写主人数据的授权。
-- **新的安全不变量 S-130「采用不转交本人的同意」**（暂定，统筹核号），随 P-3c 落，拒绝测试覆盖两种：`apply` 直接调 `plugins.install.confirm` 被拒；`apply` 用系统身份而非本人上下文写设置被拒。首页的批准由 S-133 管（第 6.4 节）。
+- **新的安全不变量 S-110「采用不转交本人的同意」**（合同台定号），随 P-3c 落，拒绝测试覆盖两种：`apply` 直接调 `plugins.install.confirm` 被拒；`apply` 用系统身份而非本人上下文写设置被拒。首页的批准由 S-113 管（第 6.4 节）。
 
 **规则**：
 
@@ -376,7 +377,7 @@ interface HomePageVersion {
 | P-3a 项目插件成员 | `projects.plugins.set@1`：把插件加进或撤出项目，带 `expected_revision`，只给 `user`；常开插件撤不出，随行插件（如 Feed 带 Inbox）一起进出。表 `project_plugins` 已在 `modules/projects`（`project-records-repository.ts:42-52`），常开与随行规则今天在宿主（`apps/local-host/src/project-plugin-enablement.ts`）：这一片把规则搬进 `modules/projects`、与动作同一主人，宿主的项目设置 HTTP 改调这个动作 | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
 | P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `adopts`；SDK 的 `inspectBlueprint`（静态）、`validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行 | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin-manifest`、`plugin-sdk/index` | P-1、P-2；08 的 C-1（`content`、`SkillRef`） |
 | P-3c 采用动作与签名入口 | 第 7 节八个动作的声明与类型（`adoption.preview` 是 command／write）；`needs_install`、`needs_approval` 步骤状态；「采用不转交本人的同意」不变量与拒绝测试；第 6.6 节的 `plugins.local_packages.sign@1` 与安装预览里的来源字段 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（安装预览的类型在这里） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；动作：`host-actions.tsv`（`system.blueprints`、`plugin-install` 的签名入口） | P-3a、P-3b；08 的 C-2（`skills.*`） |
-| P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-131～S-133 三条不变量与拒绝测试。实现跟着改框架送文件的一段（第 6.4 节：`plugin-frame/document.ts`、`parent.ts`，宿主页面网关） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
+| P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条不变量与拒绝测试。实现跟着改框架送文件的一段（第 6.4 节：`plugin-frame/document.ts`、`parent.ts`，宿主页面网关） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
 
 **先后**（合同台 2026-11-04 排，[#1806 评论](https://github.com/molis-ai/molis-work/pull/1806#issuecomment-6638722432)；同一份快照一次一个 PR，全部在 02 交接之后）：
 
@@ -401,7 +402,7 @@ interface HomePageVersion {
 
 ## 11. 存量数据
 
-场景服务的三张表是新库。设置改形状、Characters 加来源字段都动已有库。分界照 05②、08：看 **02③ 真实 Home 重建**：
+场景服务的三张表是新库。首页服务的三张表（首页选择、页面版本与文件、获准动作）加在已有的项目库里，设置改形状、Characters 加来源字段也动已有库。分界照 05②、08：看 **02③ 真实 Home 重建**：
 
 - 重建之前落：直接改第 1 版的建表，不写迁移。
 - 重建之后落：走 U1 的升级链写一步升级，这是红线，开 PR 前由统筹先问用户。
@@ -423,7 +424,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 
 ## 13. 要定的事
 
-1. **首页形态：用户 2026-11-04 已定**（统筹转达）：首页是平台能力、插件注册卡片、生成页面是首页自己的内容，不当插件。第 6 节按此改写；Work Brief 需求 §1.3、§2 与 Onboarding §3.10 里「页面定义归 Work Brief」随之改，决策记进 Onboarding §10。首页服务放 `horizontal/home`（第 6.1 节）请统筹确认；三条不变量的暂定编号 S-130～S-133 请统筹核对。
+1. **首页形态：用户 2026-11-04 已定**（统筹转达）：首页是平台能力、插件注册卡片、生成页面是首页自己的内容，不当插件。第 6 节按此改写；Work Brief 需求 §1.3、§2 与 Onboarding §3.10 里「页面定义归 Work Brief」随之改，决策记进 Onboarding §10。首页服务放 `horizontal/home`（第 6.1 节）请统筹确认；四条不变量的编号由合同台定为 S-110～S-113。
 2. **草稿采用时不必先打包**（第 3 节）：只有要装的新 Skill 才签名打包成内容包；生成页面不打包（第 6 节）。合同台 2026-11-04 核过，符合 #1793 裁定第 3 条的更正（个人场景包、AI 生成的草稿、外部导入都用这个 Home 已有的发布身份）。
 3. **场景服务放在 `horizontal/blueprints`**，草稿与采用记录在它自己的 Home 库（第 7 节）。合同台 2026-11-04 确认，与第 21 批 D2 同一做法。
 4. **界面名统一成「场景包」**（第 3 节）：「场景方案」「方案」不再用；「官方场景套组」改称「官方场景包」：**用户 11-04 已定**（合同台弹窗），Onboarding、路线书与第 20、44、51 批文件已同步改；第 20 批第 2 项随之叫「场景包声明」。英文键 `blueprint`。
@@ -444,7 +445,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 | SPC-07 | 撤销与移除只处理主人 revision 未变的部分；你之后改过的、别的场景包还在用的插件、稿件、待办、代码改动和你的角色都保留 | ONB-30、ONB-56 |
 | SPC-08 | 场景包升级按三方比较列出差异，你改过的默认保留；不升级时原采用照常可用 | ONB-55 |
 | SPC-09 | 插件没声明 `settings_entries` 或 `adopts` 的部分在预览里标「提供方没有公开配置能力」，不能采用 | ONB-33 |
-| SPC-10 | 生成页面只跑首页存下的、摘要相符的文件；改过的文件、清单外脚本、内联脚本、`eval`、直接网络都不运行；页面主体只能调这一版声明并经本人批准的、受众含 `plugin` 的本项目动作；助理、插件、页面自己调不了 `adopt`／`restore`（S-131～S-133） | §3.10、ONB-26 |
+| SPC-10 | 生成页面只跑首页存下的、摘要相符的文件；改过的文件、清单外脚本、内联脚本、`eval`、直接网络都不运行；页面主体只能调这一版声明并经本人批准的、受众含 `plugin` 的本项目动作；助理、插件、页面自己调不了 `adopt`／`restore`（S-111～S-113） | §3.10、ONB-26 |
 | SPC-11 | 生成页面加载失败、文件对不上或被撤下时显示基础首页；换版后旧版本的在途调用不生效；恢复上一版、回到基础首页都不重做已完成的业务动作；插件卡片在基础首页与生成页面里出自同一份呈现声明 | WBR-22、WBR-23、WBR-27、ONB-25 |
 | SPC-12 | 采用进度在页面上实时更新，不轮询；重进只读一次 | 第 9 节 |
 | SPC-13 | 一个官方场景包依赖还没装的插件时照样装得上；预览里那一项标依赖未满足，只挡受影响的步骤 | ONB-54 |
@@ -465,7 +466,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 | 5 放在哪个包 | 场景服务、首页服务都是 `horizontal/` 下的新包（`horizontal/blueprints`、`horizontal/home`），依赖 contracts 与 plugin-sdk，经动作目录调主人，不 import 任何插件或 Module 的实现；共用校验在 SDK |
 | 6 表与存储 | 新表 `blueprint_drafts`、`adoptions`、`adoption_steps` 归场景服务自己的 Home 库：进宿主的 Home 存储登记（`HomeStoreDeclaration`），在 `table-owners.json` 里记为本包独占。首页服务的表在项目库（首页选择、页面版本与文件、获准动作），经 storage 驱动，随项目删除，`table-owners.json` 记为 `horizontal/home` 独占、写进 `PROJECT_DATABASE_BASELINE`；设置值仍在各主人的库里；项目插件成员的规则随 P-3a 搬进 `modules/projects`，与表同一主人 |
 | 7 兼容与迁移 | 不加。现有设置改形状、Characters 加来源字段按 02③ 分界（第 11 节）；重建之后才落的要走升级链，先由统筹问用户 |
-| 8 安全边界 | 碰。安装只走 S-84 由本人确认，签名只经 `plugin-install` 的签名入口（S-87 照旧，第 6.6 节）；恢复页面不是安装，归 S-133，由本人在首页的批准界面点；加四条不变量（暂定 S-130～S-133，统筹核号），各配拒绝测试：S-130「采用不转交本人的同意」（P-3c：`apply` 不替人确认安装、不用系统身份写主人数据）；页面主体是新的授权主体，加 S-131～S-133（P-4：只跑摘要相符的文件、只调声明并获准的动作、批准只由本人给），复用 S-47 的框架。采用不授予权限（SPC-05） |
+| 8 安全边界 | 碰。安装只走 S-84 由本人确认，签名只经 `plugin-install` 的签名入口（S-87 照旧，第 6.6 节）；恢复页面不是安装，归 S-113，由本人在首页的批准界面点；加四条不变量（S-110～S-113，合同台定号），各配拒绝测试：S-110「采用不转交本人的同意」（P-3c：`apply` 不替人确认安装、不用系统身份写主人数据）；页面主体是新的授权主体，加 S-111～S-113（P-4：只跑摘要相符的文件、主体只从宿主的页面记录读并只调声明并获准的动作、批准只由本人给），复用 S-47 的框架。采用不授予权限（SPC-05） |
 | 9 调用次数 | 第 9 节：预览每个主人一次读，采用每部分一次写、回读按主人合并，进度走 Home 事件不轮询 |
 | 10 升级与数据 | 生成页面每页最多 20 版、每项目最多 20 页，超出按第 6.3 节删最旧的；采用后的配置在各主人那里，按主人自己的升级规则保留；场景服务的库登记进 `homeStoreRegistry`，快照与恢复带上；删项目经 `ProjectDeletionService` 的回执清掉对应采用记录；主人卸载后那一步标「主人已不在」；采用记录、草稿随场景服务的库进升级链；场景包升级不自动改主人的值（第 7 节） |
 | 11 成果与过程项 | 草稿与采用记录不是成果，不进成果库；另存的个人场景包是插件（内容包），也不进成果库 |

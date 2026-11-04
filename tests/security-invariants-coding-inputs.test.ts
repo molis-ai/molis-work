@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createServer} from 'node:http';
-import type {AgentRunRef} from '@molis-ai/molis-work-contracts/services/agent-host';
+import {agentHostCapabilities, type AgentRunHandle,type AgentRunRef} from '@molis-ai/molis-work-contracts/services/agent-host';
 import {codingSdkRuntime} from './fixtures/coding-sdk-runtime.js';
 import {cogniaModelResponse} from './fixtures/cognia-model-response.js';
 
@@ -46,12 +46,18 @@ for(const concurrentEdit of [false,true])test(`an accepted Coding Run clears onl
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
  const address=server.address();assert.ok(address&&typeof address==='object');
  t.after(()=>new Promise<void>((resolve,reject)=>{server.close(error=>error?reject(error):resolve());server.closeAllConnections();}));
- const fixture=await codingSdkRuntime(t,{modelEndpoint:`http://127.0.0.1:${address.port}/v1/messages`});await fixture.create('A');
+ const accepted=Promise.withResolvers<AgentRunRef>(),release=Promise.withResolvers<void>();t.after(()=>release.resolve());
+ // Hold delivery to Coding after the real action has returned its receipt and released the project's command queue.
+ const fixture=await codingSdkRuntime(t,{modelEndpoint:`http://127.0.0.1:${address.port}/v1/messages`,wrapCoding:definition=>({...definition,start(context){
+  const actions=context.services!.actions!;
+  return definition.start({...context,services:{...context.services,actions:{...actions,async invoke(def,input,control,transport){
+   const result=await actions.invoke(def,input,control,transport);
+   if(def.capability_id===agentHostCapabilities.startRun.capability_id){accepted.resolve((result as AgentRunHandle).ref);await release.promise;}
+   return result;
+  }}}});
+ }})});await fixture.create('A');
  const url='/sessions/A',questions={original:{answers:[{question:1,value:'保留待答输入'}]}};
  data(await fixture.call(url,{draft:'sent task',question_drafts:questions,expected_input_revision:0},'PATCH'));
- const accepted=Promise.withResolvers<AgentRunRef>(),release=Promise.withResolvers<void>();t.after(()=>release.resolve());
- const start=fixture.adapter.start.bind(fixture.adapter);
- t.mock.method(fixture.adapter,'start',async(...args)=>{const handle=await start(...args);accepted.resolve(handle.ref);await release.promise;return handle;});
  const pending=fixture.call(url+'/runs',{...configuration,task:'sent task'});
  const ref=await Promise.race([accepted.promise,pending.then(result=>{throw new Error('SDK start returned without reaching the acceptance barrier: '+JSON.stringify(result));})]);
  // The SDK owns a real accepted Run before the user makes a second normal save.

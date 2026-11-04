@@ -4,7 +4,7 @@ import { inboxHomeEventsAction } from "./home-events.js";
 import { inboxNextScene } from "./scenes.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { INBOX_UI_CONTRIBUTION_ID } from "./ui.js";
-import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS } from "./actions.js";
+import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, INBOX_STAGE_GOAL_READ, inboxActions } from "./actions.js";
 import { INBOX_PROJECT_DATABASE } from "./database.js";
 
 import { INBOX_PLUGIN_ID } from "./identity.js";
@@ -57,13 +57,14 @@ export const inboxManifest: PluginManifest = {
     { route_id: "inbox.judgment.evaluate", method: "POST", path: "/judgment/evaluate", permission: "inbox:read" },
   ],
   databases: { project: INBOX_PROJECT_DATABASE },
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: ["feed.briefs.read", "feed.items.content", INBOX_STAGE_GOAL_READ.capability_id] },
   artifacts: { produces: [], consumes: [] },
   sync:{protocol_version:1,collections:[{id:'attention',database:'project',title:'注意事项与处理历史',schema_version:2,requires:[],sections:attentionSections}]},
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", hue: "mint", order: 30, rail: "core", pinned_default: true, accepts_objects: true },
+      { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", hue: "mint", order: 30, rail: "core", pinned_default: true, accepts_objects: true,
+        stage_data: { action: inboxActions.stage.capability_id } },
     ],
   },
 };

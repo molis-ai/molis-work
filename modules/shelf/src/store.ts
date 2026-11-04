@@ -37,7 +37,8 @@ export { SHELF_FOLDER_MAX_BYTES } from "./admissions.js";
 export { CLIPBOARD_LIMIT } from "./clipboard-store.js";
 export { isEditableShelfItem } from "./item-names.js";
 export { SHELF_JOB_TIMEOUT_MS } from "./jobs.js";
-export { initializeShelfFiles } from "./shelve.js";
+import { initializeShelfFiles } from "./shelve.js";
+export { initializeShelfFiles };
 
 function recipeTable(ai: ShelfAiStatus): readonly ShelfRecipeAvailability[] {
   return SHELF_RECIPES.map((spec) => recipeAvailability(spec.recipe, {
@@ -128,6 +129,7 @@ export class ShelfStore {
   admitFolder(input: ShelfAdmitFolderInput): Promise<ShelfItemRecord> { return this.admissions.admitFolder(input); }
   admitText(body: string, title = "粘贴文字", capture = true, control?: ShelfExecutionControl): Promise<ShelfItemRecord> { return this.admissions.admitText(body, title, capture, control); }
   admitUrl(url: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord> { return this.admissions.admitUrl(url, control); }
+  initialize(): Promise<void> { return this.access.files.write(writer => initializeShelfFiles(writer, this.access.from(writer))); }
   seedSample(): Promise<ShelfItemRecord> { return this.admissions.seedSample(); }
   useAsMaterial(itemId: string): Promise<ShelfItemRecord> { return this.admissions.useAsMaterial(itemId); }
 

@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, describeSqliteSchema, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, describeSqliteSchema, ensureStorageSpace, readDatabaseSpace, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 
 test('binding a new Home store before first use does not masquerade as an old business schema', t => {
   const home = mkdtempSync(join(tmpdir(), 'molis-bound-baseline-'));
@@ -15,6 +15,38 @@ test('binding a new Home store before first use does not masquerade as an old bu
   const db = openBaselineHomeSqlite(home, 'notes', {version: 1, schema: 'CREATE TABLE notes(id TEXT PRIMARY KEY)'});
   assert.deepEqual(db.prepare('SELECT descriptor FROM molis_storage_space').get(), owner);
   db.close(); raw.close();
+});
+
+test("initializing a bound but unversioned library refuses a foreign binding and extra SQLite objects without a write", t => {
+  const root = mkdtempSync(join(tmpdir(), "bound-mismatch-")), a = join(root,"a"), b = join(root,"b");
+  t.after(() => rmSync(root,{recursive:true,force:true}));
+  const baseline = {version:1,schema:"CREATE TABLE notes(id TEXT PRIMARY KEY)"};
+  openHomeSqliteDatabase(a,"notes").close(); ensureStorageSpace(b);
+  const source=homeSqlitePath(a,"notes"), target=homeSqlitePath(b,"notes"); mkdirSync(dirname(target)); copyFileSync(source,target);
+  const foreign=readFileSync(target);
+  assert.throws(() => openBaselineHomeSqlite(b,"notes",baseline),/SPACE_OWNERSHIP_MISMATCH/);
+  assert.deepEqual(readFileSync(target),foreign);
+  const db = new DatabaseSync(source);
+  try { db.exec("CREATE VIEW unowned AS SELECT descriptor FROM molis_storage_space"); } finally { db.close(); }
+  const unexpected = readFileSync(source);
+  assert.throws(() => openBaselineHomeSqlite(a,"notes",baseline),{code:"storage.schema_version_mismatch"});
+  assert.deepEqual(readFileSync(source),unexpected);
+});
+
+test("a version-zero binding with a hidden generated column or an additional metadata row cannot be adopted", t => {
+  for (const tamper of [
+    "ALTER TABLE molis_storage_space ADD COLUMN hidden_value TEXT GENERATED ALWAYS AS (descriptor) VIRTUAL",
+    "PRAGMA ignore_check_constraints=ON; INSERT INTO molis_storage_space SELECT 2,space_id,descriptor FROM molis_storage_space",
+  ]) {
+    const home=mkdtempSync(join(tmpdir(),"damaged-space-shape-"));
+    t.after(() => rmSync(home,{recursive:true,force:true}));
+    const file=homeSqlitePath(home,"notes"), raw=openHomeSqliteDatabase(home,"notes");
+    try { raw.exec(tamper); } finally { raw.close(); }
+    const before=readFileSync(file);
+    assert.throws(() => openBaselineHomeSqlite(home,"notes",{version:1,schema:"CREATE TABLE notes(id TEXT)"}),{code:"storage.schema_structure_mismatch"});
+    assert.deepEqual(readFileSync(file),before);
+    assert.deepEqual(readdirSync(dirname(file)),["notes.db"]);
+  }
 });
 
 // One current schema per store (repository-anti-corruption §4.1): created at the baseline, opened as is at the same
@@ -154,7 +186,7 @@ test("RAC-2720 a store at the current version missing its baseline tables is ref
   }
   // An empty, unversioned file is the creation path and still initializes: the version mark is what says a schema is expected.
   const fresh = openBaselineHomeSqlite(home, "fresh", cases[0].baseline);
-  try { assert.deepEqual((fresh.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as Array<{ name: string }>).map(row => row.name), ["notes"]); }
+  try { assert.deepEqual((fresh.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as Array<{ name: string }>).map(row => row.name), ["molis_storage_space", "notes"]); assert.deepEqual(readDatabaseSpace(fresh),ensureStorageSpace(home)); }
   finally { fresh.close(); }
 });
 

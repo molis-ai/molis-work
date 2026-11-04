@@ -116,7 +116,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
 /**
  * PG-038: a round's follower and the wake loop are the activation's jobs, with the installation's own authority. Once the call that
  * asked for a round is refused, or the plugin is turned off, all they may still do is record that accepted Run's own result
- * (specs/repository-anti-corruption §12.10): no new Run, no new session, nothing set off in anyone's name.
+ * (specs/archive/repository-anti-corruption §12.10): no new Run, no new session, nothing set off in anyone's name.
  */
 type HeldWait = { session_id: string; wait: AgentCollaborationWait; continuation: AgentContinuationView };
 async function codingJobs() {

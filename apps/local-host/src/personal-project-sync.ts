@@ -1,3 +1,4 @@
+import { verifySyncPluginDistribution } from './sync-distribution.js';
 import { projectSyncCatalog } from './project-sync-catalog.js';
 import { replicaError } from './project-replication-errors.js';
 import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
@@ -35,11 +36,11 @@ export function createPersonalProjectRegistrations(home:string,spaceId:string,_u
     withPartition(id,operation,passive){const p=project(id,passive),authorize=()=>{const current=project(id,passive);if(current.path!==p.path)throw replicaError('replica_project_unavailable');};const context={spaceId,projectId:id,title:p.title,authorize,conflictState:createSyncConflictState};
      if(binding.scope==='project-library'){const library=binding.open(home,id);try{authorize();const result=operation(library.replica(context));authorize();return result;}finally{library.close();}}
      const store=new LocalProjectDatabase(p.path);
-     try{const result=operation(createSqliteReplica(namespacedReplicaDatabase(store.replicationDatabase,binding.namespace),{...privateValueReplicaOwner(store.db,binding.owner({home,authorize,assertIdle:(pid,item)=>assertPassiveSyncIdle(home,pid,entry.manifest.plugin_id,item)}),context),conflictState:createSyncConflictState}));authorize();return result;}finally{store.close();}
+     try{const result=operation(createSqliteReplica(namespacedReplicaDatabase(store.replicationDatabase,binding.namespace),{...privateValueReplicaOwner(store.db,binding.owner({home,authorize,verifyDistribution:verifySyncPluginDistribution,assertIdle:(pid,item)=>assertPassiveSyncIdle(home,pid,entry.manifest.plugin_id,item)}),context),conflictState:createSyncConflictState}));authorize();return result;}finally{store.close();}
     }}));},
    async prepare(event){
     check();const id=projectId(event.key);project(id);if(event.value===null)return;
-    if(binding.scope==='project-private-values')validatePrivateValueReplication(event.value,binding.owner({}),{spaceId,projectId:id,title:'validation',authorize:()=>{project(id);}},event.key);
+    if(binding.scope==='project-private-values')validatePrivateValueReplication(event.value,binding.owner({verifyDistribution:verifySyncPluginDistribution}),{spaceId,projectId:id,title:'validation',authorize:()=>{project(id);}},event.key);
     const value=event.value as {format?:unknown;spaceId?:unknown;project?:{id?:unknown;title?:unknown}};
     if(value?.format!==1||value.spaceId!==spaceId||value.project?.id!==id||typeof value.project.title!=='string'||!value.project.title.trim()||value.project.title.length>120)throw replicaError('replica_project_invalid');
     // Receiving content cannot install or grant a plugin, including after an asynchronous catalog operation.

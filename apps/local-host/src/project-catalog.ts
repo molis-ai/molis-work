@@ -1,7 +1,8 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
-import { prepareMemoryHome } from "./memory/memory-initialization.js";
+import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { createFileSecretStore, runWithMolisWorkHome, ensureStorageSpace, bindDatabaseSpace } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
@@ -19,7 +20,7 @@ import { type MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 export type { CreateMolisWorkProjectInput } from "./project-catalog-contract.js";
 export type { ManageMolisWorkDemoProjectInput } from "./project-catalog-contract.js";
 export type { MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
-import { assertCurrentCatalog, assertOwnedCatalog, initializeCatalog } from "./catalog-schema.js";
+import { assertCurrentCatalog, assertOwnedCatalog, inspectCurrentCatalogSnapshot, initializeCatalog } from "./catalog-schema.js";
 import { PluginTerminalPanels } from "./plugin-terminal-panels.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
@@ -68,6 +69,8 @@ export type MolisWorkProjectRecord = ProjectRecord;
 export interface MolisWorkProjectCatalogOptions {
   /** Defaults to ~/.molis-work. */
   homeDirectory?: string;
+  /** A trusted same-Home parent; only an actual live opaque capability can be retained. */
+  storageOwner?: StorageOwner;
 }
 
 /**
@@ -139,7 +142,7 @@ export interface LocalCatalogPlatform {
 /** The complete memory preference gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   const homeDirectory = resolveConfiguredHome(options.homeDirectory);
-  prepareMemoryHome(homeDirectory);
+  prepareMemoryHome(homeDirectory, options.storageOwner);
   const projectsDirectory = path.join(homeDirectory, "projects");
   await fs.mkdir(projectsDirectory, { recursive: true });
   const databasePath = path.join(projectsDirectory, "catalog.db");
@@ -233,7 +236,32 @@ export class MolisWorkProjectCatalog {
       appendProjectEvent: (projectId: string, type: string, actorId: string, payload: Record<string, unknown>) => this.projects.lifecycle.appendEvent(projectId, type, actorId, payload) });
   }
 
+  /** Current owner composition in disposable memory authenticates the full archived catalog, including desktop tables. */
+  static inspectSnapshot(database: SqliteDatabase, platform: LocalCatalogPlatform): Readonly<Record<string, string | number>> {
+    return inspectCurrentCatalogSnapshot(database, platform.createPanelSchema);
+  }
+
   static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
+    const home = resolveConfiguredHome(options.homeDirectory), root = agentRuntimeDirectory(home);
+    if (options.storageOwner === undefined) {
+      assertNoPendingHomeRestore(root);
+      preflightMemoryHome(home);
+    }
+    const owned = options.storageOwner === undefined ? acquireStorageOwner(root) : undefined;
+    const owner = options.storageOwner ?? owned!;
+    let retained: ReturnType<typeof retainStorageOwner> | undefined;
+    let opened: MolisWorkProjectCatalog | undefined;
+    try {
+      retained = retainStorageOwner(root, owner);
+      opened = await this.openOwned({ ...options, homeDirectory: home, storageOwner: owner }, platform);
+    } catch (error) { retained?.release(); owned?.release(); throw error; }
+    const holding = retained;
+    opened.releaseOwner = () => { holding.release(); owned?.release(); };
+    opened.checkOwner = () => { assertStorageOwner(root, owner); assertNoPendingHomeRestore(root); };
+    return opened;
+  }
+
+  private static async openOwned(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
     const { homeDirectory, databasePath, existed, storage } = await prepareCatalogStorage(options);
     const db = storage.db;
     try {
@@ -268,12 +296,17 @@ export class MolisWorkProjectCatalog {
     }
   }
 
+  private releaseOwner?: () => void;
+  private checkOwner?: () => void;
+
   close(): void {
     this.storage.close();
+    this.releaseOwner?.(); this.releaseOwner = undefined;
   }
 
   /** A retained connection must not outlive the owner/schema it was opened for. */
   assertCurrentSchema(): void {
+    this.checkOwner?.();
     assertOwnedCatalog(this.storage, this.databasePath);
     assertCurrentCatalog(this.storage, this.databasePath);
   }

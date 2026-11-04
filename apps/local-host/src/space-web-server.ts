@@ -1,11 +1,13 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { awaitWebServerShutdown } from "./web-server-close.js";
 import type { WebAccountSession } from "./personal-web-sessions.js";
-import { prepareMemoryHome } from "./memory/memory-initialization.js";
+import { prepareMemoryHome, preflightMemoryHome } from "./memory/memory-initialization.js";
 import { bindPersonalSpaceAuthority } from './personal-space-authority.js';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import type { Duplex } from 'node:stream';
-import { ensureStorageSpace, personalStorageSpace, resolveMolisWorkHome, runWithMolisWorkHome, type StorageSpace } from '@molis-ai/molis-work-storage';
+import { acquireStorageOwner, ensureStorageSpace, personalStorageSpace, runWithMolisWorkHome, type StorageSpace } from '@molis-ai/molis-work-storage';
 import { createPersonalAccountHttp } from './personal-http.js';
 import { createPersonalNativeSession } from './personal-native-session.js';
 import { personalCloudConfig } from './personal-auth.js';
@@ -16,6 +18,9 @@ import { ACTION_GATEWAY_PATH, actionGatewayHomeId } from './action-gateway.js';
 import { createPersonalSync } from './personal-sync.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import {serveSpaceSync} from './space-sync-http.js';
+import { resolveConfiguredHome } from "./product-home.js";
+import { ensureHomeStorageOwner, retainInitializationCleanup } from './home-storage-lifetime.js';
+import { agentRuntimeDirectory } from './agent-runtime-paths.js';
 import { trackHostListener } from './host-endpoints.js';
 
 interface Surface {
@@ -28,7 +33,10 @@ interface Surface {
 export interface SpaceWebSurface extends http.Server {
   /** Resolves after the runtime and background writers have released their Home. */
   spaceDisposed?:Promise<void>;
+  /** The public listener closes as part of the local Host’s transport lifetime. */
+  attachPublicListener?: (shutdown:()=>Promise<void>)=>void;
   projectSyncLifecycle?:import('./project-deletion-service.js').ProjectDeletionService;
+  withSyncCatalog?:LocalWebCatalogRunner;
   readSyncCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader;
   discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
 }
@@ -43,16 +51,30 @@ function personalSurfaceLease(space: StorageSpace, session: WebAccountSession | 
   return lease;
 }
 
+/** The initial writes, including credentials, must pass the same Home ownership and restore gates as the resident Host. */
+function bootstrapSpace<T>(directory:string, expected:StorageSpace|undefined, host:WebServerOptions['localHost'], open:(space:StorageSpace)=>T):T {
+  if(!host)preflightMemoryHome(directory);
+  let owner;
+  try { owner=host ? ensureHomeStorageOwner(host,directory,preflightMemoryHome) : acquireStorageOwner(agentRuntimeDirectory(directory)); }
+  catch(error){
+    if(host && error instanceof ActionError && error.code==='actions.home_mismatch')throw new ActionError('actions.scope_mismatch','不能把个人规划服务绑定到其他 Home',{cause:error});
+    throw error;
+  }
+  try {
+    preflightMemoryHome(directory);
+    const space=ensureStorageSpace(directory,expected);
+    prepareMemoryHome(directory,owner);
+    return open(space);
+  } finally { if(!host)owner.release(); }
+}
+
 function createSpaceContext(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog:LocalWebCatalogRunner|undefined,address:()=>ReturnType<http.Server["address"]>){
-  const home=path.resolve(options.homeDirectory??resolveMolisWorkHome());
-  const local=ensureStorageSpace(home);
-  prepareMemoryHome(home);
-  const native=createPersonalNativeSession(home);
+  const home=resolveConfiguredHome(options.homeDirectory);
+  const {local,native,rootToken}=bootstrapSpace(home,undefined,options.localHost,local=>({local,native:createPersonalNativeSession(home),rootToken:resolveWebControlToken({...options,homeDirectory:home})}));
   const account=runWithMolisWorkHome(home,()=>createPersonalAccountHttp(native));
-  const rootToken=resolveWebControlToken({...options,homeDirectory:home});
   const mutations=new Map<string,LocalMutationState>();
   const surfaces=new Map<string,Surface>();
-  const retiring=new Map<string,Promise<void>>();
+  const retiring=new Map<string,{disposed:Promise<void>;token:string;retry?:()=>void}>();
   let stopping=false;
   const syncs=new Map<string,{active:()=>boolean;service:Awaited<ReturnType<typeof createPersonalSync>>}>();
   const syncStarts=new Map<string,Promise<void>>();
@@ -66,7 +88,7 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const active=()=>{try{lease.assertCurrent();return !stopping&&selection(request).space.spaceId===id;}catch{return false;}};
     const start=(async()=>{
       const entry=await surface(selected);attach(entry,request);const core=entry.server;
-      const service=await createPersonalSync(selected.directory,selected.space,lease,withCatalog,()=>{if(!active())throw new Error('SYNC_ACCOUNT_CHANGED');},core.discoverSync,core.projectSyncLifecycle,core.readSyncCatalog);
+      const service=await createPersonalSync(selected.directory,selected.space,lease,core.withSyncCatalog??withCatalog,()=>{if(!active())throw new Error('SYNC_ACCOUNT_CHANGED');},core.discoverSync,core.projectSyncLifecycle,core.readSyncCatalog);
       if(!active()){service?.close();return;}
       syncs.set(id,{active,service});
       lease.signal.addEventListener('abort',()=>service?.close(),{once:true});
@@ -82,18 +104,24 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
       ? personalStorageSpace(personalCloudConfig()!.authOrigin,identity.applicationId,identity.userId):local;
     const directory=space.kind==='local'?home:path.join(home,'spaces',space.spaceId);
     if(space.kind==='personal' && (options.localHost||options.databasePath))throw new Error('SPACE_FIXTURE_NOT_SUPPORTED');
-    if(space.kind==='personal'){
-      fs.mkdirSync(directory,{recursive:true,mode:0o700});
-      if(fs.realpathSync(directory)!==path.join(fs.realpathSync(home),'spaces',space.spaceId))throw new Error('SPACE_DIRECTORY_UNSAFE');
-      // Bind before any token/config file is created in a newly selected Home.
-      ensureStorageSpace(directory,space);
-      prepareMemoryHome(directory);
-    }
     return {space,directory,session};
   };
   const surface=async(selected:ReturnType<typeof selection>):Promise<Surface>=>{
-    await retiring.get(selected.space.spaceId);
+    await retiring.get(selected.space.spaceId)?.disposed;
     return openSurface(selected);
+  };
+  const tokenFor=(selected:ReturnType<typeof selection>)=>{
+    const {directory,space}=selected;
+    if(space.kind==='local')return rootToken;
+    personalSurfaceLease(space,selected.session);
+    // Account management remains available while its old business surface releases the Home.
+    const known=surfaces.get(space.spaceId)??retiring.get(space.spaceId);
+    if(known)return known.token;
+    const spaces=path.join(home,'spaces');fs.mkdirSync(spaces,{recursive:true,mode:0o700});
+    if(fs.realpathSync(spaces)!==path.join(fs.realpathSync(home),'spaces'))throw new Error('SPACE_DIRECTORY_UNSAFE');
+    fs.mkdirSync(directory,{recursive:true,mode:0o700});
+    if(fs.realpathSync(directory)!==path.join(fs.realpathSync(spaces),space.spaceId))throw new Error('SPACE_DIRECTORY_UNSAFE');
+    return bootstrapSpace(directory,space,undefined,()=>resolveWebControlToken({homeDirectory:directory}));
   };
   const openSurface=(selected:ReturnType<typeof selection>):Surface=>{
     if(stopping)throw new Error('SPACE_CLOSED');
@@ -101,9 +129,8 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     if(result)return result;
     const {directory,space}=selected;
     const initialLease=personalSurfaceLease(space,selected.session);
-    ensureStorageSpace(directory,space);
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
-    const token=space.kind==='local'?rootToken:resolveWebControlToken(coreOptions);
+    const token=tokenFor(selected);
     const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token}));
     core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
@@ -120,15 +147,18 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     surfaces.set(space.spaceId,result);
     return result;
   };
+  const disconnect=(entry:Surface)=>{
+    for(const response of entry.responses.keys())response.destroy();
+    for(const socket of entry.connections.keys())socket.destroy();
+  };
   const retire=(entry:Surface)=>{
     entry.releaseAuthority?.();
     surfaces.delete(entry.space.spaceId);
-    for(const response of entry.responses.keys())response.destroy();
-    for(const socket of entry.connections.keys())socket.destroy();
-    const closed=new Promise<void>(resolve=>entry.server.close(()=>resolve()));
-    const disposed=Promise.all([closed,entry.server.spaceDisposed]).then(()=>{});
-    retiring.set(entry.space.spaceId,disposed);
-    void disposed.finally(()=>{if(retiring.get(entry.space.spaceId)===disposed)retiring.delete(entry.space.spaceId);});
+    disconnect(entry);
+    const disposed=closeSpaceSurface(entry.server);
+    const retirement:{disposed:Promise<void>;token:string;retry?:()=>void}={disposed,token:entry.token};
+    retiring.set(entry.space.spaceId,retirement);
+    void disposed.then(()=>{if(retiring.get(entry.space.spaceId)===retirement)retiring.delete(entry.space.spaceId);},()=>{retirement.retry=()=>retire(entry);});
   };
   const sweep=()=>{
     for(const [id,entry] of syncs)if(!entry.active()){entry.service?.close();syncs.delete(id);}
@@ -156,20 +186,41 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     entry.finishBootstrap?.();
     return valid;
   };
-  const stop=()=>{stopping=true;account.close();for(const entry of syncs.values())entry.service?.close();for(const entry of [...surfaces.values()])retire(entry);};
+  const stop=()=>{
+    stopping=true;account.close();
+    for(const entry of syncs.values())entry.service?.close();
+    for(const entry of [...retiring.values()])entry.retry?.();
+    for(const entry of [...surfaces.values()]){
+      if(entry.space.kind==='personal')retire(entry);else disconnect(entry);
+    }
+  };
   const resume=async(request:IncomingMessage)=>{
     try{(await syncFor(selection(request),request))?.start();}
     catch{ /* Sync settings report the failure; unavailable sync must not prevent local work. */ }
   };
-  return {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,retiring,openSurface,stop,isStopping:()=>stopping};
+  return {home,local,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,retiring,openSurface,stop,isStopping:()=>stopping};
+}
+
+async function closeSpaceSurface(core: SpaceWebSurface):Promise<void> {
+  await new Promise<void>((resolve,reject)=>core.close(error=>{
+    if(error && (error as NodeJS.ErrnoException).code!=='ERR_SERVER_NOT_RUNNING')reject(error);else resolve();
+  }));
+  await core.spaceDisposed;
 }
 
 /** One public listener. Each scope owns its Host, databases, caches and timers.
  * Child servers are in-process dispatchers: no extra port and no browser-selected Home.
  */
 export function createSpaceWebServer(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog?:LocalWebCatalogRunner):http.Server {
-  const {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,retiring,openSurface,stop,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server.address());
-  const server=trackHostListener(http.createServer((request,response)=>{
+  let server:http.Server;
+  const {home,local,native,account,rootToken,tokenFor,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,retiring,openSurface,stop,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server?.address()??null);
+  // A core initialization failure carries the real Host's retryable cleanup. Construct it before external listener hooks.
+  let localSurface:Surface;
+  try { localSurface=openSurface({space:local,directory:home,session:null}); }
+  catch(error){stop();throw error;}
+  let timer:ReturnType<typeof setInterval>|undefined, shutdown:(()=>Promise<void>)|undefined;
+  try {
+    server=trackHostListener(http.createServer((request,response)=>{
     void runWithMolisWorkHome(home,async()=>{
       try {
         if(isStopping()){sendLocalWebJson(response,503,{error:'服务正在关闭。'});return;}
@@ -191,7 +242,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
           refuseLocalWebRequest(response);return;
         }
         const selected=selection(request);
-        const token=selected.space.kind==='local'?rootToken:resolveWebControlToken({homeDirectory:selected.directory});
+        const token=tokenFor(selected);
         const accountPath=url.pathname.startsWith('/api/personal/')||['/account','/account/callback','/welcome'].includes(url.pathname);
         const address=server.address();
         const origin=`http://127.0.0.1:${address&&typeof address==='object'?address.port:4173}`;
@@ -252,13 +303,16 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
       entry.server.emit('upgrade',request,socket,head);
     }catch{socket.destroy();}})();
   });
-  const timer=setInterval(sweep,1000);timer.unref();
-  const close=server.close.bind(server);
-  server.close=callback=>{
-    clearInterval(timer);stop();
-    return close(error=>{void Promise.all([...retiring.values()]).then(()=>callback?.(error));});
-  };
-  // Preserve synchronous configuration validation and start local background owners.
-  openSurface({space:local,directory:home,session:null});
+  timer=setInterval(sweep,1000);timer.unref();
+  shutdown=awaitWebServerShutdown(server,()=>{clearInterval(timer);stop();},
+    async()=>{await Promise.all([...retiring.values()].map(entry=>entry.disposed));},()=>closeSpaceSurface(localSurface.server));
+  localSurface.server.attachPublicListener?.(shutdown);
   return server;
+  } catch(error){
+    throw retainInitializationCleanup(error,async()=>{
+      clearInterval(timer);stop();
+      if(shutdown)await shutdown();else if(server)await closeSpaceSurface(server);
+      await closeSpaceSurface(localSurface.server);
+    },'web_initialization_cleanup_failed');
+  }
 }

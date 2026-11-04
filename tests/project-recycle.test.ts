@@ -8,15 +8,16 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { ProjectDeletionService } from '@molis-ai/molis-work-app-local-host';
+import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { prepareSyncTestHome } from './fixtures/runtime-personal-sync.js';
+import { createMolisWorkLocalHost, ProjectDeletionService } from '@molis-ai/molis-work-app-local-host';
 
 test('PCSYNC-17/20 owner recycling keeps facts, rejects stale confirmations, and replays receipts without changing a later state', () => {
   const db = new Database(':memory:');
   try {
     db.pragma('foreign_keys=ON');createProjectsSchema(db);
-    const projects = new ProjectsModule({ db, spaceId: 'personal:test', plugins: { has: id => id === 'pages', companions: () => [] } });
-    const p = projects.lifecycle.prepareRecord({ display_name: '原项目', projects_directory: '/tmp/recycle', data_class: 'user' });
+    const projects = new ProjectsModule({ db, projects_directory:'/tmp/recycle', spaceId: 'personal:test', plugins: { has: id => id === 'pages', companions: () => [] } });
+    const p = projects.lifecycle.prepareRecord({ display_name: '原项目', data_class: 'user' });
     projects.lifecycle.register(p, 'project.created', 'alice');
     projects.commands.addProjectPlugin({ project_id: p.project_id, plugin_id: 'pages', actor_id: 'alice' });
     const workspace = projects.commands.addWorkspaceProject({ project_id: p.project_id, canonical_path: '/tmp/recycle-workspace', actor_id: 'alice', user_confirmed: true });
@@ -54,35 +55,39 @@ test('PCSYNC-17/20 owner recycling keeps facts, rejects stale confirmations, and
 
 test('PCSYNC-20 the unique Host service retains project bytes, refuses active terminals and stale release results, and restores without starting execution', async t => {
   const home = await mkdtemp(join(tmpdir(), 'molis-project-recycle-'));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });t.after(() => catalog.close());
-  const p = await catalog.createProject({ display_name: '保留原件', actor_id: 'alice' });
-  const bytes = await readFile(p.database_path);
-  const panel = catalog.openDesktopPanel({ project_id: p.project_id, goal_id: 'goal', runtime_kind: 'generic', launch_command: '/bin/cat', cwd: home, actor_id: 'alice', user_confirmed: true });
-  let alive = true, releases = 0, mutate = false;
-  const service = new ProjectDeletionService(withMolisWorkProjectCatalog, {
-    isPanelAlive: id => id === panel.panel_id && alive,
-    isProjectBusy: () => false,
-    async releaseProject() { releases++;if (mutate) catalog.renameProject(p.project_id, '等待期间改名', 'alice', '保留原件'); },
+  const host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
+  const { withCatalog } = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  await withCatalog({ homeDirectory: home }, async catalog => {
+    const p = await catalog.createProject({ display_name: '保留原件', actor_id: 'alice' });
+    const bytes = await readFile(p.database_path);
+    const panel = await catalog.commit(() => catalog.terminalPanels.insert({panel_id:'plugin-recycle-terminal',install_id:'fixture-install',project_id:p.project_id,actor_id:'alice',key:'cat',subject:'goal',runtime:'command',launch_command:'/bin/cat',launch_args:[],title:'cat'},home));
+    let alive = true, releases = 0, mutate = false;
+    const service = new ProjectDeletionService(withCatalog, {
+      isPanelAlive: id => id === panel.panel_id && alive,
+      isProjectBusy: () => false,
+      async releaseProject() { releases++;if (mutate) catalog.renameProject(p.project_id, '等待期间改名', 'alice', '保留原件'); },
+    });
+    const input = { project_id: p.project_id, actor_id: 'alice', operation_id: 'first', expected_state: catalog.recycle.inspect(p.project_id).state, recycled: true, confirmed: true };
+    await assert.rejects(service.changeRecycled(home, input, () => {}), { code: 'catalog.project_terminal_live' });assert.equal(releases, 0);
+    alive = false;mutate = true;
+    await assert.rejects(service.changeRecycled(home, input, () => {}), { code: 'catalog.recycle_changed' });
+    assert.equal(catalog.recycle.inspect(p.project_id).recycled, false);assert.equal(catalog.recycle.list().length, 0);
+    mutate = false;
+    const archived = await service.changeRecycled(home, { ...input, expected_state: catalog.recycle.inspect(p.project_id).state }, () => {});
+    assert.equal(existsSync(p.database_path), true);assert.deepEqual(await readFile(p.database_path), bytes);
+    assert.equal(catalog.listProjects().length, 0);assert.equal(catalog.listProjectDeletions().length, 0);
+    const before = releases;
+    await service.changeRecycled(home, { ...input, operation_id: 'restore', expected_state: archived.state, recycled: false }, () => {});
+    assert.equal(releases, before);assert.equal(catalog.getProject(p.project_id).display_name, '等待期间改名');
+    assert.deepEqual(catalog.terminalPanels.listIds(p.project_id),[panel.panel_id]);
   });
-  const input = { project_id: p.project_id, actor_id: 'alice', operation_id: 'first', expected_state: catalog.recycle.inspect(p.project_id).state, recycled: true, confirmed: true };
-  await assert.rejects(service.changeRecycled(home, input, () => {}), { code: 'catalog.project_terminal_live' });assert.equal(releases, 0);
-  alive = false;mutate = true;
-  await assert.rejects(service.changeRecycled(home, input, () => {}), { code: 'catalog.recycle_changed' });
-  assert.equal(catalog.recycle.inspect(p.project_id).recycled, false);assert.equal(catalog.recycle.list().length, 0);
-  mutate = false;
-  const archived = await service.changeRecycled(home, { ...input, expected_state: catalog.recycle.inspect(p.project_id).state }, () => {});
-  assert.equal(existsSync(p.database_path), true);assert.deepEqual(await readFile(p.database_path), bytes);
-  assert.equal(catalog.listProjects().length, 0);assert.equal(catalog.listProjectDeletions().length, 0);
-  const before = releases;
-  await service.changeRecycled(home, { ...input, operation_id: 'restore', expected_state: archived.state, recycled: false }, () => {});
-  assert.equal(releases, before);assert.equal(catalog.getProject(p.project_id).display_name, '等待期间改名');
-  assert.equal(catalog.listDesktopPanels(p.project_id)[0].panel_id, panel.panel_id);
 });
 
 test('PCSYNC-20 frozen actual v23 catalog is refused before modifying any bytes', async t => {
   const home = await mkdtemp(join(tmpdir(), 'molis-project-recycle-old-'));
   t.after(() => rm(home, { recursive: true, force: true }));
+  prepareSyncTestHome(home);
   const { mkdir } = await import('node:fs/promises');await mkdir(join(home, 'projects'));
   const file = join(home, 'projects', 'catalog.db'), db = new Database(file);
   db.exec(await readFile(new URL('./fixtures/project-catalog-v23.sql', import.meta.url), 'utf8'));db.close();
@@ -104,11 +109,11 @@ test('PCSYNC-20 receiver retains unknown project tombstones without ghost projec
   replica.receive({key:'other-unseen',operationId:'delete-other',base:0,revision:2,value:null});
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM projects').get()?.n,0);
   assert.equal(db.prepare('SELECT recycled FROM project_recycle WHERE project_id=?').get('other-unseen')?.recycled,1);
-  const projects=new ProjectsModule({db,spaceId:'personal:test',plugins:{has:()=>true,companions:()=>[]}});
+  const projects=new ProjectsModule({db,projects_directory:'/tmp/recycle',spaceId:'personal:test',plugins:{has:()=>true,companions:()=>[]}});
   assert.deepEqual(projects.recycle.list(),[],'unknown tombstones do not become user-visible fake projects');
   replica.receive({key:'other-unseen',operationId:'old',base:0,revision:1,value:{bad:true}});
   assert.equal(db.prepare('SELECT generation FROM project_recycle WHERE project_id=?').get('other-unseen')?.generation,1,'old events cannot revive or change tombstone');
-  const p=projects.lifecycle.prepareRecord({display_name:'Restored',projects_directory:'/tmp/recycle',data_class:'user'});p.project_id='other-unseen';projects.lifecycle.register(p,'project.created','alice');
+  const p=projects.lifecycle.prepareRecord({display_name:'Restored',data_class:'user'});p.project_id='other-unseen';projects.lifecycle.register(p,'project.created','alice');
   const local=replica.next()!;replica.acknowledge(local.key,local.operationId,3);
   const body={format:1,spaceId:'personal:test',project:{id:p.project_id,title:p.display_name,created_at:p.created_at,updated_at:p.updated_at},plugins:[]};
   permitted=false;replica.receive({key:p.project_id,operationId:'restore-denied',base:3,revision:4,value:body});
@@ -119,8 +124,9 @@ test('PCSYNC-20 receiver retains unknown project tombstones without ghost projec
  }finally{db.close();}
 });
 
-test('PCSYNC-20 actual frozen v24 catalog is refused unchanged by v25',async t=>{
+test('PCSYNC-20 actual frozen v24 catalog is refused unchanged by v26',async t=>{
  const home=await mkdtemp(join(tmpdir(),'molis-project-v24-'));t.after(()=>rm(home,{recursive:true,force:true}));
+ prepareSyncTestHome(home);
  const {mkdir}=await import('node:fs/promises');await mkdir(join(home,'projects'));
  const file=join(home,'projects/catalog.db'),db=new Database(file);db.exec(await readFile(new URL('./fixtures/project-catalog-v24.sql',import.meta.url),'utf8'));db.close();
  const before=await readFile(file);await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'catalog.unsupported_schema'});assert.deepEqual(await readFile(file),before);

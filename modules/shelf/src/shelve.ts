@@ -1,6 +1,7 @@
 import type { PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ShelfAdmitInput } from "./contract.js";
-import { CATALOG_FILE, emptyCatalog, newId, now, readCurrentCatalog, saveCatalog, sha256, type CatalogFile, type StoredItem } from "./catalog.js";
+import { newId, now, saveCatalog, sha256, type CatalogFile, type StoredItem } from "./catalog.js";
+import { readLocalShelfCatalog } from './files-catalog.js';
 import { classify, mimeFor, previewFor } from "./item-names.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 
@@ -41,9 +42,7 @@ export function shelveItem(writer: PluginOwnerFilesWriter, catalog: CatalogFile,
 }
 
 /** Creates the initial personal example before queries run, preserving every existing item. */
-export function initializeShelfFiles(writer: PluginOwnerFilesWriter): void {
-  const existing = writer.read(CATALOG_FILE);
-  const catalog = existing ? readCurrentCatalog(JSON.parse(Buffer.from(existing).toString("utf8"))) : emptyCatalog();
+export function initializeShelfFiles(writer: PluginOwnerFilesWriter, catalog = readLocalShelfCatalog(writer)): void {
   if (catalog.seeded_sample || catalog.items.length) return;
   const bytes = Buffer.from(createExtractablePdf(SAMPLE_PDF_TEXT));
   shelveItem(writer, catalog, { filename: SAMPLE_NAME, bytes, mime: "application/pdf" }, SAMPLE_NAME, bytes, SAMPLE_PDF_TEXT);

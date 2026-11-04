@@ -25,7 +25,7 @@ test('PCSYNC-01/11/15/22 Inbox uses actual Host registry and Rust/D1/R2, retaini
  await Promise.all(clients.map(client=>client.refreshCatalog()));
  const selected=clients[0].status().collections.find(row=>row.selection.collection_id==='attention');assert.ok(selected,JSON.stringify(clients[0].status()));assert.equal(clients[0].policy().selections.length,0,'new collection does not grant consent');
  await clients[0].save({...clients[0].policy(),selections:[selected.selection]});await clients[0].run();await clients[1].run();clients.forEach(c=>assert.equal(c.status().error,null));
- const restored=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id));assert.ok(restored);
+ const restored=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id));assert.ok(restored);
  const target=new LocalProjectDatabase(restored.database_path);t.after(()=>target.close());let effects=0;const received=new AttentionModule(target.db,{exists:()=>false},{eventSink(){effects++;}});
  assert.equal(received.query.list(p.project_id).length,320);assert.equal(received.events.list(p.project_id).length,480);assert.equal(received.query.get(p.project_id,'entry-0').status,'done');assert.equal(received.query.get(p.project_id,'entry-1').subject_id,'saved-item-1');assert.equal(effects,0);assert.ok((await cloud.bucket.list()).objects.length>0);
  // Two devices edit the same previously synchronized entry. Resolve explicitly; don't overwrite either branch silently.

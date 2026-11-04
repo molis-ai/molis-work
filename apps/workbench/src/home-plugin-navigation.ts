@@ -51,7 +51,7 @@ const DEFAULT_ICON: PluginIconName = "package";
  * built-in tools, by name: a package has a stage and no side view, so it opens that stage (BL-713).
  */
 export function renderHomePluginNavigation(href?: (path: string) => string, installed: readonly HomePluginNavigationEntry[] = []): string {
-  const entries = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").flatMap(entry => {
+  const entries = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home" && !entry.runtime?.dual_instance).flatMap(entry => {
     const stage = entry.manifest.ui?.views?.find(view => view.slot === "stage");
     if (!stage) return [];
     const glyph = entry.manifest.ui?.views?.find(view => view.slot === "navigator")?.icon;

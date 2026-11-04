@@ -21,13 +21,13 @@ test('retained versions and conflicts cannot expose a hidden project through ano
  const retained=target.sync.recoveries(namespace),hidden=retained.find(row=>row.key.includes(pages[0]!.id))!,visible=retained.find(row=>row.key.includes(pages[1]!.id))!;
  assert.ok(JSON.stringify(target.sync.inspectRecovery(namespace,hidden.id)).includes('Local secret 0'));
  const unresolved=await conflict(0);assert.ok(unresolved);
- await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},catalog=>catalog.removeProjectPlugin({project_id:projects[0]!.project_id,plugin_id:'pages',actor_id:'alice'}));
+ await target.withCatalog({homeDirectory:f.homes[1]},catalog=>catalog.removeProjectPlugin({project_id:projects[0]!.project_id,plugin_id:'pages',actor_id:'alice'}));
  assert.throws(()=>target.sync.inspectRecovery(namespace,hidden.id),/未授权/,'hidden retained bodies must not escape through an active instance in another project');
  assert.throws(()=>target.sync.inspectConflict(namespace,unresolved.key),/未授权/);
  assert.ok(target.sync.recoveries(namespace).some(row=>row.id===visible.id));
  assert.equal(target.sync.recoveries(namespace).some(row=>row.id===hidden.id),false,'hidden recovery keys are not listed');
  await assert.rejects(()=>target.sync.restoreRecovery(namespace,hidden.id,'local',hidden.revision),/未授权/);
  assert.ok(JSON.stringify(target.sync.inspectRecovery(namespace,visible.id)).includes('Local secret 1'),'the other project keeps its own history');
- await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},catalog=>catalog.addProjectPlugin({project_id:projects[0]!.project_id,plugin_id:'pages',actor_id:'alice'}));
+ await target.withCatalog({homeDirectory:f.homes[1]},catalog=>catalog.addProjectPlugin({project_id:projects[0]!.project_id,plugin_id:'pages',actor_id:'alice'}));
  assert.ok(JSON.stringify(target.sync.inspectRecovery(namespace,hidden.id)).includes('Local secret 0'),'refusal preserves the original history');
 });

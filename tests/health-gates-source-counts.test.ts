@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error the gate modules are plain .mjs
 import { countFile } from "../scripts/gates/source-counts.mjs";
 
-// specs/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
+// specs/archive/repository-anti-corruption §4.13/§4.16 (W1-04): per-file counts of the old names (goalboard, board_id) and of empty
 // catch blocks inside browser programs written as string and template literals, which may only fall. The definitions are
 // written in scripts/gates/source-counts.mjs. (The empty catch blocks and `as unknown as` casts of real TypeScript code are
 // counted by the static checks since W1-09; tests/health-gates-lint.test.ts holds their definitions and mutations.) Here

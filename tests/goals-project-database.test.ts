@@ -10,7 +10,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { describeSqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 
-// PLIB-12, PLIB-13 (specs/plugin-project-database S8, PG-020): Goals declares its project library in its own Manifest (`databases.project`),
+// PLIB-12, PLIB-13 (specs/archive/plugin-project-database S8, PG-020): Goals declares its project library in its own Manifest (`databases.project`),
 // and the Host opens it in every project's library as it does the other plugins' (the refusals are tests/goals-project-database-refusal.test.ts).
 // These run on an empty in-memory library that holds only the platform's ledger, and prove the declaration is one the platform accepts
 // and makes what the project library baseline (version 7) made for Goals and Governance, the board aside: it has no name now (the
@@ -49,7 +49,7 @@ test("PLIB-12 Goals' Manifest declares its project library: the plugin entry's d
   // The same Manifest also declares the person's planning library in the Home (PG-094 S13), for the plugin's Home half.
   assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE });
   assert.equal(GOALS_PROJECT_DATABASE.store_name, "goals");
-  assert.equal(GOALS_PROJECT_DATABASE.version, 1);
+  assert.equal(GOALS_PROJECT_DATABASE.version, 2);
   // A plugin's own tables in the library are its private storage (D23), and the Manifest declares that permission.
   assert.equal(GOALS_PROJECT_DATABASE.read_permission, "storage:private");
   assert.equal(GOALS_PROJECT_DATABASE.write_permission, "storage:private");
@@ -72,13 +72,13 @@ test("PLIB-12 on an empty library the declaration passes the SQL rules, creates 
     assert.deepEqual(tableNames(db), GOALS_TABLES);
     assert.equal(first.record.plugin_id, GOALS_PLUGIN_ID);
     assert.equal(first.record.store_name, "goals");
-    assert.equal(first.record.version, 1);
+    assert.equal(first.record.version, 2);
     assert.equal(first.record.created_at, "2026-10-20T01:00:00.000Z");
     // The ledger names every table and index the declaration made, none of SQLite's own.
     assert.ok(first.record.objects.length > GOALS_TABLES.length);
     for (const table of GOALS_TABLES) assert.ok(first.record.objects.includes(table), table);
     const rows = db.prepare("SELECT plugin_id, store_name, version FROM plugin_project_databases").all();
-    assert.deepEqual(rows.map(row => ({ ...row })), [{ plugin_id: GOALS_PLUGIN_ID, store_name: "goals", version: 1 }]);
+    assert.deepEqual(rows.map(row => ({ ...row })), [{ plugin_id: GOALS_PLUGIN_ID, store_name: "goals", version: 2 }]);
     assert.equal(db.isTransaction, false);
   } finally { db.close(); }
 });

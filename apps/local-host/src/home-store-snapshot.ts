@@ -3,7 +3,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import { listPluginProjectDatabases } from "@molis-ai/molis-work-plugin-runtime";
 import { verifyPrologueNodeStorageContents } from "@molis-ai/molis-work-service-agent-host";
 import { inspectSealedSecretsSnapshot, LocalCatalogMetadata, readSnapshotFile, type HomeStore, type HomeStoreRegistry, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
-import { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
+import { assertStudioProjectIdentity, ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE } from "./alchemist-search.js";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "./project-catalog-contract.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { captureConnectorPrivateState, type ConnectorPrivateStateSnapshot } from "./connector-private-state.js";
@@ -16,13 +16,17 @@ export const homeSnapshotErrors = defineErrorCodes("host.home_snapshot", {
   key_unavailable: "unavailable", published_unconfirmed: "internal",
 });
 
-export type SnapshotDisposition = { readonly kind: "keep" | "sealed" } | { readonly kind: "key"; readonly bytes?: number } | { readonly kind: "omit"; readonly reason: string };
+export type HomeRestoreDisposition = "replace" | "preserve" | "reset" | "owner";
+export type SnapshotDisposition = { readonly kind: "keep" | "sealed"; readonly restore?: "preserve" }
+  | { readonly kind: "key"; readonly bytes?: number } | { readonly kind: "omit"; readonly reason: string; readonly restore: Exclude<HomeRestoreDisposition, "replace"> };
 export interface SnapshotKeyDependency {
   readonly kind: "file-key" | "master-key";
   readonly location: string;
   readonly sha256: string;
 }
 export interface HomeStoreSnapshotPolicy {
+  readonly restore?: "replace" | "preserve" | "reset";
+  readonly restoreEntry?: (relativePath: string, incoming: boolean) => HomeRestoreDisposition;
   readonly omit?: string;
   readonly emptyOnly?: boolean;
   readonly entry?: (home: string, relativePath: string) => SnapshotDisposition;
@@ -40,17 +44,17 @@ export interface HomeSnapshotStoreRegistry extends HomeStoreRegistry<HomeSnapsho
 }
 
 export const ordinarySnapshot: HomeStoreSnapshotPolicy = {};
-export const omittedSnapshot = (reason: string): HomeStoreSnapshotPolicy => ({ omit: reason });
-export const excluded = (reason: string): SnapshotDisposition => ({ kind: "omit", reason });
+export const omittedSnapshot = (reason: string, restore: "preserve" | "reset"): HomeStoreSnapshotPolicy => ({ omit: reason, restore });
+export const excluded = (reason: string, restore: Exclude<HomeRestoreDisposition, "replace"> = "reset"): SnapshotDisposition => ({ kind: "omit", reason, restore });
 
 export const projectSnapshot: HomeStoreSnapshotPolicy = {
   database: file => {
-    if (file === "catalog.db") return { inspect: db => {
+    if (file === "catalog.db") return { requireSpace: true, inspect: db => {
       const meta = new LocalCatalogMetadata(db), owner = meta.owner(), version = meta.version();
       if (owner !== CATALOG_OWNER || version !== CATALOG_SCHEMA_VERSION) throw homeSnapshotErrors.invalid("目录库不是本版本的现行 owner/schema，未生成快照");
       return { owner, schema_version: version };
     } };
-    if (/^[^/]+\/molis-work\.db$/u.test(file)) return { baseline: PROJECT_DATABASE_BASELINE, additionalTables: true,
+    if (/^[^/]+\/molis-work\.db$/u.test(file)) return { requireSpace: true, baseline: PROJECT_DATABASE_BASELINE, additionalTables: true,
       inspect: db => Object.fromEntries(listPluginProjectDatabases(db).flatMap(entry => [
         ["plugin:" + entry.plugin_id, entry.version], ["store:" + entry.plugin_id, entry.store_name], ["publisher:" + entry.plugin_id, entry.publisher_signature],
       ])) };
@@ -59,14 +63,20 @@ export const projectSnapshot: HomeStoreSnapshotPolicy = {
 };
 
 export const alchemistSnapshot: HomeStoreSnapshotPolicy = {
-  database: file => /^projects\/[^/]+\/studio\.sqlite$/u.test(file) ? { baseline: ALCHEMIST_STUDIO_BASELINE }
+  database: file => /^projects\/[^/]+\/studio\.sqlite$/u.test(file) ? { requireSpace: true, baseline: ALCHEMIST_STUDIO_BASELINE, inspect: db => {
+      const encoded = file.split("/")[1]!, id = decodeURIComponent(encoded);
+      if (!id || encodeURIComponent(id).replaceAll(".", "%2E") !== encoded) throw homeSnapshotErrors.invalid("研究库的项目目录无效");
+      assertStudioProjectIdentity(db, id);
+      return { project_id: id };
+    } }
     : /^projects\/[^/]+\/search\.sqlite$/u.test(file) ? { baseline: ALCHEMIST_SEARCH_BASELINE } : undefined,
 };
 
 /** Current SDK paths, not SDK decryption: unknown leftovers cannot accidentally export a renamed original key. */
 function sdkEntry(file: string): SnapshotDisposition {
-  if (/^\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(file)) return excluded("Storage ownership lock");
-  if (/^(?:leases|image-intake|logs)(?:\/|$)/u.test(file)) return excluded("Agent temporary state or logs");
+  if (/^\.molis-runtime-owner\.db(?:-journal|-wal|-shm)?$/u.test(file)) return excluded("Storage ownership lock", "preserve");
+  if (/^logs(?:\/|$)/u.test(file)) return excluded("Agent diagnostic logs", "preserve");
+  if (/^(?:leases|image-intake)(?:\/|$)/u.test(file)) return excluded("Agent temporary state");
   if (/^records\/[^/]+\/[^/]+\.json(?:\.cas|\.[0-9a-f]{12}\.tmp)$/u.test(file)) return excluded("Uncommitted SDK claim/temporary file");
   if (file === "storage.key") return { kind: "key", bytes: 32 };
   if (/^(?:records|checkpoints)$/u.test(file) || /^records\/[^/]+(?:\/[^/]+\.json)?$/u.test(file) || /^checkpoints\/[^/]+\.json$/u.test(file)) return { kind: "keep" };
@@ -94,7 +104,7 @@ export const builderSnapshot: HomeStoreSnapshotPolicy = {
 };
 
 export const feedSnapshot: HomeStoreSnapshotPolicy = {
-  entry: (_home, file) => /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("SecretStore mutex")
+  entry: (_home, file) => /^secrets\.lock\.sqlite(?:-journal|-wal|-shm)?$/u.test(file) ? excluded("SecretStore mutex", "preserve")
     : file === "secrets.key" ? { kind: "key" } : file === "secrets.json"
       || /^evidence(?:-recovered-v2)?(?:\/blobs(?:\/[0-9a-f]{2}(?:\/[0-9a-f]{64}\.blob)?)?)?$/u.test(file) ? { kind: "keep" } : unknown(file),
   validateFile: async (home, file) => {
@@ -128,21 +138,35 @@ function unknown(file: string): never { throw homeSnapshotErrors.unknown_data(`�
 
 export const managedToolsSnapshot: HomeStoreSnapshotPolicy = {
   capture: captureConnectorPrivateState,
+  restoreEntry: (file, incoming) => {
+    if (!file || file === "connectors" || file === "connectors/installs") return "replace";
+    if (/^connectors\/runtimes(?:\/|$)/u.test(file)) return "preserve";
+    if (/^connectors\/cache(?:\/|$)/u.test(file)) return "reset";
+    const match = /^connectors\/installs\/([^/]+)(?:\/(.+))?$/u.exec(file);
+    if (!match) return unknown(file);
+    if (!match[2]) return "replace";
+    if (/^\.home(?:\/|$)/u.test(match[2])) return "owner";
+    if (/^\.tmp(?:\/|$)/u.test(match[2])) return "reset";
+    return match[2] === "installation.json" && incoming ? "replace" : "preserve";
+  },
   entry: (home, file) => {
     if (file === "connectors" || file === "connectors/installs") return { kind: "keep" };
-    if (/^connectors\/(?:runtimes|cache)(?:\/|$)/u.test(file)) return excluded("Reinstallable managed tool runtime/cache");
+    if (/^connectors\/runtimes(?:\/|$)/u.test(file)) return excluded("Original managed tool runtime", "preserve");
+    if (/^connectors\/cache(?:\/|$)/u.test(file)) return excluded("Reinstallable managed tool cache");
     const parts = /^connectors\/installs\/([^/]+)(?:\/(.+))?$/u.exec(file);
     if (!parts) return unknown(file);
     if (!parts[2]) return { kind: "keep" };
     const inside = parts[2];
-    if (/^\.home(?:\/|$)/u.test(inside)) return excluded("Captured by connector-private-state owner as sealed payload");
-    if (/^(?:node_modules|\.venv|\.tmp|release)(?:\/|$)/u.test(inside)) return excluded("Reinstallable managed package or temporary state");
-    if (/^(?:installation\.json|package\.json|package-lock\.json|requirements\.lock|user\.npmrc|global\.npmrc)$/u.test(inside)) return { kind: "keep" };
+    if (/^\.home(?:\/|$)/u.test(inside)) return excluded("Captured by connector-private-state owner as sealed payload", "owner");
+    if (/^\.tmp(?:\/|$)/u.test(inside)) return excluded("Managed package temporary state");
+    if (/^(?:node_modules|\.venv|release)(?:\/|$)/u.test(inside)) return excluded("Original managed package", "preserve");
+    if (inside === "installation.json") return { kind: "keep" };
+    if (/^(?:package\.json|package-lock\.json|requirements\.lock|user\.npmrc|global\.npmrc)$/u.test(inside)) return { kind: "keep", restore: "preserve" };
     // Whatever is wrong with the record, the snapshot's answer is the same: this file cannot be classified.
     let installation: ReturnType<typeof readManagedConnectorTool>;
     try { installation = readManagedConnectorTool(home, parts[1]!); }
     catch { return unknown(file); }
-    if (relative(join(home, "runtime"), installation.executable).split("\\").join("/") === file) return excluded("Reinstallable native executable");
+    if (relative(join(home, "runtime"), installation.executable).split("\\").join("/") === file) return excluded("Original native executable", "preserve");
     return unknown(file);
   },
 };

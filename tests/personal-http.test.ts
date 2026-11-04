@@ -1,4 +1,3 @@
-import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {pagesManifest} from '@molis-ai/molis-work-plugin-pages';
 import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
@@ -134,13 +133,14 @@ test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accou
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
     assert.ok(response.status<400,'unexpected HTTP '+response.status+' for '+path+': '+(response.status>=400?await response.clone().text():''));return response;
   };
+  let historyProject: {project_id:string} | undefined;
   const login=async()=>{
     await request('/api/personal/login','POST');await request('/account/callback?code=synthetic&state='+state);
     await request('/api/personal/space?kind=personal','POST');
     const scopes=await(await request('/api/spaces')).json();spaceId=scopes.current.spaceId;
     token=(await(await request('/api/personal/status')).json()).viewToken;
     // Pages is a project Runtime owner on main; opening that project is the person's activation, not sync discovery.
-    const project=await withMolisWorkProjectCatalog({homeDirectory:join(home,'spaces',spaceId)},async catalog=>catalog.listProjects().find(row=>row.display_name==='History fixture')??await catalog.createProject({display_name:'History fixture',actor_id:'alice'}));
+    const project=historyProject??=(await(await request('/api/settings/projects','POST',{display_name:'History fixture',user_confirmed:true})).json()).project;
     historyKey=JSON.stringify([null,JSON.stringify([project.project_id,'document','page'])]);
     await request('/projects/'+encodeURIComponent(project.project_id)+'/');
   };

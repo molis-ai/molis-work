@@ -97,19 +97,19 @@ test("every Chinese string the studio client writes goes through the translator,
 });
 
 // Messages the studio's routes send as they are, which the page translates where it shows them: the request-time answers a person
-// reaches by asking (agent-surface.ts and its studio-*.ts parts, agent-workflow.ts, agent-store.ts). The workflow's errors raised while a build runs (a model
+// reaches by asking (agent-surface.ts and its studio-*.ts parts, agent-workflow.ts, agent-publication.ts, agent-store.ts). The workflow's errors raised while a build runs (a model
 // answer that fails validation, a gate or an acceptance that fails) are build-record text and stay as written (BL-125).
 const ROUTE_MESSAGES = [
   "请先选择构建使用的模型", "请先在右上角选择构建使用的模型", "所选模型尚未配置，请在模型设置中完成配置", "试用数据被同时修改，请重试", "还没有接通的功能可以试用", "这个插件当前没有运行，请在创作台里启用", "找不到这个插件的已安装版本",
   "界面组件不存在", "这轮界面验收已结束", "界面验收需要从创作台页面发起", "未知的组件操作", "这个方案还没有效果图", "效果图读取失败", "未声明的创作台操作", "发布前请先修好调用模型的写法：",
   "旧构建结果已作废", "草稿已更新，请重试", "此草稿已有执行中的工作", "选中的方案已失效，请重新选择", "还没有确定的方案可以修改", "草稿已改变，请刷新", "方案已失效", "功能验证通过后才能调整界面", "这个操作尚未接通，输入已保留",
   "功能接通并通过检查后才能单独调整界面", "请输入具体修改意见", "草稿已更新或正在构建，请先暂停并刷新", "没有等待启用的插件", "这个项目不能在这里启用插件", "组件选择已失效", "没有可撤销的合同修订",
-  "全部功能和浏览器验收通过后才能发布", "发布版本不存在", "未知构建操作", "找不到这个创作草稿", "请填写不超过 48000 字的需求", "发布版本已存在", "草稿删除暂未开放，完整创作及文件已保留",
+  "目标范围的功能检查和浏览器验收全部通过后才能发布", "发布版本不存在", "未知构建操作", "找不到这个创作草稿", "请填写不超过 48000 字的需求", "发布版本已存在", "草稿删除暂未开放，完整创作及文件已保留",
 ];
 
 test("the studio's route messages are still what the server throws, and each has English", async () => {
   const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-  const sources = (await Promise.all(["apps/local-host/src/plugin-builder/agent-surface.ts", "apps/local-host/src/plugin-builder/studio-ports.ts", "apps/local-host/src/plugin-builder/studio-preview.ts", "apps/local-host/src/plugin-builder/studio-images.ts", "plugins/native/plugin-builder/src/agent-workflow.ts", "plugins/native/plugin-builder/src/checked-presentation.ts", "plugins/native/plugin-builder/src/agent-store.ts"]
+  const sources = (await Promise.all(["apps/local-host/src/plugin-builder/agent-surface.ts", "apps/local-host/src/plugin-builder/studio-ports.ts", "apps/local-host/src/plugin-builder/studio-release.ts", "apps/local-host/src/plugin-builder/studio-preview.ts", "apps/local-host/src/plugin-builder/studio-images.ts", "plugins/native/plugin-builder/src/agent-workflow.ts", "plugins/native/plugin-builder/src/agent-publication.ts", "plugins/native/plugin-builder/src/checked-presentation.ts", "plugins/native/plugin-builder/src/agent-store.ts"]
     .map(file => readFile(join(repoRoot, file), "utf8")))).join("\n");
   for (const message of ROUTE_MESSAGES) {
     assert.ok(sources.includes("'" + message + "'"), `${message}: a route still sends it (reword the server message and this list together)`);

@@ -129,7 +129,7 @@ test('S-116 PCSYNC-01/14 malformed Coding owner content cannot create a project,
   f.replicas[1]!.receive({...event,value,operationId:'malformed-'+index,revision:index+1});assert.equal(f.stores[1]!.list(f.project.project_id).length,0);assert.ok(f.replicas[1]!.conflicts().length,'current owner rejects malformed content');
   const home=join(f.root,'uninitialized-target-'+index);ensureStorageSpace(home,f.space);
   const client=(await createPersonalSync(home,f.space,lease,withMolisWorkProjectCatalog,check))!;
-  try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);}finally{client.close();}
+  try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await client.withCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);}finally{client.close();}
  }
  assert.throws(()=>validateProjectContentReplication(event.value,[f.definition],{...f.contexts[0]!,spaceId:'foreign'}));
 });

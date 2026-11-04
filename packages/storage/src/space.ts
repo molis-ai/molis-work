@@ -5,7 +5,17 @@ import type { StorageSpace, SpaceAssetRef } from '@molis-ai/molis-work-contracts
 
 export type { StorageSpace, SpaceAssetRef };
 const FILE = 'storage-space.json';
-export const STORAGE_SPACE_SCHEMA_SQL = 'CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);';
+const SPACE_TABLE_DEFINITION = 'molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)';
+export const STORAGE_SPACE_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS ${SPACE_TABLE_DEFINITION};`;
+
+/** Check the platform-created table itself: table_info omits generated columns, and CHECK constraints can be disabled by a writer. */
+export function spaceMetadataShapeMatches(db: {prepare(sql:string):{get():unknown; all():unknown[]}}): boolean {
+  const object = db.prepare("SELECT sql FROM sqlite_schema WHERE type='table' AND name='molis_storage_space'").get() as {sql:string}|undefined;
+  // SQLite stores our CREATE TABLE statement without IF NOT EXISTS and its terminating semicolon.
+  if (object?.sql !== `CREATE TABLE ${SPACE_TABLE_DEFINITION}`) return false;
+  const rows = db.prepare("SELECT singleton FROM molis_storage_space LIMIT 2").all() as {singleton:number}[];
+  return rows.length === 0 || (rows.length === 1 && rows[0]!.singleton === 1);
+}
 
 function validate(value: StorageSpace): StorageSpace {
   if (!value || typeof value.spaceId!=='string' || !/^space_[a-zA-Z0-9_-]+$/.test(value.spaceId)) throw new Error('SPACE_METADATA_INVALID');
@@ -58,8 +68,11 @@ export interface SpaceDatabase {
 /** Read existing ownership without assigning or changing the database's space. */
 export function readDatabaseSpace(db: SpaceDatabase): StorageSpace | null {
   if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='molis_storage_space'").get()) return null;
-  const row = db.prepare('SELECT descriptor FROM molis_storage_space WHERE singleton=1').get() as { descriptor: string } | undefined;
-  return row ? validate(JSON.parse(row.descriptor)) : null;
+  const row = db.prepare('SELECT space_id,descriptor FROM molis_storage_space WHERE singleton=1').get() as { space_id: string; descriptor: string } | undefined;
+  if (!row) return null;
+  const space = validate(JSON.parse(row.descriptor));
+  if (row.space_id !== space.spaceId) throw new Error('SPACE_METADATA_INVALID');
+  return space;
 }
 
 /** Normalized ownership for every record/version/blob reference owned by this store.

@@ -7,7 +7,7 @@ import { CharactersService } from "./service.js";
 import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CharactersRepository } from "./repository.js";
 import { bindDatabaseSpace, ensureStorageSpace, type AggregateReplicaContext } from "@molis-ai/molis-work-storage";
-import { createCharactersReplica, installCharactersReplication } from "./replication.js";
+import { createCharactersReplica, initializeCharactersReplication, CHARACTERS_SYNC_TRIGGERS } from "./replication.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { CharacterRunsRepository, type CharacterRuns } from "./runs.js";
@@ -15,9 +15,9 @@ import { CharacterRunsRepository, type CharacterRuns } from "./runs.js";
 /**
  * The one current schema of `characters/characters.sqlite`; any other version, or tables without one, is refused (repository-anti-corruption §4.1).
  * The current schema includes `character_runs`, the native runs Characters records itself (Sessions cleanup SC-2, D3).
- * Clean Homes start at 1; an existing file at another version is not upgraded on open.
+ * Clean Homes start at the current baseline; an existing file at another version is not upgraded on open.
  */
-export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 3, schema: (`CREATE TABLE character_drafts (
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 4, schema: (`CREATE TABLE character_drafts (
   character_id TEXT PRIMARY KEY,
   owner_actor_id TEXT NOT NULL,
   revision INTEGER NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE character_runs (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
-CREATE INDEX character_runs_by_character ON character_runs (owner_actor_id, project_id, character_id, created_at);`)+replicaSchemaSql('characters') };
+CREATE INDEX character_runs_by_character ON character_runs (owner_actor_id, project_id, character_id, created_at);`)+replicaSchemaSql('characters') + CHARACTERS_SYNC_TRIGGERS };
 
 /** The Characters store in the Home's store registry (W4-11): `characters/characters.sqlite`. */
 export const CHARACTERS_HOME_STORE = { path: "characters", library: { baseline: CHARACTERS_STORE_BASELINE, file: "characters.sqlite" }, replication: createCharactersReplicationBinding } as const satisfies HomeStoreDeclaration;
@@ -72,7 +72,7 @@ function openStore(homeDirectory: string, actorId: string): DatabaseSync {
     applySqliteBaseline(db, filename, CHARACTERS_STORE_BASELINE);
     const space = ensureStorageSpace(homeDirectory);
     bindDatabaseSpace(db, space);
-    if (space.kind === "personal") installCharactersReplication(db);
+    if (space.kind === "personal") initializeCharactersReplication(db);
     chmodSync(filename, 0o600);
     return db;
   } catch (error) { db.close(); throw error; }

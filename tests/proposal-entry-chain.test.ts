@@ -21,6 +21,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "Proposal chain", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
+  catalog.close();
   const host = createMolisWorkLocalHost({ homeDirectory: directory });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
   const client = managementGoals(host.actionClient(reference), projectId);
@@ -152,7 +153,6 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     await runtime.close();
     await served.close();
     await host.close();
-    catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

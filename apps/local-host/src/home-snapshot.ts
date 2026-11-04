@@ -1,11 +1,13 @@
+import { snapshotSpaceDigest } from "./home-restore-space.js";
 import { lstatSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
 import { dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { acquireStorageOwner, assertStorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { captureSnapshotStore } from "./home-snapshot-capture.js";
 import type { HomeSnapshotDirectory, HomeSnapshotManifest, HomeSnapshotResult, HomeSnapshotStoreManifest } from "./home-snapshot-contract.js";
-import { assertSnapshotHomeInventory, inventorySnapshotStore, snapshotDirectoryInfo } from "./home-snapshot-inventory.js";
+import { assertSnapshotHomeInventory, inventorySnapshotStore, snapshotDirectoryInfo, snapshotSourceInventory } from "./home-snapshot-inventory.js";
 import { snapshotDestination, syncSnapshotPath, writeSnapshotJson } from "./home-snapshot-publication.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 import { homeStores } from "./home-stores.js";
@@ -33,9 +35,11 @@ export async function createHomeSnapshot(
     owner = acquireStorageOwner(root);
   let publication: ReturnType<ReturnType<typeof snapshotDestination>["create"]> | undefined;
   try {
+    const scope = snapshotSpaceDigest(home);
     const assertCurrent = () => {
       options.signal?.throwIfAborted();
       assertStorageOwner(root, owner);
+      if (snapshotSpaceDigest(home) !== scope) throw homeSnapshotErrors.changed("快照期间 Home 空间归属已变化");
     };
     const registry = homeStores(home);
     assertSnapshotHomeInventory(home, registry);
@@ -50,6 +54,9 @@ export async function createHomeSnapshot(
           assertCurrent,
         }),
       );
+    // SQLite backup readers can create their own technical sidecars; observe actual source facts after those readers close.
+    assertSnapshotHomeInventory(home, registry);
+    const sourceInventory = snapshotSourceInventory(home, registry, inventory);
     const containers = new Map<string, HomeSnapshotDirectory>();
     for (const store of registry.stores)
       if (store.path.includes("/")) {
@@ -62,12 +69,14 @@ export async function createHomeSnapshot(
           });
       }
     const manifest: HomeSnapshotManifest = {
-      schema_version: 1,
+      schema_version: 2,
+      space_digest: scope,
       product_version: PRODUCT_VERSION,
       created_at: new Date().toISOString(),
       home_directory: home,
       home_mode: mode,
       container_directories: [...containers.values()],
+      source_inventory: sourceInventory,
       stores,
       exclusions: registry.snapshotExclusions,
       external_dependencies: [
@@ -77,6 +86,7 @@ export async function createHomeSnapshot(
       ],
     };
     assertCurrent();
+    if (!isDeepStrictEqual(sourceInventory, snapshotSourceInventory(home, registry, inventory))) throw homeSnapshotErrors.changed("快照期间源目录条目发生变化");
     writeSnapshotJson(join(publication.stage, "manifest.json"), manifest);
     // Flush every new payload directory from leaves up before exposing the manifest's directory.
     const directories = new Set<string>([publication.stage]);
@@ -87,6 +97,7 @@ export async function createHomeSnapshot(
     for (const store of stores) if (store.owner_payload) directories.add(dirname(join(publication.stage, store.owner_payload.payload_path)));
     for (const directory of [...directories].sort((a, b) => b.length - a.length)) syncSnapshotPath(directory);
     assertCurrent();
+    if (!isDeepStrictEqual(sourceInventory, snapshotSourceInventory(home, registry, inventory))) throw homeSnapshotErrors.changed("发布前源目录条目发生变化");
     const published = publication.publish();
     return {
       status: "created",

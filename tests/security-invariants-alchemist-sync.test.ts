@@ -38,7 +38,9 @@ test('S-130 PCSYNC-ALC-ACTOR-01 Studio retains real authors, reports, evidence, 
  const edit=await right.call(a.directionEditing,{id:saved.direction.id});
  await right.call(a.directionStatus,{id:saved.direction.id,status:'archived'});
  await assert.rejects(right.call(a.directionUpdate,{id:saved.direction.id,title:'Stale',description:'Must not overwrite',expectedEtag:edit.etag}),{code:'alchemist.edit_changed'});
- const schema=new DatabaseSync(':memory:');try{schema.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v2.sql',import.meta.url),'utf8'));assert.deepEqual(describeSqliteSchema(right.runtime.database),describeSqliteSchema(schema));}finally{schema.close();}
+ const schema=new DatabaseSync(':memory:');try{schema.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v3.sql',import.meta.url),'utf8'));assert.deepEqual(describeSqliteSchema(right.runtime.database),describeSqliteSchema(schema));
+ const programs="SELECT name,sql FROM sqlite_schema WHERE type='trigger' ORDER BY name";
+ assert.deepEqual(right.runtime.database.prepare(programs).all().map(row=>({...row})),schema.prepare(programs).all().map(row=>({...row})));}finally{schema.close();}
 });
 
 test('S-130 PCSYNC-ALC-ACTOR-02 Studio refuses invalid authors, injected scope, task execution and broken references atomically',async t=>{
@@ -74,6 +76,9 @@ test('S-130 PCSYNC-12/15 Studio refuses old schema intact and cannot overwrite a
  release();await active;replica.resolve(key,'local',1);assert.ok(replica.next());
  const oldHome=join(root,'old');ensureStorageSpace(oldHome,f.space);const directory=join(oldHome,'alchemist/projects/project');mkdirSync(directory,{recursive:true});const file=join(directory,'studio.sqlite'),db=new DatabaseSync(file);db.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v1.sql',import.meta.url),'utf8')+'PRAGMA user_version=1');db.close();const original=readFileSync(file);
  assert.throws(()=>openAlchemistSyncStore(oldHome,'project'),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(file),original);
+ const priorFile=join(directory,'studio.sqlite');rmSync(priorFile);const prior=new DatabaseSync(priorFile);
+ prior.exec(readFileSync(new URL('./fixtures/home-store-schemas/alchemist-studio-v2.sql',import.meta.url),'utf8')+'PRAGMA user_version=2');prior.close();
+ const priorBytes=readFileSync(priorFile);assert.throws(()=>openAlchemistSyncStore(oldHome,'project'),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(priorFile),priorBytes);
  mkdirSync(join(oldHome,'alchemist/projects/linked-parent'));symlinkSync(join(oldHome,'alchemist/projects/linked-parent'),join(oldHome,'alchemist/projects/link'));assert.throws(()=>openAlchemistSyncStore(oldHome,'link'),{code:'alchemist.sync_scope'});
  const dangling=join(oldHome,'alchemist/projects/dangling');mkdirSync(dangling);symlinkSync(join(root,'must-not-create.sqlite'),join(dangling,'studio.sqlite'));assert.throws(()=>openAlchemistSyncStore(oldHome,'dangling'),{code:'alchemist.sync_scope'});
  assert.equal((await f.call(a.directionEditing,{id:direction.id})).etag,editing.etag);

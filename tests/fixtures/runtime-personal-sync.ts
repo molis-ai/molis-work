@@ -1,8 +1,8 @@
 import { openMemoryLedger } from '@molis-ai/molis-work-storage';
 import { defaultPrefs } from '@molis-ai/molis-work-service-memory';
 import { LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
-import { MolisWorkLocalHost, discoverRuntimeSyncCollections, molisWorkHostProjectReference, createPersonalSync, bindPersonalSpaceAuthority,createWebCatalogAccess } from '@molis-ai/molis-work-app-local-host';
-import { withMolisWorkProjectCatalog,openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { MolisWorkLocalHost, discoverRuntimeSyncCollections, molisWorkHostProjectReference, createPersonalSync, bindPersonalSpaceAuthority } from '@molis-ai/molis-work-app-local-host';
+import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 /** Explicit setup of a fresh synthetic Home, before any Runtime or business owner opens it. */
 export function prepareSyncTestHome(home:string){
@@ -12,17 +12,17 @@ export function prepareSyncTestHome(home:string){
 /** Explicitly opens the user's already enabled projects; the coordinator only discovers their current Runtime contributions. */
 export async function runtimePersonalSync(home:string,space:StorageSpace,authorize:()=>void=()=>{},options:{accessToken?:()=>Promise<string>;authOrigin?:string}={}) {
  const release=bindPersonalSpaceAuthority(home,space.spaceId,authorize),host=new MolisWorkLocalHost({homeDirectory:home,completeText:null});
- const catalogAccess=createWebCatalogAccess(home,openMolisWorkProjectCatalog);
-  host.configurePersonalPlanning(home,withMolisWorkProjectCatalog);
+ const catalogAccess=host.ensureWebCatalog(home,openMolisWorkProjectCatalog);
+  const withCatalog=host.configurePersonalPlanning(home,catalogAccess.withCatalog);
  const openProjects=async()=>{
-  for(const project of await withMolisWorkProjectCatalog({homeDirectory:home},catalog=>catalog.listProjects()))
+  for(const project of await withCatalog({homeDirectory:home},catalog=>catalog.listProjects()))
    await host.withProject(molisWorkHostProjectReference({databasePath:project.database_path,projectId:project.project_id}),async()=>{}, {activatePlugins:true});
  };
  const lease={userId:space.ownerUserId!,applicationId:'work',authOrigin:options.authOrigin??'http://127.0.0.1:8787',signal:new AbortController().signal,assertCurrent:authorize,accessToken:options.accessToken??(async()=>'synthetic-only')};
  try {
   await catalogAccess.warm();await openProjects();await host.homePlugins?.ready();
-  const sync=await createPersonalSync(home,space,lease,withMolisWorkProjectCatalog,authorize,check=>discoverRuntimeSyncCollections(home,space.spaceId,host,withMolisWorkProjectCatalog,check),undefined,catalogAccess.read);
+  const sync=await createPersonalSync(home,space,lease,withCatalog,authorize,check=>discoverRuntimeSyncCollections(home,space.spaceId,host,withCatalog,check),undefined,catalogAccess.read);
   if(!sync)throw new Error('TEST_SYNC_ENDPOINT_MISSING');
-  return {host,sync,openProjects,readCatalog:catalogAccess.read,async close(){sync.close();try{await host.close();await catalogAccess.close();}finally{release();}}};
- }catch(error){try{await host.close();await catalogAccess.close();}finally{release();}throw error;}
+  return {host,sync,withCatalog,openProjects,readCatalog:catalogAccess.read,async close(){sync.close();try{await host.close();}finally{release();}}};
+ }catch(error){try{await host.close();}finally{release();}throw error;}
 }

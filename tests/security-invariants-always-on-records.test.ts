@@ -17,7 +17,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-// ac-trust T3 (specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
+// ac-trust T3 (specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): the 常开 list is worked out from the consent ledger and the
 // install records each time it is asked, nothing names a plugin, and the server refuses to uninstall, switch off or remove a 常开 plugin.
 
 const ALWAYS_ON = { kind: "always_on", subject: consentSubject.alwaysOn() } as const;
@@ -287,6 +287,7 @@ for (const corruption of ["version", "structure"] as const) test(`MEM-42 later d
 test("RAC-401 S-34 a query before Host startup records nothing and the real supervisor still records consent at startup", async t => {
   const f = await catalogFixture(t);
   readMembership(f);
+  f.catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
   try {
     await host.homePlugins!.ready();
@@ -299,9 +300,12 @@ test("RAC-401 S-34 a query before Host startup records nothing and the real supe
       assert.equal(rows[0]!.publisher_signature, shelf.publisher.signature);
       assert.equal(rows[0]!.manifest_digest, pluginManifestDigest(shelf));
     } finally { db.close(); }
-    const before = filesAt(f.home);
-    readMembership(f);
-    assert.deepEqual(filesAt(f.home), before, "queries after startup do not change the supervisor's ledger or files");
+    const withCatalog = host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
+    await withCatalog({ homeDirectory: f.home }, catalog => {
+      const before = filesAt(f.home);
+      readMembership({ ...f, catalog });
+      assert.deepEqual(filesAt(f.home), before, "queries after startup do not change the supervisor's ledger or files");
+    });
   } finally { await host.homePlugins!.close(); await host.close(); }
 });
 
@@ -309,7 +313,7 @@ for (const [name, corrupt, expected] of [
   ["non-SQLite bytes", (file: string) => writeFileSync(file, "not a SQLite database"), /not a database/u],
   ["empty existing file", (file: string) => writeFileSync(file, ""), { code: "storage.schema_version_mismatch" }],
   ["wrong version", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 2"); } finally { db.close(); } }, { code: "storage.schema_version_mismatch" }],
-  ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 1"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
+  ["current version with missing tables", (file: string) => { const db = new DatabaseSync(file); try { db.exec("PRAGMA user_version = 4"); } finally { db.close(); } }, { code: "actions.execution_failed" }],
 ] as const) {
   test(`RAC-401 S-34 an existing Runtime store with ${name} is refused, never treated as missing or repaired by a query`, async t => {
     const f = await catalogFixture(t);
@@ -325,10 +329,10 @@ for (const [name, corrupt, expected] of [
 for (const corruption of ["version", "structure"] as const) {
   test(`RAC-402 RAC-403 S-34 revoked and disabled records survive ${corruption} failure; only the page gets stored membership`, { timeout: 60_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "molis-work-revoked-invalid-"));
-    const availability = projectActionAvailability(withMolisWorkProjectCatalog, home);
+    const availability = projectActionAvailability((options, operation) => withCatalog(options, operation), home);
     const f = await serveHomeRuntime(t, { homeDirectory: home, actionAvailability: availability });
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    try {
+    const withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = f.host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+    await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "保留撤回与隐藏", actor_id: "test" });
       const db = seedStore(home), ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
       const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
@@ -350,6 +354,8 @@ for (const corruption of ["version", "structure"] as const) {
       const caller = person(["goals:read"], project.project_id);
       const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
       assert.equal((await availability(caller, action)).available, false);
+      const currentVersion = db.prepare("PRAGMA user_version").get()!.user_version;
+      assert.equal(currentVersion, 4, "the fault starts from the current Home Runtime schema");
       if (corruption === "version") db.exec("PRAGMA user_version = 2");
       else db.exec("DROP TABLE plugin_private_values");
       const consents = ledger.consents(goals.plugin_id), installs = repository.list();
@@ -396,7 +402,7 @@ for (const corruption of ["version", "structure"] as const) {
         assert.deepEqual(new SqlitePluginConsentLedger(restored).consents(goals.plugin_id), consents);
         assert.deepEqual(new SqlitePluginRuntimeRepository(restored).list(), installs);
         // Restoring only the missing structure/version makes the next read authoritative again, while preserving every revoked row.
-        if (corruption === "version") restored.exec("PRAGMA user_version = 1");
+        if (corruption === "version") restored.exec(`PRAGMA user_version = ${currentVersion}`);
         else {
           const schema = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
           const table = schema.match(/CREATE TABLE plugin_private_values \([\s\S]*?\n\);/u)?.[0];
@@ -406,11 +412,11 @@ for (const corruption of ["version", "structure"] as const) {
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), stored.plugins);
       assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, stored.hidden);
       assert.equal((await availability(caller, action)).available, false);
-    } finally { catalog.close(); }
+    });
   });
 }
 
-for (const error of [new SqliteSchemaVersionError("unrelated.db", 1, 3), new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源")]) {
+for (const error of [new SqliteSchemaVersionError("unrelated.db", 1, 4), new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v4 基线不一致，请保留故障库并检查其来源")]) {
   test(`RAC-403 a ${error.name} from outside the Home store is not swallowed even with the same code or message`, { timeout: 60_000 }, async t => {
     const f = await serveHomeRuntime(t, { actionAvailability: (_caller, action) => {
       if (action.capability_id === goalsActions.collection.capability_id) throw error;

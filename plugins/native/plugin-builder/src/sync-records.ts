@@ -25,6 +25,7 @@ export function validateBuilderSelection(input:unknown):void{
 }
 /** The exact published bytes must describe the same release, not merely have valid independent hashes. */
 export function validateBuilderReleaseFiles(release:Record<string,unknown>&Pick<AgentRelease,'design'|'nodes'>,directory:BuilderPortableDirectory):void{
+ if(directory.files.some(file=>file.path==='signed-package.json')!==Object.hasOwn(release,'distribution'))builderSyncInvalid();
  const design=release.design,iface=builderReleaseInterface(design,release.nodes);
  for(const [path,expected] of Object.entries({'manifest.json':release.manifest,'contract.json':design.contract,'interface.json':iface,'prompts.json':release.prompts})){
   const file=directory.files.find(f=>f.path===path);if(!file)builderSyncInvalid();

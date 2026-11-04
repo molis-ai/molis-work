@@ -1,3 +1,4 @@
+import { readStorageSpace, spaceMetadataShapeMatches } from "./space.js";
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -64,6 +65,21 @@ const structureMismatch = (path: string) => storageErrors.schema_structure_misma
 export const isSqliteSchemaStructureMismatch = (error: unknown): error is ActionError =>
   error instanceof ActionError && error.code === "storage.schema_structure_mismatch";
 
+/** Only a fresh file or the exact binding already published by this Home can receive its first business schema. */
+function emptyForBaseline(db:SqliteBaselineDatabase, path:string, home?:string):boolean {
+  const objects = db.prepare("SELECT type,name FROM sqlite_schema").all() as Array<{type:string; name:string}>;
+  if (!objects.length) return true;
+  if (objects.length !== 1 || objects[0]!.type !== "table" || objects[0]!.name !== "molis_storage_space") return false;
+  if (!spaceMetadataShapeMatches(db)) throw structureMismatch(path);
+  const row = db.prepare("SELECT space_id,descriptor FROM molis_storage_space WHERE singleton=1").get() as {space_id:string;descriptor:string}|undefined;
+  if (!row) throw structureMismatch(path);
+  if (home !== undefined) {
+    const expected = readStorageSpace(home);
+    if (!expected || row.space_id !== expected.spaceId || row.descriptor !== JSON.stringify(expected)) throw new Error("SPACE_OWNERSHIP_MISMATCH");
+  }
+  return true;
+}
+
 /**
  * Refuse an existing store before a writable connection can change it: another version (or tables without one) is refused with both
  * versions, and a same-version store whose structure is not the baseline's is refused too. A missing or empty file is left for the
@@ -72,16 +88,15 @@ export const isSqliteSchemaStructureMismatch = (error: unknown): error is Action
  * a read-only connection fail with SQLITE_READONLY_ROLLBACK, and that crash recovery is left to the writable open — the caller then
  * checks the recovered database's version and structure in full.
  */
-function inspectSqliteBaseline(path: string, baseline: SqliteBaseline): boolean {
-  if (!existsSync(path)) return true;
+function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:string): boolean {
+  if (!existsSync(path)) return false;
   try {
     const inspection = new DatabaseSync(path, { readOnly: true });
     try {
       const found = Number((inspection.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
-      const empty = !inspection.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
       if (found !== baseline.version) {
-        if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
-        return true;
+        if (found !== 0 || !emptyForBaseline(inspection,path,home)) throw new SqliteSchemaVersionError(path, found, baseline.version);
+        return false;
       }
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
@@ -110,7 +125,7 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
  * file's structure, so a still-valid file is not described twice; it never skips a check the inspection could not make (a hot journal
  * leaves the file to the writable open, and this function then compares version and structure in full).
  */
-function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, shapeChecked: boolean): void {
+function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: SqliteBaseline, shapeChecked: boolean, home?:string): void {
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
   const found = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
   if (found === baseline.version) {
@@ -118,10 +133,16 @@ function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: Sqlit
     if (!shapeChecked && !baselineShapePresent(db, baseline)) throw structureMismatch(path);
     return;
   }
-  const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'molis_storage_space' LIMIT 1").get();
-  if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
+  if (found !== 0 || !emptyForBaseline(db,path,home)) throw new SqliteSchemaVersionError(path, found, baseline.version);
   db.exec("BEGIN IMMEDIATE");
   try {
+    const current = Number((db.prepare("PRAGMA user_version").get() as {user_version:number}).user_version);
+    if (current === baseline.version) {
+      if (!baselineShapePresent(db,baseline)) throw structureMismatch(path);
+      db.exec("COMMIT");
+      return;
+    }
+    if (current !== 0 || !emptyForBaseline(db,path,home)) throw new SqliteSchemaVersionError(path,current,baseline.version);
     db.exec(baseline.schema);
     db.exec(`PRAGMA user_version = ${baseline.version}`);
     db.exec("COMMIT");
@@ -138,10 +159,10 @@ function applyBaseline(db: SqliteBaselineDatabase, path: string, baseline: Sqlit
  */
 export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline, projectId?: string): DatabaseSync {
   const path = homeSqlitePath(homeDirectory, storeName, projectId);
-  const inspected = inspectSqliteBaseline(path, baseline);
-  const db = openHomeSqliteDatabase(homeDirectory, storeName, projectId, db => applyBaseline(db, path, baseline, inspected));
+  const inspected = inspectSqliteBaseline(path, baseline, homeDirectory);
+  const db = openHomeSqliteDatabase(homeDirectory, storeName, projectId, db => applyBaseline(db, path, baseline, inspected, homeDirectory));
   try {
-    applyBaseline(db, path, baseline, inspected);
+    applyBaseline(db, path, baseline, inspected, homeDirectory);
     return db;
   } catch (error) {
     db.close();

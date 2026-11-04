@@ -193,6 +193,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   }
   @media (max-width: 600px) {
     body.immersive-workbench .tree-resizer { display: none; }
+    body.immersive-workbench .directory-content-scroll { padding-right: 0; }
     body.immersive-workbench .tree-pane .tree-node,
     body.immersive-workbench .tree-pane .tree-toggle { height: 40px; min-height: 40px; }
     body.immersive-workbench .tree-pane :is(.source-filter-menu > summary, .feed-filter-trigger, .source-mobile-add, .tree-tool) { width: 36px; height: 40px; min-height: 40px; }

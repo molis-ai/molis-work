@@ -7,7 +7,7 @@ import { ownerFileHasCode, ownerFilePaths } from "./plugin-owner-files-paths.js"
 
 // A project's rows in a plugin's library of the Home, as the plugin declares them (`databases.home.project_rows`, PG-024): the
 // platform writes the statements from the declaration and runs them on its own connection to that one library, so deleting a project
-// runs no code of the plugin's (specs/repository-anti-corruption/slices/w5-02-registry.md §2). The SDK has checked the shape
+// runs no code of the plugin's (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §2). The SDK has checked the shape
 // (packages/plugin-sdk `project-rows-declarations.ts`); what it cannot see, that each column is one the schema really creates, is
 // checked here against the schema built in SQLite.
 

@@ -113,7 +113,7 @@ test("every local address a seeded workbench links to is the workbench, leads in
   }
   t.diagnostic(`followed ${seen.size} local addresses`);
   // The number only guards that the crawl really walked the workbench. It was 41 until the Goal-era /decisions page, which one
-  // link in the relation editor opened, was removed (specs/repository-anti-corruption, W2-02): that link is `/` now. It was 40
+  // link in the relation editor opened, was removed (specs/archive/repository-anti-corruption, W2-02): that link is `/` now. It was 40
   // until the Experiments plugin was deleted (2026-10-10): its page linked to `/settings/connectors?connector=typesafe`, one address
   // fewer to follow.
   assert.ok(seen.size >= 39, `the crawl reached only ${seen.size} addresses`);

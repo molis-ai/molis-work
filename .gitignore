@@ -44,7 +44,7 @@ coverage/
 /${userHome}/
 .claude/launch.json
 
-# Personal tool state and generated working material stay out of the repository (specs/repository-anti-corruption,
+# Personal tool state and generated working material stay out of the repository (specs/archive/repository-anti-corruption,
 # decision 2026-10-08): product material lives under docs/, never in a root outputs/ folder.
 /outputs/
 /.zcode/

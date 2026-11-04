@@ -1,4 +1,3 @@
-import {createStaticPersonalSync as createPersonalSync} from '../../tests/fixtures/static-personal-sync.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -8,8 +7,8 @@ import { ensureStorageSpace,personalStorageSpace } from '@molis-ai/molis-work-st
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
 import { shelfActions,SHELF_ACTION_PERMISSIONS,shelfManifest } from '@molis-ai/molis-work-plugin-shelf';
 import { hashBytes } from '@molis-ai/molis-work-module-shelf';
-import { MolisWorkLocalHost,bindPersonalSpaceAuthority } from '@molis-ai/molis-work-app-local-host';
-import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { createPersonalSync,MolisWorkLocalHost,bindPersonalSpaceAuthority } from '@molis-ai/molis-work-app-local-host';
+import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
 import { cloudFixture } from './testing.mjs';
 
@@ -26,7 +25,11 @@ test('PCSYNC-11/12/15/19/22 Shelf actual Host actions and catalog transfer compl
     for(const [key,value]of [['MOLIS_WORK_SYNC_ORIGIN',previous.origin],['MOLIS_WORK_SYNC_LOCAL',previous.local]])if(value===undefined)delete process.env[key];else process.env[key]=value;});
   t.mock.method(globalThis,'fetch',cloud.transport);
   const lease={userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}};
-  for(const home of homes)clients.push(await createPersonalSync(home,space,lease,withMolisWorkProjectCatalog,()=>{}));
+  for(const [index,home] of homes.entries()){
+    const access=hosts[index].ensureWebCatalog(home,openMolisWorkProjectCatalog);await access.warm();
+    const withCatalog=hosts[index].configurePersonalPlanning(home,access.withCatalog);
+    clients.push(await createPersonalSync(home,space,lease,withCatalog,()=>{},undefined,undefined,access.read));
+  }
   const collection=shelfManifest.sync.collections[0],selection={plugin_id:shelfManifest.plugin_id,publisher_id:shelfManifest.publisher.publisher_id,publisher_signature:shelfManifest.publisher.signature,collection_id:collection.id,schema_version:collection.schema_version},namespace=syncNamespace(selection);
   assert.ok(clients.every(client=>client.status().collections.some(row=>syncNamespace(row.selection)===namespace)));
   const bytes=Buffer.from('full content beyond preview\n'.repeat(10000)),binary=Buffer.from(Array.from({length:900001},(_,i)=>i%256));

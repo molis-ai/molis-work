@@ -1,4 +1,6 @@
-import { LocalCatalogMetadata, type LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { isDeepStrictEqual } from "node:util";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { LocalCatalogMetadata, bindDatabaseSpace, describeSqliteSchema, LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 import { createRuntimeContextBindingTables, createRuntimeContextSetupRequestTable, createRuntimeContextSuggestionRejectionTable } from "@molis-ai/molis-work-module-private-work-context";
 import { createModelProviderTables } from "./model-provider-store.js";
@@ -57,3 +59,20 @@ export function assertCatalogMetadata(metadata:{owner:string|null;version:number
 
 /** The table Goals kept the person's planning methods in before they moved to its library in the Home (PG-094 S13). */
 const PERSONAL_PLANNING_TABLE = "personal_planning_method_packs";
+
+export function inspectCurrentCatalogSnapshot(database: SqliteDatabase, createPanelSchema: CatalogDesktopSchema): Readonly<Record<string,string|number>> {
+    const current = new LocalSqliteStorage(":memory:");
+    try {
+      const space = readDatabaseSpace(database);
+      if (!space) throw catalogErrors.database_invalid("快照项目目录缺少空间归属");
+      bindDatabaseSpace(current.db, space);
+      createContextLedger(current.db, { initializeSchema: true, authorize: () => false });
+      initializeCatalog(current, createPanelSchema);
+      const expected = new LocalCatalogMetadata(current.db), actual = new LocalCatalogMetadata(database);
+      const triggers = (db: SqliteDatabase) => db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all();
+      if (expected.owner() !== actual.owner() || expected.version() !== actual.version() || !isDeepStrictEqual(triggers(database), triggers(current.db))
+        || !isDeepStrictEqual(describeSqliteSchema(database), describeSqliteSchema(current.db)))
+        throw catalogErrors.database_invalid("快照项目目录不是完整的现行 owner 结构");
+      return { owner: actual.owner()!, schema_version: actual.version()! };
+    } finally { current.close(); }
+}

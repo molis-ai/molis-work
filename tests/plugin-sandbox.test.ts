@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import childProcesses from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, assertContract, assertProposalContract, type SandboxLimits, type SandboxServices, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { currentCallId, newCallId, withCallId } from '@molis-ai/molis-work-kernel';
@@ -22,6 +24,30 @@ async function fixture(body: string, options: { effects?: SandboxEffects; grants
 }
 const mac = { skip: process.platform !== 'darwin' };
 const code = (expected: string) => (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error && error.code === expected);
+
+test('T405-FULL-04 unsupported platforms refuse a real sandbox runner before worker dispatch or SDK effects', { skip: process.platform === 'darwin' && 'Unsupported-platform refusal requires a non-macOS host' }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'sandbox-unsupported-')), bundlePath = join(directory, 'plugin.mjs');
+  const effects: SandboxEffects = { storage: ['write'] }, declared = contract(effects);
+  let dispatches = 0, writes = 0, runner: SandboxRunner | undefined;
+  const spawn = childProcesses.spawn;
+  const observedSpawn = t.mock.method(childProcesses, 'spawn', (...args: Parameters<typeof childProcesses.spawn>) => { dispatches++; return spawn(...args); });
+  syncBuiltinESMExports();
+  try {
+    assertContract(declared);
+    await writeFile(bundlePath, `export const operations={run:async(_,sdk)=>{await sdk.storage.set('probe','written');return ''}};`);
+    await assert.rejects(async () => {
+      runner = await createSandboxRunner({ bundlePath, contract: declared, identity, grants: effects, services: {
+        storage: { async transaction(_, mutate) { writes++; return mutate(new Map()); } },
+      } });
+      await runner.call('run', '');
+    }, { code: 'sandbox.unsupported_platform' });
+    assert.equal(dispatches, 0, 'unsupported admission does not launch a sandbox worker');
+    assert.equal(writes, 0, 'unsupported admission performs no SDK business writes');
+  } finally {
+    try { await runner?.stop(); }
+    finally { observedSpawn.mock.restore(); syncBuiltinESMExports(); await rm(directory, { recursive: true, force: true }); }
+  }
+});
 
 // J6-01/J6-03: actual process isolation remains the refusal boundary.
 test('read-only proposal validation shares strict schema rules but cannot authorize executable contracts', () => {
@@ -351,4 +377,21 @@ test('Host admission and final authority checks are bounded and runner stop rele
       await rejected;
     } finally { await f.close(); }
   }
+});
+
+test('RAC2874 a dispatched call retains process ownership until its asynchronous final authority check settles', {...mac,timeout:10000},async()=>{
+  const entered=Promise.withResolvers<void>(),release=Promise.withResolvers<void>();let checks=0,current=true;
+  const f=await fixture(`export const operations={run:async(input)=>input};`);
+  try{
+    const first=f.runner.call('run','A',{beforeEffect:async()=>{if(++checks===2){entered.resolve();await release.promise;if(!current)throw new Error('caller retired')}},
+      assert_authority_current(){if(!current)throw new Error('caller retired')}});
+    const refused=first.then(value=>({value}),error=>({error}));await entered.promise;
+    const queued=f.runner.call('run','B').then(value=>({value}),error=>({error}));
+    current=false;release.resolve();const outcomes=await Promise.all([refused,queued]);
+    for(const outcome of outcomes){assert.ok('error' in outcome);assert.equal(outcome.error.code,'sandbox.cancelled')}
+    assert.equal(f.runner.stopped,true,'the dispatched owner must retire before another queued call can run');
+    const deadline=Date.now()+2000;
+    while(true){try{process.kill(f.runner.pid,0)}catch(error){assert.equal((error as NodeJS.ErrnoException).code,'ESRCH');break}
+      assert.ok(Date.now()<deadline,'the retired process exited');await new Promise(resolve=>setTimeout(resolve,20))}
+  }finally{release.resolve();await f.close()}
 });

@@ -86,10 +86,12 @@ describe("SQLite baseline", () => {
 
     applyStudioBaseline(database, temporary.path);
     applyStudioBaseline(database, temporary.path);
-    expect(database.pragma("user_version", { simple: true })).toBe(2);
-
-    database.pragma("user_version = 3");
-    expect(() => applyStudioBaseline(database!, temporary!.path)).toThrow(SqliteSchemaVersionError);
     expect(database.pragma("user_version", { simple: true })).toBe(3);
+
+    for (const version of [2, 4]) {
+      database.pragma(`user_version = ${version}`);
+      expect(() => applyStudioBaseline(database!, temporary!.path)).toThrow(SqliteSchemaVersionError);
+      expect(database.pragma("user_version", { simple: true })).toBe(version);
+    }
   });
 });

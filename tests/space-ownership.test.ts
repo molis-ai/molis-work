@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createServer, type Server } from 'node:http';
 import Database from 'better-sqlite3';
 import {
-  ensureStorageSpace, personalStorageSpace, bindDatabaseSpace, spaceAssetRef,
+  ensureStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef,
   openHomeSqliteDatabase,
 } from '@molis-ai/molis-work-storage';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
@@ -20,8 +20,8 @@ test('terminal jobs receive the Host space, not a caller-selected Home', async t
   let received:Record<string,unknown>|undefined;
   t.mock.method(MolisWorkPtyHost.prototype,'spawn',request=>{received=request;return {attached:false,started:true,replay:''};});
   const server=createServer();
-  const host=attachMolisWorkPtySocket(server,'synthetic-control-token',{environment:{MOLIS_WORK_HOME:'/trusted/space'}});
-  host.spawn({panelId:'test',env:{MOLIS_WORK_HOME:'/wrong/space',CUSTOM:'retained'}});
+  const host=attachMolisWorkPtySocket(server,'synthetic-control-token','/trusted/space');
+  host.spawn({panelId:'test',command:'/bin/cat',args:[],cwd:tmpdir(),env:{MOLIS_WORK_HOME:'/wrong/space',CUSTOM:'retained'}});
   assert.deepEqual(received.env,{MOLIS_WORK_HOME:'/trusted/space',CUSTOM:'retained'});
   await close(server);
 });
@@ -118,8 +118,8 @@ test('real Web routing isolates local/A/B, keeps login local, rejects stale page
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
     return response;
   };
-  const post=(path:string)=>request(path,{method:'POST',headers:{Origin:origin,'content-type':'application/json',
-    'x-molis-work-control-token':token,'x-molis-work-idempotency-key':'space-test-'+(++sequence)},body:'{}'});
+  const post=(path:string,body:unknown={})=>request(path,{method:'POST',headers:{Origin:origin,'content-type':'application/json',
+    'x-molis-work-control-token':token,'x-molis-work-idempotency-key':'space-test-'+(++sequence)},body:JSON.stringify(body)});
   const scopes=async()=>{const response=await request('/api/spaces');assert.equal(response.status,200);return response.json();};
   const login=async(name:string)=>{
     user=name;assert.equal((await post('/api/personal/login')).status,200);
@@ -137,9 +137,10 @@ test('real Web routing isolates local/A/B, keeps login local, rejects stale page
     assert.notEqual(token,rootToken);
     assert.notEqual((await request('/projects/'+localProject.project_id)).status,200);
     const aHome=join(home,'spaces',a.spaceId);
-    const aCatalog=await openMolisWorkProjectCatalog({homeDirectory:aHome});
-    const aProject=await aCatalog.createProject({display_name:'Alice private project',actor_id:'alice'});aCatalog.close();
-    assert.equal(aProject.spaceId,a.spaceId);
+    const created=await post('/api/settings/projects',{display_name:'Alice private project',user_confirmed:true});
+    assert.equal(created.status,201);const {project:aProject}=await created.json();
+    const projectDb=new Database(join(aHome,'projects',aProject.project_id,'molis-work.db'),{readonly:true,fileMustExist:true});
+    try { assert.deepEqual(readDatabaseSpace(projectDb),a); } finally { projectDb.close(); }
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);
     const gateway=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,clientId:'runtime:space-test',projectId:aProject.project_id});
     const caller={actor_id:'runtime:space-test',project_id:aProject.project_id,audience:'mcp' as const,permissions:[]};

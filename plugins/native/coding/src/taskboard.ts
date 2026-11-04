@@ -22,7 +22,7 @@ export const stepVerdictKey = (session: string, run: string, step: string) => `s
 /** Resolve only this session's original frozen references, never its newer draft. */
 export function codingTaskBoardPlans(context: PluginStartContext, sessionId: string, runs: readonly AgentRunView[]): CodingTaskBoardPlan[] {
   const prefix = `coding-plan:${sessionId}:`;
-  return runs.flatMap(run => run.frozen.text_materials.filter(material => material.source_artifact_id.startsWith(prefix)).map(material => {
+  return runs.flatMap(run => run.frozen.text_materials.filter((material): material is Extract<typeof material, { source_artifact_id: string }> => material.source_artifact_id?.startsWith(prefix) === true).map(material => {
     const revision = Number(material.source_artifact_id.slice(prefix.length));
     try {
       if (!Number.isSafeInteger(revision) || revision < 1 || material.source_version !== 1) throw new Error("原计划引用无效");

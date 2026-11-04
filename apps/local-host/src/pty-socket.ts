@@ -1,11 +1,12 @@
-import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type http from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { MolisWorkPtyHost, type PtySpawnRequest } from "@molis-ai/molis-work-service-runtime-host";
+import { resolveConfiguredHome } from "./product-home.js";
 import { pageTerminalOwnership, type PageTerminalAccess } from "./pty-page-access.js";
+import { controlTokenMatches } from "./web-control-token.js";
 
 type ClientMessage =
   | { type: "auth"; token: string }
@@ -15,14 +16,6 @@ type ClientMessage =
   | { type: "write"; panelId: string; data: string }
   | { type: "resize"; panelId: string; cols: number; rows: number }
   | { type: "kill"; panelId: string };
-
-function tokenMatches(expected: string, actual: unknown): boolean {
-  // The message is JSON from the page: anything but a string (a number, an object Buffer.from would accept) is a failed login.
-  if (typeof actual !== "string" || !actual) return false;
-  const expectedBytes = Buffer.from(expected);
-  const actualBytes = Buffer.from(actual);
-  return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
-}
 
 function send(socket: WebSocket, value: unknown): void {
   if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(value));
@@ -88,6 +81,7 @@ export function attachMolisWorkPtySocket(
   const sockets = new Set<WebSocket>();
   const pageSockets = new Map<WebSocket, { access: PageTerminalAccess; panels: Set<string>; sending: Promise<void> }>();
   const ownership = pageTerminalOwnership(homeDirectory);
+  const spawnHome = resolveConfiguredHome(homeDirectory);
   const broadcast = (panelId: string, value: unknown) => {
     for (const socket of sockets) send(socket, value);
     for (const [socket, page] of pageSockets) if (page.panels.has(panelId)) {
@@ -98,7 +92,7 @@ export function attachMolisWorkPtySocket(
   class RecordedPtyHost extends MolisWorkPtyHost {
     override spawn(request: PtySpawnRequest) {
       ownership.record(request.panelId, request.attachOnly === true, this.alive(request.panelId));
-      return super.spawn(request);
+      return super.spawn({ ...request, env: { ...request.env, MOLIS_WORK_HOME: spawnHome } });
     }
     override kill(panelId: string) {
       const wasAlive = this.alive(panelId);
@@ -129,7 +123,7 @@ export function attachMolisWorkPtySocket(
             pageSockets.set(ws, { access: pageAccess, panels: new Set(), sending: Promise.resolve() });
             authed = true; send(ws, { type: "ready" }); return;
           }
-          if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) {
+          if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) {
             send(ws, { type: "error", message: "本地终端通道校验失败" });
             ws.close();
             return;

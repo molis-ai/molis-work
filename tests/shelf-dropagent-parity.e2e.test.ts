@@ -29,12 +29,6 @@ fi
     else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = previousPath;
     await rm(bin, { recursive: true, force: true });
   });
-  const browser = await openGoalBrowser(t, true);
-  if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
-  const child = await pluginFrameBrowser(t, browser, "shelf");
-  const { evaluate, waitFor, click } = child;
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: "if(window===top)window.__TAURI__={core:{invoke:async()=>null}}" }, sessionId);
   // The shelf's own actions are enabled only while the Home has a usable model. Nothing here runs one from the page
   // (arranging and saving an action never start a recipe; the combine below uses the injected port), so a configured
   // model with no server behind it is enough.
@@ -47,11 +41,20 @@ fi
     else process.env.MOLIS_WORK_SECRET_BACKEND = priorSecretBackend;
     resetSecretStoreCache();
   });
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "shelf-parity", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", "http://127.0.0.1:9"); return created; });
-    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
-      models: [{ model_id: "fixture-model", enabled: true }] });
-  }));
+  const prepareHome = async (homeDirectory: string) => {
+    await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+      const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "shelf-parity", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", "http://127.0.0.1:9"); return created; });
+      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "shelf-parity", display_name: "测试模型", base_url: "http://127.0.0.1:9", api_format: "anthropic-messages",
+        models: [{ model_id: "fixture-model", enabled: true }] });
+    }));
+  };
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, { prepareHome });
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "shelf");
+  const { evaluate, waitFor, click } = child;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: "if(window===top)window.__TAURI__={core:{invoke:async()=>null}}" }, sessionId);
+
   const shelf = openTestShelfStore(homeDirectory, { pathEnvironment: bin }, {},
     shelfTestAi(async () => ({ text: "# 合稿\n\n两份材料经过受控执行，来源可切换。\n", execution: shelfTestReceipt })));
   assert.equal((await shelf.runtime()).executable, join(bin, "claude"));
@@ -227,6 +230,7 @@ fi
     await select(first.item_id);
     await click("[data-shelf-edit]");
     await waitFor("document.querySelector('[data-shelf-editor]')");
+    const beforeCopy = shelf.readFile(first.item_id);
     const suffix = "\n复制前立即保存的尾行。";
     // Editing is followed immediately by a genuine copy gesture; the native callback reads the saved copy.
     await evaluate(`(() => { const editor=document.querySelector('[data-shelf-editor]'); editor.value += ${JSON.stringify(suffix)};
@@ -235,10 +239,12 @@ fi
     await browser.waitFor("window.parityNativeCalls.length === 1");
     const single = await browser.evaluate<{ payload: { paths: string[] }; saved: string }>("window.parityNativeCalls[0]");
     const persisted = shelf.readFile(first.item_id);
-    assert.deepEqual(single.payload.paths, [join(shelf.root, persisted.item.relative_path)], 'native copy uses the owner\'s current immutable version after saving');
+    assert.deepEqual(single.payload.paths, [persisted.item.relative_path], 'native copy uses the owner\'s current immutable version after saving');
+    assert.notEqual(persisted.item.relative_path, beforeCopy.item.relative_path, "a pending edit creates a new immutable version before native copy");
+    assert.deepEqual(await readFile(join(shelf.root,beforeCopy.item.relative_path)),beforeCopy.bytes,"the previous version keeps its original bytes");
     assert.notEqual(persisted.item.relative_path, first.relative_path, 'saving never mutates the admission snapshot in place');
     assert.equal(single.saved, markdown + "\n已修改且保留全文。" + suffix);
-    assert.equal(await readFile(single.payload.paths[0]!, 'utf8'), single.saved, 'the native path really exists and contains the complete saved bytes');
+    assert.equal(await readFile(join(shelf.root,single.payload.paths[0]!), 'utf8'), single.saved, 'the native path really exists and contains the complete saved bytes');
     assert.equal(shelf.readFile(first.item_id).bytes.toString("utf8"), single.saved);
     await click("[data-shelf-edit]");
     await waitFor("!document.querySelector('[data-shelf-editor]')");
@@ -249,7 +255,7 @@ fi
     await command("Input.dispatchKeyEvent", { type: "keyUp", code: "KeyC", key: "c", modifiers: 4 }, sessionId);
     await browser.waitFor("window.parityNativeCalls.length === 2");
     const multi = await browser.evaluate<string[]>("window.parityNativeCalls[1].payload.paths");
-    assert.deepEqual([...multi].sort(), [first, second].map(item => join(shelf.root, shelf.readFile(item.item_id).item.relative_path)).sort());
+    assert.deepEqual([...multi].sort(), [first, second].map(item => shelf.readFile(item.item_id).item.relative_path).sort());
   });
 
   await t.test("wheel send reopens a dead terminal while its pane remains open (client contract)", async () => {

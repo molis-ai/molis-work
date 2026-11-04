@@ -16,9 +16,12 @@ async function capture(t: TestContext, b: Browser, description: string) {
 }
 
 test("ISSUE-34 ISSUE-37 ISSUE-50 a question keeps the words and pictures and saves only after the new capture", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
-  const { namings } = await issueModel(t, b.homeDirectory, behavior);
+  let model!: Awaited<ReturnType<typeof issueModel>>;
+  const b = await openGoalBrowser(t, "empty", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory, behavior); },
+  }); if (!b) return;
+  const { namings } = model;
   const v = await capture(t, b, "111");
   await v.until("$('[data-state=attention]')?.textContent.includes('需要补充：')", 20_000);
   assert.equal(namings.length, 1, "one bounded call, then the question is the person's");
@@ -43,9 +46,10 @@ test("ISSUE-34 ISSUE-37 ISSUE-50 a question keeps the words and pictures and sav
 });
 
 test("ISSUE-37 ISSUE-50 an answer Issue cannot use, or one that is not JSON, writes nothing and opens with the words kept", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { unusable: true };
-  await issueModel(t, b.homeDirectory, behavior);
+  const b = await openGoalBrowser(t, "empty", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, behavior); },
+  }); if (!b) return;
   const v = await capture(t, b, "点保存没反应");
   await v.until("$('[data-state=attention]')?.textContent.includes('模型没有给出可用的标题和类型')", 20_000);
   behavior.unusable = false; behavior.replyText = "保存按钮没反应";
@@ -58,9 +62,10 @@ test("ISSUE-37 ISSUE-50 an answer Issue cannot use, or one that is not JSON, wri
 });
 
 test("ISSUE-34 ISSUE-37 an unavailable model and an organizing timeout keep the input, and a late answer cannot save beside a manual one", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { unavailable: true };
-  await issueModel(t, b.homeDirectory, behavior);
+  const b = await openGoalBrowser(t, "empty", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, behavior); },
+  }); if (!b) return;
   const v = await capture(t, b, "点保存没反应");
   await v.until("$('[data-state=attention]')?.textContent.includes('模型暂时不可用')", 30_000);
   behavior.unavailable = false;

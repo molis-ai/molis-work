@@ -2,6 +2,8 @@ import type { ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJ
 import { defaultShelfDeviceSettings } from './settings.js';
 import { shelfErrors } from './errors.js';
 
+export const CATALOG_VERSION = 2;
+
 export interface StoredItem extends Omit<ShelfItemRecord, 'hidden' | 'size_bytes' | 'preview_text' | 'relative_path'> {
   hidden: boolean;
   size_bytes: number;
@@ -11,7 +13,7 @@ export interface StoredItem extends Omit<ShelfItemRecord, 'hidden' | 'size_bytes
   origin_realpath: string | null;
 }
 export interface CatalogFile {
-  version: 2;
+  version: typeof CATALOG_VERSION;
   seeded_sample: boolean;
   items: StoredItem[];
   jobs: ShelfJobRecord[];
@@ -20,12 +22,12 @@ export interface CatalogFile {
   settings: ShelfDeviceSettings;
 }
 export function emptyShelfCatalog(): CatalogFile {
-  return { version: 2, seeded_sample: false, items: [], jobs: [], clipboard: [], current_clip_id: null, settings: defaultShelfDeviceSettings() };
+  return { version: CATALOG_VERSION, seeded_sample: false, items: [], jobs: [], clipboard: [], current_clip_id: null, settings: defaultShelfDeviceSettings() };
 }
 export function readCurrentCatalog(value: unknown): CatalogFile {
   const raw = value as Partial<CatalogFile> | null;
   const keys = Object.keys(emptyShelfCatalog());
-  if (!raw || raw.version !== 2 || Object.keys(raw).some(key=>!keys.includes(key)) || keys.some(key=>!Object.hasOwn(raw,key))
+  if (!raw || raw.version !== CATALOG_VERSION || Object.keys(raw).some(key=>!keys.includes(key)) || keys.some(key=>!Object.hasOwn(raw,key))
     || typeof raw.seeded_sample !== 'boolean' || !Array.isArray(raw.items) || !Array.isArray(raw.jobs) || !Array.isArray(raw.clipboard)
     || !(raw.current_clip_id === null || typeof raw.current_clip_id === 'string') || !raw.settings
     || raw.items.some(item => !item || !Array.isArray(item.source_item_ids) || !Array.isArray(item.children)

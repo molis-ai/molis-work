@@ -8,7 +8,7 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失、空值、相对路径以 `agent.storage_root_invalid` 在 SDK 与磁盘初始化前拒绝，不回退到 cwd 或用户默认目录。适配器通过 storage 的同一 SQLite 独占端口取得所有权，或借用本 Home Host 已持有的 opaque owner；没有另一套锁、同 PID 放行或可复制的 proof。获取或第二借用失败报告 `agent.storage_busy`，不读取恢复记录。只有实际 SDK 关闭成功才归还借用；失败关闭保留所有权，下一次明确 close 可以重试。初始化失败先清理已创建的 Runtime 资源再归还自己的部分，父 Host 继续持锁。跨进程入口转发给常驻 Host，不能用多个 Runtime 直接共享目录。回归：`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
 
-`verifyPrologueNodeStorageContents` 是离线快照/恢复的无正文薄包装，直接调用 SDK 的公开 `verifyNodeStorageContents`，不创建 Node Host 或 Runtime。可信 Host 从同一 registry 和已持的离线 lease 提供已有归档数据根、原 Home key 根、同步 `assertCurrent` 和 signal；认证所有实际记录 kind/分页、空正文和带密文墓碑，所有 SDK 拒绝都传回。它不读取原锁 fd，不复制 key、补 leases/claims、生成 key 或运行模型；无 sealed 数据不要求 key、不声称认证了 key。回归：`tests/security-invariants-home-snapshot-sdk.test.ts`，完整 C2 结论见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+`verifyPrologueNodeStorageContents` 是离线快照/恢复的无正文薄包装，直接调用 SDK 的公开 `verifyNodeStorageContents`，不创建 Node Host 或 Runtime。可信 Host 从同一 registry 和已持的离线 lease 提供已有归档数据根、原 Home key 根、同步 `assertCurrent` 和 signal；认证所有实际记录 kind/分页、空正文和带密文墓碑，所有 SDK 拒绝都传回。它不读取原锁 fd，不复制 key、补 leases/claims、生成 key 或运行模型；无 sealed 数据不要求 key、不声称认证了 key。回归：`tests/security-invariants-home-snapshot-sdk.test.ts`，完整 C2 结论见 [W5-16 slice](../../specs/archive/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
 
 `createPrologueNodeAdapter(options)` 返回可等待的初始化句柄，`await` 仍取得原 adapter；从创建时保留该句柄，其 `close()` 即使初始化拒绝也可继续清理。初始化失败后的清理再次失败会继续占锁，显式重试只处理未完成项，全部成功才归还 borrow/独立 owner。成功 adapter 的 `close()` 复用同一入口；同次并发共享结果，失败后可以明确重试。Local Host composition 在初始化前保存句柄，dispose 总能关闭它；失败后的显式 ready 先完成旧实例清理，再创建新实例，关闭中的实例不登记为可用。回归：`tests/security-invariants-agent-initialization-cleanup.test.ts`。
 
@@ -73,6 +73,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 ## 开发要求
 
 - 负责：Agent Runtime 注册、能力矩阵、冻结的启动授权、宿主审查队列与 Prologue 推理接线。
+- MCP 连接的 Host 解析结果可带同步 `assertCurrent`；这是本次原来源/世代的可信运行期闭包，不进入 SDK 配置。连接、刷新和工具调用在后续等待、实际网络派发及结果交付前复查同一闭包，不以新世代替换旧快照。回归：`tests/connector-mcp.test.ts` 的 RAC2885 Agent source withdrawal 两组真实交错。
 - 不负责：编码业务含义、角色与提示词正文、模型选择与凭据、批准决定本身。
 - 公开入口：`@molis-ai/molis-work-service-agent-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/agent-host`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：依赖合同、同目录适配端口与 storage 的排他所有权技术端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -161,7 +162,7 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 个人同步的 `savedHistory` 端口只读取当前 Home 唯一 Runtime 的原 Session。导出复核项目、插件、用户、未结算工作及原始轮次归属，使用 SDK 公开 replay/buildExport/readExport，保留错误正文后再按 SDK 规则脱敏和封装。`savedAgentHistoryView` 是无需 Runtime 的只读投影；没有导入、恢复执行或审批的方法。Coding 在自己的 SQL 中保存派生导出，历史不成为另一份可执行账本。
 可信初始输入由受保护 Host 入口交给现 Session attempt 保存原件，后续同 Session 接续只带引用；业务 DTO 不能自证本人身份。`tests/coding-original-inputs.test.ts` 走真实 HTTP/Node 验证原文、首个时间、重启、失败重试同身份、并发拒绝及跨 Session/派生输入拒绝；这只证明原件桥，不代表学习形成已接通。
 
-原件输入与输出对应的正式动作当前为 `agent.run.start.v1@2`、`agent.session.read.v1@3`、`agent.run.read.v1@3`、`agent.run.wait.v1@3`。读取三口旧 @1/@2、启动口旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
+原件输入与输出对应的正式动作当前为 `agent.run.start.v1@3`、`agent.session.read.v1@4`、`agent.run.read.v1@4`、`agent.run.wait.v1@4`。读取三口旧 @1/@2、启动口旧 @1 固定引用被拒绝，不静默换版；消费者使用公开 definition 取得当前 version。`tests/agent-host-actions.test.ts` 经真实 PluginRuntime 验证拒旧，并走 Coding 生产 HTTP/Node SDK 验证原件、同 Session 接续及 session/run/wait 三读保留原件，原 owner/取消检查继续适用。
 
 `readOriginalInput(ref)` 从该 Session attempt 读取首原件的精确正文、作者、身份和首次时间；`accepted_run` 则指向同原件最近一次已接受且未 refused 的直接尝试（排除 `frozen.continued_from`）。拒绝且未建立 Run 的尝试不阻挡后续真实重试，派生继续不能让失败原件取得学习资格。来源消费方仍检查定位 Run 的当前状态、Session owner、工作和权限；缺失或未接受不从拼接任务恢复。原时间和身份不因读取、继续或重试变化，不扫描 SDK 历史，不增加正文存储；Source Port 的 App 规则见记忆策略 §9.4。
 

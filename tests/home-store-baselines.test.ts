@@ -6,12 +6,12 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { describeSqliteSchema, readDatabaseSpace, ensureStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "@molis-ai/molis-work-storage";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
-import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
+import { ALCHEMIST_SEARCH_BASELINE, HomeConsentLedger, MolisWorkLocalHost, homeStores } from "@molis-ai/molis-work-app-local-host";
 
 /** Current schemas at the clean Home starting version: the memory ledger without its former facts table, the assistant without memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
  * Characters with its own native runs (Sessions cleanup SC-2). */
-const STORE_VERSIONS: Record<string, number> = { sync: 5, pages: 4, memory: 1, assistant: 1, functions: 1, form: 4, characters: 3, issues: 4, cognia: 3, images: 3, jelly: 3, lingguang: 3, todo: 4, dataset: 3, ppt: 3, workflows: 3 };
+const STORE_VERSIONS: Record<string, number> = { sync: 5, pages: 4, memory: 1, assistant: 1, functions: 1, form: 4, characters: 4, issues: 4, cognia: 3, images: 3, jelly: 3, lingguang: 3, todo: 4, dataset: 3, ppt: 3, workflows: 3 };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
 
 /**
@@ -69,16 +69,33 @@ test("RAC-44: the cognia library is the one Cognia's Home Runtime declares, at v
   assert.ok(libraries.some(([name]) => name === "cognia") && !WITHOUT_REAL_HOME_FIXTURE.includes("cognia"));
 });
 
-test("W3-06-F-04 Home Runtime created by the public Host is the complete independent current baseline at 3", async () => {
+test("W3-06-F-04 Home Runtime created by the public Host is the complete independent current baseline at 4", async () => {
   const home = mkdtempSync(join(tmpdir(), "home-runtime-baseline-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   let db: DatabaseSync | undefined;
   try {
     await host.homePlugins!.ready();
     db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
-    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 3);
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 4);
     assert.deepEqual(readDatabaseSpace(db), ensureStorageSpace(home));
     assert.deepEqual(describeSqliteSchema(db), shape(STORAGE_SPACE_SCHEMA_SQL + readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8")));
   } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
+});
+
+test("RAC-2645 the prior Runtime consent shape falsely labeled as current is refused intact, with no implicit schema conversion", () => {
+  const home = mkdtempSync(join(tmpdir(), "project-reach-old-baseline-")), directory = join(home, "plugin-runtime"), file = join(directory, "plugin-runtime.db");
+  try {
+    mkdirSync(directory);
+    const current = readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime.sql", import.meta.url), "utf8");
+    const old = current.replace(", 'project_reach'", "").replace(/revoked_at TEXT,\n  approved_capability_ids TEXT,\n  CHECK \(\(kind = 'project_reach'[\s\S]*?approved_capability_ids IS NULL\)\)/u, "revoked_at TEXT");
+    assert.ok(!old.includes("approved_capability_ids"));
+    const db = new DatabaseSync(file);
+    db.exec(old + " PRAGMA user_version=4;");
+    db.prepare("INSERT INTO plugin_consents VALUES (?,?,?,?,?,?,?,?,?)").run("kept", "io.molis.work.example.old", "publisher", "always_on", "always_on", "old", "then", "user", null);
+    db.close();
+    const bytes = readFileSync(file), files = readdirSync(directory);
+    assert.throws(() => new HomeConsentLedger(home).revokeProjectReach({ project_id: "A" }, "now"), /结构与当前 v4 基线不一致/u);
+    assert.deepEqual(readFileSync(file), bytes); assert.deepEqual(readdirSync(directory), files);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 // C-06 (anti-corruption code audit 2026-10-15): the Characters store had its own opening that stamped version 1 over any
@@ -99,6 +116,10 @@ test("the Characters store refuses tables without a version and a newer version,
   const unversioned = store("unversioned", "CREATE TABLE character_drafts (id TEXT PRIMARY KEY, body TEXT); INSERT INTO character_drafts VALUES ('old', '旧草稿');");
   assert.throws(() => openCharacters(unversioned, "actor"), mismatch);
   assert.deepEqual(state(unversioned), { version: 0, rows: 1 }, "the unversioned store keeps its row and is not stamped");
+  const missingTrigger = store("missing-trigger", CHARACTERS_STORE_BASELINE.schema + "DROP TRIGGER characters_sync_delete; PRAGMA user_version=4;");
+  assert.throws(() => openCharacters(missingTrigger,"actor"), {code:"storage.schema_structure_mismatch"});
+  const refused = new DatabaseSync(join(missingTrigger,"characters","characters.sqlite"),{ readOnly:true });
+  try { assert.equal(refused.prepare("SELECT 1 FROM sqlite_schema WHERE name='characters_sync_delete'").get(),undefined); } finally { refused.close(); }
   const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = ${CHARACTERS_STORE_BASELINE.version+1};`);
   assert.throws(() => openCharacters(newer, "actor"), mismatch);
   assert.deepEqual(state(newer), { version: CHARACTERS_STORE_BASELINE.version+1, rows: 0 });

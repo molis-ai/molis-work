@@ -25,7 +25,7 @@ export interface ProjectLibrary {
 }
 
 /**
- * A plugin's own tables in the project's library (`services.project_database`, specs/plugin-project-database §2.4). Its tables
+ * A plugin's own tables in the project's library (`services.project_database`, specs/archive/plugin-project-database §2.4). Its tables
  * are opened through the ledger when it starts (made the first time, checked against the record after; a refusal stops only this
  * plugin), and every statement is checked against that record before it runs (`pluginStatementGuard`); the rest of the rules are
  * the client's, the same as in the Home (`pluginDatabaseClient`).

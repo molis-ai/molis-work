@@ -6,7 +6,7 @@ import { readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, de
   type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
-  version: 3,
+  version: 4,
   schema: PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL + PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL + PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL + PLUGIN_TRUST_SCHEMA_SQL,
 };
 
@@ -15,7 +15,7 @@ const homeStoreRefusal = Symbol("Home plugin store refusal");
 const refusedHomeStore = <T extends Error>(error: T): T => Object.assign(error, { [homeStoreRefusal]: true });
 export const isHomePluginStoreRefusal = (error: unknown): error is ActionError | SqliteSchemaVersionError =>
   error instanceof Error && Reflect.get(error, homeStoreRefusal) === true;
-const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源"));
+const invalidHomeStoreShape = () => refusedHomeStore(new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v4 基线不一致，请保留故障库并检查其来源"));
 // The shape the baseline describes never changes: built once (it runs the whole baseline in a scratch database). The store's own shape is read every time.
 const expectedHomeStoreShape = (db: Parameters<typeof readDatabaseSpace>[0]) => JSON.stringify(describeSqliteBaseline({ ...HOME_PLUGIN_RUNTIME_BASELINE, schema: (readDatabaseSpace(db) ? STORAGE_SPACE_SCHEMA_SQL : "") + HOME_PLUGIN_RUNTIME_BASELINE.schema }));
 
@@ -76,7 +76,15 @@ export class HomeConsentLedger implements PluginConsentLedger {
   }
   record: PluginConsentLedger["record"] = entry => this.use(ledger => ledger.record(entry));
   consents: PluginConsentLedger["consents"] = pluginId => this.use(ledger => ledger.consents(pluginId));
+  consent: PluginConsentLedger["consent"] = consentId => this.use(ledger => ledger.consent(consentId));
   revoke: PluginConsentLedger["revoke"] = (consentId, at) => this.use(ledger => ledger.revoke(consentId, at));
+  grantProjectReach: PluginConsentLedger["grantProjectReach"] = entry => this.use(ledger => ledger.grantProjectReach(entry));
+  revokeProjectReach: PluginConsentLedger["revokeProjectReach"] = (selection, at) => {
+    const existing = openReadOnlyHomePluginStore(this.home);
+    if (!existing) return 0;
+    existing.close();
+    return this.use(ledger => ledger.revokeProjectReach(selection, at));
+  };
   publishers: PluginConsentLedger["publishers"] = () => this.use(ledger => ledger.publishers());
   pinPublisher: PluginConsentLedger["pinPublisher"] = pin => this.use(ledger => ledger.pinPublisher(pin));
   revokePublisher: PluginConsentLedger["revokePublisher"] = (keyId, at) => this.use(ledger => ledger.revokePublisher(keyId, at));

@@ -53,18 +53,19 @@ function parseDraft(value: unknown, id: string, actorId: string): CharacterDraft
   };
 }
 
-/** Journal shares the business transaction and never exports a private database file. */
-export function installCharactersReplication(db: DatabaseSync): void {
+/** The baseline owns every trigger. A local store has no active replica state, so its writes do not enqueue uploads. */
+export const CHARACTERS_SYNC_TRIGGERS = (["INSERT", "UPDATE", "DELETE"] as const).map(event => {
+  const row = event === "DELETE" ? "OLD" : "NEW";
+  const mark = replicaMarkSql(`json_array(${row}.owner_actor_id,'character',${row}.character_id)`, "1=1", "characters");
+  return `CREATE TRIGGER characters_sync_${event.toLowerCase()} AFTER ${event} ON character_drafts BEGIN ${mark} END;`;
+}).join("\n");
+
+export function initializeCharactersReplication(db: DatabaseSync): void {
   const ledger = namespacedReplicaDatabase(db, "characters");
   replicaTransaction(db, () => {
-    initializeReplica(ledger);
-    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='characters_sync_insert'").get()) return;
-    for(const row of db.prepare('SELECT owner_actor_id,character_id FROM character_drafts ORDER BY character_id').all())queueReplicaChange(ledger,JSON.stringify([row.owner_actor_id,'character',row.character_id]));
-    for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
-      const mark = replicaMarkSql(`json_array(${row}.owner_actor_id,'character',${row}.character_id)`)
-        .replace(/\breplica_/gu, "characters_replica_");
-      db.exec(`CREATE TRIGGER characters_sync_${event.toLowerCase()} AFTER ${event} ON character_drafts BEGIN ${mark} END`);
-    }
+    const first = initializeReplica(ledger);
+    if (first) for (const row of db.prepare("SELECT owner_actor_id,character_id FROM character_drafts ORDER BY character_id").all())
+      queueReplicaChange(ledger,JSON.stringify([row.owner_actor_id, "character", row.character_id]));
   });
 }
 

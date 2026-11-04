@@ -18,6 +18,17 @@ function fixture(t:import('node:test').TestContext,bound=false){
   const open=()=>openShelfStore(join(home,'shelf'),openTestShelfFiles(home),{disabled:true},{},undefined,options);
   return {home,options,open,revoke(){active=false;},filename:join(home,SHELF_DOCUMENT_PATH)};
 }
+test('opening a local or personal Shelf again preserves an explicitly deleted sample',async t=>{
+ const f=fixture(t);
+ const local=()=>openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true});
+ const personal=fixture(t);
+ for(const open of [local,personal.open]){
+  const store=open();await store.initialize();const item=(await store.snapshot()).materials[0]!;assert.ok(item);
+  await store.deleteCopy(item.item_id);const restarted=open();await restarted.initialize();
+  assert.deepEqual((await restarted.snapshot()).materials,[]);
+  assert.ok((await restarted.seedSample()).item_id,'explicit sample creation is still available');
+ }
+});
 function transfer(source:ReturnType<typeof fixture>,target:ReturnType<typeof fixture>,start=0){
   let revision=start;for(let i=0;i<50;i++){
     const operation=source.open().replica().next();if(!operation)return revision;
@@ -25,7 +36,7 @@ function transfer(source:ReturnType<typeof fixture>,target:ReturnType<typeof fix
   }throw new Error('Unexpected unbounded queue');
 }
 
-test('S-107 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders and terminal records without local paths or execution',async t=>{
+test('S-139 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders and terminal records without local paths or execution',async t=>{
   const a=fixture(t),b=fixture(t),source=a.open(),target=b.open();
   assert.equal(source.replica().hasProjectChanges!('unrelated-project'),false,'Home copies remain independent even with provenance');
   (await source.saveSettings({drop_wheel_enabled:false}));(await target.saveSettings({engine:'auto'}));(await source.addClipboard('private clipboard'));(await target.addClipboard('target clipboard'));
@@ -48,12 +59,12 @@ test('S-107 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders an
   assert.equal(target.replica().next(),null);assert.equal(received.jobs.length,1);assert.ok(rev>5);
 });
 
-test('S-107 PCSYNC-11/15 an explicitly emptied text copy remains a file, not a deletion or missing original',async t=>{
+test('S-139 PCSYNC-11/15 an explicitly emptied text copy remains a file, not a deletion or missing original',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'empty.md',bytes:Buffer.from('before empty')}));let rev=transfer(a,b);
   (await s.writeCopy(item.item_id,'',hashBytes(s.readFile(item.item_id).bytes)));rev=transfer(a,b,rev);assert.equal(d.readFile(item.item_id).bytes.byteLength,0);assert.equal((await d.snapshot()).materials.length,1);assert.ok(rev>1);
 });
 
-test('S-107 PCSYNC-05/12 Shelf frozen bytes survive edits/deletion and conflict confirmation refuses later local content',async t=>{
+test('S-139 PCSYNC-05/12 Shelf frozen bytes survive edits/deletion and conflict confirmation refuses later local content',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('base')}));let rev=transfer(a,b);
   (await s.writeCopy(item.item_id,'remote branch',hashBytes(s.readFile(item.item_id).bytes)));(await d.writeCopy(item.item_id,'local branch',hashBytes(d.readFile(item.item_id).bytes)));
   const op=s.replica().next()!;d.replica().receive({...op,revision:++rev});s.replica().acknowledge(op.key,op.operationId,rev);
@@ -65,7 +76,7 @@ test('S-107 PCSYNC-05/12 Shelf frozen bytes survive edits/deletion and conflict 
   s.replica().acknowledge(frozen.key,frozen.operationId,++rev);assert.equal(s.replica().next()!.value,null);
 });
 
-test('S-107 PCSYNC-06/15 Shelf rejects bad scope, body, paths, format and revoked writes without replacing unique files',async t=>{
+test('S-139 PCSYNC-06/15 Shelf rejects bad scope, body, paths, format and revoked writes without replacing unique files',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('unique original')})),op=s.replica().next()!;
   const values:unknown[]=[{...op.value as object,spaceId:'other'},JSON.parse(JSON.stringify(op.value)),JSON.parse(JSON.stringify(op.value))];
   (values[1] as {items:{files:{data:string}[]}[]}).items[0]!.files[0]!.data=Buffer.from('fake').toString('base64');
@@ -76,7 +87,7 @@ test('S-107 PCSYNC-06/15 Shelf rejects bad scope, body, paths, format and revoke
   a.revoke();(await assert.rejects(async ()=>(await s.hide(item.item_id)),/REVOKED/));assert.deepEqual(readFileSync(a.filename),prior);
 });
 
-test('S-107 PCSYNC-05/15 Shelf atomic CAS failure leaves the prior bytes reachable; stale text edits cannot overwrite them',async t=>{
+test('S-139 PCSYNC-05/15 Shelf atomic CAS failure leaves the prior bytes reachable; stale text edits cannot overwrite them',async t=>{
   const f=fixture(t),s=f.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('initial')})),port=f.options.storage;
   const stale=hashBytes(s.readFile(item.item_id).bytes);(await s.writeCopy(item.item_id,'latest',stale));const before=readFileSync(f.filename);
   (await assert.rejects(async ()=>(await s.writeCopy(item.item_id,'old edit',stale)),{code:'shelf.conflict'}));assert.deepEqual(readFileSync(f.filename),before);
@@ -85,7 +96,7 @@ test('S-107 PCSYNC-05/15 Shelf atomic CAS failure leaves the prior bytes reachab
   assert.deepEqual(readFileSync(f.filename),before);assert.equal(s.readFile(item.item_id).bytes.toString(),'latest');
 });
 
-test('S-107 PCSYNC-12/15 Shelf unavailable original keeps its queue and identifies only that key, without freezing a partial upload',async t=>{
+test('S-139 PCSYNC-12/15 Shelf unavailable original keeps its queue and identifies only that key, without freezing a partial upload',async t=>{
   const f=fixture(t),s=f.open(),bad=(await s.admit({filename:'missing.md',bytes:Buffer.from('not discarded')})),good=(await s.admit({filename:'ok.md',bytes:Buffer.from('keep moving')}));
   const filename=join(s.root,bad.relative_path),bytes=readFileSync(filename);rmSync(filename);
   const key=JSON.stringify(['item',bad.item_id]);assert.throws(()=>s.replica().next(),{code:'plugin.sync_unavailable',kind:'unavailable',details:{sync_key:key,sync_waiting:false}});
@@ -94,7 +105,7 @@ test('S-107 PCSYNC-12/15 Shelf unavailable original keeps its queue and identifi
   const prior=readFileSync(f.filename);const other=openShelfStore(join(f.home,'shelf'),openTestShelfFiles(f.home),{disabled:true},{},undefined,{...f.options,spaceId:'personal:bob'});assert.throws(()=>other.replica().cursor());assert.deepEqual(readFileSync(f.filename),prior);
 });
 
-test('S-107 PCSYNC-12/15 Shelf live work waits on its own asset, while healthy items continue; receive never starts a job',async t=>{
+test('S-139 PCSYNC-12/15 Shelf live work waits on its own asset, while healthy items continue; receive never starts a job',async t=>{
   const a=fixture(t),b=fixture(t),s=a.open(),d=b.open(),item=(await s.admit({filename:'one.md',bytes:Buffer.from('working')})),healthy=(await s.admit({filename:'other.md',bytes:Buffer.from('healthy')}));let rev=transfer(a,b);
   let finish:((value:Awaited<ReturnType<ReturnType<typeof shelfTestAi>['generate']>>)=>void)|undefined;
   const ai=shelfTestAi(()=>new Promise(resolve=>{finish=resolve;})),active=openShelfStore(join(b.home,'shelf'),openTestShelfFiles(b.home),{disabled:true},{},ai,b.options),running=active.runJob({recipe:'summarize',item_id:item.item_id});

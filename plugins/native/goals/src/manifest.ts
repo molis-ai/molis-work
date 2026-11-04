@@ -8,6 +8,8 @@ import { GOALS_TERMINAL_ACTIONS } from "./terminal-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
 import { GOALS_MESSAGES } from "./messages.js";
 import { GOALS_PAGE_ROUTES } from "./page-routes.js";
+import { GOALS_PAGE_EN } from "./page/en.js";
+import { GOALS_STAGE_CONTRIBUTION_ID } from "./page/workbench-stage.js";
 import { GOALS_CONTEXT_EN } from "./context-en.js";
 import { GOALS_DIALOGS_EN } from "./dialogs-en.js";
 import { GOALS_DOCUMENT_EN } from "./document-en.js";
@@ -85,7 +87,7 @@ export const goalsManifest: PluginManifest = {
   kind: "native",
   runtime: { scope: "home" },
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
-  // 常开插件 (specs/repository-anti-corruption/slices/ac-trust-install.md §3.4): on in every project, and removable only after the person
+  // 常开插件 (specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4): on in every project, and removable only after the person
   // takes the mark back. The Host reads the agreement from the consent ledger, not from this list.
   always_on: true,
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -139,10 +141,13 @@ export const goalsManifest: PluginManifest = {
       ...GOALS_DIALOGS_EN,
       ...GOALS_PLANNING_EN,
       ...GOALS_PROPOSAL_EN,
+      ...GOALS_PAGE_EN,
     },
-    contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
+    contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID, GOALS_STAGE_CONTRIBUTION_ID],
     page_routes: GOALS_PAGE_ROUTES,
     views: [
+      { view_id: "stage", slot: "stage", title: "Goals", contribution_id: GOALS_STAGE_CONTRIBUTION_ID,
+        stage_data: { action: "goals.stage.read", input: ["collection", "goal_id"] } },
       { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,
         start: { title: "推进一个目标", hint: "明确要做成什么，接着往下走。" } },
       { view_id: "settings", slot: "settings", title: "Goals", contribution_id: GOALS_SETTINGS_UI_CONTRIBUTION_ID, icon: "workflow", order: 120 },

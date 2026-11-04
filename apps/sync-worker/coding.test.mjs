@@ -48,7 +48,7 @@ test('S-116 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cros
  await Promise.all(clients.map(client=>client.refreshCatalog()));
  const coding=clients[0].status().collections.find(row=>row.selection.plugin_id===codingManifest.plugin_id&&row.selection.collection_id==='sessions');assert.ok(coding,JSON.stringify(clients[0].status()));assert.equal(clients[0].policy().selections.length,0);
  await clients[0].save({...clients[0].policy(),selections:[coding.selection]});await clients[0].run();await clients[1].run();clients.forEach(client=>assert.equal(client.status().error,null));
- const targetProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects().find(p=>p.project_id===project.project_id));assert.ok(targetProject);
+ const targetProject=await runtimes[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects().find(p=>p.project_id===project.project_id));assert.ok(targetProject);
  const targetDatabase=new LocalProjectDatabase(targetProject.database_path);t.after(()=>targetDatabase.close());const target=sessions(targetDatabase);
  assert.equal(target.list(project.project_id).length,16);
  for(let index=0;index<16;index++){

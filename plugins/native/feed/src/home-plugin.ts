@@ -5,7 +5,7 @@ import { createFeedContentLedgerHandlers } from "./content-ledger-actions.js";
 import { feedManifest } from "./manifest.js";
 
 /**
- * Feed's Home half: the plugin that keeps the Home's reference ledger for evidence bodies (specs/repository-anti-corruption/slices/
+ * Feed's Home half: the plugin that keeps the Home's reference ledger for evidence bodies (specs/archive/repository-anti-corruption/slices/
  * feed-inbox-home-reference-ledger.md). It is the same plugin as each project's Feed and shares its Manifest; it runs once for the Home and
  * answers three actions, which only the project instances call. `evidence` is the platform's way to delete a body nothing refers to: by
  * default the Home's `services.evidenceCollector`, which the platform gives only to this half and only inside these actions (S-98).

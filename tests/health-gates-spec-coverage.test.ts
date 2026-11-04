@@ -7,7 +7,7 @@ import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { isTestFile, parseSpec } from "../scripts/gates/spec-coverage.mjs";
 
-// specs/repository-anti-corruption §4.8 (W2-14): the acceptance-id report, scripts/check-spec-coverage.mjs (the convention is in
+// specs/archive/repository-anti-corruption §4.8 (W2-14): the acceptance-id report, scripts/check-spec-coverage.mjs (the convention is in
 // specs/README.md under 验收编号, the cases in scripts/gates/README.md). It is report-only for now, so every rule is
 // mutation-verified twice: the clean scratch repository has no problem and passes `--strict`; one violation is added and the
 // report names it, the plain run still exits 0 (it must not fail CI yet) and `--strict` exits 1. That covers each problem kind

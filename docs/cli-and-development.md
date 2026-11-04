@@ -12,7 +12,7 @@
 
 SDK 密文由原 SDK reader 使用原 Home 的 key 验证全部记录种类和分页，合法空正文与保留密文的墓碑也验证；纯元数据或普通检查点不会要求或生成 key。受管 CLI 恢复仍要求原安装身份及原路径上的实际程序，命令不联网重装或创建替代安装。
 
-完整 `home restore`、统一发布/回滚与重启续写仍在 W5-16 后续，尚缺 Memory owner 的归档重开资格与合法空态受控恢复契约；本快照片不把它们标完成。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。现行范围和证据见 [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+`molis-work home restore --from /快照目录 [--home /原Home] [--json]` 在同样的离线窗口把快照恢复到原 Home；`molis-work home restore --recover` 续写上次中断的恢复：未提交的回滚到操作前，已提交的做收尾，没有待恢复项时返回 `no_recovery`。两者二选一，缺一或都给直接拒绝。恢复只适用于原 Home 路径和原密钥：先完整预检（快照清单与摘要、各 owner 的版本和完整性、原 key 依赖、Memory 资格、目标集合），任何一项不过都在移动原件之前拒绝；通过后才替换业务集合，被替换的原件和失败材料保留在结果的 `originals_directory`；与快照一致时返回 `unchanged` 且不写业务内容。恢复未收尾时留有持久日志，会阻断正常启动，先跑 `--recover`。命令不联网重装、不创建替代安装或替代 key。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。
 
 ## 安装代码的开发边界
 
@@ -199,7 +199,7 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 `workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。
 
-改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）：宿主在 `/assets/` 下发的每个文件的字节数记在 `tooling/gates/page-assets.json`，默认只许变小。变小了就跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 把数字降下来；`--report` 打印逐文件的字节、gzip 与预算。这是体积控制，不是硬上限（用户 2026-10-18 定）：功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法，评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条只认 merge-base 准确数字的一次性放行；一个资源一次涨超过 10 KB 或新增资源，先问用户。规则、没覆盖的几项见 [`specs/repository-anti-corruption/spec.md`](../specs/repository-anti-corruption/spec.md) §5a。
+改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）：宿主在 `/assets/` 下发的每个文件的字节数记在 `tooling/gates/page-assets.json`，默认只许变小。变小了就跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 把数字降下来；`--report` 打印逐文件的字节、gzip 与预算。这是体积控制，不是硬上限（用户 2026-10-18 定）：功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法，评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条只认 merge-base 准确数字的一次性放行；一个资源一次涨超过 10 KB 或新增资源，先问用户。规则、没覆盖的几项见 [`specs/archive/repository-anti-corruption/spec.md`](../specs/archive/repository-anti-corruption/spec.md) §5a。
 
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。
 

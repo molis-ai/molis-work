@@ -25,6 +25,9 @@
         "packages/storage/src/adapters/local-payload-protection.ts",
         "packages/storage/src/adapters/file-secret-store.ts",
         "packages/storage/src/adapters/storage-owner.ts",
+        "packages/storage/src/adapters/home-restore-guard.ts",
+        "packages/storage/src/adapters/memory-ledger.ts",
+        "packages/storage/src/evidence-snapshot.ts",
         "packages/storage/src/sqlite-baseline.ts"
       ],
       "reason": "Project replication validates portable rows and journal sequence references; atomic file documents validate opaque UTF-8 and file shape; local payload protection owns AEAD validation and pinned local-key refusal. Catalog metadata owns read-only SQLite observation and refusal of partial or changing journals, while the Host decides business owner/version acceptance. These remain within Storage's technical persistence boundary. Platform storage owns sealed-vault integrity, the shared filesystem storage owner's exclusive lease and capability refusals, and a store's baseline refusals (version and structure)."

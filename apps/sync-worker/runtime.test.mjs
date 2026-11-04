@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
-import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { MolisWorkLocalHost, createPersonalSync, discoverRuntimeSyncCollections } from '@molis-ai/molis-work-app-local-host';
 import { syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
 import { createPersonalNotesSample } from '../../examples/personal-sync-plugin/plugin.ts';
@@ -15,6 +15,9 @@ test('PCSYNC-01/11/15/25 independent public-SDK owner is discovered by actual Ho
   const space = personalStorageSpace('https://auth.example.test', 'work', 'alice'), homes = ['a', 'b', 'c'].map(name => join(root, name));
   homes.forEach(home => ensureStorageSpace(home, space));
   const samples = homes.map(() => createPersonalNotesSample()), hosts = homes.map((home, i) => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [samples[i].definition] } }));
+  const catalogs=hosts.map((host,i)=>host.ensureWebCatalog(homes[i],openMolisWorkProjectCatalog));
+  const readers=hosts.map((host,i)=>host.configurePersonalPlanning(homes[i],catalogs[i].withCatalog));
+  await Promise.all(catalogs.map(catalog=>catalog.warm()));
   const previous = { origin: process.env.MOLIS_WORK_SYNC_ORIGIN, local: process.env.MOLIS_WORK_SYNC_LOCAL };
   process.env.MOLIS_WORK_SYNC_ORIGIN = 'https://sync.example.test'; delete process.env.MOLIS_WORK_SYNC_LOCAL;
   t.after(async () => {
@@ -26,8 +29,8 @@ test('PCSYNC-01/11/15/25 independent public-SDK owner is discovered by actual Ho
   });
   t.mock.method(globalThis, 'fetch', cloud.transport);
   const check = () => {}, lease = { userId: 'alice', applicationId: 'work', authOrigin: 'https://auth.example.test', signal: new AbortController().signal, assertCurrent: check, accessToken: async () => 'alice' };
-  const clients = await Promise.all(homes.map((home, i) => createPersonalSync(home, space, lease, withMolisWorkProjectCatalog, check,
-    authorize => discoverRuntimeSyncCollections(home, space.spaceId, hosts[i], withMolisWorkProjectCatalog, authorize))));
+  const clients = await Promise.all(homes.map((home, i) => createPersonalSync(home, space, lease, readers[i], check,
+    authorize => discoverRuntimeSyncCollections(home, space.spaceId, hosts[i], readers[i], authorize),undefined,catalogs[i].read)));
   t.after(() => clients.forEach(client => client.close()));
   assert.equal(clients[0].status().collections.some(row => row.selection.plugin_id === samples[0].definition.manifest.plugin_id), false, 'construction does not activate or approve an independent collection');
   await clients[0].run(); await clients[1].run();

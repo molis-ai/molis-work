@@ -99,7 +99,7 @@ export interface PluginHostServices {
   /**
    * The plugin's own tables in this project's library, present when its Manifest declares `databases.project`. Every statement is
    * checked against the tables the platform made for it (and the project's root row, which it may read); a statement that reaches
-   * any other table, a schema step or a pragma is refused (specs/plugin-project-database). `journal` is the project's event log and
+   * any other table, a schema step or a pragma is refused (specs/archive/plugin-project-database). `journal` is the project's event log and
    * idempotency records, for a plugin granted `PROJECT_JOURNAL_PERMISSION` (PG-094 S9-0).
    */
   readonly project_database?: import("./plugin-database.js").PluginProjectDatabase;

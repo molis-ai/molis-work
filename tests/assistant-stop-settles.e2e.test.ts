@@ -11,10 +11,11 @@ import { issueModel } from "./fixtures/issue-model.js";
 // until the round itself has ended. Chrome hands the page the Host's own control answer as it was in that moment (the round
 // still running), so the case does not depend on the race.
 test("VUX-12/VUX-20: a stopped round's line settles after Stop, though the Host's answer came while the round was still ending", { timeout: 120_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, "user"); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
   let release!: () => void;
-  await issueModel(t, browser.homeDirectory, { replyText: "不会答到这里。", held: new Promise<void>((resolve) => { release = resolve; }) });
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: "不会答到这里。", held: new Promise<void>((resolve) => { release = resolve; }) }); },
+  }); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
   t.after(() => release());
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));

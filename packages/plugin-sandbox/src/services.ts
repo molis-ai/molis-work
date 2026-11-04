@@ -9,7 +9,7 @@ import { sandboxModel, sandboxModelSettings } from './model.js';
 import { sandboxOwnerFiles } from './owner-files.js';
 import { SandboxError } from './schema.js';
 
-// Which of the Host's services one sandboxed activation's broker may reach (PG-017, specs/repository-anti-corruption/slices/pg017-sandbox-services.md).
+// Which of the Host's services one sandboxed activation's broker may reach (PG-017, specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md).
 // Running in a sandbox is an install trust, not a second set of permissions: the services are the ones the Host built for the activation from
 // its Manifest and the person's grants, forwarded one by one over the channel, and the broker still asks the operation's declared and approved
 // effects before each call. What the sandbox is not given yet is a refusal with a code at the start (`assertSandboxDeclarations`), not a silent absence.

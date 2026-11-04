@@ -4,16 +4,16 @@ import {mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {createDesktopWebHost,openMolisWorkProjectCatalog,withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
-import {ProjectDeletionService} from '@molis-ai/molis-work-app-local-host';
+import {createDesktopWebHost,openMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
+import {createWebCatalogAccess,ProjectDeletionService} from '@molis-ai/molis-work-app-local-host';
 
 // PTR-01 / S-124: a forged confirmation cannot bypass the trusted personal Home policy.
 test('PTR-01 S-124 personal permanent deletion retains unique database and attachment before any runtime release',async t=>{
  const root=mkdtempSync(join(tmpdir(),'trial-delete-')),home=join(root,'personal');ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
- const catalog=await openMolisWorkProjectCatalog({homeDirectory:home});t.after(()=>{catalog.close();rmSync(root,{recursive:true,force:true});});
+ const access=createWebCatalogAccess(home,openMolisWorkProjectCatalog); const catalog=await access.withCatalog({homeDirectory:home},current=>current);t.after(async()=>{await access.close();rmSync(root,{recursive:true,force:true});});
  const project=await catalog.createProject({display_name:'唯一原件',actor_id:'alice'}),attachment=join(dirname(project.database_path),'unique.bin');writeFileSync(attachment,Buffer.from([0,255,13,10,67]));
  const db=readFileSync(project.database_path),bytes=readFileSync(attachment);let effects=0;
- const service=new ProjectDeletionService(withMolisWorkProjectCatalog,{isPanelAlive(){effects++;return false;},async releaseProject(){effects++;}});
+ const service=new ProjectDeletionService(access.withCatalog,{isPanelAlive(){effects++;return false;},async releaseProject(){effects++;}});
  await assert.rejects(service.deleteProject(home,{project_id:project.project_id,actor_id:'alice',delete_confirmed:true,idempotency_key:'trial-delete-refused'}),{code:'catalog.personal_deletion_unavailable'});
  assert.equal(effects,0);assert.deepEqual(readFileSync(project.database_path),db);assert.deepEqual(readFileSync(attachment),bytes);assert.equal(catalog.listProjectDeletions().length,0);
 });

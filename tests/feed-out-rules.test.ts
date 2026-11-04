@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import { feedCaptureFixture } from "./feed-capture-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -9,7 +10,7 @@ import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, listFeedSourceCatalog, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import {
@@ -383,6 +384,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const created = await catalog.createProject({ display_name: "Out 规则项目", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
+  catalog.close();
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -391,7 +393,6 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   let sequence = 0;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    catalog.close();
     await rm(homeDirectory, { recursive: true, force: true });
   });
 
@@ -410,7 +411,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   // Out-rules belong to a Source; a new project has none until one is added.
   const registered = await webFetch(`${origin}${prefix}${FEED_API}/sources`, { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }) });
+    body: JSON.stringify({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }) });
   assert.equal(registered.status, 201, await registered.clone().text());
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
   assert.match(page, /data-feed-rule-instructions/);

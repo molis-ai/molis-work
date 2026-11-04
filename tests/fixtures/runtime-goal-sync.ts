@@ -1,6 +1,6 @@
-import { MolisWorkLocalHost, discoverRuntimeSyncCollections, molisWorkHostProjectReference, runningProjectPlatform,createWebCatalogAccess } from '@molis-ai/molis-work-app-local-host';
+import { MolisWorkLocalHost, discoverRuntimeSyncCollections, molisWorkHostProjectReference, runningProjectPlatform } from '@molis-ai/molis-work-app-local-host';
 import { goalsManifest } from '@molis-ai/molis-work-plugin-goals';
-import { withMolisWorkProjectCatalog,openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { ensureStorageSpace } from '@molis-ai/molis-work-storage';
 import type { SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import type { SpaceSyncPolicy } from '@molis-ai/molis-work-contracts/modules/sync-replication';
@@ -15,10 +15,10 @@ export function runtimeGoalSync(home:string,spaceId:string,userId:string,authori
   if(space.kind!=='personal'||space.spaceId!==spaceId||space.ownerUserId!==userId)throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
   const release=bindPersonalSpaceAuthority(home,spaceId,authorize);
   const host=new MolisWorkLocalHost({homeDirectory:home,completeText:null});
-  host.configurePersonalPlanning(home,withMolisWorkProjectCatalog);
-  const catalogAccess=createWebCatalogAccess(home,openMolisWorkProjectCatalog);
+  const catalogAccess=host.ensureWebCatalog(home,openMolisWorkProjectCatalog);
+  const withCatalog=host.configurePersonalPlanning(home,catalogAccess.withCatalog);
   let policy=():SpaceSyncPolicy=>({spaceId,revision:0,selections:[goalSyncSelection]});
-  const authority=personalRuntimeSyncAuthority({home,spaceId,authorize,readCatalog:catalogAccess.read,withCatalog:withMolisWorkProjectCatalog,policy:()=>policy(),hasArtifact:()=>false,hasReference:()=>false});
+  const authority=personalRuntimeSyncAuthority({home,spaceId,authorize,readCatalog:catalogAccess.read,withCatalog:withCatalog,policy:()=>policy(),hasArtifact:()=>false,hasReference:()=>false});
   let current:SyncRegistration|undefined;
   const required=()=>{authorize();if(!current)throw new Error('SYNC_OWNER_NOT_INSTALLED');return current;};
   const registration:SyncRegistration={selection:goalSyncSelection,title:collection.title,
@@ -26,12 +26,12 @@ export function runtimeGoalSync(home:string,spaceId:string,userId:string,authori
     async refresh(){
       await catalogAccess.warm();
       // The person explicitly opens these test projects before passive synchronization discovery.
-      for(const project of await withMolisWorkProjectCatalog({homeDirectory:home},catalog=>catalog.listProjects()))
+      for(const project of await withCatalog({homeDirectory:home},catalog=>catalog.listProjects()))
         await host.withProject(molisWorkHostProjectReference({databasePath:project.database_path,projectId:project.project_id}),async runtime=>{const platform=await runningProjectPlatform(runtime.store,runtime.project_id);if(platform?.supervisor.state(goalSyncSelection.plugin_id)?.status!=='running')throw new Error('GOAL_RUNTIME:'+JSON.stringify(platform?.supervisor.state(goalSyncSelection.plugin_id)));}, {activatePlugins:true});
-      await authority.refresh();current=(await discoverRuntimeSyncCollections(home,spaceId,host,withMolisWorkProjectCatalog,authorize)).find(row=>row.selection.plugin_id===goalSyncSelection.plugin_id&&row.selection.collection_id===goalSyncSelection.collection_id);if(current)current=authority.bind(current);},
+      await authority.refresh();current=(await discoverRuntimeSyncCollections(home,spaceId,host,withCatalog,authorize)).find(row=>row.selection.plugin_id===goalSyncSelection.plugin_id&&row.selection.collection_id===goalSyncSelection.collection_id);if(current)current=authority.bind(current);},
     withReplica:run=>required().withReplica(run),prepare:async(event,options)=>required().prepare(event,options),
     content:{encode:(...args)=>required().content!.encode(...args),decode:(...args)=>required().content!.decode(...args)},
   };
-  return {registration,host,setPolicy(read:()=>SpaceSyncPolicy){policy=read;},async close(){try{await host.close();await catalogAccess.close();}finally{release();}}};
+  return {registration,host,withCatalog,setPolicy(read:()=>SpaceSyncPolicy){policy=read;},async close(){try{await host.close();}finally{release();}}};
 }
 export function goalWire(value:unknown):unknown{return (value as {value:unknown}).value;}

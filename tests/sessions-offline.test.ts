@@ -6,7 +6,7 @@ import test from "node:test";
 import { projectDeletedHooksFor, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
-// SC-4 (specs/repository-anti-corruption/slices/sc-4-sessions-offline.md): the Sessions plugin is gone; what is left is the
+// SC-4 (specs/archive/repository-anti-corruption/slices/sc-4-sessions-offline.md): the Sessions plugin is gone; what is left is the
 // clean Home has no retired sessions directory, offline reader or registry exemption.
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const text = (path: string) => readFileSync(join(root, path), "utf8");

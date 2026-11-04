@@ -8,6 +8,7 @@ import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPri
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
+import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { openPluginDatabase } from "./plugin-database.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { removeSandboxOwnerFiles, sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
@@ -56,7 +57,7 @@ export class HomePluginExecutor implements PluginExecutor {
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
-    /** The Host's start list said this is the Home half of a dual-instance plugin (specs/dual-instance-plugins). */
+    /** The Host's start list said this is the Home half of a dual-instance plugin (specs/archive/dual-instance-plugins). */
     dualInstance(definition: PluginDefinition): boolean;
     storage: SqlitePluginPrivateStorage;
     active(): boolean;
@@ -73,7 +74,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const manifest = definition.manifest;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
     if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
-      throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
+      throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
     }
     let active = true, stopped = false;
     const generation = this.options.record(context.install_id)?.installation_generation;
@@ -94,7 +95,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const ui = createPluginUiClient(new UiHost({ drawingAs: withPluginWords }), context, manifest,
       { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
-    let sandboxLibrary: ReturnType<typeof openSandboxHomeLibrary> | undefined;
+    let sandboxLibrary: Awaited<ReturnType<typeof openSandboxHomeLibrary>> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
     let terminal: ReturnType<typeof pluginTerminalFor>;
@@ -117,7 +118,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const declaration = library?.declaration;
       if (library && definition.execution === "sandbox") {
         // The package's code is not in this process: its statements run in a process the Host can kill, over a library the ledger made for it (BL-490).
-        sandboxLibrary = openSandboxHomeLibrary(this.options.home, library.installed!, library.declaration, home.stores, authorize, context);
+        sandboxLibrary = await openSandboxHomeLibrary(this.options.home, library.installed!, library.declaration, home.stores, authorize, context);
       }
       else if (declaration?.partition === "project") {
         partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context, this.deletionsOf(context.install_id));
@@ -134,7 +135,9 @@ export class HomePluginExecutor implements PluginExecutor {
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
-      withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants));
+      withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants), permission => {
+        try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
+      });
       const authorized = { ...context, requireGrant: authorize };
       // A sandboxed package has no `model_configuration` or `image_generation` block: its settings and image connections are derived from its contract's effects (BL-491).
       const model = withSandboxModelSettings(pluginModelFor(home, definition, authorized, assertActive, givenService(definition, manifest.model_configuration, this.options.modelConfiguration(definition), "模型设置")), home, definition, authorized, assertActive);

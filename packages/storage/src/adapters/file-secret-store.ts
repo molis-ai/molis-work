@@ -528,6 +528,18 @@ export function openExistingHomePayload(homeDirectory: string, binding: string, 
   return body.contents;
 }
 
+/** Check the original key identity without creating a vault, entry or replacement key. */
+export function assertExistingHomeKeyReference(homeDirectory: string, reference: { readonly location: string; readonly sha256: string }): void {
+  const home = payloadHome(homeDirectory);
+  const backend: SecretStoreBackendKind = reference.location === "home:feed/secrets.key" ? "aes-gcm-file"
+    : reference.location === "env:MOLIS_WORK_ENCRYPTION_KEY" ? "env-key+aes-gcm"
+    : reference.location === "keychain:" + KEYCHAIN_SERVICE + "/" + KEYCHAIN_ACCOUNT ? "keychain+aes-gcm"
+    : (() => { throw snapshotErrors.invalid("密钥引用不是此 owner 的固定后端位置"); })();
+  if (!/^[0-9a-f]{64}$/u.test(reference.sha256)) throw snapshotErrors.invalid("密钥引用的身份无效");
+  const actual = masterReference(payloadMaster(home, backend));
+  if (actual.location !== reference.location || actual.sha256 !== reference.sha256) throw snapshotErrors.integrity_failed("原 Home 的现有主密钥身份已改变，不会创建替代值");
+}
+
 function saveFile(file: SecretsFileV2): void {
   const p = secretsPath();
   const payload: SecretsFileV2 = {

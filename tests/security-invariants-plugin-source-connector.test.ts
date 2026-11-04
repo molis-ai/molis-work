@@ -18,7 +18,7 @@ import { homeSqlitePath, resolveMolisWorkHome } from "@molis-ai/molis-work-stora
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// FI-4 step 4c-4 (S-97 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12): `services.sourcePull.connector` lets a
+// FI-4 step 4c-4 (S-97 provisional, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12): `services.sourcePull.connector` lets a
 // plugin pull an account source through the Home's integration registry. The account is the one the person bound to the plugin's `per_record`
 // slot for that record (S-71); the plugin never names a connection or a credential. RAC-1020 (what the Runtime refuses before the Host is
 // asked), RAC-1021 (a call that loses its authority), RAC-1022 (the Host's side: the binding, the registry, the receipt), RAC-1023 (through

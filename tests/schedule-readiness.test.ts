@@ -39,9 +39,8 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 /** A text model the way settings saves it: a connection holding the key, and a provider entry pointing at it. */
-async function configureModel(home: string): Promise<void> {
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  try {
+async function configureModel(home: string, withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]>): Promise<void> {
+  await withCatalog({ homeDirectory: home }, catalog => {
     const connection = withConnectorConnections(home, store => {
       const made = store.createToken({ serviceId: "model-api", displayName: "ready", token: "ready-fixture-key" });
       store.assertTarget(made.connection_id, "model-api", "http://127.0.0.1:9");
@@ -49,7 +48,7 @@ async function configureModel(home: string): Promise<void> {
     });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "ready", display_name: "ready", base_url: "http://127.0.0.1:9/v1",
       api_format: "openai-chat-completions", prompt_cache: "off", models: [{ model_id: "ready-model", enabled: true }] });
-  } finally { catalog.close(); }
+  });
 }
 
 test("the readiness action is a project query that reports what the Host reports, and the route maps to it", { timeout: 60_000 }, async () => withHome(async home => {
@@ -77,7 +76,7 @@ test("the readiness action is a project query that reports what the Host reports
     workspace = { ...verified, realpath_verified: false };
     assert.deepEqual(await bound.invoke(s.readiness, {}), { model: false, workspace: false }, "an unverified directory does not count");
     workspace = verified;
-    await configureModel(home);
+    await configureModel(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
     assert.deepEqual(await bound.invoke(s.readiness, {}), { model: true, workspace: true }, "the public model service reads settings saved after activation");
 
     // Missing both never stops a task from being made: the hint is advice, not a gate.

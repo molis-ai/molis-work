@@ -38,11 +38,12 @@ export function replicaSchemaSql(namespace?:string):string {
  return namespace?REPLICA_SCHEMA_SQL.replace(/\breplica_/g,namespace+'_replica_'):REPLICA_SCHEMA_SQL;
 }
 
-/** Technical ledger borrowed by an owner. Triggers and owner writes share one transaction. */
-export function initializeReplica(db: ReplicaDatabase,initialize=true): void {
+/** Returns true only for the transaction that first initialized the technical ledger, so an owner can seed existing business rows once. */
+export function initializeReplica(db: ReplicaDatabase,initialize=true): boolean {
   db.prepare("SELECT waiting FROM replica_conflicts LIMIT 0").all();
-  if(initialize)db.prepare('INSERT OR IGNORE INTO replica_state(id,device) VALUES (1,?)').run(randomUUID());
+  const created = initialize && !!db.prepare('INSERT OR IGNORE INTO replica_state(id,device) VALUES (1,?) RETURNING id').get(randomUUID());
   if(!db.prepare('SELECT device,cursor,applying FROM replica_state WHERE id=1').get())throw syncError('invalid','同步日志状态缺失，原数据已保留');
+  return created;
 }
 
 /** Owner supplies an SQL key expression; identifiers/expressions must never come from user input. */

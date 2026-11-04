@@ -118,7 +118,7 @@ These results validate the implemented rows above; they are not evidence that th
 
 ## Anti-corruption corrections — 2026-10-16
 
-The review corrections and their authoritative evidence are recorded in [repository-anti-corruption](../repository-anti-corruption/spec.md), PERSAF-01–05. The earlier dated health-gate explanations above are historical results, not a waiver: the current tracked tree passes the merge-base health gate. This does not mark remaining owner integrations or public deployment complete.
+The review corrections and their authoritative evidence are recorded in [repository-anti-corruption](../../docs/system/CONTRACT-CHANGES.md), PERSAF-01–05. The earlier dated health-gate explanations above are historical results, not a waiver: the current tracked tree passes the merge-base health gate. This does not mark remaining owner integrations or public deployment complete.
 
 - Offline identity survives an uncertain refresh across Host restart; the burned credential is not replayed and cannot authorize cloud operations. Explicit sign-out still revokes account leases.
 - Pages incremental paths read/apply one owner-validated record, not a hidden whole-project snapshot; the regression transfers 170 documents exceeding 16 MiB and proves unrelated editor revisions stay unchanged.

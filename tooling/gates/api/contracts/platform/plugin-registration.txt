@@ -93,6 +93,7 @@ export type BuiltinSyncBinding = ({
     owner(options: {
         home?: string;
         authorize?(): void;
+        verifyDistribution?: PluginDistributionVerifier;
         assertIdle?(projectId: string, itemId: string): void;
     }): PrivateValueReplicationOwner;
 } | {
@@ -133,6 +134,13 @@ export interface PluginBoardSpecimenPorts {
     formatDate(value: string): string;
     readonly sample: "zh" | "en" | "mixed";
 }
+
+export type PluginDistributionVerifier = (release: {
+    pluginId: string;
+    version: number;
+    runtimeScope: 'project' | 'home';
+    publisherKeyId: string;
+}, signedPackage: unknown, files: ReadonlyMap<string, Uint8Array>) => void;
 
 export interface PluginRegistration {
     readonly sync?: Readonly<Record<string, import('./plugin-sync-registration.js').BuiltinSyncBinding>>;
@@ -176,6 +184,7 @@ export interface PluginWorkbenchRegistration {
     readonly stylesheetPrefixes?: readonly string[];
     readonly stylesheetUses?: readonly string[];
     readonly clientFactory?: string;
+    readonly clientMounts?: "surfaces";
     readonly clientServed?: true;
     readonly clientUses?: readonly string[];
     readonly clientAssets?: readonly string[];

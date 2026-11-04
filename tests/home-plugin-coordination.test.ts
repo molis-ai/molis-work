@@ -9,7 +9,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// specs/repository-anti-corruption/slices/home-instance-project-services.md, PG-025: a Home instance is given no 成果, ports or events
+// specs/archive/repository-anti-corruption/slices/home-instance-project-services.md, PG-025: a Home instance is given no 成果, ports or events
 // (their wiring lives in a project); a plugin that declares them is a dual-instance plugin, whose project half gets them.
 
 const publishing = (manifest: PluginManifest): PluginManifest => ({ ...manifest,
@@ -60,7 +60,7 @@ test("RAC-745 a Home instance that is not dual-instance and declares an event is
   assert.equal(refused.started, 0, "the Home executor refuses before the plugin's code is given any service");
   assert.equal(refused.state.status, "failed");
   assert.equal(refused.state.code, "plugin.state_invalid");
-  assert.equal(refused.state.message, "Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
+  assert.equal(refused.state.message, "Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
   assert.equal(refused.installation.state, "crashed");
   assert.equal(refused.installation.last_error_code, "plugin.state_invalid");
   assert.equal(refused.databaseCreated, false, "the refusal precedes even the Home database service's construction");

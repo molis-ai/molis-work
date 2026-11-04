@@ -26,7 +26,7 @@ import {
   createGithubIntegrationPlugin,
   githubIntegrationManifest,
 } from "@molis-ai/molis-work-integration-github";
-import { MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, listPluginInstallationRecords } from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -37,13 +37,14 @@ const CONNECTION_ID = "connection-fd3-github";
 test("PCSYNC-20 passive installation inspection works query-only and never repairs an absent owner table", () => {
   const db = new Database(":memory:");
   try {
-    assert.throws(() => listPluginInstallationRecords(db), /no such table/);
+    assert.throws(() => readPluginRuntimeRecords(db), /no such table/);
     assert.deepEqual(db.prepare("SELECT name FROM sqlite_master").all(), []);
     const repository = new SqlitePluginRuntimeRepository(db);
-    const runtime = new PluginRuntime(repository);
-    const record = runtime.install({ definition: { manifest: githubIntegrationManifest, async start() { throw new Error("not executable inspection"); } }, deployment: "local" }).install;
+    const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+    const record = runtime.install({ definition: { manifest: githubIntegrationManifest, execution: "sandbox", async start() { throw new Error("not executable inspection"); }, async stop() {} },
+      trust: { level: "unsigned" }, grants: [], deployment: "local" }).install;
     repository.save({ ...record, state: "disabled" });db.pragma("query_only = ON");
-    assert.deepEqual(listPluginInstallationRecords(db), [{ ...record, state: "disabled" }]);
+    assert.deepEqual(readPluginRuntimeRecords(db), [{ ...record, state: "disabled" }]);
   } finally { db.close(); }
 });
 

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { resolveMolisWorkHome } from '@molis-ai/molis-work-storage';
 import { LocalProjectDatabase, seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { accountSourceRecord } from './fixtures/feed-account-source.js';
-import { createLocalFeedApplication, createLocalFeedConnectorSync, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { createLocalFeedApplication, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
 
 for(const kind of ['github','gmail'] as const) {
   test(`Live ${kind} account performs read-only production sync`,{skip:process.env.MOLIS_WORK_LIVE_ACCOUNTS!=='1',timeout:60000},async t=>{
@@ -17,8 +17,8 @@ for(const kind of ['github','gmail'] as const) {
       assert.ok(connection,'An existing account connection is required');
       const feed=createLocalFeedApplication(store.db);
       const base=feed.sources.upsert(accountSourceRecord(kind));
-      // Choosing the account goes through the same Source update a person makes in Feed.
-      const source=createLocalFeedSourceService(store.db,DEMO_PROJECT_ID,undefined,undefined,home).update(base.source_id,{connection_id:connection.connection_id});
+      // The account is the person's binding (T-121); the local connector sync reads this arrangement of it.
+      const source=feed.sources.upsert({...base,credential_ref:connection.credential_ref,config:{...base.config,connection_id:connection.connection_id}});
       const result=await createLocalFeedConnectorSync(store.db,DEMO_PROJECT_ID,undefined,feed,home).sync(source.source_id,{idempotencyKey:'live-account-check',mode:'normal'});
       t.diagnostic(JSON.stringify({kind,outcome:result.run.outcome,errorCode:result.run.error_code,created:result.created}));
       assert.equal(result.run.outcome,'completed',result.run.error_code || 'Account sync did not complete');

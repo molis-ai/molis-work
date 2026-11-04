@@ -12,6 +12,12 @@ export interface HomeSnapshotFile {
   readonly binding?: string;
 }
 export interface HomeSnapshotDirectory { readonly kind: "directory"; readonly path: string; readonly mode: number }
+export interface HomeSnapshotSourceEntry {
+  readonly path: string;
+  readonly kind: "absent" | "file" | "directory" | "link" | "special";
+  readonly links: number;
+  readonly children?: readonly string[];
+}
 export interface HomeSnapshotStoreManifest {
   readonly path: string;
   readonly owner: string;
@@ -24,12 +30,15 @@ export interface HomeSnapshotStoreManifest {
 
 /** Restore input for the original Home and original keys. Existence in the published directory means capture completed. */
 export interface HomeSnapshotManifest {
-  readonly schema_version: 1;
+  readonly schema_version: 2;
+  readonly space_digest: string | null;
   readonly product_version: string;
   readonly created_at: string;
   readonly home_directory: string;
   readonly home_mode: number;
   readonly container_directories: readonly HomeSnapshotDirectory[];
+  /** Actual source metadata under the capture lease, including omitted and excluded nodes. */
+  readonly source_inventory?: readonly HomeSnapshotSourceEntry[];
   readonly stores: readonly HomeSnapshotStoreManifest[];
   readonly exclusions: readonly SnapshotExclusion[];
   readonly external_dependencies: readonly string[];

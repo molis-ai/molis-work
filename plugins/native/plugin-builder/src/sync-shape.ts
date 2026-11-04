@@ -1,7 +1,7 @@
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 import {isDeepStrictEqual} from 'node:util';
 import type {AgentBuild,AgentBuildSnapshot,AgentRelease,AgentDesign} from './agent-model.js';
-import {contractEffects} from './agent-validation.js';
+import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import {validateBuilderDirectories,type BuilderPortableDirectory} from './sync-files.js';
 import {validateBuilderResults,validateBuilderSelection,validateBuilderReleaseFiles} from './sync-records.js';
 import {validateBuilderDesignDomain,validateBuilderNodeDomain,validateBuilderPreviewDomain,validateBuilderSnapshotLinks,validateBuilderDecisionLinks} from './sync-domain.js';
@@ -17,8 +17,8 @@ function keys(value:Record<string,unknown>,allowed:readonly string[],required:re
 function strings(value:unknown){if(!Array.isArray(value)||value.some(v=>typeof v!=='string'))builderSyncInvalid();}
 function list(value:unknown):unknown[]{if(!Array.isArray(value)||value.length>100000)return builderSyncInvalid();return value;}
 export function pick(value:object,fields:readonly string[]):Record<string,unknown>{return Object.fromEntries(fields.filter(k=>Object.hasOwn(value,k)&&Reflect.get(value,k)!==undefined).map(k=>[k,structuredClone(Reflect.get(value,k))]));}
-const snapshotFields=['design','nodes','connected','designSource','browserResult','visualResult','pendingVisual'];
-const buildFields=['id','brief','title','phase','messages','candidates','chosen','questions','clarificationAnswered','notes','runs','pendingPart','rework','error','createdAt','updatedAt'];
+const snapshotFields=['design','nodes','connected','designSource','checksScope','browserResult','visualResult','pendingVisual'];
+const buildFields=['id','brief','title','phase','messages','candidates','chosen','questions','clarificationAnswered','notes','runs','pendingPart','rework','error','createdAt','updatedAt','runtimeScope','scopeCheckPending'];
 const releaseFields=['buildId','pluginId','version','design','nodes','manifest','permissions','publishedAt','prompts'];
 function checks(value:Record<string,unknown>){
  return Object.fromEntries(Object.entries(value).map(([key,input])=>{const c=object(input);return [key,pick(c,['passed','gates'])];}));
@@ -31,7 +31,7 @@ export function portableBuilderBuild(value:AgentBuild):Record<string,unknown>{
   steps:value.steps.map(step=>({...pick(step,['id','agent','action','label','status','operationId','detail','at','selection']),status:['active','queued'].includes(step.status)?'cancelled':step.status})),
   history:value.history.map(portableBuilderSnapshot)};
 }
-export function portableBuilderRelease(value:AgentRelease):Record<string,unknown>{return pick(value,releaseFields);}
+export function portableBuilderRelease(value:AgentRelease):Record<string,unknown>{return pick(value,[...releaseFields,'distribution']);}
 export function assertBuilderIdle(builds:readonly AgentBuild[]):void{
  if(builds.some(b=>b.active||['building','designing'].includes(b.phase)||b.candidates?.some(c=>c.mockup?.status==='drawing')))builderSyncBusy();
 }
@@ -41,6 +41,7 @@ function design(value:unknown){
 }
 function snapshot(value:unknown,pluginId?:string){
  const s=object(value);keys(s,[...snapshotFields,'checks'],['design','nodes','connected']);
+ if(s.checksScope!==undefined&&s.checksScope!=='home')builderSyncInvalid();
  const d=s.design===null?null:design(s.design);validateBuilderNodeDomain(d,s.nodes,s.connected);if(d&&pluginId&&d.contract.pluginId!==pluginId)builderSyncInvalid();
  validateBuilderResults(s);
  if(s.designSource!==undefined&&typeof s.designSource!=='string'||s.pendingVisual!==undefined&&typeof s.pendingVisual!=='string')builderSyncInvalid();
@@ -50,6 +51,7 @@ function snapshot(value:unknown,pluginId?:string){
 }
 function build(value:unknown){
  const b=object(value);keys(b,[...snapshotFields,...buildFields,'revision','active','checks','steps','history'],['id','revision','active','brief','title','phase','messages','candidates','questions','clarificationAnswered','design','nodes','connected','steps','checks','runs','history','error','createdAt','updatedAt']);
+ if(b.scopeCheckPending!==undefined&&b.scopeCheckPending!==true||b.runtimeScope!==undefined&&b.runtimeScope!=='home')builderSyncInvalid();
  if(!id(b.id)||b.revision!==0||b.active!==null||typeof b.brief!=='string'||typeof b.title!=='string'||!['draft','clarifying','choosing','paused'].includes(String(b.phase))
   ||typeof b.clarificationAnswered!=='boolean'||b.error!==null&&typeof b.error!=='string'||!stamp(b.createdAt)||!stamp(b.updatedAt))builderSyncInvalid();
  const s=pick(b,[...snapshotFields,'checks']);snapshot(s,'io.molis.work.generated.'+b.id);
@@ -67,9 +69,14 @@ function build(value:unknown){
  for(const h of list(b.history))snapshot(h,'io.molis.work.generated.'+b.id);return b;
 }
 function release(value:unknown){
- const r=object(value);keys(r,releaseFields,releaseFields);if(!id(r.buildId)||!id(r.pluginId)||!Number.isSafeInteger(r.version)||Number(r.version)<1||!stamp(r.publishedAt))builderSyncInvalid();
+ const r=object(value),required=[...releaseFields,'distribution'];
+ keys(r,required,required);
+ const distribution=object(r.distribution);
+ keys(distribution,['runtime_scope','publisher_key_id'],['runtime_scope','publisher_key_id']);
+ if(!['project','home'].includes(String(distribution.runtime_scope))||typeof distribution.publisher_key_id!=='string'||!/^ed25519:sha256:[a-f0-9]{64}$/.test(distribution.publisher_key_id))builderSyncInvalid();
+ if(!id(r.buildId)||!id(r.pluginId)||!Number.isSafeInteger(r.version)||Number(r.version)<1||!stamp(r.publishedAt))builderSyncInvalid();
  const d=design(r.design),c=object(d.contract),m=object(r.manifest);keys(m,['version','pluginId','revision','effects'],['version','pluginId','revision','effects']);
- if(m.version!==1||m.pluginId!==r.pluginId||c.pluginId!==r.pluginId||r.pluginId!=='io.molis.work.generated.'+r.buildId||m.revision!==c.revision||!isDeepStrictEqual(m.effects,r.permissions)||!isDeepStrictEqual(m.effects,contractEffects(r.design as AgentDesign)))builderSyncInvalid();validateBuilderNodeDomain(d,r.nodes,[],true);
+ if(m.version!==1||m.pluginId!==r.pluginId||c.pluginId!==r.pluginId||r.pluginId!=='io.molis.work.generated.'+r.buildId||m.revision!==c.revision||!isDeepStrictEqual(m.effects,r.permissions)||!isDeepStrictEqual(m.effects,effectsFromContract((r.design as AgentDesign).contract)))builderSyncInvalid();validateBuilderNodeDomain(d,r.nodes,[],true);
  const ids=new Set<string>();for(const prompt of list(r.prompts)){const p=object(prompt);keys(p,['id','title','purpose','body'],['id','title','purpose','body']);if(!id(p.id)||ids.has(p.id)||['title','purpose','body'].some(k=>typeof p[k]!=='string'))builderSyncInvalid();ids.add(p.id);}return r as Record<string,unknown>&Pick<AgentRelease,'design'|'nodes'>;
 }
 /** Validate the entire owner unit before project creation or staging any target bytes. */
@@ -83,4 +90,10 @@ export function validateBuilderPortable(input:unknown):BuilderPortableState{
  for(const [id,entries] of Object.entries(checked))for(const e of entries){const b=builds.find(b=>b.id===id);if(e.slot.startsWith('current')&&!b||e.slot.startsWith('history-')&&(!b||Number(e.slot.match(/[0-9]+/)![0])>=list(b.history).length)||e.slot.startsWith('release-')&&!releases.some(r=>r.buildId===id&&r.version===Number(e.slot.slice(8))))builderSyncInvalid();}
  for(const r of releases){const directory=checked[String(r.buildId)]?.find(e=>e.slot==='release-'+r.version);if(!directory)builderSyncInvalid();validateBuilderReleaseFiles(r,directory!);}
  return {format:1,builds,releases,files:checked};
+}
+
+export function validateBuilderUnit(input:unknown,itemId:string):BuilderPortableState {
+ const value=validateBuilderPortable(input);
+ if(Object.keys(value.files).length!==1||!Object.hasOwn(value.files,itemId)||value.builds.some(b=>b.id!==itemId)||value.releases.some(r=>r.buildId!==itemId))builderSyncInvalid();
+ return value;
 }

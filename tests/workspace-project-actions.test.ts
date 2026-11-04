@@ -1,4 +1,5 @@
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, projectActionAvailability, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { access, mkdtemp, mkdir, rm } from "node:fs/promises";
 import os from "node:os";
@@ -6,6 +7,20 @@ import path from "node:path";
 import test from "node:test";
 
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+
+async function catalogWebHost(homeDirectory: string) {
+  let withCatalog = withMolisWorkProjectCatalog;
+  const availability = projectActionAvailability((options, run) => withCatalog(options, run), homeDirectory);
+  const host = new MolisWorkLocalHost({ homeDirectory,
+    actionAvailability: availability, sceneAvailability: availability,
+    projectRoutePrefix: projectId => `/projects/${encodeURIComponent(projectId)}`,
+    workspacesFor: projectId => withCatalog({ homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    workspaceFor: projectId => withCatalog({ homeDirectory }, catalog => workspaceRefFor(catalog, projectId)),
+  });
+  const access = host.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog);
+  withCatalog = host.configurePersonalPlanning(homeDirectory, access.withCatalog);
+  return { host, withCatalog, catalog: await withCatalog({ homeDirectory }, current => current) };
+}
 
 const TOKEN = "molis-work-workspace-actions-token-0123456789";
 
@@ -16,11 +31,10 @@ test("project workspace actions require confirmation, repair and unlink only the
   const repairedPath = path.join(directory, "repository-after");
   await mkdir(previousPath, { recursive: true });
   await mkdir(repairedPath, { recursive: true });
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const { host, catalog, withCatalog } = await catalogWebHost(home);
   const project = await catalog.createProject({ display_name: "工作目录动作", actor_id: "user" });
-  catalog.close();
 
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: TOKEN });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -73,14 +87,15 @@ test("project workspace actions require confirmation, repair and unlink only the
     assert.equal(unlinkResponse.status, 200);
     assert.deepEqual(await unlinkResponse.json(), { changed: true });
 
-    const finalCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    assert.equal(finalCatalog.listWorkspaceDirectory(project.project_id).length, 0);
-    assert.equal(finalCatalog.listWorkspaceMemberships().some((membership) => membership.is_default), false);
-    finalCatalog.close();
+    await withCatalog({ homeDirectory: home }, finalCatalog => {
+      assert.equal(finalCatalog.listWorkspaceDirectory(project.project_id).length, 0);
+      assert.equal(finalCatalog.listWorkspaceMemberships().some((membership) => membership.is_default), false);
+    });
     await access(previousPath);
     await access(repairedPath);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await host.close();
     await rm(directory, { recursive: true, force: true });
   }
 });

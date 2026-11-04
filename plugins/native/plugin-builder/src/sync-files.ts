@@ -1,3 +1,4 @@
+import {builderSyncFileLimit, BUILDER_SYNC_TOTAL_BYTES} from './sync-file-limits.js';
 import {SANDBOX_SDK_CONTRACT_DECLARATIONS} from '@molis-ai/molis-work-plugin-sandbox';
 import {constants,existsSync,lstatSync,mkdirSync,openSync,closeSync,readFileSync,writeFileSync,readdirSync,realpathSync,fstatSync} from 'node:fs';
 import {createHash,randomUUID} from 'node:crypto';
@@ -12,11 +13,15 @@ const missing=():never=>{throw errors.sync_files_missing('完整创作文件暂�
 export const builderBytesDigest=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 const slotPattern=/^(?:(?:current|history-[0-9]+)(?:-settled)?|release-[1-9][0-9]*)$/;
 const sdkFiles=['developer/sdk.d.ts',...SANDBOX_SDK_CONTRACT_DECLARATIONS.map(path=>'developer/contracts/'+path)];
-const included=(name:string,release:boolean)=>release?['plugin.mjs','manifest.json','contract.json','interface.json','prompts.json'].includes(name)
+const included=(name:string,release:boolean)=>release?['plugin.mjs','manifest.json','contract.json','interface.json','prompts.json','signed-package.json'].includes(name)
  :/^(?:src|tests)\//.test(name)||['contract.json','manifest.json','package.json','package-lock.json','dependency-lock.json','tsconfig.json'].includes(name)||sdkFiles.includes(name);
 function pathParts(path:string):string[]{
  if(typeof path!=='string'||path.length>500||path.includes('\\')||path.includes('\0')||isAbsolute(path))return invalid();
  const parts=path.split('/');if(parts.some(p=>!p||p==='.'||p==='..'||/[\u0000-\u001f\u007f\\:*?"<>|]/.test(p)))return invalid();return parts;
+}
+export function assertBuilderFilePath(slot:unknown,path:unknown):void {
+ if(typeof slot!=='string'||!slotPattern.test(slot)||typeof path!=='string'||!included(path,slot.startsWith('release-')))invalid();
+ pathParts(path);
 }
 function beneath(root:string,path:string):string{
  const name=relative(root,path);if(!name||isAbsolute(name)||name.startsWith('..'))return invalid();return name;
@@ -25,11 +30,11 @@ function safeChain(root:string,path:string){
  const rel=beneath(root,path);let current=root;if(lstatSync(root).isSymbolicLink())invalid();
  for(const part of rel.split(sep)){current=join(current,part);if(lstatSync(current).isSymbolicLink())invalid();}
 }
-function fileBytes(root:string,path:string):Buffer{
+function fileBytes(root:string,path:string,limit:number):Buffer{
  safeChain(root,path);let fd:number|undefined;
  try{
   fd=openSync(path,constants.O_RDONLY|constants.O_NOFOLLOW);const before=fstatSync(fd);
-  if(!before.isFile()||before.size>8*1024*1024)invalid();
+  if(!before.isFile()||before.size>limit)invalid();
   const bytes=readFileSync(fd),after=fstatSync(fd);safeChain(root,path);
   const named=lstatSync(path);if(before.dev!==after.dev||before.ino!==after.ino||before.size!==after.size||before.mtimeMs!==after.mtimeMs||named.ino!==after.ino||named.dev!==after.dev||bytes.length!==before.size)invalid();
   return bytes;
@@ -46,12 +51,12 @@ export function captureBuilderDirectory(root:string,path:string,slot:string,rele
    if(entry.isSymbolicLink())invalid();
    if(entry.isDirectory()){if(!release&&(name==='src'||name==='tests'||sdkFiles.some(file=>file.startsWith(name+'/'))||/^(?:src|tests)\//.test(name)))walk(full);continue;}
    if(!included(name,release))continue;if(!entry.isFile())invalid();pathParts(name);
-   const bytes=fileBytes(root,full);files.push({path:name,size:bytes.length,digest:builderBytesDigest(bytes),bytes:bytes.toString('base64')});
-   if(files.length>2000||files.reduce((n,f)=>n+f.size,0)>100000000)invalid();
+   const bytes=fileBytes(root,full,builderSyncFileLimit(slot,name));files.push({path:name,size:bytes.length,digest:builderBytesDigest(bytes),bytes:bytes.toString('base64')});
+   if(files.length>2000||files.reduce((n,f)=>n+f.size,0)>BUILDER_SYNC_TOTAL_BYTES)invalid();
   }
  };
  walk(base);
- if(release&&files.length!==5)missing();
+ if(release&&files.length!==6)missing();
  return {slot,files};
 }
 export function validateBuilderDirectories(input:unknown):BuilderPortableDirectory[]{
@@ -60,11 +65,11 @@ export function validateBuilderDirectories(input:unknown):BuilderPortableDirecto
   if(!value||typeof value!=='object'||Object.keys(value).sort().join(',')!=='files,slot'||!slotPattern.test(value.slot)||slots.has(value.slot)||!Array.isArray(value.files)||value.files.length>2000)invalid();slots.add(value.slot);
   const seen=new Set<string>();const files=value.files.map((file:unknown)=>{
    if(!file||typeof file!=='object'||Array.isArray(file))return invalid();const f=file as Record<string,unknown>;
-   if(Object.keys(f).sort().join(',')!=='bytes,digest,path,size'||typeof f.path!=='string'||typeof f.bytes!=='string'||typeof f.digest!=='string'||!Number.isSafeInteger(f.size)||Number(f.size)<0||Number(f.size)>8*1024*1024)invalid();
-   pathParts(String(f.path));if(!included(String(f.path),String(value.slot).startsWith('release-'))||seen.has(String(f.path)))invalid();seen.add(String(f.path));const bytes=Buffer.from(String(f.bytes),'base64');
-   if(bytes.toString('base64')!==f.bytes||bytes.length!==f.size||builderBytesDigest(bytes)!==f.digest)invalid();total+=bytes.length;if(total>100000000)invalid();
+   if(Object.keys(f).sort().join(',')!=='bytes,digest,path,size'||typeof f.path!=='string'||typeof f.bytes!=='string'||typeof f.digest!=='string'||!Number.isSafeInteger(f.size)||Number(f.size)<0||Number(f.size)>builderSyncFileLimit(value.slot,f.path))invalid();
+   assertBuilderFilePath(value.slot,f.path);if(seen.has(String(f.path)))invalid();seen.add(String(f.path));const bytes=Buffer.from(String(f.bytes),'base64');
+   if(bytes.toString('base64')!==f.bytes||bytes.length!==f.size||builderBytesDigest(bytes)!==f.digest)invalid();total+=bytes.length;if(total>BUILDER_SYNC_TOTAL_BYTES)invalid();
    return {path:String(f.path),bytes:String(f.bytes),digest:String(f.digest),size:Number(f.size)};
-  });if(String(value.slot).startsWith('release-')&&files.length!==5)invalid();return {slot:String(value.slot),files};
+  });if(String(value.slot).startsWith('release-')&&files.length!==6)invalid();return {slot:String(value.slot),files};
  });
 }
 function directory(root:string,path:string){
@@ -79,7 +84,7 @@ export function stageBuilderDirectories(root:string,input:readonly BuilderPortab
  for(const entry of entries){
   authorize();const path=join(base,entry.slot.replace(/-settled$/,'.settled'));directory(root,path);locations.set(entry.slot,path);
   for(const file of entry.files){authorize();const full=join(path,...pathParts(file.path));directory(root,dirname(full));
-   const bytes=Buffer.from(file.bytes,'base64');if(existsSync(full)){if(!fileBytes(root,full).equals(bytes))invalid();}
+   const bytes=Buffer.from(file.bytes,'base64');if(existsSync(full)){if(!fileBytes(root,full,builderSyncFileLimit(entry.slot,file.path)).equals(bytes))invalid();}
    else writeFileSync(full,bytes,{flag:'wx',mode:0o400});authorize();
   }
  }

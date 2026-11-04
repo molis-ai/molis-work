@@ -76,7 +76,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
-    const withCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
+    const baseCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
+    let boundCatalog: LocalWebCatalogRunner | undefined;
+    const withCatalog: LocalWebCatalogRunner = (settings, operation) => (boundCatalog ?? baseCatalog)(settings, operation);
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
     const catalogAvailability = projectActionAvailability(withCatalog, storageHome);
@@ -107,7 +109,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     let releaseTransport: (() => void) | undefined;
     try {
     // The Host, including a borrowed one, cannot relinquish its lease while this transport still owns storage.
-    localHost.configurePersonalPlanning(storageHome, withCatalog);
+    boundCatalog = localHost.configurePersonalPlanning(storageHome, baseCatalog);
     releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
     if (platform.openCatalog) catalogAccess = localHost.ensureWebCatalog(storageHome, platform.openCatalog);
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
@@ -210,7 +212,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
-    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
+    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { attachPublicListener: (close:()=>Promise<void>)=>{resources.unshift(["space_listener",close]);}, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
     } catch (error) {
       if (!ownsLocalHost && !releaseTransport) throw error;
       throw retainInitializationCleanup(error, () => ownsLocalHost ? localHost.close() : (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport?.(); })(), "web_initialization_cleanup_failed");

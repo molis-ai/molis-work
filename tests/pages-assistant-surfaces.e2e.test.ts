@@ -177,11 +177,13 @@ async function checkDiscussionOpening(browser: NonNullable<Awaited<ReturnType<ty
 }
 
 test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active document, preserves drafts and notes; one Assistant composer moves to a main tab and back", { timeout: 120000 }, async t => {
-  const browser = await openGoalBrowser(t, true);if (!browser) return;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { replyText: '这是输入与展示回归的固定回答。' }); },
+  });if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const pages = await pluginFrameBrowser(t, browser, "pages");
   const comments = await pluginFrameBrowser(t, browser, "pages", '[data-side-body="plugin:pages/comments"] iframe');
-  const pane = await pluginFrameBrowser(t, browser, "pages", "iframe.tab-content-frame");
+  const pane = await pluginFrameBrowser(t, browser, "pages", 'iframe[data-pas-owner="right-a"]');
   // Install before navigation so holding a frame also holds callbacks already queued by the host.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
     if(window===top){
@@ -264,8 +266,12 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   // PAS-01: a second real work pane owns B; changing focused panes changes the bound sidebar.
   await evaluate("window.firstPane=document.querySelector('[data-tab-pane]').dataset.tabPane;document.querySelector('[data-tab-edge=right]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
+  await waitFor(`(()=>{const pane=document.querySelector('[data-tab-pane].is-focused');const frame=[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].find(frame=>frame.dataset.paneOwner===pane?.dataset.tabPane);if(!frame||new URL(frame.src).searchParams.get('paneItem')!==${JSON.stringify(a.id)})return false;frame.dataset.pasOwner='right-a';return true;})()`);
+  await pane.waitFor(`document.querySelector('[data-pages-title]')?.value === '讨论中的发布计划'`);
+  await pane.click('[data-pages-back]');
+  await pane.waitFor(`(()=>{const row=document.querySelector('button[data-page-id="${b.id}"]'),box=row?.getBoundingClientRect();return row?.checkVisibility()&&box.width>0&&box.height>0;})()`);
   await pane.waitFor(`document.querySelector('button[data-page-id="${b.id}"]')`);
-  await pane.evaluate(`document.querySelector('button[data-page-id="${b.id}"]').click()`);
+  await pane.click(`button[data-page-id="${b.id}"]`);
   await comments.waitFor(`document.querySelector('[data-comment-title]')?.textContent === '另一个文档'`);
   await evaluate("window.secondPane=document.querySelector('[data-tab-pane].is-focused').dataset.tabPane;document.querySelector('[data-tab-pane=\"'+window.firstPane+'\"]').click()");
   await comments.waitFor(`document.querySelector('[data-comment-title]')?.textContent === '讨论中的发布计划'`);
@@ -299,7 +305,6 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setTouchEmulationEnabled", { enabled: false }, sessionId);
   await click('[data-side-toggle]');
-  await issueModel(t, homeDirectory, { replyText: '这是输入与展示回归的固定回答。' });
   await click('[data-assistant-input]');
   await command("Input.insertText", { text: "新工作：保留这份助理草稿" }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);

@@ -71,7 +71,7 @@ for (const reserved of [false, true]) test('Host binding receives Pages in '+(re
   await a.save({spaceId:f.space.spaceId,revision:0,selections:[selection]});await a.run();assert.equal(a.status().error,null);
   await b.run();assert.equal(b.status().error,null);
   assert.equal(f.withStore(1,s=>s.get(page.id).title),'完整正文');
-  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},catalog=>{
+  await runtimes[1]!.withCatalog({homeDirectory:f.homes[1]},catalog=>{
     assert.equal(catalog.listProjects().find(p=>p.project_id===project.project_id)?.display_name,reserved?'个人空间':'跨设备项目');
     assert.ok(catalog.listProjects().some(row=>row.project_id===project.project_id),'synchronization retains the explicit destination project');
   });
@@ -106,7 +106,7 @@ test('Host sync: delayed fixed Artifact versions restore a waiting document with
   await a.save({...a.policy(),selections:[selection,artifactSyncSelection]});await a.run();assert.equal(a.status().error,null);
   await b.run();assert.equal(b.status().error,null);
   const restored=f.withStore(1,s=>s.get(page.id));assert.equal(restored.artifact_id,'linked-artifact');assert.equal(restored.artifact_version,1);assert.deepEqual(restored.body,body('完整正文'));
-  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>{
+  await runtimes[1]!.withCatalog({homeDirectory:f.homes[1]},c=>{
     const p=c.listProjects().find(p=>p.project_id===project.project_id)!;const db=new LocalProjectDatabase(p.database_path);
     try{const owner=new ArtifactsModule({db:db.db,appendEvent:e=>db.appendEvent(e)});assert.equal(owner.query.listArtifactVersions(p.project_id,'linked-artifact').length,2);assert.equal(owner.query.getArtifactVersion(p.project_id,{artifact_id:'linked-artifact',version:1})!.lifecycle_state,'archived');}finally{db.close();}
   });

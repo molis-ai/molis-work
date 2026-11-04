@@ -41,11 +41,15 @@
 
 ## 撤销、后台任务与同一次注册
 
-动作声明里指向别的动作的地方——可撤回修改的 `undo`、会启动后台任务的 `background_job.status`、片段与事项推荐的选项目标——目标都必须在**同一次注册**里：同一份 Manifest 的 `actions`，或同一次 `registerProvider` 的 `definitions`（文档里说的“同一提供方”就是这个）。注册先后不定，所以不按提供方编号跨注册去找：一个提供方拆成几次注册、又互相引用，会被拒绝，报“不在同一提供方的声明里”。要用别的提供方的动作，写 `required_actions`，使用时按调用者核对。`definePlugin`、命令行 `validate`、Runtime 安装与升级、宿主注册动作时都检查（SDK 的 `inspectActionCrossReferences`）。片段与事项推荐的选项同样要指向同一次注册里、同一范围的动作；事项推荐的目标还要支持选项对应的事项种类（目标没写事项种类则不限）。
+动作声明里指向别的动作的地方——可撤回修改的 `undo`、会启动后台任务的 `background_job.status`、片段与事项推荐的选项目标——在 Manifest 中都必须指向同一份 `actions` 的实际动作。`definePlugin`、命令行 `validate`、Runtime 安装与升级都检查完整声明（SDK 的 `inspectActionCrossReferences`）。宿主注册时通常要求同一次 `registerProvider` 的 `definitions`；只有后台状态查询允许指向**已经注册**、提供方、项目与范围均相同的实际 query，供平台逐操作刷新时保留未变化的状态查询，不能用占位声明或跨提供方目标。其他引用仍限同一次注册。要用别的提供方的动作，写 `required_actions`，使用时按调用者核对。片段与事项推荐的选项还要与目标同一范围；事项推荐的目标须支持对应的事项种类（目标没写事项种类则不限）。
 
 **可撤回的修改声明 `undo`：** `{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一次注册里的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。注册时检查：撤销命令存在、是命令、与本动作同一范围、不能是它自己；`input` 里的每个字段都是撤销命令输入 schema 的属性，撤销命令必填的输入都要填上；每个输出路径都在本动作的 `output_schema` 里写出来了（只写 `type: "object"` 的开放对象找不到，要先把字段写出来；没有 `output_schema` 就没有位置可指）。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“撤销记下灵光”撤回，`input: { id: "spark.id", expected_updated_at: "spark.created_at" }`。
 
-**会启动后台任务的命令声明 `background_job`：** `{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——同一次注册里的状态查询、输出里任务标识的位置、状态查询接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里；`done`、`failed` 是非空字符串数组。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：图片的“生成图片”（`images.jobs.start`，状态查询 `images.jobs.get`）。
+**会启动后台任务的命令声明 `background_job`：** `{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——本提供方的实际状态查询、输出里任务标识的位置、状态查询接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里；`done`、`failed` 是非空字符串数组。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：图片的“生成图片”（`images.jobs.start`，状态查询 `images.jobs.get`）。
+
+**沙箱包的有限后台执行：** launcher 在 contract 的 `effects.background` 点名本包目标 command，并写 `background_job: { status: "job.status", id: "job_id", input: "job_id", state: "state", done: ["done"], failed: ["failed"] }`。SDK 从同一份已校验 contract 派生签名 Manifest 的精确动作引用与权限；动态费用、提供方和可用性由宿主依赖目录决定。状态必须是本包实际 query，包含可解析的标识与状态字段，其依赖闭包也须当前可用、只读、不收费；目标不得再启动后台执行。launcher 的权限和费用包含所有允许目标的依赖，声明不代替安装批准或调用者权限。
+
+`sdk.background.start(operation, input)` 返回当前 broker 的临时 `execution_id`；持久 `job_id`、状态和结果由包自己保存。目标可能在 start 返回前已写 `running` 或 `done`，受理回写必须原子地只把仍为 `pending` 的状态改为 `accepted`，附加 execution_id 不覆盖已有状态，返回已确认的业务结果。重启后只读业务事实：没有终态或当前存活证据时展示最后确认状态及「待核对」，不能凭旧句柄失效推断失败、补写 failed 或自动重放。取消用同一 broker 的 `sdk.background.cancel(execution_id)`；详见 [宿主服务的后台执行](host.md#已受理的后台执行)。
 
 ## 不要做的
 

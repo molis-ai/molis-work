@@ -1,3 +1,5 @@
+import type {PluginDistributionVerifier} from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import {validateBuilderUnit} from './sync-shape.js';
 import {existsSync,lstatSync,mkdirSync,realpathSync} from 'node:fs';
 import {join,resolve,relative,sep,isAbsolute} from 'node:path';
 import {isDeepStrictEqual} from 'node:util';
@@ -10,10 +12,10 @@ import {assertBuilderIdle,builderSyncInvalid,portableBuilderBuild,portableBuilde
 import {captureBuilderDirectory,stageBuilderDirectories,copyEditableBuilderDirectories,type BuilderPortableDirectory} from './sync-files.js';
 
 export const BUILDER_CONTENT_REPLICA_ID='builder_content';
-export const builderSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'authoring',title:'插件创作与发布内容',schema_version:2,requires:[]}]};
+export const builderSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'authoring',title:'插件创作与发布内容',schema_version:3,requires:[]}]};
 const errors=defineErrorCodes('plugin_builder',{sync_unavailable:'unavailable'});
 const unavailable=():never=>{throw errors.sync_unavailable('完整创作内容暂不可用，原内容已保留');};
-export interface BuilderReplicationOptions {home?:string;authorize?():void;assertIdle?(projectId:string,itemId:string):void}
+export interface BuilderReplicationOptions {home?:string;verifyDistribution?:PluginDistributionVerifier;authorize?():void;assertIdle?(projectId:string,itemId:string):void}
 /** Called only by an explicit local continuation, never during passive import. */
 export function prepareBuilderLocalEdit(options:BuilderReplicationOptions,projectId:string,build:AgentBuild):string|undefined{
  if(!build.directory)return undefined;const base=root(options,projectId),source=sourcePath(options,projectId,build.directory);
@@ -47,6 +49,21 @@ function capture(options:BuilderReplicationOptions,projectId:string,build:AgentB
  for(const release of releases)add(release.directory,'release-'+release.version,true);
  return entries;
 }
+function verifyReleases(value:BuilderPortableState,options:BuilderReplicationOptions):BuilderPortableState {
+ for(const release of value.releases){
+  if(release.distribution===undefined)return builderSyncInvalid();
+  if(!options.verifyDistribution) return builderSyncInvalid();
+  const distribution=release.distribution as NonNullable<AgentRelease['distribution']>;
+  const directory=value.files[String(release.buildId)]!.find(entry=>entry.slot==='release-'+release.version)!;
+  const files=new Map(directory.files.map(file=>[file.path,Buffer.from(file.bytes,'base64')]));
+  const encoded=files.get('signed-package.json')!;
+  const signed=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(encoded));
+  if(!encoded.equals(Buffer.from(JSON.stringify(signed))))return builderSyncInvalid();
+  files.delete('signed-package.json');
+  options.verifyDistribution({pluginId:String(release.pluginId),version:Number(release.version),runtimeScope:distribution.runtime_scope,publisherKeyId:distribution.publisher_key_id},signed,files);
+ }
+ return value;
+}
 function project(state:BuilderSavedState,projectId:string,itemId:string,options:BuilderReplicationOptions):BuilderPortableState|null{
  state={...state,builds:state.builds.filter(b=>b.id===itemId),releases:state.releases.filter(r=>r.buildId===itemId)};
  if(!state.builds.length&&!state.releases.length)return null;
@@ -54,7 +71,7 @@ function project(state:BuilderSavedState,projectId:string,itemId:string,options:
  const ids=new Set([...state.builds.map(b=>b.id),...state.releases.map(r=>r.buildId)]);
  const files=Object.fromEntries([...ids].map(id=>[id,capture(options,projectId,state.builds.find(b=>b.id===id),state.releases.filter(r=>r.buildId===id))]));
  const value=validateBuilderPortable({format:1,builds:state.builds.map(portableBuilderBuild),releases:state.releases.map(portableBuilderRelease),files});
- options.authorize?.();return value;
+ options.authorize?.();return verifyReleases(value,options);
 }
 function immutableReleases(value:BuilderPortableState,local:BuilderSavedState,projectId:string,options:BuilderReplicationOptions){
  for(const incoming of value.releases){
@@ -88,8 +105,7 @@ function restore(value:BuilderPortableState|null,local:BuilderSavedState,project
 /** Runtime selects one exact private key; independent authoring items have independent change keys. */
 export function builderPrivateValueReplicationOwner(options:BuilderReplicationOptions={}):PrivateValueReplicationOwner{
  const parse=(input:unknown)=>parseBuilderState(input===null?null:JSON.stringify(input));
- const validate=(input:unknown,itemId:string)=>{const value=validateBuilderPortable(input);
-  if(Object.keys(value.files).length!==1||!Object.hasOwn(value.files,itemId)||value.builds.some(b=>b.id!==itemId)||value.releases.some(r=>r.buildId!==itemId))builderSyncInvalid();return value;};
+ const validate=(input:unknown,itemId:string)=>verifyReleases(validateBuilderUnit(input,itemId),options);
  return {id:BUILDER_CONTENT_REPLICA_ID,assetKind:BUILDER_CONTENT_REPLICA_ID,namespacePrefix:'agent-studio:',key:'plugin-builder:agent-built:v1',
   journal:[{array:'builds',id:'id'},{array:'releases',id:'buildId'}],
   project(input,projectId,itemId){try{return project(parse(input),projectId,itemId,options);}catch(error){if(error&&typeof error==='object'&&'code' in error&&['ENOENT','EACCES','ENOTDIR'].includes(String(error.code)))return unavailable();throw error;}},

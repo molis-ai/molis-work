@@ -7,7 +7,7 @@ import type {
   PluginRuntimeApi,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
-
+import { platformDefinition } from "./platform-definitions.js";
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";
 import { persistReleaseArtifact, startInstallInput } from "./supervisor-releases.js";
@@ -141,8 +141,8 @@ export class PluginSupervisor implements PluginHostLifecycle {
 
   async start(entries: readonly PluginSupervisorEntry[]): Promise<PluginSupervisorReport> {
     const admitted: PluginSupervisorEntry[] = [];
-    for (const entry of entries) {
-      const pluginId = entry.definition.manifest.plugin_id;
+    for (const given of entries) {
+      const entry = { ...given, definition: platformDefinition(given.definition) }, pluginId = entry.definition.manifest.plugin_id;
       this.#entries.set(pluginId, entry);
       if (entry.enabled === false) this.revoke(pluginId);
       let active: PluginSupervisorEntry;
@@ -375,7 +375,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
   }
 
   async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[]): Promise<PluginSupervisorState> {
-    const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition } : prior;
+    const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition: platformDefinition(definition) } : prior;
     // A switched-off install is not registered after a Host restart: the target stands in for its entry, and an
     // answer about a plugin nobody registered is not remembered.
     const refuse = (installId: string | null, code: string, message: string): PluginSupervisorState => prior
@@ -521,7 +521,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
           || definition.manifest.publisher.signature !== artifact.publisher_signature
           || definition.manifest.version !== artifact.version
           || pluginManifestDigest(definition.manifest) !== artifact.manifest_digest) continue;
-        const host = { ...candidate, definition };
+        const host = { ...candidate, definition: platformDefinition(definition) };
         delete host.releaseArtifact;
         return host;
       } catch {

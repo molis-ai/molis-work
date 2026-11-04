@@ -33,7 +33,7 @@ test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WA
     for(let round=0;round<12;round++){
       await client.run();if(client.status().error===null)return client;
       assert.match(client.status().error,/附件传输尚未完成/,'only the bounded cycle may interrupt healthy content');
-      if(home===homes[1]){const target=await withMolisWorkProjectCatalog({homeDirectory:home},c=>c.getProject(project.project_id)),db=new LocalProjectDatabase(target.database_path);try{assert.equal(boardSnapshot(db,project.project_id).goals.length,0,'incomplete download never partially restores an owner');}finally{db.close();}}
+      if(home===homes[1]){const target=await runtimes[homes.indexOf(home)].withCatalog({homeDirectory:home},c=>c.getProject(project.project_id)),db=new LocalProjectDatabase(target.database_path);try{assert.equal(boardSnapshot(db,project.project_id).goals.length,0,'incomplete download never partially restores an owner');}finally{db.close();}}
       client.close();client=make(home);
     }
     client.close();assert.fail('Goal transfer did not finish within bounded resumed cycles');
@@ -41,14 +41,14 @@ test('PCSYNC-11/12/13 a large Goal fact unit restores atomically through real WA
   a=await finish(a,homes[0]);assert.equal(a.status().error,null);
   const row=await f.db.prepare('SELECT value,attachments FROM sync_events').first();assert.equal(JSON.parse(row.value).value.format,2);assert.ok(Buffer.byteLength(row.value)<4096);assert.ok(JSON.parse(row.attachments).length>1);
   b=await finish(b,homes[1]);assert.equal(b.status().error,null);
-  const target=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.listProjects()[0]);
+  const target=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects()[0]);
   const read=path=>{const db=new LocalProjectDatabase(path);try{return boardSnapshot(db,project.project_id);}finally{db.close();}};
   const source=read(project.database_path);assert.ok(Buffer.byteLength(JSON.stringify(source))>512*1024);
   const targetDb=new LocalProjectDatabase(target.database_path);
   try{assert.equal(boardSnapshot(targetDb,project.project_id).goals.length,12);assert.equal(new GoalProjectApplication(targetDb).goalQueries.getGoal(project.project_id,'large-0').outcome,'完整工作内容🙂'.repeat(6000));}finally{targetDb.close();}
   const objects=await f.bucket.list();await f.bucket.put(objects.objects[0].key,Buffer.from('damaged'));
   const c=make(homes[2]);t.after(()=>c.close());await c.run();assert.notEqual(c.status().error,null);
-  const refused=await withMolisWorkProjectCatalog({homeDirectory:homes[2]},c=>c.getProject(project.project_id));assert.equal(read(refused.database_path).goals.length,0,'damaged bytes never restore any Goal into the explicitly provisioned destination');
+  const refused=await runtimes[2].withCatalog({homeDirectory:homes[2]},c=>c.getProject(project.project_id));assert.equal(read(refused.database_path).goals.length,0,'damaged bytes never restore any Goal into the explicitly provisioned destination');
   assert.deepEqual(read(project.database_path),source,'source content is never changed by failed restore');
 });
 

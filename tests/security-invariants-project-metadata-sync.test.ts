@@ -312,12 +312,14 @@ test('PCSYNC-20 composed personal sync checks all static owners and receives pro
   }
   return Response.json({events:events(url.searchParams.get('namespace')!).filter(e=>e.revision>Number(url.searchParams.get('after'))),more:false});
  });
- const service=new ProjectDeletionService(withMolisWorkProjectCatalog,{isPanelAlive:()=>false,isProjectBusy:()=>false,async releaseProject(){releases++;}});
+ let runtimeCatalog=withMolisWorkProjectCatalog;
+ const service=new ProjectDeletionService((options,read)=>runtimeCatalog(options,read),{isPanelAlive:()=>false,isProjectBusy:()=>false,async releaseProject(){releases++;}});
  const sync=await createPersonalSync(home,f.space,{userId:'alice',applicationId:'work',authOrigin:'https://auth.example.test',signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'synthetic-test-token';}},withMolisWorkProjectCatalog,()=>{},undefined,service);assert.ok(sync);t.after(()=>sync.close());
+ runtimeCatalog=sync.withCatalog;
  await sync.save({...sync.policy(),selections:sync.status().collections.map(c=>c.selection)});await sync.run();assert.equal(sync.status().error,null,'all fresh owners must settle before lifecycle delivery');
  const catalog=sync.status().collections.find(c=>c.selection.collection_id==='projects')!,stream=events(syncNamespace(catalog.selection)),initial=stream.find(e=>e.key===p.project_id)!;assert.ok(initial);
  const revision=(stream.at(-1)?.revision??0)+1;stream.push({key:p.project_id,operationId:'remote-delete',base:initial.revision,revision,value:null});await sync.run();
- assert.equal(sync.status().error,null);await withMolisWorkProjectCatalog({homeDirectory:home},c=>assert.equal(c.recycle.isRecycled(p.project_id),true));assert.equal(releases,1);
+ assert.equal(sync.status().error,null);await sync.withCatalog({homeDirectory:home},c=>assert.equal(c.recycle.isRecycled(p.project_id),true));assert.equal(releases,1);
  stream.push({...initial,operationId:'remote-restore',base:revision,revision:revision+1});await sync.run();assert.equal(sync.status().error,null);
- await withMolisWorkProjectCatalog({homeDirectory:home},c=>assert.equal(c.getProject(p.project_id).display_name,'All owner lifecycle'));assert.equal(releases,1);
+ await sync.withCatalog({homeDirectory:home},c=>assert.equal(c.getProject(p.project_id).display_name,'All owner lifecycle'));assert.equal(releases,1);
 });

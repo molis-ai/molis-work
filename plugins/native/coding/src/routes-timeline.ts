@@ -211,7 +211,7 @@ const ROUTES: RouteMaker[] = [
       const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
       const light = await summaries.read(session.session_id, snapshot.runs, ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]));
       const prefix = `coding-plan:${record.session_id}:`;
-      const tasked = snapshot.runs.filter((_, index) => light[index]!.frozen.text_materials.some(material => material.source_artifact_id.startsWith(prefix))
+      const tasked = snapshot.runs.filter((_, index) => light[index]!.frozen.text_materials.some(material => material.source_artifact_id?.startsWith(prefix))
         || ["coordinator", "writers"].includes(light[index]!.frozen.role_id));
       const full = await Promise.all(tasked.map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref])));
       return { runs: light, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, full, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };

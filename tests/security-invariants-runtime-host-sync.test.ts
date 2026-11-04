@@ -16,7 +16,8 @@ async function hosts(t: import('node:test').TestContext) {
   const owners = homes.map((home, i) => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [samples[i]!.definition] } }));
   t.after(async () => { try { for (const host of owners) await host.close(); } finally { rmSync(root, { recursive: true, force: true }); } });
   let active = true; const authorize = () => { if (!active) throw new Error('ACCOUNT_REVOKED'); };
-  const discover = async (i: number) => (await discoverRuntimeSyncCollections(homes[i]!, space.spaceId, owners[i]!, withMolisWorkProjectCatalog, authorize)).find(row => row.selection.plugin_id === samples[i]!.definition.manifest.plugin_id)!;
+  const catalogRuns=owners.map((host,i)=>host.configurePersonalPlanning(homes[i]!,withMolisWorkProjectCatalog));
+  const discover = async (i: number) => (await discoverRuntimeSyncCollections(homes[i]!, space.spaceId, owners[i]!, catalogRuns[i]!, authorize)).find(row => row.selection.plugin_id === samples[i]!.definition.manifest.plugin_id)!;
   return { space, homes, owners, samples, discover, revoke() { active = false; } };
 }
 
@@ -82,11 +83,12 @@ test('S-136 PCSYNC-01/25 project instances keep identical local keys separate th
   } };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [definition] } });
   t.after(async () => { try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
-  const projects = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => [
+  const withCatalog=host.configurePersonalPlanning(home,withMolisWorkProjectCatalog);
+  const projects = await withCatalog({ homeDirectory: home }, async catalog => [
     await catalog.createProject({ display_name: 'First', actor_id: 'alice' }), await catalog.createProject({ display_name: 'Second', actor_id: 'alice' }),
   ]);
   for(const project of projects) await host.withProject(molisWorkHostProjectReference({databasePath:project.database_path,projectId:project.project_id}),()=>{}, {activatePlugins:true});
-  const registration = (await discoverRuntimeSyncCollections(home, space.spaceId, host, withMolisWorkProjectCatalog, () => {})).find(row => row.selection.plugin_id === definition.manifest.plugin_id)!;
+  const registration = (await discoverRuntimeSyncCollections(home, space.spaceId, host, withCatalog, () => {})).find(row => row.selection.plugin_id === definition.manifest.plugin_id)!;
   assert.ok(registration); assert.equal(samples.size, 2);
   projects.forEach((project, i) => samples.get(project.project_id)!.edit('same-key', { text: `project ${i}`, attachment: null }));
   const first = registration.withReplica(replica => replica.next())!, [firstProject] = JSON.parse(first.key);
@@ -114,12 +116,13 @@ test('an independently packed SDK sample installs in clean developer folders and
  const space=personalStorageSpace('https://auth.example.test','work','distribution-user'),homes=['a','b'].map(name=>join(root,name));homes.forEach(home=>ensureStorageSpace(home,space));
  const hosts=homes.map(home=>new MolisWorkLocalHost({homeDirectory:home,completeText:null,pluginFixtures:{home:[definition]}}));activeHosts.push(...hosts);
  const caller={actor_id:'web-user',project_id:null,audience:'user' as const,permissions:['storage:private']},read=definition.manifest.actions.find(action=>action.capability_id.endsWith('.read')),change=definition.manifest.actions.find(action=>action.capability_id.endsWith('.change'));
- for(const host of hosts)await discoverRuntimeSyncCollections(homes[hosts.indexOf(host)]!,space.spaceId,host,withMolisWorkProjectCatalog,()=>{});
+ const catalogRuns=hosts.map((host,i)=>host.configurePersonalPlanning(homes[i]!,withMolisWorkProjectCatalog));
+ for(const host of hosts)await discoverRuntimeSyncCollections(homes[hosts.indexOf(host)]!,space.spaceId,host,catalogRuns[hosts.indexOf(host)]!,()=>{});
  const first=hosts[0]!.homeActionClient(),second=hosts[1]!.homeActionClient(),value={text:'Only Home A',attachment:null};
  await first.invoke(caller,change,{id:'note',expected:null,value});assert.deepEqual(await first.invoke(caller,read,{id:'note'}),{value});assert.deepEqual(await second.invoke(caller,read,{id:'note'}),{value:null},'one imported definition must not leak its last started document into another Home');
  await assert.rejects(()=>first.invoke(caller,change,{id:'note',expected:null,value:{text:'stale',attachment:null}}),{code:'sample_notes.conflict'});
  await assert.rejects(()=>first.invoke({...caller,actor_id:'foreign'},read,{id:'note'}),{code:'actions.owner_mismatch'});
- const binding=(await discoverRuntimeSyncCollections(homes[0]!,space.spaceId,hosts[0]!,withMolisWorkProjectCatalog,()=>{})).find(row=>row.selection.plugin_id===definition.manifest.plugin_id)!;
+ const binding=(await discoverRuntimeSyncCollections(homes[0]!,space.spaceId,hosts[0]!,catalogRuns[0]!,()=>{})).find(row=>row.selection.plugin_id===definition.manifest.plugin_id)!;
  const platform=await hosts[0]!.homePlugins!.ready(),installed=platform.runtime.list().find(row=>row.plugin_id===definition.manifest.plugin_id)!;await platform.runtime.stop(installed.install_id);
  assert.equal(binding.available!(),false);assert.throws(()=>binding.withReplica(replica=>replica.next()),{code:'actions.plugin_unavailable'});
 });

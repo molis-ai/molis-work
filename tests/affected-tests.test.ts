@@ -12,7 +12,7 @@ import { busyProcesses, parseProcessList, staleBuilds } from "../scripts/affecte
 import { exportedNames, readmeTests, routeChunks, routesIn, selectAffected, selectorTokens } from "../scripts/affected-tests/select.mjs";
 import { holdsSchema, literalsOf, schemaChanged, schemaOf } from "../scripts/affected-tests/storage.mjs";
 
-// specs/repository-anti-corruption §4.7 (roadmap W2-17): scripts/affected-tests.mjs turns the 2026-10-03 validation-frequency
+// specs/archive/repository-anti-corruption §4.7 (roadmap W2-17): scripts/affected-tests.mjs turns the 2026-10-03 validation-frequency
 // rule into a selector (docs/system/PARALLEL-DEVELOPMENT.md section 6). Each part of the rule is checked on a scratch repository
 // with small fake packages and test files: the README's must-run line, the tests that import or are named for a changed file,
 // the names it exports, the translation and route rules, the UI line, and every reason the full suite is recommended and every

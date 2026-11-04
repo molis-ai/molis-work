@@ -8,6 +8,7 @@ import { connectorCliActions, connectorLocalActions, connectorManagementActions,
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createCliPackageFixture } from "./fixtures/connector-cli-package.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
+import { oauthNetwork } from "./fixtures/oauth-network.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 type TestHome = Awaited<ReturnType<typeof openTestHome>>;
@@ -137,13 +138,12 @@ test("S-37 a refused cancellation is refused before the call's effect boundary",
 // RAC-1480: a page-started request records no initiator, so every action caller is refused; the person's own page routes still read and
 // cancel it.
 test("S-37 a request started by the page has no action reader or canceller but stays readable and cancellable from the page", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t), actions = home.host.homeActionClient(), realFetch = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    if (String(input) === "https://github.com/login/device/code")
-      return Response.json({ device_code: "fixture-private-device", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
-    return await realFetch(input, init);
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
+  oauthNetwork(t, async url => {
+    assert.equal(url, "https://github.com/login/device/code");
+    return Response.json({ device_code: "fixture-private-device", user_code: "ABCD-EFGH", verification_uri: "https://github.com/login/device", expires_in: 900, interval: 5 });
   });
-  const started = await home.web.post<Request>("/api/settings/connectors/github/device/start", { client_id: "fixture-app", display_name: "Work account" });
+  const started = await home.web.post<Request>("/api/settings/connectors/methods/device/start", { service_id: "github", client_id: "fixture-app", display_name: "Work account" });
   const request = { authorization_id: started.authorization_id };
   await assert.rejects(actions.invoke(preparer, connectorManagementActions.authorization, request), { code: "connector.setup.foreign_request" },
     "the page keeps no initiator, so no action caller reads it");

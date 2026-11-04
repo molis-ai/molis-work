@@ -40,7 +40,7 @@ import {
   pagesManifest,
 } from "@molis-ai/molis-work-plugin-pages";
 import { pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { bindDatabaseSpace, ensureStorageSpace, homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkUninstallService } from "../apps/local-host/dist/installer/uninstall.js";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
@@ -97,10 +97,10 @@ async function listenDispatcher(
 // Clean Home retires the offline Sessions reader and its store declaration; every current owner remains pinned.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.ok(homeStores().get("config/native-session-token")?.snapshot.omit, "本机账号桥接凭据必须排除在离线快照之外");
-  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "sync", "projects", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
+  assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["spaces", "storage-space.json", "config/native-session-token", "sync", "projects", "logs", "backups", "shelf", "plugin-runtime", "plugin-libraries", "plugin-packages", "assistant",
     "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "feed-content", "server",
     "issues", "goals", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
-    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",
+    "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json", "config/plugin-publisher.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
 });
 
@@ -113,13 +113,15 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
       : /\.json$/u.test(store.path) || store.path === "config/native-session-token" ? join(home, ...store.path.split("/")) : join(home, store.path, "kept"));
     for (const file of written) {
       await mkdir(dirname(file), { recursive: true });
-      await writeFile(file, "personal-store\n");
+      if (file === join(home, "storage-space.json")) ensureStorageSpace(home);
+      else await writeFile(file, "personal-store\n");
     }
     // The ledger of installed plugins' libraries is read at purge to name them (PG-022 P1b), so it is a real one, with a library in it.
     const ledger = homeStores().get("plugin-libraries")!;
     await rm(homeStores().libraryPath(home, ledger));
     const ledgerDb = new DatabaseSync(homeStores().libraryPath(home, ledger));
     ledgerDb.exec(ledger.library!.baseline.schema);
+    bindDatabaseSpace(ledgerDb, ensureStorageSpace(home));
     ledgerDb.exec(`PRAGMA user_version = ${ledger.library!.baseline.version}`);
     ledgerDb.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, ?)").run("example.installed", "signature", "installed-notes", "0".repeat(64), "2026-10-24T00:00:00.000Z");
     ledgerDb.close();

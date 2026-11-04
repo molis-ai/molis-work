@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { SCHEMA_VERSION, INSTALLER_ID, REQUIRED_RELEASE_SKILL_FILES, isOwnedInstaller } from "./home-contract.js";
+import { SCHEMA_VERSION, INSTALLER_ID, REQUIRED_RELEASE_SKILL_FILES, isCurrentReleaseManifest } from "./home-contract.js";
 import type { InspectedSource, ReleaseManifest, PromotedRelease, RuntimeDependencyPackage } from "./home-contract.js";
 import { pathState, writeAtomic, readJsonIfPresent } from "./home-files.js";
 import { copyReleaseEntries, runtimeDependencyReleaseEntries } from "./package-release-files.js";
@@ -204,17 +204,13 @@ export async function inspectRelease(
   if (!state.isDirectory()) {
     throw installerErrors["installer.release.conflict"](`已存在未知 Molis Work release 文件: ${releaseDirectory}`);
   }
-  const manifest = await readJsonIfPresent<ReleaseManifest>(path.join(releaseDirectory, "release.json"));
-  if (!manifest || !isOwnedInstaller(manifest.installer) || manifest.version !== version) {
+  const manifest = await readJsonIfPresent<unknown>(path.join(releaseDirectory, "release.json"));
+  if (!isCurrentReleaseManifest(manifest) || manifest.version !== version) {
     throw installerErrors["installer.release.conflict"](`已存在未知 Molis Work release 目录: ${releaseDirectory}`);
   }
-  if (
-    manifest.schema_version !== SCHEMA_VERSION
-    || manifest.dependencies !== "embedded"
-    || typeof manifest.content_digest !== "string"
-    || (expectsBundledNode && manifest.node_runtime !== "embedded")
-  ) {
-    return "repairable";
+  const usesBundledNode = manifest.node_runtime === "embedded";
+  if (manifest.content_digest === expectedContentDigest && usesBundledNode !== expectsBundledNode) {
+    throw installerErrors["installer.release.conflict"](`Molis Work release 的 Node 声明与安装内容不符: ${releaseDirectory}`);
   }
   const required = [
     "dist/cli/main.js",
@@ -223,13 +219,13 @@ export async function inspectRelease(
     ...REQUIRED_RELEASE_SKILL_FILES,
     "node_modules",
     "package.json",
-    ...(expectsBundledNode ? ["runtime/node"] : []),
+    ...(usesBundledNode ? ["runtime/node"] : []),
   ];
   const states = await Promise.all(required.map((item) => pathState(path.join(releaseDirectory, item))));
   if (!states.every(Boolean)) return "repairable";
   const nodeModulesState = states[required.indexOf("node_modules")];
   if (!nodeModulesState?.isDirectory() || nodeModulesState.isSymbolicLink()) return "repairable";
-  if (expectsBundledNode && !states.at(-1)?.isFile()) return "repairable";
+  if (usesBundledNode && !states.at(-1)?.isFile()) return "repairable";
   return manifest.content_digest === expectedContentDigest ? "valid" : "refreshable";
 }
 

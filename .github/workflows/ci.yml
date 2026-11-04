@@ -130,7 +130,7 @@ jobs:
       # patches, compatibility markers, empty catch blocks, `as unknown as` casts, old names, conflicting translations, the
       # structure numbers of scripts/gates/ and docs/system/PACKAGE-BOUNDARIES.md §6, the Biome static checks), a status line on
       # every spec, the document and repository-shape rules (scripts/gates/README.md), and a list that never changes silently: the
-      # public API of the contracts package and the plugin SDK against tooling/gates/api (specs/repository-anti-corruption §5a).
+      # public API of the contracts package and the plugin SDK against tooling/gates/api (specs/archive/repository-anti-corruption §5a).
       # The head and the merge-base are both measured here by the same script and compared, so rewriting
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the gate
       # itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json admits nothing new.
@@ -153,7 +153,7 @@ jobs:
       - name: Release versions agree
         run: node scripts/verify-release-versions.mjs
 
-      # Spec acceptance ids (specs/README.md 「验收编号」, specs/repository-anti-corruption §4.8, W2-14): which criteria of the
+      # Spec acceptance ids (specs/README.md 「验收编号」, specs/archive/repository-anti-corruption §4.8, W2-14): which criteria of the
       # specs in progress carry an id, and which of those ids a test cites. Report only: the script exits 0 whatever it finds,
       # and `continue-on-error` keeps this step from turning the build red even if the script were to crash (a crash on this
       # repository's own content is still caught by tests/health-gates-spec-coverage.test.ts in the next step, which runs the
@@ -299,7 +299,7 @@ jobs:
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
-      # Page resource budget (specs/repository-anti-corruption §4.8/§4.13, decision #17): every asset the host sends under
+      # Page resource budget (specs/archive/repository-anti-corruption §4.8/§4.13, decision #17): every asset the host sends under
       # /assets/ (the three stylesheets, the workbench client scripts, the Pages editor, the plugin client packs, the fonts)
       # is frozen at its current size and may only fall. It is measured from the build the step above just made, so it must
       # come after it. tooling/gates/page-assets.json is compared with the merge-base's copy (the one the health gates
@@ -355,7 +355,7 @@ jobs:
         run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
 
       # The studio's corpus of designer answers (a hand-written seed, 380 real answers exported on 2026-10-08 from a read-only copy of the user's Home
-      # and reviewed for personal data as specs/repository-anti-corruption/spec.md §1 decided, and 3 real first proposals) through the host's design checks
+      # and reviewed for personal data as specs/archive/repository-anti-corruption/spec.md §1 decided, and 3 real first proposals) through the host's design checks
       # (docs/platform/STUDIO-SKILL-REPLAY.md): what the baseline says was accepted is still accepted, and every entry it records,
       # accepted or refused, is still in the corpus with the answer it had. Also against the baseline at the merge-base of HEAD and the commit scripts/ci-health-base.mjs prints
       # (the base branch as merged, on a pull request), so rewriting the baseline file, or rewriting or deleting corpus entries,
@@ -477,7 +477,7 @@ jobs:
             node scripts/check-secrets.mjs
           fi
 
-  # Static checks for what is not TypeScript (specs/repository-anti-corruption W1-09, scripts/gates/native-checks.mjs): rustfmt and
+  # Static checks for what is not TypeScript (specs/archive/repository-anti-corruption W1-09, scripts/gates/native-checks.mjs): rustfmt and
   # clippy with every warning an error, the crate's tests, and a type check of the Swift. Needs macOS because the Rust crate is the macOS desktop
   # shell. Nothing here installs Node dependencies: the script and its tests use Node alone. RUSTUP_TOOLCHAIN pins the Rust the
   # code was cleaned against: clippy gains lints with every release, and `-D warnings` on "stable" would turn each release into a
@@ -672,7 +672,7 @@ jobs:
         id: select
         run: node scripts/ci-test-selection.mjs --base HEAD^1
 
-  # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/repository-anti-corruption §4.18): each one has a test that asserts the
+  # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/archive/repository-anti-corruption §4.18): each one has a test that asserts the
   # refusal itself: a foreign Host, Origin, token or key; a socket without the token; an
   # address that is not public; a path that leaves its directory; a secret that comes back out; a hostile text that is not data; a desktop
   # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
@@ -750,7 +750,7 @@ jobs:
             pnpm test:security --shard ${{ matrix.shard }}/${{ strategy.job-total }}
           fi
 
-  # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
+  # Decision #14 (specs/archive/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
   # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
   # not decide anything.
   # It is deliberately NOT in `verify`'s needs and `continue-on-error` keeps a red run from marking the workflow red; branch
@@ -824,7 +824,7 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-  # Decision #14 (specs/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
+  # Decision #14 (specs/archive/repository-anti-corruption), step 2 of W2-16: the user-flow part of the product suite runs in CI. The files are
   # listed in tests/ci-product-subset.txt (fast files that passed on Linux in the probe above, the main flow of each product area, the
   # i18n test and 5 browser smokes); the flaky ones are in tests/quarantine.json, each with an owner and an end date.
   # It ran as an information job for about two weeks from its first run on main (green 250 of 250 times on main from 2026-10-24) and

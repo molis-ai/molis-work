@@ -65,7 +65,7 @@ test('Host exposes and transfers all registered creative collections through the
   const receivedCharacter=openCharacters(f.homes[1],LOCAL_PERSON_ACTOR_ID);try{
     assert.equal(receivedCharacter.service.get(character)?.title,'跨设备角色');
   }finally{receivedCharacter.close();}
-  const target=await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>c.listProjects().find(p=>p.project_id===project.project_id)!);
+  const target=await targetRuntime.withCatalog({homeDirectory:f.homes[1]},c=>c.listProjects().find(p=>p.project_id===project.project_id)!);
   const receivedSchedule=new LocalProjectDatabase(target.database_path);try{
     const task=receivedSchedule.db.prepare('SELECT enabled,job_id,title FROM schedule_conversation_tasks WHERE task_id=?').get('sync-task') as {enabled:number;job_id:string|null;title:string};
     assert.equal(task.title,'跨设备提醒');assert.equal(task.enabled,0);assert.equal(task.job_id,null);

@@ -1,4 +1,4 @@
-// The project itself inside its own library (PG-021, specs/plugin-project-database §2.4). The library is the project's, so its
+// The project itself inside its own library (PG-021, specs/archive/plugin-project-database §2.4). The library is the project's, so its
 // identity is one row here, not Goals' board: every table of the library that belongs to a project points its foreign key at it,
 // a plugin's declared tables included. The title is not kept: the Catalog's display name is the one truth.
 

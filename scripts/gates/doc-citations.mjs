@@ -1,4 +1,4 @@
-// Gate: what the agent-facing documents point at exists (specs/repository-anti-corruption §4.13/§4.14).
+// Gate: what the agent-facing documents point at exists (specs/archive/repository-anti-corruption §4.13/§4.14).
 //
 // Checked documents: skills/**/*.md, AGENTS.md and docs/system/CALL-CHAINS.md (when it is tracked). A reader, human or
 // model, follows these literally, so a path or an id that no longer exists is a wrong instruction, not a stale link.

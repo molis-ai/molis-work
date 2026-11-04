@@ -39,12 +39,10 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     mcp_tools: request.mcp_tools ?? [],
     mcp_sources: request.mcp_sources ?? [],
     host_tools: [...role.host_tools],
-    text_materials: textMaterials.map((material) => ({
-      material_id: material.material_id,
-      title: material.title,
-      source_artifact_id: material.source_artifact_id,
-      source_version: material.source_version,
-    })),
+    text_materials: textMaterials.map(material => {
+      const item = { material_id: material.material_id, title: material.title };
+      return material.source_artifact_id === undefined ? item : { ...item, source_artifact_id: material.source_artifact_id, source_version: material.source_version };
+    }),
     ...(imageMaterials.length ? { image_materials: imageMaterials.map(({ material_id, title, media_type }) => ({ material_id, title, media_type })) } : {}),
     ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
     ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),

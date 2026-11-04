@@ -10,7 +10,7 @@ import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ALCHEMIST_STUDIO_BASELINE } from "@molis-ai/molis-work-plugin-alchemist";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { applySqliteBaseline, createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { bindDatabaseSpace, ensureStorageSpace, applySqliteBaseline, createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import type { AgentMemoryCaller } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { currentMemoryOptions } from "./current-memory.js";
 import { managementGoals } from "../goal-management-caller.js";
@@ -69,7 +69,7 @@ export async function populatedSnapshotHome(t: TestContext) {
   await file("runtime-config-backups/codex/snapshot-config.bak", JSON.stringify(descriptor) + "\n");
   const bookmark = JSON.stringify({ documents: { path: workspace, bookmark: "fixture opaque directory authorization" } }) + "\n";
   await file("directory-access/bookmarks.json", bookmark, 0o640, false);
-  for (const path of ["config/onboarding.json", "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json",
+  for (const path of ["config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json",
     "git-operation-details.json", "runtime-integrations/fixture.json", "runtime-integration-attempts/fixture.json", "browser/sites.json"]) {
     // These are retained byte examples; no runtime configuration reader or authorization is fabricated by snapshotting them.
     await file(path, JSON.stringify({ schema_version: 1, note: "Retained " + path }) + "\n");
@@ -85,7 +85,8 @@ export async function populatedSnapshotHome(t: TestContext) {
     await mkdir(join(home, directory), { recursive: true, mode: 0o700 });
     const studio = new DatabaseSync(join(home, directory, "studio.sqlite"));
     try {
-      studio.exec(ALCHEMIST_STUDIO_BASELINE.schema); studio.exec("PRAGMA user_version = " + ALCHEMIST_STUDIO_BASELINE.version);
+      studio.exec(ALCHEMIST_STUDIO_BASELINE.schema); bindDatabaseSpace(studio, ensureStorageSpace(home)); studio.exec("PRAGMA user_version = " + ALCHEMIST_STUDIO_BASELINE.version);
+      studio.prepare("INSERT INTO studio_sync_identity VALUES (1,?)").run(item.project_id);
       studio.prepare("INSERT INTO workspaces (id,name,created_at) VALUES (?,?,?)").run(item.project_id, "Studio " + position, at);
       studio.prepare("INSERT INTO directions (id,workspace_id,title,description,source_kind,source_json,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)")
         .run("direction", item.project_id, "Retained direction " + position, "Kept research context", "user_input", "{}", "active", at, at);

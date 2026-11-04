@@ -44,7 +44,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     treePane.toggleAttribute("inert", narrow() && !drawerOpen);
     stage.toggleAttribute("inert", drawerOpen);
     header.removeAttribute("inert");
-    const editing = Boolean(!documentPane.hidden && documentPane.querySelector(".is-editing-goal"));
+    const editing = Boolean(documentPane && !documentPane.hidden && documentPane.querySelector(".is-editing-goal"));
     const overlayDetails = Boolean(frame && frame.dataset.detailsOpen === "true" && frame.clientWidth < 840);
     workMain?.toggleAttribute("inert", editing || overlayDetails);
   };

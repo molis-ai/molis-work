@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
@@ -20,7 +20,10 @@ async function fixture(t: TestContext) {
   const project = await catalog.createProject({ display_name: "可删除的项目", actor_id: "test-user" });
   const other = await catalog.createProject({ display_name: "保留的项目", actor_id: "test-user" });
   // Same as production: the web server's Host owns this Home.
+  catalog.close();
   const localHost = createMolisWorkLocalHost({ homeDirectory });
+  const withFreshCatalog = localHost.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
+  const withCatalog = localHost.ensureWebCatalog(homeDirectory, openMolisWorkProjectCatalog).withCatalog;
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN, localHost });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -36,40 +39,39 @@ async function fixture(t: TestContext) {
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await localHost.close();
-    catalog.close();
     await rm(directory, { recursive: true, force: true });
   });
-  return { directory, homeDirectory, catalog, project, other, localHost, origin, post };
+  return { directory, homeDirectory, withCatalog, withFreshCatalog, project, other, localHost, origin, post };
 }
 
 test("PCSYNC-15 project rename HTTP rejects missing and stale observations without overwriting a later edit", async t => {
-  const { catalog, project, post, origin } = await fixture(t);
+  const { withCatalog, homeDirectory, project, post, origin } = await fixture(t);
   const path = `/api/settings/projects/${project.project_id}/rename`;
   const html = await (await fetch(origin + `/projects/${project.project_id}/settings/general?embed=1`)).text();
   assert.ok(html.includes(`data-project-observed-name="${project.display_name}"`));
-  catalog.renameProject(project.project_id, "另一端的新名称", "remote", project.display_name);
+  await withCatalog({ homeDirectory }, catalog => catalog.renameProject(project.project_id, "另一端的新名称", "remote", project.display_name));
   for (const input of [{ display_name: "草稿" }, { display_name: "草稿", expected_display_name: project.display_name },
     { display_name: "另一端的新名称", expected_display_name: project.display_name }, { display_name: "草稿", expected_display_name: 7 }]) {
     const refused = await post(path, input);
     assert.equal(refused.status, 409);
     assert.equal((await refused.json()).code, "catalog.project_name_conflict");
-    assert.equal(catalog.getProject(project.project_id).display_name, "另一端的新名称");
+    assert.equal(await withCatalog({ homeDirectory }, catalog => catalog.getProject(project.project_id).display_name), "另一端的新名称");
   }
   const saved = await post(path, { display_name: "核对后保存", expected_display_name: "另一端的新名称" });
-  assert.equal(saved.status, 200);assert.equal(catalog.getProject(project.project_id).display_name, "核对后保存");
+  assert.equal(saved.status, 200);assert.equal(await withCatalog({ homeDirectory }, catalog => catalog.getProject(project.project_id).display_name), "核对后保存");
 });
 
 test("RAC-1330 project settings deletion requires authorization and confirmation, closes the open project, preserves workspace files, and replays its receipt", async t => {
-  const { directory, homeDirectory, catalog, project, other, localHost, origin, post } = await fixture(t);
+  const { directory, homeDirectory, withCatalog, withFreshCatalog, project, other, localHost, origin, post } = await fixture(t);
   const prefix = `/projects/${project.project_id}`;
   const deletePath = `/api/settings/projects/${project.project_id}/delete`;
   const workspace = join(directory, "repository");
   await mkdir(workspace);
   await writeFile(join(workspace, "source.ts"), "export const keep = true;\n");
-  const linkedWorkspace = catalog.addWorkspaceProject({ canonical_path: workspace, project_id: project.project_id, actor_id: "test-user", user_confirmed: true });
-  catalog.addWorkspaceProject({ canonical_path: workspace, project_id: other.project_id, actor_id: "test-user", user_confirmed: true });
+  const linkedWorkspace = (await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.addWorkspaceProject({ canonical_path: workspace, project_id: project.project_id, actor_id: "test-user", user_confirmed: true })));
+  (await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.addWorkspaceProject({ canonical_path: workspace, project_id: other.project_id, actor_id: "test-user", user_confirmed: true })));
   const context = { runtime_id: "codex", stable_work_context_id: "project-delete-session", host_declares_stable: true };
-  catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "test-user", user_confirmed: true });
+  (await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "test-user", user_confirmed: true })));
   const initial = await fetch(origin + prefix + "/settings/general");
   assert.equal(initial.status, 200);
   const workbench = await initial.text();
@@ -102,7 +104,7 @@ test("RAC-1330 project settings deletion requires authorization and confirmation
 
   const renamed = await post(`/api/settings/projects/${project.project_id}/rename`, { display_name: "已经改名的项目", expected_display_name: project.display_name });
   assert.equal(renamed.status, 200);
-  assert.equal(catalog.getProject(project.project_id).display_name, "已经改名的项目");
+  assert.equal((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.getProject(project.project_id))).display_name, "已经改名的项目");
   assert.match(await (await fetch(origin + prefix + "/settings/general?embed=1")).text(), /value="已经改名的项目"/);
   const body = { delete_confirmed: true, idempotency_key: "delete-project-once" };
   assert.equal((await post(deletePath, body, { "x-molis-work-control-token": "invalid" })).status, 403);
@@ -110,7 +112,7 @@ test("RAC-1330 project settings deletion requires authorization and confirmation
   assert.equal((await post(deletePath, { ...body, delete_confirmed: false })).status, 400);
   assert.equal((await post(deletePath, { delete_confirmed: true })).status, 400);
   assert.equal(existsSync(project.database_path), true);
-  assert.equal(catalog.resolveRuntimeContext(context).status, "bound");
+  assert.equal((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.resolveRuntimeContext(context))).status, "bound");
 
   const deleted = await post(deletePath, body);
   assert.equal(deleted.status, 200);
@@ -121,10 +123,10 @@ test("RAC-1330 project settings deletion requires authorization and confirmation
   assert.equal(result.deletion.actor_id, "web-user");
   assert.equal(existsSync(dirname(project.database_path)), false);
   assert.equal(localHost.status().projects.some(item => item.project_id === project.project_id), false);
-  assert.equal(catalog.resolveRuntimeContext(context).status, "unbound");
-  assert.deepEqual(catalog.listWorkspaceDirectory().find(item => item.workspace_id === linkedWorkspace.workspace_id)?.project_ids, [other.project_id]);
+  assert.equal((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.resolveRuntimeContext(context))).status, "unbound");
+  assert.deepEqual((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.listWorkspaceDirectory())).find(item => item.workspace_id === linkedWorkspace.workspace_id)?.project_ids, [other.project_id]);
   assert.equal(await readFile(join(workspace, "source.ts"), "utf8"), "export const keep = true;\n");
-  assert.deepEqual(catalog.listProjects().map(item => item.project_id), [other.project_id]);
+  assert.deepEqual((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.listProjects())).map(item => item.project_id), [other.project_id]);
   assert.equal(existsSync(other.database_path), true);
   assert.equal((await fetch(origin + prefix + "/api/board")).status, 404);
   assert.equal((await fetch(origin + prefix + "/settings/general")).status, 404);
@@ -135,15 +137,14 @@ test("RAC-1330 project settings deletion requires authorization and confirmation
   assert.equal(conflict.status, 400);
   assert.equal(((await conflict.json()) as { code?: string }).code, "catalog.deletion_idempotency_conflict");
   assert.equal(existsSync(other.database_path), true);
-  const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
-  try {
+  await withFreshCatalog({ homeDirectory }, reopened => {
     assert.deepEqual(reopened.listProjects().map(item => item.project_id), [other.project_id]);
     assert.deepEqual(reopened.listProjectDeletions().map(item => item.deletion_id), [result.deletion.deletion_id]);
-  } finally { reopened.close(); }
+  });
 });
 
 test("project deletion reports incomplete physical cleanup and retries the same persisted receipt", async t => {
-  const { catalog, project, post } = await fixture(t);
+  const { homeDirectory, withCatalog, project, post } = await fixture(t);
   const originalRm = fs.rm;
   const cleanup = t.mock.method(fs, "rm", async (...args: Parameters<typeof fs.rm>) => {
     if (String(args[0]).includes(".deleting-")) throw new Error("Temporary cleanup failure");
@@ -155,7 +156,7 @@ test("project deletion reports incomplete physical cleanup and retries the same 
   assert.equal(response.status, 200);
   const pending = await response.json() as { deletion: { cleanup_state: string; deletion_id: string } };
   assert.equal(pending.deletion.cleanup_state, "pending");
-  assert.equal(catalog.listProjects().some(item => item.project_id === project.project_id), false);
+  assert.equal((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.listProjects())).some(item => item.project_id === project.project_id), false);
   const staged = (await fs.readdir(dirname(dirname(project.database_path)))).filter(name => name.startsWith(".deleting-"));
   assert.equal(staged.length, 1);
   cleanup.mock.restore();
@@ -169,11 +170,12 @@ test("project deletion reports incomplete physical cleanup and retries the same 
 });
 
 test("RAC-1330 RAC-2568 project deletion refuses a live Goal terminal and succeeds after the user closes it", { timeout: 20_000 }, async t => {
-  const { directory, catalog, project, origin, post } = await fixture(t);
+  const { directory, homeDirectory, withCatalog, project, origin, post } = await fixture(t);
   // The live terminal is a Goal's, started by Goals in a folder linked to the project; the channel below only attaches to it (S-103 ⑦).
   const folder = join(directory, "terminal-workspace");
   await mkdir(folder);
-  await linkTerminalFolder(catalog, project.project_id, await realpath(folder));
+  const canonical = await realpath(folder);
+  await withCatalog({ homeDirectory }, catalog => linkTerminalFolder(catalog, project.project_id, canonical));
   addTerminalGoal(project, "test-terminal-goal");
   const opened = await post(goalTerminalsPath(project.project_id, "test-terminal-goal"), { key: "live", command: "/bin/cat" });
   assert.equal(opened.status, 200, await opened.clone().text());
@@ -212,7 +214,7 @@ test("RAC-1330 RAC-2568 project deletion refuses a live Goal terminal and succee
     assert.equal(detached.attached, false);
     assert.equal((await post(deletePath, body)).status, 200);
     assert.equal(existsSync(project.database_path), false);
-    assert.deepEqual(catalog.terminalPanels.listIds(project.project_id), [], "RAC-2568: the project's terminal records went with it");
+    assert.deepEqual((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.terminalPanels.listIds(project.project_id))), [], "RAC-2568: the project's terminal records went with it");
   } finally { socket.terminate(); }
 });
 
@@ -224,7 +226,7 @@ test("RAC-1330 project deletion of a project that is not in the catalog answers 
 });
 
 test("RAC-1333 a deletion failure that is not an ActionError keeps its text out of the response", async t => {
-  const { directory, catalog, project, localHost, post } = await fixture(t);
+  const { directory, homeDirectory, withCatalog, project, localHost, post } = await fixture(t);
   // The deletion port lets go of the project's runtime before the catalog deletes; here it fails with a plain Error that names a local path.
   // That is not a refusal: the exit rethrows it, the Host's unhandled answer logs it and answers with a diagnostic id, never with its text.
   const closeProject = localHost.closeProject;
@@ -242,18 +244,18 @@ test("RAC-1333 a deletion failure that is not an ActionError keeps its text out 
     localHost.closeProject = closeProject;
   }
   assert.equal(existsSync(project.database_path), true, "the catalog never got to delete");
-  assert.ok(catalog.listProjects().some(item => item.project_id === project.project_id));
+  assert.ok((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.listProjects())).some(item => item.project_id === project.project_id));
 });
 
 test("RAC-1615 a deletion whose project id in the path is not valid percent-encoding is refused as the caller's mistake", async t => {
-  const { catalog, project, other, post } = await fixture(t);
+  const { homeDirectory, withCatalog, project, other, post } = await fixture(t);
   const response = await post("/api/settings/projects/%zz/delete", { delete_confirmed: true, idempotency_key: "malformed-project-id" });
   const raw = await response.text();
   assert.equal(response.status, 400, raw);
   assert.equal((JSON.parse(raw) as { code?: string }).code, "host.request_path_invalid");
   assert.equal(existsSync(project.database_path), true);
   assert.equal(existsSync(other.database_path), true);
-  assert.equal(catalog.listProjectDeletions().length, 0, "nothing was deleted");
+  assert.equal((await withCatalog({ homeDirectory: homeDirectory }, catalog => catalog.listProjectDeletions())).length, 0, "nothing was deleted");
 });
 
 test("RAC-1616 the deletion scope of a project id that is not valid percent-encoding is refused as the caller's mistake", async t => {

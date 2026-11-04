@@ -13,9 +13,11 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 const LINE = (index: number) => `第 ${index} 段：这里是一段比较长的回答文字，用来让回复有足够多的节点。` + "`code`".repeat(3) + " **加粗** 与 _强调_。";
 
 test("VUX-36: a node put in a long streamed Assistant reply costs well under a millisecond of style, and no :has() rule has a shape that makes it page-wide", { timeout: 180_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
-  const model = await assistantTextModel(t, homeDirectory, Array.from({ length: 400 }, (_, index) => LINE(index)).join("\n\n"), { pieces: 2, pause: 100 });
+  let model!: Awaited<ReturnType<typeof assistantTextModel>>;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, Array.from({ length: 400 }, (_, index) => LINE(index)).join("\n\n"), { pieces: 2, pause: 100 }); },
+  }); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click("[data-assistant-input]"); await command("Input.insertText", { text: "写一大段" }, sessionId); await click("[data-assistant-send]");

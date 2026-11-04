@@ -1,6 +1,8 @@
 type SQLInputValue = null | number | bigint | string | NodeJS.ArrayBufferView;
 type SQLOutputValue = null | number | bigint | string | Uint8Array<ArrayBuffer>;
 import type {SyncReplicaAdapter,SyncContentCodec,PrivateValueReplicationOwner} from './sync-transport.js';
+/** Verifies an already issued package and its files as data, without granting installation or execution. */
+export type PluginDistributionVerifier = (release: {pluginId:string;version:number;runtimeScope:'project'|'home';publisherKeyId:string}, signedPackage:unknown, files:ReadonlyMap<string,Uint8Array>)=>void;
 /** Pure validation only: discovering content owners must not open an execution runtime. */
 export interface ProjectSyncServices {
   validateSavedHistory(json:string):{sessionId:string};
@@ -44,5 +46,5 @@ export type BuiltinSyncBinding = ({ readonly content?: (context: {spaceId:string
   | {readonly content?: (context:{spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'home-document';readonly path:string;open(home:string,context:{spaceId:string;storage:SyncDocumentStorage;authorize():void}):SyncReplicaAdapter}
   | {readonly content?: (context: {spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'project-database';readonly kind:string;install?(db:ReplicaDatabase,projectId:string):void;create(db:ReplicaDatabase,context:{spaceId:string;projectId:string;title:string;authorize():void}):SyncReplicaAdapter}
   | {readonly content?: (context: {spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'project-sections';readonly kind:string;readonly namespace:string;readonly owners:readonly ProjectSyncContentOwner[]}
-  | {readonly content?: (context:{spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'project-private-values';readonly kind:string;readonly namespace:string;owner(options:{home?:string;authorize?():void;assertIdle?(projectId:string,itemId:string):void}):PrivateValueReplicationOwner}
+  | {readonly content?: (context:{spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'project-private-values';readonly kind:string;readonly namespace:string;owner(options:{home?:string;authorize?():void;verifyDistribution?:PluginDistributionVerifier;assertIdle?(projectId:string,itemId:string):void}):PrivateValueReplicationOwner}
   | {readonly content?: (context: {spaceId:string;authorize():void})=>SyncContentCodec;readonly scope:'project-library';readonly kind:string;open(home:string,projectId:string):{close():void;replica(context:{spaceId:string;projectId:string;title:string;authorize():void}):SyncReplicaAdapter}}) & {readonly copy?:(home:string,context:AggregateCopyContext)=>{owner:import('../services/placement.js').ProjectCopyOwner;close():void}|null;readonly locate?:(key:string)=>string|null};

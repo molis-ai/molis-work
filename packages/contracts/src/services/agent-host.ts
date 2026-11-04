@@ -317,12 +317,18 @@ const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { 
   owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
   title: string, depends_on: strings, inserted: { type: "boolean" }, origins: objects })) });
 const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
+const materialFields = { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: { type: "string", maxLength: 2000 } } as const;
+const materialSource = { source_artifact_id: { type: "string", minLength: 1, maxLength: 200 },
+  source_version: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } as const;
 const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", "prompts", "skills", "mcp_tools", "host_tools", "text_materials", "budget"], {
   role_id: string, role_version: number, execution: { enum: ["read-only", "text-edit", "workspace-write", "operate"] }, model_id: string, budget: { type: ["object", "null"] },
   workspace: { enum: ["required", "none", "business"] }, directory: object, call_id: string,
   prompts: list(shape(["prompt_id", "version", "layer"], { prompt_id: string, version: number, layer: { enum: ["base", "role", "project", "task"] }, user_revision: number })),
   skills: objects, mcp_tools: objects, mcp_sources: objects, host_tools: strings, action_tools: objects, character: object, character_skill_ids: strings, execution_plan: object, subagent_workspaces: objects,
-  text_materials: list(shape(["material_id", "source_artifact_id", "source_version"], { material_id: string, title: string, source_artifact_id: string, source_version: number })),
+  text_materials: list({ anyOf: [
+    { type: "object", required: ["material_id"], additionalProperties: false, properties: materialFields },
+    { type: "object", required: ["material_id", "source_artifact_id", "source_version"], additionalProperties: false, properties: { ...materialFields, ...materialSource } },
+  ] }),
   compaction: shape(["prompt_id", "version", "above_tokens"], { prompt_id: string, version: number, above_tokens: number }),
   model_context: shape(["window_tokens", "prompt_includes_cache"], { window_tokens: number, prompt_includes_cache: { type: "boolean" } }),
   history: { const: "digest" }, thinking: { const: "adaptive" }, reasoning_effort: { enum: ["low", "medium", "high"] } });
@@ -387,8 +393,11 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   character: { anyOf: [artifactInput, { type: "null" }] }, session: sessionRef, task: { type: "string", minLength: 1, maxLength: 1_000_000 }, role_id: entryId,
   model_selection: { type: "object", required: ["provider_id", "model_id"], additionalProperties: false, properties: { provider_id: entryId, model_id: entryId } },
   reasoning_effort: { enum: ["low", "medium", "high"] },
-  text_materials: { type: "array", maxItems: 200, items: { type: "object", required: ["material_id", "title", "text", "source_artifact_id", "source_version"], additionalProperties: false,
-    properties: { material_id: { type: "string", minLength: 1, maxLength: 240 }, title: text(2000), text: text(1_000_000), source_artifact_id: { type: "string", minLength: 1, maxLength: 200 }, source_version: count } } },
+  text_materials: { type: "array", maxItems: 200, items: { anyOf: [
+    { type: "object", required: ["material_id", "title", "text"], additionalProperties: false, properties: { ...materialFields, text: text(1_000_000) } },
+    { type: "object", required: ["material_id", "title", "text", "source_artifact_id", "source_version"], additionalProperties: false,
+      properties: { ...materialFields, text: text(1_000_000), ...materialSource } },
+  ] } },
   image_materials: { type: "array", maxItems: 50, items: { type: "object", required: ["material_id", "title", "resource", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
     resource: { type: "object", required: ["id", "revision"], additionalProperties: false, properties: { id: entryId, revision: count } }, media_type: entryId } } },
   skills: { type: "array", maxItems: 200, items: { type: "object", required: ["skill_id", "version"], additionalProperties: false, properties: { skill_id: entryId, version: count } } },
@@ -443,7 +452,7 @@ export const agentHostCapabilities = {
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
-    capability_id: "agent.session.read.v1", version: 3, operation: "query",
+    capability_id: "agent.session.read.v1", version: 4, operation: "query",
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
@@ -592,13 +601,13 @@ export const agentHostCapabilities = {
   } as ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>,
   /** Start a Run. The Host checks role, capability and directory before the Runtime is asked. */
   startRun: {
-    capability_id: "agent.run.start.v1", version: 2, operation: "command",
+    capability_id: "agent.run.start.v1", version: 3, operation: "command",
     action: { title: "开始一轮 Agent 执行", description: "在自己的会话里按插件声明的角色开始一轮；宿主先核角色、能力与目录。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, startInput], additionalItems: false },
-      output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: object } } },
+      output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: frozenOutput } } },
   } as ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>,
   readRun: {
-    capability_id: "agent.run.read.v1", version: 3, operation: "query",
+    capability_id: "agent.run.read.v1", version: 4, operation: "query",
     action: { title: "读一轮执行", description: "自己会话里一轮的过程、状态和用量。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: runViewOutput },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
@@ -627,7 +636,7 @@ export const agentHostCapabilities = {
    * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait.v1", version: 3, operation: "query",
+    capability_id: "agent.run.wait.v1", version: 4, operation: "query",
     action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
       scheduling: "concurrent", execution: { timeout_ms: 30_000 },
       input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,

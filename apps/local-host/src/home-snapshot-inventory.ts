@@ -1,6 +1,7 @@
 import { lstatSync, readdirSync, realpathSync, type Stats } from "node:fs";
 import { join } from "node:path";
-import { isSnapshotSqlite, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
+import type { HomeSnapshotSourceEntry } from "./home-snapshot-contract.js";
+import { readStorageSpace, isSnapshotSqlite, type SqliteSnapshotOptions } from "@molis-ai/molis-work-storage";
 import { homeSnapshotErrors, type HomeSnapshotStore, type HomeSnapshotStoreRegistry, type SnapshotDisposition, type SnapshotExclusion } from "./home-store-snapshot.js";
 
 export interface SnapshotSourceEntry { readonly relative: string; readonly path: string; readonly info: Stats; readonly disposition: SnapshotDisposition; readonly database?: SqliteSnapshotOptions }
@@ -10,6 +11,33 @@ export interface SnapshotStoreInventory {
   readonly files: readonly SnapshotSourceEntry[];
   readonly directories: readonly SnapshotSourceEntry[];
   readonly exclusions: readonly SnapshotExclusion[];
+}
+
+/** Source facts include exclusions; payload absence alone says nothing about whether the Home was fresh. */
+export function snapshotSourceInventory(home: string, registry: HomeSnapshotStoreRegistry, stores: readonly SnapshotStoreInventory[]): HomeSnapshotSourceEntry[] {
+  const paths = new Set(["", ...registry.stores.map(store => store.path), ...registry.snapshotExclusions.map(item => item.path)]);
+  for (const store of stores) {
+    for (const entry of [...store.files, ...store.directories]) paths.add(entry.relative ? store.store.path + "/" + entry.relative : store.store.path);
+    for (const entry of store.exclusions) paths.add(entry.path);
+  }
+  for (const path of [...paths]) {
+    const parts = path.split("/");
+    while (parts.length > 1) { parts.pop(); paths.add(parts.join("/")); }
+  }
+  // A current exclusion records existence and kind too; never descend into its private tree.
+  const opaque = new Set(stores.filter(item => item.state === "omitted").map(item => item.store.path));
+  for (const path of [...paths]) {
+    if (opaque.has(path)) continue;
+    const absolute = join(home, path), stat = lstatSync(absolute, { throwIfNoEntry: false });
+    if (stat?.isDirectory() && !stat.isSymbolicLink())
+      for (const child of readdirSync(absolute)) paths.add(path ? path + "/" + child : child);
+  }
+  return [...paths].sort().map(path => {
+    const absolute = join(home, path), stat = lstatSync(absolute, { throwIfNoEntry: false });
+    if (!stat) return { path, kind: "absent", links: 0 };
+    const kind = stat.isSymbolicLink() ? "link" : stat.isDirectory() ? "directory" : stat.isFile() ? "file" : "special";
+    return { path, kind, links: stat.nlink, ...(kind === "directory" ? { children: opaque.has(path) ? [] : readdirSync(absolute).sort() } : {}) };
+  });
 }
 
 export function snapshotDirectoryInfo(directory: string): Stats {
@@ -32,17 +60,17 @@ export function assertSnapshotHomeInventory(home: string, registry: HomeSnapshot
   }
 }
 
-function disposition(home: string, store: HomeSnapshotStore, file: string): SnapshotDisposition {
+export function snapshotEntryDisposition(home: string, store: HomeSnapshotStore, file: string): SnapshotDisposition {
   return file ? store.snapshot.entry?.(home, file) ?? { kind: "keep" } : { kind: "keep" };
 }
 
-function databaseOptions(store: HomeSnapshotStore, file: string): SqliteSnapshotOptions | undefined {
+export function snapshotDatabaseOptions(store: HomeSnapshotStore, file: string): SqliteSnapshotOptions | undefined {
   const special = store.snapshot.database?.(file);
   if (special) return special;
   if (!store.library) return undefined;
   const expected = store.library.file ?? store.path + ".db";
   const matches = store.library.partition === "project" ? file.split("/").length === 3 && file.startsWith("projects/") && file.endsWith("/" + expected) : file === expected;
-  return matches ? { baseline: store.library.baseline } : undefined;
+  return matches ? { baseline: store.library.baseline, requireSpace: store.path !== "server" } : undefined;
 }
 
 /** Read metadata and file headers only. Ownership locks and sealed private trees are removed before any content read. */
@@ -55,7 +83,7 @@ export function inventorySnapshotStore(home: string, store: HomeSnapshotStore): 
   if (store.snapshot.emptyOnly && (!root.isDirectory() || readdirSync(source).length)) throw homeSnapshotErrors.unknown_data(`预留存储非空，不能默认为缓存: ${store.path}`);
   const visit = (file: string) => {
     if (file.includes("\\") || file.split("/").some(part => part === "." || part === "..")) throw homeSnapshotErrors.invalid("快照相对路径无效");
-    const policy = disposition(home, store, file), path = file ? join(source, file) : source;
+    const policy = snapshotEntryDisposition(home, store, file), path = file ? join(source, file) : source;
     if (policy.kind === "omit") { exclusions.push({ path: store.path + "/" + file, reason: policy.reason }); return; }
     const info = lstatSync(path);
     if (info.isSymbolicLink() || realpathSync(path) !== path) throw homeSnapshotErrors.invalid(`快照不跟随链接: ${path}`);
@@ -75,11 +103,11 @@ export function inventorySnapshotStore(home: string, store: HomeSnapshotStore): 
   // Sidecars are classified after their base file, and never opened themselves.
   for (const entry of files.filter(item => !/-(?:journal|wal|shm)$/u.test(item.relative))) {
     if (entry.disposition.kind === "key" || entry.disposition.kind === "sealed") { classified.push(entry); continue; }
-    const options = databaseOptions(store, entry.relative), sqlite = isSnapshotSqlite(entry.path);
+    const options = snapshotDatabaseOptions(store, entry.relative), sqlite = isSnapshotSqlite(entry.path);
     if (options && !sqlite) throw homeSnapshotErrors.invalid(`登记的 SQLite 库不是有效文件: ${entry.path}`);
     if (sqlite && !options) throw homeSnapshotErrors.unknown_data(`登记目录有未知 SQLite 库，未生成快照: ${entry.path}`);
     if (sqlite) for (const suffix of ["-journal", "-wal", "-shm"]) technical.add(entry.relative + suffix);
-    classified.push({ ...entry, ...(sqlite ? { database: options } : {}) });
+    classified.push({ ...entry, ...(sqlite ? { database: { ...options, space: readStorageSpace(home) ?? undefined } } : {}) });
   }
   for (const entry of files.filter(item => /-(?:journal|wal|shm)$/u.test(item.relative))) {
     if (!technical.has(entry.relative)) throw homeSnapshotErrors.unknown_data(`孤立 SQLite 侧车须先处理: ${entry.path}`);

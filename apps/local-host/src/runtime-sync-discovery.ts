@@ -11,6 +11,7 @@ import type { LocalWebCatalogRunner } from './web-project-settings.js';
 import type { SpaceWebSurface } from './space-web-server.js';
 
 export function runtimeSyncSurface(server: SpaceWebSurface, home: string, host: MolisWorkLocalHost, withCatalog: LocalWebCatalogRunner, readCatalog?:import('./personal-runtime-sync-authority.js').SyncCatalogReader): SpaceWebSurface {
+  server.withSyncCatalog=withCatalog;
   server.readSyncCatalog=readCatalog;
   server.discoverSync = authorize => discoverRuntimeSyncCollections(home, ensureStorageSpace(home).spaceId, host, withCatalog, authorize);
   return server;

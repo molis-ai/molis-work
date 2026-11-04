@@ -107,10 +107,11 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 - **预览**：每个产出类型有 `preview`，指向本 Manifest 里用 `defineArtifactPreviewAction` 定义的预览查询，并用 `bindArtifactPreview` 绑定处理器（Runtime 要求 Manifest 声明的动作都有处理器）。
 - **固定与比较**：对象可以当场固定成新一版的类型写 `pin`，指向 `defineArtifactPinAction` 定义的命令，且只对一种对象（`subject_kinds` 恰好一个）；写了 `pin` 就必须同时写 `compare`（`defineArtifactCompareAction` 的查询），成果库才能告诉人「原文已改」。
 - **继续**：能从一版新建自己的工作对象的插件写 `continue`（`defineArtifactContinueAction` 的命令）；产出的类型和只读的类型（`artifacts.consumes`）上都可以写。
+- **能继续哪些导入的文件**：成果库把导入的文件列给「从这一版继续」时，名单是登记表里该类型的续写者，再按续写者声明的 `consumes[].file` 过滤：`extensions` 是它能读的小写、带点的扩展名（非空、不重复），`stored_text: true` 表示导入时只存了正文的文件（原件过大）只要正文非空也算；没写 `file` 就收所有文件，写了 `file` 必须同时写 `continue`。声明只决定列不列，续写动作仍走动作授权，声明扩展名的插件也拿不到文件正文；宿主里不点名任何插件的文件类型。过滤在 `apps/local-host/src/artifact-type-registry.ts` 的 `continuerReadsFile`，形状检查在 `packages/plugin-sdk/src/artifact-declarations.ts`。成果类型登记表由全部有效安装的 Manifest 派生，类型 id 与链接种类在整个 Home 里只有一个属主（S-81、S-82）。
 - **都在本插件里**：这些引用只认本 Manifest 的 `actions`，同时核对种类与 `operation`（预览、比较是查询，固定、继续是命令）；指向别的插件的动作、不存在的动作、种类不对的动作都被拒绝。
 - **v1 不能产出成果类型**：v1 Manifest 不能声明动作，也就没有预览，所以要进成果库就用 `schema_version: 2`。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
 
-跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。2026-10-18 改：插件不分官方与第三方、待遇一样，这条「只对内置」的做法要在防腐线里改成对所有插件一致，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。校验的测试在 `tests/action-artifact-references.test.ts`。
+跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。2026-10-18 改：插件不分官方与第三方、待遇一样，这条「只对内置」的做法要在防腐线里改成对所有插件一致，见 `specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。校验的测试在 `tests/action-artifact-references.test.ts`。
 
 ## 作者 API 与公共测试入口
 
@@ -154,9 +155,18 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 **装进 Home 的签名沙箱包**（BL-628，S-80、S-84）：沙箱包的清单写 `runtime: { scope: "home" }`，预览会返回 `runtime_scope: "home"`，确认后装进 Home：一个实例，所有项目共用，代码仍在沙箱里跑，权限仍是人在预览里批准的那些，发布者仍要被本人固定。它的批准、密钥和提示词登记放在 Home 里（不属于任何项目），它的调用没有项目（项目范围的动作够不到），库是 Home 库（S-91）、文件是主人文件（S-64）。它在每个项目里都能用，项目可以把它隐藏；停用、卸载（保留或不保留数据）走和项目里的签名包同一套生命周期。声明了 `always_on`、端口、事件、成果或过程项的包不能装进 Home；同一个 `plugin_id` 的范围不能更换。没有写 `runtime` 的包只能装进项目，写了的只能装进 Home。
 
+装进 Home 的包在哪里出现、页面怎样给（BL-713）：运行中的包进到达页和项目标题栏的 Home 工具位，排在内置 Home 工具之后、按名字排；点开是它的 stage 视图（沙箱包只有 stage 视图、没有 `side` 视图，所以不出侧栏页签），图标取 stage 视图的 `icon`，不写画 `package`。停用的不出现；启动时没起来的（有恢复错误）照列，点开是一页写明原因的页面，页上没有「启用」按钮（它没被停用）；卸载、发布者被撤销、发布记录读不到的不出现。工具位是本人的页面：Home 工具不随项目隐藏，数据由服务端渲染进页面（`HomePluginHost.navigation()`，到达页走 `home_plugins`，项目页走 `home_plugin_nav`），不出现在任何动作、MCP、工作流步骤或插件读得到的输出里。包的页面是 `/plugins/<id>`（Home 插件页，里面框一个 iframe）与 `?frame=workbench`（框内页面本身，只给在跑的包），框内页面与项目里生成插件的页面是同一个渲染器（`renderPluginDocumentShell` 的 installed 模式），调用走 Home 自己的 `/api/plugins/<id>/call`；进程刚启动时的第一个请求先等 Home 起来再查，仍没有才是 404。Home 一侧的框内页面带 Home 页面的内容安全策略（`frame-ancestors 'self'`）和 `X-Frame-Options: SAMEORIGIN`，`<iframe>` 标记不写 `sandbox`，被隔离的是包自己的沙箱进程。回归见 `tests/home-plugin-stage-navigation.test.ts`（RAC-2620～2626，只在 macOS 上跑）。
+
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目给 `trust: HOST_BUILD_TRUST` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
-Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），库与分区由宿主从 Manifest 生成（`apps/local-host/src/home-stores.ts`），登记上不写库：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，删项目时整份删掉，确认框写「{插件名} 在这个项目里的数据」（PG-024）。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
+Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），库与分区由宿主从 Manifest 生成（`apps/local-host/src/home-stores.ts`），登记上不写库：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，删项目时整份删掉，确认框写「{插件名} 在这个项目里的数据」（PG-024）。位置与闲置关闭见 [HOME-DATA 3.3](../system/HOME-DATA.md)。规则：
+
+- 只有 Home 级条目能声明；项目平台的条目带 `partition` 启动前拒绝。Manifest 的 `partition` 与存储登记里同一个库的 `library.partition` 不一致（任一方向），整份启动名单不启动、不建库。
+- 项目只从调用上下文来：正在运行的、属于这个安装的动作或场景回调的 `caller.project_id`（`currentPluginInvocation`，且调用范围要属于本实例），不读动作参数，也不读插件给的任何东西，所以输入里写别的项目 id 不起作用，一个项目的调用读不到另一个项目写的。项目里的页面路由经插件自己的动作走进来（路由 control 带宿主核过的项目，S-31）；路由处理器本身、`start`、`stop`、事件回调不在动作里，用不了分区库。后台作业写进受理它的动作的项目，动作里再调的动作、场景回调沿用外层那次的项目。
+- 授权与检查和 `services.database` 是同一份代码（`openPluginDatabase`）：每次读写复查实例仍在运行、授权仍在；读只收 `SELECT`、`WITH`；写在 `transaction(beforeEffect, …)` 里只收 `INSERT`、`UPDATE`、`DELETE`，事务体同步；调用方在等待中失去授权，写入被拒、什么都不留。实例停止时全部项目库关掉，之后的旧句柄被拒（S-18）。
+- 删项目由平台做，插件不被通知，不跑自己的代码，也没有 `purge`：同一轮里先停掉这个安装在这个项目里受理的后台执行，关掉这个项目的库（有写事务在等也关），再删整个项目目录；插件没在运行、宿主没开（命令行、卸载器）时同样删这个目录（`apps/local-host/src/project-deleted-owners.ts`）。删除开始之前就已开始的调用（含它里面再调的、它受理的后台作业）此后读写这个项目的库答 `actions.missing`，不会把删掉的库建回来；从关库到目录删完之间新开始的调用答 `actions.unavailable`（稍后再试）；删完之后才开始的调用（演示项目用固定的 id 删了再建）从空库开始。
+- 「删到哪次调用为止」和「哪些项目正在清理」记在 Home 插件执行器上（`apps/local-host/src/plugin-database-partitions.ts` 的 `PartitionDeletions`）、按安装分，不随实例走：清理等待中插件被停用再启用、升级或恢复，新实例照样答 `actions.unavailable`，不会打开一个随后被整个删掉的库。删目录失败时，这一步留在删除回执的待办里；固定 id 的演示重建前先 `settleProject`（`apps/local-host/src/managed-project-deletion.ts`）把待办的清理做完，做不完就拒绝，所以不会从旧库开始。
+- 升级后库版本与声明不符怎么办还没定（BL-639），用到之前先补。
 
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
 
@@ -185,16 +195,40 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 
 新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
 
+## 双实例插件
+
+同一个 `plugin_id`、同一份 Manifest，分两半：Home 实例由 Home 监督器装配，管个人数据；项目实例由项目监督器按同一份登记的 `project_runtime` 每个项目装配一个，读项目的成果和过程项、接端口与事件。不拆成两个插件，是因为 MCP 授权、MCP 工具名、工作流步骤的精确引用、情境入口和搜索通知都以 `plugin_id` 为键。作者的写法见 `skills/molis-plugin-dev/host.md`「双实例」；安全边界逐条在 `docs/system/SECURITY-INVARIANTS.md` 的 S-08、S-15、S-18、S-31、S-48。
+
+- **声明只来自宿主**（用户 2026-10-20 定）：登记 `runtime` 上的 `dual_instance: true`，只随宿主发布的插件能用；Manifest、安装记录、项目条目都说不了，第三方和沙箱插件不能声明。这和「插件待遇一样」之间的差距是同一个平台缺口（外部插件还装不了 Home 实例），不是给内置插件开的私路。同一个 `plugin_id` 不带标记出现在两份名单里、带标记却没有项目那一半、项目那一半不是宿主构建，都在启动前拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；门禁 `scripts/gates/dual-instance.mjs` 在评审时查登记。
+- **身份相同，记录各归各库**：两半的 `plugin_id`、`install_id`、`provider_id` 相同（两半同为随宿主发布，提供方是 `plugin_id`），`installation_generation` 各自一份。授权记录、世代、生命周期各在自己所在的库里：一半停用或重装，另一半照常，也不代答它的路由；删项目时项目那一半的记录随项目走，Home 那一半和它的数据保留；关闭 Home 先使两半的全部句柄失效。本机页面调用的授权上下文、嵌套调用的 `validate_authority`、MCP 授权、路由都按（所在库、`install_id`）取记录，不把两个库的记录并成一张表（`apps/local-host/src/local-web-actions.ts` 的 `projectRecords` 与 `homeRecords`）：撤掉一边的授权，另一边的动作不受影响。
+- **每一项各归一半**：Manifest 里的动作、消费场景、路由、视图、命令处理器、输入端口、事件处理器，恰好由一半的 `start` 返回处理器，并集等于 Manifest、交集为空；互相引用的动作（撤销、后台任务、片段与事项目标）放在同一半。端口、事件、成果与过程项归项目那一半，Home 那一半启动时不因 Manifest 有这些声明被拒，也拿不到这些服务。宿主经 `PluginRuntime` 的 `redemption(definition)` 说这次启动是哪一半（`RedemptionScope`），运行时只放宽「声明了没提供」，「提供了没声明」永远拒绝，细则见 `packages/plugin-runtime/README.md`。「并集等于 Manifest」不是运行时强制的：漏登记的动作在运行时是「动作不可用」，由覆盖测试 `tests/dual-instance-coverage.test.ts` 遍历所有带标记的注册来守。
+- **授权**：每个实例各有一条授权记录，人只在 Home 那条上管理可选权限；项目可选权限必须同时满足自己的 grant 与同 Home、同插件、发布者、安装身份的 Home 现行授权，不补项目缺权，不同步写两库。Home 缺失、停用、换代只拒可选能力，必需权限与项目生命周期各自独立；实际使用权限时捕获原 Home 激活的撤销检查，关→开只让新调用使用新授权。门禁要求每条权限的 `required` 明写 `true` 或 `false`，读不懂的写法一律拒绝。
+- **服务句柄不互借**：两半 `install_id` 相同、世代不同，同一进程里插件代码可能留着另一半的句柄。每个服务的检查都经 `packages/plugin-runtime/src/action-scope.ts` 的 `inPluginInstance`，按正在运行的动作所属的实例（`install_id` 加 `installation_generation`）核对，宿主据 `PluginStartContext.installation_generation` 建检查；在一半的动作里拿另一半的句柄写入或调用服务，在到达端口或写库之前被拒。读（如私有存储的 `get`、模型的 `availability`）不按动作核对。终端面板（`apps/local-host/src/pty-page-access.ts`）只按安装、项目、人认，不带世代：页面是整个插件的，同一个人在同一个项目里从哪一半打开页面，都接得上 Home 那一半开的终端。
+- **两半互调**：项目那一半经插件自己的路径调 Home 那一半的动作，到得了只给人的动作；Home 的动作在项目里被调时（页面在项目路径下，或 Home 路由在项目前缀下），它里面再调的动作沿用 Runtime 捕获的项目，所以能调项目范围的动作；不带项目前缀的 Home 路由调项目范围的动作，答 `actions.project_required`。MCP 一份客户端授权（`provider_id` 等于 `plugin_id`）对两半的动作都有效，工具名不变；工作流步骤的精确引用钉着 `plugin_id`，两半的动作各解析到自己的提供方，不报 `provider_changed`。
+- **路由**：Manifest 声明过的路由，Home 正在运行的一半绑定了的由它答，其余交给项目实例，Home 实例不代跑项目的处理器；没声明的路径照旧由 Home 答 404；不带前缀的项目一半路由和别的不带项目的项目路由一样答 400。Home 那一半停用后不绑定任何路由。逐条规则在 S-31，实现在 `apps/local-host/src/home-plugin-http.ts` 的 `projectHalfRoute`、`projectHalfBinds`。
+- **舞台由哪一半画**：Manifest 的舞台由哪一半画，只看此刻两半的贡献与运行状态，不看插件在不在宿主的构建目录里；判据只有一份，`apps/local-host/src/project-plugin-stages.ts` 的 `dualStageOwner`。项目页先画 Home 一侧（`renderHomePluginStages`），再画项目一侧（`renderProjectRuntimeStages`），后者跳过前者已画的舞台 id。「有视图」指这一半提供了那个舞台的贡献（`contribution_id` 相同）且带 `workbench` 界面；两半都有视图由覆盖测试禁止。
+
+  | Home 一半 | 项目一半 | 谁出 | 画什么 |
+  | --- | --- | --- | --- |
+  | 在跑、有视图 | 任意 | Home | Home 的视图 |
+  | 任意 | 在跑、有视图 | 项目 | 项目的视图 |
+  | 在跑、没视图 | 停着 | 项目 | 项目的「暂不可用」占位，按钮照 `restartOffer`：只有失败、崩溃、隔离的才给，普通停止、停用、撤权都不给 |
+  | 停着 | 在跑、没视图 | Home | Home 的「暂不可用」占位（Home 监督器的说明，否则「插件已停用」） |
+  | 停着 | 停着 | 项目 | 项目的「暂不可用」占位（「插件没有在运行」），因为只有它能给重启 |
+  | 在跑、没视图 | 在跑、没视图 | Home | Home 的「插件页面未注册」占位 |
+
+  一半在跑却没提供视图，就证明视图是另一半的，由那一半出占位。「在跑」在两半里口径不同：Home 一半看安装记录的 `state === "running"`（`apps/local-host/src/home-plugin-http.ts` 的 `homeStageHalves`），项目一半看监督器的 `contribution(pluginId)` 是否非空；所以运行着却拿不到贡献时，Home 一半算「在跑、没视图」，项目一半算「停着」。
+
 ## 项目库里插件自己的表
 
-插件在项目库（`projects/<id>/molis-work.db`）里要有自己的表，就在 Manifest 写 `databases.project`（`PluginDatabaseDeclaration`：`store_name`、`version`、`schema`、`read_permission`、`write_permission`），不进宿主的项目库基线，宿主不点名插件（`specs/plugin-project-database`，PG-020）。
+插件在项目库（`projects/<id>/molis-work.db`）里要有自己的表，就在 Manifest 写 `databases.project`（`PluginDatabaseDeclaration`：`store_name`、`version`、`schema`、`read_permission`、`write_permission`），不进宿主的项目库基线，宿主不点名插件（PG-020）。
 
 - `parsePluginManifest` 检查形状：只有这五个字段，`store_name` 合 Home 库同一条名字规则，`version` 是正整数，两个权限都在这份 Manifest 的 `permissions` 里；自己的表两项都写 `storage:private`。
-- `schema` 只能由 `CREATE TABLE` 和 `CREATE [UNIQUE] INDEX` 组成，名字不带库名；外键只指自己的表或 `project_root(project_id)`（项目本身，一库一行）；不用 `AUTOINCREMENT`。平台先切句检查，再在空的内存库里试建，不合的连内存库都不执行。
-- 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。库里已有同名对象、库名归了别的插件、发布者不同、版本不同、表被改过，都拒绝，库原样不动；被拒的插件只停它自己，项目与别的插件照常。
+- `schema` 只能由 `CREATE TABLE` 和 `CREATE [UNIQUE] INDEX` 组成，名字不带库名；外键只指自己的表或 `project_root(project_id)`（项目本身，一库一行）；不用 `AUTOINCREMENT`。平台先在引号和注释之外的每个分号处切句（括号里的分号也切，什么都不执行），每句必须以 `CREATE TABLE` 或 `CREATE [UNIQUE] INDEX` 开头、表后紧跟列定义，所以 `ATTACH`、`PRAGMA`、视图、触发器、虚表、`TEMP` 表、`CREATE TABLE … AS SELECT`、增删改、`DROP` 和没闭合的引号或注释连内存库都不碰；再在空的内存库里试建，试建出来的只能有表和索引，不能有 `sqlite_` 开头的名字（SQLite 为主键和唯一约束自动建的索引除外）。`IF NOT EXISTS` 可以写，但第一次建表前库里有同名对象就拒，所以不会悄悄沿用别人的表。声明不合的拒绝码是 `plugin.project_database.declaration_invalid`。
+- 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。账本每个插件一行（`plugin_id` 主键、`publisher_signature`、`store_name` 唯一、`version`、`tables_json`、`created_at`），打开函数 `openPluginProjectDatabase`（`packages/plugin-runtime/src/project-database.ts`）在一个 `BEGIN IMMEDIATE` 事务里按下面的结果办，任何拒绝都回滚、库原样不动：库里已有同名的表或索引（名字比较时 ASCII 不分大小写）、库名归了别的插件是 `plugin.project_database.object_taken`；发布者签名与账本不同是 `publisher_mismatch`（卸载不删表也不删行，同一个 id 换了发布者拿不走数据）；版本不同是 `version_mismatch`；版本相同但库名、对象名单或表的形状与声明不同（比如库被手改过）是 `shape_mismatch`；都一致就打开。被拒的插件只停它自己，项目与别的插件照常，库不修补、不重建、不补账本。
 - 版本不就地升级：改表就升 `version`，在 `docs/releases/CHECKLIST.md` §3 改那一行，并按 `docs/releases/POLICY.md` 第 5 节写一次性维护。
 
-宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Schedule；Goals 的 31 张表含 `boards` 与治理的 4 张）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。
+宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Schedule；Goals 的 31 张表含 `boards` 与治理的 4 张）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。恢复路径（`existingOnly`）只读已经在现行结构上的库，不给它建表也不写账本；这个插件平台的项目库不是文件（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路。
 
 - 运行时读写：`context.services.project_database`（`PluginDatabase`，与 Home 库的 `services.database` 同一个接口、同一份客户端），只给经 Plugin Runtime 启动、声明了 `databases.project` 的插件。读 `get`、`all` 只认 `SELECT`、`WITH`，走只读连接；写只在 `transaction(caller.beforeEffect, tx => …)` 里，回调同步，`tx.run` 一次一句，只认 `INSERT`、`UPDATE`、`DELETE`，走宿主自己的连接（同一个文件只用一份 SQLite 库）。
 - 项目日志：`services.project_database.journal` 是项目事件日志和幂等记录的端口（`events`、`idempotency_records` 属于 `packages/storage`，语句读写不了）。要在 Manifest 声明并获授 `journal:project`。读 `eventCursor`、`readEventsDescending` 在数据库对象上，只读到、数到本插件自己写的事件；写 `appendEvent`、`getIdempotency`、`putIdempotency` 只在 `transaction` 的 `tx.journal` 上，和 `tx.run` 同一个 SQLite 事务。每次调用再问授权、原调用者和事务是否仍在（S-63）；一行的行为人只能是调用者的 `actor_id` 或 `audit_actor_id`，动作外只能是宿主给的行为人；项目号由库给，`appendEvent` 里多带的 `projectId` 无效。事件的 `type`、`objectType` 和幂等的 `operation` 写本插件自己的裸名：平台存成「插件号、一个冒号、名字」（插件号里不会有冒号，所以一个插件号是另一个的点分段前缀时也互不相干），读回来再去掉，所以插件读不到别的主人的事件、数不到它们的游标，两个主人用同一个操作名也撞不上；要别的主人的事件，调那个主人的动作。沙箱里的插件暂时没有它。
@@ -215,6 +249,10 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 宿主自己运行的 Home/项目插件可在本安装的活跃并发 command 里 `await services.background.start(async control => …, { signal? })`。动作必须声明 `background_job`，否则拒绝；升级预检没有该服务；沙箱包不收回调，用 `sdk.background.start(operation, input)` 起自己某条命令的一次运行，它在同一个包的第二个沙箱进程里一次一个地跑，结果不回给包（S-67；生成的插件要等创作台一侧接线，BL-377）；启动钩子、直接路由、过期处理器和其他安装也不能借它开始工作。返回句柄的 `result` 是结果 Promise，`cancel()` 只取消这次执行；插件自己保存任务、幂等键、状态与恢复决定，平台不重试、不在重启后重放。
 
+已签名安装的沙箱包在 contract 的 launcher 上写 `effects.background: ["job.work"]` 及 `background_job: { status: "job.status", id: "job_id", input: "job_id", state: "state", done: ["done"], failed: ["failed"] }`。状态是本包同范围的实际 query；输入、输出字段须能从 schema 解析，终态互斥且在状态枚举中；状态的实际依赖闭包也须可用、只读、不收费。SDK 从同一 contract 派生签名动作、精确状态引用和权限，运行目录另按当前提供方、版本、费用与授权刷新；launcher 承担自己及所有允许目标的权限和费用，不把动态环境写回签名内容。目标不能再声明 background。一次操作 10 分钟、服务 60 秒，quick/slow 共用一个后台 lane；未结束执行上限 4 按 broker 计算。`sdk.background.cancel(execution_id)` 仅取消原 broker 的实际句柄。
+
+包先写自己的持久 job，再 start；目标可能在 start 返回前已经完成，因此受理状态须用原子条件更新：只把仍为 pending 的状态变成 accepted，附加临时 execution_id 时也不覆盖 running 或终态。返回已确认的业务状态。授权失效不再补写成功或失败。重启后 status 只读已确认事实，没有终态或当前存活证据时展示最后状态及「待核对」，不凭 broker 缺少旧句柄推断失败或重放。DB、文件与连接没有总事务：保留已经发生的部分结果；COMMIT 或 HTTPS 已派出但回执丢失时保留结果未知，不能捕获后写 failed 来伪称未发生。
+
 后台回调保留原动作的身份、项目、权限和精确注册，并用新控制调用既有模型与数据服务。每次写入都要先 `await control.beforeEffect()`，提交前同步检查 `control.assert_authority_current?.()`；不能继续使用已返回处理器的 caller。原 HTTP/MCP 正常结束或断开后，已受理工作可继续；原 MCP 授权撤销、插件停用/升级、Host 关闭或显式取消会终止本机等待，迟到的成功与失败都不得写业务记录。没有入口提供独立后台授权的调用仍服从原 signal；不能借它逃离 Agent 的取消。项目路径上的 Home 路由仍在原项目里，提交时重查项目存在且显示该插件。
 
 执行仍在本进程；非配合式外部调用可能继续运行，插件须把控制的 signal 交给它。200 ms 周期复查使用已有 `createExecutionLifetime`，结束即释放；模型和文件服务在等待后另行核权。后台不再向已结束的路由发进度，不能递归接受后台执行；自己的结果结束后，旧控制和迟到模型回调也失效。验收见 `tests/security-invariants-plugin-background.test.ts` 与 `tests/runtime-plugin-http-discovery.test.ts`。
@@ -231,7 +269,7 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 - **作业的项目**从登记它的调用来，作业里起的作业继承它；Home 实例在 `start()` 里登记的作业没有项目，所以 Home 插件要为某个项目起作业，得等那个项目里有一次通过了检查的调用。项目不从输入或存储读。
 - **作业以安装的身份做事**：`control` 只有 `job`、`signal`、`beforeEffect()`、`assert_authority_current()` 和 `project_id`，没有原调用者、受众和页面。作业里调动作，一律以安装的身份、按 `plugin` 受众、在作业自己的操作编号里发：调不到只给 `user`、`mcp` 等受众的动作，调用记录里也不出现原调用者；拿请求的路由 control 去调会被拒。
 - **每次写之前** `await control.beforeEffect()`：作业还在、激活还活着、安装记录仍是同一份并授予作业声明的权限。每个激活共用一个 200 ms 定时器把同样的检查跑一遍，不过就中止那个作业的 `signal`，正在等的工作要把 `signal` 交给它等的东西。作业停了以后，经平台服务的写（存储、库、文件、事件、动作调用）都被拒，插件忘了问 `beforeEffect()` 也一样；插件进程里的内存状态平台不管。
-- **原调用被取消、撤权后作业还写**，只在用户 10-12 定的窄例外里成立（`specs/repository-anti-corruption/spec.md` §12.10）：作业只把已经受理的那件事跟到底、记下它的真实结果和回执，不发起新的业务请求、不继续交接、不以记回执为名派发下一步。通过检查之后提交本身失败了（比如 Run 没开成），作业找不到要跟的东西，就什么都不写地结束。平台能强制的是身份和受众；「只跟那件事」是插件的义务。
+- **原调用被取消、撤权后作业还写**，只在用户 10-12 定的窄例外里成立（`specs/archive/repository-anti-corruption/spec.md` §12.10）：作业只把已经受理的那件事跟到底、记下它的真实结果和回执，不发起新的业务请求、不继续交接、不以记回执为名派发下一步。通过检查之后提交本身失败了（比如 Run 没开成），作业找不到要跟的东西，就什么都不写地结束。平台能强制的是身份和受众；「只跟那件事」是插件的义务。
 - 平台不保存作业、不重试、不在重启后重放；要恢复，插件把要跟的东西记在自己的存储里，下次激活在 `start()` 里登记。`cancel()` 由插件自己调（比如更新的一轮接手了会话）。沙箱插件没有 `services.background`。
 
 首页要把各项目里还在跑的工作列在一处时，插件把读这些工作的查询标上 `action.home_aggregate: true`，并写明 `output_type`：只能是项目范围、`kind: "query"`、只读（`effect` 不写或 `read`）、不调用模型、不计费的查询，别的写法 Manifest 检查就拒（`isHomeAggregateQuery` 是同一条规则）。首页按 `output_type` 找，只在打开的项目里逐个调、用那个项目里安装的授权；插件停用或没授权的项目不调，没打开的项目不为它打开。调用带 `query_only`，查询里再调命令或计费查询会被拒。各项目的答案分开返回，首页按 `plugin_id` 去打开。声明本身不给任何授权。验收见 `tests/security-invariants-home-aggregate.test.ts`（S-49）。
@@ -329,10 +367,10 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - 监听 `molis:assistant-effect` 并在没有未保存修改时重读；用户在页面上改变了助理可能展示的对象时发 `molis:assistant-surface-changed`。
 - 页面缓存的设置在本页没有未保存改动时采用已保存值，避免把别处的修改写回。
 - 要给助理发信息，发 `molis:assistant-message` 并写明用途：`background`（只作上下文）、`change`（对象变了）、`suggest`（由用户决定是否发送）、`delegate`（用户刚在页面上要求交给助理，只有真实用户操作才立即开始）、`reply`（把结果交回某项工作）。不要自称“用户已同意”。
-- 动作声明里指向别的动作的地方（`undo`、`background_job.status`、片段与事项推荐的选项目标），目标必须在**同一次注册**里：同一份 Manifest 的 `actions`，或同一次 `registerProvider` 的 `definitions`；文档里说“同一提供方”，指的就是这个。注册先后不定，所以不按提供方编号跨注册去找：一个提供方拆成几次注册、又互相引用，会被拒绝，报“不在同一提供方的声明里”（Goals 按范围分两次注册，引用也都在各自的范围里，所以没有这个问题）。要用别的提供方的动作，写 `required_actions`，使用时按调用者核对。`definePlugin`、命令行 `validate`、Runtime 安装与升级、宿主注册动作时都检查（SDK 的 `inspectActionCrossReferences`）；声明本身不完整的由形状检查另外报告，不重复报。谁能用目标（受众、权限、效果）不在注册时查，使用时按调用者核对。
+- 动作声明里的引用（`undo`、`background_job.status`、片段与事项推荐的选项目标）在 Manifest 中必须指向同一份 `actions` 的实际动作。`definePlugin`、命令行 `validate`、Runtime 安装与升级检查完整声明（SDK 的 `inspectActionCrossReferences`）。宿主注册时通常限同一次 `registerProvider` 的 `definitions`；只有后台状态查询允许指向已经注册、提供方、项目与范围均相同的实际 query，供逐操作替换时保留未变化的状态查询；不补占位声明，也不接受跨提供方目标，其他引用仍限同一次注册。跨提供方依赖写 `required_actions`，使用时按调用者核对。声明本身不完整由形状检查另外报告，不重复报；谁能用目标（受众、权限、效果）在调用时核对。
 - 可以撤回的修改声明 `undo`：`{ capability_id, version, input: { 字段: "输出路径" } }`，指向同一次注册里的撤销命令，以及它的输入在本次输出里的位置；需要数组时写 `["路径"]`。注册时检查：撤销命令存在、是命令、与本动作同一范围；`input` 里的每个字段都是撤销命令输入 schema 的属性，它必填的输入都要填上；每个输出路径都在本动作的 `output_schema` 里写出来了（沿属性、`anyOf`/`oneOf`/`allOf` 分支和本 schema 内的 `$ref` 找；只写 `type: "object"` 的开放对象找不到，要先把字段写出来；没有 `output_schema` 就没有位置可指）。这样的修改在用户明确要求时由助理直接执行、事后可撤销，用户也可以把它设成每次确认。删除、对外发送这类撤不回的修改不要声明。样例：灵光“记下灵光”用“丢弃灵光” `{ ids: ["spark.id"] }` 撤回。
 - 用户可以在插件里设提醒（今天只有 Todo 的提醒时间在用）时，提供到期提醒查询：`defineDueRemindersAction("<插件>.reminders.window", [对象种类], "到期提醒", [读取权限])`（Home 范围、只读）。输入 `{ from, to }`，只返回 `from ≤ 到期时间 < to` 的提醒，每条带稳定的 `reminder_id`（改了时间就换新的）、`due_at`、`title`、`subject`、`project_id`（个人为 null）、`open`。插件不需要计时器：Host 每分钟来问一次，每条只提醒用户一次，并按用户的提醒规则处理。只返回用户自己要求的提醒，新条目、未读数、逾期清单都不算；用户已在插件里处理过的提醒不要返回。辅助函数 `assertDueReminderWindow`、`withinDueReminderWindow` 和类型随 `defineDueRemindersAction` 一起从插件 SDK 导出。
-- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一次注册里的状态查询、它接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里。片段与事项推荐的选项同样要指向同一次注册里、同一范围的动作，事项推荐的目标还要支持选项对应的事项种类（目标没写事项种类则不限）。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
+- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、本提供方的实际状态查询、它接收标识的字段、状态的位置和结束状态。注册时检查：状态查询存在、是查询、与本动作同一范围；`id` 在本动作的 `output_schema` 里，`input` 在状态查询的输入 schema 里，`state` 在状态查询的输出 schema 里。片段与事项推荐的选项同样要指向同一次注册里、同一范围的动作，事项推荐的目标还要支持选项对应的事项种类（目标没写事项种类则不限）。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
 - 修改已有对象的动作，输入里用 `<种类>_id`（或 `subject_id`、`id`）写对象标识：助理的建议按钮据此在用户手动改过该对象后自动失效。
 - 设置“助理”里的“插件接入诊断”会列出你的插件为助理提供了什么、缺什么（对象读取、结果关联、能力说明），按那里的提示补齐即可。
 - Native 插件新增路由或动作要递增 Manifest `version`，否则已安装项目仍按旧清单运行。
@@ -372,7 +410,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - 在插件的 `src/prompts.ts` 用 `defineInstructionPrompt`（`@molis-ai/molis-work-contracts/platform/model-prompts`）声明，写明 `title`、`purpose`、`used_by`，从包入口导出 `<插件>_INSTRUCTIONS`。
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
 - Host 适配器经 `resolveModelPrompt` 取有效正文；插件不分内置还是安装的，都把指令放在自己定义的 `instructions`（`PluginDefinition.instructions`），运行时由 Host 登记，调用只能发送定义里带的指令（PG-051）。`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 只列平台自己的：Host 的 `system:*` 题面、插件创作台（平台能力，PG-051 Q2）与仍由 Host 承载的炼金术士。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
-- Runtime 插件调模型用 `context.services.model`（沙箱执行的包不直接拿它，经 broker 的 `sdk.model` 用同一份：合同里声明 `effects.model`，请求只写自己登记的指令 id 和这次的数据，不带提示词文字，PG-017 P1、S-66；生成的插件还没有接上这条路，见 `specs/repository-anti-corruption/slices/pg017-sandbox-services.md` §4；装进 Home 的签名包另可在合同里写 `effects.modelSettings: ["read", "save"]` 选自己用的模型（`sdk.model.settings.read()` 只见供应商名与模型，`save({ provider_id, model_id })` 只能在人已启用的里选，不能写地址、连接或接口格式），写 `effects.imageGeneration: ["read", "bind", "generate"]`（要带 `networkDomains`）用 `sdk.imageGeneration`：连接要人先在图片设置里用在同一个 https 来源上，包只能绑定、生成，不能第一个钉住地址；生成结果最多 4 张、合计 ≤ 360 KiB，调用按计量算；Manifest 的权限行由 effects 派生，包里不写 `model_configuration`、`image_generation`，项目里的实例不提供，BL-491、S-60），不写宿主绑定文件：Manifest 声明 `model:invoke`（只列模型、问能不能用、不发请求的插件声明只读的 `model:read`，它只开 `choices()` 与 `availability()`）；`complete()` 只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。交给模型的材料（用户的文件、网页，含 `services.materials` 读到的）放在数据里，用 contracts 的 `fencedMaterials(材料, "MATERIALS_" + randomUUID())` 围起来：「不可信」声明写在代码里，用户怎么改指令它都在，指令里不再写这句（`@molis-ai/molis-work-contracts/platform/model-prompts`）。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
+- Runtime 插件调模型用 `context.services.model`（沙箱执行的包不直接拿它，经 broker 的 `sdk.model` 用同一份：合同里声明 `effects.model`，请求只写自己登记的指令 id 和这次的数据，不带提示词文字，PG-017 P1、S-66；生成的插件还没有接上这条路，见 `specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md` §4；装进 Home 的签名包另可在合同里写 `effects.modelSettings: ["read", "save"]` 选自己用的模型（`sdk.model.settings.read()` 只见供应商名与模型，`save({ provider_id, model_id })` 只能在人已启用的里选，不能写地址、连接或接口格式），写 `effects.imageGeneration: ["read", "bind", "generate"]`（要带 `networkDomains`）用 `sdk.imageGeneration`：连接要人先在图片设置里用在同一个 https 来源上，包只能绑定、生成，不能第一个钉住地址；生成结果最多 4 张、合计 ≤ 360 KiB，调用按计量算；Manifest 的权限行由 effects 派生，包里不写 `model_configuration`、`image_generation`，项目里的实例不提供，BL-491、S-60），不写宿主绑定文件：Manifest 声明 `model:invoke`（只列模型、问能不能用、不发请求的插件声明只读的 `model:read`，它只开 `choices()` 与 `availability()`）；`complete()` 只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。交给模型的材料（用户的文件、网页，含 `services.materials` 读到的）放在数据里，用 contracts 的 `fencedMaterials(材料, "MATERIALS_" + randomUUID())` 围起来：「不可信」声明写在代码里，用户怎么改指令它都在，指令里不再写这句（`@molis-ai/molis-work-contracts/platform/model-prompts`）。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
 - 模型请求可带 `selection: { provider_id, model_id }`，可用性用 `services.model.availability(selection)`；明确选择失败不改用默认模型。仅指定已有目录项，地址、凭据和供应商配置仍由 Host 管理。
 - `services.model.choices()` 只返回当前可用模型的名称与能力，不解密或联网。原图输入用 `images: [{ bytes, label? }]`，首次等待前复制，最多 50 张、单张 32 MiB、合计 128 MiB，不收路径或 URL；Host 临时副本和 SDK intake 各自清理。成功结果带真实 `execution` 回执和同步 `validateResult()`，失败及 JSON 解码失败在已有推理事实时也保留回执；未知用量保持未知。写业务前先 `await caller.beforeEffect()`，随后立即 `result.validateResult()` 再同步提交；失败记账用相同检查，不能借另一动作或新模型绑定提交旧结果。细节与示例见 Prologue AI 手册第 4 节。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
@@ -451,6 +489,10 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 上面 `pack` 打的是在 Host 进程之外自己运行的插件源码包。另一种包在 Home 里跑在**沙箱**里：代码是一个入口文件，界面由 Host 按声明画，不带任何页面脚本。它是公开格式，任何作者都可以做：创作台发布只是其中一个作者，Host 读它的代码里没有创作台的任何实现。类型在 `@molis-ai/molis-work-contracts/platform/plugin`（`SANDBOX_PACKAGE_FILES`、`SandboxPackageManifest`、`SandboxPackageInterface`、`SandboxPackagePrompt`），沙箱合同的类型在 `platform/plugin-sandbox`。
 
+作者可用 `molis-work-plugin pack-sandbox <源目录> <输出.json> --name <名称> --version <版本> --publisher-id <发布者> --publisher-key-id <指纹> [--scope home]` 生成 wire 清单和未签名包，再沿既有 `sign` / `verify` 签验。可选图标、兼容版本和文字声明参数见 [CLI 文档](../../tooling/plugin-cli/README.md#沙箱包)。SDK 的 `sandboxPluginManifest`、`sandboxIntegrationManifest` 和 `effectsFromContract` 是 Host、CLI 与创作台共用的生成实现；作者只需 contracts 和 plugin-sdk。
+
+创作台首次发布前可选择项目或个人空间。切换范围会作废旧范围的通过结果，并按新范围重新检查已有源码和界面；不会为重验调用模型。首份发布固定该草稿的范围。发布在原五文件旁保存独立签名分发包，下载后在插件设置中导入，查看指纹、范围和权限，再由本人命名固定并确认；本机生成不等于已经信任。已有 agent-built 项目安装沿用原身份和数据，签名包不自动替换它。每个 Home 的签名私钥归现有 SecretStore，公开身份记录在 `config/plugin-publisher.json`；删除项目和普通卸载保留，显式 Home purge 才移除。身份缺失、不匹配或已撤销时拒绝发布，不能自动换钥绕过。
+
 包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 包含下面五个文件，以及 `agent` / `methods` 正文声明逐项引用的 `agent/` 资源；缺文件、重复路径或未声明的额外文件均拒绝：
 
 | 文件 | 内容 |
@@ -461,7 +503,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
-沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent` / `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限包含 `storage:private` 以及合同声明的项目存在性、模型和生图服务所派生的可选权限，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility`、`runtime`（只能写 `{ scope: "home" }`，见下）、文字数组 `agent` / `methods` 和 stage 视图的 `icon`（取值限平台图标集，即 SDK `/ui` 的 `PLUGIN_ICON_NAMES`；不写就画 `package`，写了集合外的名字，签名和预览都以 `plugin.declaration_invalid` 拒绝）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
 
 **签名角色资料与方法**：app 包的 wire 清单可写 `agent: [{ name, purpose, body }]`、`methods: [{ name, purpose, body }]`，合计至多 64 项；每项只收这三个键。名字为 1–80、用途为 1–300 个 UTF-16 单元，`body` 是 `agent/` 下无跳转的包内相对资源路径。资源先限 32,000 字节，再按严格 UTF-8 解码，正文非空白且至多 8000 个 UTF-16 单元，保留原始文字与空白。不同条目可共用资源，同 plugin/kind 下名字不能重复。
 
@@ -470,6 +512,12 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 预览 @4 列出每项 kind、名字及前 200 个 Unicode 码点。升级按同身份条目全文比较，标明新增、正文已变化、移除，摘要相同也显示尾部变化。确认使用原 held 签名包；取消不安装或登记。角色资料与方法沿助理现有材料入口选择和 `assistant.methods.read@2` 读取；它们及包内元数据都以固定不可信说明后的 JSON 数据进入上下文，不加入 system/role prompt 或 inlineMethods。角色资料允许用户覆盖，返回 effective/user_revision；方法不增加编辑账。精确来源含 plugin_id、完整 plugin_version、publisher_signature、kind/entry_id 与当前安装/世代/范围；失效需重选，不自动换最新版。本次 handoff 得到接受回执后才记角色使用，后续撤销保留当时历史，新的读取和交付仍复核。真实模型质量须另验。
 
 **集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，运行范围写 `runtime: { scope: "home" }`（集成的来源是 Home 的，与 BL-628 的 Home 包同一条），没有路由和视图，作者另外写自己的一个连接服务和它的一个集成（`connection_services`、`integrations` 各一项，现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-95）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。装的时候走与别的签名包同一条预览、确认：预览列出包写的来源，并拿包的插件 ID、服务 ID、集成 ID 对 Home 的集成登记查一遍，撞了内置或已装的就拒（`plugin.integration_declaration_conflict`，点名撞的 id 和占着它的插件），确认时再查一次。装上后代码在 Home 的沙箱实例里跑，它运行时登记才有它的来源；停用、卸载、发布者被撤销时它的 id 放掉，用它的 Feed 来源拉取得 `plugin.integration_unavailable`，人的连接记录和 Feed 来源都留着，再启用就接着拉。集成包不出动作、不进个人插件名单。设置页的服务卡片、粘贴凭据的新建连接读这个 Home 的集成登记，所以包声明的服务有它的卡片、能新建连接，卸载后卡片随之消失（人建好的连接记录留着）。
+
+Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
+
+**Host 构建的远程 MCP 声明（BL-790）**：服务的 `auth.methods` 可写 `{ kind: "mcp", endpoint, auth }`；`endpoint` 必须为无凭据 HTTPS，`auth` 为 `oauth|bearer|either|none`。可选 `registration: "manual"`（省略为 dynamic）、`endpoint_pattern: { source, flags }`（source 以 `^` 开头、`$` 结尾，flags 为 `u` 或 `iu`）与 `token_scheme: "Sentry-Bearer"`。SDK 验证形状，目录、setup、授权、发现、刷新、工具调用和 Agent 读取同份声明。外部签名包携带带数据 OAuth/MCP 时，安装预览及 attach 都在副作用前以 `plugin.declaration_invalid` 拒绝；只写 kind 的槽保持原义。
+
+部署客户端只给 Host 原始构建的同一插件/发布者签名、完整方法与原默认资源。已激活连接保存稳定来源 pin；pending、held 与单次请求另固定真实安装世代，任何等待后及 staged→final 凭据和连接提交前都核对原快照，最终同步检查到写入之间没有 await。held 释放核本次实际提交的 completion。同源重启的新操作可用，旧在途及 Agent 缓存不能借 disable/enable 复活；缺来源 pin 的旧远程 MCP 连接须重新新增，不自动猜测或迁移。飞书/Lark stdio、Figma 本机例外留 BL-791；Figma 显式 HTTPS 保持原地址、oauth/manual 与无产品客户端自动选择条件。详见 [Integration 开发说明](../../skills/molis-plugin-dev/integrations.md)。
 
 安装管理当前合同为 `plugins.install.preview@4`、`plugins.installed.list@3`：范围/来源与当前权限是各自输出的一部分，固定旧版本的引用须重新选择。两者只给本人，没有 MCP 工具；确认安装仍为 `plugins.install.confirm@1`。
 

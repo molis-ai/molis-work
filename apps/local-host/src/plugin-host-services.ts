@@ -26,6 +26,7 @@ import {
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
+import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { openPluginDatabase } from "./plugin-database.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
@@ -86,7 +87,9 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest;
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
-    withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants));
+    withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants), permission => {
+      try { outsidePluginAction(() => context.requireGrant(permission)); return true; } catch { return false; }
+    });
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions, plugin_caller: pluginCaller,
       project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context),

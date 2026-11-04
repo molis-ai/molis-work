@@ -20,3 +20,24 @@ export function assertSqliteBaselineTriggers(db: SqliteBaselineDatabase, expecte
     if (actual?.sql !== sql) throw new Error('SQLITE_BASELINE_TRIGGER_MISMATCH');
   }
 }
+
+/** Closed libraries accept only executable schema from the baseline. Project plugin triggers have a separate owner inspector. */
+export function snapshotProgramsMatch(db: SqliteBaselineDatabase, schema: string, additionalTables: boolean): boolean {
+  const programs = (connection: SqliteBaselineDatabase) =>
+    connection.prepare("SELECT name,type,sql FROM sqlite_schema WHERE type IN ('view','trigger')").all() as Array<{name:string; type:string; sql:string}>;
+  const reference = new DatabaseSync(':memory:');
+  try {
+    reference.exec(schema);
+    const expected = new Map(programs(reference).map(row => [row.name,row]));
+    for (const actual of programs(db)) {
+      const declared = expected.get(actual.name);
+      if (!declared) {
+        if (additionalTables && actual.type === 'trigger') continue;
+        return false;
+      }
+      if (actual.type !== declared.type || actual.sql !== declared.sql) return false;
+      expected.delete(actual.name);
+    }
+    return expected.size === 0;
+  } finally { reference.close(); }
+}

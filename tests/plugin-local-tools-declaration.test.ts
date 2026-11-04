@@ -4,7 +4,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { SHELF_LOCAL_TOOLS } from "@molis-ai/molis-work-plugin-shelf";
 
-// specs/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-112: the command-line tools a plugin looks for on this
+// specs/archive/repository-anti-corruption/slices/platform-local-tools-home-scope.md, PG-112: the command-line tools a plugin looks for on this
 // machine are declared in its Manifest (`local_tools`) and nowhere else.
 
 const TOOLS = { tools: [{ tool_id: "alpha", binaries: ["alpha-cli", "alpha"] }], directories: ["~/.alpha/bin", "/opt/tools/bin"], custom_executables: true };

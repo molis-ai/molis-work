@@ -12,11 +12,13 @@ const heading = (text: string) => ({ type: "heading", attrs: { level: 2 }, conte
 const STRIP = "[data-assistant-context-strip]:not([hidden])";
 
 async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIRST)], ready = FIRST) {
-  const browser = await openGoalBrowser(t, "user");
+  let model!: Awaited<ReturnType<typeof issueModel>>;
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await issueModel(t, homeDirectory, { replyText: "收到。" }); },
+  });
   if (!browser) return null;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, navigate, waitFor, origin, projectId, homeDirectory } = browser;
-  const model = await issueModel(t, homeDirectory, { replyText: "收到。" });
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content } }); } finally { pages.close(); } })();

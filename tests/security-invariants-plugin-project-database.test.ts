@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import type { PluginDatabase, PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxOperationContract, SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, openPluginProjectLibrary, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { pluginSyncDatabaseDeclaration, pluginSyncNamespace, createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, openPluginProjectLibrary, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { assertContract, createSandboxRunner, sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
@@ -14,7 +14,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 
-// S-46, the per-statement half (PLIB-06, PLIB-08; specs/plugin-project-database §2.4): a plugin given `services.project_database`
+// S-46, the per-statement half (PLIB-06, PLIB-08; specs/archive/plugin-project-database §2.4): a plugin given `services.project_database`
 // reaches its own tables in the project's library and nothing else. Every statement is read through `EXPLAIN` before it runs and
 // refused for a step that makes or drops anything, a pragma, a b-tree that is not the plugin's own (the project's root row
 // excepted, which it may read), a database other than the library, a write in a read, or a virtual table other than the JSON
@@ -45,7 +45,7 @@ const notes = () => probe("libprobe", `
 const items = () => probe("libother", "CREATE TABLE libother_items (id INTEGER PRIMARY KEY, text TEXT NOT NULL);");
 
 /** The project platform the Host builds over a project's library file, with both probes started; `sandbox` makes the first one a plugin the Host runs outside its own process. */
-async function platform(t: TestContext, sandbox = false) {
+async function platform(t: TestContext, sandbox = false, trackNotes = false) {
   const directory = mkdtempSync(join(tmpdir(), "plugin-project-library-")), file = join(directory, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
@@ -61,6 +61,8 @@ async function platform(t: TestContext, sandbox = false) {
     } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
   });
   const mine = notes(), other = items();
+  if (trackNotes) mine.definition.manifest.sync = { protocol_version: 1, collections: [{ id: "notes", title: "Notes", schema_version: 1, requires: [],
+    tracking: [{ table:"libprobe_notes",key:[{column:"id"}] }] }] };
   const grants = ["storage:private", mine.declaration.read_permission, mine.declaration.write_permission];
   const starting = sandbox ? { definition: { ...mine.definition, execution: "sandbox" as const }, grants } : { definition: mine.definition, trust: { level: "host" } as const };
   assert.deepEqual((await running.start([starting, { definition: other.definition, trust: { level: "host" } }])).running.toSorted(), [mine.id, other.id].toSorted());
@@ -75,31 +77,38 @@ const write = (database: PluginDatabase, sql: string, parameters: Array<string |
   database.transaction(async () => {}, tx => tx.run(sql, parameters));
 
 test("S-46 trusted sync journals are atomic but confer no direct or transitive foreign-table access", async t => {
-  const { store, mine, database, count } = await platform(t);
-  const { installReplicaTrigger } = await import("@molis-ai/molis-work-storage");
-  const db = database(mine);
-  store.db.exec("CREATE TABLE sync_probe_log (id INTEGER PRIMARY KEY AUTOINCREMENT, value TEXT NOT NULL)");
-  const sql = "CREATE TRIGGER sync_probe_insert AFTER INSERT ON libprobe_notes BEGIN INSERT INTO sync_probe_log(value) VALUES(NEW.text); END";
-  installReplicaTrigger(store.replicationDatabase, "sync_probe_insert", sql);
+  const { store, mine, database, count } = await platform(t, false, true);
+  const { installReplicaTrigger, sqliteBaselineTriggers } = await import("@molis-ai/molis-work-storage");
+  const db = database(mine), manifest = mine.definition.manifest;
+  const namespace = pluginSyncNamespace(manifest, "notes"), log = namespace + "_replica_changes", insert = namespace + "_track_0_insert";
+  const baseline = pluginSyncDatabaseDeclaration(manifest,mine.declaration);
+  const original = sqliteBaselineTriggers(baseline.schema).get(insert);
+  assert.ok(original, "the Host compiled a journal trigger from the admitted declaration");
   await write(db, "INSERT INTO libprobe_notes(project_id,text) VALUES(?,?)", [DEMO_PROJECT_ID, "journaled"]);
-  assert.equal(count("sync_probe_log"), 1);
+  assert.equal(count(log), 1);
   assert.throws(() => db.all("SELECT * FROM sqlite_sequence"), REFUSED);
   await assert.rejects(write(db, "UPDATE sqlite_sequence SET seq=0"), REFUSED);
   await assert.rejects(write(db, "INSERT INTO libprobe_notes(project_id,text) VALUES(?,(SELECT name FROM sqlite_sequence LIMIT 1))", [DEMO_PROJECT_ID]), REFUSED);
-  assert.throws(() => db.all("SELECT * FROM sync_probe_log"), REFUSED);
-  await assert.rejects(write(db, "INSERT INTO sync_probe_log(value) VALUES('forbidden')"), REFUSED);
+  assert.throws(() => db.all(`SELECT * FROM ${log}`), REFUSED);
+  await assert.rejects(write(db, `INSERT INTO ${log}(key) VALUES('forbidden')`), REFUSED);
   await assert.rejects(db.transaction(async () => {}, tx => {
     tx.run("INSERT INTO libprobe_notes(project_id,text) VALUES(?,?)", [DEMO_PROJECT_ID, "rolled back"]);
     throw new Error("revoke-before-commit");
   }), /revoke-before-commit/);
-  assert.equal(count("sync_probe_log"), 1);
-  store.db.exec("CREATE TRIGGER rogue_nested AFTER INSERT ON sync_probe_log BEGIN INSERT INTO libother_items(text) VALUES('stolen'); END");
+  assert.equal(count(log), 1);
+  store.db.exec(`CREATE TRIGGER rogue_nested AFTER INSERT ON ${log} BEGIN INSERT INTO libother_items(text) VALUES('stolen'); END`);
   await assert.rejects(write(db, "INSERT INTO libprobe_notes(project_id,text) VALUES(?,?)", [DEMO_PROJECT_ID, "nested"]), REFUSED);
   assert.equal(count("libother_items"), 0);
-  assert.equal(count("sync_probe_log"), 1);
-  store.db.exec("DROP TRIGGER rogue_nested; DROP TRIGGER sync_probe_insert");
-  store.db.exec("CREATE TRIGGER sync_probe_insert AFTER INSERT ON libprobe_notes BEGIN INSERT INTO libother_items(text) VALUES('replaced'); END");
-  assert.throws(() => installReplicaTrigger(store.replicationDatabase, "sync_probe_insert", sql), { code: "storage.replica_journal_invalid" });
+  assert.equal(count(log), 1);
+  store.db.exec("DROP TRIGGER rogue_nested");
+  const late = "CREATE TRIGGER late_journal AFTER INSERT ON libprobe_notes BEGIN INSERT INTO libother_items(text) VALUES('late'); END";
+  installReplicaTrigger(store.replicationDatabase, "late_journal", late);
+  await assert.rejects(write(db, "INSERT INTO libprobe_notes(project_id,text) VALUES(?,?)", [DEMO_PROJECT_ID, "late"]), REFUSED);
+  assert.equal(count(log), 1);
+  assert.equal(count("libother_items"), 0, "registering a late trigger does not extend the live handle");
+  store.db.exec(`DROP TRIGGER late_journal; DROP TRIGGER ${insert}`);
+  store.db.exec(`CREATE TRIGGER ${insert} AFTER INSERT ON libprobe_notes BEGIN INSERT INTO libother_items(text) VALUES('replaced'); END`);
+  assert.throws(() => installReplicaTrigger(store.replicationDatabase, insert, original), { code: "storage.replica_journal_invalid" });
   await assert.rejects(write(db, "INSERT INTO libprobe_notes(project_id,text) VALUES(?,?)", [DEMO_PROJECT_ID, "replaced"]), REFUSED);
   await assert.rejects(write(db, "INSERT INTO libprobe_notes(project_id,text) VALUES(?,?)", [DEMO_PROJECT_ID, "still replaced"]), REFUSED);
   assert.equal(count("libother_items"), 0);

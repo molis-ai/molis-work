@@ -4,7 +4,7 @@ import { WORK_EXECUTOR_PROTOCOL, WORK_EXECUTOR_ROLES, defineWorkExecutorActions,
   type WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
-// specs/repository-anti-corruption PG-036 (C8-1): the work-executor protocol v1. A plugin that takes on work from the Assistant
+// specs/archive/repository-anti-corruption PG-036 (C8-1): the work-executor protocol v1. A plugin that takes on work from the Assistant
 // publishes six role actions; the SDK checks each against its role and the set as a whole, the way it checks the other protocols.
 
 const options = (name: WorkExecutorRole): WorkExecutorActionOptions =>

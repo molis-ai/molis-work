@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -5,6 +6,7 @@ import test, { type TestContext } from 'node:test';
 import { LocalHostHttpClient } from '@molis-ai/molis-work-test-kit/local-host-http';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { seedBoard } from './fixtures/goal-application.js';
+import { createLocalFeedSourceService } from './fixtures/feed-library.js';
 import { reviewEvidenceUrl } from './fixtures/review-evidence.js';
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
@@ -20,36 +22,48 @@ function http(b: Browser) {
   return new LocalHostHttpClient({ origin: b.origin, controlToken: b.controlToken,
     fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(init?.method === 'POST' ? limits.post : 1000) }) });
 }
-async function page(b: Browser) {
+type Child = Awaited<ReturnType<typeof pluginFrameBrowser>>;
+const children = new WeakMap<Browser, Child>();
+const child = (b: Browser) => { const value = children.get(b); assert.ok(value); return value; };
+async function page(b: Browser, t: TestContext) {
+  const view = await pluginFrameBrowser(t, b, "feed");
+  children.set(b, view);
   await b.setViewport(390, 640, false);
   await b.command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, b.sessionId);
+  b.setFrameInitScript(`window.t403Reads={total:0,pending:0,holdNext:false,held:false};
+    window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{
+      const read=host.view.readDocument;host.view.readDocument=async(...args)=>{
+        const hold=t403Reads.holdNext;t403Reads.holdNext=false;t403Reads.total++;t403Reads.pending++;
+        const released=hold?new Promise(resolve=>t403Reads.release=resolve):null;
+        try{const html=await read(...args);if(hold){t403Reads.held=true;await released;}return html;}
+        finally{t403Reads.pending--;if(hold){t403Reads.held=false;t403Reads.release=null;}}
+      };return value(host)}:value;return true}});`);
   await b.navigate(() => b.command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/?openPlugin=feed` }, b.sessionId));
-  await b.waitFor("document.body.dataset.desktopSurface==='feed' && document.querySelector('[data-feed-workbench]')?.hidden===false && !document.querySelector('[data-ui-client-state=loading]')");
+  await b.waitFor("document.body.dataset.desktopSurface==='feed' && document.querySelector('[data-work-surface=feed]')?.dataset.uiClientState==='ready'");
+  await view.waitFor("t403Reads.total>0 && t403Reads.pending===0");
   await b.evaluate(`(() => {
-    const roots=document.querySelectorAll('[data-feed-workbench]'); if(roots.length!==1) throw Error('ambiguous Feed root');
-    const body=document.body,root=roots[0],menu=root.querySelector('[data-feed-source-menu]'),add=root.querySelector(${JSON.stringify(railAdd)}),dialog=root.querySelector('[data-feed-sources-dialog]');
-    if(!menu||!add||!dialog) throw Error('missing Feed controls'); let membership=0;const attention=[];
+    const body=document.body; let membership=0,attention=[];
     const onMember=()=>membership++,onAttention=e=>attention.push(e.detail.board_cursor);
     document.addEventListener('molis-work:plugins-changed',onMember);document.addEventListener('molis-work:attention',onAttention);
-    const snapshot=()=>{const state=JSON.parse(document.querySelector('#molis-work-data').textContent),workspace=document.querySelector('[data-workspace]');return {
-      project:state.project?.project_id||state.snapshot.board.project_id,cursor:state.snapshot.cursor,goals:state.goals.map(x=>x.goal.goal_id),
-      same:root===document.querySelector('[data-feed-workbench]')&&menu===root.querySelector('[data-feed-source-menu]')&&add===root.querySelector(${JSON.stringify(railAdd)})&&dialog===root.querySelector('[data-feed-sources-dialog]')&&[root,menu,add,dialog].every(x=>x.isConnected),bodySame:body===document.body&&body.isConnected,visible:!document.hidden,top:window===top,
-      surface:body.dataset.desktopSurface,collection:body.dataset.boardView,mobile:workspace.dataset.mobileView,mode:workspace.dataset.workspaceMode,
-      task:root.dataset.selectedSource,source:document.querySelector('[data-source-entry-id].is-selected')?.dataset.sourceEntryId||'',selected:history.state?.goalId||'',dirty:!!document.querySelector('[data-live-dirty=true],[data-record-menu][open],[data-event-form][aria-busy=true]'),
-      menuOpen:menu.open,expanded:menu.querySelector('summary').getAttribute('aria-expanded'),railOpen:root.dataset.railOpen,dialogHidden:dialog.hidden,choicesHidden:dialog.querySelector('[data-feed-source-choices]').hidden,setupHidden:dialog.querySelector('[data-feed-source-setup]').hidden,
-      graphPresent:!!document.querySelector('[data-goal-momentum]'),graphLoaded:document.querySelector('[data-goal-momentum]')?.dataset.loaded||'',syncing:document.querySelector('[data-document-pane]')?.classList.contains('is-syncing'),tabFeed:!!document.querySelector('[data-tab-id][aria-current][data-plugin=feed]'),membership,attention:[...attention]};};
-    window.__feedMenuTest={snapshot,point(selector){const node=selector==='summary'?menu.querySelector(':scope > summary'):root.querySelector(selector);if(!snapshot().same||!node?.isConnected)throw Error('Feed identity changed');
-      const r=node.getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;
-      if(!r.width||!r.height||!node.getClientRects().length||node.closest('[hidden],[inert]')||node.matches(':disabled')||x<0||y<0||x>=innerWidth||y>=innerHeight||!node.contains(document.elementFromPoint(x,y)))throw Error('Feed target is not operable');return{x,y};},
-      selectedTask(id){return root.querySelector('[data-feed-task-toggle="'+CSS.escape(id)+'"]').getAttribute('aria-current');},stop(){document.removeEventListener('molis-work:plugins-changed',onMember);document.removeEventListener('molis-work:attention',onAttention);delete window.__feedMenuTest;}};
+    window.__feedOwnerTest={snapshot(){const state=JSON.parse(document.querySelector('#molis-work-data').textContent),workspace=document.querySelector('[data-workspace]');return {
+      project:state.project?.project_id||state.snapshot.board.project_id,cursor:state.snapshot.cursor,goals:state.goals.map(x=>x.goal.goal_id),bodySame:body===document.body&&body.isConnected,visible:!document.hidden,top:window===top,
+      surface:body.dataset.desktopSurface,collection:body.dataset.boardView,mobile:workspace.dataset.mobileView,mode:workspace.dataset.workspaceMode,source:'',selected:history.state?.goalId||'',dirty:!!document.querySelector('[data-live-dirty=true],[data-record-menu][open],[data-event-form][aria-busy=true]'),
+      graphPresent:!!document.querySelector('[data-goal-momentum]'),graphLoaded:document.querySelector('[data-goal-momentum]')?.dataset.loaded||'',syncing:document.querySelector('[data-document-pane]')?.classList.contains('is-syncing'),tabFeed:!!document.querySelector('[data-tab-id][aria-current][data-plugin=feed]'),membership,attention:[...attention]};},stop(){document.removeEventListener('molis-work:plugins-changed',onMember);document.removeEventListener('molis-work:attention',onAttention);delete window.__feedOwnerTest;}};
+  })()`);
+  await view.evaluate(`(() => {
+    const root=document.querySelector('[data-feed-workbench]'),menu=root.querySelector('[data-feed-source-menu]'),summary=menu.querySelector('summary'),add=root.querySelector(${JSON.stringify(railAdd)}),dialog=root.querySelector('[data-feed-sources-dialog]');
+    let previousColumn=null,readAt=0;
+    window.__feedMenuTest={snapshot(){return {same:root===document.querySelector('[data-feed-workbench]')&&menu===root.querySelector('[data-feed-source-menu]')&&add===root.querySelector(${JSON.stringify(railAdd)})&&dialog===root.querySelector('[data-feed-sources-dialog]')&&[root,menu,add,dialog].every(x=>x.isConnected),
+      task:root.dataset.selectedSource,menuOpen:menu.open,expanded:menu.querySelector('summary').getAttribute('aria-expanded'),railOpen:root.dataset.railOpen,dialogHidden:dialog.hidden,choicesHidden:dialog.querySelector('[data-feed-source-choices]').hidden,setupHidden:dialog.querySelector('[data-feed-source-setup]').hidden};},
+      selectedTask(id){return root.querySelector('[data-feed-task-toggle="'+CSS.escape(id)+'"]').getAttribute('aria-current');},
+      refresh(){if(t403Reads.pending)throw Error('A Feed read is already pending');previousColumn=root.querySelector('[data-feed-column]');readAt=t403Reads.total;t403Reads.holdNext=true;root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));},
+      refreshState(){return {reads:t403Reads.total-readAt,pending:t403Reads.pending,held:t403Reads.held,replaced:!!previousColumn&&!previousColumn.isConnected&&previousColumn!==root.querySelector('[data-feed-column]'),documentFocused:document.hasFocus(),control:document.activeElement===summary?'summary':document.activeElement===add?'add':null};},
+      stop(){t403Reads.holdNext=false;t403Reads.release?.();delete window.__feedMenuTest;}};
   })()`);
 }
-const snapshot = (b: Browser) => b.evaluate<Snapshot>('window.__feedMenuTest.snapshot()');
-async function native(b: Browser, selector: string) {
-  const point = await b.evaluate<{ x: number; y: number }>(`window.__feedMenuTest.point(${JSON.stringify(selector)})`);
-  await b.command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 }, b.sessionId);
-  await b.command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 }, b.sessionId);
-}
+const snapshot = async (b: Browser): Promise<Snapshot> => ({ ...await b.evaluate<Snapshot>('window.__feedOwnerTest.snapshot()'), ...await child(b).evaluate<Snapshot>('window.__feedMenuTest.snapshot()') });
+const native = (b: Browser, selector: string) => child(b).click(selector === 'summary' ? '[data-feed-source-menu] > summary' : selector);
+const stopPage = async (b: Browser) => { await child(b).evaluate('window.__feedMenuTest?.stop()'); await b.evaluate('window.__feedOwnerTest?.stop()'); };
 async function shot(b: Browser, name: string) {
   const dir = reviewEvidenceUrl('feed-source-menu-refresh/'); await mkdir(dir, { recursive: true });
   const image = await b.command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, b.sessionId, 1500);
@@ -131,7 +145,7 @@ function refreshGate(b: Browser) {
       let deadline: ReturnType<typeof setTimeout> | undefined;
       try { await Promise.race([Promise.allSettled([...tasks]), new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Callback cleanup exceeded its budget')), 1000); })]); }
       catch (error) { errors.push(error); } finally { clearTimeout(deadline); }
-      try { await b.evaluate('window.__feedMenuTest?.stop()'); } catch (error) { errors.push(error); }
+      try { await stopPage(b); } catch (error) { errors.push(error); }
       this.check();
     },
   };
@@ -150,31 +164,31 @@ async function browser(t: TestContext) { const b = await openGoalBrowser(t, 'see
 test('RAC-2840: an unrelated Goal refresh preserves the current source menu and its native add/choose/cancel path', { timeout: 120_000 }, async t => {
   const b = await browser(t), gate = refreshGate(b), failures: unknown[] = [];
   try {
-    await gate.start(); await page(b); gate.control(); const initial = await snapshot(b); const client = http(b), prefix = `/projects/${b.projectId}`;
+    await gate.start(); await page(b, t); gate.control(); const initial = await snapshot(b); const client = http(b), prefix = `/projects/${b.projectId}`;
     const c0 = (await client.get<{ observed_event_cursor: number }>(prefix + '/api/board/cursor')).observed_event_cursor;
     assert.equal(initial.cursor, c0); assert.equal(initial.project, b.projectId); assert.equal(initial.collection, 'current'); assert.equal(initial.selected, ''); assert.deepEqual(initial.goals, []);
     assert.ok(initial.same && initial.bodySame && initial.visible && initial.top && !initial.dirty); assert.equal(initial.task, 'all'); assert.equal(initial.menuOpen, false, 'Restore must not open a closed menu');
-    await native(b, 'summary'); await b.waitFor('window.__feedMenuTest.snapshot().menuOpen'); await native(b, railAdd);
-    await b.waitFor('!window.__feedMenuTest.snapshot().dialogHidden && !window.__feedMenuTest.snapshot().choicesHidden');
-    await native(b, '[data-feed-sources-close]'); await b.waitFor('window.__feedMenuTest.snapshot().dialogHidden');
+    await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen'); await native(b, railAdd);
+    await child(b).waitFor('!window.__feedMenuTest.snapshot().dialogHidden && !window.__feedMenuTest.snapshot().choicesHidden');
+    await native(b, '[data-feed-sources-close]'); await child(b).waitFor('window.__feedMenuTest.snapshot().dialogHidden');
     assert.equal((await snapshot(b)).cursor, c0); assert.equal(gate.count(), 0); gate.check();
     await gate.arm(); const goalId = randomUUID();
     await client.post(prefix + '/api/plugins/io.molis.work.goals/goals', { goal_id: goalId, title: 'An unrelated Goal', outcome: 'Refresh the collection', why: 'Keep the current menu', business_logic: 'Public write', priority: 10, acceptance_criteria: ['Visible in the next public snapshot'] });
     const c1 = await cursorAfter(client, prefix, c0), commit = await gate.response(goalId); assert.ok(commit >= c1);
     const held = await snapshot(b); assert.equal(held.cursor, c0); assert.equal(held.selected, ''); assert.equal(held.task, 'all'); assert.equal(held.surface, 'feed'); assert.ok(held.attention.some(cursor => cursor > c0)); gate.check();
-    await native(b, 'summary'); await b.waitFor('window.__feedMenuTest.snapshot().menuOpen'); const open = await snapshot(b); assert.ok(open.same && open.bodySame); gate.check();
+    await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen'); const open = await snapshot(b); assert.ok(open.same && open.bodySame); gate.check();
     await gate.release();
     // is-syncing is already false before refresh: this is a task-after state, not proof of an observed rAF transition.
-    await b.waitFor(`(()=>{const s=window.__feedMenuTest.snapshot();return s.cursor===${commit}&&s.goals.includes(${JSON.stringify(goalId)})&&!s.syncing;})()`, limits.commit);
+    await b.waitFor(`(()=>{const s=window.__feedOwnerTest.snapshot();return s.cursor===${commit}&&s.goals.includes(${JSON.stringify(goalId)})&&!s.syncing;})()`, limits.commit);
     const after = await snapshot(b); gate.check();
     assert.equal(after.project, b.projectId); assert.ok(after.same && after.bodySame && after.visible && after.top && after.tabFeed && !after.dirty);
     assert.equal(after.surface, 'feed'); assert.equal(after.mobile, 'document'); assert.equal(after.mode, after.graphPresent ? 'graph' : 'focus'); assert.notEqual(after.graphLoaded, 'true');
     assert.equal(after.task, 'all'); assert.equal(after.source, open.source); assert.equal(after.membership, 0); assert.equal(gate.count(), 1); assert.equal(after.dialogHidden, true);
     assert.equal(after.menuOpen, true, 'RAC-2840: unrelated Goal refresh must preserve the current source menu');
     assert.equal(after.expanded, 'true'); assert.equal(after.railOpen, 'true');
-    await native(b, railAdd); await b.waitFor('!window.__feedMenuTest.snapshot().dialogHidden && !window.__feedMenuTest.snapshot().choicesHidden');
-    await native(b, '[data-feed-choose-kind=custom_rss]'); await b.waitFor('!window.__feedMenuTest.snapshot().setupHidden && window.__feedMenuTest.snapshot().choicesHidden');
-    await native(b, '[data-feed-sources-close]'); await b.waitFor('window.__feedMenuTest.snapshot().dialogHidden');
+    await native(b, railAdd); await child(b).waitFor('!window.__feedMenuTest.snapshot().dialogHidden && !window.__feedMenuTest.snapshot().choicesHidden');
+    await native(b, '[data-feed-choose-kind=custom_rss]'); await child(b).waitFor('!window.__feedMenuTest.snapshot().setupHidden && window.__feedMenuTest.snapshot().choicesHidden');
+    await native(b, '[data-feed-sources-close]'); await child(b).waitFor('window.__feedMenuTest.snapshot().dialogHidden');
     assert.equal((await snapshot(b)).menuOpen, false); gate.check();
   } catch (error) { failures.push(error); try { await shot(b, 'refresh-failed'); } catch (captureError) { failures.push(captureError); } }
   finally { try { await gate.close(); } catch (error) { failures.push(error); } }
@@ -185,15 +199,66 @@ test('RAC-2841: explicitly reselecting all, selecting a source and reselecting t
   const b = await browser(t), failures: unknown[] = [];
   try {
     const result = await http(b).post<{ source: { source_id: string } }>(`/projects/${b.projectId}/api/plugins/io.molis.work.feed/sources`, { kind: 'custom_rss', feed_url: 'https://example.com/feed.xml', name: 'Menu source' });
-    await page(b);
+    await page(b, t);
     for (const id of ['all', result.source.source_id, result.source.source_id]) {
-      await native(b, 'summary'); await b.waitFor('window.__feedMenuTest.snapshot().menuOpen');
+      await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen');
       await native(b, `[data-feed-source-menu] [data-feed-task-toggle=${JSON.stringify(id)}]`);
-      await b.waitFor(`(()=>{const s=window.__feedMenuTest.snapshot();return !s.menuOpen&&s.expanded==='false'&&s.railOpen==='false'&&s.task===${JSON.stringify(id)};})()`); const state = await snapshot(b);
+      await child(b).waitFor(`(()=>{const s=window.__feedMenuTest.snapshot();return !s.menuOpen&&s.expanded==='false'&&s.railOpen==='false'&&s.task===${JSON.stringify(id)};})()`); const state = await snapshot(b);
       assert.equal(state.task, id); assert.equal(state.expanded, 'false'); assert.equal(state.railOpen, 'false'); assert.equal(state.dialogHidden, true);
-      assert.equal(await b.evaluate(`window.__feedMenuTest.selectedTask(${JSON.stringify(id)})`), 'page');
+      assert.equal(await child(b).evaluate(`window.__feedMenuTest.selectedTask(${JSON.stringify(id)})`), 'page');
     }
   } catch (error) { failures.push(error); try { await shot(b, 'selection-failed'); } catch (captureError) { failures.push(captureError); } }
-  finally { try { await b.evaluate('window.__feedMenuTest?.stop()'); } catch (error) { failures.push(error); } }
+  finally { try { await stopPage(b); } catch (error) { failures.push(error); } }
   if (failures.length) throw new AggregateError(failures, 'RAC-2841 explicit source selection failed');
+});
+
+test('T405-17B5-UI-01: a real Feed refresh preserves retained menu focus and never takes focus back from the owner', { timeout: 120_000 }, async t => {
+  const b = await browser(t), failures: unknown[] = [];
+  type RefreshState = { reads: number; pending: number; held: boolean; replaced: boolean; documentFocused: boolean; control: string | null };
+  const state = () => child(b).evaluate<RefreshState>('window.__feedMenuTest.refreshState()');
+  const press = async (key: string, code: number) => {
+    for (const type of ['rawKeyDown', 'keyUp'] as const) await b.command('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code }, b.sessionId);
+  };
+  const refresh = async (whilePending?: () => Promise<void>) => {
+    // Feed redraws only when its read brings a change: a source is added in the store first (no view revision, so no second read).
+    createLocalFeedSourceService(b.store.db, b.projectId!).register({ kind: 'web_query', query: 'refresh ' + randomUUID() });
+    await child(b).evaluate('window.__feedMenuTest.refresh()');
+    await child(b).waitFor('window.__feedMenuTest.refreshState().held', limits.hold);
+    const held = await state(); assert.equal(held.reads, 1); assert.equal(held.pending, 1); assert.equal(held.replaced, false);
+    if (whilePending) await whilePending();
+    await child(b).evaluate('t403Reads.release()');
+    await child(b).waitFor('(()=>{const s=window.__feedMenuTest.refreshState();return s.replaced&&s.pending===0;})()', limits.commit);
+    const after = await state(); assert.equal(after.reads, 1); assert.equal(after.held, false); assert.ok((await snapshot(b)).same);
+    return after;
+  };
+  try {
+    await page(b, t);
+    // Native summary activation and Tab establish focus; no test focus is applied after replacement.
+    for (const control of ['summary', 'add']) {
+      await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen');
+      if (control === 'add') await press('Tab', 9);
+      const before = await state(); assert.equal(before.documentFocused, true); assert.equal(before.control, control);
+      const after = await refresh(control === 'summary' ? async () => {
+        // VUX-29: Escape can return focus before the pending refresh commits its replacement.
+        await press('Escape', 27); await child(b).waitFor('!window.__feedMenuTest.snapshot().menuOpen');
+        assert.equal((await state()).control, 'summary');
+      } : undefined);
+      assert.equal(after.documentFocused, true); assert.equal(after.control, control, 'The same retained control must keep focus across detach and replacement');
+      assert.equal((await snapshot(b)).menuOpen, control === 'add'); assert.equal((await snapshot(b)).dialogHidden, true);
+      // The retained inner control must still reach the shared Escape handler after refresh, too.
+      if (control === 'add') { await press('Escape', 27); await child(b).waitFor('!window.__feedMenuTest.snapshot().menuOpen'); }
+      const closed = await state(); assert.equal(closed.documentFocused, true); assert.equal(closed.control, 'summary');
+    }
+    await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen');
+    assert.equal((await state()).control, 'summary');
+    await refresh(async () => {
+      await b.click('.navigator-project-selector');
+      assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('.navigator-project-selector')"), true);
+      assert.equal((await state()).documentFocused, false, 'The user moved focus out of the pending Feed document');
+    });
+    assert.equal(await b.evaluate("document.hasFocus()&&document.activeElement===document.querySelector('.navigator-project-selector')"), true, 'The resolved read must not steal focus from the owner');
+    assert.equal((await state()).documentFocused, false); assert.equal((await snapshot(b)).menuOpen, true);
+  } catch (error) { failures.push(error); try { await shot(b, 'focus-refresh-failed'); } catch (captureError) { failures.push(captureError); } }
+  finally { try { await stopPage(b); } catch (error) { failures.push(error); } }
+  if (failures.length) throw new AggregateError(failures, 'T405-17B5-UI-01 Feed refresh focus failed');
 });

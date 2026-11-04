@@ -5,7 +5,7 @@ import type {
 } from "./contract.js";
 import { shelfErrors } from "./errors.js";
 
-export const CATALOG_VERSION = 1;
+export { CATALOG_VERSION } from "./catalog-shape.js";
 export const CATALOG_FILE = "catalog.json";
 
 export type { StoredItem, CatalogFile } from './catalog-shape.js';

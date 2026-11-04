@@ -1,3 +1,4 @@
+import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -54,7 +55,7 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
     design: { id: 'one', catalog: 'actions/1', title: 'Installed fixture', description: 'Fixture', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] },
     nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])],
       ...(secretRefs.length ? { networkDomains: ['api.example.test'], secretRefs } : {}) }, publishedAt: new Date().toISOString() };
-  builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+  publishCheckedStudioFixture(storage, release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
   const { install } = runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
   if (neverInstalled) store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(install.install_id);
@@ -102,7 +103,7 @@ test('Host discovery and invocation refresh generated cost without rewriting ins
     assert.equal((await installed.catalog()).find(entry => entry.id === action('lookup').capability_id)!.execution.cost, 'none');
     assert.equal(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
     assert.equal(installed.records()[0]!.install_id, fixture.install.install_id);
-    const next = { ...fixture.release, version: 2 }; installed.releases.release(next);
+    const next = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, next);
     await installed.lifecycle('upgrade', next);
     await assert.rejects(client.invoke(caller, action('lookup'), null), 'the old version is withdrawn');
     assert.equal(await client.invoke(caller, action('lookup', 2), null), 'looked up');
@@ -270,7 +271,7 @@ test('a disabled installation switches versions and stays disabled, before and a
   try {
     const installed = await rig.control();
     await installed.lifecycle('disable', fixture.release);
-    const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
+    const v2 = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, v2);
     await installed.lifecycle('upgrade', v2);
     assert.deepEqual(rows(installed), [{ state: 'disabled', version: 2 }], 'the version moved and the plugin is still off');
     await installed.lifecycle('rollback', fixture.release);
@@ -288,7 +289,7 @@ test('a disabled installation switches versions and stays disabled, before and a
     const restored = await rig.control();
     assert.deepEqual(rows(restored), [{ state: 'disabled', version: 2 }]);
     assert.equal(await rig.generated(), 0, 'a restart does not bring it back');
-    const v3 = { ...fixture.release, version: 3 }; restored.releases.release(v3);
+    const v3 = { ...fixture.release, version: 3 }; publishCheckedStudioFixture(restored.storage, v3);
     await restored.lifecycle('upgrade', v3);
     assert.deepEqual(rows(restored), [{ state: 'disabled', version: 3 }], 'after a restart the Supervisor knows nothing of it, and the switch still works');
     await restored.lifecycle('rollback', v2);
@@ -317,7 +318,7 @@ test('a version of a disabled installation that needs more permission asks for t
   try {
     const installed = await rig.control();
     await installed.lifecycle('disable', fixture.release);
-    const wider = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, networkDomains: ['api.example.test'] } }; installed.releases.release(wider);
+    const wider = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, networkDomains: ['api.example.test'] } }; publishCheckedStudioFixture(installed.storage, wider);
     await assert.rejects(installed.lifecycle('upgrade', wider), /新的权限/);
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'disabled', version: 1 }]);
     await installed.lifecycle('upgrade', wider, { consent: true });
@@ -333,7 +334,7 @@ test('a quarantined installation is refused a version switch with a reason, befo
   new SqlitePluginRuntimeRepository(database.db).save({ ...fixture.install, state: 'quarantined' }); database.close();
   const rig = await hostWithProject(home, fixture);
   try {
-    const installed = await rig.control(), next = { ...fixture.release, version: 2 }; installed.releases.release(next);
+    const installed = await rig.control(), next = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, next);
     const snapshot = () => ({ supervisor: installed.platform.supervisor.state(fixture.release.pluginId), installation: installed.platform.runtime.get(fixture.install.install_id) });
     const before = structuredClone(snapshot()), calls = { upgrade: 0, rollback: 0 };
     const upgrade = installed.platform.upgrade.bind(installed.platform), rollback = installed.platform.rollback.bind(installed.platform);
@@ -603,7 +604,7 @@ test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real insta
     assert.equal(listed(), false, 'the next directory read after a retaining Host uninstall has no entry');
     assert.deepEqual(installed.installations(), []);
 
-    const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
+    const v2 = { ...fixture.release, version: 2 }; publishCheckedStudioFixture(installed.storage, v2);
     await installed.lifecycle('install', v2, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
     assert.equal(listed(), true, 'the new installation returns to the directory');
@@ -613,7 +614,7 @@ test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real insta
     await installed.lifecycle('uninstall', v2, { keepData: false });
     assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
     assert.equal(listed(), false, 'dropping private data also leaves no entry on the next directory read');
-    const v3 = { ...fixture.release, version: 3 }; installed.releases.release(v3);
+    const v3 = { ...fixture.release, version: 3 }; publishCheckedStudioFixture(installed.storage, v3);
     await installed.lifecycle('install', v3, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
     assert.equal(listed(), true, 'installing after data deletion returns the fresh installation to the directory');
@@ -641,7 +642,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
       const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
         design: { id: 'one', catalog: 'actions/1', title: 'Fixture ' + buildId.slice(-3), description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
         nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
-      builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+      publishCheckedStudioFixture(storage, release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
       runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants });
       return pluginId;
     };
@@ -701,7 +702,7 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
     const pluginId = fixture.release.pluginId, old = { name: 'weather', header: 'X-Api-Key', value: randomUUID() }, replacement = { ...old, value: randomUUID() };
     const fresh = { name: 'new-provider', header: 'Authorization', value: randomUUID() };
     installed.secrets.save(pluginId, old);
-    const v2 = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, secretRefs: ['weather', 'new-provider'] } }; installed.releases.release(v2);
+    const v2 = { ...fixture.release, version: 2, permissions: { ...fixture.release.permissions, secretRefs: ['weather', 'new-provider'] } }; publishCheckedStudioFixture(installed.storage, v2);
     const approvalKey = 'plugin-builder:agent-studio:approved:' + pluginId, beforeApproval = installed.storage.get(approvalKey);
     try {
       armed = true; const pending = installed.lifecycle('upgrade', v2, { consent: true, secrets: [replacement, fresh] });
@@ -1118,7 +1119,7 @@ for (const [order, gonePluginId, keptPluginId] of [
     const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home, prompts: [],
       design: { id: 'one', catalog: 'actions/1', title: 'Second fixture', description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
       nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
-    builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
+    publishCheckedStudioFixture(storage, release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
     const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
     const { install } = runtime.install({ trust: { level: 'unsigned' }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
     second = { pluginId, installId: install.install_id };

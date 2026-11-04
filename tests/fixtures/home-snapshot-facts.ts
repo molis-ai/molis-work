@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { bindDatabaseSpace, ensureStorageSpace } from "@molis-ai/molis-work-storage";
 import { homeStores } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./goals-modules.js";
 
@@ -16,6 +17,7 @@ function libraryFacts(project: string): Record<string, Seed> {
   const method = { ...BUILTIN_PLANNING_METHOD_PACKS[0]!, method_id: id, name: title, scope: "personal", version: 3,
     enabled: true, created_at: at, updated_at: at };
   return {
+    sync: { table: "sync_stream_cursors", values: { namespace: id, cursor: 7 }, field: "cursor" },
     goals: { table: "personal_planning_method_packs", values: { method_id: id, version: 3, enabled: 1, pack_json: JSON.stringify(method), created_at: at, updated_at: at }, field: "pack_json" },
     "plugin-runtime": { table: "plugin_private_values", values: { install_id: id, item_key: "user-note", item_value: body }, field: "item_value" },
     assistant: { table: "assistant_settings", values: { actor_id: actor, key: "display", revision: 4, value: JSON.stringify({ compact: false }) }, field: "value" },
@@ -67,7 +69,10 @@ export function seedSnapshotLibraries(home: string, project: string): SnapshotFa
         database.exec(store.library.baseline.schema); database.exec("PRAGMA user_version = " + store.library.baseline.version);
       }
       assert.equal(Number(database.prepare("PRAGMA user_version").get()?.user_version), store.library.baseline.version);
-      facts.push(seed(database, relative, input));
+      if (store.path !== "server") bindDatabaseSpace(database, ensureStorageSpace(home));
+      const fact = seed(database, relative, input);
+      if (store.path === "sync") assert.equal(store.snapshot.restore, "preserve", "device cursors must stay local");
+      else facts.push(fact);
     } finally { database.close(); }
   }
   const libraries = registry.get("plugin-libraries")!;
@@ -78,6 +83,7 @@ export function seedSnapshotLibraries(home: string, project: string): SnapshotFa
     if (!ledger.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get()) {
       ledger.exec(libraries.library!.baseline.schema); ledger.exec("PRAGMA user_version = " + libraries.library!.baseline.version);
     }
+    bindDatabaseSpace(ledger, ensureStorageSpace(home));
     facts.push(seed(ledger, "plugin-libraries/plugin-libraries.db", { table: "plugin_home_libraries", values: {
       plugin_id: "org.snapshot.extra", publisher_signature: "snapshot-fixture-publisher", store_name: "snapshot-extra", version: 3,
       schema_digest: createHash("sha256").update(schema).digest("hex"), created_at: at,
@@ -85,7 +91,7 @@ export function seedSnapshotLibraries(home: string, project: string): SnapshotFa
   } finally { ledger.close(); }
   mkdirSync(join(home, "snapshot-extra"));
   const extra = new DatabaseSync(join(home, "snapshot-extra", "snapshot-extra.db"));
-  try { extra.exec(schema); extra.exec("PRAGMA user_version = 3"); facts.push(seed(extra, "snapshot-extra/snapshot-extra.db", { table: "notes", values: { id, text: "A third-party owner fact" }, field: "text" })); }
+  try { extra.exec(schema); bindDatabaseSpace(extra, ensureStorageSpace(home)); extra.exec("PRAGMA user_version = 3"); facts.push(seed(extra, "snapshot-extra/snapshot-extra.db", { table: "notes", values: { id, text: "A third-party owner fact" }, field: "text" })); }
   finally { extra.close(); }
   return facts;
 }

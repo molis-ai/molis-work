@@ -1,7 +1,7 @@
 /**
  * "Is this address this machine?", written once. The control entry, the sockets, the action gateway, the OAuth return
  * addresses and the endpoint checks of the connectors all ask it; before, each wrote its own list and the lists differed
- * (specs/repository-anti-corruption §6, security invariant S-09). It has no dependencies and no effects.
+ * (specs/archive/repository-anti-corruption §6, security invariant S-09). It has no dependencies and no effects.
  *
  * It answers about names only. It never resolves DNS: `localhost` is accepted where a caller allows names, because the
  * browser and the desktop shell address the host by it, and refused where a caller asks for `numeric` (a process talking

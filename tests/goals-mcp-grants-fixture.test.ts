@@ -61,8 +61,9 @@ test("an action the client is not offered is an error, not a skipped line", { ti
 test("a Home directory is served by a short-lived Host assembled the product's way, which is closed again", { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "goals-grants-home-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
-  t.after(async () => { catalog.close(); await rm(directory, { recursive: true, force: true }); });
+  t.after(async () => { await rm(directory, { recursive: true, force: true }); });
   const project = await catalog.createProject({ display_name: "短暂的宿主", actor_id: "user" });
+  catalog.close();
   const rows = await grantGoalsMcp(directory, project, CLIENT);
   assert.ok(rows.length > 10);
   const saved = (await readMcpToolPreference(directory)).action_grants;

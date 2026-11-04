@@ -1,4 +1,5 @@
-import { listFeedSourceCatalog, scheduleServiceFor, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { listTestFeedSourceCatalog } from "./feed-library.js";
+import { scheduleServiceFor, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createScheduleActionPorts } from "@molis-ai/molis-work-plugin-schedule";
 import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
@@ -28,7 +29,7 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, app: GoalProj
   const schedule = createScheduleActionPorts({ db: store.db, schedule: scheduleServiceFor(store.db) });
   return composeWebView(store, readTestGoalCollection(store, app, options.projectId), { databasePath: ":memory:", ...options }, {
     feed: { ...snapshot, inbox_entries: ownedInboxEntries(store, options.projectId) as never, feed_items: snapshot.feed_items.map(item => ({ ...item, body: null, materials: item.materials.map(material => ({ ...material, content: undefined })) })) },
-    feed_source_catalog: listFeedSourceCatalog(), feed_connector_auth: feedConnectorAuthStatus(options.homeDirectory),
+    feed_source_catalog: listTestFeedSourceCatalog(), feed_connector_auth: feedConnectorAuthStatus(options.homeDirectory),
     // What the page's stage read (`schedule.tasks.list`, its declared `stage_data`) answers; the Host reads it per request (T-133).
     stage_data: { schedule: { jobs: schedule.listJobs(), tasks: schedule.listTasks(), operations: [] } },
   });

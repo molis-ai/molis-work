@@ -1,3 +1,7 @@
+import { verifySyncPluginDistribution } from '@molis-ai/molis-work-app-local-host';
+import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { signPluginPackage } from '@molis-ai/molis-work-plugin-runtime';
+import { newPublisher, payloadOf } from './fixtures/sandbox-package.js';
 import {createStaticPersonalSync as createPersonalSync} from './fixtures/static-personal-sync.js';
 import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
@@ -8,7 +12,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {SqlitePluginPrivateStorage,privateValueReplicaOwner,installPrivateValueReplicationJournal,validatePrivateValueReplication} from '@molis-ai/molis-work-plugin-runtime';
-import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,contractEffects,type AgentRelease,type AgentBuild} from '@molis-ai/molis-work-plugin-builder';
+import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,type AgentRelease,type AgentBuild} from '@molis-ai/molis-work-plugin-builder';
 import {pluginComponentChoices} from '@molis-ai/molis-work-design-system';
 import {createSqliteReplica,initializeReplica,namespacedReplicaDatabase,replicaMarkRowsSql,bindDatabaseSpace,personalStorageSpace,replicaSchemaSql} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState,createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
@@ -25,7 +29,7 @@ function fixture(t:TestContext){
  const context={install_id:'agent-studio:'+projectId,plugin_id:builderManifest.plugin_id,version:builderManifest.version,deployment:'local' as const,grants:['storage:private'],project_id:projectId,requireGrant(){authorize();}};
  const storage=databases.map(db=>new SqlitePluginPrivateStorage(db).forPlugin(context,builderManifest));
  const stores=storage.map(s=>new AgentBuilderStore(s));
- const definitions=homes.map((home,index)=>builderPrivateValueReplicationOwner({home,authorize,assertIdle(){if(index===1&&busy)throw new Error('LOCAL_PREVIEW_BUSY');}}));
+ const definitions=homes.map((home,index)=>builderPrivateValueReplicationOwner({home,authorize,verifyDistribution:verifySyncPluginDistribution,assertIdle(){if(index===1&&busy)throw new Error('LOCAL_PREVIEW_BUSY');}}));
  const replicas=databases.map((db,index)=>{bindDatabaseSpace(db,space);db.exec(replicaSchemaSql('builder'));initializeReplica(namespacedReplicaDatabase(db,'builder'));installPrivateValueReplicationJournal(db,definitions[index]!,sql=>replicaMarkRowsSql(sql).replace(/\breplica_/g,'builder_replica_'));
   return createSqliteReplica(namespacedReplicaDatabase(db,'builder'),{...privateValueReplicaOwner(db,definitions[index]!,{spaceId:space.spaceId,projectId,title:'Builder owner',authorize}),conflictState:createSyncConflictState});});
  const create=()=>{
@@ -108,7 +112,7 @@ test('S-119 PCSYNC-01/14 design schemas, component bindings, observations and hi
   row=>{const design=structuredClone(row.design!);design.contract.pluginId='io.molis.work.generated.foreign';row.history=[{design,nodes:[],connected:[]}];},
   row=>{row.design!.acceptance[0]!.steps=[{action:'expect',componentId:'absent-component',text:'not there'}];},
   row=>{row.design!.contract.operations.push(structuredClone(row.design!.contract.operations[0]!));},
-  row=>{const design=row.design!;row.candidates=[{id:'proposal',title:'proposal',description:'saved',rationale:'saved',journey:['read'],effects:contractEffects(design),preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)}}];row.candidates[0]!.preview.parts[0]!.pageId='absent-page';},
+  row=>{const design=row.design!;row.candidates=[{id:'proposal',title:'proposal',description:'saved',rationale:'saved',journey:['read'],effects:effectsFromContract(design.contract),preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)}}];row.candidates[0]!.preview.parts[0]!.pageId='absent-page';},
  ];
  for(const mutate of mutations){const value=structuredClone(op.value) as {content:{builds:AgentBuild[]}};mutate(value.content.builds[0]!);
   assert.throws(()=>validatePrivateValueReplication(value,f.definitions[1]!,{spaceId:f.space.spaceId,projectId,title:'Builder owner',authorize(){}},op.key),/创作同步内容或归属无效/);
@@ -116,16 +120,24 @@ test('S-119 PCSYNC-01/14 design schemas, component bindings, observations and hi
  }
 });
 
-test('S-119 PCSYNC-22/23 all five current release files survive and another body at the same version cannot replace them',t=>{
+test('S-119 PCSYNC-22/23 the signed release and all five current release files survive and another body at the same version cannot replace them',async t=>{
  const f=fixture(t),build=f.create(),design=build.design!,directory=join(f.homes[0]!,'plugin-builder',projectId,'releases',build.id,'v1');mkdirSync(directory,{recursive:true});
- const manifest={version:1 as const,pluginId:design.contract.pluginId,revision:design.contract.revision,effects:contractEffects(design)};
+ const manifest={version:1 as const,pluginId:design.contract.pluginId,revision:design.contract.revision,effects:effectsFromContract(design.contract)};
  const nodes=design.parts.map(plan=>({...plan,kind:pluginComponentChoices(plan,design.contract)[0]!.kind}));
  const releaseInterface={parts:design.parts,nodes,acceptance:design.acceptance,presentation:design.presentation};
- const bodies={'plugin.mjs':'globalThis.__DO_NOT_RUN_SYNC_IMPORT=true;export const operations={};','manifest.json':JSON.stringify(manifest),'contract.json':JSON.stringify(design.contract),'interface.json':JSON.stringify(releaseInterface),'prompts.json':'[]'};
- for(const [name,body] of Object.entries(bodies))writeFileSync(join(directory,name),body);
- const release:AgentRelease={buildId:build.id,pluginId:design.contract.pluginId,version:1,design,nodes,manifest,directory,bundlePath:join(directory,'plugin.mjs'),packagePath:directory,permissions:manifest.effects,publishedAt:'2026-10-19T00:00:00Z',prompts:[]};
- f.stores[0]!.release(release);const releaseOp=f.send();const copied=f.stores[1]!.versions(build.id)[0]!;
- for(const [name,body] of Object.entries(bodies))assert.equal(readFileSync(join(copied.directory,name),'utf8'),body);
+ const bodies={'plugin.mjs':'globalThis.__DO_NOT_RUN_SYNC_IMPORT=true;export const operations={};/*'+'a'.repeat(6_400_000)+'*/','manifest.json':JSON.stringify(manifest),'contract.json':JSON.stringify(design.contract),'interface.json':JSON.stringify(releaseInterface),'prompts.json':'[]'};
+ const publisher=newPublisher();
+ const distributed=sandboxPluginManifest({pluginId:design.contract.pluginId,name:design.title,version:'1.0.0',publisher:{publisher_id:'molis-studio',signature:publisher.identity},presentation:design.presentation!==undefined,effects:manifest.effects,contract:design.contract});
+ const signFiles=(files:typeof bodies)=>JSON.stringify(signPluginPackage({payload:payloadOf(distributed,files),signature:null,publisher_key:null},publisher.signer));
+ const signed=signFiles(bodies);assert.ok(Buffer.byteLength(signed)>8*1024*1024);for(const [name,body] of Object.entries({...bodies,'signed-package.json':signed}))writeFileSync(join(directory,name),body);
+ const release:AgentRelease={buildId:build.id,pluginId:design.contract.pluginId,version:1,design,nodes,manifest,directory,bundlePath:join(directory,'plugin.mjs'),packagePath:directory,permissions:manifest.effects,publishedAt:'2026-10-19T00:00:00Z',prompts:[],distribution:{runtime_scope:'project',publisher_key_id:publisher.identity}};
+ const checked=f.stores[0]!.update(build.id,build.revision,row=>{row.phase='ready';row.checks.global={passed:true,gates:[],bundlePath:release.bundlePath};row.browserResult={passed:true,cases:[],at:row.updatedAt};});
+ f.stores[0]!.release(release,checked.revision);const releaseOp=f.send();const copied=f.stores[1]!.versions(build.id)[0]!;
+ const codec=createSyncJsonContent({spaceId:f.space.spaceId,authorize(){},...builderSyncProjection});
+ const encoded=codec.encode(releaseOp.key,releaseOp.value),blobs=new Map(encoded.blobs.map(blob=>[blob.digest,blob.bytes]));
+ const roundTrip=await codec.decode(releaseOp.key,encoded.value,async ref=>blobs.get(ref.digest)!);
+ assert.deepEqual(roundTrip,releaseOp.value);
+ for(const [name,body] of Object.entries({...bodies,'signed-package.json':signed}))assert.equal(readFileSync(join(copied.directory,name),'utf8'),body);
  assert.equal(Reflect.get(globalThis,'__DO_NOT_RUN_SYNC_IMPORT'),undefined);assert.notEqual(copied.directory,directory);
  const forged=structuredClone(releaseOp.value) as {content:{files:Record<string,Array<{slot:string;files:Array<{path:string;bytes:string;size:number;digest:string}>}>>}};
  const file=forged.content.files[build.id]!.find(d=>d.slot==='release-1')!.files.find(f=>f.path==='interface.json')!;
@@ -139,7 +151,16 @@ test('S-119 PCSYNC-22/23 all five current release files survive and another body
  const manifestFile=falseEffects.content.files[build.id]!.find(d=>d.slot==='release-1')!.files.find(f=>f.path==='manifest.json')!,manifestBytes=Buffer.from(JSON.stringify(declaration.manifest));
  Object.assign(manifestFile,{bytes:manifestBytes.toString('base64'),size:manifestBytes.length,digest:createHash('sha256').update(manifestBytes).digest('hex')});
  assert.throws(()=>validatePrivateValueReplication(falseEffects,f.definitions[1]!,{spaceId:f.space.spaceId,projectId,title:'Builder owner',authorize(){}},releaseOp.key),/创作同步内容或归属无效/,'checksum-valid permissions cannot omit effects required by the actual contract');
- writeFileSync(join(directory,'plugin.mjs'),'another body at the fixed version');f.stores[0]!.update(build.id,build.revision,row=>{row.title='force a normal owner mutation';});
+ const extraFile=JSON.stringify(signPluginPackage({payload:payloadOf(distributed,{...bodies,'hidden.dat':'undeclared data'}),signature:null,publisher_key:null},publisher.signer));
+ for(const malformed of [extraFile,JSON.stringify({...JSON.parse(signed),extra:'unsigned data'}),signed.replace('{','{"payload":{},')]){
+  writeFileSync(join(directory,'signed-package.json'),malformed);
+  assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),'even a signed envelope may only describe the fixed release files');
+ }
+ writeFileSync(join(directory,'signed-package.json'),signed);
+ writeFileSync(join(directory,'plugin.mjs'),'another body at the fixed version');
+ assert.throws(()=>f.definitions[0]!.project(JSON.parse(f.storage[0]!.get(KEY)!),projectId,build.id),'file digests alone cannot replace the signed distribution');
+ writeFileSync(join(directory,'signed-package.json'),signFiles({...bodies,'plugin.mjs':'another body at the fixed version'}));
+ f.stores[0]!.update(build.id,checked.revision,row=>{row.title='force a normal owner mutation';});
  const changed=f.replicas[0]!.next()!;f.replicas[1]!.receive({...changed,revision:2});assert.equal(f.replicas[1]!.conflicts().length,1);
  assert.equal(readFileSync(join(copied.directory,'plugin.mjs'),'utf8'),bodies['plugin.mjs']);
 });
@@ -181,7 +202,7 @@ test('S-119 PCSYNC-14 Builder explicit byte projection round-trips exact files a
 
 test('S-119 PCSYNC-22 ready mockup references keep the image owner identity without restoring an active drawing job',t=>{
  const f=fixture(t),build=f.create(),design=build.design!;
- f.stores[0]!.update(build.id,build.revision,row=>{row.candidates=[{id:'saved-proposal',title:'Saved proposal',description:'A saved mockup',rationale:'Read-only reference',journey:['Inspect'],effects:contractEffects(design),preview:{contract:design.contract,parts:design.parts},mockup:{status:'ready',jobId:'saved-image-job',imageId:'saved-image'}}];});
+ f.stores[0]!.update(build.id,build.revision,row=>{row.candidates=[{id:'saved-proposal',title:'Saved proposal',description:'A saved mockup',rationale:'Read-only reference',journey:['Inspect'],effects:effectsFromContract(design.contract),preview:{contract:design.contract,parts:design.parts},mockup:{status:'ready',jobId:'saved-image-job',imageId:'saved-image'}}];});
  f.send();assert.deepEqual(f.stores[1]!.require(build.id).candidates[0]!.mockup,{status:'ready',jobId:'saved-image-job',imageId:'saved-image'});assert.equal(f.stores[1]!.require(build.id).active,null);assert.equal(f.replicas[1]!.next(),null);
 });
 
@@ -194,6 +215,6 @@ test('S-119 PCSYNC-01/14 actual Host rejects malformed authoring items before cr
  const original=op.value as {content:{builds:AgentBuild[];files:Record<string,unknown>}};
  for(let variant=0;variant<6;variant++){const value=structuredClone(original),row=value.content.builds[0]!;if(variant===0)row.directory='/foreign-native';if(variant===1)row.id='another-build';if(variant===2)Object.assign(row,{browserResult:{passed:true,cases:'not-a-list',at:'2026-10-19T00:00:00Z'}});if(variant===3)row.design!.contract.operations[0]!.input={type:'array'};if(variant===4)row.design!.parts[0]!.pageId='absent-page';if(variant===5){const design=structuredClone(row.design!);design.contract.pluginId='io.molis.work.generated.foreign';row.history=[{design,nodes:[],connected:[]}];}
   incoming={...op,value,revision:1};const home=join(f.base,'uninitialized-'+variant);ensureStorageSpace(home,f.space);const client=(await createPersonalSync(home,f.space,lease,withMolisWorkProjectCatalog,check))!;
-  try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);assert.equal(existsSync(join(home,'plugin-builder')),false);}finally{client.close();}
+  try{await client.run();assert.notEqual(client.status().error,null);assert.deepEqual(await client.withCatalog({homeDirectory:home},catalog=>catalog.listProjects()),[]);assert.equal(existsSync(join(home,'plugin-builder')),false);}finally{await client.close();}
  }
 });

@@ -28,14 +28,16 @@ async function withHost(run: (host: {
   save(id: string, body: Record<string, unknown>): Promise<{ status: number; text: string; json: Record<string, unknown> }>;
   providers(): Promise<SettingsList>;
   connections(): Promise<{ connection_id: string }[]>;
-}) => Promise<void>) {
+}) => Promise<void>, prepareHome?: (home: string) => Promise<void>) {
   const root = await mkdtemp(path.join(tmpdir(), "molis-first-model-"));
-  const server: Server = createMolisWorkWebServer({ homeDirectory: path.join(root, "home"), controlToken });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const origin = `http://127.0.0.1:${address.port}`;
+  let server: Server | undefined;
   try {
+    await prepareHome?.(path.join(root, "home"));
+    server = createMolisWorkWebServer({ homeDirectory: path.join(root, "home"), controlToken });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
     await run({
       origin, root,
       html: async (search, locale) => (await fetch(`${origin}/settings/models${search}`, { headers: locale ? { cookie: `molis_work_locale=${locale}` } : {} })).text(),
@@ -52,7 +54,7 @@ async function withHost(run: (host: {
       connections: async () => ((await (await fetch(`${origin}/api/settings/connectors/connections?service_id=model-api`)).json()) as { connections: { connection_id: string }[] }).connections,
     });
   } finally {
-    await new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); });
+    if (server) await new Promise<void>((resolve) => { server!.close(() => resolve()); server!.closeAllConnections(); });
     await rm(root, { recursive: true, force: true });
   }
 }
@@ -299,9 +301,8 @@ test("没有连接的供应商不能借检查把旧密钥发到新地址：改�
   const pinned = await startModelStandIn(goodKey);
   const other = await startModelStandIn(goodKey);
   try {
-    await withHost(async ({ save, providers, connections, root }) => {
+    const prepareHome = async (home: string) => {
       // A provider from before connections: its key sits under its own reference and no connection holds it.
-      const home = path.join(root, "home");
       const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
       const { runWithMolisWorkHome, createFileSecretStore } = await import("@molis-ai/molis-work-storage");
       await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, (catalog) => {
@@ -309,6 +310,9 @@ test("没有连接的供应商不能借检查把旧密钥发到新地址：改�
         catalog.models.upsert({ credential_ref: "legacy-slot-key", provider_id: "legacy", display_name: "旧供应商", base_url: pinned.baseUrl,
           api_format: "openai-chat-completions", models: [{ model_id: "m", enabled: true }] });
       }));
+    };
+    await withHost(async ({ save, providers, connections, root }) => {
+      const home = path.join(root, "home");
       assert.deepEqual(await connections(), [], "the provider has no connection");
       const models = [{ model_id: "m", enabled: true }];
 
@@ -340,7 +344,7 @@ test("没有连接的供应商不能借检查把旧密钥发到新地址：改�
       assert.equal(other.requests.length, 1);
       assert.equal(other.requests[0]!.offeredKey, goodKey);
       assert.equal(withConnectorConnections(home, (store) => store.list("model-api").length), 1);
-    });
+    }, prepareHome);
   } finally { await pinned.close(); await other.close(); }
 });
 

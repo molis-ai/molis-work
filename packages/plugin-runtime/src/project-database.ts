@@ -2,7 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntimeDatabase } from "./repository.js";
 
-// A plugin's own tables in a project's library (PG-020, specs/plugin-project-database). The plugin declares them in its Manifest
+// A plugin's own tables in a project's library (PG-020, specs/archive/plugin-project-database). The plugin declares them in its Manifest
 // (`databases.project`); the platform tries the statements on an empty database first, then makes them in the project's library the
 // first time the plugin opens there and records them, with the publisher's signature, in one ledger. SQLite is the Host's: it hands
 // in a scratch database and storage's descriptions, so this package depends on no SQLite library.
@@ -124,17 +124,61 @@ function balanced(masked: string): boolean {
  * foreign keys only to its own tables or the project's root row.
  */
 export function inspectPluginProjectSchema(declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector): DeclaredSchema {
-  const parts = statements(declaration.schema);
+  assertSchemaStatements(declaration.schema);
+  return inspectSchema(declaration.schema, inspector, PROJECT_ROOT_REFERENCE);
+}
+
+/** Only sandboxed Home declarations have these limits; the project's existing declaration contract is unchanged. */
+export const SANDBOX_HOME_SCHEMA_LIMITS = Object.freeze({ bytes: 256 * 1024, statements: 128 });
+
+/** Pure, bounded lexical validation. The package reader uses this without executing any SQLite. */
+export function assertPluginHomeSchema(schema: string): void {
+  if (new TextEncoder().encode(schema).byteLength > SANDBOX_HOME_SCHEMA_LIMITS.bytes) {
+    throw invalid(`Home 库声明最多 ${SANDBOX_HOME_SCHEMA_LIMITS.bytes} 个 UTF-8 字节`);
+  }
+  assertSchemaStatements(schema, SANDBOX_HOME_SCHEMA_LIMITS.statements);
+}
+
+/** Compare a retained signed sandbox declaration with stored SQLite source without executing package SQL in the Host. */
+export function assertPluginHomeSnapshotSchema(schema: string, actual: readonly string[]): void {
+  assertPluginHomeSchema(schema);
+  const tokens = (sql: string): string => {
+    // Keep every quoted byte (including case and whitespace). Fold only unquoted SQLite keywords/identifiers.
+    const parts = sql.match(/--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|"(?:""|[^"])*"|`(?:``|[^`])*`|\[[^\]]*\]|[A-Za-z0-9_$\u0080-\u{10ffff}]+|->>|->|<>|!=|<=|>=|==|\|\||<<|>>|\S/gu) ?? [];
+    const kept = parts.filter(token => !token.startsWith("--") && !token.startsWith("/*")).map(token =>
+      /^[A-Za-z]/u.test(token) ? fold(token) : token);
+    const name = kept[1] === "unique" ? 3 : 2;
+    if (kept.slice(name,name+3).join(" ") === "if not exists") kept.splice(name,3);
+    return JSON.stringify(kept);
+  };
+  const expected = statements(schema).map(statement => tokens(statement.text)).sort();
+  if (actual.length !== expected.length || actual.map(tokens).sort().some((sql,index) => sql !== expected[index]))
+    throw pluginProjectDatabaseErrors.shape_mismatch("归档 Home 库的表或索引与已签名声明不同");
+}
+
+/** Home declarations use the same CREATE/object rules, without the project's root-row exception. Runs only in the SQL Worker. */
+export function inspectPluginHomeSchema(declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector): DeclaredSchema {
+  assertPluginHomeSchema(declaration.schema);
+  return inspectSchema(declaration.schema, inspector);
+}
+
+function assertSchemaStatements(schema: string, maximum?: number): void {
+  const parts = statements(schema);
   if (parts.length === 0) throw invalid("项目库声明没有建表语句");
+  if (maximum !== undefined && parts.length > maximum) throw invalid(`Home 库声明最多 ${maximum} 条显式 CREATE TABLE 或 CREATE INDEX 语句`);
   for (const part of parts) {
-    if (!balanced(part.masked) || !(CREATE_TABLE.test(part.masked) || CREATE_INDEX.test(part.masked))) {
+    if (!balanced(part.masked) || !(CREATE_TABLE.test(part.masked) || CREATE_INDEX.test(part.masked)) || /\bAS\s+SELECT\b/iu.test(part.masked)) {
       throw invalid(`项目库声明只能建表和索引，名字不带库名，不能从查询建表：${part.text.slice(0, 80)}`);
     }
   }
+}
+
+function inspectSchema(schema: string, inspector: PluginProjectSchemaInspector,
+  reference?: { readonly table: string; readonly column: string }): DeclaredSchema {
   const scratch = inspector.scratch();
   let objects: readonly PluginSchemaObject[], shape: PluginSchemaShape;
   try {
-    try { scratch.exec(declaration.schema); } catch (error) { throw invalid(`建表语句在空库里执行失败：${error instanceof Error ? error.message : String(error)}`); }
+    try { scratch.exec(schema); } catch (error) { throw invalid(`建表语句在空库里执行失败：${error instanceof Error ? error.message : String(error)}`); }
     objects = inspector.objects(scratch);
     shape = inspector.shape(scratch);
   } finally { scratch.close(); }
@@ -147,9 +191,9 @@ export function inspectPluginProjectSchema(declaration: PluginDatabaseDeclaratio
   const own = new Set(tables.map(fold));
   for (const [table, described] of Object.entries(shape.tables)) {
     for (const key of described.foreign_keys) {
-      const root = fold(key.table) === PROJECT_ROOT_REFERENCE.table && (key.to === null || fold(key.to) === PROJECT_ROOT_REFERENCE.column);
+      const root = reference && fold(key.table) === reference.table && (key.to === null || fold(key.to) === reference.column);
       if (!own.has(fold(key.table)) && !root) {
-        throw invalid(`表 ${table} 的外键只能指向本插件自己的表或 ${PROJECT_ROOT_REFERENCE.table}(${PROJECT_ROOT_REFERENCE.column})，不能指向 ${key.table}`);
+        throw invalid(`表 ${table} 的外键只能指向本插件自己的表${reference ? `或 ${reference.table}(${reference.column})` : ""}，不能指向 ${key.table}`);
       }
     }
   }
@@ -219,6 +263,44 @@ export function listPluginProjectDatabases(connection: PluginRuntimeDatabase): r
   });
 }
 
+
+function inspectRecordedProjectDatabase(row: LedgerRow,
+  owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
+  declared: DeclaredSchema, connection: PluginRuntimeDatabase, inspector: PluginProjectSchemaInspector, path: string): PluginProjectDatabaseRecord {
+  const declaration = owner.declaration;
+  const where = `项目库 ${path} 里插件 ${owner.plugin_id} 的库 ${declaration.store_name}`;
+  if (row.publisher_signature !== owner.publisher_signature) throw pluginProjectDatabaseErrors.publisher_mismatch(`${where} 是另一个发布者建的，换了发布者不能打开`);
+  if (Number(row.version) !== declaration.version) {
+    throw pluginProjectDatabaseErrors.version_mismatch(`${where} 是第 ${row.version} 版，这次声明的是第 ${declaration.version} 版`,
+      { path, store_name: declaration.store_name, recorded_version: Number(row.version), declared_version: declaration.version });
+  }
+  if (row.store_name !== declaration.store_name || canonical(record(row, where).objects) !== canonical(declared.objects)
+    || standing(connection, declared, inspector) !== canonical(declared.shape) || !triggersMatch(connection, declared)) {
+    throw pluginProjectDatabaseErrors.shape_mismatch(`${where} 的表和索引与声明不同（账本记的库名 ${row.store_name}）`);
+  }
+
+  return record(row, where);
+}
+
+/** Same existing-row validation as open, without a transaction or initialization. */
+export function inspectPluginProjectDatabase(connection: PluginRuntimeDatabase,
+  owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
+  inspector: PluginProjectSchemaInspector, path: string): PluginProjectDatabaseRecord {
+  return inspectProjectLibrary(connection,owner,inspector,path).record;
+}
+
+/** Inspect the exact same Host-compiled schema used by the writable opener. */
+export function inspectProjectLibrary(connection: PluginRuntimeDatabase,
+  owner: { readonly plugin_id: string; readonly publisher_signature: string; readonly declaration: PluginDatabaseDeclaration },
+  inspector: PluginProjectSchemaInspector, path: string,
+  extension?: { readonly platformSchema?: string; readonly platformPrelude?: string }) {
+  const declared = platformDeclaration(owner.declaration, inspector, extension?.platformSchema, extension?.platformPrelude);
+  const row = connection.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json, created_at FROM plugin_project_databases WHERE plugin_id = ?")
+    .get(owner.plugin_id) as LedgerRow | undefined;
+  if (!row) throw pluginProjectDatabaseErrors.shape_mismatch("项目插件库缺少原 owner 账本");
+  return {record: inspectRecordedProjectDatabase(row, owner, declared, connection, inspector, path), declared};
+}
+
 /**
  * Open a plugin's tables in a project's library, making them the first time (PLIB-02, PLIB-04). In one write transaction: with no
  * ledger row, nothing of the same name may exist yet, and the statements run and the row is written together; with one, the
@@ -236,16 +318,7 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
       .get(owner.plugin_id) as LedgerRow | undefined;
     let opened: { record: PluginProjectDatabaseRecord; created: boolean };
     if (row) {
-      if (row.publisher_signature !== owner.publisher_signature) throw pluginProjectDatabaseErrors.publisher_mismatch(`${where} 是另一个发布者建的，换了发布者不能打开`);
-      if (Number(row.version) !== declaration.version) {
-        throw pluginProjectDatabaseErrors.version_mismatch(`${where} 是第 ${row.version} 版，这次声明的是第 ${declaration.version} 版`,
-          { path: options.path, store_name: declaration.store_name, recorded_version: Number(row.version), declared_version: declaration.version });
-      }
-      if (row.store_name !== declaration.store_name || canonical(record(row, where).objects) !== canonical(declared.objects)
-        || standing(connection, declared, inspector) !== canonical(declared.shape) || !triggersMatch(connection, declared)) {
-        throw pluginProjectDatabaseErrors.shape_mismatch(`${where} 的表和索引与声明不同（账本记的库名 ${row.store_name}）`);
-      }
-      opened = { record: record(row, where), created: false };
+      opened = { record: inspectRecordedProjectDatabase(row, owner, declared, connection, inspector, options.path), created: false };
     } else {
       const holder = connection.prepare("SELECT plugin_id FROM plugin_project_databases WHERE store_name = ?").get(declaration.store_name) as { plugin_id: string } | undefined;
       if (holder) throw pluginProjectDatabaseErrors.object_taken(`${where}：库名已归插件 ${holder.plugin_id}`);

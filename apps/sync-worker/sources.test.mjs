@@ -28,7 +28,7 @@ test('PCSYNC-01/11/17/22 Source descriptions use actual Host registry and Rust/D
  const select=id=>{const collection=feedManifest.sync.collections.find(row=>row.id===id);assert.ok(collection);return {plugin_id:feedManifest.plugin_id,publisher_id:feedManifest.publisher.publisher_id,publisher_signature:feedManifest.publisher.signature,collection_id:id,schema_version:collection.schema_version};};
  const selected={selection:select('source_descriptions')};
  await clients[0].save({...clients[0].policy(),selections:[selected.selection]});await clients[0].run();await clients[1].run();clients.forEach(c=>assert.equal(c.status().error,null));
- const restoredProject=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id));assert.ok(restoredProject);
+ const restoredProject=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id));assert.ok(restoredProject);
  const target=new LocalProjectDatabase(restoredProject.database_path);t.after(()=>target.close());const received=new SourcesModule(fromBetterSqlite(target.db)),value=received.query.get(p.project_id,record.source_id);
  assert.equal(value.description,'Saved description 599');assert.equal(value.enabled,false);assert.equal(value.status,'paused');assert.equal(value.connection_ref,null);assert.deepEqual(value.config,{});assert.deepEqual(value.schedule,{mode:'manual'});assert.equal(received.events.list(p.project_id).length,600);
  assert.equal(owner.query.get(p.project_id,record.source_id).connection_ref,record.connection_ref);

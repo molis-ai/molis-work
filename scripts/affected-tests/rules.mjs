@@ -1,5 +1,5 @@
 // The knobs of scripts/affected-tests.mjs: what counts as shared core, as UI, as a storage change, and how wide a match may be
-// before it is narrowed. The rule they encode is the user's 2026-10-03 validation-frequency decision (specs/repository-anti-corruption
+// before it is narrowed. The rule they encode is the user's 2026-10-03 validation-frequency decision (specs/archive/repository-anti-corruption
 // spec §1; docs/system/PARALLEL-DEVELOPMENT.md section 6): batch small changes, build once, run the tests this batch touches,
 // run the full suite only for a big change. tests/affected-tests.test.ts checks that every path named here still exists, so a
 // rename cannot leave a rule pointing at nothing.

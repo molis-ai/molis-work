@@ -76,7 +76,7 @@ async function fixture(t: TestContext) {
   const run = async () => {
     await clients[0]!.run(); await clients[1]!.run();
     for (const c of clients) assert.equal(c.status().error, null,JSON.stringify(c.status()));
-    await withMolisWorkProjectCatalog({ homeDirectory: homes[1] }, c => { paths[1] = c.listProjects().find(p => p.project_id === project.project_id)!.database_path; });
+    await runtimes[1]!.withCatalog({ homeDirectory: homes[1] }, c => { paths[1] = c.listProjects().find(p => p.project_id === project.project_id)!.database_path; });
   };
   const enable = async () => { await clients[0]!.save({ ...clients[0]!.policy(), selections: [selection] }); await run(); };
   const replica = <T>(i: number, fn: (r: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncReplicaAdapter) => T) => registrations[i]!.withReplica(fn);

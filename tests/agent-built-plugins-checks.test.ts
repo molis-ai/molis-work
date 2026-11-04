@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, readdir, rm, chmod, symlink, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { createBuildProject, buildManifest, copyBuildRevisionInputs, copyUnchangedBuildOperations } from '../apps/local-host/src/plugin-builder/build-project.js';
+import { createBuildProject, buildManifest, copyBuildRevision } from '../apps/local-host/src/plugin-builder/build-project.js';
 import { runPluginChecks } from '../apps/local-host/src/plugin-builder/build-checks.js';
 import type { BuildCheckOptions } from '../apps/local-host/src/plugin-builder/build-types.js';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -38,8 +38,7 @@ test('a revised contract preserves helpers and declared dependency inputs withou
     const next = { ...f.options.contract, revision: 'next', operations: [...f.options.contract.operations].reverse() };
     await createBuildProject(target, next, buildManifest(next), { capabilities: [], resources: [] });
     const authority = await readFile(join(target, 'developer/capabilities.json'));
-    await copyBuildRevisionInputs(f.root, target);
-    await copyUnchangedBuildOperations(f.root, target, f.options.contract, next, ['echo'], target + '.settled');
+    await copyBuildRevision(f.root, target, f.options.contract, next, ['echo'], target + '.settled');
     assert.equal(await readFile(join(target, 'src/helpers/转大写.ts'), 'utf8'), helper);
     assert.equal((await readFile(join(target, 'tests/helpers/empty.ts'))).length, 0);
     assert.equal(await readFile(join(target, 'dependency-lock.json'), 'utf8'), lock);
@@ -58,7 +57,7 @@ test('revision helper symlinks refuse before any target input changes', async ()
     await createBuildProject(target, f.options.contract, f.options.manifest, []);
     const before = await readFile(join(target, 'package.json'));
     await symlink(join(f.root, 'src/operations/0.ts'), join(f.root, 'src/escape.ts'));
-    await assert.rejects(copyBuildRevisionInputs(f.root, target), /symbolic links/);
+    await assert.rejects(copyBuildRevision(f.root, target, f.options.contract, f.options.contract, ['echo'], target + '.settled'), /Symbolic links are not allowed: src\/escape\.ts/);
     assert.deepEqual(await readFile(join(target, 'package.json')), before);
     await assert.rejects(readFile(join(target, 'src/escape.ts')), { code: 'ENOENT' });
   } finally { await f.close(); await rm(target, { recursive: true, force: true }); }

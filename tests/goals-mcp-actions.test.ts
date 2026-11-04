@@ -43,7 +43,8 @@ test("Goals MCP action tools use client grants and the shared Host, and record t
   const sdk = new Client({ name: "not-the-authorized-client", version: "1" });
   let pending: Promise<Awaited<ReturnType<typeof sdk.callTool>>> | undefined;
   try {
-    await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    await withHostCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({ context, project_id: project.project_id, actor_id: "user", user_confirmed: true }));
     // The history MCP must replay is written through the action client. The typed door is the local person.
     const input = { goal_id: "HISTORICAL-GOAL", title: "迁移前目标", outcome: "保留回执", idempotency_key: "historical-create" };
     const sessionCaller = { actor_id: clientId, audit_actor_id: auditActor, actor_kind: "runtime" as const, runtime_session_id: session,

@@ -27,6 +27,8 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；Manifest 把 Gmail 的授
 
 授权方式（授权与令牌地址、scope、身份请求）写在 [manifest.json](manifest.json) 与 `src/index.ts` 的 Manifest 里，读邮件的范围预设见 scope 的实际定义。凭据不能写进 Source 或 Signal 正文；游标失效与授权过期是不同恢复路径。
 
+`gmail-scope` 的纯来源展示只把原 `GMAIL_SCOPE_PRESETS` 投影成 `scope_options`，不读取账号或绑定；Host 经同一 Integration registry 读取。回归：`tests/integration-registry.test.ts`。
+
 首次接入仍只取最新 25 封快照。增量每批最多读取 25 封详情、20 页历史；游标只越过本批详情已成功处理的完整记录。一个历史记录包含更多邮件时，保存该记录的下一条偏移，下一批继续；不把尚未处理的尾部算作完成，也不把短期 page token 写进游标。详情或历史读取失败保留旧进度，重开后从同一位置继续，Feed/Signals 按正式身份去重。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。

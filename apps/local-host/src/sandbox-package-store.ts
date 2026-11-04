@@ -1,10 +1,12 @@
+import { sandboxPackageBuildId } from '@molis-ai/molis-work-plugin-sdk';
 /**
  * Where the Host keeps the signed sandbox packages it installed (the Home's `plugin-packages/`): the package exactly as it was verified
  * and the plugin's code beside it, written once and read-only. A package is read back with the same checks it was installed with, so
  * an installed plugin runs from bytes whose signature, form and publisher the Host has checked again, not from a record of having checked.
  */
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
@@ -22,7 +24,7 @@ export function packagedRelease(pkg: KeptSandboxPackage, directory: string, publ
   const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation'> = isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
   return {
     // Names this plugin under this publisher: its actions are registered as `generated.<first 8>.<operation>`, so two plugins of one publisher must differ.
-    buildId: createHash('sha256').update(JSON.stringify([manifest.plugin_id, manifest.publisher.signature])).digest('hex').slice(0, 32), pluginId: manifest.plugin_id, version: 1,
+    buildId: sandboxPackageBuildId(manifest.plugin_id, manifest.publisher.signature), pluginId: manifest.plugin_id, version: 1,
     design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
     nodes: app.nodes, manifest: { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
@@ -69,6 +71,17 @@ export class SandboxPackageStore {
   }
 
   /** Reads an installed package back, checking it again: its signature, its form, and that it is the package the installation names. */
+  /** Offline inspection reads only retained signed bytes and never imports the package or follows symlinks. */
+  snapshotManifest(pluginId:string, keyId:string, version:string) {
+    const path = join(this.directory(pluginId,keyId,version),BUNDLE_FILE);
+    if (!lstatSync(path,{throwIfNoEntry:false})) return undefined;
+    const {bundle,key_id} = verifyPluginPackageSignature(JSON.parse(readSnapshotFile(path,64 * 1024 * 1024).toString("utf8")));
+    const {manifest} = readKeptSandboxPackage(bundle.payload);
+    if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version)
+      throw pluginErrors.signer_mismatch("留存发行包的身份与安装记录不符");
+    return manifest;
+  }
+
   load(pluginId: string, keyId: string, version: string): InstalledRelease {
     const directory = this.directory(pluginId, keyId, version);
     let raw: unknown;

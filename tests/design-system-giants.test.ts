@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { CRAFT_FINISH_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, PRIMITIVE_CATALOG_IDS, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 
-// W5-10 R4a (specs/repository-anti-corruption/slices/w5-10-design-system-giants.md): the design system's giant units were
+// W5-10 R4a (specs/archive/repository-anti-corruption/slices/w5-10-design-system-giants.md): the design system's giant units were
 // cut into pieces without changing what they produce. The pieces are checked here by what they must still add up to.
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");

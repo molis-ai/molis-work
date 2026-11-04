@@ -65,7 +65,7 @@ test("SYS-15-F1 the personal Shelf runs in Home Runtime; clipboard, settings and
     const staleWrite = await handleMcpMessage({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {
       name: "shelf.items.edit__v2", arguments: { item_id: item.item_id, text: "stale MCP draft", expected_content_hash: initial.content_hash } } }, writer);
     assert.match(JSON.stringify(staleWrite), /shelf.conflict/);
-    assert.equal(openHostShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
+    assert.equal(openTestShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
 
     // Without a configured model the automatic action refuses before creating a job, with the platform's word for it (as Jelly, Todo, Form and Dataset do).
     await assert.rejects(bound.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.connection_required" });

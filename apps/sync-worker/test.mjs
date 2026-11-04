@@ -119,9 +119,9 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
 
 // GSYNC-01/04: real Host project creation and Goal facts through Rust/WASM and D1.
 async function verifyGoalsTransport({homes,check,clients,runtimes}) {
-  const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},c=>c.createProject({display_name:'Goals through D1',actor_id:'alice'}));
+  const project=await runtimes[0].withCatalog({homeDirectory:homes[0]},c=>c.createProject({display_name:'Goals through D1',actor_id:'alice'}));
   const selection=goalSyncSelection,sync=clients;
-  await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
+  await runtimes[1].withCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},check));
   for(const runtime of runtimes)await runtime.openProjects();
   const store=new LocalProjectDatabase(project.database_path);
   try {
@@ -133,7 +133,7 @@ async function verifyGoalsTransport({homes,check,clients,runtimes}) {
   await sync[0].save({...sync[0].policy(),selections:[selection]});
   await sync[0].run();await sync[1].run();
   for(const client of sync)assert.equal(client.status().error,null);
-  const destination=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(p=>p.project_id===project.project_id));
+  const destination=await runtimes[1].withCatalog({homeDirectory:homes[1]},c=>c.listProjects().find(p=>p.project_id===project.project_id));
   assert.ok(destination);
   const restored=new LocalProjectDatabase(destination.database_path);
   try {

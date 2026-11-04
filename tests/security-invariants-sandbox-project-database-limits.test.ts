@@ -14,7 +14,7 @@ import { LocalProjectDatabase, openPluginProjectLibrary, seedDemoBoard } from "@
 import { pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { sandboxDatabase } from "@molis-ai/molis-work-plugin-sandbox";
 
-// S-59 (BL-395; specs/repository-anti-corruption/slices/sandbox-project-database-limits.md): a sandboxed plugin's statements run in
+// S-59 (BL-395; specs/archive/repository-anti-corruption/slices/sandbox-project-database-limits.md): a sandboxed plugin's statements run in
 // a process the Host can kill, not on the Host's thread, because neither SQLite driver the Host has can interrupt a statement and
 // `Worker.terminate()` cannot stop a native call. What this file asserts is the refusal: a statement past its time or its memory is
 // killed and answered with a code, a result past the rows or bytes is refused before crossing to the Host, a recursive query never starts,

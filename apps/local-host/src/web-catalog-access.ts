@@ -1,13 +1,14 @@
 import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
-import path from "node:path";
+import { resolveConfiguredHome } from "./product-home.js";
 import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 /** One connection per Web owner and fixed Home; business reads remain live SQL. */
 export function createWebCatalogAccess(
-  homeDirectory: string,
+  requestedHome: string,
   open: (options: MolisWorkProjectCatalogOptions) => Promise<MolisWorkProjectCatalog>,
 ) {
+  const homeDirectory = resolveConfiguredHome(requestedHome);
   let opening: Promise<MolisWorkProjectCatalog> | undefined;
   let current: MolisWorkProjectCatalog | undefined;
   let ready = false, closing = false, active = 0, projectCount = 0;
@@ -30,7 +31,7 @@ export function createWebCatalogAccess(
     throw error;
   });
   const withCatalog: LocalWebCatalogRunner = async (options, operation) => {
-    if (path.resolve(options.homeDirectory ?? homeDirectory) !== homeDirectory) throw new Error("Web catalog belongs to another Home");
+    if (resolveConfiguredHome(options.homeDirectory ?? homeDirectory) !== homeDirectory) throw new Error("Web catalog belongs to another Home");
     if (closing) throw new Error("Web catalog is closing");
     active++;
     try {

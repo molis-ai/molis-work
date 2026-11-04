@@ -8,6 +8,8 @@ import { once } from "node:events";
 import { performance } from "node:perf_hooks";
 import Database from "better-sqlite3";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -45,9 +47,11 @@ test("a real catalog mutation waits asynchronously, commits once and keeps healt
   const project = await catalog.createProject({ display_name: "原名", actor_id: "user" });
   const database = catalog.databasePath; catalog.close();
   const token = "catalog-contention-control-token-0123456789";
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => { server.closeAllConnections(); return new Promise<void>(resolve => server.close(() => resolve())); });
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); });
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   await fetch(origin + "/projects");
@@ -73,15 +77,14 @@ test("a real catalog mutation waits asynchronously, commits once and keeps healt
     assert.ok(maxGap < 100, `event loop stalled ${maxGap}ms`);
   } finally { clearInterval(timer); }
   await exit;
-  const verified = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  try {
+  await withCatalog({ homeDirectory: home }, async verified => {
     assert.equal(verified.getProject(project.project_id).display_name, "已提交一次");
     await assert.rejects(verified.commit(() => { verified.renameProject(project.project_id, "必须回滚", "user", "已提交一次"); throw new Error("fixture rollback"); }), /fixture rollback/);
     assert.equal(verified.getProject(project.project_id).display_name, "已提交一次");
     let effects = 0;
     await assert.rejects(verified.commit(() => { effects++; }, async () => { throw new Error("authority revoked"); }), /authority revoked/);
     assert.equal(effects, 0);
-  } finally { verified.close(); }
+  });
 });
 
 test("catalog commit rechecks authority after real lock waits and keeps queued commits ordered", async t => {
@@ -120,12 +123,14 @@ test("catalog commit rechecks authority after real lock waits and keeps queued c
 
 test("Web catalog owner reuses one connection, observes commits, and closes after active borrowers", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-catalog-owner-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  let release!: () => void;
+  t.after(async () => { release?.(); await access.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); });
   let opens = 0;
-  const access = createWebCatalogAccess(home, options => { opens++; return openMolisWorkProjectCatalog(options); });
+  const access = createWebCatalogAccess(home, options => { opens++; return openMolisWorkProjectCatalog({ ...options, storageOwner }); });
   await Promise.all([access.warm(), access.warm()]);
   assert.equal(opens, 1);
-  const external = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const external = await openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner });
   const project = await external.createProject({ display_name: "外部提交", actor_id: "user" });
   external.close();
   assert.deepEqual(await access.withCatalog({ homeDirectory: home }, c => c.getProject(project.project_id)), project);
@@ -136,7 +141,6 @@ test("Web catalog owner reuses one connection, observes commits, and closes afte
   metadata.prepare("UPDATE catalog_meta SET value=? WHERE key='schema_version'").run(version);
   metadata.close();
   await assert.rejects(access.withCatalog({ homeDirectory: join(home, "other") }, () => undefined), /another Home/);
-  let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   let borrowed!: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
   const held = access.withCatalog({ homeDirectory: home }, async catalog => { borrowed = catalog; await gate; return catalog.listProjects(); });

@@ -1,4 +1,4 @@
-// W4-01, the installed half (specs/repository-anti-corruption/slices/w5-02-registry.md §6, RAC-792): the probe installed, not built in.
+// W4-01, the installed half (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §6, RAC-792): the probe installed, not built in.
 // Its package goes through the one install path a person has (ac-trust T2, S-84): `molis-work plugin install` to the Home's resident
 // Host, a preview that writes nothing, then a confirmation that pins the publisher and installs. The installed probe is the probe's notes
 // in the sandbox package format (a signed package has no routes, search or file sources, methods or undo of its own), and the test

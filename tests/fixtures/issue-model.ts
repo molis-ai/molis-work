@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { ISSUE_ASK } from "@molis-ai/molis-work-plugin-issues";
 import { asideReply } from "./ending-review.js";
@@ -45,7 +45,7 @@ export interface IssueModelBehavior {
  * with the JSON Issue asks for; Assistant rounds are scripted one tool call per turn. Issue, the Assistant, vision intake,
  * the action directory and undo stay real. `requests` are the Assistant's rounds, `namings` the text of each naming call.
  */
-export async function issueModel(t: TestContext, home: string, behavior: IssueModelBehavior = {}) {
+export async function issueModel(t: TestContext, home: string, behavior: IssueModelBehavior = {}, withCatalog: ReturnType<MolisWorkLocalHost["configurePersonalPlanning"]> = withMolisWorkProjectCatalog) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: unknown[] = [], namings: string[] = [];
   let turn = 0, limited = 0;
@@ -81,7 +81,7 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve()));
     if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   const address = model.address(); if (!address || typeof address === "string") throw new Error("Fixture model did not listen");
-  await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
+  await runWithMolisWorkHome(home, () => withCatalog({ homeDirectory: home }, catalog => {
     const base = `http://127.0.0.1:${address.port}`;
     const connection = withConnectorConnections(home, store => { const item = store.createToken({ serviceId: "model-api", displayName: "Issue fixture", token: "fixture-local-model-key" });
       store.assertTarget(item.connection_id, "model-api", base); return item; });

@@ -74,7 +74,7 @@ test('S-115 PCSYNC-01/14 a complete Goal owner unit is validated before creating
   const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',authorize));t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
   const [source,target]=runtimes.map(runtime=>runtime.registration);
   await source!.refresh();await target!.refresh();assert.equal(target!.available!(),false);
-  const catalogProjects=()=>withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects());
+  const catalogProjects=()=>runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects());
   assert.deepEqual(await catalogProjects(),[]);
   const next=source!.withReplica(replica=>replica.next());assert.ok(next);
   const event={...next,revision:1};
@@ -89,12 +89,12 @@ test('S-115 PCSYNC-01/14 a complete Goal owner unit is validated before creating
   ];
   for(const mutate of mutations){
     const value=structuredClone(next.value);mutate(goalWire(value) as Unit);await assert.rejects(()=>target!.prepare({...event,value}));
-    assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects()),[],'bad content creates neither a project nor an empty business database');
+    assert.deepEqual(await runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects()),[],'bad content creates neither a project nor an empty business database');
   }
   active=false;await assert.rejects(()=>target!.prepare(event),/REVOKED/);active=true;
-  assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects()),[]);
+  assert.deepEqual(await runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects()),[]);
   await assert.rejects(()=>target!.prepare(event),/SYNC_OWNER_NOT_INSTALLED/,'even valid Goal content cannot install a project owner');
-  await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},authorize));
+  await runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},authorize));
   await target!.refresh();
   for(const [index,mutate] of mutations.entries()){
     const value=structuredClone(next.value);mutate(goalWire(value) as Unit);
@@ -105,7 +105,7 @@ test('S-115 PCSYNC-01/14 a complete Goal owner unit is validated before creating
   }
   active=false;assert.throws(()=>target!.withReplica(replica=>replica.receive({...event,revision:10})),/REVOKED/);active=true;
   await target!.prepare(event);target!.withReplica(replica=>{replica.receive({...event,revision:10});if(replica.conflicts().length)replica.resolve(event.key,'remote');});
-  const received=await withMolisWorkProjectCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects());assert.equal(received.length,1);
+  const received=await runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.listProjects());assert.equal(received.length,1);
   const restored=target!.withReplica(replica=>{assert.deepEqual(replica.conflicts(),[]);return replica.counts();});
   assert.deepEqual(restored,{pending:0,conflicts:0});
 });

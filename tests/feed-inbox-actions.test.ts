@@ -9,7 +9,7 @@ import { FEED_PLUGIN_ID, createFeedInboxHandlers, feedInboxActions, type FeedAdm
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 /**
- * FI-6 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §1.2.6, §3.4): what Inbox asks of Feed is Feed's public
+ * FI-6 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §1.2.6, §3.4): what Inbox asks of Feed is Feed's public
  * actions, not Feed code. These cases call the handlers Feed binds; the Manifest listing, the audiences and the platform's refusals of
  * a caller outside them are the action-contract snapshot and the kernel's own tests.
  */

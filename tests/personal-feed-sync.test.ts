@@ -27,12 +27,12 @@ test('PERSAF-05 incoming Feed content cannot re-enable an explicitly removed plu
   await a.sync.save({...a.sync.policy(),selections:[{plugin_id:feedManifest.plugin_id,publisher_id:feedManifest.publisher.publisher_id,publisher_signature:feedManifest.publisher.signature,collection_id:collection.id,schema_version:collection.schema_version}]});
   await a.sync.run();assert.equal(a.sync.status().error,null);assert.ok(f.events.length>0);
   await b.sync.run();
-  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},catalog=>{
+  await b.withCatalog({homeDirectory:f.homes[1]},catalog=>{
     assert.equal(availableProjectPluginIds(catalog.listProjectPlugins(project.project_id)).has('feed'),false);
   });
   const disabled=new LocalProjectDatabase(target.database_path);
   try{assert.throws(()=>new FeedOutRuleStore(fromBetterSqlite(disabled.db)).get(project.project_id,ruleId));}finally{disabled.close();}
-  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},catalog=>catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'feed',actor_id:'alice'}));
+  await b.withCatalog({homeDirectory:f.homes[1]},catalog=>catalog.addProjectPlugin({project_id:project.project_id,plugin_id:'feed',actor_id:'alice'}));
   await b.host.closeProject(molisWorkHostProjectReference({databasePath:target.database_path,projectId:project.project_id}));
   await b.openProjects();await b.sync.run();assert.equal(b.sync.status().error,null);
   const received=new LocalProjectDatabase(target.database_path);

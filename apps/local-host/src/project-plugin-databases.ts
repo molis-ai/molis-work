@@ -7,7 +7,7 @@ import { openPluginProjectDatabase, type PluginProjectDatabaseRecord, type Plugi
 import { describeSqliteSchema, listSqliteObjects, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { hostLog } from "./host-log.js";
 
-// Plugins' own tables in a project's library (PG-020, specs/plugin-project-database L1b). When the Host opens a library, every
+// Plugins' own tables in a project's library (PG-020, specs/archive/plugin-project-database L1b). When the Host opens a library, every
 // built-in project plugin whose Manifest declares `databases.project` gets its tables there through the platform's one open
 // function: made and recorded the first time, checked against the ledger after. A refusal (another publisher, another version, a
 // changed shape) stops only that plugin: the library and the other plugins open as usual, and the plugin's own paths throw the
@@ -32,12 +32,19 @@ function projectDatabasePlugins(): PluginManifest[] {
   return PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !runsOnlyInHome(entry) && entry.manifest.databases?.project).map(entry => entry.manifest);
 }
 
+/** Identical platform journal and trigger baseline for activation and offline restore inspection. */
+export function projectPluginPlatformExtension(manifest: PluginManifest) {
+  const declaration = manifest.databases?.project;
+  if (!declaration) return {};
+  const composed = pluginSyncDatabaseDeclaration(manifest, declaration);
+  return {platformSchema: composed.schema.slice(declaration.schema.length), platformPrelude: sectionsPlatformPrelude(manifest)};
+}
+
 /** Open one plugin's tables in the library at `path` (made and recorded the first time), or throw its refusal. */
 export function openPluginTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): PluginProjectDatabaseRecord {
   const declaration = manifest.databases?.project;
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
-  const composed = pluginSyncDatabaseDeclaration(manifest, declaration);
-  openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, { path, platformSchema: composed.schema.slice(declaration.schema.length), platformPrelude: sectionsPlatformPrelude(manifest) });
+  openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, { path, ...projectPluginPlatformExtension(manifest) });
   return pluginSyncBusinessRecord(manifest, declaration);
 }
 

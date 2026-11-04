@@ -22,7 +22,6 @@ import { CLIENT_EVENTS_PRIMARY_SCRIPT } from "./scripts/client/events-primary.js
 import { CLIENT_EVENTS_SECONDARY_SCRIPT } from "./scripts/client/events-secondary.js";
 import { CLIENT_INITIALIZATION_SCRIPT } from "./scripts/client/initialization.js";
 import { CLIENT_NAVIGATION_FEED_SCRIPT } from "./scripts/client/navigation-feed.js";
-import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "./scripts/client/navigation-inbox.js";
 import { CLIENT_REFRESH_DECISIONS_SCRIPT } from "./scripts/client/refresh-decisions.js";
 
 /** Stable concatenation order preserves the existing browser program byte for byte. */
@@ -30,7 +29,6 @@ export const CLIENT_SCRIPT = [
   "\n",
   CLIENT_BOOTSTRAP_SCRIPT,
   CLIENT_NAVIGATION_FEED_SCRIPT,
-  CLIENT_NAVIGATION_INBOX_SCRIPT,
   CLIENT_EDITING_GRAPH_SCRIPT,
   CLIENT_DOCUMENTS_STATE_SCRIPT,
   CLIENT_REFRESH_DECISIONS_SCRIPT,

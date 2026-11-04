@@ -9,7 +9,7 @@ import type {
   UiToastTarget,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
-// The one browser request helper (specs/repository-anti-corruption W3-10). The two factories below are serialized with
+// The one browser request helper (specs/archive/repository-anti-corruption W3-10). The two factories below are serialized with
 // toString() into a page, so each stands alone: no module-level name, no import of a value, no template literal. The page
 // hands them everything they touch (fetch, origin, token, translator, clock, elements) as ports.
 

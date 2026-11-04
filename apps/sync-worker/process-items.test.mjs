@@ -39,7 +39,7 @@ test('PCSYNC-11/13/22/23 complete process versions use the actual Host collectio
   assert.ok(selected); assert.equal(clients[0].policy().selections.length, 0);
   await clients[0].save({ ...clients[0].policy(), selections: [selected.selection] });
   await clients[0].run(); await clients[1].run(); clients.forEach(client => assert.equal(client.status().error, null));
-  const received = await withMolisWorkProjectCatalog({ homeDirectory: homes[1] }, catalog => ({
+  const received = await clients[1].withCatalog({ homeDirectory: homes[1] }, catalog => ({
     project: catalog.listProjects().find(row => row.project_id === project.project_id),
     plugins: catalog.listProjectPlugins(project.project_id),
   }));

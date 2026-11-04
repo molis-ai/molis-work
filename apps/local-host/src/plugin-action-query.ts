@@ -49,6 +49,7 @@ export async function invokePluginQuery<Output>(context: PluginStartContext, man
     validate_permissions: async permissions => { source(permissions); await original.validate_permissions?.(permissions); source(); },
     assert_authority_current: (target, permissions) => { source(permissions); requireSynchronous(original.assert_authority_current?.(target, permissions)); },
   };
+  Reflect.deleteProperty(caller, "stage_scene_metadata");
   await check();
   const pinned = { ...ref, provider_id: await pluginActionProvider(options.client, caller, ref) };
   await check();

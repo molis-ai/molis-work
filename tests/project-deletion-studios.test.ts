@@ -1,5 +1,6 @@
+import { readyPublication } from './fixtures/studio-publishing.js';
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,15 +21,16 @@ async function withHost<T>(run: (env: { home: string; catalog: Catalog; host: Ho
   const directory = await mkdtemp(join(tmpdir(), "molis-project-deletion-studios-"));
   const home = join(directory, "home");
   const { ai } = controlledAlchemistAi();
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const host = createMolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" }, completeText: null });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   try {
-    const direction = (projectId: string, databasePath: string) => bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath, projectId })),
-      () => ({ actor_id: "local-person", project_id: projectId, audience: "user" as const, permissions: ALCHEMIST_ACTION_PERMISSIONS }));
-    return await run({ home, catalog, host, direction });
+    return await withCatalog({ homeDirectory: home }, async catalog => {
+      const direction = (projectId: string, databasePath: string) => bindActionClient(host.actionClient(molisWorkHostProjectReference({ databasePath, projectId })),
+        () => ({ actor_id: "local-person", project_id: projectId, audience: "user" as const, permissions: ALCHEMIST_ACTION_PERMISSIONS }));
+      return await run({ home, catalog, host, direction });
+    });
   } finally {
     await host.close();
-    catalog.close();
     await rm(directory, { recursive: true, force: true });
   }
 }
@@ -85,8 +87,15 @@ test("deleting a project removes its Plugin Studio builds and releases and the s
       store.put(`plugin-builder-secret:${project.project_id}-sibling:com.example.plugin:token`, "sk-sibling");
     });
 
+    // CLEAN-1: the real publisher's identity belongs to Home, not the deleted project's network-secret namespace.
+    const publishing = readyPublication(home, project.project_id);
+    await publishing.publish(); await publishing.workflow.close();
+    const identityFile = join(home, "config", "plugin-publisher.json"), identity = readFileSync(identityFile);
+    const ref = (JSON.parse(identity.toString('utf8')) as { secret_ref: string }).secret_ref;
     const result = await catalog.deleteProject(deletion(project.project_id));
 
+    assert.ok(identity.equals(readFileSync(identityFile)), "deleting the author project preserves the Home publisher identity");
+    runWithMolisWorkHome(home, () => { assert.ok(peekSealedEntry(ref), "the Home signing key stays sealed"); });
     assert.equal(result.deletion.cleanup_state, "complete");
     assert.equal(result.deletion.owner_steps.find(step => step.owner_id === "plugin-builder")?.state, "complete");
     assert.equal(existsSync(join(home, "plugin-builder", project.project_id)), false, "builds and releases are gone");

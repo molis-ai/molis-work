@@ -7,9 +7,12 @@ import { issueView } from "./fixtures/issue-browser.js";
 const button = "document.querySelector('[data-side-plugin-open]')";
 
 test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘↵ record an Issue that Issue names in the background", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  let release!: () => void; const firstReply = new Promise<void>(resolve => { release = resolve; }); t.after(() => release());
-  const { requests, namings } = await issueModel(t, b.homeDirectory, { firstReply });
+  let release!: () => void; const firstReply = new Promise<void>(resolve => { release = resolve; });
+  let model!: Awaited<ReturnType<typeof issueModel>>;
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { t.after(() => release()); model = await issueModel(t, homeDirectory, { firstReply }); },
+  }); if (!b) return;
+  const { requests, namings } = model;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   // A tool with a chord is loaded while the page is idle, so the first press shows a ready view.
@@ -45,8 +48,9 @@ test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘�
 });
 
 test("ISSUE-38 undo takes a new record back and returns the words to an empty composer", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await issueModel(t, b.homeDirectory);
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
+  }); if (!b) return;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
@@ -71,9 +75,10 @@ test("ISSUE-38 undo takes a new record back and returns the words to an empty co
 });
 
 test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens with nothing lost", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
-  await issueModel(t, b.homeDirectory, behavior);
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, behavior); },
+  }); if (!b) return;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
@@ -111,8 +116,9 @@ test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens w
 });
 
 test("ISSUE-37 abandoning an unfinished capture keeps nothing", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await issueModel(t, b.homeDirectory, { question: "free-text" });
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { question: "free-text" }); },
+  }); if (!b) return;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
@@ -128,8 +134,9 @@ test("ISSUE-37 abandoning an unfinished capture keeps nothing", { timeout: 90_00
 });
 
 test("ISSUE-37 an unfinished capture survives leaving the page and saves once from where it was left", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await issueModel(t, b.homeDirectory, { unavailable: true });
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, { unavailable: true }); },
+  }); if (!b) return;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();
@@ -153,8 +160,9 @@ test("ISSUE-37 an unfinished capture survives leaving the page and saves once fr
 
 
 test("ISSUE-36 while an input method is composing, ⌘↵ and the IME's own Enter send nothing; what is sent is exactly what the composer holds", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user"); if (!b) return;
-  await issueModel(t, b.homeDirectory);
+  const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
+  }); if (!b) return;
   const v = await issueView(t, b);
   await v.viewport(1440); await v.go("/");
   await v.chord(); await v.composerFocused();

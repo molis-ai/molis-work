@@ -9,6 +9,10 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ex
   assertCurrent: () => void, effect: ((context: ActionCallContext, reference: ActionReference) => void | Promise<void>) | undefined,
   registry: CapabilityRegistry<ActionCallContext>, resolve: (reference: ActionReference) => HostCapabilityDescriptor | undefined,
   assertEnvironment?: (context: ActionCallContext, reference: ActionReference) => void): ActionExecutionContext {
+  const entry = context.stage_scene_metadata?.entry;
+  if (entry && (entry.capability_id !== reference.capability_id || entry.version !== reference.version || entry.provider_id !== reference.provider_id)) {
+    context = { ...context }; Reflect.deleteProperty(context, "stage_scene_metadata");
+  }
   // A reference to the running action that names no provider is this registration's own, not whichever provider the directory finds first.
   const ownProvider = (source: ActionReference): ActionReference => !source.provider_id && source.capability_id === reference.capability_id
     && source.version === reference.version ? { ...source, provider_id: reference.provider_id } : { ...source };

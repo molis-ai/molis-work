@@ -1,7 +1,7 @@
 import { constants, promises as fs } from "node:fs";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createLazyFileSecretStore, readExistingSecret } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore, readExistingSecret, readSealedSecretSnapshotEntry } from "@molis-ai/molis-work-storage";
 import { SUPPORTED_RUNTIME_IDS, type SupportedRuntimeId } from "./runtime-integration-contract.js";
 import { writeAtomic } from "./runtime-installation-files.js";
 
@@ -113,4 +113,15 @@ export async function readRuntimeConfigBackup(home: string, runtimeId: Supported
   const contents = await original(home, item.auth_ref);
   if (contents === null) throw errors.key_unavailable("找不到这份原配置的密封正文，请恢复同 Home 的原存储与原密钥");
   return { contents, mode: item.mode };
+}
+
+/** Read the existing archived descriptor and authenticate its body using the original Home's existing key. */
+export async function inspectRuntimeConfigBackupSnapshot(home: string, archiveData: string, runtimeId: SupportedRuntimeId, planId: string, archivedVault: string): Promise<void> {
+  runtimeConfigBackupPath(home, runtimeId, planId);
+  const item = await readReference(archiveData, runtimeId, planId);
+  if (!item) throw errors.missing("归档缺少这份 Runtime 配置备份引用");
+  let contents: string | null;
+  try { contents = readSealedSecretSnapshotEntry(home, archivedVault, item.auth_ref); }
+  catch { throw errors.key_unavailable("归档原配置的密文或同 Home 原主密钥不可用"); }
+  if (contents === null) throw errors.key_unavailable("归档没有这份原配置的密封正文");
 }

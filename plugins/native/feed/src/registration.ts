@@ -1,3 +1,4 @@
+import { FEED_CLIENT_FACTORY_SCRIPT } from "./client.js";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { createFeedHomePlugin } from "./home-plugin.js";
 import { createFeedPlugin, FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "./index.js";
@@ -17,6 +18,7 @@ export const registration: PluginRegistration = {
   // Enabling Feed always enables Inbox, so the attention entry cannot disappear.
   companions: ["inbox"],
   workbench: {
+    clientFactory: FEED_CLIENT_FACTORY_SCRIPT, clientMounts: "surfaces",
     order: 5,
     contributions: [feedUiContribution],
     stylesheet: FEED_STYLES,

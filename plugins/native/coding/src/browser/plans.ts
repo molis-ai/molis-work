@@ -14,7 +14,7 @@ export interface PlanDraft {
 export interface PlanRun {
   readonly ref: { readonly run_id: string };
   readonly phase: string;
-  readonly frozen: { readonly role_id: string; readonly text_materials: readonly { readonly source_artifact_id: string; readonly source_version: number }[] };
+  readonly frozen: { readonly role_id: string; readonly text_materials: readonly { readonly material_id: string; readonly title?: string; readonly source_artifact_id?: string; readonly source_version?: number }[] };
   readonly turns?: readonly { readonly kind: string; readonly text: string }[];
 }
 
@@ -320,7 +320,7 @@ function drawRevisions(state: Plans) {
   for (const [index, run] of runs.entries()) {
     for (const material of run.frozen.text_materials) {
       const prefix = "coding-plan:" + owner + ":";
-      if (!material.source_artifact_id.startsWith(prefix)) continue;
+      if (!material.source_artifact_id?.startsWith(prefix)) continue;
       const revision = Number(material.source_artifact_id.slice(prefix.length));
       if (!Number.isSafeInteger(revision) || revision < 1) continue;
       region.append(button(state, L("coding.plan.turn-plan", { number: index + 1, revision }), () => action(state, () => fixed(state, revision)), state.busy));

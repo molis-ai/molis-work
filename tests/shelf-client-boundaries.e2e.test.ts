@@ -75,8 +75,11 @@ async function openShelfBrowser(t: TestContext) {
       if (!result) { response.writeHead(404); response.end(); return; }
       if (request.method === "GET" && url.pathname === "/api/plugins/io.molis.work.shelf/" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
       if (request.method === "GET" && url.pathname.endsWith("/file") && delayNextFile) { const wait = delayNextFile; delayNextFile = undefined; await wait(); }
-      response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
-      response.end(result.bytes ? Buffer.from(result.bytes) : JSON.stringify(result.body));
+      const file = result.bytes === undefined ? undefined : Buffer.from(result.bytes);
+      // Match the Host transport: the bytes in this response determine the editor's ETag.
+      response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store",
+        ...(file ? { etag: `"${hashBytes(file)}"` } : {}) });
+      response.end(file ?? JSON.stringify(result.body));
     } catch (error) {
       const failure = actionErrorResponse(error);
       response.writeHead(failure.status, { "content-type": "application/json" }); response.end(JSON.stringify(failure.body));

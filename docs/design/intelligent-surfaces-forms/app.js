@@ -95,7 +95,8 @@
   }
   const moreBtn = (id) => `<button type="button" class="btn icon sm ghost" data-act="more" data-id="${id}" aria-label="${t("more")}">${ic("more", "sm")}</button>`;
   function receipt(id) {
-    const o = obj(id), op = (o.ops || []).find((x) => x.id === S.done[id]);
+    const base = D.objects[id] || extra[id], op = (base.ops || []).find((x) => x.id === S.done[id]);
+    if (!op) return "";
     return `<div class="receipt" role="status">${ic("check", "sm")}<span>${esc(L(op, "done"))}</span><span style="flex:1"></span>${op.undo ? `<button class="link" data-act="undo" data-id="${id}">${t("undo")}</button>` : ""}</div>`;
   }
 

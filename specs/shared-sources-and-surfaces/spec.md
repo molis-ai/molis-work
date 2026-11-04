@@ -1,6 +1,6 @@
 # 公共来源与呈现合同（路线书 05 ②）
 
-状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。实现等 02 交接，以及 03、04 定样全部落定；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
+状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨，呈现组件归 D 轨，这一份是共同设计；D 轨 2026-11-04 共审，四处要改的已改进稿子，§10 的四问已答（见第 10 节）。2026-11-04 收进第 06 批核账（#1805）列的七处缺口（第 3、4、8、9 节）、第 15 批评审里收下的五项（#1798，第 5、6 节）和 D 轨定的两个字段角色。实现等 02 交接，以及 03、04 定样全部落定；组合服务的实现在[第 15 批](../post-anticorruption-roadmap/reference/batches/15.md)。
 
 ## 0. 这份稿子做什么
 
@@ -35,7 +35,7 @@
 - **一个事实一个主人。** 目录配置归 `modules/projects`；本机文件的读写归宿主工作区服务；跨来源的查找和读取归 `horizontal/knowledge`；对象和正文归各自的插件或 Module；操作面的组合归新的组合服务。本合同不新建资料库，也不复制正文。
 - **可信身份不从输入读。** 调用方、项目、安装、插件从调用上下文来。资料引用里写的主人插件只用来展示，平台按动作目录核对，不靠它授权。
 - **插件同等待遇。** 内置、生成、第三方插件用同一份声明、同一套校验，宿主不按插件名开分支。
-- **现行取值。** 阶段 1 按 N35 原地改形状，不留旧取值的读取兜底；已有数据由维护改成现行形状（第 7 节）。
+- **现行取值。** 阶段 1 按 N35 原地改形状，不留旧取值的读取兜底；已有数据由维护改成现行形状（第 8 节）。
 
 ## 2. 资料身份
 
@@ -111,9 +111,20 @@ interface ProjectDirectories {
 | `projects.directories.set_output@1` | 设或改输出目录，也可以把一个输入设为输出。不搬移、不删除、不覆盖旧文件（WMD-09） | user |
 | `projects.directories.repair@1` | 文件夹换了位置以后，重新找到它 | user |
 
-- 现有的 `add`、`repair` 并进上表，`is_default` 删掉（第 7 节）。
+- 现有的 `add`、`repair` 并进上表，`is_default` 删掉（第 8 节）。
 - 改配置只影响以后的轮次；正在跑的轮次照它开始时的位置继续（第 4 节）。
 - 各插件读同一份配置，不存自己的覆盖值（WMD-07）。
+
+**目录的 id 和路径脱钩**（#1805 第 2 条）。现在 `workspace_id` 是路径哈希（`modules/projects/src/workspace.ts` 的 `normalizeProjectWorkspace`），`repair` 换了路径就换了 id，旧关联随之删掉；而资料引用写的是 `<workspace_id>:<相对路径>`，修复以后旧引用就指向一个不存在的 id。改成：
+
+- `add` 时发一个新 id，以后不再随路径变；「同一个文件夹只关联一次」改由 `canonical_path` 唯一来守。加一个已经关联过的文件夹，返回原来那一项，不新发 id。
+- `repair` 只改 `canonical_path`，id 不变，所以历史引用和固定版本不受影响（WMD-04）。新路径已经是本项目另一个目录时拒绝，错误码 `projects.directory_duplicate`，不悄悄合并两项。
+- 现有的哈希 id 本来就是不透明的字符串，照旧有效，不重写、不重映射。
+
+**没写目录时取输出目录**（#1805 第 3 条）。现在有十几处不传 `workspace_id`，靠 `preferredPath` 隐含取一个目录（Schedule 的唤醒、Goals 的终端、到达页都是）。规则定为：
+
+- 没传 `workspace_id` 的读、写、执行，一律取**输出目录**。`modules/projects` 导出 `outputDirectory(project_id)`，替掉 `preferredPath`，不留旧名。
+- 要用输入目录，必须显式传它的 `workspace_id`，服务按当前角色核对；不按「最近看过」「第一个加的」去猜。
 
 ## 4. 浏览和执行，以及撤权
 
@@ -124,6 +135,14 @@ interface ProjectDirectories {
 | 项目配置（输入和输出） | `modules/projects` | 项目库，持久 | 只有输出目录可写；只作输入的目录只能读（§2.1） |
 | 本轮执行位置 | agent-host，在轮次开始时冻结 | 轮次记录 | 是输出目录，或临时工作树 |
 | 面板正在看的位置 | 工作台的视图状态 | 页面，按窗口各自记 | 永远不能，只是看 |
+
+**现在的「浏览目录」设置删掉**（#1805 第 1 条）。main 上有一份持久的浏览选择：动作 `projects.settings.browsing-workspace.read`、`.select`，宿主表 `project_browsing_settings`（`apps/local-host/src/project-browsing-settings.ts`），Files、Git、Coding 和助理的环境都在读。按上表它是页面状态，所以：
+
+- 这两个动作、这张表、`workspace-settings-events.ts` 里对应的事件一起删，同一次切换里改完所有读它的地方，不留别名（N35）。
+- **Git**：动作的输入显式带 `workspace_id`，不传就是输出目录（第 3 节）；页面把正在看的目录作为输入传过去，服务按当前角色核对。
+- **Coding**：浏览的目录只在页面里；执行位置只从 `RunDirectories.execution` 来（下一段）。Coding 现在把两者混在一起（`routes-sessions.ts`、`executor.ts`），浏览器代码要整块改：归 B 轨；借助理执行器（`assistant-executor.ts`）的那部分归 A 轨（轨道规则 7）。
+- **助理的环境**：「你正在看什么」由页面经现有的情境通道交给助理，只当提示，不带授权；不再读持久设置。
+- **Files**：随第 06 批退役（第 8 节），不再改它。
 
 开轮时冻结下来的是（叫 `RunDirectories`，不叫 placement：`platform/placement.ts` 里的 placement 指对象放在哪个项目分区）：
 
@@ -140,7 +159,8 @@ interface RunDirectories {
 - **冻结的是「在哪」，不是「准不准」。** 每次读、写、执行，都按**当前**的目录角色和授权重新核一遍。撤权、文件夹失效、移除输入会立即拒绝之后的访问，不能拿「已经冻结了」当理由继续（WMD-09）。被拒的调用照 AGENTS 的规矩不写业务记录。
 - **配置变了**：轮次视图同时给出 `RunDirectories` 和当前的 `ProjectDirectories`，界面据此显示「本轮还在原位置，下一轮起用新位置」。
 - **浏览不改权限**：面板正在看哪里不进任何合同，只是工作台的页面状态。临时查看一个输入目录不改执行位置（CHO-36～39），也不获得写入权限。
-- **失效时的错误**：用 `projects.directory_missing`、`projects.directory_revoked`，在 `modules/projects` 的 `defineErrorCodes("projects", …)` 里声明。
+- **只有输出目录可写**（#1805 第 5 条）。现在 `workspaceRefFor` 的注释说只给授权目录，实际给的是所有已验证目录；目前没有因此多放权，但改成 `roles` 以后要说死：Agent 能写的只有 `RunDirectories.output`（或它的临时工作树），输入目录只读。实现时补一条断言「写输入目录被拒」的测试，并在 `docs/system/SECURITY-INVARIANTS.md` 加一行（编号由实现片取）。
+- **失效时的错误**：用 `projects.directory_missing`、`projects.directory_revoked`、`projects.directory_duplicate`，在 `modules/projects` 的 `defineErrorCodes("projects", …)` 里声明。
 
 ## 5. 智能呈现的声明
 
@@ -149,8 +169,11 @@ interface RunDirectories {
 ```ts
 // packages/contracts/src/platform/presentation.ts（新子路径；Manifest 类型在 plugin-manifest.ts 里引用）
 type FieldRole = "title" | "status" | "summary" | "excerpt" | "media" | "number" | "progress"
-  | "due_at" | "happened_at" | "updated_at" | "actor" | "activity" | "origin" | "version" | "relation" | "children";
+  | "due_at" | "happened_at" | "updated_at" | "actor" | "activity" | "origin" | "version" | "relation" | "children"
+  | "judgment" | "held_in";
 // activity：一句最近发生了什么，由主人给。「行」的第二行固定读 actor、activity 和时间（MLN-23 的「最近一次动作」）。
+// judgment：主人对这件东西的判断，值是 { label: TextRef; reason?: TextRef }（D 轨 2026-11-04 定）。
+// held_in：这件东西归项目还是归个人，值是 "project" | "personal"。不叫 scope：会和动作的 scope、AssistantScope 撞名。
 type FormKind = "chip" | "row" | "card" | "peek";           // 第一片：四种基础形态
 // 第二片再加 "live" | "embed"；"page" 是插件自己的主区，不进声明。
 type AttentionState = "needs_decision" | "needs_acceptance" | "failed" | "partial" | "stale";
@@ -159,6 +182,8 @@ interface PresentationDeclaration {
   objects: PresentationObject[];
   /** 自己页面上允许别人放东西的位置；不写就是一处都不开放（IUI-13）。 */
   mounts?: MountDeclaration[];
+  /** 插件级概况：首页、Shelf 上「这个插件现在怎么样」。指向本插件自己的一个 query 动作（#1798 第 12 节第 1 条）。 */
+  overview?: { capability_id: string; version: number; note_key?: string };
 }
 
 interface PresentationObject {
@@ -207,6 +232,12 @@ interface MountDeclaration {
 - **状态环的取值归 contracts。** `StateRingState` 现在在 SDK 的 `packages/plugin-sdk/src/ui/state-ring-states.ts`，contracts 不能反过来引用 SDK。先由 D 轨把 `STATE_RING_FAMILIES` 的取值清单下沉到 contracts 的 `platform/ui.ts`（这个文件归 D 轨），SDK 的 `/ui` 从 contracts 取，渲染留在 SDK；`presentation.ts` 只引用 contracts 里的这份取值。C-2 叠在 D 轨这一步后面。
 - **`attention` 只管显示，不进「等你」。** 声明里的 `attention` 只决定色点和状态标签，不产生等你条目。「等你」的主人仍是 `modules/attention-resumption.ts`，插件经 `platform/plugin-attention.ts` 写入；它的 `reason`（manual、source_rule、goal_decision……）说的是为什么进来，这里的 `needs_decision`、`needs_acceptance` 说的是要你做什么，两者不是一回事。等你列表只认 attention-resumption，不形成第二份「要你管」的名单。
 - **不经组合服务也能用。** 呈现声明可以脱离组合服务单独用：主线顶部切换（MLN-23）不调 `surfaces.compose`，直接按声明和 `PresentationValues` 画「行」。SDK 给一个按声明取值、渲染单个形态的入口（第 7 节），所以 MLN-23 不用等第 15 批。
+- **插件级概况**（`overview`）：
+  - 指向的动作，输入输出 schema 由平台定死，声明必须一字不差，做法照 `SANDBOX_INTEGRATION_CONTRACT`。输出是 `{ summary: TextRef; subjects: ActionSubject[]（≤5）; start: Array<{ capability_id; version }>（≤3） }`。
+  - 动作是 `effect: "read"`，不调模型、不花钱，和 `home_aggregate` 的约束一样。
+  - `note_key` 是不变的一句话（如 Feed 的「同步来的资料不算你接下的工作」），写在声明里，不让动作每次返回。
+  - `start` 里的动作必须在同一次注册里，用 `inspectActionCrossReferences` 查；后果从动作元数据取。
+  - Home 级插件（如 Todo）的概况动作走 `project_reach`，按调用上下文给它可达的项目，不在输入里带项目。
 - **没有声明的对象**：平台兜底显示图标、名字、所属插件和「打开」，打开位置用 `SearchOpenTarget`（IUI-02）。
 - **文案键**：`label_key` 用插件的稳定文字键，和第 15 批「前三个插件声明从首片起用稳定文字键」一致。
 - **装不上要说清**：声明不合法时安装被拒，并说明是哪一项错了（IUI-01）。校验是第 6 节的 `validatePresentationDeclaration`。
@@ -216,8 +247,9 @@ interface MountDeclaration {
 组合服务是一个新的 `horizontal/` 包，第 15 批实现；宿主只做装配。公开合同放在 `packages/contracts/src/services/surface-composition.ts`。界面上的位置叫 slot（`SurfaceSlotKind`），不叫 placement，理由同第 4 节：
 
 ```ts
-type SurfaceSlotKind = "plugin-mount" | "conversation" | "discussion" | "attention"   // 第一片的四处
-  | "home" | "shelf" | "search" | "side" | "text";                                  // 以后
+type SurfaceSlotKind = "plugin-mount" | "conversation" | "discussion" | "attention" | "home"
+  | "shelf" | "search" | "side" | "text";
+// 合同里现在就有 home；消费者的顺序照第 10 节第 3 条，首页排在第二片。
 
 interface SurfaceRequest {
   slot: { kind: SurfaceSlotKind; plugin_id?: string; mount_id?: string };   // plugin-mount 时要写在哪个插件的哪个挂载位
@@ -229,8 +261,21 @@ interface SurfaceRequest {
 interface SurfaceDescription {
   composed_by: "rules" | "assistant";
   revision: string;                 // 同样的输入得到同样的 revision，确定组合可以重复（IUI-04）
-  groups: Array<{ title_key?: string; items: SurfaceItem[] }>;
-  reason?: string;                  // 一句「为什么这样放」（IUI-06）
+  groups: SurfaceGroup[];
+  reason?: TextRef;                 // 一句「为什么这样放」（IUI-06）
+}
+
+/** 按种类区分的组（#1798 第 12 节第 4 条）。描述里所有给人看的字都用 TextRef（第 14 批 A 段）。 */
+interface SurfaceGroup {
+  kind: "attention" | "continue" | "plugin" | "slot";
+  owner_plugin_id?: string;         // 只在 plugin 组
+  state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared";   // disabled、undeclared 只用在 plugin 组
+  read_at?: string;                 // state 为 stale 时有
+  /** 没有放进来的。第一片只收 disabled：不给 forbidden，「有几件你看不了」本身就是泄露。 */
+  excluded?: Array<{ reason: "disabled"; count: number }>;
+  hidden_above?: { count: number; label: TextRef };   // 「另有 N 件」
+  title?: TextRef;
+  items: SurfaceItem[];
 }
 
 interface SurfaceItem {
@@ -245,6 +290,8 @@ interface SurfaceItem {
     prepared_input?: Record<string, unknown>;
     consequence?: Array<"external" | "cost" | "irreversible">;   // 写在按钮旁（IUI-08，VUX-56）
   }>;
+  /** 被合并进这一件的对象（#1798 第 12 节第 5 条）。服务按动作目录填 owner_plugin_id；调用方读不了的不放进来。 */
+  merged?: Array<{ subject: ActionSubject; owner_plugin_id: string; relation: ContextRelationType }>;
 }
 ```
 
@@ -253,6 +300,10 @@ interface SurfaceItem {
 | `surfaces.compose@1` | query | 按调用方、位置（slot）和对象返回校验过的 `SurfaceDescription`。第一片只做确定组合，不调模型 |
 | `surfaces.correct@1` | command | 用户换形态、移走、固定。按调用方和位置记住，同一位置下次先照纠正来（IUI-06）。用 `expected_revision` |
 
+- **组的规矩**：`disabled`、`undeclared` 用在 plugin 组以外，`assertSurfaceDescription` 拒绝。停用卡上的「启用」引用平台动作 `plugins.installed.enable@1`（只给本人），不另造。
+- **revision 要把授权算进去**：哈希的输入里加调用方的授权版本（或动作目录给的可用性版本）。只换了授权、别的没变时，可点的操作已经不同，revision 也必须变，页面才会重画。
+- **关系类型要登记**：现在 context-ledger 的 `ContextEdge.type` 是自由字符串，写入方各自定常量（如 `horizontal/placement/src/index.ts` 的 `TYPES`）。C-3 在 contracts 的 `modules/context-ledger` 加一张平台关系类型表 `ContextRelationType`，先放 `created_from`；`merged` 只认表里的类型。这条边由执行「从这件新建」的平台路径写，不由插件自称。
+- **授权核对只读**：组合服务核对「这个操作此刻能不能点」直接用动作目录的 `discover()`，它带 `availability`，不另开接口。
 - **操作就是动作**：`SurfaceItem.actions` 里只能是动作目录里现有的动作，或者平台的通用操作。点下去的时候走动作网关，用当时的授权，不用组合当时的授权（IUI-07）。
 - **组合不存值**：描述里只有引用、形态和该显示哪些字段，值由页面另取。所以描述可以缓存，值照样是主人的当前值。
 - **助理组合**（第三片）：同一个 `compose`，`composed_by: "assistant"`。服务先算出确定组合的候选，再经 agent-host 让模型挑选，输出用 `assertSurfaceDescription(候选)` 校验：候选以外的丢掉并记下，不合格就退回确定组合（IUI-05）。合同现在只是给它留了字段，第一片不实现。
@@ -294,7 +345,12 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 - **重建之前落**：直接改第 1 版的建表，不写迁移。
 - **重建之后落**：真实 Home 已经按第 1 版建了表，不能再原地改第 1 版，只能走 U1 的升级链写一步升级，并过金样回放（U2）。写这一步算「新增迁移逻辑」，是红线：开 PR 之前由统筹先问用户。
 
-不加读取兼容。开 PR 时先核 02③ 做完没有。
+不加读取兼容。开 PR 时先核 02③ 做完没有。`modules/projects` 现在没有升级步（#1805 第 6 条）：如果落在重建之后，这一步要先在 U1 的升级链上给它登记一步。
+
+本稿里另外两处存量：
+
+- **删掉的浏览设置表**（第 4 节）：重建之前落，第 1 版建表里直接不建；之后落，升级步删表，不搬数据（它本来就是页面状态）。
+- **Files 退役**（#1805 第 7 条）：去向写在[第 06 批第 1 项](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-1)。要点：产生动作和版本读取归平台的资料服务（`services.materials`），用现有的过程项设施；原来的输出绑定在同一次切换里改到新动作，不留别名；侧栏的文件来源归 `horizontal/knowledge`；历史过程项按维护步处理，涉及真实 Home 的进维护时段，先问用户。
 
 ## 9. PR 怎么拆
 
@@ -302,15 +358,15 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
-| C-1 资料与目录合同 | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`、`RunDirectories`，第 3 节的五个动作与 `materials.recent@1` 的声明；`assertMaterialRef`；api、actions 快照 | 02 交接；与 U1 共用 storage 的部分排在 U1 之后 |
+| C-1 资料与目录合同 | `platform/project-materials.ts`；`modules/projects` 的 `ProjectDirectory`、`ProjectDirectories`、`RunDirectories`，第 3 节的五个动作与 `materials.recent@1` 的声明；删掉 `projects.settings.browsing-workspace.*`；三个错误码；`assertMaterialRef`；api、actions 快照 | 02 交接；与 U1 共用 storage 的部分排在 U1 之后 |
 | C-2 呈现声明合同 | `platform/presentation.ts`、Manifest 的 `presentation` 字段、values 的类型与 define/bind；`validatePresentationDeclaration`、`presentationText`、`presentationFormFields`、`renderPresentationForm` 的签名；api 快照 | 02 交接；D 轨把状态环取值下沉到 contracts 的 `platform/ui.ts` 之后 |
-| C-3 组合服务合同 | `services/surface-composition.ts`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；`assertSurfaceDescription`；actions 快照 | C-2 |
-| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片）；Goals、Inbox、Coding 的第一片声明 | C-1～C-3 合入 |
+| C-3 组合服务合同 | `services/surface-composition.ts`、`SurfaceGroup`、`surfaces.compose@1`、`surfaces.correct@1` 的声明；context-ledger 的关系类型表；`assertSurfaceDescription`；actions 快照 | C-2；第 14 批 A 段的 `TextRef` 合入 |
+| 实现 | 组合服务包（第 15 批）；`modules/projects` 的服务与界面接线（WMD 的实施切片），含 id 与路径脱钩、`outputDirectory`、删浏览设置表；Git 显式带目录；Goals、Inbox、Coding 的第一片声明。Coding 的浏览与执行拆开归 B 轨，`assistant-executor.ts` 的部分归 A 轨 | C-1～C-3 合入 |
 
 ## 10. D 轨的答复（2026-11-04 共审）
 
 1. **插件色：平台分配，Manifest 不声明。** 分配结果要稳定：同一个插件换设备、重装后颜色不变；色盘够用时，两个已装的插件不撞色。色盘和状态色分开，由 D 轨在 design-system 里定，浅色和深色都要分得清（IUI-26）。合同只给 `owner_plugin_id`，不加颜色字段；是记在安装记录上，还是按 id 确定地算，D 轨做色盘时再定，两种都不用改本合同。
-2. **字段角色：四种形态够画，「行」缺一个角色。** 已加 `activity`（第 5 节），一共 16 个；行的第二行固定读 `actor`、`activity` 和时间。其余不加。
+2. **字段角色：四种形态够画，「行」缺一个角色。** 已加 `activity`（第 5 节）；行的第二行固定读 `actor`、`activity` 和时间。之后 D 轨又定了 `judgment` 和 `held_in` 两个（第 5 节），一共 18 个。
 3. **第一片的位置：同意插件内、对话、项目讨论、等你四处**，首页和 Shelf 进第二片。另外，MLN-23 不经 `surfaces.compose`，直接按声明画「行」（第 5 节、第 7 节）。
 4. **`surfaces.compose` 第一片只给 user 和 plugin：同意。** 外部 Agent 走 `presentationText`。
 
@@ -324,7 +380,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | SSC-02 | 出处现读：撤权、删除、文件夹失效以后，旧引用分别显示「没有权限查看」「已删除」「找不到位置」，不用缓存的正文 | WMD-05、WMD-06、IUI-10 |
 | SSC-03 | 项目恰好有一个输出目录；同一个文件夹只关联一次，可以同时是输入和输出；改配置按 `expected_revision` 提交，冲突时被拒 | WMD-02、WMD-07、WMD-08 |
 | SSC-04 | 正在跑的轮次照冻结的 `RunDirectories` 做；撤权或移除目录后，下一次读、写、执行马上被拒，且不写业务记录 | WMD-09、WMD-11 |
-| SSC-05 | 浏览位置不进任何合同；临时查看输入目录不改执行位置，也不获得写入权限 | WMD-11、CHO-36～39 |
+| SSC-05 | 浏览位置不进任何合同，`projects.settings.browsing-workspace.*` 与它的表已删；临时查看输入目录不改执行位置，也不获得写入权限 | WMD-11、CHO-36～39 |
 | SSC-06 | 呈现声明不合法时安装被拒，并说出是哪一项；内置、生成、第三方插件走同一个 `validatePresentationDeclaration` | IUI-01、IUI-22 |
 | SSC-07 | `surfaces.compose` 的确定组合不调模型，同样输入得到同样的 revision；描述里只有引用，值由主人现给 | IUI-04、IUI-09 |
 | SSC-08 | 描述里的每个操作都是已注册动作或通用操作；点下去时走动作网关，用当时的授权；撤权以后点击不写任何业务记录 | IUI-07、IUI-08 |
@@ -334,3 +390,8 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | SSC-12 | 「最近用过」由引用发生处记、`materials.recent@1` 按调用方和项目读，最多 5 份显示，出处现读；被拒或取消的调用不记 | WMD-01、WMD-05 |
 | SSC-13 | 主人读不到时 `PresentationValues` 给 `stale` 和 `read_at`，界面写「x 分钟前的值」，不当成当前值 | IUI-10 |
 | SSC-14 | 不经组合服务，按声明和 `PresentationValues` 单独画出「行」（MLN-23），与组合服务画出的同一形态一致 | MLN-23、IUI-03 |
+| SSC-15 | Agent 只能写输出目录（或它的临时工作树）；写输入目录被拒，有断言拒绝本身的测试和安全不变量一行 | WMD-09、#1805 第 5 条 |
+| SSC-16 | `repair` 以后目录 id 不变，旧的 `MaterialRef` 照样能读；修到本项目已有的另一个目录时被拒 | WMD-04、#1805 第 2 条 |
+| SSC-17 | 没传 `workspace_id` 的读、写、执行都取输出目录；要用输入目录必须显式传，并按当前角色核对 | WMD-07、#1805 第 3 条 |
+| SSC-18 | 插件级概况的动作 schema 与平台定的一字不差，否则安装被拒；`start` 只能引用同一次注册里的动作 | #1798 第 12 节第 1 条 |
+| SSC-19 | 只换了授权、别的不变时，`surfaces.compose` 的 revision 也变 | #1798 评审 |

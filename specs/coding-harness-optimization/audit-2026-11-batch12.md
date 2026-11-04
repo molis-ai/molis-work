@@ -32,7 +32,7 @@
 | 段 | 入口 | 主人 | 现状与断点 |
 | --- | --- | --- | --- |
 | 选目录 | `apps/local-host/src/directory-picker.ts` 的 `createDirectoryPicker`／`runDirectoryPickerCommand` | Host | 已在 main，对应 CHO-01 的实现；没有带 `CHO-01` 的用例，`tests/workspace-directory-picker.test.ts` 是起点。 |
-| 项目里关联的目录与「当前目录」 | `apps/local-host/src/project-capabilities.ts` 的 `projectSettingsCapabilities.workspaces`、`browsingWorkspace`、`selectBrowsingWorkspace`；存放在 `ProjectBrowsingSettings` | Host（项目设置） | **断在这里**：现在只有一个持久的「浏览目录」，没有「多个输入目录 + 一个输出目录」，也没有「临时查看不改变执行位置」。R1 的 2026-10-27 决定（BL-023）与 CHO-36～39 都没实现，BACKLOG 标「部分实现」。 |
+| 项目里关联的目录与「当前目录」 | `apps/local-host/src/project-capabilities.ts` 的 `projectSettingsCapabilities.workspaces`、`browsingWorkspace`、`selectBrowsingWorkspace`；存放在 `ProjectBrowsingSettings` | Host（项目设置） | **断在这里**：现在只有一个持久的「浏览目录」，没有「多个输入目录 + 一个输出目录」，也没有「临时查看不改变执行位置」。R1 的 2026-10-27 决定（BL-023）与 CHO-36～39 都没实现，BACKLOG 标「部分实现」（BL-023 不是无人管：C、D 先交公共合同与选择器，B 接 Coding，见 §7 第 4 条）。 |
 | Coding 取当前目录 | `plugins/native/coding/src/executor.ts` 的 `currentWorkspace`、`routes-sessions.ts` 的 `readState`：先取浏览目录，没有再取项目首选目录 | Coding 读、Host 给 | 因为只有一个浏览目录，在 Files／Git 里换了看的目录，助理新开的一轮就会在那里跑，和 R1「临时查看不改变执行位置」冲突（静态读出，未实操）。 |
 | 一轮冻结目录 | `start-round.ts` 的 `startRound`：按 `body.workspace_id` 在 `workspaces` 里找，要求 `realpath_verified`，然后把目录交给 `agent.startRun` | Coding 调、Agent Host 执行 | 已在 main。冻结后下一轮才换目录，对得上「运行中不变」；但「与项目当前配置的差异」没有显示（CHO-38）。 |
 | 并行写手的目录 | `start-round.ts` 里 `role === "writers"` 一段，经 `writerDirectoryCapabilities.list` 取已授权的工作树 | Coding／工作区 | 已在 main。 |
@@ -152,7 +152,7 @@ BACKLOG 只写了前两种，实际是三种。其余板状态（进行中、模
 | G2 | BL-164：未开始的步骤有三种说法 | §4.2 | 回执线 3d-4（RCPT-356） | 「未开始」用哪种说法；TaskBoard 板状态改从 `host.receipts.step` 取 |
 | G3 | BL-222：取消、超时、被信号结束、没有输出的命令按成功画；后台命令不显示结局 | §4.3 | R5（结果真实性）、[CHO-11](spec.md#7-验收标准) | 「被信号结束」「结果未知」的中文；读不到退出码的显示成「结果未知」 |
 | G4 | 项目规则（AGENTS.md）信任参数未接入，本轮实际规则来源不可见 | §3.2 | R3、CHO-06 | 项目可信性由 Host 决定的规则；在 12 的「规则」定样里一起定 |
-| G5 | 工作目录只有一个浏览目录：没有多输入／单输出，临时查看会改变助理新开一轮的目录，运行中轮次与项目配置的差异不显示 | §3.1 | R1、CHO-36～39、BL-023、[WMD-07～12](../product-flow-governance/workspace-and-materials-design.md) | 这是一件大事：BL-023 未分配，12 只接「执行目录」一半还是等 BL-023 整做，要统筹裁 |
+| G5 | 工作目录只有一个浏览目录：没有多输入／单输出，临时查看会改变助理新开一轮的目录，运行中轮次与项目配置的差异不显示 | §3.1 | R1、CHO-36～39、BL-023、[WMD-07～12](../product-flow-governance/workspace-and-materials-design.md) | 统筹 2026-11-04 定：12 先修执行目录取值，05②、06、07 合入后再接输入／输出目录（§7 第 4 条） |
 | G6 | 助理找不到 Coding 时，原因合成一句，未分未安装／停用／激活失败／无适配版本 | §3.3 | R2、CHO-04 | 与「恢复」定样一起 |
 | G7 | 没有用例断言「方法、MCP 随助理开始的一轮到达」「助理与页面等价」（CHO-03） | §3.3 | R2、CHO-03 | 无 |
 | G8 | Coding→Coding 委派不继承方法、MCP、动作、Character | §3.3 | R2 | 有意还是漏（见 §7 问题 1） |
@@ -166,7 +166,7 @@ BACKLOG 只写了前两种，实际是三种。其余板状态（进行中、模
 | M1 | 代码类、配置类文件进不了引导：两张扩展名白名单（`supportedContextFile`、`MATERIAL_EXTENSIONS`） | §5 步骤 1 | ONB-37、PF-A01 | 要读哪些、读不了的怎么说（04 定样的一部分） |
 | M2 | 采用后不接 Coding：不加 Coding 插件、不问工作目录、不带材料 | §5 步骤 5 | ONB-44、PF-A01 | 沿 04 的 Onboarding 全程设计；不把材料目录升级为执行目录 |
 | M3 | 引导到 Coding 的端到端用例不存在；没有 ONB-35～46 编号的用例 | §5 | ONB-46 | 无 |
-| M4 | 未知结果核对：采用与 Coding 的接缝没有「先核实际结果」，通知恢复页让用户手填依据 | §5 步骤 8 | PF-A09、ONB-45 | 事实主人是 Plugin Runtime 事件恢复和 Workflows，不是 Coding；12 只做 Coding 一侧，通知恢复归 C 轨或平台批次，需要统筹排 |
+| M4 | 未知结果核对：采用与 Coding 的接缝没有「先核实际结果」，通知恢复页让用户手填依据 | §5 步骤 8 | PF-A09、ONB-45 | 通知恢复部分已移到第 55 批第 1 项（统筹 2026-11-04 定）；12 只做 Coding 一侧 |
 
 ### 不在第 12 批两项里，核查时顺带看到的
 
@@ -174,15 +174,15 @@ BACKLOG 只写了前两种，实际是三种。其余板状态（进行中、模
 - R8 浏览器／桌面只挂给 business 工作区：`horizontal/agent-host/src/adapters/prologue-run.ts` 的 `roundSurface` 仍有 `business` 条件。归 R8 所在批次。
 - R14 TaskBoard 估点：Coding 里没有。依赖 Prologue 采用线。
 
-## 7. 要统筹或用户拍板的事
+## 7. 统筹裁定（2026-11-04 定）
 
-1. **Coding→Coding 委派要不要继承发起会话选的方法、MCP、动作、Character？** 现在不继承（只继承模式、模型、目录、草稿、材料）。推荐：不继承，接收的人自己在页面里选，因为接收的人可能想换；代价是委派出去的会话少一步默认。若要继承，是 `delegation-dispatch.ts` 里加四个存储键的复制，几行的事。
-2. **BL-161 按位置还是按 id 编号？** 推荐按位置：计划卡、回执、服务端报告已经按位置，只改 TaskBoard 一处；代价是「插入一步」后 TaskBoard 里下面所有步骤的 S 号后移，和之前看到的不同。
-3. **BL-164 未开始用哪种说法？** 推荐「等待前一步」：对用户最容易懂，且已在回执词表里。
-4. **G5 工作目录整做归谁？** BL-023 未分配。推荐第 12 批只修「执行目录取值」这一半（助理开一轮时取项目当前输出，不取浏览目录），多输入／单输出的合同与界面留给 BL-023 单独一批；代价是 12 做完后「临时查看」仍不是独立概念。
-5. **M4 通知恢复页归谁？** 推荐不放进第 12 批，由平台批次接。
+五条推荐已由统筹审过，结论如下；措辞类（2、3，以及 BL-222 的「结果未知」中文）仍随第 12 批「目录／规则／恢复」定样给用户看。
 
-五条里 1～4 若统筹没有别的意见，会按推荐写进第 12 批开工前检查；涉及界面措辞（2、3，以及 BL-222 的「结果未知」中文）的，仍随第 12 批「目录／规则／恢复」定样一起给用户看。
+1. **Coding→Coding 委派不继承**发起会话选的方法、MCP、动作、Character（统筹 2026-11-04 定，同意推荐）。接收的人自己在页面里选。
+2. **BL-161 按位置编号**（统筹 2026-11-04 定）：只改 TaskBoard 一处；「插入一步」后下面步骤的 S 号后移。
+3. **BL-164 统一写成「等待前一步」**（统筹 2026-11-04 定）。
+4. **BL-023 的分法**（统筹 2026-11-04 定，改正原稿「未分配」的说法）：[依赖图](../post-anticorruption-roadmap/reference/dependencies.md)已拆好——公共资料身份、目录授权与读写、选择器由 C、D 先交（05② 把 `is_default` 改成 `roles: input | output`，07 做选择器和定位，「临时查看是独立概念」由 07 交付，不再单独开一批）；B 的一半「Coding／Git 接入这套目录」留在第 12 批。第 12 批做两件事：修「执行目录取值」（助理开一轮取项目当前输出，不取浏览目录）；05②、06、07 合入后把 Coding 接到输入／输出目录上。
+5. **通知恢复页（PF-A09 M4）移到第 55 批第 1 项**（Attention 唤醒、角标与系统通知，F 轨），不放进 12（统筹 2026-11-04 定）。
 
 ## 8. 没有核的
 

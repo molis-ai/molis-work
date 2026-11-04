@@ -1,25 +1,17 @@
 /*
- * 第 18 批原型的版式。控件、对话框、侧板、弹层、勾选、开关、条目行、状态都是组件板的 mw-*（dist/board.css），这里只排位置。
- * 只用组件板的令牌：--paper / --surface-soft / --line / --line-strong / --ink / --ink-soft / --muted / --faint / --accent / --scrim / --hue-* / --tone-* / --r-* / --lift-* / --dur-* / --ease-*。
+ * 第 18 批原型的版式。条目行、开关、按钮、标签、状态、提示、页签、表单都是组件板的 mw-*（dist/board.css），这里只排位置。
+ * 只用组件板的令牌：--page / --paper / --surface-soft / --line / --line-strong / --ink / --ink-soft / --muted / --faint / --accent / --accent-soft / --hue-* / --r-* / --lift-* / --sheet-shadow / --dur-* / --ease-*。
+ * 不弹窗（用户 2026-11-04）：D 在原处展开，E 用工作台的侧栏（让出宽度、不遮挡），F 开关即生效。
  * 标「组件板新增」的几处在 README 里写了理由，交 D 轨补标本。
  */
-body.proto-page { --tab-strip-h: 48px; }
-
-/* 遮罩：原型里不用顶层模态（那样会挡住顶上的原型控制条），对话框用 open 摆在舞台上，层级在控制条之下 */
-.gr-scrim { position: fixed; inset: 48px 0 0 0; z-index: 20; background: var(--scrim); animation: gr-fade var(--dur-move) var(--ease-quint); }
-.gr-scrim--surface { z-index: 30; }
-dialog.gr-form { z-index: 21; }
-dialog.gr-surface { z-index: 31; }
-dialog.mw-dialog--form.gr-form, dialog.mw-dialog--form.gr-surface--a { top: calc(50% + 24px); max-height: min(calc(100dvh - 120px), 720px); }
-dialog.mw-dialog--form.gr-form > .mw-form, dialog.mw-dialog--form.gr-surface--a > .mw-form { max-height: min(calc(100dvh - 120px), 720px); }
-dialog.gr-surface--a { width: min(600px, calc(100vw - 48px)); }
-@keyframes gr-fade { from { opacity: 0; } }
 @keyframes gr-arrive { from { opacity: 0; transform: translateY(4px); } }
+@keyframes gr-panel-in { from { opacity: 0; transform: translateX(16px); } }
 
 .gr-muted { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
 .gr-muted svg { width: 14px; height: 14px; flex: none; }
 .gr-small { font-size: 12px; }
 .gr-spacer { flex: 1; }
+.gr-note { font-size: 12px; color: var(--muted); }
 
 /* 组件板新增 · 插件色标（与第 19 批相同）：mw-mark、mw-tag 里的图标用 --hue-* 着色 */
 [data-hue="blue"] { --gr-hue: var(--hue-blue); }
@@ -27,91 +19,90 @@ dialog.gr-surface--a { width: min(600px, calc(100vw - 48px)); }
 [data-hue="mint"] { --gr-hue: var(--hue-mint); }
 [data-hue="cyan"] { --gr-hue: var(--hue-cyan); }
 [data-hue="orange"] { --gr-hue: var(--hue-orange); }
-[data-hue] > svg { color: var(--gr-hue); }
+.gr-mark[data-hue], .gr-mark[data-hue] svg, .gr-tag[data-hue] svg { color: var(--gr-hue); }
 .gr-mark { flex: none; }
 .gr-tag { padding-right: 8px; gap: 4px; }
 .gr-tag svg { width: 13px; height: 13px; }
-
-/* Schedule 表单与详情里的「能读的数据」一行（插件这边） */
-.gr-entry { display: grid; gap: 6px; min-width: 0; }
-.gr-entry__row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 6px 6px 10px; border-radius: var(--r-control); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.gr-entry__value { flex: 1; min-width: 0; }
-.gr-entry__row > .mw-btn { flex: none; }
-.gr-tags { display: flex; flex-wrap: wrap; gap: 4px; }
-.gr-entry__note { display: flex; }
-.gr-entry--fail .mw-alert { margin: 0; }
+.gr-tags { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; flex: 1; }
 
 /* 组件板新增 · 提示里的按钮（与第 17、19 批相同） */
 .gr-alert-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .mw-alert > p + .gr-alert-actions { margin-top: 0; }
 
-/* 平台确认面：三种外形共用的头与脚 */
-/* 组件板新增 · 平台确认面的标头：一行盾牌图标 + 「Molis Work · 只有你能确认」，让人分得清这是平台而不是插件在问 */
-.gr-kicker { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 2px 8px 2px 6px; border-radius: var(--r-tag); background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: var(--weight-control, 560); }
-.gr-kicker svg { width: 13px; height: 13px; }
-.gr-group { display: grid; gap: 8px; min-width: 0; }
-.gr-group + .gr-group, .mw-alert + .gr-group, .gr-empty + .gr-group { margin-top: 16px; }
-.gr-h { margin: 0; font-size: 12px; font-weight: var(--weight-control, 560); color: var(--muted); }
-.gr-foot { display: grid !important; grid-template-columns: minmax(0, 1fr); gap: 10px; justify-items: stretch; }
-.gr-sum { font-size: 13px; color: var(--ink-soft); min-height: 20px; }
-.gr-sum[data-tone="warn"] { color: var(--ink); }
-.gr-foot-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.gr-foot-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.gr-foot-note svg { width: 13px; height: 13px; flex: none; }
-.gr-empty { padding: 16px 8px; }
-
-/* A：选项卡片（组件板的 mw-ix-option，可多选） */
-.gr-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.gr-opt { box-shadow: inset 0 0 0 1px var(--line); align-content: start; }
-.gr-opt .mw-ix-option__top { display: flex; align-items: center; gap: 8px; }
-.gr-opt .mw-ix-option__title { flex: 1; min-width: 0; }
-.gr-opt[aria-pressed="true"] .gr-mark { background: color-mix(in srgb, var(--action-ink) 16%, transparent); }
-.gr-opt[aria-pressed="true"] [data-hue] > svg, .gr-opt[aria-pressed="true"] .gr-mark svg { color: var(--action-ink); }
-.gr-opt[data-off] .mw-ix-option__title { color: var(--muted); }
-.gr-opt__status { display: flex; margin-top: 2px; }
-.gr-opt[aria-pressed="true"] .gr-opt__status .mw-status { background: color-mix(in srgb, var(--action-ink) 14%, transparent); color: var(--action-ink); }
-
-/* B：右侧板，条目行 + 开关，写出包含的读取能力 */
-.gr-rows { width: 100%; grid-template-columns: minmax(0, 1fr); }
-.gr-row { align-items: flex-start; }
-.gr-row > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
-.gr-row small { white-space: normal; }
-.gr-caps { color: var(--faint); }
-.gr-row__status { display: flex; margin-top: 4px; }
-.gr-row .mw-item__end { align-self: center; }
-
-/* C：锚在那一行下面的弹层，勾选行 */
-.gr-pop { position: fixed; z-index: 40; display: flex; flex-direction: column; gap: 6px; padding: 14px; overflow: hidden; animation: gr-arrive var(--dur-move) var(--ease-quint); }
-.gr-pop .gr-kicker { align-self: flex-start; margin: 0; }
-.gr-pop__title { margin: 2px 0 4px; font-size: 14px; font-weight: var(--weight-title, 600); }
-.gr-pop__body { overflow: auto; min-height: 0; flex: 1; margin: 0 -4px; padding: 0 4px; }
-.gr-pop__foot { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
-.gr-checks { display: grid; gap: 2px; }
-.gr-check { padding: 6px 4px; border-radius: var(--r-row); align-items: flex-start; }
-.gr-check:hover { background: var(--surface-soft); }
-.gr-check .mw-check { margin-top: 4px; }
-.gr-check__text { display: grid; gap: 2px; min-width: 0; }
-.gr-check__name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.gr-check__name .gr-mark { width: 20px; height: 20px; }
-.gr-check__name .gr-mark svg { width: 13px; height: 13px; }
-.gr-check small { color: var(--muted); font-size: 12px; }
-
-/* 列表与详情（Schedule 现有的列表 + 详情，只加种类图标、「需要重新确认」和「能读」一行） */
-.gr-sheet { max-width: 1120px; }
-.gr-split { display: grid; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); min-height: 560px; }
+/* 工作区：Schedule 的列表 + 详情；E 打开时右边让出一栏给工作台侧栏（真实让出宽度，不盖在上面） */
+.gr-work { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 1120px; margin: 0 auto; align-items: start; }
+.gr-work--panel { max-width: 1440px; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); }
+.gr-work > .proto-sheet { max-width: none; margin: 0; }
+.gr-split { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); min-height: 600px; }
+.gr-work--panel .gr-split { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
 .gr-list { padding: 12px; border-right: 1px solid var(--line); min-width: 0; }
 .gr-list__head { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 10px; font-size: 13px; }
 .gr-tasks { width: 100%; grid-template-columns: minmax(0, 1fr); }
 .gr-task { cursor: pointer; }
 .gr-task[aria-current="true"] { background: var(--surface-soft); }
 .gr-kind svg { color: var(--muted); }
-.gr-detail { padding: 16px 24px 32px; min-width: 0; display: grid; align-content: start; gap: 8px; }
+
+.gr-detail { padding: 16px 28px 40px; min-width: 0; display: grid; align-content: start; gap: 6px; }
 .gr-detail__bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .gr-detail__kicker { display: flex; gap: 6px; flex-wrap: wrap; }
-.gr-detail__title { margin: 8px 0 0; font-size: 15px; font-weight: var(--weight-title, 600); }
-.gr-readsline { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 4px 12px; margin: 10px 0 6px; max-width: 640px; }
-.gr-readsline__label { padding-top: 10px; font-size: 12px; color: var(--muted); }
-.gr-thread { display: grid; gap: 16px; padding-top: 12px; border-top: 1px solid var(--line); max-width: 640px; }
+.gr-detail__title { margin: 10px 0 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+
+/* 「能读的数据」一段（Schedule 的详情里） */
+.gr-sec { display: grid; gap: 10px; margin: 18px 0 8px; max-width: 640px; min-width: 0; }
+.gr-sec__head { display: flex; align-items: center; gap: 8px; }
+.gr-h3 { margin: 0; font-size: 13px; font-weight: var(--weight-control, 560); color: var(--ink-soft); }
+.gr-entry__row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.gr-entry__row > .mw-btn { flex: none; }
+.gr-entry__note { display: flex; min-width: 0; }
+/* 说明较长的状态（停用、要重新确认）照常折行，不撑出容器 */
+.gr-entry__note .mw-status { white-space: normal; height: auto; min-height: 22px; max-width: 100%; text-align: start; }
+.gr-lead { margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.55; color: var(--ink); }
+.gr-lead svg { width: 15px; height: 15px; flex: none; margin-top: 2px; color: var(--accent); }
+.gr-lead--quiet { color: var(--muted); }
+.gr-lead--quiet svg { color: var(--muted); }
+
+/* 组件板新增 · 平台挂件：插件页面里一块由平台画、平台写的区域。浅底、一圈细线、顶上标头，和插件自己的内容分得开 */
+.gr-slot { display: grid; gap: 12px; padding: 14px 16px 12px; border-radius: var(--r-card); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.gr-slot--open { animation: gr-arrive var(--dur-move) var(--ease-quint); }
+.gr-slot .mw-items, .gr-panel .mw-items { background: var(--paper); }
+/* 组件板新增 · 平台标头：盾牌＋「Molis Work · 只有你能改」 */
+.gr-kicker { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 6px; border-radius: var(--r-tag); background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: var(--weight-control, 560); }
+.gr-kicker svg { width: 13px; height: 13px; }
+.gr-slot__lead { margin: -4px 0 0; font-size: 12px; color: var(--muted); }
+.gr-group { display: grid; gap: 6px; min-width: 0; }
+.gr-h { margin: 0; font-size: 12px; font-weight: var(--weight-control, 560); color: var(--muted); }
+.gr-empty { padding: 12px 8px; }
+
+/* 一类一行：条目行 + 开关（组件板新增 · 条目行末尾的开关） */
+.gr-rows { width: 100%; grid-template-columns: minmax(0, 1fr); }
+.gr-row { align-items: flex-start; }
+.gr-row > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.gr-row small { white-space: normal; }
+.gr-caps { color: var(--faint); }
+.gr-row__status { display: flex; margin-top: 4px; }
+.gr-row .mw-item__end { align-self: center; display: flex; align-items: center; gap: 8px; }
+.gr-row[data-off] strong { color: var(--muted); }
+
+/* D、E：改完一并确认 */
+.gr-bar { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.gr-sum { font-size: 13px; color: var(--ink-soft); min-height: 20px; }
+.gr-sum[data-tone="warn"] { color: var(--ink); }
+.gr-bar__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* F：开关即生效，下面一行说发生了什么，可撤销 */
+.gr-live { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; animation: gr-arrive var(--dur-move) var(--ease-quint); }
+
+/* E：工作台侧栏（平台的，停在右边） */
+.gr-panel { position: sticky; top: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: calc(100dvh - 48px - 48px); min-height: 480px; background: var(--paper); border-radius: var(--r-sheet); box-shadow: var(--sheet-shadow); overflow: hidden; animation: gr-panel-in var(--dur-arrive, 420ms) var(--ease-quint); }
+.gr-panel__head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 0 12px; border-bottom: 1px solid var(--line); }
+.gr-panel__tabs { min-width: 0; overflow-x: auto; }
+.gr-panel__body { overflow: auto; padding: 16px; display: grid; align-content: start; gap: 12px; }
+.gr-panel__title { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+.gr-panel__foot { padding: 0 16px 14px; }
+.gr-panel .gr-bar { border-top: 1px solid var(--line); }
+
+/* 详情里的对话 */
+.gr-thread { display: grid; gap: 16px; margin-top: 10px; padding-top: 14px; border-top: 1px solid var(--line); max-width: 640px; }
 .gr-turn header { display: flex; align-items: baseline; gap: 8px; color: var(--muted); font-size: 11px; }
 .gr-turn header time { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; }
 .gr-turn p { margin: 6px 0 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: var(--ink); }
@@ -119,16 +110,27 @@ dialog.gr-surface--a { width: min(600px, calc(100vw - 48px)); }
 .gr-basis { display: flex; align-items: center; gap: 6px; font-size: 12px !important; color: var(--muted) !important; }
 .gr-basis svg { width: 13px; height: 13px; }
 
+/* 新建：写在详情里，不弹窗 */
+.gr-newform { max-width: 560px; }
+.gr-newform .mw-form__header h2 { margin: 0; font-size: 15px; }
+.gr-time-field .mw-input { max-width: 160px; }
+
+@media (max-width: 1100px) {
+  /* 窄一些时侧栏仍然让出宽度：Schedule 的列表先收起，只留详情 */
+  .gr-work--panel .gr-split { grid-template-columns: minmax(0, 1fr); }
+  .gr-work--panel .gr-list { display: none; }
+}
 @media (max-width: 900px) {
   .gr-split { grid-template-columns: minmax(0, 1fr); }
   .gr-list { border-right: 0; border-bottom: 1px solid var(--line); }
+  .gr-work--panel { grid-template-columns: minmax(0, 1fr); }
+  /* 手机宽度：工作台侧栏占满工作区（组件板的窄屏规则），Schedule 的详情退到后面 */
+  .gr-work--panel > .proto-sheet { display: none; }
+  .gr-panel { position: static; max-height: none; }
 }
 @media (max-width: 640px) {
-  .gr-opts { grid-template-columns: minmax(0, 1fr); }
-  .gr-detail { padding: 12px 16px 24px; }
-  .gr-readsline { grid-template-columns: minmax(0, 1fr); }
-  .gr-readsline__label { padding-top: 0; }
-  dialog.mw-dialog--form.gr-form, dialog.mw-dialog--form.gr-surface--a { width: calc(100vw - 16px); }
-  /* 窄屏的侧板照组件板铺满全屏；原型里让出顶上的原型控制条 */
-  dialog.mw-sheet.gr-surface--b { inset: 48px 0 0 0; height: calc(100dvh - 48px); max-height: calc(100dvh - 48px); }
+  .gr-detail { padding: 12px 16px 28px; }
+  .gr-slot { padding: 12px; }
+  /* 详情顶上：状态一行，操作另起一行 */
+  .gr-detail__bar .gr-spacer { flex-basis: 100%; }
 }

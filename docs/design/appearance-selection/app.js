@@ -136,7 +136,7 @@
     return `<div class="proto-skin"${trying ? " data-trial" : ""}>
       <button type="button" class="proto-skin__pick" aria-pressed="${pressed}" data-act="skin" data-id="${s.id}">
         <span class="proto-skin__view" style="${style}" aria-hidden="true"><i class="w"></i><i class="t"></i><i class="l"></i><i class="l l2"></i><i class="b"></i><i class="d d1"></i><i class="d d2"></i></span>
-        <span class="proto-skin__text"><span class="proto-skin__name"><span>${esc(T(s.name))}</span></span><span class="proto-skin__meta">${esc(T(s.by))} · ${L("推荐", "Suggests")}「${esc(T(font(s.font).name))}」</span></span>
+        <span class="proto-skin__text"><span class="proto-skin__name"><span>${esc(T(s.name))}</span></span><span class="proto-skin__meta">${esc(T(s.by))} · ${L("推荐「", "Suggests “")}${esc(T(font(s.font).name))}${L("」", "”")}</span></span>
         <span class="proto-skin__badges">${badges}</span>
       </button>
       <span class="proto-skin__more">${more}</span>${menu}

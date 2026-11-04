@@ -3221,3 +3221,46 @@ test("RAC-1264: an unreadable Goal event type stops readState", () => {
     );
   } finally { close(data); }
 });
+
+// PWA-144 (user decision 2026-11-04): a requirement backed by nothing but the reporter's own "supports" is not met, whoever reports it
+// and however often; only the person's acceptance meets it, and a later contradicting report takes that back.
+test("PWA-144: the worker's own supports never meets a requirement; the person's acceptance does", () => {
+  const data = fixture();
+  try {
+    const goalId = "self-claim";
+    readyGoal(data.app, goalId, "self-claim-req");
+    // A second worker and a report spoken in the person's kind both stay the reporter's word.
+    data.app.goalEvents.report({
+      project_id: BOARD, goal_id: goalId, actor_id: "runtime-2", actor_kind: "runtime", idempotency_key: "rep-self-claim-other",
+      events: [{ type_id: "delivery", type_version: 1, title: "另一个执行者也说完成了", fields: { piece: "可用入口" },
+        judgments: [{ requirement_id: "self-claim-req", verdict: "supports" }] }],
+    });
+    data.app.goalEvents.report({
+      project_id: BOARD, goal_id: goalId, ...PERSON, idempotency_key: "rep-self-claim-person",
+      events: [{ type_id: "delivery", type_version: 1, title: "报告里说满足", fields: { piece: "可用入口" },
+        judgments: [{ requirement_id: "self-claim-req", verdict: "supports" }] }],
+    });
+    const claimed = requirementState(data.app, goalId, "self-claim-req");
+    assert.equal(claimed?.current_report?.verdict, "supports");
+    assert.equal(claimed?.currently_satisfied, false, "a supports report alone does not meet it");
+    for (const closer of [RUNTIME, PERSON]) {
+      const held = tryComplete(data.app, goalId, `close-self-claim-${closer.actor_kind}`, closer);
+      assert.equal(held.completion_applied, false, `${closer.actor_kind} clicking complete`);
+      assert.deepEqual(reasonCodes(held), ["goals.event_closure.requirement_self_reported"], `${closer.actor_kind} clicking complete`);
+    }
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open");
+
+    acceptRequirements(data.app, goalId, "accept-self-claim", ["self-claim-req"], ACCEPT_ONLY[0]);
+    assert.equal(requirementState(data.app, goalId, "self-claim-req")?.currently_satisfied, true, "the person's acceptance meets it");
+    assert.equal(tryComplete(data.app, goalId, "close-self-claim", RUNTIME).completion_applied, true);
+
+    // A later supports report changes nothing; a later contradicting one takes the acceptance back and reopens the Goal.
+    reportSupport(data.app, goalId, "rep-self-claim-again", "self-claim-req");
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "completed");
+    reportSupport(data.app, goalId, "rep-self-claim-against", "self-claim-req", "contradicts");
+    assert.equal(requirementState(data.app, goalId, "self-claim-req")?.currently_satisfied, false);
+    assert.equal(data.app.goalEvents.readState(BOARD, goalId).work_status, "open");
+  } finally {
+    close(data);
+  }
+});

@@ -13,6 +13,7 @@ import {
   decisionHasEffect,
   pendingBlocksCompletion,
   requirementCurrentlySatisfied,
+  requirementOnlySelfReported,
 } from "./event-state-authorization.js";
 import { agreementView } from "./event-state-owner-records.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
@@ -54,6 +55,14 @@ export function completionUnmetReasons(input: {
       reasons.push({
         code: "goals.event_closure.human_decision_required",
         message: `要求「${requirement.statement}」需要仍然有效的可信用户结论`,
+        requirement_id: requirement.requirement_id,
+      });
+      continue;
+    }
+    if (requirementOnlySelfReported(requirement)) {
+      reasons.push({
+        code: "goals.event_closure.requirement_self_reported",
+        message: `要求「${requirement.statement}」只有报告者自己说满足，需要你认可`,
         requirement_id: requirement.requirement_id,
       });
       continue;

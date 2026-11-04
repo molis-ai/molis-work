@@ -115,6 +115,9 @@ function currentJudgment(state: GoalEventStateView | undefined, L: GoalsDocument
   if (unmet) return { lead: unmet.message, action: L("查看完成要求"), reader: "requirements" };
   const human = state.requirements.find((item) => item.human_decision_required && item.user_conclusion?.verdict !== "accepted");
   if (human) return { lead: L("待你验收：{text}", { text: human.statement }), action: L("查看完成要求"), reader: "requirements" };
+  // Only the reporter's own "supports" is behind it (PWA-144): the person's acceptance meets it, so the next step is their decision.
+  const claimed = state.requirements.find((item) => item.current_report?.verdict === "supports" && item.user_conclusion?.verdict !== "accepted");
+  if (claimed) return { lead: L("待你认可：{text}", { text: claimed.statement }), action: L("记录决定"), form: "decision" };
   const requirement = state.requirements.find((item) => !item.currently_satisfied);
   if (requirement) return { lead: L("尚待完成：{text}", { text: requirement.statement }), action: L("查看完成要求"), reader: "requirements" };
   const gap = state.gaps[0];

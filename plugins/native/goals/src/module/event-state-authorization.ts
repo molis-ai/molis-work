@@ -283,20 +283,25 @@ export function scopedRequirementCommitmentsMatch(
   return commitmentsMatch({ outcome: "", requirements: recorded }, { outcome: "", requirements: current });
 }
 
+/**
+ * Whether a requirement is met now. Only a trusted conclusion of the person meets it, whether or not the requirement asks for their
+ * decision: a report is the reporter's own word (`independent_verification: false`), and a requirement backed by nothing but the
+ * worker's own "supports" is not met (PWA-144; user decision 2026-11-04). A later report that contradicts it, or says it is unknown,
+ * takes the conclusion back. Reports backed by checkable evidence wait for the evidence contract of batch 24-3 (BL-965).
+ */
 export function requirementCurrentlySatisfied(requirement: GoalEventRequirementStatus): boolean {
-  if (requirement.human_decision_required) {
-    if (requirement.user_conclusion?.verdict !== "accepted") return false;
-    const report = requirement.current_report;
-    if (
-      report
-      && (report.verdict === "contradicts" || report.verdict === "unknown")
-      && report.journal_seq > requirement.user_conclusion.journal_seq
-    ) {
-      return false;
-    }
-    return true;
-  }
-  return requirement.current_report?.verdict === "supports";
+  if (requirement.user_conclusion?.verdict !== "accepted") return false;
+  const report = requirement.current_report;
+  return !(
+    report
+    && (report.verdict === "contradicts" || report.verdict === "unknown")
+    && report.journal_seq > requirement.user_conclusion.journal_seq
+  );
+}
+
+/** Whether the only thing behind a requirement is the reporter's own "supports", with no trusted conclusion of the person. */
+export function requirementOnlySelfReported(requirement: GoalEventRequirementStatus): boolean {
+  return requirement.current_report?.verdict === "supports" && requirement.user_conclusion?.verdict !== "accepted";
 }
 
 function scopeAppliesToComplete(scope: GoalEventScope): boolean {

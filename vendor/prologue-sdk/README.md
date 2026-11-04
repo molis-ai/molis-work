@@ -267,7 +267,7 @@ Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 
 上一份包 `prologue-sdk-0.0.0-rc.1-mcp-schema-annotations.tgz`（1,192,221 字节），SHA-256 `15f69f92c7e62dbe5a5d68ccfe3297b019ff21a6ec8018e222019c192b1681a5`。来源为上游 main `d2b3daa3de0744504b3098a17604f5f66019a29e`，即 [Prologue #36](https://github.com/molis-ai/prologue/pull/36) 的合并；无补丁、dirty 为 false，保留此前统一包能力。
 
-MCP 校验副本识别 default 与合法一级 x-mcp-header 注解，原始 schema 仍用于漂移检查；实际派出前校验参数值，不填默认值、不实现新协议头映射、不放宽模型 schema。采用合同与 Molis 验证见[采用 spec §6.0m](../../specs/prologue-adoption/spec.md#60m-mcp-参数注解与派出校验的统一-sdk2026-10-17)。
+MCP 校验副本识别 default 与合法一级 x-mcp-header 注解，原始 schema 仍用于漂移检查；实际派出前校验参数值，不填默认值、不实现新协议头映射、不放宽模型 schema。采用合同与 Molis 验证见[采用 spec §6.0m](../../specs/prologue-adoption/coordination-records.md#60m-mcp-参数注解与派出校验的统一-sdk2026-10-17)。
 
 SDK 24 文件 299 项回归、类型与构建通过，13 个干净包消费者通过；实际 GitHub MCP 发现 46 个工具并读取 Issue #1，零写入与模型请求。合并归档独立构建与已测包字节一致。Molis 整体构建通过，58 个相关非浏览器文件完成验证；首次发现动作目录也拒绝该注解，采用同一动作 schema 副本整理后，相关三文件 29 项通过。包边界、merge-base 健康门禁、页面资源和版本核对通过；真实模型验收另行记录。#650 起是 main 的依赖，同日换成 app-wait-ends-step；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
@@ -275,7 +275,7 @@ SDK 24 文件 299 项回归、类型与构建通过，13 个干净包消费者�
 
 上一份包 `prologue-sdk-0.0.0-rc.1-app-tools-waits.tgz`（1,191,251 字节），SHA-256 `3025a11ec219210a5e565ee2f81746c9597c15db43d920c574edcbf90f8ac229`。来源为上游 main `86be989137f05b3bb90ca883540c256baf58a227`，即 [Prologue #35](https://github.com/molis-ai/prologue/pull/35) 的合并；不加补丁、dirty 为 false，原有 #33 对象引用题与 #34 MCP refresh 保留。
 
-本次新增：App-tools 可声明 board-wait，但只有绑定当前持有节点的顶层 Run 才能使用；仅允许 App 的只读外部检查器。命令、信封、节点和待答问题条件拒绝，不获得文件或 shell 能力。仍由现有任务图负责持久等待、授权复核、取消和单次接续。Molis 的角色与业务流程不在此换包里调整；采用合同见[采用 spec §6.0l](../../specs/prologue-adoption/spec.md#60l-app-tools-只读外部等待的统一-sdk2026-10-17)。
+本次新增：App-tools 可声明 board-wait，但只有绑定当前持有节点的顶层 Run 才能使用；仅允许 App 的只读外部检查器。命令、信封、节点和待答问题条件拒绝，不获得文件或 shell 能力。仍由现有任务图负责持久等待、授权复核、取消和单次接续。Molis 的角色与业务流程不在此换包里调整；采用合同见[采用 spec §6.0l](../../specs/prologue-adoption/coordination-records.md#60l-app-tools-只读外部等待的统一-sdk2026-10-17)。
 
 验证：SDK 构建和完整类型检查通过；非浏览器回归 350 文件、3951 项通过，6 文件、21 项按既有条件跳过，无类型错误。新增 11 项等待用例包含重启、等待期间零模型请求、唯一接续、撤权与迟到结果拒绝；13 个干净安装消费者全部通过。本次未运行真实 Chrome 与真人桌面控制。干净合并归档与已测工作树独立构建得到相同 tgz 字节；重建步骤与工具版本见来源记录。Molis 构建和生产调用链验证仍在进行，真实模型验收不由 SDK 工程结果代替。
 

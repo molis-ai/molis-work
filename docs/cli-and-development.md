@@ -16,7 +16,7 @@ SDK 密文由原 SDK reader 使用原 Home 的 key 验证全部记录种类和�
 
 ## 安装代码的开发边界
 
-`pnpm build` 先清理各 workspace 包的生成目录，再根据声明的依赖顺序构建全部 70 个 workspace 包，最后生成根入口和 PTY bundle。`build:migrated-packages` 复用同一个 `workspace:build`，因此删除/移动源码后不会把旧 JS 带进 npm/DMG。只清生成目录，不清 node_modules 或用户数据。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
+`pnpm build` 先经 `build:migrated-packages` 调用 `workspace:build`，按依赖顺序清理并重建输入或产物已变化的 workspace 包，跳过构建记录仍有效的包；随后重新生成根入口、PTY bundle 和安装构建指纹。删除或移动源码会使所属包及依赖它的包重新构建，避免旧 JS 留在 npm/DMG；无构建记录时会构建全部包，需要强制整体重建时用 `pnpm build:clean`。只清生成目录，不清 node_modules 或用户数据。增量判定与机器槽规则见 [并行开发 §5](system/PARALLEL-DEVELOPMENT.md#5-构建与浏览器用例排时段)。Plugin CLI 的稳定 bin 启动文件随源码存在，干净 `pnpm install --frozen-lockfile` 后构建即可使用 `pnpm exec molis-work-plugin --help`。包边界扫描覆盖 src、tooling 和 bin 中的 JavaScript/TypeScript 调用。
 
 Desktop 发布脚本归 `apps/desktop/tooling/`，根 `pnpm desktop:*` 命令不变。它调用 Local Host 的 `createMolisWorkRuntimePayload` 生成自包含目录，不在孤立资源目录对 workspace:* manifest 再执行 npm install。失败不覆盖已有资源，vendor 来源、SBOM、许可证随 payload 和 Home 安装保留。
 
@@ -34,27 +34,28 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 ## CLI
 
-公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载，以及 `molis-work v1 <operation>` 管理接口：
+公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载、插件管理、`molis-work home snapshot` 离线快照、`molis-work home restore` 恢复与中断续接与 `molis-work v1 <operation>` 管理接口；下面列出 v1 操作：
 
 ```text
 init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-每条命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`；`goals.board.initialize`、`goals.snapshot.read` 因此各升到版本 2），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`；`goals.board.initialize`、`goals.snapshot.read` 因此各升到版本 2），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
 
 `molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址取环境变量 `MOLIS_WORK_WEB_URL`，没有就是 `http://127.0.0.1:4173`。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
 ## 项目结构
 
-> 仓库是插件基座加多插件的 Monorepo：70 个 workspace 包的成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
+> 仓库是插件基座加多插件的 Monorepo：包清单以 `scripts/workspace-packages.mjs` 为准，当前数量由 `pnpm workspace:check` 输出；成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注，其中 `absent` 只用于尚未建包的目标路径。根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
 
 ```text
-apps/                        6 个产品入口与 composition root 边界
-packages/                    10 个 Foundation package（另有根目录 server/）；contracts 暴露 58 个公开 subpath
-modules/                     13 个业务事实 owner
-horizontal/                  8 个包：5 个横向运行服务，3 个平台产品服务（记忆、放置、搜索）
-plugins/                     25 个 Native Plugin 与 6 个官方 Integration Plugin
+apps/                        产品入口与 composition root 边界
+packages/                    Foundation package；公开合同由 contracts 的 package.json exports 声明
+server/                      聊天与接续的事实模块，按 Module 计
+modules/                     业务事实 owner；当前包与未来目标路径见 SSOT-MATRIX §5
+horizontal/                  横向运行服务与平台产品服务（记忆、放置、搜索、项目资料）
+plugins/                     Native Plugin 与官方 Integration Plugin；清单由登记表提供
 packages/plugin-runtime/     FD3 本地 Plugin 生命周期参考实现
 packages/plugin-sdk/         FD3 Manifest 与 Integration Plugin 定义 API
 plugins/official-integrations/
@@ -66,10 +67,11 @@ apps/mcp/                    平台 MCP schema、协议、项目工具分发；�
 packages/ui-host/            UI Contribution registry、surface render 与 Slot mount 校验
 packages/design-system/      AP3 主题偏好、浏览器视觉基础与分层样式
 plugins/native/feed/         FD4 Feed/Attention/Source UI 和 HTTP route table
+plugins/native/goals/        Goals 插件，拥有 Goal 事实与事件协议
                              当前用户决定、有限结构提案、来源与历史事实
 tooling/plugin-cli/          Plugin CLI 边界；真实开发工具由 DV3 实现
 scripts/workspace-packages.mjs
-                             70 包清单、manifest、入口、README 与 Contract 接线检查
+                             包清单、manifest、入口、README 与 Contract 接线检查
 apps/desktop/launchers/mcp/server.ts            MCP 启动入口；协议归 apps/mcp，装配归 Local Host
 apps/desktop/launchers/web/server.ts            Web 启动入口；HTTP/资源装配归 Local Host，页面归 Workbench/Native Plugin
 apps/desktop/               Desktop 平台与 Native adapter；旧 src/desktop 已删除
@@ -104,7 +106,7 @@ PRODUCT.md                   产品定义
 DESIGN.md                    shipped UI 设计系统
 docs/SSOT-MATRIX.md          架构、包状态和迁移 owner 的权威索引
 docs/system/                 分层、依赖、迁移与巨大单元清单
-docs/modules/                Module 的事实 owner 与 API 边界（页面尚未与 13 个 Module 一一对应：characters 暂无页面，另含 4 个未来 owner 和已退役模块的页面，以 SSOT-MATRIX 为准）
+docs/modules/                事实 owner 与 API 边界；含未来目标及已迁入插件的概念文档，不与现存 Module 包一一对应，以 SSOT-MATRIX 为准
 docs/horizontal/             `horizontal/` 下各服务的技术边界（Memory、Placement 见各自包 README）
 docs/platform/               Plugin、Storage、Exchange 与 UI 平台机制
 specs/molis-work-architecture-reorganization/spec.md
@@ -113,7 +115,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 ### 重组期间的开发规则
 
-- 根 `pnpm build` 先构建全部 70 个 workspace 包再编译启动器；`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
+- 根 `pnpm build` 先增量构建 workspace 包，再重新编译启动器并刷新安装构建指纹；`pnpm build:clean` 强制整体重建。`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
 - 已建的 package 要有真实实现：不得注册假 Provider、假 Store、UI 入口或伪成功 API；还没建的目标只留在 SSOT 的 `absent` 行。
 - 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。
@@ -169,6 +171,10 @@ molis-work-mcp
 
 ## 开发验证
 
+按改动影响面选择命令，下面不是逐项全跑的清单。构建的增量与强制重建、机器排队见[并行开发第 5 节](system/PARALLEL-DEVELOPMENT.md#5-构建与浏览器用例排时段)；定向与全量的选择、运行位置和基线比对见该文档第 6–8 节，本次执行范围以第 5.1 节覆盖说明为准。
+
+### 命令速查
+
 ```bash
 # 全部 workspace 包
 pnpm workspace:check
@@ -199,13 +205,23 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 `workspace:check` 只核对 F2 包清单；`boundary:check` 扫描真实 import、依赖方向、Contract 入口、依赖环；`workspace:verify` 是本地与 CI 共用的完整 package 门禁。
 
-改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）：宿主在 `/assets/` 下发的每个文件的字节数记在 `tooling/gates/page-assets.json`，默认只许变小。变小了就跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 把数字降下来；`--report` 打印逐文件的字节、gzip 与预算。这是体积控制，不是硬上限（用户 2026-10-18 定）：功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法，评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条只认 merge-base 准确数字的一次性放行；一个资源一次涨超过 10 KB 或新增资源，先问用户。规则、没覆盖的几项见 [`specs/archive/repository-anti-corruption/spec.md`](../specs/archive/repository-anti-corruption/spec.md) §5a。
+### 页面资源体积
+
+改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）。宿主在 `/assets/` 下发的文件按实测字节数记在 `tooling/gates/page-assets.json`；`--report` 打印逐文件的字节、gzip 与预算。
+
+这是体积控制，不是硬上限（用户 2026-10-18 定）：默认只许变小，能省先省。功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法；评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条一次性放行，只认 merge-base 的准确数字，上限等于实测，下次添加放行时删掉用完的条目，合入后继续冻结。一个资源一次涨超过 10 KB 或新增资源，先问用户。
+
+除这条放行外，CI 与 `--base <ref>` 对照 merge-base 的预算：调大数字、新增条目或删掉仍在下发的条目都不能过关，`--update` 也不会写入变大的数字。预算必须等于实测；变小就在同一个 PR 里跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 降下来。合并前 main 若又改了资源，在合并结果上重新 `pnpm workspace:build` 后再检查。路由识别与未覆盖范围见 [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) 头部和[防腐 spec](../specs/archive/repository-anti-corruption/spec.md) §5a。
+
+### 推送前扫描密钥
 
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。
 
 - 真凭据：不要只在后一个提交里删掉，它已经在历史里；用 rebase 或 squash 从所有提交里去掉，再轮换这把密钥。密钥进 Home 的密钥库或环境变量，代码里只放引用。
 - 已在 main 上的测试数据：把确切值（或一条用 `^…$` 锚定的 `/正则/`）连同理由写进 `tooling/gates/secret-allowlist.txt`，每行一条：`<值>  # 理由`。没有理由的行会让扫描报错退出。不要为让扫描通过去放宽规则。
 - `node scripts/check-secrets.mjs --all` 审计整棵树；`--base <ref>` 换基线。它不读 YAML 里不带引号的值，不看二进制文件，也不认识没有固定形状的口令。
+
+### 发布产物验证
 
 当前 Desktop payload 包含根 dist、正式 workspace 运行依赖、Runtime Skill、Node 和 vendor 来源/许可资产，不包含第二套业务实现。npm 使用 `pnpm package:npm`：先完整构建，再由 Local Host tooling 在临时目录生成 `release/npm/*.tgz`。需要其他输出目录时用 `pnpm package:npm /absolute/output`。不要直接在源码根执行 npm/pnpm pack；它会提示正确命令，避免生成含 workspace:* 的不可安装包。
 

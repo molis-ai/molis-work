@@ -28,14 +28,14 @@ try {
   }
   const probe = `
     import assert from 'node:assert/strict';
-    import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+    import { openSqliteConnection } from '@molis-ai/molis-work-storage';
     import { MolisWorkPtyHost } from '@molis-ai/molis-work-service-runtime-host';
     import { loadBuiltinPlanningMethodPacks } from '@molis-ai/molis-work-plugin-goals/module';
     const file = process.env.MOLIS_WORK_HOME + '-native.db';
-    let db = openTestSqlite(file);
+    let db = openSqliteConnection(file);
     db.exec('CREATE TABLE probe(value TEXT)');
     db.prepare('INSERT INTO probe VALUES (?)').run('persisted'); db.close();
-    db = openTestSqlite(file); assert.equal(db.prepare('SELECT value FROM probe').get().value, 'persisted'); db.close();
+    db = openSqliteConnection(file); assert.equal(db.prepare('SELECT value FROM probe').get().value, 'persisted'); db.close();
     const output = await new Promise((resolve, reject) => {
       let text = '';
       const host = new MolisWorkPtyHost({ onData: (_id, value) => { text += value; },

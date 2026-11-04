@@ -156,11 +156,11 @@ export const INTERACTION_OPERATION_STYLES = `
 /* What it acts on and what it will do sit on one row as two tags of their own colours: the target in the accent's wash, the
    effect in amber. */
 .mw-ix-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.mw-ix-target, .mw-ix-impact { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 24px; padding: 2px 8px; border-radius: 8px; font-size: 12px; line-height: 18px; }
+.mw-ix-target, .mw-ix-impact { display: inline-flex; align-items: start; gap: 6px; max-width: 100%; min-height: 24px; padding: 2px 8px; border-radius: 8px; font-size: 12px; line-height: 18px; }
 .mw-ix-target { justify-self: start; background: var(--accent-soft); color: var(--ink-soft); }
 .mw-ix-target strong { color: var(--ink); font-weight: var(--weight-control, 500); }
 .mw-ix-impact { background: color-mix(in srgb, var(--amber) 11%, transparent); color: var(--ink-soft); }
-.mw-ix-target svg, .mw-ix-impact svg { width: 13px; height: 13px; flex: none; }
+.mw-ix-target svg, .mw-ix-impact svg { width: 13px; height: 13px; margin-top: 3px; flex: none; }
 .mw-ix-target svg { color: var(--accent); }
 .mw-ix-impact svg { color: var(--amber); }
 .mw-ix-preview { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r-row, 10px); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); outline: 0; }

@@ -39,7 +39,7 @@
       enableAfter: "装好后启用", manualOnly: "仅手动点名",
       // catalog
       catLead: "装上的技能都在这里。打开以后，助理和 Coding 会按任务自己选用；改成仅手动，就只在你用 / 点名时用。", catSum: "共 {n} 个，在用 {on} 个",
-      search: "找技能", fAll: "全部", fOn: "在用", fOff: "没启用", fNa: "用不了", importBtn: "从本机导入", market: "去插件市场", noMatch: "没有符合的技能",
+      search: "找技能", filterLabel: "筛选", detailsOf: "看详情：{n}", sAvail: "暂时用不了", sRevoked: "已撤销", sBroken: "坏了", sNative: "只限本地 Agent", fAll: "全部", fOn: "在用", fOff: "没启用", fNa: "用不了", importBtn: "从本机导入", market: "去插件市场", noMatch: "没有符合的技能",
       emptyT: "还没有技能", emptyD: "技能是一套做法，比如怎么写周报、怎么审合同。装一个技能包，或者把本机 Agent 里已有的技能导进来。",
       packMeta: "{v} · {pub} · {trust} · {scope}", trust_host: "随系统", trust_pinned: "固定的发布者", trust_home_local: "本机导入", scope_project: "装在这个项目", scope_home: "装在个人空间",
       packMore: "「{n}」的更多操作", lastUsed: "上次 {at} · {by} 用过", neverUsed: "还没用过", by_assistant: "助理", by_coding: "Coding",
@@ -77,7 +77,7 @@
       later: "Later", finish: "Done", goCatalog: "Go to Skills", cInstalled: "None of its {k} skills is on yet. Choose which to use under Skills.", cInstalledT: "Installed “{n}” {v}",
       enableAfter: "Enable once installed", manualOnly: "Manual only",
       catLead: "Every installed skill is here. Once on, the assistant and Coding pick them when a task fits; set one to manual only and it's used only when you name it with /.", catSum: "{n} in all, {on} in use",
-      search: "Find a skill", fAll: "All", fOn: "In use", fOff: "Off", fNa: "Unavailable", importBtn: "Import from this computer", market: "Open plugin market", noMatch: "No skills match",
+      search: "Find a skill", filterLabel: "Filter", detailsOf: "Details: {n}", sAvail: "Unavailable for now", sRevoked: "Revoked", sBroken: "Broken", sNative: "Local agents only", fAll: "All", fOn: "In use", fOff: "Off", fNa: "Unavailable", importBtn: "Import from this computer", market: "Open plugin market", noMatch: "No skills match",
       emptyT: "No skills yet", emptyD: "A skill is a way of doing something, like writing a weekly review or reading a contract. Install a skill pack, or bring in the skills your local agents already have.",
       packMeta: "{v} · {pub} · {trust} · {scope}", trust_host: "built in", trust_pinned: "pinned publisher", trust_home_local: "imported here", scope_project: "in this project", scope_home: "in personal space",
       packMore: "More for “{n}”", lastUsed: "Last used {at} by {by}", neverUsed: "Not used yet", by_assistant: "the assistant", by_coding: "Coding",
@@ -124,7 +124,14 @@
   // Decided (user 2026-11-04): "AC" = A's enable step right after install / import + C's list-and-detail catalog.
   const enableStep = () => P.opt === "A" || P.opt === "AC";
   const splitCatalog = () => P.opt === "C" || P.opt === "AC";
+  // Settings can't change (skills.settings.set refuses) while the plugin is off, the publisher revoked or the files broken.
   const blocking = (s) => ["plugin_disabled", "publisher_revoked", "resource_invalid"].includes(unavailable(s)?.reason);
+  // Tone rule (D-track review 2026-11-04): "auto" and "manual only" are both settings in use and share one calm tone,
+  // told apart by their words; "off" is paused. Unavailable splits in two: fixable on the spot → hold; uninstall only → blocked.
+  const uninstallOnly = (s) => ["publisher_revoked", "resource_invalid"].includes(unavailable(s)?.reason);
+  const naWord = (s) => ({ publisher_revoked: "sRevoked", resource_invalid: "sBroken", native_only: "sNative" })[unavailable(s)?.reason] || "sAvail";
+  const naMark = (label, s) => M.renderStatusMark({ label, tone: uninstallOnly(s) ? "blocked" : "hold", state: uninstallOnly(s) ? "blocked" : "unavailable" });
+  const stateMark = (st) => M.renderStatusMark({ label: t(STATE_WORD[st]), tone: st === "off" ? "quiet" : "idle", state: st === "off" ? "paused" : "ready" });
 
   /* ---------- shared parts ---------- */
   const mark = (name, extra = "") => `<span class="mw-mark sk-mark${extra}" aria-hidden="true">${M.icon(name)}</span>`;
@@ -146,7 +153,8 @@
         <dt>${esc(t("tools"))}</dt><dd><span class="sk-code-list">${s.tools.map((x) => `<code>${esc(x)}</code>`).join("")}</span></dd>
         <dt>${esc(t("files"))}</dt><dd>${files}</dd>
         <dt>${esc(t("bodyStart"))}</dt><dd><p class="sk-excerpt">${esc(L(s.excerpt))}</p></dd></dl>`;
-    return M.renderCollapsible({ summary: t("details"), body, className: "sk-more" });
+    // The summary still reads "Details"; its accessible name carries the skill's name, so four of them aren't read alike.
+    return M.renderCollapsible({ summary: t("details"), body, className: "sk-more" }).replace("<summary>", `<summary aria-label="${esc(t("detailsOf", { n: L(s.name) }))}">`);
   }
   // The three-way choice (A, and C's detail as radios): the board's toggle group.
   const stateGroup = (key, name, current, disabled) => M.renderToggleGroup({
@@ -181,13 +189,13 @@
     }
     const skills = pack.skills;
     if (ui.step === "enable") {
-      return `<div class="sk-review sk-review--step">${M.renderStatusMark({ label: t("doneT", { n: L(pack.title), v: pack.version }), tone: "done", state: "done" })}
+      return `<div class="sk-review sk-review--step${ui.anim ? " sk-enter" : ""}">${M.renderStatusMark({ label: t("doneT", { n: L(pack.title), v: pack.version }), tone: "done", state: "done" })}
         <h3 class="sk-h">${esc(t("enableH", { p: L(D.project) }))}</h3><p class="sk-lead">${esc(P.st === "upgrade" ? t("enableLeadUp") : t("enableLead"))}</p>${explain()}
         <ul class="mw-items sk-items">${skills.map(installRow).join("")}</ul>
         <div class="sk-actions">${btn(t("later"), { variant: "ghost", attrs: act("later") })}${btn(t("finish"), { variant: "primary", attrs: act("finish") })}</div></div>`;
     }
     if (ui.step === "done-c") {
-      return `<div class="sk-review sk-review--step"><div class="mw-alert mw-alert--success" data-slot="alert" role="status"><strong>${esc(t("cInstalledT", { n: L(pack.title), v: pack.version }))}</strong><p>${esc(t("cInstalled", { k: skills.length }))}</p><div class="sk-alert-actions">${btn(t("goCatalog"), { size: "sm", variant: "primary", attrs: act("go-manage") })}</div></div></div>`;
+      return `<div class="sk-review sk-review--step${ui.anim ? " sk-enter" : ""}"><div class="mw-alert mw-alert--success" data-slot="alert" role="status"><strong>${esc(t("cInstalledT", { n: L(pack.title), v: pack.version }))}</strong><p>${esc(t("cInstalled", { k: skills.length }))}</p><div class="sk-alert-actions">${btn(t("goCatalog"), { size: "sm", variant: "primary", attrs: act("go-manage") })}</div></div></div>`;
     }
     const nOn = Object.values(ui.pre).filter((x) => x.state !== "off").length;
     const label = P.opt === "B" && nOn ? t("installAndEnable", { n: nOn }) : t("install");
@@ -228,9 +236,9 @@
   }
   function installPanelAfterImport() {
     const picked = D.candidates.filter((c) => ui.picks[c.id]);
-    if (ui.step === "done-c") return `<div class="sk-review sk-review--step"><div class="mw-alert mw-alert--success" data-slot="alert" role="status"><strong>${esc(t("t_imported", { k: picked.length }))}</strong><p>${esc(t("cInstalled", { k: picked.length }))}</p><div class="sk-alert-actions">${btn(t("goCatalog"), { size: "sm", variant: "primary", attrs: act("go-manage") })}</div></div></div>`;
+    if (ui.step === "done-c") return `<div class="sk-review sk-review--step${ui.anim ? " sk-enter" : ""}"><div class="mw-alert mw-alert--success" data-slot="alert" role="status"><strong>${esc(t("t_imported", { k: picked.length }))}</strong><p>${esc(t("cInstalled", { k: picked.length }))}</p><div class="sk-alert-actions">${btn(t("goCatalog"), { size: "sm", variant: "primary", attrs: act("go-manage") })}</div></div></div>`;
     const rows = picked.map((c) => `<li class="mw-item sk-row">${mark(c.compat === "portable" ? "book" : "terminal")}<span class="sk-main"><strong><code class="sk-name">${esc(c.name)}</code></strong><small>${esc(L(c.desc))}</small>${c.compat !== "portable" ? `<span class="sk-tags">${badge(t("nativeOnly", { w: L(c.why) }), "warning")}</span>` : ""}<span class="sk-under">${stateGroup("imp:" + c.id, c.name, ui.pickOn[c.id] || "off")}</span></span></li>`).join("");
-    return `<div class="sk-review sk-review--step">${M.renderStatusMark({ label: t("t_imported", { k: picked.length }), tone: "done", state: "done" })}
+    return `<div class="sk-review sk-review--step${ui.anim ? " sk-enter" : ""}">${M.renderStatusMark({ label: t("t_imported", { k: picked.length }), tone: "done", state: "done" })}
       <h3 class="sk-h">${esc(t("enableH", { p: L(D.project) }))}</h3><p class="sk-lead">${esc(t("enableLead"))}</p>${explain()}
       <ul class="mw-items sk-items">${rows}</ul><div class="sk-actions">${btn(t("later"), { variant: "ghost", attrs: act("later") })}${btn(t("finish"), { variant: "primary", attrs: act("finish") })}</div></div>`;
   }
@@ -257,7 +265,7 @@
     const text = t("na_" + u.reason, { p: L(pack.title), d });
     const fix = T[P.lang]["do_" + u.reason] ? btn(t("do_" + u.reason), { size: "sm", variant: "link", attrs: act("sim", "fix") }) : "";
     const kept = u.reason === "plugin_disabled" && ui.states[pack.id + "/" + s.id] !== "off" ? `<span class="sk-muted sk-small">${esc(t("keptNote", { s: t(STATE_WORD[ui.states[pack.id + "/" + s.id]]) }))}</span>` : "";
-    return `<span class="sk-na">${M.renderStatusMark({ label: text, tone: blocking(s) ? "blocked" : "quiet", state: blocking(s) ? "blocked" : "unavailable" })}${fix}${kept}</span>`;
+    return `<span class="sk-na">${naMark(text, s)}${fix}${kept}</span>`;
   }
   const usedLine = (s) => `<span class="sk-muted sk-small">${esc(s.lastUsed ? t("lastUsed", { at: s.lastUsed.at, by: t("by_" + s.lastUsed.by) }) : t("neverUsed"))}</span>`;
   function failLine(key, s) {
@@ -277,7 +285,7 @@
   }
   function toolbar() {
     const c = counts();
-    const filters = M.renderToggleGroup({ label: t("fAll"), className: "sk-filter", items: [["all", "fAll", c.all], ["on", "fOn", c.on], ["off", "fOff", c.off], ["na", "fNa", c.na]].map(([v, k, n]) => ({ value: v, label: `${t(k)} ${n}`, current: ui.filter === v, attrs: act("filter", v) })) });
+    const filters = M.renderToggleGroup({ label: t("filterLabel"), className: "sk-filter", items: [["all", "fAll", c.all], ["on", "fOn", c.on], ["off", "fOff", c.off], ["na", "fNa", c.na]].map(([v, k, n]) => ({ value: v, label: `${t(k)} ${n}`, current: ui.filter === v, attrs: act("filter", v) })) });
     return `<div class="sk-toolbar"><span class="sk-search">${M.icon("search")}${M.renderInput({ type: "search", placeholder: t("search"), value: ui.q, attrs: { id: "skQ", "aria-label": t("search") } })}</span>${filters}<span class="sk-spacer"></span>${btn(t("importBtn"), { icon: "download", attrs: act("area", "import") })}</div>`;
   }
   function catalogHead() {
@@ -298,8 +306,9 @@
     if (!list.some((x) => x.key === ui.sel) && list.length) ui.sel = list[0].key;
     const rows = list.map(({ key, s, pack }) => {
       const st = ui.states[key], u = unavailable(s);
-      const mk = u ? M.renderStatusMark({ label: t("fNa"), tone: blocking(s) ? "blocked" : "quiet", state: blocking(s) ? "blocked" : "unavailable" }) : M.renderStatusMark({ label: t(STATE_WORD[st]), tone: st === "off" ? "quiet" : st === "auto" ? "progress" : "idle", state: st === "off" ? "paused" : "ready" });
-      return `<li class="mw-item sk-pick" role="button" tabindex="0"${key === ui.sel ? ' aria-current="true"' : ""} data-act="sel" data-v="${key}">${mark("book")}<span><strong>${esc(L(s.name))}</strong><small>${esc(L(pack.title))}</small></span><span class="mw-item__end">${mk}</span></li>`;
+      const mk = u ? naMark(t(naWord(s)), s) : stateMark(st);
+      // One real button per list item: the item keeps its list identity ("3 of 10"), the button handles Enter and Space.
+      return `<li class="mw-item sk-pick-item"><button type="button" class="sk-pick"${key === ui.sel ? ' aria-current="true"' : ""} data-act="sel" data-v="${key}">${mark("book")}<span class="sk-pick__text"><strong>${esc(L(s.name))}</strong><small title="${esc(L(pack.title))}">${esc(L(pack.title))}</small></span><span class="sk-pick__end">${mk}</span></button></li>`;
     }).join("");
     const left = `<div class="sk-split__list">${rows ? `<ul class="mw-items sk-items">${rows}</ul>` : `<p class="sk-muted sk-nomatch">${esc(t("noMatch"))}</p>`}</div>`;
     const cur = find(ui.sel);
@@ -308,9 +317,9 @@
       const { key, s, pack } = cur, st = ui.states[key], dis = blocking(s);
       const radios = M.renderRadioGroup({ legend: t("howUse"), name: "sk-how", className: "sk-how", items: ["off", "auto", "manual"].map((v) => ({ value: v, label: t(v === "off" ? "expOff" : v === "auto" ? "expAuto" : "expManual"), checked: st === v })) });
       const files = s.resources?.length ? `<ul class="sk-files">${s.resources.map((r) => `<li><code>${esc(r.path)}</code><span>${esc(t(r.role === "script" ? "roleScript" : r.role === "asset" ? "roleAsset" : "roleRef"))} · ${esc(kb(r.bytes))}</span></li>`).join("")}</ul>` : `<p class="sk-muted">${esc(t("filesNone"))}</p>`;
-      right = `<div class="sk-split__detail"${dis ? " data-off" : ""}>
+      right = `<div class="sk-split__detail${ui.anim ? " sk-enter" : ""}"${dis ? " data-off" : ""}>
         <button type="button" class="mw-btn mw-btn--ghost mw-btn--sm sk-back" data-act="unsel">${M.icon("chevron-left")}<span data-slot="button-label">${esc(t("back"))}</span></button>
-        <header><h3>${esc(L(s.name))}</h3><p class="sk-lead">${esc(L(s.desc))}</p>${skillTags(s)}</header>
+        <header><h3 tabindex="-1">${esc(L(s.name))}</h3><p class="sk-lead">${esc(L(s.desc))}</p>${skillTags(s)}</header>
         ${naLine(pack, s)}${failLine(key, s)}
         <div class="sk-how-wrap" data-how="${key}"${dis ? " data-disabled" : ""}>${radios}</div>
         <dl class="sk-dl"><dt>${esc(t("whenUse"))}</dt><dd>${esc(L(s.when))}</dd><dt>${esc(t("whenNot"))}</dt><dd>${esc(L(s.whenNot))}</dd>
@@ -354,8 +363,18 @@
     if (!AREA_STATES[P.area].includes(P.st)) P.st = AREA_STATES[P.area][0];
     renderStrip();
     const focus = document.activeElement?.id === "skQ" ? document.activeElement.selectionStart : null;
+    // Re-rendering replaces the nodes: put keyboard focus back on the same control (same action and value) if it is still there.
+    const was = document.activeElement?.closest?.("[data-act]");
+    const back = was ? `[data-act="${was.dataset.act}"]${was.dataset.v ? `[data-v="${was.dataset.v}"]` : ""}` : null;
     document.getElementById("app").innerHTML = page();
+    ui.anim = false;
     if (focus != null) { const q = document.getElementById("skQ"); q?.focus(); q?.setSelectionRange(focus, focus); }
+    else if (back) {
+      const same = document.querySelector(`#app ${back}`);
+      // Narrow screens swap the list for the detail on select: move focus to the detail's heading instead of losing it.
+      if (same && same.offsetParent) same.focus();
+      else if (was.dataset.act === "sel") document.querySelector("#app .sk-split__detail h3")?.focus();
+    }
   }
   let timer;
   const toast = (message, tone, action) => {
@@ -393,12 +412,12 @@
       case "area": return go(v);
       case "go-manage": return go("manage");
       case "install":
-        if (enableStep()) { ui.step = "enable"; break; }
-        if (P.opt === "C") { ui.step = "done-c"; break; }
+        if (enableStep()) { ui.step = "enable"; ui.anim = true; break; }
+        if (P.opt === "C") { ui.step = "done-c"; ui.anim = true; break; }
         { const n = Object.values(ui.pre).filter((x) => x.state !== "off").length; go("manage"); return toast(n ? t("t_enabled", { k: n }) : t("t_installed", { n: L(packOf(D.install.pack).title) }), "success"); }
       case "import":
-        if (enableStep()) { ui.step = "enable"; break; }
-        if (P.opt === "C") { ui.step = "done-c"; break; }
+        if (enableStep()) { ui.step = "enable"; ui.anim = true; break; }
+        if (P.opt === "C") { ui.step = "done-c"; ui.anim = true; break; }
         { const n = Object.values(ui.picks).filter(Boolean).length; go("manage"); return toast(t("t_imported", { k: n }), "success"); }
       case "finish": {
         const n = P.area === "import" ? Object.values(ui.pickOn).filter((s) => s && s !== "off").length : Object.values(ui.pre).filter((x) => x.state !== "off").length;
@@ -407,7 +426,7 @@
       case "later": return go("manage");
       case "src": ui.src = v; break;
       case "filter": ui.filter = v; break;
-      case "sel": ui.sel = v; ui.detail = true; break;
+      case "sel": ui.sel = v; ui.detail = true; ui.anim = true; break;
       case "unsel": ui.detail = false; break;
       case "retry": ui.fail = null; P.st = "normal"; persist(); break;
       case "undo-state": if (ui.last) { ui.states[ui.last.key] = ui.last.prev; ui.last = null; document.getElementById("toasts").innerHTML = ""; } break;
@@ -433,9 +452,6 @@
     }
   });
   document.addEventListener("input", (e) => { if (e.target.id === "skQ") { ui.q = e.target.value; render(); } });
-  document.addEventListener("keydown", (e) => {
-    if ((e.key === "Enter" || e.key === " ") && e.target.matches(".mw-item[role=button]")) { e.preventDefault(); e.target.click(); }
-  });
 
   render();
 })();

@@ -91,7 +91,7 @@ window.SKILL_DATA = {
       ],
     },
     {
-      id: "local", title: { zh: "从 Claude Code 导入", en: "Imported from Claude Code" }, version: "3", trust: "home_local", scope: "home",
+      id: "local", title: { zh: "从 Claude Code 导入", en: "From Claude Code" }, version: "3", trust: "home_local", scope: "home",
       publisher: { zh: "这台电脑", en: "This computer" },
       skills: [
         {
@@ -110,6 +110,20 @@ window.SKILL_DATA = {
           resources: [{ path: "scripts/merge.sh", role: "script", bytes: 1800 }],
           excerpt: { zh: "用 qpdf 合并……", en: "Merge with qpdf…" },
           state: "off", unavailable: { reason: "native_only", detail: { zh: "要在本机直接跑命令", en: "needs to run commands on this computer" } },
+        },
+      ],
+    },
+    {
+      id: "oldtpl", title: { zh: "周报模板（旧）", en: "Weekly templates (old)" }, version: "1.2", trust: "pinned", scope: "project",
+      publisher: { zh: "Nimbus", en: "Nimbus" },
+      skills: [
+        {
+          id: "oldweekly", name: { zh: "旧版周报模板", en: "Old weekly template" }, applies: "assistant", invocable: true,
+          desc: { zh: "按旧格式写周报。", en: "Writes the weekly report in the old format." },
+          when: { zh: "要沿用旧格式时。", en: "When the old format is still needed." }, whenNot: { zh: "写新的周度复盘时。", en: "For the new weekly review." },
+          tools: ["read-file"], connectors: [], resources: [],
+          excerpt: { zh: "按「本周完成／下周计划」两栏写……", en: "Two columns: done this week / planned next week…" },
+          state: "manual", unavailable: { reason: "publisher_revoked" },
         },
       ],
     },

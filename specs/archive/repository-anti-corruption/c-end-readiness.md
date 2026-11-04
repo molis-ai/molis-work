@@ -2,7 +2,7 @@
 
 状态：方案（W1-21，2026-10-08）；本文不实现任何一项。27 项用户决定已全部定，本文用到的写在 §0.1；还要用户定的在 §8。代码基线 main `f8ea20b9`。决定取自 spec §1 与 §10 的决定表，该表在分支 `docs/anti-corruption-decisions-5`（PR #312，提交 `bd1117a4`）里，合入 main 前以该分支为准。
 
-任务要求：`docs/prompts/repository-anti-corruption.md` §4.19 与交付第 22 项（C 端就绪方案）。进度与决策记录在同目录 [spec.md](spec.md)，普查证据在 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 的 §4.19 一节；缺口清单最早见 `docs/prompts/code-health-report-2026-09-30.md` §3.3。
+任务要求：`docs/prompts/repository-anti-corruption.md` §4.19 与交付第 22 项（C 端就绪方案）。进度与决策记录在同目录 [spec.md](spec.md)，普查证据在 [roadmap-2026-10-07.md](roadmap-2026-10-07.md) 的 §4.19 一节；缺口清单最早见 `docs/archive/reviews/code-health-report-2026-09-30.md` §3.3。
 
 ## 0. 怎么读
 

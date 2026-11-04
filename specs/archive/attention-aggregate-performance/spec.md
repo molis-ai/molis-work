@@ -2,7 +2,9 @@
 
 > 归档（2026-11-03）：判定为**已实现**。#1073（f2e961c6f）已合入。本文保留隔离负载矩阵、关闭与撤权交错、历史失败；未用当前真实 Home 重新测量。
 
-状态：本地实现与定向验证完成，[PR #1073](https://github.com/molis-ai/molis-work/pull/1073) 的 CI 与评审跟进中（2026-10-23）。负责人：Codex。目标完成程度：功能可用，并有真实隔离负载的修复前后对比；不包含真实 Home 安装、发布或一骏本人验收。
+状态：已于 2026-10-23 经 [PR #1073](https://github.com/molis-ai/molis-work/pull/1073) 合入 main（`f2e961c6f`；2026-11-03 核对）。负责人：Codex。目标完成程度：功能可用，并有真实隔离负载的修复前后对比；不包含真实 Home 安装、发布或一骏本人验收。
+
+合入前最终 head `f68798a049fb022ae686316038fe682121399eda` 的 [CI](https://github.com/molis-ai/molis-work/actions/runs/39975701114) 与 [Full suite](https://github.com/molis-ai/molis-work/actions/runs/39975690827) 均成功。下文保留各轮失败、修复与基线对照的历史记录；其中“待最终 head 验证”描述的是当时状态，不再表示当前仍待重跑。这些结果对应上述 head，不是本轮对当前 main 的重新验证。
 
 ## 目标与证据
 

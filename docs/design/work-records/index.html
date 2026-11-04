@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>工作记录定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="base.css?v=1">
+  <link rel="stylesheet" href="records.css?v=1">
+</head>
+<body>
+  <div id="icons"></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title"></b>
+    <label><span id="p-block"></span><select id="block"></select></label>
+    <label><span id="p-opt"></span><select id="opt"></select></label>
+    <label><span id="p-state"></span><select id="state"></select></label>
+    <label><span id="p-lang"></span>
+      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
+    </label>
+    <label><span id="p-theme"></span>
+      <span class="seg" id="theme"><button type="button" data-theme-set="light"></button><button type="button" data-theme-set="dark"></button></span>
+    </label>
+    <button type="button" class="btn sm sec" id="reset"></button>
+  </div>
+  <div id="app"></div>
+  <div id="live" class="sr" aria-live="polite"></div>
+  <script src="icons.js"></script>
+  <script src="data.js?v=1"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

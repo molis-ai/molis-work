@@ -108,7 +108,7 @@ type ComposerMaterial =
       source: { capability_id: string; version: number; provider_id: string } };  // 同 AssistantMaterial.capability，只用于显示
 ```
 
-- **资料身份用 05② 的 `MaterialRef`**（[共用来源与呈现 §2](../shared-sources-and-surfaces/spec.md)，SSC-01）：选择器、附件条、发送都用同一个引用，不另起写法。合同依赖 05② 的 C-1（`platform/project-materials`）。
+- **资料身份用 05② 的 `MaterialRef`**（共用来源与呈现 §2（[#1771](https://github.com/molis-ai/molis-work/pull/1771) 的 `specs/shared-sources-and-surfaces/spec.md`），SSC-01）：选择器、附件条、发送都用同一个引用，不另起写法。合同依赖 05② 的 C-1（`platform/project-materials`）。
 - **声明检查**（SDK 共用的那份，作者与平台同一套）：`inspectActionDeclarations` 里查 `kind: "query"`、`effect: "read"`、`scope` 为 `project` 或 `home`、`audiences` 含 `user`、`input_type`／`output_type` 是上面两个，且 `input_schema`／`output_schema` 与平台的两份一字不差（不然提供方能在同名类型下把输入放宽、多收字段，S-109 第 1 条就靠不住）。「`subject_kinds` 都是同一提供方读得了的种类」是同一次注册里的交叉引用，放在 `inspectActionCrossReferences`，与 `search_source` 的 kinds 用同一套对象读取器判定。不合就在 Manifest 解析时拒。
 - **发现**：组件从动作目录读出当前范围可见、已授权的 `composer_source`，按提供方分组，写出插件名；宿主与工作台里不写插件 id、不另开名单。
 - **调用**：用户点开分组、打字时才调；走动作网关，身份、项目与可达范围（Home 级插件的 `project_reach`）取自调用上下文，插件拿到的只有 `query`、`limit` 和挂载页明确交出的 `near`。个人助理不在项目里时，只列 `scope: "home"` 的来源。

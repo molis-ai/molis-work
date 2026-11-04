@@ -49,6 +49,17 @@ test("Jelly shows what the Assistant changed and opens an item or a note by id",
   await click("[data-jelly-item-dialog] [data-jelly-close-dialog]");
   await waitFor(`!document.querySelector('[data-jelly-item-dialog]').open && (${declared}) === undefined`);
 
+  // BL-092: a result with no side preview keeps its title and opens the original calendar item in Jelly.
+  await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { cancelable: true, detail: {
+    tab: 'files', target: {subject: {kind: 'jelly_item', id: 'budget-sync'}, title: '和小李对预算', open: {surface: 'jelly', id: 'budget-sync'}}
+  } }))`);
+  await browser.waitFor("document.querySelector('[data-side-files-body] .side-files-problem')?.checkVisibility()");
+  assert.equal(await browser.evaluate("document.querySelector('[data-side-files-title]').textContent"), "和小李对预算");
+  assert.equal(await browser.evaluate("document.querySelector('[data-side-files-body] .side-files-problem').textContent"), "无法在侧栏预览这项内容。");
+  await browser.click('[data-side-files-action="open"]');
+  await waitFor("document.querySelector('[data-jelly-item-dialog]').open && document.querySelector('[data-jelly-field=title]').value === '和小李对预算'");
+  await click("[data-jelly-item-dialog] [data-jelly-close-dialog]");
+
   // Something taken back before it was opened says so instead of opening nothing.
   await select("gone-already");
   await waitFor("document.querySelector('[data-jelly-notice]').textContent === '这条内容已不存在'");

@@ -358,7 +358,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       const request=current={source:target.source||'',kind:target.subject.kind,id:target.subject.id};await load(false);if(current!==request)return;
       const source=target.source||sources.find(item=>item.kinds.some(kind=>kind.kind===target.subject.kind))?.id;
       if(source)void openFile(source,target.subject.kind,target.subject.id,target.entry||(target.title?{title:target.title,open:target.open||null}:null));
-      else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
+      else openGiven({title:target.title||L('内容'),problem:L('无法在侧栏预览这项内容。'),open:target.open});
     }else await load(false);
   });
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");

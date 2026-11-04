@@ -34,14 +34,14 @@ test("C-1 the App and Node declare exactly the entitlements hardened runtime nee
 
   const app = read("apps/desktop/src-tauri/Entitlements.plist");
   assert.ok(grants(app, "com.apple.security.automation.apple-events"), "the App drives Safari, Chrome and Finder through osascript");
-  assert.ok(!app.includes("get-task-allow"), "notarization refuses get-task-allow");
+  assert.ok(!grants(app, "com.apple.security.get-task-allow"), "notarization refuses get-task-allow");
   const info = read("apps/desktop/src-tauri/Info.plist");
   assert.match(info, /<key>NSAppleEventsUsageDescription<\/key>\s*<string>[^<]{10,}<\/string>/);
 
   const node = read("apps/desktop/tooling/entitlements/node-runtime.entitlements");
   for (const key of ["com.apple.security.cs.allow-jit", "com.apple.security.cs.allow-unsigned-executable-memory",
     "com.apple.security.cs.disable-library-validation"]) assert.ok(grants(node, key), key);
-  assert.ok(!node.includes("get-task-allow"), "Node's official list carries get-task-allow; ours must not");
+  assert.ok(!grants(node, "com.apple.security.get-task-allow"), "Node's official list grants get-task-allow; ours must not");
 });
 
 test("C-1 the release build signs the runtime before Tauri packs it, checks every signature, and notarizes the DMG", () => {
@@ -146,8 +146,9 @@ test("C-1 the local check rejects get-task-allow, a Node without JIT, and a bund
   execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", "--entitlements", debuggable, fixture.spawnHelper], { stdio: "pipe" });
   // Node re-signed without its entitlements: hardened runtime on, JIT not allowed.
   execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", fixture.node], { stdio: "pipe" });
-  // Signing code inside a bundle after the bundle was sealed changes a sealed file: the bundle no longer verifies.
-  execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", fixture.helperTool], { stdio: "pipe" });
+  // Signing code inside a bundle after the bundle was sealed changes a sealed file: the bundle no longer verifies. (An
+  // ad-hoc re-sign with the very same options is byte-identical, so this one differs, as any other signer's would.)
+  execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", "--identifier", "re-signed", fixture.helperTool], { stdio: "pipe" });
 
   const result = run(verifyScript, fixture.dir);
   assert.equal(result.status, 1);

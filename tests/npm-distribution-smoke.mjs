@@ -6,6 +6,7 @@ import { mkdtemp, readFile, rm, rename } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { isolatedMcpResident } from "./fixtures/isolated-mcp-resident.ts";
 
 const exec = promisify(execFile);
 const consumer = path.resolve(process.argv[2]);
@@ -77,14 +78,21 @@ try {
   await rename(product, moved);
   try {
     assert.match((await run(installed.launchers.cli, ["--help"])).stdout, /molis-work plugin/);
-    await run(process.execPath, ["--input-type=module", "-e", `
-      import assert from 'node:assert/strict';
-      import { validateMolisWorkMcpLauncher } from '@molis-ai/molis-work-app-mcp';
-      assert.equal(await validateMolisWorkMcpLauncher({
-        runtime_id: 'codex', launcher_path: ${JSON.stringify(installed.launchers.mcp)},
-        home_directory: ${JSON.stringify(home)}, plan_id: 'npm-release-smoke'
-      }), true);
-    `], installed.release_directory);
+    const resident = await isolatedMcpResident(home);
+    environment.MOLIS_WORK_WEB_URL = resident.origin;
+    try {
+      await run(process.execPath, ["--input-type=module", "-e", `
+        import assert from 'node:assert/strict';
+        import { validateMolisWorkMcpLauncher } from '@molis-ai/molis-work-app-mcp';
+        assert.equal(await validateMolisWorkMcpLauncher({
+          runtime_id: 'codex', launcher_path: ${JSON.stringify(installed.launchers.mcp)},
+          home_directory: ${JSON.stringify(home)}, plan_id: 'npm-release-smoke'
+        }), true);
+      `], installed.release_directory);
+      await resident.health();
+    } finally {
+      await resident.stopHost();
+    }
     assert.deepEqual(await readFile(path.join(installed.release_directory, "vendor/intelligence-client/sbom.cdx.json")),
       await readFile(path.join(moved, "vendor/intelligence-client/sbom.cdx.json")));
   } finally { await rename(moved, product); }

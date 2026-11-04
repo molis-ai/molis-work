@@ -121,7 +121,7 @@
 | BL-044 | 跨项目库对象的移动（Goals、Feed、Inbox、Artifacts、Schedule、Coding） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 各项目独立库，涉及事件历史与所有权 | 无 | 低 | 未分配 |
 | BL-045 | 问卷外网公开链接与托管填写；PPT 富排版（图片、图表、母版） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 与本机优先定位不符 / 非本期 | 无 | 低 | 未分配 |
 | BL-046 | 图片插件真实厂商生成未测；图生图、蒙版编辑、多图批处理、厂商异步协议 | [work-placement §13](archive/work-placement/spec.md)、[images-plugin](archive/images-plugin/spec.md) | 明确后续做 | 本机没配图像厂商 | 无 | 低 | 未分配 |
-| BL-112 | 全局搜索：工具行先出现，内容结果稍后到达并排在上面，结果在指针下移动，刚瞄准的一行可能被挤开（产品动线用例因此间歇失败，用例已改为等结果稳定） | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | 「内容在前」是搜索的设计；可改为给内容预留位置，或已显示的行不再移动，要搜索负责人定 | 无 | 低 | 未分配 |
+| BL-112 | 全局搜索：工具行先出现，内容结果稍后到达并排在上面，结果在指针下移动，刚瞄准的一行可能被挤开（产品动线用例因此间歇失败，用例已改为等结果稳定） | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | 用户 2026-11-04 定：工具立即可用。指针停在结果行时，迟到内容暂缓重排；移开、换词或改用键盘时呈现最新结果，内容仍在前。不得把刚瞄准的工具换成另一项 | 无 | 低 | 未分配 |
 | BL-331 | `attach` 的 `find`（F2，W4-4）：用 `search.references@1` 取候选，目标不在落点时一律放末尾或建关联；Pages「追加到文档」先做，要改 `ItemAttach.find` 的形状（改合同） | [context-program §21.4 W4-4、§21.8](context-program/spec.md)、[quick-create F2](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | 无（#801 / W4-2 已合入） | 中 | 未分配 |
 | BL-333 | 内容站派生创建入口与「放进 Inbox」（W4-6b）：内容站的声明派生出创建入口，Inbox 用它加「放进 Inbox」，Pages 与 Inbox 共用 SDK 里的段落工具（SDK 新增，算共享核心） | [quick-create §11.5](quick-create/spec.md) | 未实现 | 计划已写，没实施 | BL-174；#804（W4-6a）、#801（W4-2）已合入 | 中 | 未分配 |
 | BL-397 | 项目资料导入不读旧二进制 `.doc`、`.xls`、`.ppt`（officeparser 不读） | [project-knowledge §14](archive/project-knowledge/spec.md) | 明确后续做 | 格式支持范围 | 无 | 低 | 未分配 |

@@ -54,6 +54,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let selected = 0;
   // Whether the person moved the selection themselves (arrows or pointer) since the words last changed.
   let explicit = false;
+  let pointerOnHit = false, pendingRender = false;
   let composing = false;
   let lastTrigger = null;
   let remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" };
@@ -112,7 +113,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const active = results.querySelector('[aria-selected="true"]');
     if (active) input.setAttribute("aria-activedescendant", active.id);
     else input.removeAttribute("aria-activedescendant");
-    active?.scrollIntoView({ block: "nearest" });
+    if (!pointerOnHit) active?.scrollIntoView({ block: "nearest" });
   };
   const snippetHtml = (hit) => {
     const text = String(hit.snippet || "");
@@ -134,6 +135,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     });
   };
   const render = () => {
+    if (pointerOnHit) { pendingRender = true; return; }
+    pendingRender = false;
+    const previous = explicit && hits[selected];
     const query = input.value;
     const groups = localGroups(query);
     const content = query.trim() ? remoteGroups() : [];
@@ -144,6 +148,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const ask = noContent && typeof askAssistant === "function"
       ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(L("问助理：") + "“" + query.trim() + "”") + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
+    if (previous) selected = hits.findIndex(item => item.kind === previous.kind && (item.kind === "hit" ? item.hit.hit_id === previous.hit.hit_id : item.id === previous.id));
     if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
     if(statusLine){const text=statusText();if(typeof text==="string")statusLine.textContent=text;else molisWorkRequest.show(statusLine,text);statusLine.hidden=!text;if (notice) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "error") statusLine.dataset.mwState = "failed"; else if (!input.value.trim()) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "loading" && !remote.hits.length) statusLine.dataset.mwState = "running"; else if (remote.sources.some(source => source.state === "indexing")) statusLine.dataset.mwState = "indexing"; else if (remote.sources.some(source => ["failed", "stale", "unavailable"].includes(source.state))) statusLine.dataset.mwState = "partial"; else statusLine.removeAttribute("data-mw-state"); }
     paintScopes();
@@ -170,6 +175,12 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       // Tools matched but content did not: say so about content only, not as if nothing matched.
       + (ask ? '<p class="global-search-empty">' + escapeHtml(L("内容里没有找到")) + "</p>" + ask : "");
     paintSelection();
+  };
+  const releasePointer = (keepSelection = false) => {
+    pointerOnHit = false;
+    if (!pendingRender) return;
+    if (!keepSelection) { selected = 0; explicit = false; }
+    render();
   };
   const request=(path,body)=>molisWorkRequest(route(path),{body,fallback:L("搜索暂时不可用，请稍后重试")});
   const search = async (append = false) => {
@@ -296,6 +307,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const open = (trigger, query) => {
     lastTrigger = trigger?.nodeType === 1 ? trigger : document.activeElement;
     input.value = "";
+    pointerOnHit = false; pendingRender = false;
     selected = 0; explicit = false;
     notice = "";
     remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" };
@@ -311,44 +323,51 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     if (selected >= 0) void activate(hits[selected]);
   });
+  const changeQuery = () => {
+    pointerOnHit = false;
+    clearTimeout(retry); requestSeq += 1;
+    selected = 0; explicit = false;
+    remote = { query: input.value.trim(), scope, status: input.value.trim() ? "loading" : "idle", hits: [], sources: [], next: null, error: "" };
+    schedule(); render();
+  };
   input.addEventListener("input", () => {
     if (composing) return;
-    selected = 0; explicit = false;
     noteSearchActivity();
-    render();
-    schedule();
+    changeQuery();
   });
   input.addEventListener("compositionstart", () => { composing = true; noteSearchActivity(); });
   input.addEventListener("compositionend", () => {
     composing = false;
-    selected = 0; explicit = false;
     noteSearchActivity(500);
-    render();
-    schedule();
+    changeQuery();
   });
   scopeBar?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-global-search-scope-option]");
     if (!button || !scopes.includes(button.dataset.globalSearchScopeOption)) return;
     scope = button.dataset.globalSearchScopeOption;
     try { sessionStorage.setItem("molis-work:search-scope", scope); } catch {}
-    selected = 0;
-    schedule();
-    render();
+    changeQuery();
     input.focus();
   });
-  results.addEventListener("mousemove", (event) => {
+  const aim = (event) => {
     const hit = event.target.closest("[data-global-search-hit]");
-    if (!hit) return;
-    selected = Number(hit.dataset.globalSearchHit); explicit = true;
-    paintSelection();
-  });
+    if (!hit) { releasePointer(); return; }
+    pointerOnHit = true; explicit = true;
+    const index = Number(hit.dataset.globalSearchHit);
+    if (index !== selected) { selected = index; paintSelection(); }
+  };
+  results.addEventListener("mousemove", aim);
+  results.addEventListener("mousedown", aim);
+  results.addEventListener("mouseleave", () => releasePointer());
   results.addEventListener("click", (event) => {
     if (event.target.closest("[data-global-search-more]")) { event.preventDefault(); void search(true); return; }
     if (event.target.closest("[data-global-search-ask]")) { event.preventDefault(); const words = input.value.trim(); close(); askAssistant?.(words); return; }
     const hit = event.target.closest("[data-global-search-hit]");
     if (!hit) return;
     event.preventDefault();
-    void activate(hits[Number(hit.dataset.globalSearchHit)]);
+    const item = hits[Number(hit.dataset.globalSearchHit)];
+    releasePointer();
+    void activate(item);
   });
   dialog.addEventListener("close", () => {
     // The close event is dispatched later; reopened in between (Esc then ⌘K), it belongs to the previous session.
@@ -380,6 +399,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       return true;
     }
     if (!isOpen()) return false;
+    releasePointer(true);
     if (meta && /^[1-9]$/.test(event.key)) {
       event.preventDefault();
       void activate(hits[Number(event.key) - 1]);

@@ -395,3 +395,49 @@ test("VUX-31: Todo's reminders keep the one just acknowledged when an earlier re
     assert.equal(await evaluate("document.querySelectorAll('[data-todo-reminder]').length"), 1, "the earlier read's late answer does not bring the acknowledged reminder back");
   } finally { await hold.close(); }
 });
+
+test("BL-112: late content never replaces a tool under the pointer; leaving, typing or using the keyboard publishes it", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded");
+  if (!browser) return;
+  const { command, sessionId, evaluate, navigate, waitFor, click, origin, projectId } = browser;
+  await importPieces(browser, 1, () => "dataset search proof");
+  await wide(browser);
+  await navigate(() => command("Page.navigate", {url: origin + "/projects/" + projectId + "/"}, sessionId));
+  await click("[data-global-search-open]");
+  const tool = '[data-global-search-kind="plugin"][data-global-search-id="dataset"]';
+  const content = "[data-global-search-hit].is-content";
+  await evaluate(typed("[data-global-search]", "dataset"));
+  await waitFor(`document.querySelector('${content}')?.textContent.includes('dataset search proof')`, 30_000);
+  const hold = await holdReads(browser, ["*/api/search/query"], "Response");
+  const queriesRead = "performance.getEntriesByType('resource').filter(e => e.name.endsWith('/api/search/query')).length";
+  const move = (point: {x:number;y:number}) => command("Input.dispatchMouseEvent", {type:"mouseMoved", ...point}, sessionId);
+  try {
+    for (const release of ["leave", "keyboard", "new query", "click"]) {
+      await move({x:1,y:1});
+      await evaluate(typed("[data-global-search]", ""));
+      await evaluate(typed("[data-global-search]", "dataset"));
+      await waitFor(`document.querySelector('${tool}')`);
+      await hold.next('"query":"dataset"');
+      const before = await evaluate<number>(queriesRead);
+      const point = await evaluate<{x:number;y:number}>(`(() => { const r=document.querySelector('${tool}').getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2}; })()`);
+      await move(point);
+      await hold.answer('"query":"dataset"');
+      await waitFor(queriesRead + " > " + before);
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      assert.equal(await evaluate(`!!document.elementFromPoint(${point.x},${point.y})?.closest('${tool}') && !!document.querySelector('${tool}[aria-selected=true]')`), true);
+      assert.equal(await evaluate(`document.querySelector('${content}') === null`), true, "the answer arrived but the aimed row has not moved");
+      if (release === "click") {
+        for (const type of ["mousePressed","mouseReleased"]) await command("Input.dispatchMouseEvent",{type, ...point, button:"left", clickCount:1},sessionId);
+        await waitFor("document.body.dataset.desktopSurface === 'dataset'");
+      } else if (release === "new query") {
+        await evaluate(typed("[data-global-search]", "unrelatedterm"));
+        assert.equal(await evaluate(`document.querySelector('${tool}, ${content}') === null`), true, "the old term disappears immediately");
+        await hold.answer('"query":"unrelatedterm"');
+      } else {
+        if (release === "leave") await move({x:1,y:1});
+        else for (const type of ["keyDown","keyUp"]) await command("Input.dispatchKeyEvent",{type,key:"ArrowDown",code:"ArrowDown",windowsVirtualKeyCode:40},sessionId);
+        await waitFor("document.querySelector('[data-global-search-hit]')?.classList.contains('is-content')");
+      }
+    }
+  } finally { await hold.close(); }
+});

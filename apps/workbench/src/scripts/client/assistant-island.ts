@@ -575,7 +575,15 @@ ${ASSISTANT_TABS_PART}
     worksToggle?.setAttribute("aria-expanded", String(open));
     if (open) { paintList(); (workNav.querySelector("[aria-current]") || workNav.querySelector("button"))?.focus(); loadWorks(); }
   };
-  const loadWorks = async () => {
+  // Reads asked while one is in flight share it: the start, the panel opening, coming back to the page and the list's timer
+  // ask for the same list. A caller after a change of its own (fresh) waits for one read that starts after it, shared by every such caller.
+  let worksRead = null, worksAgain = null;
+  const loadWorks = (fresh) => {
+    if (!worksRead) return worksRead = readWorks().finally(() => { worksRead = null; });
+    if (!fresh) return worksRead;
+    return worksAgain ??= worksRead.then(() => { worksAgain = null; return loadWorks(); });
+  };
+  const readWorks = async () => {
     try {
       const res = await api("/works");
       const drafts = new Map(works.map((work) => [work.work_id, work.draft]));

@@ -37,7 +37,7 @@
     if (sc === "split") {
       panes = [pane("m1", false, [homeTab(), head("goals"), rec("goals", "goal1"), rec("goals", "goal2")], "r-goal1"),
         pane("m2", false, [head("pages"), rec("pages", "doc1"), rec("pages", "doc2")], "r-doc1"),
-        pane("s", true, [head("talk"), head("shelf")], "h-talk")];
+        pane("s", true, [head("talk"), head("lingguang"), head("shelf"), head("materials"), head("tasks")], "h-talk")];
       sideOpen = false; focus = "m2";
     } else if (sc === "many") {
       const m = [homeTab(), rec("pages", "doc3", { pinned: true, group: null }), rec("workflows", "wf1", { pinned: true, group: null }),
@@ -48,21 +48,21 @@
         head("inbox"), rec("inbox", "inbox1"),
         head("ppt"), rec("ppt", "ppt1"), head("diff"), rec("diff", "diff1"),
         rec("feed", "feed3", { group: "m:launch" }), rec("inbox", "inbox2", { group: "m:launch" })];
-      panes = [pane("m1", false, m, "r-doc4", launch), pane("s", true, [head("talk"), head("shelf"), head("materials")], "h-materials")];
+      panes = [pane("m1", false, m, "r-doc4", launch), pane("s", true, [head("talk"), head("lingguang"), head("shelf"), head("materials"), head("tasks")], "h-materials")];
     } else if (sc === "personal") {
       panes = [pane("m1", false, [homeTab(), head("coding"), rec("coding", "code1"), head("timer")], "h-timer"),
-        pane("s", true, [head("talk"), head("reading")], "h-reading")];
+        pane("s", true, [head("talk"), head("lingguang"), head("shelf"), head("reading"), head("tasks")], "h-reading")];
     } else {
-      const m = [homeTab(), rec("pages", "doc3", { pinned: true, group: null }),
+      const m = [homeTab(),
         head("goals"), rec("goals", "goal1"), rec("goals", "goal2", st === "gone" ? { flag: "gone" } : {}),
         head("pages"), rec("pages", "doc1"), rec("pages", "doc2"),
         head("coding"), rec("coding", "code1"),
         rec("feed", "feed1", { group: "m:launch" }), rec("inbox", "inbox1", { group: "m:launch" })];
       let cur = "r-code1";
-      const side = [head("talk"), head("shelf"), head("materials")];
+      const side = [head("talk"), head("lingguang"), head("shelf"), head("materials"), head("tasks")];
       let sideCur = "h-talk";
       if (st === "locate") {
-        const g = m.splice(2, 3); side.push(...g); sideCur = "r-goal1"; focus = "s";
+        const g = m.splice(1, 3); side.splice(4, 0, ...g); sideCur = "r-goal1"; focus = "s";
       }
       if (st === "gone") cur = "r-goal2";
       if (st === "removed") { m.push(head("feed", { flag: "removed" }), rec("feed", "feed2", { flag: "removed" }), rec("feed", "feed3", { flag: "removed" })); cur = "r-feed2"; }
@@ -84,6 +84,8 @@
   const glyph = (x) => P[x.plug].icon;
   const hueVars = (hue) => `--g:var(--hue-${hue});--gf:var(--hue-${hue}-fill)`;
   const groupOf = (p, x) => x.group ? p.groups[x.group] : null;
+  const TASKS_OPEN = 2; // one running, one waiting on you (sample)
+  const paneName = (p) => p.side ? t("winSide") : WS.panes.filter((x) => !x.side).length > 1 ? t("winN", WS.panes.filter((x) => !x.side).indexOf(p) + 1) : t("winMain");
   const where = (p) => p.side ? (S.lang === "zh" ? "右侧" : "on the right") : (WS.panes.filter((x) => !x.side).length > 1 ? t("winN", WS.panes.filter((x) => !x.side).indexOf(p) + 1) : (S.lang === "zh" ? "主区" : "in main"));
 
   // Consecutive tabs of one group form a unit; home and pinned tabs lead the strip on their own.
@@ -100,21 +102,25 @@
   const unitHasCur = (p, u) => u.tabs.some((x) => x.id === p.cur);
 
   // ---------- strip renderers ----------
+  // The right side and pinned tabs show glyphs only. Resting on one (or focusing it) grows that tab in place to show its
+  // name. On the right the row is pinned to the right edge and a tab grows leftward, so its glyph stays under the pointer.
+  const iconOnly = (p, x, opts) => opts.icon || x.pinned || (p.side && !compact() && !opts.text);
   function tabEl(p, x, opts = {}) {
     const sel = p.cur === x.id, cls = ["tab"];
-    if (opts.fixed) cls.push("fixed");
-    if (opts.icon) cls.push("icon");
+    const io = iconOnly(p, x, opts);
+    if (opts.fixed && !io) cls.push("fixed");
+    if (io) cls.push("icon");
     if (opts.head) cls.push("head");
     if (x.flag === "gone" || x.flag === "removed") cls.push("gone");
     if (WS.ring === x.id) cls.push("focusring");
-    const closable = !opts.noClose && x.kind !== "home";
+    const closable = !opts.noClose && x.kind !== "home" && !io;
     const label = title(x);
-    return `<span class="tw${opts.head ? " head-w" : ""}${!opts.head && !opts.fixed && !opts.icon ? " rt" : ""}"><button type="button" class="${cls.join(" ")}" role="tab" aria-selected="${sel}" data-act="${opts.head ? "head" : "tab"}" data-p="${p.id}" data-t="${x.id}" title="${esc(label)}${x.pinned ? "" : ""}"${opts.icon ? ` aria-label="${esc(label)}"` : ""}>${ic(glyph(x))}<span class="t">${esc(label)}</span>${x.flag === "fail" ? '<span class="warn" aria-hidden="true"></span>' : ""}</button>${closable && !opts.head ? `<button type="button" class="x" data-act="close" data-p="${p.id}" data-t="${x.id}" aria-label="${esc(t("closeTab"))} · ${esc(label)}">${ic("x")}</button>` : ""}</span>`;
+    const badge = x.plug === "tasks" ? `<span class="badge" aria-hidden="true">${TASKS_OPEN}</span>` : "";
+    return `<span class="tw${opts.head ? " head-w" : ""}${!opts.head && !opts.fixed && !io ? " rt" : ""}"><button type="button" class="${cls.join(" ")}" role="tab" aria-selected="${sel}" data-act="${opts.head ? "head" : "tab"}" data-p="${p.id}" data-t="${x.id}"${io ? ` aria-label="${esc(label)}${x.plug === "tasks" ? ` · ${esc(t("tasksOpen", TASKS_OPEN))}` : ""}"` : ` title="${esc(label)}"`}>${ic(glyph(x))}<span class="t">${esc(label)}</span>${badge}${x.flag === "fail" ? '<span class="warn" aria-hidden="true"></span>' : ""}</button>${closable && !opts.head ? `<button type="button" class="x" data-act="close" data-p="${p.id}" data-t="${x.id}" aria-label="${esc(t("closeTab"))} · ${esc(label)}">${ic("x")}</button>` : ""}</span>`;
   }
-  function leadTabs(p, iconHome) {
-    const home = p.tabs.find((x) => x.kind === "home");
+  function leadTabs(p) {
     const pins = p.tabs.filter((x) => x.pinned);
-    return (home ? tabEl(p, home, iconHome ? { icon: true, noClose: true } : { fixed: true, noClose: true }) : "") + pins.map((x) => tabEl(p, x, { icon: true, noClose: true })).join("") + (pins.length ? '<span class="pindiv" aria-hidden="true"></span>' : "");
+    return pins.map((x) => tabEl(p, x, { icon: true, noClose: true })).join("") + (pins.length ? '<span class="pindiv" aria-hidden="true"></span>' : "");
   }
   function groupUnit(p, u, mode) {
     const g = u.gid && p.groups[u.gid];
@@ -122,6 +128,8 @@
     const isCur = unitHasCur(p, u);
     const items = u.tabs.filter((x) => x.kind !== "plugin");
     const headTab = u.tabs.find((x) => x.kind === "plugin");
+    // On the right a plugin with no records open is a plain glyph: no wash, so the row reads as one calm set of glyphs.
+    if (p.side && !compact() && !g.label && !items.length && headTab) return tabEl(p, headTab, { head: true });
     const folded = g.collapsed || (mode === "B" && !isCur && items.length > 0 && !g.open);
     const count = items.length ? (mode === "B" && folded ? `<button type="button" class="count" data-act="count" data-p="${p.id}" data-g="${u.gid}" aria-label="${esc(t("groupOf", items.length))}" aria-haspopup="menu">${items.length}</button>` : folded ? `<span class="count" aria-hidden="true">${items.length}</span>` : "") : "";
     let inner;
@@ -141,7 +149,7 @@
     } else {
       body = units(p).map((u) => groupUnit(p, u, mode)).join("");
     }
-    return { lead: cp ? "" : leadTabs(p, false), body };
+    return { lead: cp ? "" : leadTabs(p), body };
   }
   function stripC(p) {
     const cp = compact();
@@ -152,9 +160,9 @@
       const sel = unitHasCur(p, u);
       const name = g.label ? g.label[S.lang] : pname(g.plug);
       const icon = g.label ? "frame" : P[g.plug].icon;
-      return `<button type="button" class="c-head${g.off ? " off" : ""}" role="tab" aria-selected="${sel}" data-act="chead" data-p="${p.id}" data-g="${u.gid}" style="${hueVars(g.hue)}" title="${esc(name)}"${cp ? ` aria-label="${esc(name)}"` : ""}>${ic(icon)}${cp ? "" : `<span>${esc(name)}</span>`}${items && !cp ? `<span class="count">${items}</span>` : ""}${u.tabs.some((x) => x.flag === "fail") ? '<span class="warn" aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:var(--amber)"></span>' : ""}</button>`;
+      return `<button type="button" class="c-head${g.off ? " off" : ""}" role="tab" aria-selected="${sel}" data-act="chead" data-p="${p.id}" data-g="${u.gid}" style="${hueVars(g.hue)}" title="${esc(name)}"${cp ? ` aria-label="${esc(name)}"` : ""}>${ic(icon)}${cp || p.side ? "" : `<span>${esc(name)}</span>`}${items && !cp && !p.side ? `<span class="count">${items}</span>` : ""}${u.tabs.some((x) => x.flag === "fail") ? '<span class="warn" aria-hidden="true" style="width:6px;height:6px;border-radius:50%;background:var(--amber)"></span>' : ""}</button>`;
     }).join("");
-    return { lead: cp ? leadTabs({ ...p, tabs: p.tabs.filter((x) => !x.pinned) }, true) : leadTabs(p, false), body: heads };
+    return { lead: cp ? "" : leadTabs(p), body: heads };
   }
   function subtabs(p) {
     const u = units(p).find((x) => unitHasCur(p, x));
@@ -166,7 +174,13 @@
     const list = (headTab ? tabEl(p, headTab, { fixed: true, head: true }).replace(`<span class="t">${esc(title(headTab))}</span>`, `<span class="t">${esc(S.lang === "zh" ? "列表" : "List")}</span>`) : "") + items.map((x) => tabEl(p, x)).join("");
     return `<div class="subtabs" role="tablist" aria-label="${esc(g.label ? g.label[S.lang] : pname(g.plug))}" style="${hueVars(g.hue)}">${list}</div>`;
   }
-  function strip(p, first) {
+  function railAndTools() {
+    if (compact()) return "";
+    const side = paneById("s"), shown = visiblePanes().includes(side);
+    const rail = side && !shown ? `<span class="rail" role="tablist" aria-label="${esc(t("winSide"))}">${side.tabs.map((x) => tabEl(side, x, { head: x.kind === "plugin", icon: true, noClose: true }).replace(/data-act="(head|tab)"/, 'data-act="rail"').replace('aria-selected="true"', 'aria-selected="false"')).join("")}</span>` : "";
+    return `${rail}<span class="wintools"><span class="tdiv" aria-hidden="true"></span><button type="button" data-act="pane-menu" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(t("panes"))}" title="${esc(t("panes"))}">${ic("columns")}</button><button type="button" data-act="side-toggle" aria-pressed="${WS.sideOpen}" aria-label="${esc(WS.sideOpen ? t("hideSide") : t("showSide"))}" title="${esc(WS.sideOpen ? t("hideSide") : t("showSide"))} ⌘\\">${ic("sidebar")}</button></span>`;
+  }
+  function strip(p, first, last) {
     const vis = visiblePanes();
     const isFocus = focused() === p;
     const parts = S.scheme === "C" ? stripC(p) : stripAB(p, S.scheme, first);
@@ -176,11 +190,12 @@
     const hist = first ? `<span class="hist"><button type="button" aria-label="${esc(t("back"))}" title="${esc(t("back"))}">${ic("back")}</button><button type="button" aria-label="${esc(t("forward"))}" title="${esc(t("forward"))}">${ic("arrow")}</button></span>` : "";
     const undo = WS.undo && !p.side ? `<button type="button" class="undo" data-act="undo" style="${hueVars(P[WS.undo.plug].hue)}">${ic("undo")}<span>${esc(t("undoClose", pname(WS.undo.plug)))}</span></button>` : "";
     const solo = WS.solo === p.id ? `<button type="button" class="solochip" data-act="unsolo">${ic("maximize")}<span>${esc(t("soloChip"))}</span></button>` : "";
-    const more = `<button type="button" class="more" data-act="more" data-p="${p.id}" aria-haspopup="menu" aria-expanded="false" hidden>${ic("rows")}<span>${esc(t("more"))}</span><span class="n">${p.tabs.length}</span></button>`;
+    const more = `<button type="button" class="more" data-act="more" data-p="${p.id}" aria-haspopup="menu" aria-expanded="false" hidden>${ic("rows")}<span>${esc(t("more"))}</span><span class="n">${p.tabs.filter((x) => x.kind !== "home").length}</span></button>`;
     const personal = first && S.home === "2" && !compact() ? personalTray() : "";
-    const status = !p.side && first && !compact() && S.scene !== "split" ? `<span class="tbstatus">${personal}${K.renderButton({ label: `${t("bgTasks")} 1`, icon: "activity", variant: "ghost", size: "sm" })}</span>` : (personal ? `<span class="tbstatus">${personal}</span>` : "");
-    const tools = `<span class="tools">${more}<button type="button" data-act="plus" data-p="${p.id}" aria-label="${esc(t("open"))}" title="${esc(t("open"))}" aria-haspopup="menu">${ic("plus")}</button>${p.side ? `<button type="button" class="split-btn" data-act="hide-side" aria-label="${esc(t("hideSide"))}" title="${esc(t("hideSide"))} ⌘\\">${ic("sidebar")}</button>` : `<button type="button" class="split-btn" data-act="pane-menu" data-p="${p.id}" aria-label="${esc(t("panes"))}" title="${esc(t("panes"))}" aria-haspopup="menu">${ic("columns")}</button>`}</span>`;
-    return `<div class="strip${isFocus ? " focus" : ""}" data-p="${p.id}">${hist}${winsel}<div class="lead">${lead}</div><div class="tabs" role="tablist" aria-label="${esc(where(p))}">${parts.body}</div>${undo}${solo}${tools}${status}</div>`;
+    const status = personal ? `<span class="tbstatus">${personal}</span>` : "";
+    // Pane settings live once, in the bar; the strip keeps only what opens into this pane.
+    const tools = `<span class="tools">${more}<button type="button" data-act="plus" data-p="${p.id}" aria-label="${esc(t("open"))}" title="${esc(t("open"))}" aria-haspopup="menu">${ic("plus")}</button></span>`;
+    return `<div class="strip${isFocus ? " focus" : ""}${p.side ? " side" : ""}" data-p="${p.id}">${hist}${winsel}<div class="lead">${lead}</div><div class="tabs" role="tablist" aria-label="${esc(where(p))}">${parts.body}</div>${undo}${solo}${tools}${status}${last ? railAndTools() : ""}</div>`;
   }
   function personalTray() {
     const list = ["issue", "timer", "reading", ...(S.state === "fail" ? ["receipts"] : [])];
@@ -210,6 +225,8 @@
           <div class="bubble"><div class="who">${L2("周敏", "Zhou Min")}</div>${L2("法务那边已经回了，Inbox 里有。", "Legal replied, it's in Inbox.")}</div></div>`;
         case "shelf": return `<div class="stage"><div class="phead"><div class="grow"><h1>Shelf</h1><p>${L2("随手放的引用和片段。", "Quotes and clips you set aside.")}</p></div></div><div class="rows">${[[L2("品牌指南 2026.pdf · 第 3 页", "Brand guide 2026.pdf · p. 3"), "file"], [L2("竞品首屏截图 ×4", "Competitor first screens ×4"), "image"], [L2("「一句主张，一个按钮」", "“One claim, one button”"), "text"]].map(([n, i]) => `<div class="row">${ic(i)}<span class="nm"><strong>${esc(n)}</strong></span></div>`).join("")}</div></div>`;
         case "materials": return `<div class="stage"><div class="phead"><div class="grow"><h1>${esc(pname("materials"))}</h1><p>${L2("参考 2 个文件夹 · 输出到 website", "2 reference folders · output to website")}</p></div></div><div class="rows">${["品牌指南 2026.pdf", "index.tsx", "访谈记录.md", "hero.png"].map((n) => `<div class="row">${ic(n.endsWith(".pdf") || n.endsWith(".md") ? "file" : n.endsWith(".png") ? "image" : "code")}<span class="nm"><strong>${esc(n)}</strong></span></div>`).join("")}</div></div>`;
+        case "lingguang": return `<div class="stage"><div class="phead"><div class="grow"><h1>${esc(pname("lingguang"))}</h1><p>${L2("随手记下的想法，之后再放进事项。", "Ideas jotted down, to file into work later.")}</p></div>${K.renderButton({ label: L2("记一条", "Jot one"), icon: "plus", variant: "primary", size: "sm" })}</div><div class="rows">${[L2("首屏可以放一段 6 秒的产品动图", "A 6-second product loop on the first screen"), L2("访谈里「散落」这个词可以直接用", "Use “scattered” straight from the interviews")].map((n) => `<div class="row">${ic("idea")}<span class="nm"><strong>${esc(n)}</strong></span></div>`).join("")}</div></div>`;
+        case "tasks": return `<div class="stage"><div class="phead"><div class="grow"><h1>${esc(pname("tasks"))}</h1><p>${L2("助理和插件在后台做的事，做完、要你定的都在这里。", "What the Assistant and plugins do in the background; finished and waiting ones stay here.")}</p></div></div><div class="rows">${[["running", L2("修首屏布局", "Fix the first-screen layout"), L2("Coding · 正在改 Hero.tsx", "Coding · editing Hero.tsx")], ["answer", L2("整理三位访谈的原话", "Pull quotes from three interviews"), L2("助理 · 等你选用哪几句", "Assistant · waits for you to pick quotes")], ["done", L2("核对字体授权", "Check the font licences"), L2("助理 · 10:42 完成", "Assistant · done at 10:42")]].map(([st, n, f]) => `<div class="row">${ring(st)}<span class="nm"><strong>${esc(n)}</strong><span class="fact">${esc(f)}</span></span></div>`).join("")}</div></div>`;
         case "timer": return `<div class="stage"><div class="phead"><div class="grow"><h1>${esc(pname("timer"))}</h1><p>${L2("个人插件 · 在所有项目里都是同一份。", "Personal plugin · the same one in every project.")}</p></div>${K.renderButton({ label: L2("开始", "Start"), icon: "play", variant: "primary", size: "sm" })}</div><div class="card"><div class="timer">24:10</div><p>${L2("今天第 3 个番茄 · 正在做「修首屏布局」", "3rd focus block today · on “Fix the first-screen layout”")}</p></div></div>`;
         case "reading": return `<div class="stage"><div class="phead"><div class="grow"><h1>${esc(pname("reading"))}</h1></div></div><div class="rows">${[L2("《设计中的设计》· 摘 3 条", "Designing Design · 3 notes"), L2("《写给大家看的设计书》· 摘 5 条", "The Non-Designer's Design Book · 5 notes")].map((n) => `<div class="row">${ic("bookmark")}<span class="nm"><strong>${esc(n)}</strong></span></div>`).join("")}</div></div>`;
         default: return listPage(x.plug, "", [], P[x.plug].icon);
@@ -232,14 +249,15 @@
     const f = focused(), vis = visiblePanes();
     const fp = curTab(f)?.plug;
     const mains = vis;
-    const chips = mains.length > 1 ? `<span class="chips">${mains.map((p) => { const x = curTab(p); return `<span class="chip${p === f ? " cur" : ""}">${ic(glyph(x))}${esc(x.kind === "record" ? pname(x.plug) : title(x))}</span>`; }).join("")}</span>` : `<span class="nm">${esc(fp === "home" ? t("projectHome") : pname(fp))}</span>`;
+    // The switcher is its glyph alone: the strip above already names what each pane shows.
+    const now = mains.map((p) => { const x = curTab(p); return x.kind === "home" ? t("projectHome") : pname(x.plug); }).join(" · ");
     const pins = ["goals", "pages", "coding", "feed", ...(S.home === "1" && (S.scene === "personal" || S.state === "fail") ? ["timer"] : [])];
     const dock = (plug) => `<button type="button" class="dock${WS.pressed === plug ? " pressed" : ""}" data-act="dock" data-plug="${plug}" aria-label="${esc(pname(plug))}" title="${esc(pname(plug))}"${fp === plug ? ' aria-current="page"' : ""}>${ic(P[plug].icon)}</button>`;
     return `<div class="bar">
-      <div class="tray"><button type="button" class="switcher" data-act="switcher" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(S.lang === "zh" ? "切换插件" : "Switch plugin")}">${ic("grid")}${chips}<span class="chev">${ic("chevron-up")}</span></button>
+      <div class="tray"><button type="button" class="dock switcher" data-act="switcher" aria-haspopup="menu" aria-expanded="false" aria-label="${esc((S.lang === "zh" ? "切换插件 · 现在：" : "Switch plugin · now: ") + now)}" title="${esc(S.lang === "zh" ? "切换插件" : "Switch plugin")} ⌘K">${ic("grid")}</button><span class="bdiv" aria-hidden="true"></span>
         <button type="button" class="dock" data-act="dock" data-plug="home" aria-label="${esc(t("projectHome"))}" title="${esc(t("projectHome"))}"${fp === "home" ? ' aria-current="page"' : ""}>${ic("home")}</button>${compact() ? `<button type="button" class="dock fold" aria-label="+${pins.length}">+${pins.length}</button>` : pins.map(dock).join("")}</div>
       <div class="composer"><span class="ph">${esc(t("composer"))}</span><button type="button" class="send" aria-label="${esc(t("send"))}">${ic("send")}</button></div>
-      <div class="tray">${["shelf", "lingguang", "talk"].map((x) => `<button type="button" class="dock" data-act="resident" data-plug="${x}" aria-label="${esc(pname(x))}" title="${esc(pname(x))}">${ic(P[x].icon)}</button>`).join("")}${compact() ? "" : `<button type="button" class="dock" data-act="side-toggle" aria-pressed="${WS.sideOpen}" aria-label="${esc(WS.sideOpen ? t("hideSide") : t("showSide"))}" title="${esc(WS.sideOpen ? t("hideSide") : t("showSide"))} ⌘\\"${WS.sideOpen ? ' aria-current="true"' : ""}>${ic("sidebar")}</button>`}<button type="button" class="mono" aria-label="${esc(t("project"))}">${S.lang === "zh" ? "网" : "W"}</button></div>
+      <button type="button" class="mono" aria-label="${esc(t("project"))}" title="${esc(t("project"))}">${S.lang === "zh" ? "网" : "W"}</button>
     </div>`;
   }
 
@@ -263,7 +281,7 @@
     const vis = visiblePanes(), f = focused();
     const app = document.getElementById("app");
     app.style.setProperty("--cols", cols());
-    app.innerHTML = `<div class="titlebar">${vis.map((p, i) => strip(p, i === 0)).join('<span class="gap" aria-hidden="true"></span>')}</div>
+    app.innerHTML = `<div class="titlebar">${vis.map((p, i) => strip(p, i === 0, i === vis.length - 1)).join('<span class="gap" aria-hidden="true"></span>')}</div>
       <div class="desk">${vis.map((p) => `<section class="pane${p === f ? " focus" : ""}${p.side ? " side" : ""}${opts.arrive === p.id ? " arrive" : ""}" data-p="${p.id}" aria-label="${esc(where(p))}">${S.scheme === "C" ? subtabs(p) : ""}<div class="body">${page(p, curTab(p))}</div></section>`).join('<span class="gap" aria-hidden="true"></span>')}</div>
       ${bar()}`;
     // Overflow: the list of every tab appears only where the strip cannot show them all (always on a phone).
@@ -294,6 +312,7 @@
     ex.toggleAttribute("data-hide", !S.explain);
     save();
     if (q.get("menu") && !opened) { opened = true; setTimeout(() => openFromQuery(q.get("menu")), 60); }
+    if (q.get("hover")) document.querySelector(`.tab.icon[data-t="${q.get("hover")}"]`)?.classList.add("grow");
   }
   let opened = false;
   function fill(id, opts, cur, enabled = true) { const el = document.getElementById(id); el.innerHTML = opts.map(([v, l]) => `<option value="${v}"${v === cur ? " selected" : ""}>${esc(l)}</option>`).join(""); el.disabled = !enabled; }
@@ -340,7 +359,7 @@
   function paneMenu(anchor, paneId) {
     const p = paneById(paneId), x = curTab(p), mains = WS.panes.filter((y) => !y.side);
     const vis = visiblePanes();
-    openPop(anchor, `<span class="head">${esc(t("paneMenu"))}</span>
+    openPop(anchor, `<span class="head">${esc(t("paneMenuOf", paneName(p)))}</span>
       ${item(t("splitRight"), "columns", "m-split", { p: paneId })}${item(t("splitDown"), "rows", "m-split", { p: paneId, dir: "down" }, { disabled: true })}<hr>
       ${item(p.side ? t("moveMain") : t("moveRight"), "arrow", "m-move", { p: paneId, t: x.id }, { disabled: x.kind === "home" })}
       ${item(WS.solo ? t("unsolo") : t("solo"), "maximize", "m-solo", { p: paneId }, { shortcut: "⌘⇧↵", disabled: vis.length < 2 && !WS.solo })}
@@ -348,7 +367,7 @@
       ${item(WS.sideOpen ? t("hideSide") : t("showSide"), "sidebar", "side-toggle", {}, { shortcut: "⌘\\" })}
       ${item(t("equal"), "grid", "noop", {}, { disabled: vis.length < 2 })}
       ${item(t("closePane"), "x", "m-closepane", { p: paneId }, { disabled: mains.length < 2 })}
-      ${vis.length > 1 ? `<hr>${cap(t("focusCap"))}${vis.map((y) => K.renderMenuItem({ label: `${where(y)} · ${title(curTab(y))}`, checked: y === focused(), attrs: { "data-act": "win", "data-p": y.id } })).join("")}` : ""}`, { label: t("paneMenu") });
+      ${vis.length > 1 ? `<hr>${cap(t("focusCap"))}${vis.map((y) => K.renderMenuItem({ label: `${paneName(y)} · ${title(curTab(y))}`, checked: y === focused(), attrs: { "data-act": "win", "data-p": y.id } })).join("")}` : ""}`, { label: t("paneMenu") });
   }
   function tabMenu(anchor, paneId, tabId) {
     const p = paneById(paneId), x = tabOf(p, tabId);
@@ -374,7 +393,7 @@
   }
   function moreMenu(anchor, paneId) {
     const p = paneById(paneId);
-    const lead = p.tabs.filter((x) => x.kind === "home" || x.pinned);
+    const lead = p.tabs.filter((x) => x.pinned);
     const groups = units(p).map((u) => { const g = u.gid && p.groups[u.gid]; return (g ? cap(`${g.label ? g.label[S.lang] : pname(g.plug)} · ${t("groupOf", u.tabs.length)}`) : "") + listRows(p, u.tabs); }).join("");
     openPop(anchor, `<label class="find">${ic("search")}<input type="text" placeholder="${esc(t("moreFind"))}" aria-label="${esc(t("moreFind"))}" data-act="filter"></label>${listRows(p, lead)}${groups}`, { label: t("more"), wide: true });
   }
@@ -393,7 +412,7 @@
   }
   function openFromQuery(m) {
     const f = focused();
-    const sel = { plus: `.strip[data-p="${f.id}"] [data-act="plus"]`, pane: `.strip[data-p="${f.id}"] [data-act="pane-menu"]`, more: `.strip[data-p="${f.id}"] [data-act="more"]`, switcher: '[data-act="switcher"]', tab: `.strip[data-p="${f.id}"] .tab[aria-selected="true"]`, count: `.strip[data-p="${f.id}"] [data-act="count"]` }[m];
+    const sel = { plus: `.strip[data-p="${f.id}"] [data-act="plus"]`, pane: '.wintools [data-act="pane-menu"]', more: `.strip[data-p="${f.id}"] [data-act="more"]`, switcher: '[data-act="switcher"]', tab: `.strip[data-p="${f.id}"] .tab[aria-selected="true"]`, count: `.strip[data-p="${f.id}"] [data-act="count"]` }[m];
     const el = sel && document.querySelector(sel);
     if (!el) return;
     if (m === "tab") { const x = curTab(f); return x.kind === "plugin" ? groupMenu(el, f.id, x.group) : tabMenu(el, f.id, x.id); }
@@ -447,7 +466,7 @@
     }
     let target = beside ? besidePane(paneId || focused().id) : paneById(paneId || focused().id);
     if (from === "resident") { target = paneById("s"); WS.sideOpen = true; WS.solo = null; }
-    if (plug === "home") { const h = target.tabs.find((x) => x.kind === "home"); if (h) target.cur = h.id; }
+    if (plug === "home") { if (target.side) target = visiblePanes().find((y) => !y.side) || paneById("m1"); let h = target.tabs.find((x) => x.kind === "home"); if (!h) { h = homeTab(); target.tabs.unshift(h); } target.cur = h.id; }
     else if (P[plug].hue) { ensureHead(target, plug); target.cur = "h-" + plug; if (plug === "receipts") tabOf(target, "h-receipts").flag = "fail"; }
     WS.focus = target.id; WS.ring = null;
     if (beside) toast(t("openedBeside", where(target)));
@@ -461,6 +480,23 @@
     const el = document.createElement("div"); el.className = "mw-toast"; el.setAttribute("role", "status"); el.textContent = msg;
     document.body.appendChild(el); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 3200);
   }
+
+  // Hover intent: a glyph-only tab grows after a short rest, so sweeping across the row does not set it rippling.
+  let growTimer = 0;
+  document.addEventListener("pointerover", (e) => {
+    const b = e.target.closest(".tab.icon");
+    if (!b || b.classList.contains("grow")) return;
+    clearTimeout(growTimer);
+    const was = document.querySelector(".tab.icon.grow");
+    growTimer = setTimeout(() => { document.querySelectorAll(".tab.icon.grow").forEach((x) => x.classList.remove("grow")); b.classList.add("grow"); }, was ? 0 : 140);
+  });
+  document.addEventListener("pointerout", (e) => {
+    const b = e.target.closest(".tab.icon");
+    if (!b || b.contains(e.relatedTarget)) return;
+    clearTimeout(growTimer);
+    if (!e.relatedTarget?.closest?.(".tab.icon")) b.classList.remove("grow");
+  });
+  document.addEventListener("focusin", (e) => { const b = e.target.closest?.(".tab.icon"); document.querySelectorAll(".tab.icon.grow").forEach((x) => x !== b && x.classList.remove("grow")); if (b?.matches(":focus-visible")) b.classList.add("grow"); });
 
   // ---------- events ----------
   document.addEventListener("click", (e) => {
@@ -484,7 +520,7 @@
       case "close": { e.stopPropagation(); closePop(false); const pp = paneById(d.p), x = tabOf(pp, d.t); if (x.kind === "plugin") closeGroup(d.p, x.group); else { pp.tabs = pp.tabs.filter((y) => y.id !== d.t); if (pp.cur === d.t) pp.cur = (pp.tabs.find((y) => y.group && y.group === x.group) || pp.tabs[pp.tabs.length - 1])?.id; } break; }
       case "undo": if (WS.undo) { const pp = paneById(WS.undo.pane || "m1"); pp.tabs.push(...WS.undo.tabs); pp.groups["p:" + WS.undo.plug] = WS.undo.g || { plug: WS.undo.plug, hue: P[WS.undo.plug].hue }; pp.cur = WS.undo.tabs[1]?.id || WS.undo.tabs[0].id; WS.focus = pp.id; toast(t("reopened", pname(WS.undo.plug))); WS.undo = null; } closePop(false); break;
       case "plus": e.stopPropagation(); return plusMenu(b, d.p);
-      case "pane-menu": e.stopPropagation(); return paneMenu(b, d.p);
+      case "pane-menu": e.stopPropagation(); return paneMenu(b, focused().id);
       case "more": e.stopPropagation(); return moreMenu(b, d.p);
       case "switcher": e.stopPropagation(); return switcherMenu(b);
       case "hide-side": WS.sideOpen = false; if (focused().side) WS.focus = "m1"; break;
@@ -493,6 +529,7 @@
       case "win": closePop(false); WS.focus = d.p; WS.ring = null; break;
       case "dock": closePop(false); return openPlug(d.plug, { from: "dock" });
       case "resident": closePop(false); return openPlug(d.plug, { from: "resident" });
+      case "rail": { closePop(false); const sp = paneById("s"); WS.sideOpen = true; WS.solo = null; sp.cur = d.t; WS.focus = "s"; return render({ arrive: "s" }); }
       case "m-open": closePop(false); return openPlug(d.plug, { paneId: d.p, beside: e.altKey });
       case "m-beside": e.stopPropagation(); closePop(false); return openPlug(d.plug, { beside: true });
       case "m-split": { closePop(false); const src = paneById(d.p), x = curTab(src); const id = "m" + (WS.panes.filter((y) => !y.side).length + 1); const np = pane(id, false, [{ ...x, id: x.id + "-2" }], x.id + "-2"); if (x.group?.startsWith("p:") && x.kind !== "plugin") { np.tabs.unshift(head(x.plug)); np.groups["p:" + x.plug] = { plug: x.plug, hue: P[x.plug].hue }; } WS.panes.splice(WS.panes.indexOf(src) + 1, 0, np); WS.focus = id; WS.solo = null; return render({ arrive: id }); }

@@ -76,6 +76,33 @@ svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:
 .tab.fixed{min-width:0;padding:0 10px;max-width:none}            /* home and plugin tabs keep their names */
 .tab.icon{min-width:0;width:30px;padding:0;justify-content:center} /* pinned and phone home */
 .tab.icon>span.t{display:none}
+/* Open-task count on the background-tasks glyph (right side) and on the bar's side toggle while the side is hidden. */
+.tab,.dock{position:relative}
+.badge{position:absolute;top:0;right:0;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--action);color:var(--action-ink);
+  font-size:10px;font-weight:600;line-height:14px;text-align:center;font-variant-numeric:tabular-nums;pointer-events:none}
+.dock .badge{top:3px;right:3px}
+/* Glyph-only tabs (right side, pinned, rail) grow in place after a short rest or on keyboard focus: the tab widens to show
+   its name. The width changes at once and only the name fades in (motion stays on opacity). On the right, and in the
+   rail, the name sits before the glyph so the tab grows leftward and its glyph stays under the pointer. */
+.tab.icon.grow{width:auto;max-width:200px;padding:0 10px 0 8px;justify-content:flex-start}
+.tab.icon.grow>span.t{display:block;overflow:hidden;text-overflow:ellipsis;animation:grow-in var(--dur-hover) var(--ease-quint) both}
+:is(.strip.side,.rail) .tab.icon.grow{flex-direction:row-reverse;padding:0 8px 0 10px}
+.tab.icon.grow:not([aria-selected=true]){background:var(--nav-hover);color:var(--ink)}
+.grp .tab.icon.grow:not([aria-selected=true]){background:color-mix(in srgb,var(--g) 14%,transparent)}
+@keyframes grow-in{from{opacity:0}to{opacity:1}}
+/* The right side: "+" first, its glyphs pushed to the right edge. */
+.strip.side .tools{order:-1;margin-left:0;margin-right:auto}
+.strip.side .tabs{flex:0 1 auto}
+.strip.side .tabs>:first-child{margin-left:auto}
+.strip.side .more>span:not(.n){display:none}
+/* The window's layout tools, once, at the titlebar's right end; with the right side hidden its glyphs stay there as a rail. */
+.rail{display:flex;align-items:center;gap:4px;flex:none;margin-left:10px}
+.wintools{display:flex;align-items:center;gap:2px;flex:none;margin-left:4px}
+.wintools .tdiv{width:1px;height:16px;margin:0 4px;background:var(--line-strong)}
+.wintools button{width:28px;height:28px;border:0;border-radius:var(--r-control);background:transparent;color:var(--ink-soft);display:grid;place-items:center;transition:background-color var(--dur-hover) var(--ease-quint)}
+.wintools button:hover,.wintools button[aria-expanded=true]{background:var(--nav-hover);color:var(--ink)}
+.wintools button:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
+.wintools button[aria-pressed=true]{color:var(--ink)}
 .pindiv{width:1px;height:16px;background:var(--line-strong);flex:none;margin:0 2px}
 /* A tab in a pane that does not have the focus: where that pane is, without the lift that says "you are here". */
 .strip:not(.focus) .tab[aria-selected=true]{background:var(--nav-active);box-shadow:none;color:var(--ink)}
@@ -211,6 +238,8 @@ button.count:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 .composer{flex:1;max-width:680px;margin:0 auto;min-width:0;display:flex;align-items:center;gap:8px;height:50px;padding:0 8px 0 16px;border-radius:var(--r-composer);background:var(--paper);box-shadow:var(--lift-2)}
 .composer .ph{flex:1;color:var(--faint);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .composer .send{width:34px;height:34px;border-radius:10px;border:0;background:var(--control-fill);display:grid;place-items:center;color:var(--ink-soft);flex:none}
+.dock.switcher{width:38px;max-width:none;padding:0;justify-content:center;gap:0}
+.bdiv{width:1px;height:20px;margin:0 2px;background:var(--line-strong);flex:none}
 .mono{width:40px;height:40px;border-radius:50%;background:var(--hue-steel-fill);color:var(--paper);display:grid;place-items:center;font-size:13px;font-weight:600;border:0;flex:none}
 
 /* ---------- Menus (mw-menu from the board, placed beside their control) ---------- */

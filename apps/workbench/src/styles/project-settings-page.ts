@@ -154,7 +154,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
     :is(body.project-preferences-page, .settings-stage) .settings-navigation--codex .settings-nav-back { align-self: flex-start; margin: 0 0 8px; min-height: 44px; }
     :is(.project-preferences-page, .settings-stage) .settings-project-identity { display: none; }
     :is(body.project-preferences-page, .settings-stage) .settings-navigation--codex .settings-nav-body { display: flex; flex-wrap: wrap; gap: 4px; overflow-x: auto; }
-    :is(body.project-preferences-page, .settings-stage) .settings-navigation--codex .settings-nav-body > a { justify-content: center; flex: 0 0 auto; min-height: 44px; padding: 0 8px; border: 1px solid var(--line-strong); font-size: 12px; white-space: nowrap; }
+    :is(body.project-preferences-page, .settings-stage) .settings-navigation--codex .settings-nav-body > a { flex: none; min-height: 44px; padding: 0 8px; border: 1px solid var(--line-strong); font-size: 12px; white-space: nowrap; }
     :is(body.project-preferences-page, .settings-stage) .settings-navigation--codex .settings-nav-body > a svg { display: none; }
     :is(body.project-preferences-page, .settings-stage) .settings-content { padding: 24px 24px 48px; scrollbar-gutter: auto; }
     :is(.project-preferences-page, .settings-stage) :is(.guidance-page-header, .planning-page-header) { gap: 16px; flex-wrap: wrap; }

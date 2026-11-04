@@ -427,4 +427,4 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     return false;
   };
   return { open, close, handleKeyboard, isBusy, isOpen };
-}`;
+}`.replace(/^[ \t]*\/\/.*\n/gm, "");

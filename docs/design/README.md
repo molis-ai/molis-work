@@ -13,6 +13,7 @@
 | [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26；四项已拍板，视觉待用户验收），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
 | [_catalog/](_catalog/README.md) | 原型共用的组件板实件：生成产品样式表与脚本的 `export.mjs`、按组件板标记画部件的 `parts.js`、原型控制条与「组件板新增」部件的 `prototype.css` | 2026-11-04 起，有界面的原型都从这里取部件，不再拷贝或自写样式 |
 | [runtime-and-recovery/](runtime-and-recovery/README.md) | 第 25、26 批合并定样：后台运行状态、某块暂不可用、更新与回退、安装自检、升级失败与恢复，选定的方案 A 加正常与异常状态 | 用户已定（2026-11-04，五题都选 A）；同日按组件板实件重做，用户已确认；里面是示例数据 |
+| [role-scope/](role-scope/README.md) | 第 36 批：角色作用范围——任务里选角色、项目设置与全局设置的角色、改了保存并使用、版本与恢复，三个方案只差项目里的角色和你的原件是什么关系，正常与异常状态都有 | 三个方案待用户选（2026-11-04，推荐 C）；按组件板实件画，产品未实现；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |
 | [project-arrival-flow/](project-arrival-flow/README.md) | 打开 Molis Work：项目选择页、Welcome 与新建项目引导的高保真设计、可交互原型、状态与深色/窄屏图、三段动效录屏 | 当前的**参考原型**（2026-10-01 用户认可），生产实现见 [specs/archive/project-arrival-flow](../../specs/archive/project-arrival-flow/spec.md)。原型里的项目、材料、整理结果都是示例数据 |
 | [soft-workbench/](soft-workbench/README.md) | 用户认可的 Soft Workbench 高保真原型（首页、目标、信息流、新手引导） | 当前视觉语言的**参考原型**；已按 [specs/archive/soft-workbench-rollout](../../specs/archive/soft-workbench-rollout/spec.md) 落到生产。原型里的数据、AI 回复和 localStorage 都是演示 |

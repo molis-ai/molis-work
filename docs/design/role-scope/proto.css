@@ -1,0 +1,83 @@
+/* 36 · arranging the catalog's parts for the role-scope views ([编排]). The product frames and controls come from
+   ../_catalog/dist/arrival.css and settings.css; approved parts the catalog lacks, and the prototype strip, from
+   ../_catalog/prototype.css. Nothing here defines a new look. Tokens only. */
+
+/* [原型] the settings sheet lays out body > header + shell; the prototype's #app wrapper takes that grid instead */
+body.proto-on.settings-page { display: block; padding-top: 40px; box-sizing: border-box; }
+body.proto-on.settings-page #app { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+
+/* [编排] shared with 04 and 25/26: a row of buttons, the workbench page's own scroll and head, facts at a row's end */
+.q-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mw-alert .q-row { margin-top: 8px; }
+.q-known .mw-dir-row__icon { background: none; }
+.land-scroll { height: 100%; overflow: auto; padding: 32px 24px 48px; }
+.land-scroll .mw-brief { max-width: 720px; margin-inline: auto; }
+.land-head { display: flex; align-items: center; gap: 16px; }
+.land-head :is(.project-monogram, .mw-avatar) { width: 48px; height: 48px; border-radius: 50%; font-size: 18px; }
+.land-head .mw-avatar svg { width: 20px; height: 20px; }
+.land-head .mw-brief__title { margin: 0; }
+.mw-brief__list .mw-dir-row--meta { grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.mw-brief__list .mw-dir-row__icon { display: grid; place-items: center; width: 32px; height: 32px; margin: 0; background: none; }
+.mw-brief > .mw-alert { margin-top: 16px; }
+.rr-fact { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mw-avatar svg { width: 14px; height: 14px; }
+
+/* [编排] the Assistant's role chooser: the product's popover and rows, each row led by the role's mark, its source at the end */
+.rs-island { position: relative; }
+.rs-pop { width: min(400px, calc(100vw - 32px)); }
+.rs-pop .mw-alert { margin: 0 4px 6px; }
+.rs-starter { display: flex; align-items: center; gap: 10px; }
+.rs-starter .mw-avatar { flex: none; width: 28px; height: 28px; font-size: 12px; }
+.rs-starter:disabled .mw-avatar { opacity: .5; }
+.rs-starter__copy { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 2px; overflow: hidden; }
+.rs-starter__copy strong { flex: none; }
+.rs-starter__copy .assistant-material-origin { overflow: hidden; text-overflow: ellipsis; }
+.rs-starter .mw-badge { flex: none; }
+.rs-self, .rs-me { background: var(--accent-soft); color: var(--accent-strong); }
+.rs-pop-foot { display: grid; gap: 8px; margin-top: 4px; padding: 10px 8px 4px; border-top: 1px solid var(--line); }
+.rs-pop-foot p { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; }
+.rs-pop-foot p svg { flex: none; width: 13px; height: 13px; }
+
+/* [编排] settings: a section's title with its actions on the right; member rows; the source ladder under the default */
+.rs-sec-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.rs-sec-head h2 { margin-right: auto; }
+.rs-sec-head > :not(h2) { display: inline-flex; align-items: center; gap: 8px; }
+.rs-hint { margin: 4px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.settings-section > .mw-alert { margin: 12px 0; }
+.settings-document > .mw-alert { margin-bottom: 16px; }
+.rs-member .settings-record-title { align-items: center; }
+.rs-member .settings-record-title h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
+.rs-member .settings-record-title p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.rs-member .mw-avatar { flex: none; width: 32px; height: 32px; font-size: 13px; }
+.setting-value { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.rs-ladder-row { padding: 4px 0 12px; }
+.rs-field { display: block; }
+.rs-field textarea { width: 100%; min-height: 120px; resize: vertical; line-height: 1.6; }
+.settings-section .mw-check-row { margin: 4px 0 8px; }
+.settings-heading-title .mw-avatar { width: 32px; height: 32px; order: -1; margin-right: 12px; }
+.rs-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 12px; color: var(--muted); font-size: 13px; text-decoration: none; }
+.rs-back:hover { color: var(--ink); }
+.rs-back svg { width: 14px; height: 14px; }
+.rs-savebar { position: sticky; bottom: 0; margin-top: 24px; padding: 12px 0; background: var(--paper); box-shadow: 0 -1px 0 var(--line); }
+.rs-savebar .rs-hint { margin: 0 auto 0 0; }
+.mw-dialog .mw-choice-group { margin-bottom: 12px; }
+.mw-dialog .ob-sources + .ob-note { margin-top: 12px; }
+
+/* [编排] the difference between two versions of a section: side by side, the added text marked */
+.rs-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rs-diff section { padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); }
+.rs-diff h3 { margin: 0 0 6px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control); }
+.rs-diff p { margin: 0; font-size: 13px; line-height: 1.7; }
+.rs-diff mark { padding: 1px 2px; border-radius: 3px; background: var(--green-soft, color-mix(in srgb, var(--green) 18%, transparent)); color: inherit; }
+
+@media (max-width: 759px) {
+  .land-scroll { padding: 20px 16px 40px; }
+  .rs-diff { grid-template-columns: 1fr; }
+  .rs-member { flex-wrap: wrap; }
+}
+.mw-brief__cols.rs-one { grid-template-columns: minmax(0, 1fr); }
+.rs-pop-foot--row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rs-pop-foot--row .mw-btn { flex: none; }
+.mw-dialog .settings-setting-row { padding: 10px 0; }
+.mw-dialog .settings-setting-row + .settings-setting-row { border-top: 1px solid var(--line); }
+.mw-dialog .ob-note { margin-top: 12px; }

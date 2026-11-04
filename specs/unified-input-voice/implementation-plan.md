@@ -1,6 +1,6 @@
 # 统一输入公共组件：第 10 批实施方案与开工前检查
 
-状态：方案待审（2026-11-04，A 轨起草，未写产品代码）；第 3 节的合同交 C 轨看，其余由统筹审；第 8 节四项统筹已定（2026-11-04，[#1791 评论](https://github.com/molis-ai/molis-work/pull/1791)）。原需求是[统一输入体验](spec.md) §2～5 与验收 UIV-01～04、UIV-11～17，定样见 [§10.1](spec.md) 与[原型](../../docs/design/unified-input/README.md)；核账见[第 10 批「本批核账」](../post-anticorruption-roadmap/reference/batches/10.md#batch-10-audit)，现状逐项在[输入框盘点](input-inventory.md)。语音（§6～7、UIV-05～10）在第 53 批，这里只留麦克风的位置。
+状态：方案待审（2026-11-04，A 轨起草，未写产品代码）；第 3 节的合同 C 轨已审、七条意见已改（[#1791 评论](https://github.com/molis-ai/molis-work/pull/1791#issuecomment-6635798469)），其余由统筹审；第 8 节四项统筹已定（2026-11-04，[#1791 评论](https://github.com/molis-ai/molis-work/pull/1791)）。原需求是[统一输入体验](spec.md) §2～5 与验收 UIV-01～04、UIV-11～17，定样见 [§10.1](spec.md) 与[原型](../../docs/design/unified-input/README.md)；核账见[第 10 批「本批核账」](../post-anticorruption-roadmap/reference/batches/10.md#batch-10-audit)，现状逐项在[输入框盘点](input-inventory.md)。语音（§6～7、UIV-05～10）在第 53 批，这里只留麦克风的位置。
 
 - **类型**：横向能力（公共输入组件与插件扩展）为主；产品线（助理、Coding）。按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)第 1.1 节属**大需求**：跨 C1、D、A、B、E 五处，带一处公开合同与 SDK 扩展、一条新的安全不变量。
 - **决策标记**：用户已定：组件归平台、开放注册（10-27）；键位与送达映射（10-27）；七块定样与 H4（11-04）。统筹已定：两层、键位一起改、创作台、决定理由型、IM 的 Esc（11-04，核账「已定的点」）。统筹已定：第 8 节四项（11-04）。没有要用户再定的界面；第 3.6 节组件板三处新增按已定的样做成标本。
@@ -41,7 +41,7 @@
 
 ### 3.1 两层与挂载方式
 
-组件是一段页面客户端加一个首屏渲染函数，沿用 `molisFit`、`molisDropZone`、`createInputReceipts` 的现行做法：客户端脚本在 `packages/design-system/` 里（与 `INPUT_RECEIPTS_CLIENT_SCRIPT` 同处），由工作台页面与沙箱框架（`apps/workbench/src/plugin-frame.ts`）各装一份，成为 `window.molisComposer`；类型写在 SDK 的 `page-globals.ts`，插件作者只装 contracts 与 SDK 就能用。首屏外壳由 SDK UI 子路径的 `renderComposer()` 输出，避免挂载时布局跳动。
+组件是一段页面客户端加一个首屏渲染函数，沿用 `molisFit`、`molisDropZone`、`createInputReceipts` 的现行做法：客户端脚本在 `packages/design-system/` 里（与 `INPUT_RECEIPTS_CLIENT_SCRIPT` 同处），由工作台页面与沙箱框架（`apps/workbench/src/plugin-frame.ts`）各装一份，成为 `window.molisComposer`；类型写在 SDK 的 `page-globals.ts`，插件作者只装 contracts 与 SDK 就能用。首屏外壳由 SDK UI 子路径的 `renderComposer()` 输出，避免挂载时布局跳动：它是插件作者可用的 `/ui` 导出，实现在 plugin-sdk 自己里面（`packages/plugin-sdk/src/ui/composer.ts`，只拼组件板类名的 HTML 字符串，不依赖 design-system），签名进 API 快照，单独一片 K0c 先落（第 5 节）。
 
 - **编辑器层**（`kind: "plain"` 与 `"ai"` 都有）：多行与长高（`data-fit`，上限后框内滚动）、输入法守卫（`isComposing` 与 keyCode 229 一处实现）、键位、草稿与恢复行、附件条（选、粘贴、拖入；读取中、读完、附不上带原因与移除）、状态行、防连点与 `request_id`、`+` 菜单与 `/`、`@`。
 - **AI 层**（只有 `kind: "ai"`）：接收者行「发给：对象」、送达 split button（补充、打断并改向、下一轮再做）、运行中的停止与暂停、回执（把发送结果交给 `createInputReceipts`）。
@@ -87,32 +87,38 @@ interface ComposerHandle { setRunning(running: boolean): void; refresh(): void; 
 
 ```ts
 // packages/contracts/src/platform/composer.ts（新子路径 ./platform/composer），由 ActionMetadata 引用
+// 一个声明挂在一个动作上，capability_id@version 已经唯一，不另设 source_id
 interface ComposerSourceDeclaration {
-  readonly source_id: string;                 // 本提供方内唯一，1～40 个 [a-z0-9-]
   readonly title: string;                      // 菜单里的名字，翻译同 SearchSourceKind.title
   readonly subject_kinds: readonly string[];   // 返回的对象种类，必须是本提供方有对象读取器的种类
-  readonly for: readonly ("ai" | "plain")[];   // 出现在哪一层的输入框
+  readonly layers: readonly ("ai" | "plain")[];   // 出现在哪一层的输入框
 }
 // ActionMetadata 加：readonly composer_source?: ComposerSourceDeclaration;
 export const COMPOSER_PICK_INPUT_TYPE = "molis.composer.pick.query.v1";
 export const COMPOSER_PICK_OUTPUT_TYPE = "molis.composer.pick.items.v1";
+// 平台定死的 schema，声明者的 input_schema／output_schema 必须与之一字不差（同沙箱集成包的 SANDBOX_INTEGRATION_CONTRACT）
+export const COMPOSER_PICK_INPUT_SCHEMA: ActionSchema;   // query 0～200 字，limit 1～50，near 可选
+export const COMPOSER_PICK_OUTPUT_SCHEMA: ActionSchema;  // items 至多 50 项
 interface ComposerPickInput { query: string; limit: number; near?: ActionSubject }   // near：挂载页明确交出的当前对象，可没有
-interface ComposerPickItem { subject: ActionSubject; revision?: string; title: string; hint?: string }
+interface ComposerPickItem { ref: MaterialRef; title: string; hint?: string }        // 插件对象给 pin: { mode: "current", read_revision }
 interface ComposerPickOutput { items: ComposerPickItem[] }
 type ComposerMaterial =
   | { kind: "attachment"; ref: string; title: string }                       // 挂载页 upload 给的句柄，主人是挂载页
-  | { kind: "subject"; subject: ActionSubject; revision?: string; title: string; source: { plugin_id: string; source_id: string } };
+  | { kind: "material"; ref: MaterialRef; title: string;
+      source: { capability_id: string; version: number; provider_id: string } };  // 同 AssistantMaterial.capability，只用于显示
 ```
 
-- **声明检查**（SDK 共用的那份，作者与平台同一套）：`kind: "query"`、`effect: "read"`、`scope: "project"`、`audiences` 含 `user`、`input_type`／`output_type` 是上面两个、`subject_kinds` 都是同一提供方读得了的种类；不合就在 Manifest 解析时拒。
-- **发现**：组件从动作目录读出本项目可见、已授权的 `composer_source`，按提供方分组，写出插件名；宿主与工作台里不写插件 id、不另开名单。
-- **调用**：用户点开分组、打字时才调；走动作网关，身份与项目取自调用上下文，插件拿到的只有 `query`、`limit` 和挂载页明确交出的 `near`。
-- **选中的是引用**：`subject` 加 `revision`，发送时由目标按原主人的对象读取器再读一遍；读不到的在附件条上写原因，**不静默去掉后发送**（UIV-15、需求 §5 末条）。
+- **资料身份用 05② 的 `MaterialRef`**（[共用来源与呈现 §2](../shared-sources-and-surfaces/spec.md)，SSC-01）：选择器、附件条、发送都用同一个引用，不另起写法。合同依赖 05② 的 C-1（`platform/project-materials`）。
+- **声明检查**（SDK 共用的那份，作者与平台同一套）：`inspectActionDeclarations` 里查 `kind: "query"`、`effect: "read"`、`scope` 为 `project` 或 `home`、`audiences` 含 `user`、`input_type`／`output_type` 是上面两个，且 `input_schema`／`output_schema` 与平台的两份一字不差（不然提供方能在同名类型下把输入放宽、多收字段，S-109 第 1 条就靠不住）。「`subject_kinds` 都是同一提供方读得了的种类」是同一次注册里的交叉引用，放在 `inspectActionCrossReferences`，与 `search_source` 的 kinds 用同一套对象读取器判定。不合就在 Manifest 解析时拒。
+- **发现**：组件从动作目录读出当前范围可见、已授权的 `composer_source`，按提供方分组，写出插件名；宿主与工作台里不写插件 id、不另开名单。
+- **调用**：用户点开分组、打字时才调；走动作网关，身份、项目与可达范围（Home 级插件的 `project_reach`）取自调用上下文，插件拿到的只有 `query`、`limit` 和挂载页明确交出的 `near`。个人助理不在项目里时，只列 `scope: "home"` 的来源。
+- **选中的是引用**：`MaterialRef` 带 `pin`，发送时由目标按原主人的对象读取器再读一遍；读不到的在附件条上写原因，**不静默去掉后发送**（UIV-15、需求 §5 末条）。
+- **到助理的对应**（K3）：`material` 一支变成 `AssistantMaterial` 的 `{ kind: "object", reference: { subject }, object: { kind, id, version: pin.read_revision, title }, explicit: true }`，`source` 照搬进 `capability` 只作显示；`attachment` 一支照助理现有的文件与图片上传。宿主照旧按主人再核。
 - 第一版不开放跨插件的 `/` 命令与 `@`：`@` 继续走系统搜索（`search_source`），`/` 列本页的 `commands` 和助理已有的能力与方法。以后真有插件要往别人的 `/` 里加命令，再按同一写法加一种角色，不在本批。
 
 ### 3.4 草稿放在哪（统筹已定，第 8 节第 1 项）
 
-**平台草稿存在本机浏览器存储**（`localStorage`，桌面壳的 WebView 跨重启保留），键由组件拼成 `mw.composer.draft:<project_id>:<install_id>:<entry>:<conversation>`，其中项目与安装取自页面上下文，插件只给 `entry` 和 `conversation`。键名不带版本：现在不留版本兼容，以后形状要变按 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md) 走，不读旧键。草稿本身是主人事实的入口（助理按工作存在宿主）用 `draft.adapter`，组件不另存一份。
+**平台草稿存在本机浏览器存储**（`localStorage`，桌面壳的 WebView 跨重启保留），键由组件拼成 `mw.composer.draft:<project_id>:<install_id>:<entry>:<conversation>`，其中项目与安装取自页面上下文，插件只给 `entry` 和 `conversation`；不在项目里时（Home 级插件、个人助理的主对话）项目一段固定写 `home`。键名不带版本：现在不留版本兼容，以后形状要变按 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md) 走，不读旧键。草稿本身是主人事实的入口（助理按工作存在宿主）用 `draft.adapter`，组件不另存一份。
 
 - **删项目、卸载插件后不留**：组件启动时按页面上下文里的项目与安装列表，清掉不在其中的键；删除与卸载若有页面事件，也即时清。验收 UIC-10。
 - **存储读写失败**（满了、被禁用）：在状态行就地写明「草稿没能保存在本机」，输入框里的字不动、照常能发；恢复后下一次编辑再写。验收 UIC-11。
@@ -143,7 +149,7 @@ type ComposerMaterial =
 
 **新增 S-109（暂编；第 18 批已暂占 S-108，落地时按表顺延）：输入组件的扩展只拿到本次调用。** 拒绝什么：
 
-1. 来源动作的输入里没有草稿、接收者、别的附件：给 `composer_source` 动作的调用只含 `query`、`limit`、`near`；挂载页没交 `near` 时也没有当前对象。
+1. 来源动作的输入里没有草稿、接收者、别的附件：给 `composer_source` 动作的调用只含 `query`、`limit`、`near`；挂载页没交 `near` 时也没有当前对象；声明的 `input_schema` 与平台定死的那份差一个字（多收字段、放宽长度）就装不上。
 2. 不合规的声明装不上：`composer_source` 声明在非 `query`、非只读、受众不含 `user`、种类不归自己的动作上，Manifest 解析被拒。
 3. 停用、撤权、卸载后不出现、不被调：目录里没有，已打开的菜单再查被拒（`actions.missing` 或撤权码），迟到的结果不进框。
 4. 选中的引用发送时再核对：目标读不到某个 `subject`（不存在、没权限、版本对不上）时这次发送被拦，草稿与选中项都在；不会去掉它再发。
@@ -157,16 +163,17 @@ type ComposerMaterial =
 
 | 片 | 内容 | 谁落 | 前置 | 验收 |
 | --- | --- | --- | --- | --- |
-| K0 合同 | `packages/contracts/src/platform/composer.ts`（新子路径）与 `ActionMetadata.composer_source`；SDK 的声明检查；`page-globals.ts` 里 `molisComposer` 与 3.2 的类型；`pnpm api:update`（动作快照不变：本片没有声明者） | C1，单独的合同 PR，C 轨评审 | 02 交接后 C1 的排期；本方案审过 | UIC-01 API 快照只多这几项；UIC-02 声明检查的拒绝用例（S-109 第 2 条） |
-| K0b 助理送达字段 | `AssistantSendInput` 加 `delivery?: AgentSteerMode`（`packages/contracts/src/services/assistant.ts`，A 的文件） | A，小合同 PR，C 轨评审 | 与 K0 同时或紧随 | UIC-03 快照只多这一项 |
+| K0 合同 | `packages/contracts/src/platform/composer.ts`（新子路径）：`ComposerSourceDeclaration`、两个类型名与两份定死的 schema、`ComposerPick*`、`ComposerMaterial`（对象一支包 `MaterialRef`）；`ActionMetadata.composer_source`；SDK 的声明检查（`inspectActionDeclarations` 比 schema、`inspectActionCrossReferences` 查种类）；`page-globals.ts` 里 `molisComposer` 与 3.2 的类型；`pnpm api:update`（动作快照不变：本片没有声明者）。阶段 1 按 N35 原地改形状，不升版本 | C1，单独的合同 PR，C 轨评审；C 轨排期 | 02 交接；05② C-1（`MaterialRef`）合入，或与它同一片落；本方案审过 | UIC-01 API 快照只多这几项；UIC-02 声明检查的拒绝用例（S-109 第 1、2 条：schema 差一个字、非只读、种类不归自己） |
+| K0b 助理送达字段 | `AssistantSendInput` 加 `delivery?: AgentSteerMode`（`packages/contracts/src/services/assistant.ts`，A 的文件）。不写等于 `next-boundary`（即今天的补充）；只在 `target` 为 `steer`（不写也是 steer）时有意义，与 `target: "answer"` 同时出现、或新开工作（没有 `work_id`）时出现都拒绝；HTTP 入口不认识的取值拒绝，不补成默认 | A，小合同 PR，C 轨评审 | 与 K0 同时或紧随 | UIC-03 API 快照只多这一项；UIC-12 三种拒绝（与 answer 同时、新工作、未知取值）各一条用例 |
+| K0c 首屏渲染 | SDK `/ui` 导出 `renderComposer(options)`（`packages/plugin-sdk/src/ui/composer.ts`，A 独占），只拼 K1 标本的类名，不依赖 design-system；`pnpm api:update`。SDK 算共享核心，按共享核心跑全量 | A，小合同 PR，C 轨评审；`ui.ts` 的导出行 D 评审 | K1 合入（类名定了） | UIC-13 API 快照只多 `renderComposer` 与它的选项类型；输出与 K1 标本的结构一致 |
 | K1 组件板标本 | 3.6 的三处 | D | 本方案审过；可与 K0 并行 | UIC-04 组件板有三节标本，三宽度、中英、深浅截图进 PR；页面资源增长写明字节 |
-| K2 组件 | 3.1～3.5：`packages/design-system/` 里的组件客户端、`renderComposer()`、工作台与沙箱框架装上 `molisComposer`；S-109；两个测试插件（一个注册 `composer_source`，一个用场景控件与提交适配）在临时 Home 里的高保真切片 | A（新建的组件文件归 A 独占，第 8 节第 2 项）；工作台与框架的装配行随这片落 | K0、K1 合入 | UIV-01～04、UIV-11、UIV-14～17（组件层）；VUX-16～18；UIC-05 键位与输入法（含 229）；UIC-06 一次提示只出现一次；UIC-07 挂载代次丢弃迟到结果；UIC-08 不支持的送达方式不可选且不降级；UIC-10 删项目、卸载插件后本机没有它们的草稿键；UIC-11 存储读写失败时就地提示、字不丢 |
+| K2 组件 | 3.1～3.5：`packages/design-system/` 里的组件客户端、工作台与沙箱框架装上 `molisComposer`；S-109；两个测试插件（一个注册 `composer_source`，一个用场景控件与提交适配）在临时 Home 里的高保真切片 | A（新建的组件文件归 A 独占，第 8 节第 2 项）；工作台与框架的装配行随这片落 | K0、K0c、K1 合入 | UIV-01～04、UIV-11、UIV-14～17（组件层）；VUX-16～18；UIC-05 键位与输入法（含 229）；UIC-06 一次提示只出现一次；UIC-07 挂载代次丢弃迟到结果；UIC-08 不支持的送达方式不可选且不降级；UIC-10 删项目、卸载插件后本机没有它们的草稿键；UIC-11 存储读写失败时就地提示、字不丢 |
 | K3 首页与助理（第 11 批，与 K2 一起落） | `assistant-dock.ts` 等换成组件；草稿用助理的宿主适配；送达走 K0b；「发给」行接 03 定样与 PWA-130；`/`、`@` 进统一菜单；删掉被替换的私有实现 | A | K2、K0b 合入 | UIV-12、UIV-17（助理）；UIC-09 打断两步、发出后回到补充 |
 | K4 Coding（第 11 批） | 主任务框与委托框换成组件；送达下拉换成 ▾ 菜单；草稿从 sessionStorage 换到平台草稿；模式选择改为场景控件 | B | K2 合入；可与 K3 并行 | UIV-12、UIV-13（场景控件与提交适配）、UIV-17（Coding） |
 | K5 一个真实来源（第 11 批） | 一个 E 轨插件（推荐 Todo：对象有读取器、量小）声明 `composer_source` | E | K2 合入 | UIV-13（第二个插件，注册来源）；UIV-14 拒绝用例 |
 | K6 其余入口 | 对 AI 说话的：IM、灵光、创作台、Shelf 终端行、7 个表单字段；决定理由型：评审反馈、Jelly 指令、Goals 退回（只编辑器层）；Issues、Pages 评论（plain 层，附件条以 Issues 为参照） | E（创作台、IM 等各插件），B（Coding 委托以外的 Coding 一族） | K3、K4 合入；排在第 11 批之后、第 16 批 C 段窗口之前（第 8 节第 3 项） | UIV-01（全部入口键位一致）；核账「已定的点」第 2、4、5 条 |
 
-K0 与 K1 改不同的文件，并行。K3、K4、K5 改不同的文件，并行；按「一项交付完整做完才开 PR」，每片一个 PR，只有 K2 与 K3 合成一次落地（第 8 节第 4 项：让页面资源的净增长在 10 KB 内）。K2 是共享核心（SDK 类型在 K0），按共享核心跑全量，由统筹在整合分支跑。
+K0 与 K1 改不同的文件，并行；K0 由 C 轨排在 02 交接与 05② C-1 之后（或与 C-1 同一片），K0c 等 K1 定下类名。K3、K4、K5 改不同的文件，并行；按「一项交付完整做完才开 PR」，每片一个 PR，只有 K2 与 K3 合成一次落地（第 8 节第 4 项：让页面资源的净增长在 10 KB 内）。K2 是共享核心（SDK 类型在 K0），按共享核心跑全量，由统筹在整合分支跑。
 
 ## 6. 开工前检查
 
@@ -177,7 +184,7 @@ K0 与 K1 改不同的文件，并行。K3、K4、K5 改不同的文件，并行
 | 1 | 事实主人 | 新事实只有一项：「这个入口这个会话没发出的字」，主人是组件（推荐存在本机浏览器存储，3.4）；本是主人事实的（助理按工作存的草稿）仍归助理，组件经适配读写。送达方式与回执归 ai-input-receipts，接收者归挂载页与子代理合同，选中对象的正文归各自主人，都不出现第二个主人 |
 | 2 | 插件同等待遇 | 组件经 SDK 的页面全局给所有插件，内置、个人、创作台生成、第三方同一套；来源经动作元数据注册、从目录读，宿主与工作台不写插件 id；沙箱插件经框架装同一份脚本。不新增构建期接线 |
 | 3 | 能力注册 | 只新增一种动作角色 `composer_source`，在插件自己的动作声明里注册一次，页面从目录读；不新增平台动作。来源是只读查询，不等模型或外部服务，不需要 `scheduling: "concurrent"`；可信身份（项目、安装）取自调用上下文 |
-| 4 | 合同 | 改：contracts 新子路径 `platform/composer`、`ActionMetadata` 加一个可选字段、SDK `page-globals.ts` 加类型（K0，C1）；`AssistantSendInput` 加一个可选字段（K0b，A）。M1 之前，不留兼容期；新增字段都是可选，消费者在 K2～K6 换上。先单独开合同 PR |
+| 4 | 合同 | 改：contracts 新子路径 `platform/composer`（资料身份用 05② 的 `MaterialRef`，不另起）、`ActionMetadata` 加一个可选字段、SDK 声明检查与 `page-globals.ts` 类型（K0，C1）；`AssistantSendInput` 加一个可选字段（K0b，A）；SDK `/ui` 加 `renderComposer`（K0c，A）。阶段 1 按 N35 原地改，不升版本。M1 之前，不留兼容期；新增字段都是可选，消费者在 K2～K6 换上。先单独开合同 PR |
 | 5 | 放在哪个包 | 组件客户端在 `packages/design-system/`（与输入回执、长高、拖入同处，页面与沙箱都能装），首屏渲染在 SDK UI 子路径，类型在 SDK `page-globals.ts`，合同在 contracts。不是新的平台服务（没有宿主进程里的状态），所以不开 `horizontal/` 包；依赖方向不变 |
 | 6 | 表与存储 | 不新建表。草稿在本机浏览器存储，键规则一处写在组件里；删项目、卸载插件后清掉对应的键（UIC-10）；助理的草稿表不变 |
 | 7 | 兼容与迁移 | 不加。各入口旧的草稿键（Coding 的 sessionStorage、IM／Pages／Issues 的 localStorage）在各自接入片里直接换成新键，不读旧键；接入当时没发出的旧草稿会丢一次，在 PR 里写明（M1 之前，开发机之外没有装过） |

@@ -1,420 +1,318 @@
-// 21 · Work records: scope notice, keep & clean up, space, coverage & gaps — 2–3 options each, normal and failure states.
+// 21 · Work records, rebuilt on the component board's real parts (2026-11-04): the four options the user chose
+// (scope A, clean A, space A, gaps B) with every normal and failure state. All markup mirrors the mw-* renderers in
+// packages/plugin-sdk/src/ui and packages/design-system/src/primitives; styles come from mw.css (a snapshot of the board).
 // Sample data only (data.js). Timers stand in for counting and cleaning. Nothing reads a Home, a database or the disk.
 (() => {
   const D = window.protoData;
-  document.getElementById("icons").innerHTML = window.protoIcons;
+  document.getElementById("icons").innerHTML = window.mwSprite;
   const app = document.getElementById("app");
-  const KEY = "molis-proto.work-records.v1";
+  const KEY = "molis-proto.work-records.v3";
 
   const fresh = () => ({
-    block: "scope", opt: { scope: "A", clean: "A", space: "A", gaps: "B" }, state: { scope: "normal", clean: "normal", space: "normal", gaps: "normal" },
-    lang: "zh", theme: "light",
-    open: {}, uses: Object.fromEntries(D.uses.map((u) => [u.id, u.on])), paused: false,
-    period: "keep", keepDays: 999, reminder: null, reminderDraft: "2", editingReminder: false,
-    dlg: null, dlgRange: "before", dlgBefore: "2026-08-04", dlgProject: "all", dlgKinds: Object.fromEntries(D.kinds.map((k) => [k.id, true])),
-    cleanRun: 0, popOpen: true, firstSeen: false, filter: "all", sel: null,
+    block: "scope", state: { scope: "normal", clean: "normal", space: "normal", gaps: "normal" }, lang: "zh", theme: "light", cat: false,
+    open: {}, uses: Object.fromEntries(D.uses.map((u) => [u.id, u.on])),
+    period: "keep", reminder: null, reminderDraft: 2, editingReminder: false,
+    dlg: false, dlgRange: "before", dlgProject: "all", dlgKinds: Object.fromEntries(D.kinds.map((k) => [k.id, true])), filter: "all",
   });
   let S = load();
   function load() {
-    try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.v === 1) return { ...fresh(), ...v.s }; } catch { /* preview without storage */ }
+    try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.v === 3) return { ...fresh(), ...v.s }; } catch { /* preview without storage */ }
     return fresh();
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, s: S })); } catch { /* preview without storage */ } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: 3, s: S })); } catch { /* preview without storage */ } }
 
   const L = (zh, en) => (S.lang === "zh" ? zh : en);
   const T = (pair) => (Array.isArray(pair) ? (S.lang === "zh" ? pair[0] : pair[1]) : pair);
-  const ic = (n, cls = "") => `<svg class="i ${cls}" aria-hidden="true"><use href="#icon-${n}"></use></svg>`;
-  const kind = (id) => D.kinds.find((k) => k.id === id);
-  const tile = (k, cls = "") => `<span class="tile ${cls}" style="--hue:var(--hue-${k.hue})" aria-hidden="true">${ic(k.icon, "sm")}</span>`;
-  const NEW_HUE = () => L("种类色标记：Mark 是中性色，记录分五类要一眼分开（界面通用规则 11-03）", "Kind-coloured mark: Mark is neutral; five record kinds must read apart at a glance (UI rule 11-03)");
-  const setRow = (title, note, control, attrs = "") => `<div class="setrow" data-cat="Settings Row" ${attrs}><div class="tt"><strong>${title}</strong>${note ? `<p>${note}</p>` : ""}</div><div class="ctl">${control}</div></div>`;
-  const kchip = (k) => `<span class="kchip" style="--hue:var(--hue-${k.hue})">${ic(k.icon)}${T(k.name)}</span>`;
-  const gb = (n) => `${n.toFixed(2)} GB`;
-  const st = (code, el = "span", attrs = "") => { const s = D.statuses[code]; return `<${el} class="st ${s.tone}" ${attrs}>${T(s.name)}</${el}>`; };
+  const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const block = () => D.blocks.find((b) => b.id === S.block);
-  const opt = () => S.opt[S.block];
-  const state = () => { const ok = block().states.some((x) => x.id === S.state[S.block]); return ok ? S.state[S.block] : block().states[0].id; }; // 记住的状态不在本块里时退回第一个
-  const toggle = (on, attrs = "") => `<button type="button" class="toggle" data-cat="Switch" role="switch" aria-checked="${on}" ${attrs}></button>`;
+  const state = () => { const b = block(); return b.states.some((x) => x.id === S.state[b.id]) ? S.state[b.id] : b.states[0].id; };
+  const kind = (id) => D.kinds.find((k) => k.id === id);
+  const gb = (n) => `${n.toFixed(2)} GB`;
+
+  // ---------- The board's parts (same markup as the mw-* renderers) ----------
+  const ic = (n) => `<svg aria-hidden="true"><use href="#icon-${n}"></use></svg>`;
+  const btn = (label, { v = "secondary", icon, attrs = "", disabled = false } = {}) =>
+    `<button type="button" class="mw-btn mw-btn--${v} mw-btn--sm" data-slot="button" data-cat="Button"${disabled ? " disabled" : ""} ${attrs}>${icon ? ic(icon) : ""}<span data-slot="button-label">${label}</span></button>`;
+  const iconBtn = (label, icon, attrs = "", cls = "") =>
+    `<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon mw-btn--icon-only${cls ? ` ${cls}` : ""}" data-slot="button" aria-label="${esc(label)}" ${attrs}>${ic(icon)}<span class="mw-sr-only">${label}</span></button>`;
+  const status = (label, tone, ring) =>
+    `<span class="mw-status mw-status--${tone}" data-slot="status" data-cat="Status mark">${ring ? window.mwRings[ring] : ""}<span>${label}</span></span>`;
+  const st = (code) => status(T(D.statuses[code].name), D.statuses[code].tone);
+  const badge = (label, tone = "neutral") => `<span class="mw-badge mw-badge--${tone}" data-slot="badge" data-cat="Badge">${label}</span>`;
+  const alert = (tone, title, body = "", actions = "") =>
+    `<div class="mw-alert mw-alert--${tone}" data-slot="alert" role="status" data-cat="Alert"><strong>${title}</strong>${body ? `<p>${body}</p>` : ""}${actions ? `<div class="mw-ix-actions">${actions}</div>` : ""}</div>`;
+  const sw = (on, attrs = "", disabled = false) =>
+    `<span class="mw-switch" data-slot="switch" data-cat="Switch"><input type="checkbox" role="switch"${on ? " checked" : ""}${disabled ? " disabled" : ""} ${attrs}><span class="mw-switch__track" aria-hidden="true"></span></span>`;
+  const select = (attrs, options) => `<select class="mw-select" data-slot="select" data-cat="Select" ${attrs}>${options}</select>`;
+  const opts = (list, cur) => list.map(([v, n]) => `<option value="${v}"${v === cur ? " selected" : ""}>${n}</option>`).join("");
+  const setting = (id, title, note, control) =>
+    `<div class="mw-setting" data-cat="Settings Row"><div><strong id="${id}">${title}</strong>${note ? `<p>${note}</p>` : ""}</div><div>${control}</div></div>`;
+  const settings = (rows) => `<div class="mw-settings">${rows}</div>`;
+  const item = (mark, title, meta, end, extra = "", attrs = "") =>
+    `<li class="mw-item" data-cat="Item Row" ${attrs}>${mark}<span><strong>${title}</strong><small>${meta}</small></span><span class="mw-item__end">${end}</span></li>${extra ? `<li class="wr-more">${extra}</li>` : ""}`;
+  const card = (title, desc, action, body) =>
+    `<article class="mw-card" data-slot="card" data-cat="Card"><header class="mw-card__header"><div><h2 class="mw-card__title">${title}</h2>${desc ? `<p class="mw-card__description">${desc}</p>` : ""}</div>${action || ""}</header><div class="mw-card__panel">${body}</div></article>`;
+  const progress = (pct, label) => `<div class="mw-progress" data-slot="progress" data-cat="Progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="${esc(label)}"><span style="width:${pct}%"></span></div>`;
+  const spinner = (label) => `<span class="mw-spinner" data-slot="spinner" data-cat="Spinner" role="status" aria-label="${esc(label)}">${window.mwRings.running}</span>`;
+  const collapsible = (summary, body, open, key) =>
+    `<details class="mw-collapsible" data-slot="collapsible" data-cat="Collapsible" data-key="${key}"${open ? " open" : ""}><summary>${summary}</summary><div class="mw-collapsible__body">${body}</div></details>`;
+  const NEW_KIND = () => L("种类色标记：组件板的 Mark 是中性色；五类记录要一眼分开（界面通用规则 11-03），用五种 --mark-* 色", "Kind-coloured mark: the board's Mark is neutral; five record kinds must read apart (UI rule 11-03), using the five --mark-* tones");
+  const NEW_BAR = () => L("分类条：Meter 与 Progress 只显示一个数；占用要按五类记录分段看，带图例", "Category bar: Meter and Progress show one value; usage splits by the five record kinds, with a legend");
+  const kindMark = (k) => `<span class="mw-mark wr-kind" style="--wr-hue:var(--mark-${k.hue});--wr-fill:var(--mark-${k.hue}-fill)" data-new="${esc(NEW_KIND())}" aria-hidden="true">${ic(k.icon)}</span>`;
+  const plainMark = (icon) => `<span class="mw-mark" data-cat="Mark" aria-hidden="true">${ic(icon)}</span>`;
 
   // ---------- Review strip ----------
   function strip() {
     const b = block();
     document.getElementById("p-title").textContent = L("原型 · 工作记录（第 21 批）", "Prototype · Work records (batch 21)");
     document.getElementById("p-block").textContent = L("块", "Block");
-    document.getElementById("p-opt").textContent = L("方案", "Option");
+    document.getElementById("p-opt").textContent = L(`方案：${T(b.chosenName)}（用户已定）`, `Option: ${T(b.chosenName)} (chosen)`);
     document.getElementById("p-state").textContent = L("状态", "State");
-    document.getElementById("p-lang").textContent = L("语言", "Language");
-    document.getElementById("p-theme").textContent = L("外观", "Theme");
     document.getElementById("reset").textContent = L("还原", "Reset");
-    const cb = document.getElementById("cat"); cb.textContent = L("标出组件", "Show components"); cb.setAttribute("aria-pressed", String(!!S.cat)); document.body.classList.toggle("cat", !!S.cat);
-    const sel = (id, items, cur) => { const el = document.getElementById(id); el.innerHTML = items.map((x) => `<option value="${x.id}" ${x.id === cur ? "selected" : ""}>${T(x.name)}${x.rec ? L("（推荐）", " (recommended)") : ""}</option>`).join(""); };
-    sel("block", D.blocks, S.block);
-    sel("opt", b.options, opt());
-    sel("state", b.states, state());
+    const cb = document.getElementById("cat");
+    cb.textContent = L("标出组件", "Show components");
+    cb.setAttribute("aria-pressed", String(S.cat));
+    document.body.classList.toggle("cat", S.cat);
+    document.getElementById("block").innerHTML = D.blocks.map((x) => `<option value="${x.id}"${x.id === b.id ? " selected" : ""}>${T(x.name)}</option>`).join("");
+    document.getElementById("state").innerHTML = b.states.map((x) => `<option value="${x.id}"${x.id === state() ? " selected" : ""}>${T(x.name)}</option>`).join("");
     document.querySelectorAll("#lang button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.lang === S.lang)));
-    document.querySelectorAll("#theme button").forEach((x) => { x.setAttribute("aria-pressed", String(x.dataset.themeSet === S.theme)); x.textContent = x.dataset.themeSet === "light" ? L("浅", "Light") : L("深", "Dark"); });
-    document.documentElement.dataset.theme = S.theme;
-    document.documentElement.lang = S.lang === "zh" ? "zh-CN" : "en";
+    document.querySelectorAll("#theme button").forEach((x) => { x.setAttribute("aria-pressed", String(x.dataset.themeSet === S.theme)); x.textContent = x.dataset.themeSet === "light" ? L("浅色", "Light") : L("深色", "Dark"); });
+    const root = document.documentElement;
+    root.dataset.theme = S.theme; root.dataset.resolvedTheme = S.theme;
+    root.lang = S.lang === "zh" ? "zh-CN" : "en";
     document.title = L("工作记录定样 · Molis Work 原型", "Work records review · Molis Work prototype");
   }
 
-  // ---------- Settings sheet ----------
-  function sheet(body, wide = false) {
-    // Mirrors the real global settings list (apps/workbench/src/settings-sections.ts); 工作记录 sits after 记忆.
-    const nav = [
-      ["sun", L("界面与语言", "Interface & language")], ["folder", L("本机目录", "Local folders")], ["book", L("记忆", "Memory")], ["database", L("工作记录", "Work records"), true],
-      ["sparkles", L("模型", "Models")], ["user", L("助理", "Assistant")], ["wand", L("提示词", "Prompts")], ["link", L("服务连接", "Connections")],
-      ["history", L("调用记录", "Call history")], ["info", L("诊断", "Diagnostics")],
+  // ---------- The global settings page (same shell as apps/workbench/src/settings-renderer.ts) ----------
+  function page(body) {
+    const groups = [
+      [L("本机", "On this Mac"), [["sun", L("界面与语言", "Interface & language")], ["folder", L("本机目录", "Local folders")]]],
+      [L("个人", "Personal"), [["bookmark", L("记忆", "Memory")], ["database", L("工作记录", "Work records"), true]]],
+      ["AI", [["key", L("模型设置", "Models")], ["message", L("助理", "Assistant")], ["user", L("角色", "Role")], ["text", L("提示词", "Prompts")]]],
+      [L("工具与接入", "Tools and connections"), [["terminal", L("AI 与执行工具", "AI & execution tools")], ["book", L("能力库", "Capability library")], ["link", L("服务连接", "Service connections")], ["shield", L("对外接入", "External access")], ["workflow", L("调用记录", "Call history")]]],
+      [L("系统", "System"), [["bug", L("诊断", "Diagnostics")]]],
     ];
-    const tabs = D.blocks.map((b) => `<button type="button" role="tab" data-block="${b.id}" aria-selected="${b.id === S.block}">${T(b.name)}</button>`).join("");
-    return `<div class="sheet" role="dialog" aria-label="${L("设置", "Settings")}">
-      <nav class="snav"><h2>${L("设置", "Settings")}</h2>${nav.map(([i, n, cur]) => `<button type="button" ${cur ? 'aria-current="page"' : "disabled"}>${ic(i)}${n}</button>`).join("")}</nav>
-      <section class="smain">
-        <header class="shead"><h1>${L("工作记录", "Work records")}</h1>${recBadge()}</header>
-        <div class="subnav" role="tablist" data-cat="Tabs">${tabs}</div>
-        <div class="sbody ${wide ? "wide" : ""}">${body}</div>
-      </section></div>`;
-  }
-  function recBadge() {
-    if (S.block === "scope" && state() === "paused") return `<span class="st attention">${L("已暂停", "Paused")}</span>`;
-    if (S.block === "scope" && state() === "first") return `<span class="st hold">${L("在读现有资料", "Reading what exists")}</span>`;
-    if (S.block === "space" && state() === "disk") return `<span class="st blocked">${L("有记录没保存", "Some not saved")}</span>`;
-    return `<span class="st done">${L("记录中", "Recording")}</span>`;
+    const nav = `<nav class="settings-navigation settings-navigation--codex" aria-label="${L("系统设置", "System settings")}">
+      <a class="settings-nav-back" href="#">${ic("arrow")} ${L("返回项目", "Return to project")}</a>
+      <div class="settings-nav-body">${groups.map(([g, items]) => `<div class="settings-nav-group-label">${g}</div>${items.map(([i, n, cur]) => `<a href="#"${cur ? ' aria-current="page"' : ""}>${ic(i)}${n}</a>`).join("")}`).join("")}</div></nav>`;
+    const tabs = `<div class="mw-tabs" data-slot="tabs" data-cat="Tabs"><div class="mw-tabs__list" role="tablist" aria-label="${L("工作记录", "Work records")}">${D.blocks.map((b) => `<button type="button" class="mw-tabs__tab${b.id === S.block ? " is-active" : ""}" role="tab" aria-selected="${b.id === S.block}" data-tab="${b.id}">${T(b.name)}</button>`).join("")}</div></div>`;
+    return `<header class="project-preferences-chrome"><span>${L("全局设置", "Global settings")}</span><a href="#" aria-label="${L("关闭全局设置", "Close global settings")}">${ic("x")}</a></header>
+      <main class="settings-shell">${nav}<div class="settings-content"><section class="settings-document wr-page" aria-labelledby="wr-title">
+        <header class="settings-page-heading"><h1 id="wr-title">${L("工作记录", "Work records")}</h1><p>${L("这台 Mac 记下的工作过程：你做了什么、AI 做了什么、内容怎么变的。用来回看、给助理参考和评测效果；只存在本机。", "What happened in your work, recorded on this Mac: what you did, what AI did and how content changed. Used for look-back, the assistant and evaluation; stored on this Mac only.")}</p></header>
+        ${tabs}<div class="wr-block">${body}</div></section></div></main>`;
   }
 
-  // ---------- Block 1: what's recorded ----------
-  function scopeStatus() {
+  // ---------- Block 1 · What's recorded (A, category list) ----------
+  function recordingRow() {
     const s = state();
-    if (s === "paused") return `<div data-cat="Alert" class="status warn"><span class="dot amber"></span><div class="bd"><strong>${L("已暂停记录 · 截至 11 月 2 日 14:20", "Recording paused · up to Nov 2, 14:20")}</strong><span class="fact">${L("暂停期间做的事不会被记下；助理和评测看到的记录到这个时间为止。", "Nothing you do while paused is recorded; the assistant and evaluation see records up to this time.")}</span></div><button type="button" class="btn sm primary" data-act="resume">${L("继续记录", "Resume")}</button></div>`;
-    if (s === "first") return `<div data-cat="Alert" class="status"><span class="dot run"></span><div class="bd"><strong>${L("在读这个项目现有的资料 · 2,140 / 3,600", "Reading this project's existing material · 2,140 / 3,600")}</strong><span class="fact">${L("读到的算「原本就有」，不算你新做的。完整记录从今天开始；8 月 4 日以前的版本取不到。", "What is read counts as “already there”, not new work. Full records start today; versions before Aug 4 aren't available.")}</span><div class="progress"><i style="width:59%"></i></div></div><button type="button" class="btn sm sec" data-act="noop">${L("停止读取", "Stop reading")}</button></div>`;
-    return `<div data-cat="Alert" class="status"><span class="dot"></span><div class="bd"><strong>${L("记录中 · 完整记录从 10 月 12 日开始", "Recording · full records since Oct 12")}</strong><span class="fact">${L("更早的历史能取到 8 月 4 日以后的版本。", "Older history is available for versions after Aug 4.")}</span></div><button type="button" class="btn sm sec" data-act="pause">${ic("pause", "sm")}${L("暂停记录", "Pause")}</button></div>`;
+    if (s === "paused") return setting("wr-rec", L("记录已暂停", "Recording paused"), L("截至 11 月 2 日 14:20。暂停期间做的事不会被记下。", "Up to Nov 2, 14:20. Nothing done while paused is recorded."), `${status(L("已暂停", "Paused"), "hold")}${btn(L("继续记录", "Resume"), { v: "primary", attrs: 'data-act="resume"' })}`);
+    if (s === "first") return setting("wr-rec", L("在读这个项目现有的资料", "Reading this project's existing material"), L("读到的算「原本就有」，不算你新做的。", "What is read counts as “already there”, not new work."), `${status("2,140 / 3,600", "progress", "running")}${btn(L("停止读取", "Stop reading"), { attrs: 'data-act="noop"' })}`);
+    return setting("wr-rec", L("记录工作过程", "Record work"), L("完整记录从 10 月 12 日开始；更早的历史能取到 8 月 4 日以后的版本。", "Complete since Oct 12; older history goes back to versions after Aug 4."), `${status(L("记录中", "Recording"), "done")}${btn(L("暂停记录", "Pause"), { icon: "pause", attrs: 'data-act="pause"' })}`);
   }
-  function usesBox() {
-    const evalOff = state() === "useoff";
-    const rows = D.uses.map((u) => {
-      const on = u.id === "eval" && evalOff ? false : S.uses[u.id];
-      const fact = u.fixed ? L("只要在记录就能用", "Always available while recording") : u.na ? L("这一版没有这个功能", "Not available in this version") : u.id === "eval" && !on ? L("关着：评测读不到；已留的样本按样本自己的期限", "Off: evaluation can't read records; kept samples follow their own period") : u.id === "assist" ? L("按你给助理的回看范围", "Within the look-back window you set for the assistant") : u.id === "export" ? L("导出时你选范围", "You choose the range when exporting") : "";
-      return setRow(T(u.name), fact, toggle(on, `data-use="${u.id}" ${u.fixed || u.na ? "disabled" : ""}`));
-    }).join("");
-    return `<div data-cat="Card" class="box"><h3>${L("可以用在哪里", "Where records may be used")}<span class="grow"></span></h3>${rows}</div>`;
-  }
-  const lockLine = () => `<div class="lockline">${ic("lock", "sm")}${L("只存在这台 Mac 上，不上传。", "Stored on this Mac only. Nothing is uploaded.")}</div>`;
-  function scopeA() {
-    const rows = D.kinds.map((k) => {
+  function scopeView() {
+    const s = state();
+    const top = s === "paused" ? alert("warning", L("已暂停记录", "Recording paused"), L("助理和评测看到的记录到 11 月 2 日 14:20 为止。", "The assistant and evaluation see records up to Nov 2, 14:20."))
+      : s === "first" ? `${alert("info", L("首次接入：在读现有资料 · 59%", "First connect: reading what exists · 59%"), L("完整记录从今天开始；8 月 4 日以前的版本取不到。", "Complete records start today; versions before Aug 4 aren't available."))}${progress(59, L("已读 59%", "59% read"))}` : "";
+    const kinds = D.kinds.map((k) => {
       const open = !!S.open[k.id];
-      return `<div><div class="item click" data-cat="Item Row · Collapsible" data-open="${k.id}"><span data-new="${NEW_HUE()}">${tile(k)}</span><span class="tx"><strong>${T(k.name)}</strong><small>${T(k.rec)}</small></span><button type="button" class="twist" aria-expanded="${open}" aria-label="${L("展开", "Expand")}">${ic("chevron-right", "sm")}</button></div>
-        ${open ? `<div class="more"><div><b>${L("记", "Recorded")}</b>${T(k.rec)}</div><div class="no"><b>${L("不记", "Not recorded")}</b>${T(k.not)}</div></div>` : ""}</div>`;
+      const more = open ? `<div><b>${L("记", "Recorded")}</b>${T(k.rec)}</div><div><b>${L("不记", "Not recorded")}</b>${T(k.not)}</div>` : "";
+      return item(kindMark(k), T(k.name), T(k.rec), iconBtn(open ? L("收起", "Collapse") : L("展开", "Expand"), open ? "chevron-down" : "chevron-right", `aria-expanded="${open}" data-open="${k.id}"`), more);
     }).join("");
-    return sheet(`${scopeStatus()}<div data-cat="Card" class="box"><h3>${L("记了什么", "What's recorded")}</h3>${rows}</div>${usesBox()}${lockLine()}`);
-  }
-  function scopeB() {
-    const s = state();
-    const ex = D.example;
-    const steps = ex.steps.map((st0, i) => {
-      const k = kind(st0.kind);
-      const brk = s === "paused" && i === 3 ? `<div class="brk">${ic("pause", "sm")}${L("11-02 14:20 起暂停，后面两步没有记下", "Paused from Nov 2 14:20 — the next two steps were not recorded")}</div>` : "";
-      const dim = s === "paused" && i >= 3 ? ' style="opacity:.4"' : "";
-      const had = s === "first" && i === 0 ? ` <span class="tag">${L("原本就有", "Already there")}</span>` : "";
-      return `${brk}<div class="ev"${dim}>${tile(k)}<span class="t">${st0.t}</span><span class="tx">${T(st0.text)}${had}</span>${kchip(k)}</div>`;
+    const uses = D.uses.map((u) => {
+      const on = u.id === "eval" && s === "useoff" ? false : S.uses[u.id];
+      const note = u.fixed ? L("只要在记录就能用", "Always available while recording") : u.na ? L("这一版没有这个功能", "Not available in this version")
+        : u.id === "eval" && !on ? L("关着：评测读不到；已留的样本按样本自己的期限", "Off: evaluation can't read records; kept samples follow their own period")
+        : u.id === "assist" ? L("按你给助理的回看范围", "Within the look-back window you set for the assistant") : u.id === "export" ? L("导出时你选范围", "You choose the range when exporting") : "";
+      return setting(`wr-use-${u.id}`, T(u.name), note, sw(on, `data-use="${u.id}" aria-labelledby="wr-use-${u.id}"`, u.fixed || u.na));
     }).join("");
-    const skipped = ex.skipped.map((x) => `<div class="ln">${ic("eye")}<span class="fact">${T(x)}</span></div>`).join("");
-    return sheet(`${scopeStatus()}
-      <div data-cat="Card" class="box"><h3>${ic("history", "sm")}${T(ex.title)}</h3><div class="tl">${steps}</div></div>
-      <div class="skipped"><div class="sec-h" style="margin-top:0">${L("这件事里没记的", "Not recorded in this work")}</div>${skipped}</div>
-      <div data-cat="Card" class="box soft"><h3>${L("每类记什么、不记什么", "What each kind records")}</h3><div class="kchips">${D.kinds.map(kchip).join("")}</div></div>
-      ${usesBox()}${lockLine()}`);
-  }
-  function scopeC() {
-    const s = state();
-    const paused = s === "paused", first = s === "first";
-    const dot = paused ? "dot amber" : first ? "dot run" : "dot";
-    const label = paused ? L("已暂停", "Paused") : first ? L("在读 59%", "Reading 59%") : L("记录中", "Recording");
-    const card = !S.firstSeen && s === "normal" ? `<div class="firstcard"><span class="tile lg" style="--hue:var(--hue-blue)">${ic("database")}</span><div><strong>${L("这个项目的工作会被记下", "Work in this project is recorded")}</strong><p>${L("你的操作、AI 做的事、内容变化、后台任务和给你看过的建议。只存在这台 Mac 上。", "Your actions, what AI did, content changes, background tasks and suggestions shown to you. Stored on this Mac only.")}</p><div class="acts"><button type="button" class="btn sm primary" data-act="seen">${L("知道了", "Got it")}</button><button type="button" class="btn sm sec" data-act="toA">${L("看看记了什么", "See what's recorded")}</button></div></div></div>` : "";
-    const pop = S.popOpen ? `<div class="pop" role="dialog" aria-label="${L("工作记录", "Work records")}">
-        <div class="hd"><span class="${dot}"></span>${paused ? L("已暂停 · 截至 11-02 14:20", "Paused · up to Nov 2 14:20") : first ? L("在读现有资料 · 2,140 / 3,600", "Reading existing material · 2,140 / 3,600") : L("记录中 · 从 10 月 12 日起完整", "Recording · complete since Oct 12")}</div>
-        ${first ? `<div class="progress" style="margin-top:0"><i style="width:59%"></i></div>` : ""}
-        <div class="kchips">${D.kinds.map(kchip).join("")}</div>
-        <div class="lockline">${ic("lock", "sm")}${L("只存在这台 Mac 上", "Stored on this Mac only")}</div>
-        <div class="acts"><button type="button" class="btn sm sec" data-act="toA">${L("在设置里看", "Open in Settings")}</button><span class="grow"></span>${paused ? `<button type="button" class="btn sm primary" data-act="resume">${L("继续记录", "Resume")}</button>` : `<button type="button" class="btn sm ghost" data-act="pause">${ic("pause", "sm")}${L("暂停", "Pause")}</button>`}</div>
-      </div>` : "";
-    return `<div class="wb rel"><div class="main">${card}<div class="ph">${L("工作台主区（占位）", "Workbench main area (placeholder)")}</div></div>
-      <div class="bar rel"><span class="mono">AI</span><div class="composer">${L("问助理，或输入 / 调用插件…", "Ask the assistant, or type / for plugins…")}</div>
-      <button type="button" class="marker" aria-expanded="${S.popOpen}" data-act="pop"><span class="${dot}"></span><span class="lbl">${label}</span></button>${pop}</div></div>`;
+    return `${top}${settings(recordingRow())}
+      <section><h2>${L("记了什么", "What's recorded")}</h2><ul class="mw-items">${kinds}</ul></section>
+      <section><h2>${L("可以用在哪里", "Where records may be used")}</h2>${settings(uses)}</section>
+      <p class="wr-lock">${ic("lock")}${L("只存在这台 Mac 上，不上传。", "Stored on this Mac only. Nothing is uploaded.")}</p>`;
   }
 
-  // ---------- Block 2: keep & clean up ----------
+  // ---------- Block 2 · Keep & clean up (A, period + manual) ----------
   const periodDays = (p) => ({ keep: 9999, manual: 9999, 365: 365, 180: 180, 90: 90, 30: 30 })[p];
-  function needsList(days) {
-    return D.needs.map((n) => {
-      const ok = days >= n.days;
-      return `<div class="item" data-cat="Item Row"><span class="tx"><strong>${T(n.name)}</strong><small>${L(`需要最近 ${n.days} 天的记录`, `Needs the last ${n.days} days`)}</small></span><span class="st ${ok ? "done" : "attention"}">${ok ? L("保得住", "Kept") : L("会失去", "Will be lost")}</span></div>`;
-    }).join("");
-  }
-  function cleanStateBox() {
+  function cleanTop() {
     const s = state();
-    if (s === "running") return `<div data-cat="Alert" class="status"><span class="spin"></span><div class="bd"><strong>${L("正在清理 8 月 4 日以前的记录 · 62%", "Clearing records before Aug 4 · 62%")}</strong><span class="fact">${L("别的功能照常用；关掉窗口也会继续。", "Everything else keeps working; it continues if you close this window.")}</span><div class="progress"><i style="width:62%"></i></div></div></div>`;
-    if (s === "partial") return `<div data-cat="Alert" class="note err">${ic("circle-alert")}<div><b>${L("「官网改版」的记录没有清", "Records for “Website redesign” were not cleared")}</b><br>${L("那个项目正开着一个后台任务，记录被占用。其余项目已清理，释放 371 MB。", "A background task in that project was holding them. Other projects were cleared, 371 MB freed.")}<div class="acts"><button type="button" class="btn sm sec" data-act="noop">${ic("refresh", "sm")}${L("只重试这一项", "Retry just this one")}</button></div></div></div>`;
-    if (s === "after") return `<div data-cat="Alert" class="note">${ic("check")}<div><b>${L("已清理 8 月 4 日以前的记录 · 释放 412 MB", "Cleared records before Aug 4 · 412 MB freed")}</b><br>${L("这段时间在回看和评测里显示为「到期清除」，不会拿现在的内容顶替。原文、Pages 版本和已存的简报都还在。", "That period shows as “Cleared” in look-back and evaluation and is never replaced by current content. Originals, Pages versions and saved briefs remain.")}<div class="acts"><button type="button" class="btn sm sec" data-goto="gaps:cleared">${L("看缺口", "See gaps")}</button></div></div></div>`;
+    if (s === "running") return `${alert("info", L("正在清理 8 月 4 日以前的记录 · 62%", "Clearing records before Aug 4 · 62%"), L("别的功能照常用；关掉窗口也会继续。", "Everything else keeps working; it continues if you close this window."))}${progress(62, L("已清理 62%", "62% cleared"))}`;
+    if (s === "partial") return alert("danger", L("「官网改版」的记录没有清", "Records for “Website redesign” were not cleared"), L("那个项目正开着一个后台任务，记录被占用。其余项目已清理，释放 371 MB。", "A background task in that project was holding them. Other projects were cleared, 371 MB freed."), btn(L("只重试这一项", "Retry just this one"), { icon: "refresh", attrs: 'data-act="noop"' }));
+    if (s === "after") return alert("success", L("已清理 8 月 4 日以前的记录 · 释放 412 MB", "Cleared records before Aug 4 · 412 MB freed"), L("这段时间在回看和评测里显示为「到期清除」，不会拿现在的内容顶替。原文、Pages 版本和已存的简报都还在。", "That period shows as “Cleared” in look-back and evaluation and is never replaced by current content. Originals, Pages versions and saved briefs remain."), btn(L("看缺口", "See gaps"), { attrs: 'data-goto="gaps:cleared"' }));
     return "";
   }
-  function cleanA() {
+  function cleanView() {
     const s = state();
     const p = s === "short" ? "30" : S.period;
     const days = periodDays(p);
     const lose = D.needs.some((n) => days < n.days);
-    const auto = `<div data-cat="Card" class="box"><h3>${L("自动清理", "Automatic clean-up")}</h3>
-      ${setRow(L("清理多久以前的记录", "Clear records older than"), "", `<select class="fld" data-cat="Select" id="period">${D.periods.map((x) => `<option value="${x.id}" ${x.id === p ? "selected" : ""}>${T(x.name)}</option>`).join("")}</select>`)}
-      ${p === "keep" || p === "manual" ? `<div class="fact" style="padding:2px 4px 6px">${p === "keep" ? L("默认一直保留，不会因为过了多少天就删。", "Kept by default — never deleted just because time passed.") : L("不会自动删；需要时在下面手动清理。", "Nothing is deleted automatically; clean up below when you want.")}</div>` : `<div class="items">${needsList(days)}</div>`}
-      ${lose ? `<div data-cat="Alert" class="note warn" style="margin-top:6px">${ic("alert")}<div>${L("这个期限比你开着的跨两个月比较和评测要用的短。保存后，到期的记录会被清掉，不会悄悄替你多留。", "This is shorter than your two-month comparison and evaluation need. After saving, older records are cleared — nothing is silently kept longer.")}<div class="acts"><button type="button" class="btn sm primary" data-act="noop">${L("仍然用 30 天", "Use 30 days anyway")}</button><button type="button" class="btn sm sec" data-act="keep">${L("改回一直保留", "Keep instead")}</button></div></div></div>` : ""}
-      </div>`;
-    const manual = `<div data-cat="Card" class="box"><h3>${L("手动清理", "Clean up now")}<span class="grow"></span><button type="button" class="btn sm sec" data-act="dlg">${ic("trash", "sm")}${L("选择要清理的记录…", "Choose records to clear…")}</button></h3>
-      <div class="fact">${L("只清工作记录。原文、插件里的版本、已存的简报按各自的规则，不会一起删。", "Only work records are cleared. Originals, plugin versions and saved briefs follow their own rules and are not deleted.")}</div></div>`;
-    return sheet(`${cleanStateBox()}${auto}${manual}${samplesBox()}`) + (s === "dialog" || S.dlg ? dialog() : "");
-  }
-  function samplesBox() {
-    return `<div data-cat="Card" class="box soft"><h3>${ic("review", "sm")}${L("评测样本", "Evaluation samples")}<span class="grow"></span><span class="tag">${L("12 个", "12")}</span></h3><div class="fact">${L("你同意留作评测的样本有自己的期限（到 2027 年 1 月），不跟着上面的清理走；到期前会问你。", "Samples you agreed to keep for evaluation have their own period (until Jan 2027) and aren't affected by the clean-up above; you'll be asked before they expire.")}</div></div>`;
-  }
-  function cleanB() {
-    const s = state();
-    const total = 154; // days since first record (Jun 2 → Nov 3)
-    const keep = s === "short" ? 30 : S.keepDays >= total ? total : S.keepDays;
-    const pctGone = Math.max(0, (total - keep) / total * 100);
-    const needB = D.needs.map((n, i) => { const left = Math.max(0, (total - n.days) / total * 100); const lose = keep < n.days; const top = 4 + (D.needs.length - 1 - i) * 17; return `<div class="need-b ${lose ? "lose" : ""}" style="left:${left}%;right:0;top:${top}px;height:${56 - top}px"></div><span class="need-l ${lose ? "lose" : ""}" style="right:calc(${100 - left}% + 6px);top:${top - 3}px">${T(n.name)}</span>`; });
-    const axis = `<div class="axis">${needB.join("")}<div class="rail"></div><div class="gone" style="width:${pctGone}%"></div>
-      <input type="range" id="keepRange" min="0" max="${total - 7}" value="${total - keep}" aria-label="${L("保留最近多少天", "Keep the last N days")}">
-      <span class="lbl" style="left:0">${L("6 月 2 日 · 最早的记录", "Jun 2 · earliest")}</span><span class="lbl" style="right:0">${L("今天", "Today")}</span></div>`;
-    const label = keep >= total ? L("一直保留（默认）", "Keep everything (default)") : L(`只留最近 ${keep} 天`, `Keep only the last ${keep} days`);
-    const lose = D.needs.some((n) => keep < n.days);
-    return sheet(`${cleanStateBox()}
-      <div data-cat="Card" class="box"><h3>${L("保留到哪里", "How far back to keep")}<span class="grow"></span><b>${label}</b></h3>${axis}
-        <div style="padding:4px 2px">${needsList(keep >= total ? 9999 : keep)}</div>
-        ${lose ? `<div data-cat="Alert" class="note warn">${ic("alert")}<div>${L("斜线部分会被清掉。上面标黄的用途会失去依据。", "The striped part will be cleared. The uses marked in amber above will lose their evidence.")}<div class="acts"><button type="button" class="btn sm primary" data-act="noop">${L("保存", "Save")}</button><button type="button" class="btn sm sec" data-act="keepB">${L("改回一直保留", "Keep everything")}</button></div></div></div>` : ""}
-      </div>
-      <div data-cat="Card" class="box"><h3>${L("清理某一段", "Clear a span")}<span class="grow"></span><button type="button" class="btn sm sec" data-act="dlg">${ic("trash", "sm")}${L("选一段时间…", "Choose a span…")}</button></h3><div class="fact">${L("只清工作记录，原文和简报不动。", "Only work records; originals and briefs are untouched.")}</div></div>
-      ${samplesBox()}`) + (s === "dialog" || S.dlg ? dialog() : "");
+    const period = setting("wr-period", L("清理多久以前的记录", "Clear records older than"),
+      p === "keep" ? L("默认一直保留，不会因为过了多少天就删。", "Kept by default — never deleted just because time passed.") : p === "manual" ? L("不会自动删；需要时在下面手动清理。", "Nothing is deleted automatically; clean up below when you want.") : "",
+      select('id="period" aria-labelledby="wr-period"', opts(D.periods.map((x) => [x.id, T(x.name)]), p)));
+    const needs = p === "keep" || p === "manual" ? "" : `<ul class="mw-items">${D.needs.map((n) => { const ok = days >= n.days; return item(plainMark(ok ? "check" : "alert"), T(n.name), L(`需要最近 ${n.days} 天的记录`, `Needs the last ${n.days} days`), status(ok ? L("保得住", "Kept") : L("会失去", "Will be lost"), ok ? "done" : "attention")); }).join("")}</ul>`;
+    const warn = lose ? alert("warning", L("这个期限比报告和比较要用的短", "This period is shorter than reports and comparisons need"), L("保存后，到期的记录会被清掉，不会悄悄替你多留。", "After saving, older records are cleared — nothing is silently kept longer."),
+      btn(L("仍然用 30 天", "Use 30 days anyway"), { v: "primary", attrs: 'data-act="noop"' }) + btn(L("改回一直保留", "Keep instead"), { attrs: 'data-act="keep"' })) : "";
+    return `${cleanTop()}
+      <section><h2>${L("自动清理", "Automatic clean-up")}</h2>${settings(period)}${needs}${warn}</section>
+      <section><h2>${L("手动清理", "Clean up now")}</h2>${settings(setting("wr-manual", L("选择要清理的记录", "Choose records to clear"), L("只清工作记录。原文、插件里的版本、已存的简报按各自的规则，不会一起删。", "Only work records. Originals, plugin versions and saved briefs follow their own rules."), btn(L("选择…", "Choose…"), { icon: "trash", attrs: 'data-act="dlg"' })))}</section>
+      <section><h2>${L("评测样本", "Evaluation samples")}</h2>${settings(setting("wr-samples", L("留作评测的样本", "Samples kept for evaluation"), L("有自己的期限（到 2027 年 1 月），不跟着上面的清理走；到期前会问你。", "Have their own period (until Jan 2027) and aren't affected by the clean-up above; you'll be asked before they expire."), badge(L("12 个", "12"))))}</section>
+      ${s === "dialog" || S.dlg ? dialog() : ""}`;
   }
   function dialog() {
-    const kinds = D.kinds.map((k) => `<label class="chk"><input type="checkbox" data-dk="${k.id}" ${S.dlgKinds[k.id] ? "checked" : ""}>${T(k.name)}</label>`).join("");
     const n = Object.values(S.dlgKinds).filter(Boolean).length;
     const mb = Math.round(412 * n / D.kinds.length * (S.dlgProject === "all" ? 1 : 0.55));
-    return `<div class="scrim"><div class="dlg" data-cat="Dialog" role="dialog" aria-label="${L("清理工作记录", "Clear work records")}">
-      <h2>${L("清理工作记录", "Clear work records")}</h2>
-      <div class="frm"><label>${L("时间", "When")}</label><div class="acts"><select class="fld" data-cat="Select" id="dlgRange"><option value="before" ${S.dlgRange === "before" ? "selected" : ""}>${L("早于", "Before")}</option><option value="span" ${S.dlgRange === "span" ? "selected" : ""}>${L("某一段", "A span")}</option></select><input class="fld" data-cat="Date Picker" type="date" value="${S.dlgBefore}">${S.dlgRange === "span" ? `<span>–</span><input class="fld" type="date" value="2026-09-01">` : ""}</div>
-      <label>${L("项目", "Project")}</label><select class="fld" data-cat="Select" id="dlgProject"><option value="all">${L("全部项目", "All projects")}</option>${D.byProject.map((p) => `<option value="${p.name}" ${S.dlgProject === p.name ? "selected" : ""}>${p.name}</option>`).join("")}</select>
-      <label>${L("哪些", "Which")}</label><div class="chkgroup" data-cat="Checkbox Group">${kinds}</div></div>
-      <div class="preview"><div><b>${mb} MB</b> <span class="fact">${L(`约 ${Math.round(mb * 44).toLocaleString()} 条`, `about ${Math.round(mb * 44).toLocaleString()} records`)}</span></div></div>
-      <div><div class="sec-h">${L("清掉以后", "After clearing")}</div>
-        <div class="need lose">${ic("alert")}<span>${L("8 月的周报会标出依据已清除", "August reports will show their evidence as cleared")}</span></div>
-        <div class="need lose">${ic("alert")}<span>${L("跨 8 月与 10 月的比较不能做了", "Comparing August with October is no longer possible")}</span></div>
-        <div class="need ok">${ic("check")}<span>${L("原文、Pages 版本、已存的简报都还在", "Originals, Pages versions and saved briefs remain")}</span></div>
-        <div class="need ok">${ic("check")}<span>${L("12 个评测样本按自己的期限留着", "12 evaluation samples stay under their own period")}</span></div></div>
-      <div class="foot"><button type="button" class="btn sec" data-act="dlgx">${L("取消", "Cancel")}</button><button type="button" class="btn danger" data-act="dlgok" ${n ? "" : "disabled"}>${ic("trash", "sm")}${L(`清理 ${mb} MB`, `Clear ${mb} MB`)}</button></div>
-    </div></div>`;
+    const field = (label, control) => `<label class="mw-field" data-slot="field"><span class="mw-field__label">${label}</span>${control}</label>`;
+    const when = `<div class="mw-ix-actions">${select('id="dlgRange"', opts([["before", L("早于", "Before")], ["span", L("某一段", "A span")]], S.dlgRange))}<input class="mw-input" data-slot="input" data-cat="Date Picker" type="date" value="2026-08-04">${S.dlgRange === "span" ? `<input class="mw-input" data-slot="input" type="date" value="2026-09-01">` : ""}</div>`;
+    const kinds = `<fieldset class="mw-check-group" data-slot="checkbox-group" data-cat="Checkbox Group"><legend>${L("哪些记录", "Which records")}</legend>${D.kinds.map((k) => `<label class="mw-check-row"><input class="mw-check" data-slot="checkbox" type="checkbox" data-dk="${k.id}"${S.dlgKinds[k.id] ? " checked" : ""}><span>${T(k.name)}</span></label>`).join("")}</fieldset>`;
+    const impact = `<ul class="wr-impact">
+      <li class="lose">${ic("alert")}<span>${L("8 月的周报会标出依据已清除", "August reports will show their evidence as cleared")}</span></li>
+      <li class="lose">${ic("alert")}<span>${L("跨 8 月与 10 月的比较不能做了", "Comparing August with October is no longer possible")}</span></li>
+      <li class="ok">${ic("check")}<span>${L("原文、Pages 版本、已存的简报都还在", "Originals, Pages versions and saved briefs remain")}</span></li>
+      <li class="ok">${ic("check")}<span>${L("12 个评测样本按自己的期限留着", "12 evaluation samples stay under their own period")}</span></li></ul>`;
+    return `<dialog class="mw-dialog" data-slot="dialog" data-cat="Dialog" aria-labelledby="wr-dlg-title" data-wr-dialog>
+      <form method="dialog" class="mw-form mw-dialog__shell">
+        <header class="mw-form__header"><div><h2 id="wr-dlg-title">${L("清理工作记录", "Clear work records")}</h2><p>${L("先看会清掉多少、会影响什么，再决定。", "See how much and what it affects before deciding.")}</p></div>${iconBtn(L("关闭", "Close"), "x", 'data-act="dlgx"', "mw-dialog__close")}</header>
+        <div class="mw-form__body wr-dialog-body">
+          ${field(L("时间", "When"), when)}
+          ${field(L("项目", "Project"), select('id="dlgProject"', opts([["all", L("全部项目", "All projects")], ...D.byProject.map((x) => [x.name, x.name])], S.dlgProject)))}
+          ${kinds}
+          <div class="wr-size"><strong>${mb} MB</strong><span>${L(`约 ${(mb * 44).toLocaleString()} 条`, `about ${(mb * 44).toLocaleString()} records`)}</span></div>
+          ${impact}
+        </div>
+        <footer class="mw-form__footer">${btn(L("取消", "Cancel"), { v: "ghost", attrs: 'data-act="dlgx"' })}${btn(L(`清理 ${mb} MB`, `Clear ${mb} MB`), { v: "danger", icon: "trash", attrs: 'data-act="dlgok"', disabled: !n })}</footer>
+      </form></dialog>`;
   }
 
-  // ---------- Block 3: space ----------
+  // ---------- Block 3 · Space (A, number + category bar) ----------
   function spaceNums() {
     const s = state();
-    const total = s === "over" ? D.space.overTotal : s === "near" ? 1.92 : D.space.total;
-    const reminder = s === "near" || s === "over" ? D.space.nearReminder : S.reminder;
-    return { s, total, reminder };
+    return { s, total: s === "over" ? D.space.overTotal : s === "near" ? 1.92 : D.space.total, reminder: s === "near" || s === "over" ? D.space.nearReminder : S.reminder };
   }
-  function spaceAlert() {
+  function spaceTop() {
     const { s, total, reminder } = spaceNums();
-    if (s === "near") return `<div data-cat="Alert" class="note warn">${ic("alert")}<div><b>${L(`快到提醒线了：${gb(total)} / ${reminder} GB`, `Close to your reminder: ${gb(total)} / ${reminder} GB`)}</b><div class="acts"><button type="button" class="btn sm sec" data-goto="clean:normal">${L("去清理", "Clean up")}</button><button type="button" class="btn sm ghost" data-act="editRem">${L("改提醒线", "Change reminder")}</button></div></div></div>`;
-    if (s === "over") return `<div data-cat="Alert" class="note warn">${ic("alert")}<div><b>${L(`已超过提醒线：${gb(total)} / ${reminder} GB`, `Past your reminder: ${gb(total)} / ${reminder} GB`)}</b><br>${L("照常在记，不会自动删。", "Still recording; nothing is deleted automatically.")}<div class="acts"><button type="button" class="btn sm sec" data-goto="clean:normal">${L("去清理", "Clean up")}</button><button type="button" class="btn sm ghost" data-act="editRem">${L("改提醒线", "Change reminder")}</button></div></div></div>`;
-    if (s === "disk") return `<div data-cat="Alert" class="note err">${ic("circle-alert")}<div><b>${L("这台 Mac 剩余空间不足（0.6 GB）· 14:02 起有 37 条记录没能保存", "This Mac is low on space (0.6 GB) · 37 records since 14:02 could not be saved")}</b><br>${L("这段时间做的事已经照常生效，只是过程没记下；回看和评测里会标为「丢失」。", "The work itself took effect; only its record is missing. Look-back and evaluation will mark it as “Lost”.")}<div class="acts"><button type="button" class="btn sm sec" data-goto="gaps:issues">${L("看缺口", "See gaps")}</button><button type="button" class="btn sm ghost" data-goto="clean:normal">${L("清理", "Clean up")}</button></div></div></div>`;
+    const acts = btn(L("去清理", "Clean up"), { attrs: 'data-goto="clean:normal"' }) + btn(L("改提醒线", "Change reminder"), { v: "ghost", attrs: 'data-act="editRem"' });
+    if (s === "near") return alert("warning", L(`快到提醒线了：${gb(total)} / ${reminder} GB`, `Close to your reminder: ${gb(total)} / ${reminder} GB`), "", acts);
+    if (s === "over") return alert("warning", L(`已超过提醒线：${gb(total)} / ${reminder} GB`, `Past your reminder: ${gb(total)} / ${reminder} GB`), L("照常在记，不会自动删。", "Still recording; nothing is deleted automatically."), acts);
+    if (s === "disk") return alert("danger", L("这台 Mac 剩余空间不足（0.6 GB）· 14:02 起有 37 条记录没能保存", "This Mac is low on space (0.6 GB) · 37 records since 14:02 were not saved"), L("这段时间做的事已经照常生效，只是过程没记下；回看和评测里会标为「丢失」。", "The work itself took effect; only its record is missing. Look-back and evaluation mark it as “Lost”."), btn(L("看缺口", "See gaps"), { attrs: 'data-goto="gaps:issues"' }) + btn(L("清理", "Clean up"), { v: "ghost", attrs: 'data-goto="clean:normal"' }));
     return "";
   }
-  function reminderRow() {
-    const { reminder } = spaceNums();
-    const on = reminder != null || S.editingReminder;
-    const field = on ? `<span class="numfield" data-cat="Number Field"><input class="fld num" id="remIn" inputmode="decimal" value="${S.editingReminder ? S.reminderDraft : reminder}"${S.editingReminder ? "" : " readonly"}><span>GB</span></span>${S.editingReminder ? `<button type="button" class="btn sm primary" data-act="remSave">${L("保存", "Save")}</button>` : `<button type="button" class="btn sm ghost" data-act="editRem">${L("改", "Change")}</button>`}` : "";
-    return setRow(L("用量到这个数时提醒我", "Remind me when usage reaches"), on ? "" : L("默认不设：没有上限，也不提醒。", "Off by default: no limit and no reminder."), `${field}${toggle(on, 'data-act="remToggle"')}`);
-  }
-  const remNote = () => `<div class="fact">${L("提醒线不是上限：到了只提醒，不会删记录。", "A reminder is not a limit: reaching it only reminds you, nothing is deleted.")}</div>`;
-  const expiryLine = () => setRow(L("到期清理", "Automatic clean-up"), L("一直保留（默认）。和提醒线分开设。", "Keep (default). Set separately from the reminder."), `<button type="button" class="btn sm sec" data-goto="clean:normal">${L("去设置", "Change")}</button>`);
-  function bigNumber() {
-    const { s, total } = spaceNums();
-    if (s === "counting") return `<div class="acts"><span class="spin"></span><span>${L("正在计算占用…", "Counting space…")}</span><span class="fact">${L("上次 1.79 GB（11 月 2 日）", "Last 1.79 GB (Nov 2)")}</span></div><div class="skel" style="margin-top:10px"></div>`;
-    return `<p class="stat-l">${L("工作记录占用", "Used by work records")}</p><div class="bignum">${total.toFixed(2)}<small>GB</small></div><p class="stat-d">${L("6 月 2 日以来 · 3 个项目", "Since Jun 2 · 3 projects")}</p>`;
-  }
-  function spaceA() {
+  function spaceView() {
     const { s, total, reminder } = spaceNums();
     const scale = total / D.space.total;
-    const segs = [...D.kinds.map((k) => ({ hue: k.hue, name: T(k.name), v: D.space.byKind[k.id] })), { hue: "slate", name: L("附件与图片", "Files & images"), v: D.space.byKind.files }];
-    const bar = s === "counting" ? "" : `<div data-new="${L("分类条：Meter 与 Progress 只能显示一个数，这里要按记录种类分开看占用", "Category bar: Meter and Progress show one value; usage here splits by record kind")}"><div class="segbar">${segs.map((x) => `<i style="--hue:var(--hue-${x.hue});flex:${x.v}" title="${x.name}"></i>`).join("")}</div><div class="legend">${segs.map((x) => `<span style="--hue:var(--hue-${x.hue})">${x.name} ${(x.v * scale).toFixed(2)} GB</span>`).join("")}</div></div>`;
-    const meter = reminder != null && s !== "counting" && !S.editingReminder ? `<div class="meterrow"><meter class="mw-meter-like" data-cat="Meter" min="0" max="${reminder}" low="${reminder * 0.9}" high="${reminder * 0.95}" optimum="0" value="${Math.min(total, reminder)}"></meter><span class="fact">${L(`已到提醒线的 ${Math.round(total / reminder * 100)}%`, `${Math.round(total / reminder * 100)}% of the reminder`)}</span></div>` : "";
-    return sheet(`${spaceAlert()}<div data-cat="Stat" class="box">${bigNumber()}${bar}</div>
-      <div data-cat="Card" class="box"><h3>${L("容量提醒", "Space reminder")}</h3>${reminderRow()}${meter}${remNote()}</div>
-      <div data-cat="Card" class="box">${expiryLine()}</div>`);
-  }
-  function spaceB() {
-    const { s, total, reminder } = spaceNums();
-    const pts = D.trend.map((v) => v * total / D.space.total);
-    const max = Math.max(...pts, reminder || 0) * 1.12;
-    const w = 600, h = 140;
-    const xy = (v, i) => `${(i / (pts.length - 1) * w).toFixed(1)},${(h - v / max * h).toFixed(1)}`;
-    const line = pts.map(xy).join(" ");
-    const remY = reminder ? (h - reminder / max * h).toFixed(1) : null;
-    const svg = s === "counting" ? `<div class="skel" style="height:140px;border-radius:10px"></div>` : `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:140px;display:block" role="img" aria-label="${L("近 30 天占用", "Space over the last 30 days")}">
-      <polygon points="0,${h} ${line} ${w},${h}" fill="color-mix(in srgb, var(--accent) 14%, transparent)"/>
-      <polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>
-      ${remY ? `<line x1="0" x2="${w}" y1="${remY}" y2="${remY}" stroke="var(--amber)" stroke-dasharray="5 4" stroke-width="1.5" vector-effect="non-scaling-stroke"/>` : ""}
-      ${s === "disk" ? `<rect x="${w - 22}" y="0" width="22" height="${h}" fill="color-mix(in srgb, var(--red) 18%, transparent)"/>` : ""}
-    </svg>`;
-    const proj = reminder && s === "normal" ? "" : reminder && s === "near" ? L("按近 30 天的速度，大约 11 月 9 日到提醒线。", "At the last 30 days' pace, the reminder is reached around Nov 9.") : !reminder && s === "normal" ? L("近 30 天每天约多 40 MB。", "About 40 MB more per day over the last 30 days.") : "";
-    return sheet(`${spaceAlert()}<div data-cat="Card" class="box">${bigNumber()}<div style="margin-top:10px">${svg}</div><div class="acts fact" style="justify-content:space-between;margin-top:4px"><span>${L("10 月 5 日", "Oct 5")}</span>${reminder ? `<span style="color:var(--amber)">--- ${L(`提醒线 ${reminder} GB`, `Reminder ${reminder} GB`)}</span>` : ""}<span>${L("今天", "Today")}</span></div>${proj ? `<div class="fact" style="margin-top:6px">${proj}</div>` : ""}</div>
-      <div data-cat="Card" class="box"><h3>${L("容量提醒", "Space reminder")}</h3>${reminderRow()}${remNote()}</div>
-      <div data-cat="Card" class="box">${expiryLine()}</div>`);
-  }
-  function spaceC() {
-    const { s, total, reminder } = spaceNums();
-    const open = S.open.storage !== false;
-    const badge = s === "near" ? `<span class="st attention">${L("接近提醒线", "Near reminder")}</span>` : s === "over" ? `<span class="st attention">${L("超过提醒线", "Past reminder")}</span>` : s === "disk" ? `<span class="st blocked">${L("有记录没保存", "Some not saved")}</span>` : s === "counting" ? `<span class="spin"></span>` : "";
-    const others = D.otherStorage.map((o) => `<div class="ln"><span class="nm">${T(o.name)}</span><span class="grow"></span><span class="fact" style="flex:none">${gb(o.gb)}</span><span style="width:24px"></span></div>`).join("");
-    const detail = open ? `<div style="padding:4px 4px 10px 4px;display:flex;flex-direction:column;gap:10px">
-        <div class="legend">${D.byProject.map((p) => `<span style="--hue:var(--hue-blue)">${p.name} ${gb(p.gb * total / D.space.total)}</span>`).join("")}</div>
-        ${reminderRow()}${remNote()}${expiryLine()}</div>` : "";
-    return sheet(`${spaceAlert()}<div data-cat="Card" class="box"><h3>${L("这台 Mac 上 Molis Work 的占用", "Molis Work storage on this Mac")}<span class="grow"></span><span class="fact">${L("剩余 ", "Free ")}${s === "disk" ? "0.6" : "182"} GB</span></h3>
-      ${others}
-      <div class="ln click" data-open="storage"><span class="nm">${L("工作记录", "Work records")}</span>${badge}<span class="grow"></span><span class="fact" style="flex:none">${s === "counting" ? "—" : gb(total)}${reminder ? ` / ${reminder} GB` : ""}</span><button type="button" class="twist" aria-expanded="${open}">${ic("chevron-right", "sm")}</button></div>
-      ${detail}</div>`);
+    const segs = [...D.kinds.map((k) => ({ hue: `var(--mark-${k.hue})`, name: T(k.name), v: D.space.byKind[k.id] })), { hue: "var(--muted)", name: L("附件与图片", "Files & images"), v: D.space.byKind.files }];
+    const bar = s === "counting" ? "" : `<div data-new="${esc(NEW_BAR())}"><div class="wr-seg" role="img" aria-label="${L("按种类的占用", "Usage by kind")}">${segs.map((x) => `<i style="--wr-hue:${x.hue};flex:${x.v}"></i>`).join("")}</div><ul class="wr-legend">${segs.map((x) => `<li style="--wr-hue:${x.hue}">${x.name} <b>${(x.v * scale).toFixed(2)} GB</b></li>`).join("")}</ul></div>`;
+    const stat = s === "counting"
+      ? `<article class="mw-stat" data-cat="Stat"><p>${L("工作记录占用", "Used by work records")}</p><div class="mw-ix-actions">${spinner(L("正在计算", "Counting"))}<span>${L("正在计算…上次 1.79 GB（11 月 2 日）", "Counting… last 1.79 GB (Nov 2)")}</span></div></article>`
+      : `<article class="mw-stat" data-cat="Stat"><p>${L("工作记录占用", "Used by work records")}</p><strong>${total.toFixed(2)}<small>GB</small></strong><p class="mw-stat__delta">${L("6 月 2 日以来 · 3 个项目", "Since Jun 2 · 3 projects")}</p>${bar}</article>`;
+    const on = reminder != null || S.editingReminder;
+    const value = S.editingReminder ? S.reminderDraft : reminder;
+    const num = `<div class="mw-number" data-slot="number-field" data-cat="Number Field">${iconBtn(L("减少", "Decrease"), "minus", 'data-step="-0.5"')}<input class="mw-input" data-slot="input" type="number" id="remIn" value="${value}" min="0.5" step="0.5" aria-label="GB">${iconBtn(L("增加", "Increase"), "plus", 'data-step="0.5"')}</div>`;
+    const remCtl = on ? `${num}<span class="wr-sub">GB</span>${S.editingReminder ? btn(L("保存", "Save"), { v: "primary", attrs: 'data-act="remSave"' }) : ""}${sw(true, 'data-act="remToggle" aria-labelledby="wr-rem"')}` : sw(false, 'data-act="remToggle" aria-labelledby="wr-rem"');
+    const remRow = setting("wr-rem", L("用量到这个数时提醒我", "Remind me when usage reaches"), on ? L("提醒线不是上限：到了只提醒，不会删记录。", "A reminder is not a limit: reaching it only reminds you, nothing is deleted.") : L("默认不设：没有上限，也不提醒。", "Off by default: no limit and no reminder."), remCtl);
+    const meter = reminder != null && s !== "counting" && !S.editingReminder
+      ? setting("wr-meter", L(`已到提醒线的 ${Math.round(total / reminder * 100)}%`, `${Math.round(total / reminder * 100)}% of the reminder`), "", `<meter class="mw-meter" data-slot="meter" data-cat="Meter" min="0" max="${reminder}" value="${Math.min(total, reminder)}" aria-labelledby="wr-meter">${total}/${reminder}</meter>`) : "";
+    const expiry = setting("wr-expiry", L("到期清理", "Automatic clean-up"), L("一直保留（默认）。和提醒线分开设。", "Keep (default). Set separately from the reminder."), btn(L("去设置", "Change"), { attrs: 'data-goto="clean:normal"' }));
+    return `${spaceTop()}${stat}
+      <section><h2>${L("容量提醒", "Space reminder")}</h2>${settings(remRow + meter)}</section>
+      <section><h2>${L("清理", "Clean-up")}</h2>${settings(expiry)}</section>`;
   }
 
-  // ---------- Block 4: coverage & gaps ----------
+  // ---------- Block 4 · Coverage & gaps (B, gaps first) ----------
   const srcName = (id) => (id === "*" ? L("全部来源", "All sources") : T(D.sources.find((x) => x.id === id).name));
-  const kindLabel = (id) => (id === "*" ? L("全部种类", "All kinds") : T(kind(id).name));
+  const visibleSources = () => D.sources.filter((x) => S.filter === "all" || x.kind === S.filter);
   function gridState() {
     const g = JSON.parse(JSON.stringify(D.grid));
-    for (const gap of D.gapSets[state()]) {
-      if (gap.src === "*" || gap.st === "none") continue;
-      g[gap.src][gap.kind] = gap.st;
-    }
+    for (const gap of D.gapSets[state()]) if (gap.src !== "*" && gap.st !== "none") g[gap.src][gap.kind] = gap.st;
     return g;
   }
-  function gapsHeader() {
+  function gapsView() {
     const s = state();
-    const set = D.gapSets[s];
-    const attn = set.filter((g) => !["none", "masked"].includes(g.st)).length;
-    const none = set.filter((g) => g.st === "none").length;
-    return `<div data-cat="Alert" class="status ${attn && s === "issues" ? "warn" : ""}"><span class="dot ${attn && s === "issues" ? "amber" : ""}"></span><div class="bd"><strong>${s === "cleared" ? L("8 月 4 日以前的记录已清除", "Records before Aug 4 were cleared") : attn ? L(`${attn} 处需要注意`, `${attn} need attention`) : L("接上的地方都记全了", "Everything connected is complete")}</strong><span class="fact">${L(`完整记录从 ${s === "cleared" ? "8 月 4 日" : "10 月 12 日"}开始 · ${none} 处还没接入`, `Complete since ${s === "cleared" ? "Aug 4" : "Oct 12"} · ${none} not connected yet`)}</span></div></div>`;
-  }
-  function filters() {
+    const set = D.gapSets[s].filter((gap) => gap.src === "*" || visibleSources().some((x) => x.id === gap.src));
+    const all = D.gapSets[s];
+    const attnAll = all.filter((g) => !["none", "masked"].includes(g.st)).length;
+    const none = all.filter((g) => g.st === "none").length;
+    const head = s === "cleared" ? alert("info", L("8 月 4 日以前的记录已清除", "Records before Aug 4 were cleared"), L(`那段时间在回看和评测里显示为「到期清除」· ${none} 处还没接入`, `That period shows as “Cleared” in look-back and evaluation · ${none} not connected yet`))
+      : attnAll ? alert("warning", L(`${attnAll} 处需要注意`, `${attnAll} need attention`), L(`完整记录从 10 月 12 日开始 · ${none} 处还没接入`, `Complete since Oct 12 · ${none} not connected yet`))
+      : settings(setting("wr-cov", L("接上的地方都记全了", "Everything connected is complete"), L(`完整记录从 10 月 12 日开始 · ${none} 处还没接入`, `Complete since Oct 12 · ${none} not connected yet`), status(L("完整", "Complete"), "done")));
     const f = [["all", L("全部", "All")], ["entry", L("入口", "Entries")], ["plugin", L("插件", "Plugins")], ["bg", L("后台", "Background")]];
-    return `<div class="filters"><span class="seg" data-cat="Toggle Group">${f.map(([id, n]) => `<button type="button" data-filter="${id}" aria-pressed="${S.filter === id}">${n}</button>`).join("")}</span><select class="fld" data-cat="Select"><option>${L("全部版本", "All versions")}</option><option>${L("0.9.3 以后", "Since 0.9.3")}</option></select></div>`;
-  }
-  const visibleSources = () => D.sources.filter((x) => S.filter === "all" || x.kind === S.filter);
-  function gapDetail(gap) {
-    return `<div class="gb"><div><b>${L("影响", "Effect")}：</b>${T(gap.affects)}</div>${gap.act ? `<div class="acts"><button type="button" class="btn sm sec" ${gap.act[0] === "看占用" ? 'data-goto="space:disk"' : 'data-act="noop"'}>${T(gap.act)}</button></div>` : ""}</div>`;
-  }
-  function gapsA() {
+    const filter = `<div class="wr-filter"><div class="mw-toggle-group" data-slot="toggle-group" data-cat="Toggle Group" role="group" aria-label="${L("来源", "Sources")}">${f.map(([id, n]) => `<button type="button" class="mw-toggle${S.filter === id ? " is-current" : ""}" aria-pressed="${S.filter === id}" data-filter="${id}">${n}</button>`).join("")}</div>${select('aria-label="' + L("版本", "Version") + '"', opts([["all", L("全部版本", "All versions")], ["093", L("0.9.3 以后", "Since 0.9.3")]], "all"))}</div>`;
+    const row = (gap, key) => {
+      const open = !!S.open[key];
+      const k = gap.kind === "*" ? null : kind(gap.kind);
+      const more = open ? `<div><b>${L("影响", "Effect")}</b>${T(gap.affects)}</div>${gap.act ? `<div class="mw-ix-actions">${btn(T(gap.act), { attrs: gap.act[0] === "看占用" ? 'data-goto="space:disk"' : 'data-act="noop"' })}</div>` : ""}` : "";
+      return item(k ? kindMark(k) : plainMark("database"), `${srcName(gap.src)}${k ? ` · ${T(k.name)}` : ""}`, `${T(gap.span)} · ${T(gap.cause)}`, st(gap.st) + iconBtn(open ? L("收起", "Collapse") : L("展开", "Expand"), open ? "chevron-down" : "chevron-right", `aria-expanded="${open}" data-open="${key}"`), more);
+    };
+    const attn = set.filter((g) => g.st !== "none"), notYet = set.filter((g) => g.st === "none");
     const g = gridState();
-    const head = `<tr><th>${L("来源", "Source")}</th>${D.kinds.map((k) => `<th>${kchip(k)}</th>`).join("")}</tr>`;
-    const rows = visibleSources().map((src) => `<tr><td class="src">${T(src.name)}</td>${D.kinds.map((k) => { const code = g[src.id][k.id]; const sel = S.sel === `${src.id}:${k.id}`; return `<td>${st(code, "button", `type="button" data-cell="${src.id}:${k.id}" class="st ${D.statuses[code].tone} ${sel ? "sel" : ""}"`)}</td>`; }).join("")}</tr>`).join("");
-    let det = "";
-    if (S.sel) {
-      const [sid, kid] = S.sel.split(":");
-      const gap = D.gapSets[state()].find((x) => x.src === sid && (x.kind === kid || x.kind === "*"));
-      const code = g[sid][kid];
-      det = `<div data-cat="Card" class="box"><h3>${srcName(sid)} · ${kindLabel(kid)}<span class="grow"></span>${st(code)}</h3>${gap ? `<div class="fact">${T(gap.span)} · ${T(gap.cause)}</div>${gapDetail(gap).replace('class="gb"', 'class="gb" style="padding:8px 0 0"')}` : `<div class="fact">${code === "na" ? L("这里本来就没有这类事。", "This kind of work doesn't happen here.") : L("从 10 月 12 日起完整。", "Complete since Oct 12.")}</div>`}</div>`;
-    }
-    const cleared = state() === "cleared" ? `<div data-cat="Alert" class="note">${ic("info")}<div>${L("8 月 4 日以前：全部「到期清除」。表里是这之后的情况。", "Before Aug 4: everything is “Cleared”. The grid shows the period after that.")}</div></div>` : "";
-    return sheet(`${gapsHeader()}${filters()}${cleared}<div class="gridwrap"><table class="cov">${head}${rows}</table></div>${det}
-      <div class="legend" style="gap:6px">${Object.keys(D.statuses).map((c) => st(c)).join("")}</div>`, true);
-  }
-  function gapsB() {
-    const set = D.gapSets[state()].filter((gap) => gap.src === "*" || visibleSources().some((x) => x.id === gap.src));
-    const card = (gap, i) => { const key = `gap${state()}${i}`; const open = !!S.open[key]; const k = gap.kind === "*" ? null : kind(gap.kind); return `<div class="gap"><div class="item click" data-cat="Item Row · Collapsible" data-open="${key}">${k ? `<span data-new="${NEW_HUE()}">${tile(k)}</span>` : `<span class="tile">${ic("database", "sm")}</span>`}<span class="tx"><strong>${srcName(gap.src)}${k ? ` · ${T(k.name)}` : ""}</strong><small>${T(gap.span)} · ${T(gap.cause)}</small></span>${st(gap.st)}<button type="button" class="twist" aria-expanded="${open}">${ic("chevron-right", "sm")}</button></div>${open ? gapDetail(gap) : ""}</div>`; };
-    const attn = set.filter((g) => !["none"].includes(g.st));
-    const none = set.filter((g) => g.st === "none");
-    const g = gridState();
+    const okRows = visibleSources().filter((src) => D.kinds.some((k) => g[src.id][k.id] === "ok"));
     let okCount = 0, naCount = 0;
     visibleSources().forEach((src) => D.kinds.forEach((k) => { const c = g[src.id][k.id]; if (c === "ok") okCount++; else if (c === "na" || c === "rule") naCount++; }));
-    const okOpen = !!S.open.okList, naOpen = !!S.open.naList;
-    const okList = okOpen ? `<div data-cat="Card" class="box" style="padding:6px 12px">${visibleSources().filter((src) => D.kinds.some((k) => g[src.id][k.id] === "ok")).map((src) => `<div class="ln"><span class="nm">${T(src.name)}</span><span class="grow"></span><span class="kchips">${D.kinds.filter((k) => g[src.id][k.id] === "ok").map((k) => tile(k)).join("")}</span></div>`).join("")}</div>` : "";
-    return sheet(`${gapsHeader()}${filters()}
-      ${attn.length ? `<div class="sec-h">${L("需要注意", "Needs attention")}</div>${attn.map(card).join("")}` : ""}
-      ${none.length ? `<div class="sec-h">${L("还没接入", "Not connected yet")}</div>${none.map((x, i) => card(x, 100 + i)).join("")}` : ""}
-      <div class="sec-h" data-cat="Collapsible" style="cursor:pointer" data-open="okList">${ic(okOpen ? "chevron-down" : "chevron-right", "sm")}${L(`完整 · ${okCount} 处`, `Complete · ${okCount}`)}</div>${okList}
-      <div class="sec-h" data-cat="Collapsible" style="cursor:pointer" data-open="naList">${ic(naOpen ? "chevron-down" : "chevron-right", "sm")}${L(`不适用 · ${naCount} 处`, `Not applicable · ${naCount}`)}</div>
-      ${naOpen ? `<div class="fact" style="padding:0 4px">${L("这些地方本来就没有这类事，比如命令行里没有「给你看的建议」。不算缺记录。", "This kind of work doesn't happen there — e.g. the command line shows no suggestions. Not a missing record.")}</div>` : ""}`);
-  }
-  function gapsC() {
-    const s = state();
-    const days = 30;
-    const spans = { issues: { assistant: [{ a: 29, b: 29.6, tone: "err", i: 0 }], feed: [{ a: 27, b: 30, tone: "warn", i: 1 }], coding: [{ a: 28, b: 28.3, tone: "warn", i: 2 }] }, cleared: {}, normal: {} }[s];
-    const lanes = visibleSources().map((src) => {
-      const none = D.grid[src.id].ops === "none";
-      const segs = (spans[src.id] || []).map((x) => `<i class="${x.tone} ${S.sel === `t${x.i}` ? "sel" : ""}" data-tsel="t${x.i}" style="left:${x.a / days * 100}%;width:max(6px,${(x.b - x.a) / days * 100}%)" title="${T(D.gapSets[s][x.i].cause)}"></i>`).join("");
-      const cleared = s === "cleared" ? `<i class="info" style="left:0;width:18%" title="${L("到期清除", "Cleared")}"></i>` : "";
-      return `<div class="lane"><span class="nm">${T(src.name)}</span><div class="bar ${none ? "none" : ""}">${none ? "" : cleared + segs}</div></div>`;
-    }).join("");
-    let det = "";
-    if (S.sel && S.sel.startsWith("t")) { const gap = D.gapSets[s][Number(S.sel.slice(1))]; if (gap) det = `<div data-cat="Card" class="box"><h3>${srcName(gap.src)} · ${kindLabel(gap.kind)}<span class="grow"></span>${st(gap.st)}</h3><div class="fact">${T(gap.span)} · ${T(gap.cause)}</div>${gapDetail(gap).replace('class="gb"', 'class="gb" style="padding:8px 0 0"')}</div>`; }
-    return sheet(`${gapsHeader()}${filters()}
-      <div data-cat="Card" class="box"><div class="lanes">${lanes}</div><div class="ticks" style="margin-top:6px"><span></span><div><span>${L("10 月 5 日", "Oct 5")}</span><span>${L("10 月 19 日", "Oct 19")}</span><span>${L("今天", "Today")}</span></div></div></div>
-      ${det || `<div class="fact">${L("点断开的那一段看原因。虚线是还没接入。", "Click a broken segment to see why. Dashed means not connected yet.")}</div>`}
-      <div class="legend" style="gap:6px">${["ok", "lost", "off", "cut", "cleared", "none"].map((c) => st(c)).join("")}</div>`, true);
+    const okBody = `<ul class="mw-items">${okRows.map((src) => item(plainMark("check"), T(src.name), D.kinds.filter((k) => g[src.id][k.id] === "ok").map((k) => T(k.name)).join(L("、", ", ")), "")).join("")}</ul>`;
+    const naBody = `<p class="wr-sub">${L("这些地方本来就没有这类事，比如命令行里没有「给你看的建议」。不算缺记录。", "This kind of work doesn't happen there — e.g. the command line shows no suggestions. Not a missing record.")}</p>`;
+    return `${head}${filter}
+      ${attn.length ? `<section><h2>${L("需要注意", "Needs attention")}</h2><ul class="mw-items">${attn.map((x, i) => row(x, `gap-${s}-${i}`)).join("")}</ul></section>` : ""}
+      ${notYet.length ? `<section><h2>${L("还没接入", "Not connected yet")}</h2><ul class="mw-items">${notYet.map((x, i) => row(x, `none-${s}-${i}`)).join("")}</ul></section>` : ""}
+      <section>${collapsible(L(`完整 · ${okCount} 处`, `Complete · ${okCount}`), okBody, !!S.open.okList, "okList")}${collapsible(L(`不适用 · ${naCount} 处`, `Not applicable · ${naCount}`), naBody, !!S.open.naList, "naList")}</section>`;
   }
 
   // ---------- Render & events ----------
-  const VIEWS = { scope: { A: scopeA, B: scopeB, C: scopeC }, clean: { A: cleanA, B: cleanB }, space: { A: spaceA, B: spaceB, C: spaceC }, gaps: { A: gapsA, B: gapsB, C: gapsC } };
+  const VIEWS = { scope: scopeView, clean: cleanView, space: spaceView, gaps: gapsView };
   function render() {
     strip();
-    app.innerHTML = `<div class="rec-app"><div class="desk">${VIEWS[S.block][opt()]()}</div></div>`;
-    const seen = new Set(); // 「标出组件」时同一种新增只在第一处写说明
+    app.innerHTML = page(VIEWS[S.block]());
+    const seen = new Set(); // 「标出组件」时同一种新增只在第一处写理由
     app.querySelectorAll("[data-new]").forEach((el) => { if (seen.has(el.dataset.new)) el.classList.add("rep"); seen.add(el.dataset.new); });
+    const dlg = app.querySelector("[data-wr-dialog]");
+    if (dlg && !dlg.open) { try { dlg.showModal(); } catch { dlg.setAttribute("open", ""); } }
     save();
   }
-  function goto(spec) { const [b, s] = spec.split(":"); S.block = b; S.state[b] = s; S.sel = null; S.dlg = null; render(); }
+  function goto(spec) { const [b, s] = spec.split(":"); S.block = b; S.state[b] = s; S.dlg = false; render(); }
   function announce(msg) { document.getElementById("live").textContent = msg; }
 
-  document.getElementById("block").addEventListener("change", (e) => { S.block = e.target.value; S.sel = null; render(); });
-  document.getElementById("opt").addEventListener("change", (e) => { S.opt[S.block] = e.target.value; S.sel = null; render(); });
-  document.getElementById("state").addEventListener("change", (e) => { S.state[S.block] = e.target.value; S.sel = null; S.dlg = e.target.value === "dialog" ? "open" : null; render(); });
+  document.getElementById("block").addEventListener("change", (e) => { S.block = e.target.value; S.dlg = false; render(); });
+  document.getElementById("state").addEventListener("change", (e) => { S.state[S.block] = e.target.value; S.dlg = false; render(); });
   document.getElementById("lang").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.lang = b.dataset.lang; render(); } });
   document.getElementById("theme").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.theme = b.dataset.themeSet; render(); } });
   document.getElementById("cat").addEventListener("click", () => { S.cat = !S.cat; render(); });
-  document.getElementById("reset").addEventListener("click", () => { const keep = { lang: S.lang, theme: S.theme }; S = { ...fresh(), ...keep }; render(); });
+  document.getElementById("reset").addEventListener("click", () => { S = { ...fresh(), lang: S.lang, theme: S.theme }; render(); });
 
   app.addEventListener("click", (e) => {
     const t = e.target;
-    const tab = t.closest("[data-block]"); if (tab) { S.block = tab.dataset.block; S.sel = null; render(); return; }
+    if (t.closest("a[href='#']")) { e.preventDefault(); return; }
+    const tab = t.closest("[data-tab]"); if (tab) { S.block = tab.dataset.tab; S.dlg = false; render(); return; }
     const g = t.closest("[data-goto]"); if (g) { goto(g.dataset.goto); return; }
-    const use = t.closest("[data-use]"); if (use && !use.disabled) { S.uses[use.dataset.use] = !S.uses[use.dataset.use]; render(); return; }
     const f = t.closest("[data-filter]"); if (f) { S.filter = f.dataset.filter; render(); return; }
-    const cell = t.closest("[data-cell]"); if (cell) { S.sel = S.sel === cell.dataset.cell ? null : cell.dataset.cell; render(); return; }
-    const ts = t.closest("[data-tsel]"); if (ts) { S.sel = S.sel === ts.dataset.tsel ? null : ts.dataset.tsel; render(); return; }
-    if (t.closest("input,select,label")) return;
-    const o = t.closest("[data-open]"); if (o) { const k = o.dataset.open; S.open[k] = k === "storage" ? S.open[k] === false : !S.open[k]; render(); return; }
+    const step = t.closest("[data-step]"); if (step) { const v = Math.max(0.5, Number(S.editingReminder ? S.reminderDraft : (spaceNums().reminder ?? 2)) + Number(step.dataset.step)); S.reminderDraft = v; S.editingReminder = true; render(); return; }
+    const o = t.closest("[data-open]"); if (o) { S.open[o.dataset.open] = !S.open[o.dataset.open]; render(); return; }
     const a = t.closest("[data-act]"); if (!a) return;
     const act = a.dataset.act;
     if (act === "pause") { S.state.scope = "paused"; announce(L("已暂停记录", "Recording paused")); }
     else if (act === "resume") { S.state.scope = "normal"; announce(L("继续记录", "Recording resumed")); }
-    else if (act === "seen") S.firstSeen = true;
-    else if (act === "toA") { S.opt.scope = "A"; S.block = "scope"; }
-    else if (act === "pop") S.popOpen = !S.popOpen;
     else if (act === "keep") { S.period = "keep"; S.state.clean = "normal"; }
-    else if (act === "keepB") { S.keepDays = 999; S.state.clean = "normal"; }
-    else if (act === "dlg") S.dlg = "open";
-    else if (act === "dlgx") { S.dlg = null; if (S.state.clean === "dialog") S.state.clean = "normal"; }
-    else if (act === "dlgok") { S.dlg = null; S.state.clean = "running"; render(); setTimeout(() => { if (S.state.clean === "running") { S.state.clean = "after"; render(); } }, 1800); return; }
-    else if (act === "editRem") { S.editingReminder = true; S.reminderDraft = String(S.reminder || 2); }
-    else if (act === "remX") S.editingReminder = false;
-    else if (act === "remToggle") { if (S.reminder != null || ["near", "over"].includes(S.state.space) || S.editingReminder) { S.reminder = null; S.editingReminder = false; if (["near", "over"].includes(S.state.space)) S.state.space = "normal"; } else { S.editingReminder = true; S.reminderDraft = "2"; } }
-    else if (act === "remOff") { S.reminder = null; if (["near", "over"].includes(S.state.space)) S.state.space = "normal"; }
+    else if (act === "dlg") S.dlg = true;
+    else if (act === "dlgx") { e.preventDefault(); S.dlg = false; if (S.state.clean === "dialog") S.state.clean = "normal"; }
+    else if (act === "dlgok") { e.preventDefault(); S.dlg = false; S.state.clean = "running"; render(); setTimeout(() => { if (S.state.clean === "running") { S.state.clean = "after"; render(); } }, 1800); return; }
+    else if (act === "editRem") { S.block = "space"; S.editingReminder = true; S.reminderDraft = spaceNums().reminder ?? 2; }
     else if (act === "remSave") { const v = parseFloat(document.getElementById("remIn").value); if (v > 0) { S.reminder = Math.round(v * 10) / 10; S.editingReminder = false; if (["near", "over"].includes(S.state.space)) S.state.space = "normal"; announce(L(`提醒线已设为 ${S.reminder} GB`, `Reminder set to ${S.reminder} GB`)); } }
+    else if (act === "noop") return;
+    else return;
     render();
   });
   app.addEventListener("change", (e) => {
     const t = e.target;
-    if (t.id === "period") { S.period = t.value; S.state.clean = "normal"; render(); }
-    else if (t.id === "dlgRange") { S.dlgRange = t.value; render(); }
-    else if (t.id === "dlgProject") { S.dlgProject = t.value; render(); }
-    else if (t.dataset.dk) { S.dlgKinds[t.dataset.dk] = t.checked; render(); }
+    if (t.id === "period") { S.period = t.value; S.state.clean = "normal"; }
+    else if (t.id === "dlgRange") S.dlgRange = t.value;
+    else if (t.id === "dlgProject") S.dlgProject = t.value;
+    else if (t.dataset.dk) S.dlgKinds[t.dataset.dk] = t.checked;
+    else if (t.dataset.use) S.uses[t.dataset.use] = t.checked;
+    else if (t.dataset.act === "remToggle") {
+      if (t.checked) { S.editingReminder = true; S.reminderDraft = 2; }
+      else { S.reminder = null; S.editingReminder = false; if (["near", "over"].includes(S.state.space)) S.state.space = "normal"; }
+    } else if (t.id === "remIn") { S.reminderDraft = Number(t.value) || 2; S.editingReminder = true; }
+    else return;
+    render();
   });
-  app.addEventListener("input", (e) => { if (e.target.id === "keepRange") { S.keepDays = 154 - Number(e.target.value); if (S.state.clean === "short") S.state.clean = "normal"; const pos = e.target.selectionStart; render(); const r = document.getElementById("keepRange"); if (r) r.focus(); void pos; } });
+  app.addEventListener("toggle", (e) => { const d = e.target; if (d.matches && d.matches("details[data-key]")) { S.open[d.dataset.key] = d.open; save(); } }, true);
+  app.addEventListener("cancel", (e) => { if (e.target.matches("[data-wr-dialog]")) { e.preventDefault(); S.dlg = false; if (S.state.clean === "dialog") S.state.clean = "normal"; render(); } }, true);
 
   render();
 })();

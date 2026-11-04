@@ -1,8 +1,8 @@
 # 工作记录：可点的定样（路线书第 21 批）
 
-状态：用户已定（2026-11-04）：记了什么 A 分类清单、保留与清理 A 期限加手动清理、占用 A 数字加分类条、覆盖与缺口 B 先列缺口，都是推荐方案；决定记在[原需求 §9](../../../specs/observation-collection/spec.md#9-决策记录)。产品代码还没写。
+状态：用户已定（2026-11-04）：记了什么 A 分类清单、保留与清理 A 期限加手动清理、占用 A 数字加分类条、覆盖与缺口 B 先列缺口，都是推荐方案；决定记在[原需求 §9](../../../specs/observation-collection/spec.md#9-决策记录)。同日按用户的定样规则（[开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)：界面与原型按组件板实件做）把四个方案用组件板实件重做，版式和取舍不变。产品代码还没写。
 
-这是参考原型，不是产品界面。需求来源是[观测和采集层](../../../specs/observation-collection/spec.md)（§2.1、§2.5、§2.6，OCL-02、09、11、12），设计见 [design.md](../../../specs/observation-collection/design.md) §6～8，排期见[第 21 批](../../../specs/post-anticorruption-roadmap/reference/batches/21.md)。配色与图标取自第 04 批原型 [onboarding-full-journey](../onboarding-full-journey/README.md)（`base.css`、`icons.js` 拷了一份，没有改它）。2026-11-04 按定样规则（[开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)：先用组件板 `/__ui/catalog` 已有的控件、状态与布局，新增的标出来）把定下的四个方案改成组件板的构件，见下面「对照组件板」。进产品代码时换成对应的 `mw-*` 控件。
+这是参考原型，不是产品界面。需求来源是[观测和采集层](../../../specs/observation-collection/spec.md)（§2.1、§2.5、§2.6，OCL-02、09、11、12），设计见 [design.md](../../../specs/observation-collection/design.md) §6～8，排期见[第 21 批](../../../specs/post-anticorruption-roadmap/reference/batches/21.md)。
 
 ## 怎么打开
 
@@ -12,49 +12,44 @@
 python3 -m http.server 4421 --bind 127.0.0.1 --directory docs/design/work-records
 ```
 
-也可以直接用浏览器打开本目录的 `index.html`。顶上一条斜纹是**原型控制**，不是产品的一部分：选「块」「方案」「状态」，切中英文和浅深色；「还原」清掉本页记住的选择。下拉里标「推荐」的就是用户定下的方案。
+也可以直接用浏览器打开本目录的 `index.html`。底下一条斜纹是**原型控制**，不是产品的一部分：选「块」与「状态」，切中英文和浅深色；「标出组件」见下；「还原」清掉本页记住的选择（`localStorage` 键 `molis-proto.work-records.v3`）。只画用户定下的方案；没选的方案（B 用一件事举例、C 底栏常驻标记、B 时间轴、B 增长趋势、C 存储总览、A 覆盖表、C 时间线）在提交 `a63034326` 里。
 
 ## 放在哪里
 
-全局设置新增「工作记录」一节，放在「记忆」后面（真实的设置分区见 `apps/workbench/src/settings-sections.ts`，原型左栏照它画，别的分区不可点）。一节里四个页签，就是要定的四块。方案 C「底栏常驻标记」是唯一画在工作台里的。
+全局设置「个人」组里「记忆」后面新增「工作记录」一节（真实分区见 `apps/workbench/src/settings-sections.ts`）。页面外壳照真实设置页画：`settings-renderer.ts` 的顶栏、`settings-navigation.ts` 的分组导航、`settings-document` 与 `settings-page-heading`；一节里四个页签（组件板 Tabs），就是定下的四块。
 
-## 四块与方案
+## 样式从哪来
 
-| 块 | 方案 | 取舍 |
-| --- | --- | --- |
-| 记了什么 | **A 分类清单（已定）**：五类记录各一行（颜色固定），点开看「记／不记」；下面是「可以用在哪里」的开关 | 最短、最好扫；要点开才看到细节 |
-| | B 用一件事举例：拿最近一件真实工作画成时间线，每步标出记成哪一类，另列「这件事里没记的」 | 最好懂；工作少的新用户没有例子可举 |
-| | C 底栏常驻标记：底栏一个小圆点「记录中」，点开是速览；首次进项目有一张告知卡 | 随时看得到状态；底栏又多一个东西 |
-| 保留与清理 | **A 期限加手动清理（已定）**：一个下拉选期限，选短了逐条说会失去哪些依据；「选择要清理的记录…」打开对话框，按时间、项目、种类选，先看大小与影响 | 用已有控件就能做；影响靠文字 |
-| | B 时间轴：从最早一条到今天，拖手柄定「保留到哪里」，被清掉的部分画斜线，报告、比较、评测各需要多长画成括号 | 影响一眼看到；要新做时间轴控件 |
-| 占用 | **A 数字加分类条（已定）**：大数字、按记录种类分色的条、提醒线开关与数值、到期清理单独一行 | 清楚；看不出增长快慢 |
-| | B 增长趋势：近 30 天的曲线，提醒线画成虚线，按速度估计哪天到线 | 能预判；估计可能不准 |
-| | C 存储总览一行：和项目资料、成果库、模型缓存并列，展开看分项目与提醒线 | 和别的占用放一起比；工作记录细节藏得深 |
-| 覆盖与缺口 | A 覆盖表：来源 × 记录种类，每格一个状态 | 全貌最完整；格子多，窄屏要横向滚 |
-| | **B 先列缺口（已定）**：顶上一句总况，「需要注意」逐条写来源、时间段、原因，点开看影响与处理；完整和不适用折叠 | 先看到要管的事；看不出全貌 |
-| | C 时间线：每个来源一条横道，断开的地方就是缺口 | 一眼看出哪段时间没记全；看不出是哪类记录 |
+界面全部用组件板现行的样式，不另写令牌、不拷别的原型：
+
+| 文件 | 是什么 |
+| --- | --- |
+| `mw.css` | 生成的快照：构建后的 `apps/workbench` 里 `renderMolisWorkSettingsStylesheet()`（设置页的 `/assets/molis-work-settings.css`），加上 `renderMolisWorkPrimitiveCatalog()` 页内的 `<style>`（组件板 `/__ui/catalog` 上条目、设置行、数字卡片、交互卡片等的样式）；去掉了 `@font-face`，字体走系统回退。文件头写着来源提交 |
+| `mw-icons.js` | 生成的：`renderIconSprite()` 的图标 sprite 和 `renderStateRing()` 的三个状态环 |
+| `proto.css` | 本原型自己的：原型控制条与「标出组件」标注、两项组件板新增的原型画法、把现成组件放进设置页的排版（只用组件板令牌） |
+| `app.js` | 画法照 `packages/plugin-sdk/src/ui` 与 `packages/design-system/src/primitives` 里各个 `render*` 的输出逐字写 |
+
+组件板改了要重新生成 `mw.css` 与 `mw-icons.js`：先构建（`node scripts/machine-slot.mjs run build -- pnpm --filter "@molis-ai/molis-work-app-workbench..." run build`），再在 Node 里导入 `apps/workbench/dist/page-assets.js`、`apps/workbench/dist/primitive-catalog.js` 与 `packages/design-system/dist/index.js`，按上表拼接写出。
 
 ## 对照组件板
 
-顶上原型控制里点「标出组件」：每个构件用虚线框出并写组件板上的名字；红框是**组件板新增**，写着为什么已有的不够。下表是定下的四个方案用到的构件。
+原型控制里点「标出组件」：每个构件用虚线框出并写组件板上的名字；红框是**组件板新增**，在第一处写着为什么已有的不够。
 
-| 方案 | 构件（组件板名） |
+| 块 | 用到的组件板构件 |
 | --- | --- |
-| 记了什么 A | 顶上状态 Alert；五类记录各一行 Item Row · Collapsible（点开看记／不记）；「可以用在哪里」Settings Row + Switch；页签 Tabs |
-| 保留与清理 A | 期限 Settings Row + Select；需要多长的依据 Item Row，末尾 Status mark（保得住／会失去）；手动清理 Dialog，里面 Select、Date Picker、Checkbox Group；清理中与部分失败用 Alert |
-| 占用 A | 用量 Stat；提醒线 Settings Row + Number Field + Switch，下方 Meter（满格就是提醒线）；到期清理 Settings Row；接近、超过、磁盘不足用 Alert |
-| 覆盖与缺口 B | 总况 Alert；来源筛选 Toggle Group + Select；每处缺口 Item Row · Collapsible，末尾 Status mark；「完整」「不适用」折叠 Collapsible |
+| 记了什么 A | 「记录工作过程」Settings Row + Status mark + Button；五类记录 Item Row（末尾图标按钮展开记／不记）；「可以用在哪里」Settings Row + Switch；首次接入与暂停用 Alert + Progress |
+| 保留与清理 A | 期限 Settings Row + Select；所需期限 Item Row + Status mark（保得住／会失去）；期限过短 Alert（带动作行 `mw-ix-actions`）；手动清理 Settings Row + Button，打开 Dialog（Field、Select、Date Picker、Checkbox Group、danger Button）；评测样本 Settings Row + Badge；清理中、部分失败、清理之后用 Alert + Progress |
+| 占用 A | 用量 Stat；提醒线 Settings Row + Number Field + Switch，下一行 Meter（满格就是提醒线）；到期清理 Settings Row；接近、超过、磁盘不足用 Alert；正在计算 Spinner |
+| 覆盖与缺口 B | 总况 Alert（全都完整时是 Settings Row + Status mark）；来源 Toggle Group + 版本 Select；每处缺口 Item Row + Status mark，末尾图标按钮展开影响与处理；「完整」「不适用」Collapsible |
 
-状态的颜色用 Status mark 的语气：完整 done；暂不可用、截断 attention；丢失 blocked；已脱敏、到期清除 hold；未接入 idle；不适用、按规则不记 quiet。
+状态颜色用 Status mark 的语气：完整 done；暂不可用、截断 attention；丢失 blocked；已脱敏、到期清除 hold；未接入 idle；不适用、按规则不记 quiet。按钮只用 primary、secondary、ghost、danger 四种。
 
-**组件板新增**（进产品前先在组件板补标本，再用）：
+**组件板新增**（进产品前由 D 轨先在组件板补标本，再用）：
 
-| 新增 | 为什么已有的不够 |
-| --- | --- |
-| 分类条 | Meter 与 Progress 只显示一个数；占用要按五类记录分段看各占多少，带图例 |
-| 种类色标记 | 组件板的 Mark 是中性色；五类记录在清单、对话框、缺口里要一眼分开（界面通用规则 11-03：不同内容用搭配的不同颜色） |
-
-没选的方案（B 时间轴、A 覆盖表等）不做，没有逐个对照。
+| 新增 | 为什么已有的不够 | 原型画法 |
+| --- | --- | --- |
+| 分类条 | Meter 与 Progress 只显示一个数；占用要按五类记录分段看各占多少，带图例 | 8px 高的分段条加图例，颜色取五种 `--mark-*` 色，附件与图片用 `--muted` |
+| 种类色标记 | 组件板的 Mark 是中性色；五类记录在清单、缺口里要一眼分开（界面通用规则 11-03：不同内容用搭配的不同颜色） | Mark 的底换成 `--mark-<色>-fill`、图标换成 `--mark-<色>`；五类记录对应 blue、plum、slate、ochre、clay（DESIGN.md 里文件种类的五种色） |
 
 ## 每块的状态
 

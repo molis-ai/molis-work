@@ -1,21 +1,15 @@
 // 21 · Work records prototype — all sample data. Nothing here reads a Home, a database or a disk.
 window.protoData = {
-  // Blocks, options and states the review strip switches between.
+  // Blocks and states the review strip switches between. Only the option the user chose (2026-11-04) is drawn;
+  // the options not chosen are in git history (commit a63034326).
   blocks: [
-    { id: "scope", name: ["记了什么", "What's recorded"], options: [
-      { id: "A", name: ["A 分类清单", "A Category list"], rec: true },
-      { id: "B", name: ["B 用一件事举例", "B One real piece of work"] },
-      { id: "C", name: ["C 底栏常驻标记", "C Always-on marker"] },
-    ], states: [
+    { id: "scope", name: ["记了什么", "What's recorded"], chosen: "A", chosenName: ["A 分类清单", "A Category list"], states: [
       { id: "normal", name: ["正常：记录中", "Normal: recording"] },
       { id: "first", name: ["首次接入：在读现有资料", "First connect: reading what exists"] },
       { id: "paused", name: ["已暂停记录", "Recording paused"] },
       { id: "useoff", name: ["评测用途已关", "Evaluation use off"] },
     ] },
-    { id: "clean", name: ["保留与清理", "Keep & clean up"], options: [
-      { id: "A", name: ["A 期限加手动清理", "A Period + manual clean-up"], rec: true },
-      { id: "B", name: ["B 时间轴", "B Timeline"] },
-    ], states: [
+    { id: "clean", name: ["保留与清理", "Keep & clean up"], chosen: "A", chosenName: ["A 期限加手动清理", "A Period + manual clean-up"], states: [
       { id: "normal", name: ["正常：长期保留（默认）", "Normal: keep (default)"] },
       { id: "short", name: ["选的期限短于报告与比较", "Period shorter than reports"] },
       { id: "dialog", name: ["手动清理：看影响", "Manual: review impact"] },
@@ -23,43 +17,35 @@ window.protoData = {
       { id: "partial", name: ["清理有一处没成", "One part failed"] },
       { id: "after", name: ["清理之后：显示缺口", "After: gap shown"] },
     ] },
-    { id: "space", name: ["占用", "Space"], options: [
-      { id: "A", name: ["A 数字加分类条", "A Number + category bar"], rec: true },
-      { id: "B", name: ["B 增长趋势", "B Growth trend"] },
-      { id: "C", name: ["C 存储总览一行", "C One row in Storage"] },
-    ], states: [
+    { id: "space", name: ["占用", "Space"], chosen: "A", chosenName: ["A 数字加分类条", "A Number + category bar"], states: [
       { id: "normal", name: ["正常：没设提醒线", "Normal: no reminder"] },
       { id: "near", name: ["接近提醒线", "Near the reminder"] },
       { id: "over", name: ["超过提醒线", "Past the reminder"] },
       { id: "disk", name: ["磁盘不足：有记录没保存", "Disk full: some not saved"] },
       { id: "counting", name: ["正在计算", "Counting"] },
     ] },
-    { id: "gaps", name: ["覆盖与缺口", "Coverage & gaps"], options: [
-      { id: "A", name: ["A 覆盖表", "A Coverage grid"] },
-      { id: "B", name: ["B 先列缺口", "B Gaps first"], rec: true },
-      { id: "C", name: ["C 时间线", "C Timeline"] },
-    ], states: [
+    { id: "gaps", name: ["覆盖与缺口", "Coverage & gaps"], chosen: "B", chosenName: ["B 先列缺口", "B Gaps first"], states: [
       { id: "normal", name: ["正常：只有未接入与不适用", "Normal: only not-connected / n/a"] },
       { id: "issues", name: ["有缺口：写入失败、断线、截断", "Gaps: write failure, offline, truncated"] },
       { id: "cleared", name: ["清理后：早期记录已清除", "After clean-up: early records cleared"] },
     ] },
   ],
 
-  // Kinds of records — one colour each, same in every block.
+  // Kinds of records — one colour each, same in every block: the five --mark-* tones of the design system (DESIGN.md).
   kinds: [
     { id: "ops", hue: "blue", icon: "edit", name: ["你的操作", "Your actions"],
       rec: ["打开、编辑、保存、采用、拒绝、撤销了哪个对象", "Which object you opened, edited, saved, adopted, rejected or undid"],
       not: ["没发出的草稿、输入法里的字、别的应用", "Unsent drafts, keystrokes, other apps"] },
-    { id: "ai", hue: "violet", icon: "sparkles", name: ["AI 做的事", "What AI did"],
+    { id: "ai", hue: "plum", icon: "sparkles", name: ["AI 做的事", "What AI did"],
       rec: ["请求、用到的资料与版本、生效的 Skill 版本、模型给出的回答、工具调用与结果、用量", "Request, materials and versions used, active Skill version, model output, tool calls and results, usage"],
       not: ["模型没给出的内部思考；密钥只记是哪一把", "Hidden model reasoning; keys are recorded by name only"] },
-    { id: "content", hue: "green", icon: "history", name: ["内容的变化", "Content changes"],
+    { id: "content", hue: "slate", icon: "history", name: ["内容的变化", "Content changes"],
       rec: ["谁改了什么、改前改后各是哪个版本", "Who changed what, and which version before and after"],
       not: ["不另存一份正文；正文留在各插件自己的历史里", "No second copy of the text; it stays in each plugin's history"] },
-    { id: "bg", hue: "amber", icon: "workflow", name: ["工作流与后台任务", "Workflows & background"],
+    { id: "bg", hue: "ochre", icon: "workflow", name: ["工作流与后台任务", "Workflows & background"],
       rec: ["定时任务、工作流、后台任务的每一步、暂停、失败与恢复", "Each step, pause, failure and recovery of schedules, workflows and background tasks"],
       not: ["没获准的来源", "Sources you have not allowed"] },
-    { id: "shown", hue: "teal", icon: "eye", name: ["呈现与反馈", "What was shown & your response"],
+    { id: "shown", hue: "clay", icon: "eye", name: ["呈现与反馈", "What was shown & your response"],
       rec: ["给你看了哪些建议与候选、你选了哪个、移走或纠正了什么", "Suggestions and candidates shown, what you picked, moved away or corrected"],
       not: ["你有没有读懂——系统不猜", "Whether you understood — never guessed"] },
   ],
@@ -72,30 +58,9 @@ window.protoData = {
     { id: "upload", name: ["上传到别处", "Upload elsewhere"], on: false, na: true },
   ],
 
-  // One real-looking piece of work for scope option B.
-  example: {
-    title: ["昨天 16:20 · 改写第三期周报", "Yesterday 16:20 · Rewrote issue 3 of the weekly"],
-    steps: [
-      { kind: "ops", t: "16:20", text: ["打开 Pages「AI 产品周报 · 第三期」", "Opened Pages “AI product weekly · issue 3”"] },
-      { kind: "ai", t: "16:21", text: ["让助理改写第二节，用了 3 份资料、「周报写作」Skill v4", "Asked the assistant to rewrite section 2 with 3 materials and Skill “Weekly writing” v4"] },
-      { kind: "shown", t: "16:22", text: ["助理给出 2 个改法，你选了第 1 个", "The assistant offered 2 rewrites; you picked the first"] },
-      { kind: "content", t: "16:24", text: ["第二节从 v7 变成 v8（你又改了两句）", "Section 2 went from v7 to v8 (you changed two sentences)"] },
-      { kind: "bg", t: "18:00", text: ["定时任务「周五发布」把 v8 发到团队频道", "Schedule “Friday publish” sent v8 to the team channel"] },
-    ],
-    skipped: [
-      ["输入框里写了又删掉的一段话", "A paragraph you typed and deleted in the composer"],
-      ["你在浏览器里另开的网页", "Web pages you opened in your browser"],
-    ],
-  },
 
   // Space by kind (GB).
   space: { total: 1.84, reminder: null, nearReminder: 2, overTotal: 2.41, free: 0.6, byKind: { ops: 0.12, ai: 0.96, content: 0.18, bg: 0.21, shown: 0.07, files: 0.30 } },
-  trend: [0.62, 0.66, 0.7, 0.71, 0.8, 0.86, 0.9, 0.95, 1.02, 1.08, 1.1, 1.18, 1.24, 1.3, 1.33, 1.38, 1.45, 1.5, 1.52, 1.58, 1.62, 1.66, 1.7, 1.74, 1.76, 1.79, 1.8, 1.82, 1.83, 1.84],
-  otherStorage: [
-    { name: ["项目资料与索引", "Project materials & index"], gb: 3.2 },
-    { name: ["成果库", "Library"], gb: 0.9 },
-    { name: ["模型与缓存", "Models & cache"], gb: 6.4 },
-  ],
   byProject: [
     { name: "AI 产品观察", gb: 1.02 }, { name: "官网改版", gb: 0.51 }, { name: "产品研究", gb: 0.31 },
   ],

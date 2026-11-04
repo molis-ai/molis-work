@@ -80,7 +80,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat__trend line + line { stroke: var(--accent); stroke-width: 6; }
   .mw-stat .mw-progress { margin-top: 16px; }
 
-  .mw-items { display: grid; width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
+  .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
   .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
   .mw-setting > div:first-child { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }

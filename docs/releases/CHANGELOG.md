@@ -6,6 +6,8 @@
 
 ### 升级须知（需要动手）
 
+- **判断规则编辑器目录的字段改名 `options`、`option_id`、`option_ids`**（2026-11-03，BL-900，路线书第 05 批）：`functions.authoring.catalog` 输出的 `catalog.behaviors` → `catalog.options`，每项的 `behavior_id` → `option_id`，每个去处的 `behavior_ids` → `option_ids`；合同导出的 `filterSuggestedBehaviorIds`、`defaultInboxNextBehaviorIds`、`defaultFeedCaptureBehaviorIds` → `…OptionIds`。这份目录只在宿主与编辑器之间传，不落库；读这个动作输出的 MCP 客户端或脚本要改读新字段；按用户 11-02 的决定（对抗式审查台账 N35），阶段一在原版本 @1 上直接改形状、不升版本；仓库里没有固定这个能力的工作流、场景或绑定，MCP 工具名不变。判断结果里落库的 `suggested_behavior_ids` 不变。
+
 - **远程 MCP 连接绑定声明来源**（2026-11-01，T-068 BL-790）：旧远程连接没有来源 pin 时不能继续使用，须在服务连接里新增连接，并重新选择 Agent 的工具连接；平台不按服务名自动补来源或迁移。已带合法 pin 的连接正常重启后仍可发起新操作，重启前 pending/held 或停用再启用前的在途操作失效。飞书/Lark stdio 和 Figma 本机例外保持；本片没有动作 id、版本或 MCP 工具名变更。
 
 - **Goals 工作终端的 open/list 升到 @2**（2026-10-31，T-148）：`goals.terminal.open@2` 新增可选的 `resume_session_id`，`goals.terminal.list@2` 的每行新增 `program`；`close/prompt` 仍为 @1。固定旧 open/list@1 的调用方（工作流步骤、绑定或脚本）保留原引用并收到能力未注册/版本失效，须显式重选 @2；平台不自动换号，也不提供旧版本别名。四个动作仍只给 `user`，没有 MCP 工具；HTTP 路径、权限与会话格式拒绝规则不变，产品/包版本不变。

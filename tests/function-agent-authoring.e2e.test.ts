@@ -64,8 +64,8 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
   const actions = bindActionClient(localHost.actionClient(reference), () => owner);
   try {
     const catalog = (await actions.invoke(functionContextActions.catalog, {})).catalog;
-    assert.deepEqual(catalog.behaviors.find(row => row.action_ref?.capability_id === write.capability_id)?.action_ref, ref(write));
-    assert.equal(catalog.behaviors.some(row => row.action_ref?.capability_id === privateAction.capability_id), false);
+    assert.deepEqual(catalog.options.find(row => row.action_ref?.capability_id === write.capability_id)?.action_ref, ref(write));
+    assert.equal(catalog.options.some(row => row.action_ref?.capability_id === privateAction.capability_id), false);
     await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
     await navigate(() => command("Page.navigate", { url: origin + "/capabilities/rules?project=" + projectId + "&rule=" + draft.id }, sessionId));
     await waitFor("!!document.querySelector('[data-functions-destination=\"agent.mcp\"]')");
@@ -178,7 +178,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
     await click('[data-functions-step="fn"]');
     assert.equal(await evaluate("document.querySelector('[data-map-key=molis_work_v1_legacy_tool]').value"), "", "old result names are not guessed into action references");
     await evaluate("document.querySelector('[data-functions-palette-details]').open = true");
-    const choiceKey = catalog.behaviors.find(row => row.action_ref?.capability_id === write.capability_id)!.behavior_id;
+    const choiceKey = catalog.options.find(row => row.action_ref?.capability_id === write.capability_id)!.option_id;
     await click(`[data-palette-add="${choiceKey}"]`); await saved();
     const choiceRecord = () => withFunctionsService(homeDirectory, service => service.get(choice.id), functions);
     assert.deepEqual(choiceRecord().action_map, { [choiceKey]: ref(write) });

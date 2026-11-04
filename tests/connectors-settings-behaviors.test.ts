@@ -92,8 +92,8 @@ async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): 
   }
 }
 
-function agentBehaviorIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoringCatalog>): readonly string[] {
-  return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
+function agentOptionIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoringCatalog>): readonly string[] {
+  return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.option_ids ?? [];
 }
 
 test("GitHub Integration Manifest is schema 2; its account check is the connector action", () => {
@@ -453,11 +453,11 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
 
 test("a saved connection does not invent Agent capabilities absent from the action directory", async () => {
   await withIsolatedHome(async (homeDirectory) => {
-    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().options, []);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
-    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().options, [], "credentials alone are not action registration or authorization");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().options, []);
   });
 });
 
@@ -503,11 +503,11 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.match(mcp, /data-settings-section="mcp"/);
       assert.doesNotMatch(mcpDocument, /data-connectors-settings|data-connector-token/);
       const emptyCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
-        catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
+        catalog: { destinations: Array<{ destination_id: string; option_ids: string[] }>; options: Array<{ option_id: string }> };
       };
       assert.equal(
         emptyCatalog.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes("github.whoami"),
+          ?.option_ids.includes("github.whoami"),
         false,
       );
       const created = await fetch(`${origin}/api/settings/connectors/connections`, {
@@ -525,9 +525,9 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.doesNotMatch(connectedPage, new RegExp(TOKEN));
       assert.match(connectedPage, new RegExp(`data-connection-row="${connectionId}"`));
       const liveCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
-        catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
+        catalog: { destinations: Array<{ destination_id: string; option_ids: string[] }>; options: Array<{ option_id: string }> };
       };
-      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
+      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.option_ids.includes("github.whoami"), false,
         "the account check is the registered connector action, not a catalog behavior");
       assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
       assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId, connectorControl()),
@@ -539,11 +539,11 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       });
       assert.equal(disconnected.status, 200);
       const after = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
-        catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }> };
+        catalog: { destinations: Array<{ destination_id: string; option_ids: string[] }> };
       };
       assert.equal(
         after.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes("github.whoami"),
+          ?.option_ids.includes("github.whoami"),
         false,
       );
     } finally {
@@ -593,11 +593,11 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   if (result.ok) assert.equal(result.login, "molis");
   assert.deepEqual(urls, ["https://slack.com/api/auth.test"]);
   await withIsolatedHome(async (homeDirectory) => {
-    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentOptionIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "slack", displayName: "Slack", token: "xoxb-liveTokenABCD" }));
-    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
+    assert.equal(agentOptionIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentOptionIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
   });
 });
 

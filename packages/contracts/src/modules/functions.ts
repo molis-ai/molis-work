@@ -144,14 +144,14 @@ export interface JudgmentRuleAuthoringDestination {
   readonly configure_at: string;
   readonly effect: string;
   readonly subject_kinds: readonly string[];
-  readonly behavior_ids: readonly string[];
+  readonly option_ids: readonly string[];
   readonly scene_version?: number;
   readonly provider_id?: string;
   readonly availability?: import("../platform/actions.js").ActionAvailability;
 }
 
 export interface JudgmentRuleAuthoringOption {
-  readonly behavior_id: string;
+  readonly option_id: string;
   readonly title: string;
   readonly hint?: string;
   readonly effect: "read" | "write";
@@ -172,7 +172,7 @@ export interface JudgmentRuleAuthoringOption {
 export interface JudgmentRuleAuthoringCatalog {
   readonly subjects: readonly JudgmentRuleAuthoringSubject[];
   readonly destinations: readonly JudgmentRuleAuthoringDestination[];
-  readonly behaviors: readonly JudgmentRuleAuthoringOption[];
+  readonly options: readonly JudgmentRuleAuthoringOption[];
 }
 
 
@@ -261,7 +261,7 @@ export interface TypeSafeProvider {
   evaluate(apiKey: string, record: JudgmentRuleRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
-export function filterSuggestedBehaviorIds(
+export function filterSuggestedOptionIds(
   offered: readonly string[],
   allowed: readonly string[],
   choice: string | null | undefined,
@@ -274,7 +274,7 @@ export function filterSuggestedBehaviorIds(
   return [choice];
 }
 
-export function defaultInboxNextBehaviorIds(active: boolean): string[] {
+export function defaultInboxNextOptionIds(active: boolean): string[] {
   return active ? [INBOX_DONE_OPTION_ID, INBOX_DISMISS_OPTION_ID] : [];
 }
 
@@ -285,7 +285,7 @@ export const FEED_CAPTURE_DISPOSITION_IDS: readonly string[] = [
   FEED_ARCHIVE_OPTION_ID,
 ];
 
-export function defaultFeedCaptureBehaviorIds(canAdmit: boolean): string[] {
+export function defaultFeedCaptureOptionIds(canAdmit: boolean): string[] {
   return canAdmit ? [...FEED_CAPTURE_DISPOSITION_IDS, FEED_OPEN_OPTION_ID] : [];
 }
 
@@ -321,11 +321,11 @@ export const JUDGMENT_RULE_AUTHORING_SUBJECTS: readonly JudgmentRuleAuthoringSub
 
 export function choiceCriteriaFollowContext(
   keys: readonly string[],
-  catalogBehaviorIds: readonly string[],
+  catalogOptionIds: readonly string[],
 ): boolean {
   if (keys.length === 0) return true;
   if (keys.length === 2 && keys[0] === "yes" && keys[1] === "no") return true;
-  const ids = new Set(catalogBehaviorIds);
+  const ids = new Set(catalogOptionIds);
   return keys.every((key) => ids.has(key));
 }
 

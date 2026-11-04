@@ -66,6 +66,20 @@ test("the diagnostics page lists the rows of the operation whose 诊断编号 is
     assert.match(row!, /aria-label="复制诊断编号 a1b2c3d4"/);
     assert.match(row!, new RegExp(`data-molis-call-id="${A}"`), "the whole id is what the button copies");
     assert.doesNotMatch(row!, /data-copy-value/, "one hook for the copy: the request helper's handler is in the Workbench's program too, so a mounted page needs no second one");
+    // VUX-52/56/58: names, outcomes and local time appear first. Technical evidence remains available on demand.
+    const [visible, technical] = row!.split("<details>");
+    assert.match(visible!, /保存设置/);
+    assert.doesNotMatch(visible!, /test\.fixture|test\.disconnected|web-user/);
+    assert.match(technical!, /<summary>技术详情<\/summary>/);
+    assert.match(technical!, /test\.fixture\.write@1/);
+    assert.match(technical!, /test\.disconnected/);
+    const [, stamp, label] = visible!.match(/<time datetime="([^"]+)">([^<]+)<\/time>/)!;
+    assert.equal(label, new Date(stamp!).toLocaleString("zh-CN"));
+    const en = await fetch(context.base + "/settings/diagnostics?call=a1b2c3d4", { headers: { Cookie: "molis_work_locale=en" } });
+    assert.equal(en.status, 200);
+    const [englishRow] = rowsOf(await en.text());
+    assert.match(englishRow!, /<summary>Technical details<\/summary>/);
+    assert.equal(englishRow!.match(/<time[^>]*>([^<]+)<\/time>/)?.[1], new Date(stamp!).toLocaleString("en"));
     assert.match(row!, /测试服务/);
     assert.match(row!, /test\.disconnected/, "the error code is kept");
     assert.doesNotMatch(page, /此原因不会被记录/, "the reason a refusal gave is not kept, so it is not shown");
@@ -168,6 +182,12 @@ test("what is typed into the lookup is escaped and cut, and a call of a deleted 
     const gone = rowsOf(await read("/settings/diagnostics?call=f4000004"))[0]!;
     assert.match(gone, /已不存在的项目/);
     assert.doesNotMatch(gone, /href=/, "that project's call history would not open");
+    context.record(B, "missing.action", "missing.action", refused, {}, { provider_title: "", operation: "unknown" });
+    const [unknown] = rowsOf(await read("/settings/diagnostics?call=b2c3d4e5"));
+    assert.match(unknown!, /<strong>未识别的操作<\/strong>/);
+    assert.doesNotMatch(unknown!.split("<details>")[0]!, /missing\.action/);
+    assert.match(unknown!, /<code>missing\.action@1<\/code>/);
+
   });
 });
 

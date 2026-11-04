@@ -28,7 +28,7 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId, itemTabs: ITEM_TABS } = host;
+  const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -57,7 +57,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let pointerOnHit = false, pendingRender = false;
   let composing = false;
   let lastTrigger = null;
-  let remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" };
+  const emptyResults = (query = "") => ({ query, scope, status: query ? "loading" : "idle", hits: [], sources: [], next: null, error: "" });
+  let remote = emptyResults();
   let requestSeq = 0;
   let debounce = null;
   let retry = null;
@@ -65,6 +66,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let notice = "";
   const isOpen = () => dialog.open;
   const isBusy = () => composing || isOpen();
+  const mobileDocument = () => { if (matchMedia("(max-width: 600px)").matches) setMobileView("document"); };
   const localGroups = (query) => {
     const q = query.trim().toLowerCase();
     const groups = [];
@@ -74,15 +76,17 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const limit = q ? 12 : 8;
     const tools = takeSearchHits(items, q, limit);
     if (tools.length) groups.push({ label: L('插件'), items: tools });
+    const action = (id, title, keyword, selector) => ({ kind: "action", id, title: L(title), plugin: L("快捷操作"), search: title + " " + keyword, selector });
     const actions = [
-      { kind: "action", id: "create", title: L("新建目标"), plugin: L("快捷操作"), search: "新建目标 create goal", selector: "[data-open-create]" },
-      { kind: "action", id: "home", title: L("项目首页"), plugin: L("快捷操作"), search: "项目首页 home", selector: '[data-plugin-id="home"]' },
-      { kind: "action", id: "settings", title: L("设置"), plugin: L("快捷操作"), search: "设置 settings", selector: '[data-plugin-id="settings"]' },
-      { kind: "action", id: "market", title: L("插件市场"), plugin: L("快捷操作"), search: "插件市场 market", selector: '[data-plugin-id="market"]' },
-    ].filter((item) => document.querySelector(item.selector) && (!q || item.search.includes(q)));
+      action("create", "新建目标", "create goal", "[data-open-create]"),
+      action("home", "项目首页", "home", '[data-plugin-id="home"]'),
+      action("settings", "设置", "settings", '[data-plugin-id="settings"]'),
+      action("market", "插件市场", "market", '[data-plugin-id="market"]'),
+    ].filter(item => document.querySelector(item.selector) && item.search.includes(q));
     if (actions.length) {
-      if (q) groups.push({ label: L("快捷操作"), items: actions });
-      else groups.unshift({ label: L("快捷操作"), items: actions });
+      const group = { label: L("快捷操作"), items: actions };
+      if (q) groups.push(group);
+      else groups.unshift(group);
     }
     return groups;
   };
@@ -95,16 +99,16 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     }
     return [...byPlugin.entries()].map(([label, items]) => ({ label, items }));
   };
-  const statusText = () => {
-    if (notice) return notice;
-    if (remote.status === "error") return remote.error || L("搜索暂时不可用，请稍后重试");
-    if (!input.value.trim()) return hasProject ? L("搜索本项目与个人的全部内容，或按名称切换工具") : L("搜索个人内容，或按名称切换工具");
-    if (remote.status === "loading" && !remote.hits.length) return L("正在搜索…");
-    const indexing = remote.sources.filter((source) => source.state === "indexing").map((source) => source.title);
-    if (indexing.length) return L("正在建立搜索索引：") + indexing.join("、");
-    const failing = remote.sources.filter((source) => ["failed", "stale", "unavailable"].includes(source.state));
-    if (failing.length) return L("部分内容暂时搜不到：") + failing.map((source) => source.title + (source.reason ? "（" + source.reason + "）" : "")).join("、");
-    return "";
+  const statusMessage = () => {
+    if (notice) return ["", notice];
+    if (remote.status === "error") return ["failed", remote.error || L("搜索暂时不可用，请稍后重试")];
+    if (!input.value.trim()) return ["", hasProject ? L("搜索本项目与个人的全部内容，或按名称切换工具") : L("搜索个人内容，或按名称切换工具")];
+    if (remote.status === "loading" && !remote.hits.length) return ["running", L("正在搜索…")];
+    const indexing = remote.sources.filter(source => source.state === "indexing");
+    if (indexing.length) return ["indexing", L("正在建立搜索索引：") + indexing.map(source => source.title).join("、")];
+    const failing = remote.sources.filter(source => ["failed", "stale", "unavailable"].includes(source.state));
+    if (failing.length) return ["partial", L("部分内容暂时搜不到：") + failing.map(source => source.title + (source.reason ? "（" + source.reason + "）" : "")).join("、")];
+    return ["", ""];
   };
   const paintSelection = () => {
     results.querySelectorAll("[data-global-search-hit]").forEach((button, index) => {
@@ -138,22 +142,29 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (pointerOnHit) { pendingRender = true; return; }
     pendingRender = false;
     const previous = explicit && hits[selected];
-    const query = input.value;
+    const query = input.value.trim();
     const groups = localGroups(query);
-    const content = query.trim() ? remoteGroups() : [];
+    const content = query ? remoteGroups() : [];
     // Content first when the words find something; tools stay reachable after it.
-    const ordered = query.trim() ? [...content, ...groups] : groups;
-    const noContent = query.trim() && !content.length && remote.status === "done" && remote.query === query.trim();
+    const ordered = [...content, ...groups];
+    const noContent = query && !content.length && remote.status === "done" && remote.query === query;
     // Asking the Assistant is a separate, explicit button: it is not a result, and Enter on no results starts nothing.
     const ask = noContent && typeof askAssistant === "function"
-      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(L("问助理：") + "“" + query.trim() + "”") + "</button>" : "";
+      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(L("问助理：") + "“" + query + "”") + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
     if (previous) selected = hits.findIndex(item => item.kind === previous.kind && (item.kind === "hit" ? item.hit.hit_id === previous.hit.hit_id : item.id === previous.id));
     if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
-    if(statusLine){const text=statusText();if(typeof text==="string")statusLine.textContent=text;else molisWorkRequest.show(statusLine,text);statusLine.hidden=!text;if (notice) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "error") statusLine.dataset.mwState = "failed"; else if (!input.value.trim()) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "loading" && !remote.hits.length) statusLine.dataset.mwState = "running"; else if (remote.sources.some(source => source.state === "indexing")) statusLine.dataset.mwState = "indexing"; else if (remote.sources.some(source => ["failed", "stale", "unavailable"].includes(source.state))) statusLine.dataset.mwState = "partial"; else statusLine.removeAttribute("data-mw-state"); }
+    if (statusLine) {
+      const [state, text] = statusMessage();
+      if (typeof text === "string") statusLine.textContent = text;
+      else molisWorkRequest.show(statusLine, text);
+      statusLine.hidden = !text;
+      if (state) statusLine.dataset.mwState = state;
+      else delete statusLine.dataset.mwState;
+    }
     paintScopes();
     if (!ordered.length) {
-      const waiting = query.trim() && remote.status !== "done" && remote.status !== "error";
+      const waiting = query && remote.status !== "done" && remote.status !== "error";
       results.innerHTML = waiting ? "" : '<p class="global-search-empty">' + escapeHtml(L("没有匹配的内容")) + "</p>" + ask;
       input.removeAttribute("aria-activedescendant");
       return;
@@ -171,7 +182,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         return html;
       }).join("");
       return '<section class="global-search-group"><h3>' + escapeHtml(group.label) + "</h3>" + rows + "</section>";
-    }).join("") + (remote.next && query.trim() ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(L("显示更多结果")) + "</button>" : "")
+    }).join("") + (remote.next && query ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(L("显示更多结果")) + "</button>" : "")
       // Tools matched but content did not: say so about content only, not as if nothing matched.
       + (ask ? '<p class="global-search-empty">' + escapeHtml(L("内容里没有找到")) + "</p>" + ask : "");
     paintSelection();
@@ -186,7 +197,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const search = async (append = false) => {
     const query = input.value.trim();
     clearTimeout(retry);
-    if (!query) { remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" }; render(); return; }
+    if (!query) { remote = emptyResults(); render(); return; }
     const seq = ++requestSeq;
     if (!append) remote = { ...remote, query, scope, status: "loading", error: "", ...(remote.query === query && remote.scope === scope ? {} : { hits: [], next: null }) };
     render();
@@ -260,7 +271,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     else if (ITEM_TABS.includes(surface) && !(surface === "feed" && kind === "source")) openTabItem?.(surface, id, title);
     else if (RECORD_ROWS.includes(surface)) openPluginRecord?.(surface, id);
     else openPlugin?.(surface);
-    if (matchMedia("(max-width: 600px)").matches) setMobileView("document");
+    mobileDocument();
   };
   // The same rule as in place, but in the object's own space: a tab for item surfaces, the plugin's list row for record surfaces.
   const openElsewhere = (project, target, title) => {
@@ -275,7 +286,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (!item) return;
     if (item.kind === "plugin") {
       close();
-      requestAnimationFrame(() => { openPlugin?.(item.id); if (matchMedia('(max-width: 600px)').matches) setMobileView('document'); });
+      requestAnimationFrame(() => { openPlugin?.(item.id); mobileDocument(); });
       return;
     }
     if (item.kind === "action") { close(); requestAnimationFrame(() => document.querySelector(item.selector)?.click()); return; }
@@ -310,7 +321,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     pointerOnHit = false; pendingRender = false;
     selected = 0; explicit = false;
     notice = "";
-    remote = { query: "", scope, status: "idle", hits: [], sources: [], next: null, error: "" };
+    remote = emptyResults();
     render();
     if (!dialog.open) dialog.showModal();
     input.setAttribute("aria-expanded", "true");
@@ -327,7 +338,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     pointerOnHit = false;
     clearTimeout(retry); requestSeq += 1;
     selected = 0; explicit = false;
-    remote = { query: input.value.trim(), scope, status: input.value.trim() ? "loading" : "idle", hits: [], sources: [], next: null, error: "" };
+    remote = emptyResults(input.value.trim());
     schedule(); render();
   };
   input.addEventListener("input", () => {
@@ -386,15 +397,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   });
   const handleKeyboard = (event) => {
     const meta = event.metaKey || event.ctrlKey;
-    if (meta && event.key.toLowerCase() === "k" && !event.shiftKey && !event.altKey && !inTerminal(event.target)) {
-      event.preventDefault();
-      if (isOpen()) close();
-      else open(document.activeElement);
-      return true;
-    }
-    if (meta && event.key.toLowerCase() === "f" && !event.shiftKey && !event.altKey && !inTerminal(event.target)) {
+    const shortcut = meta && !event.shiftKey && !event.altKey && event.key.toLowerCase();
+    if ((shortcut === "k" || shortcut === "f") && !inTerminal(event.target)) {
       event.preventDefault();
       if (!isOpen()) open(document.activeElement);
+      else if (shortcut === "k") close();
       else input.focus();
       return true;
     }
@@ -405,17 +412,12 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       void activate(hits[Number(event.key) - 1]);
       return true;
     }
-    if (event.key === "ArrowDown") {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!hits.length) return true;
-      selected = selected < 0 ? 0 : (selected + 1) % hits.length; explicit = true;
-      paintSelection();
-      return true;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!hits.length) return true;
-      selected = selected <= 0 ? hits.length - 1 : selected - 1; explicit = true;
+      if (event.key === "ArrowDown") selected = (selected + 1) % hits.length;
+      else selected = selected <= 0 ? hits.length - 1 : selected - 1;
+      explicit = true;
       paintSelection();
       return true;
     }
@@ -427,4 +429,4 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     return false;
   };
   return { open, close, handleKeyboard, isBusy, isOpen };
-}`.replace(/^[ \t]*\/\/.*\n/gm, "");
+}`;

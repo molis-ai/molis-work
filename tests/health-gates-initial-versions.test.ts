@@ -12,17 +12,23 @@ test("U0-03: an active registration cannot hide a later action, manifest, role o
   const registration = { owner_id: "assistant", prompts: [{ prompt_id: "work", version: 1 }], roles: [{ role_id: "system", version: 1 }] };
   const inspect = () => initialVersionProblems({ manifests: [manifest], hostViews: [view], registrations: [registration] });
   assert.deepEqual(inspect(), []);
-  for (const [record, key, name] of [
-    [manifest, "schema_version", "schema_version"], [manifest, "host_api_version", "host_api_version"],
-    [manifest.actions[0], "version", "notes.read"], [view, "version", "home.read"],
-    [agent.roles[0], "version", "parent"], [agent.prompts[0], "version", "base"], [agent.subagents.roles[0], "version", "child"],
-    [registration.prompts[0], "version", "work"], [registration.roles[0], "version", "system"],
-  ]) {
-    record[key] = 2;
+  const mutations: Array<[string, (version: number) => void]> = [
+    ["schema_version", value => { manifest.schema_version = value; }],
+    ["host_api_version", value => { manifest.host_api_version = value; }],
+    ["notes.read", value => { manifest.actions[0]!.version = value; }],
+    ["home.read", value => { view.version = value; }],
+    ["parent", value => { agent.roles[0]!.version = value; }],
+    ["base", value => { agent.prompts[0]!.version = value; }],
+    ["child", value => { agent.subagents.roles[0]!.version = value; }],
+    ["work", value => { registration.prompts[0]!.version = value; }],
+    ["system", value => { registration.roles[0]!.version = value; }],
+  ];
+  for (const [name, setVersion] of mutations) {
+    setVersion(2);
     const problems = inspect();
     assert.equal(problems.length, 1);
-    assert.ok(problems[0].includes(`${name} = 2`), problems[0]);
-    record[key] = 1;
+    assert.ok(problems[0]!.includes(`${name} = 2`), problems[0]);
+    setVersion(1);
   }
 });
 

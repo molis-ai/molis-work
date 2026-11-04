@@ -491,7 +491,7 @@
     keepScroll = true;
     if (focusAfter) { const el = document.querySelector(focusAfter); if (el) el.focus(); focusAfter = null; }
     // Re-renders (timers, countdowns) must not replay the opening motion of dialogs and sheets.
-    clearTimeout(settleTimer); settleTimer = setTimeout(() => document.body.classList.add("settled"), 450);
+    clearTimeout(settleTimer); settleTimer = setTimeout(() => { settled = true; document.body.classList.add("settled"); }, 450);
     if (settled) document.body.classList.add("settled");
   }
   let settleTimer = null, settled = false, keepScroll = false;
@@ -506,8 +506,8 @@
     if (t.dataset.notes) { S.notes = !S.notes; save(); render(); return; }
     const act = t.dataset.act, id = t.dataset.id;
     if (act === "open" && e.target.closest(".proto-row__body")) return;
-    settled = !["dlg", "custom", "ret-start", "to-advanced"].includes(act) && settled;
-    if (["dlg", "custom", "ret-start", "to-advanced"].includes(act)) document.body.classList.remove("settled");
+    // Only these open something new and play its arrival; every other re-render (timers, countdowns) stays still.
+    const arrives = ["dlg", "custom", "ret-start", "to-advanced", "open"].includes(act) && !(act === "open" && S._open === id);
     switch (act) {
       case "open": e.stopPropagation(); S._open = S._open === id ? null : id; break;
       case "sel": S._sel = id; S._selMobile = true; break;
@@ -548,7 +548,7 @@
         if (act && act.startsWith("use-")) { A.use = A.use || []; A.use[Number(act.slice(4))] = t.dataset.v; break; }
         return;
     }
-    settled = act !== "dlg" && act !== "custom" && act !== "ret-start";
+    settled = !arrives;
     render();
   });
   document.addEventListener("toggle", (e) => { if (e.target.matches && e.target.matches("details[data-adv]")) A.open = e.target.open; }, true);

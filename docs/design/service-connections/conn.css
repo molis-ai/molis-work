@@ -53,6 +53,14 @@ body.settings-page #app { display: grid; grid-template-rows: 44px minmax(0, 1fr)
 .proto-need__head .mw-card__title { margin: 0; }
 [data-need] .mw-card__panel { display: grid; gap: 16px; }
 
+/* 动效：沿用产品的曲线与时长令牌。展开区像产品里刚打开的折叠一样升起；侧板在原处也照设置页的规则滑入。
+   计时器带来的重绘不重放进场（body.settled）。 */
+.proto-row__body { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+body.proto-body--origin dialog.mw-sheet[open] { animation: craft-sheet-in 420ms var(--ease-quint); }
+body.settled :is(dialog.mw-dialog[open], dialog.mw-sheet[open], .proto-row__body) { animation: none !important; }
+body.settled dialog::backdrop { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .proto-row__body, body.proto-body--origin dialog.mw-sheet[open] { animation: none; } }
+
 /* 版式小件（不是新控件，只是现有控件的排布） */
 .proto-badges { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .proto-subhead { display: grid; gap: 4px; font-size: 13px; }

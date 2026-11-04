@@ -221,3 +221,32 @@ test("global settings retain project context through sections, planning cancel a
   await waitFor("!document.querySelector('[data-tab-workspace]')?.dataset.exclusive");
   assert.equal(await evaluate('location.pathname'),`/projects/${projectId}/`);
 });
+
+test("BL-958 / VUX-30/40: narrow settings labels stay on one line and the links stay reachable", {timeout: 90_000}, async t => {
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
+  const { command, sessionId, origin, navigate, waitFor, evaluate } = b;
+  await b.setViewport(390, 500);
+  for (const language of ["zh", "en"]) {
+    await command("Network.setCookie", {name: "molis_work_locale", value: language, url: origin}, sessionId);
+    await navigate(() => command("Page.navigate", {url: origin + "/settings/appearance"}, sessionId));
+    const links = ".settings-nav-body a";
+    await waitFor(`document.querySelector('${links}[aria-current=page]')`);
+    const geometry = await evaluate<{ overflow: boolean; invalid: string[]; selected: string }>(`(() => {
+      const anchors = Array.from(document.querySelectorAll('${links}'));
+      const invalid = anchors.filter(link => {
+        const text = Array.from(link.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+        const range = document.createRange(); range.selectNodeContents(text);
+        const lines = new Set(Array.from(range.getClientRects()).filter(r => r.height && r.width).map(r => Math.round(r.top)));
+        return lines.size !== 1 || link.getBoundingClientRect().height < 44 || getComputedStyle(link).borderTopStyle === 'none';
+      }).map(link => link.textContent.trim());
+      return { overflow: document.documentElement.scrollWidth > innerWidth, invalid, selected: document.querySelector('${links}[aria-current=page]').textContent.trim() };
+    })()`);
+    assert.equal(geometry.selected, language === "en" ? "Interface & language" : "界面与语言");
+    assert.deepEqual(geometry.invalid, []);
+    assert.equal(geometry.overflow, false);
+    await evaluate(`document.querySelector('${links}').focus()`);
+    const next = await evaluate<string>(`Array.from(document.querySelectorAll('${links}')).at(1).href`);
+    for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", {type, key:"Tab", code:"Tab", windowsVirtualKeyCode:9}, sessionId);
+    assert.equal(await evaluate("document.activeElement.href"), next);
+  }
+});

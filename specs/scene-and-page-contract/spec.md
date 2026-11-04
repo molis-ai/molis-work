@@ -13,7 +13,7 @@
 5. **保存与恢复**（第 7 节）：多步采用的记录、续做、撤销、移除和升级；
 6. **插件采用边界**（第 8 节）：插件要声明什么才能被场景配置，平台除此之外不碰插件的数据。
 
-[第 2 项](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-item-2)的场景包声明叠在本稿上：§3.8 各项内容的字段、示范任务、「挡第几步」、版本与升级差异、随包带上但未启用的状态，都由第 2 项用这里的部分类型拼出来。本稿不定套组的字段。
+[第 2 项](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-item-2)的场景包声明叠在本稿上：§3.8 各项内容的字段、示范任务、「挡第几步」、版本与升级差异、随包带上但未启用的状态，都由第 2 项用这里的部分类型拼出来。本稿不定官方场景包的字段。
 
 产品规则已经定了，这里不重定：
 
@@ -42,7 +42,7 @@
 
 - **场景包不存用户数据，只提建议。** 场景包里每一部分都是「建议某个主人这样配」。采用时调那个主人的公开动作写进去，回读结果才算生效；之后这份配置归那个主人，与场景包分开演进（ONB-55）。
 - **一个事实一个主人。** 角色归 Characters，设置归各自的主人，首页与生成页面归平台的首页服务（第 6 节），Skill 启用归 Agent 定义登记，插件安装归 Plugin Runtime。场景服务只拥有两样：场景包草稿，和「这次采用做了什么」的记录（第 7 节）。
-- **插件同等待遇。** 官方场景包、个人场景包、AI 生成的草稿用同一份声明、同一条采用路径；宿主不按插件名、套组名或「官方」开分支（ONB-53）。首页是平台能力，插件卡片只经 05② 的呈现声明进首页，宿主和首页都不写 Work Brief 或别的插件名（WBR-23）。
+- **插件同等待遇。** 官方场景包、个人场景包、AI 生成的草稿用同一份声明、同一条采用路径；宿主不按插件名、场景包名或「官方」开分支（ONB-53）。首页是平台能力，插件卡片只经 05② 的呈现声明进首页，宿主和首页都不写 Work Brief 或别的插件名（WBR-23）。
 - **场景包不能放宽权限。** 采用不授予动作、不扩大连接的使用范围、不重新开启停用项、不越过主人的硬限制（§3.11 末段）。会改权限、花钱、对外发、开定时的项，在预览里单独标出，由本人确认。
 - **可信身份不从输入读。** 操作者、项目、安装从调用上下文来；采用由本人在预览后发起，按本人的授权逐项调用。
 - **现行取值。** 按 N35 原地改形状，不留旧取值的读取兜底（第 11 节）。
@@ -55,7 +55,7 @@
 | 设置各管各的：模型设置是 Manifest 的 `model_configuration`（存哪、两个动作）；项目运行时存 `null` 表示沿用；记忆有 `personal`、`project-default`、`project:<id>` 三层；插件设置页靠 `settings_data` 读一个动作 | `packages/contracts/src/platform/plugin-model-configuration.ts:44-51`；`apps/local-host/src/project-runtime-settings.ts:17-31`；`horizontal/memory/src/prefs.ts:19-40`；`packages/contracts/src/platform/ui.ts:447` | 没有统一的「有效值＋来源＋读写」形状：引导、设置页、助理各读各的，ONB-21～23 要的「同一份有效值」做不到 |
 | 引导的采用是宿主私有代码：建项目、导入 Pages、整理待办，用 `discover()` 找动作、按 `request_id` 防重 | `apps/local-host/src/context-onboarding-service.ts:442-470`；`context-onboarding-store.ts:47-83` | 只认这几步；没有逐项的未执行／已生效／失败／待核对，也没有撤销与移除 |
 | 项目里加哪些插件，只有项目设置页的 HTTP 能改，没有动作；表在 `modules/projects`，常开与随行的规则在宿主 | `modules/projects/src/project-records-repository.ts:42-52`；`apps/local-host/src/web-catalog-routes.ts:113`；`apps/local-host/src/project-plugin-enablement.ts` | 采用调不到；事实与规则分在两处（P-3a 合到 `modules/projects`） |
-| 场景包没有任何声明；套组的内容 Manifest 大多放不下 | #1793 核账第一节 | 本稿与第 2 项补 |
+| 场景包没有任何声明；官方场景包的内容 Manifest 大多放不下 | #1793 核账第一节 | 本稿与第 2 项补 |
 | 插件页面跑在不透明框架里，脚本只能是包里固定的几份，动作走页面网关、受安装的 `consumes` 与授权限制 | `apps/workbench/src/browser/plugin-frame/`；S-47 | 这是生成页面能复用的隔离 |
 | 生成插件的界面是 `interface.json`：零件从组件板挑、绑定到操作 | `apps/local-host/src/sandbox-package.ts:92-103`；`packages/design-system/src/plugin-components.ts` | 只能排列现有零件，满足不了「模块库没有的交互」（§3.10） |
 | 首页只有平台的基础首页；没有「项目用哪个首页」的设置，也没有 Work Brief 插件 | `apps/workbench/src/`；`plugins/native/` | 首页服务、项目选哪个首页、生成页面的版本，都没有合同（第 6 节） |
@@ -69,7 +69,7 @@
 
 | 来路 | 存在哪 | 签名 |
 | --- | --- | --- |
-| 官方套组 | 随安装包带上的内容包（08），Manifest 的 `blueprint` 键（第 2 项加进内容包白名单） | Molis Work 发布者（第 26 批） |
+| 官方场景包 | 随安装包带上的内容包（08），Manifest 的 `blueprint` 键（第 2 项加进内容包白名单） | Molis Work 发布者（第 26 批） |
 | 个人场景包（另存下来的） | 同上，由「另存」生成的内容包 | 这个 Home 的发布身份 |
 | 草稿（AI 按目的生成、访谈里成形、改到一半的） | 场景服务的草稿表（第 7 节），没装、不签名 | 不签名；草稿只是数据，采用时它要装的新 Skill 打成签名的内容包（生成页面不打包，存进首页服务） |
 
@@ -118,8 +118,8 @@ type BlueprintProposal =
 
 **校验分两步**，因为「有没有主人」要看此刻装了什么：
 
-- **静态检查**：SDK 的 `inspectBlueprint(blueprint)`，不看目录。查 `part_id` 重复、建议种类、各项上限、`TextRef` 的形状、角色模板的形状。内容包安装、场景服务存草稿、第 2 项的套组键都调它，坏的场景包整份拒；错误照 08 的写法给 `problems: Array<{ part_id?: string; reason: string }>`。
-- **主人检查**：在 `blueprints.adoption.preview@1` 里做。设置项、内容类型、能力此刻没有主人或提供方的那一项，标 `blueprints.part_unsupported`（没人声明）或 `blueprints.dependency_unmet`（能力没装），只挡受影响的步骤（ONB-54）。所以一个套组依赖还没装的插件，照样装得上。
+- **静态检查**：SDK 的 `inspectBlueprint(blueprint)`，不看目录。查 `part_id` 重复、建议种类、各项上限、`TextRef` 的形状、角色模板的形状。内容包安装、场景服务存草稿、第 2 项的官方场景包键都调它，坏的场景包整份拒；错误照 08 的写法给 `problems: Array<{ part_id?: string; reason: string }>`。
+- **主人检查**：在 `blueprints.adoption.preview@1` 里做。设置项、内容类型、能力此刻没有主人或提供方的那一项，标 `blueprints.part_unsupported`（没人声明）或 `blueprints.dependency_unmet`（能力没装），只挡受影响的步骤（ONB-54）。所以一个官方场景包依赖还没装的插件，照样装得上。
 
 ## 4. 设置
 
@@ -194,7 +194,7 @@ interface RoleTemplate {
 
 - **采用动作** `characters.from_template@1`（command，只给本人）：按模板建一份你的角色草稿，记下来源 `{ source: BlueprintSource; part_id }`；标题按本人当时的界面语言解析成字符串存进草稿；同一个 `request_id` 只建一次。项目里已有同名角色时不覆盖，由预览让你选沿用还是另建（04 定样已画）。
 - **层次与生效归 36**：项目成员默认跟随你的原件、改了哪一节哪一节成为本项目的、取值顺序「本次 → 本项目 → 你的默认 → 助理自己」、每次保存固定一个版本，都是 36 的合同。本稿只要求两件事：采用建的项目成员带着来源，以便升级时比差异、移除时只解除它（ONB-56）；模板不能放宽工具与动作（36 第三节「选角色不是授权」）。
-- 套组升级时，模板变了只出现在升级预览里，由你挑着重新采用；不改你已经改过的角色（ONB-55）。
+- 官方场景包升级时，模板变了只出现在升级预览里，由你挑着重新采用；不改你已经改过的角色（ONB-55）。
 
 ## 6. 首页与生成页面
 
@@ -257,7 +257,7 @@ interface HomePageVersion {
 - **送文件只有一条路**：
   1. 外壳（可信父页）以本人的身份调 `home.pages.files.read@1`（只给 `user`，页面主体调不到），输入 `page_id`、`version`。
   2. 首页服务按这一版的清单从项目库取正文，**送出前逐个重算 `sha256`**；有一个对不上就整版不给（`home.page_file_mismatch`），外壳显示基础首页。
-  3. 外壳拿到后**再核一次**摘要，把 HTML、JS、CSS 写进框架的 `srcdoc`。框架的 CSP 里 `script-src`、`style-src` 只有平台固定的框架脚本，加上这一版每个文件的 `'sha256-…'` 哈希源；`connect-src 'none'`，不给 `'unsafe-eval'`、`'unsafe-hashes'`。所以浏览器也按摘要把关：页面运行中拼出的脚本、内联事件、`eval` 都不执行。
+  3. 外壳拿到后**再核一次**摘要，以入口 HTML 为底，把这一版的 JS、CSS 分别内联成 `<script>`、`<style>` 元素，整份写进框架的 `srcdoc`；页面文件里引用别的文件的 `<script src>`、`<link>` 由外壳换成内联，清单外的引用不加载。页面不能用内联 `style` 属性和内联事件（`style-src` 不给 `'unsafe-inline'`，这一点与插件页不同）。框架的 CSP 里 `script-src`、`style-src` 只有平台固定的框架脚本，加上这一版每个文件的 `'sha256-…'` 哈希源；`connect-src 'none'`，不给 `'unsafe-eval'`、`'unsafe-hashes'`。所以浏览器也按摘要把关：页面运行中拼出的脚本、内联事件、`eval` 都不执行。
   - 页面文件不走静态路由，也不进 `/assets/`，没有按地址取页面文件的第二条路。
   - 实现要改的：`apps/workbench/src/browser/plugin-frame/document.ts`（按页面版本组 `srcdoc` 与 CSP）、`parent.ts`（挂页面主体）；宿主侧页面网关 `apps/local-host/src/plugin-page-authority.ts`、`plugin-page-actions.ts`（认页面主体）。都随 P-4 列进冲突面（第 15 节第 14 项）。
 - **调用**：页面只经页面网关调动作。主体由外壳按框架填，页面自己写的不算。每次调用都核：动作在这一版声明的 `actions` 里，也在本人为这一版批准的集合里；动作的受众含 `plugin`（页面主体按 `plugin` 受众核，只给 `user` 的动作调不到）；目标项目就是页面所在的项目。调用记录里写页面主体和它的版本。
@@ -415,8 +415,8 @@ interface HomePageVersion {
 | 差异 | 04 现在 | 交给 |
 | --- | --- | --- |
 | 有效值的来源（本次、本项目、个人默认、默认） | 来源标记按「让版面说话」去掉了 | 44 的完整路径定样：来源仍要能看到（§3.11），放进「?」或展开处，由 44 定 |
-| 采用中途停在「要先安装」：转到普通的安装确认（验签名、本人确认），装好回到采用接着做 | 只画了「缺一个插件、挡哪一步」 | 44 的挑套组两种入口定样 |
-| 撤销、移除场景包、套组升级的差异 | 没画 | 44 |
+| 采用中途停在「要先安装」：转到普通的安装确认（验签名、本人确认），装好回到采用接着做 | 只画了「缺一个插件、挡哪一步」 | 44 的挑官方场景包两种入口定样 |
+| 撤销、移除场景包、官方场景包升级的差异 | 没画 | 44 |
 | 页面采用、恢复上一版、回到基础首页 | 首页是占位 | 37 的「页面采用／恢复」定样 |
 
 D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44、37 的定样提出。
@@ -435,7 +435,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 
 | 编号 | 要达到的结果 | 对应 |
 | --- | --- | --- |
-| SPC-01 | 同一份场景包无论来自套组、个人场景包还是草稿，都由同一个静态 `inspectBlueprint` 校验，走同一个 `adoption.preview`／`apply`；代码里没有按套组名、插件名或「官方」的分支 | ONB-53、ONB-33 |
+| SPC-01 | 同一份场景包无论来自官方场景包、个人场景包还是草稿，都由同一个静态 `inspectBlueprint` 校验，走同一个 `adoption.preview`／`apply`；代码里没有按场景包名、插件名或「官方」的分支 | ONB-53、ONB-33 |
 | SPC-02 | 预览逐项写出新建、复用、修改、跳过，当前值与来源、建议值、层次、后果和缺的依赖；会改权限、花钱、对外发、开定时的项单独标出 | §3.12、ONB-19 |
 | SPC-03 | 采用逐项调主人的动作并回读；在任一步制造失败、取消和重启，再继续不重复建角色、成员、页面，不重复外部效果；待核对的先读再定 | ONB-28、ONB-45 |
 | SPC-04 | 同一项设置从引导、设置页和助理改，读到同一个有效值和来源；`inherit` 恢复沿用上一层；本次任务的值不写进主人 | ONB-21～23、ONB-31 |
@@ -447,7 +447,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 | SPC-10 | 生成页面只跑首页存下的、摘要相符的文件；改过的文件、清单外脚本、内联脚本、`eval`、直接网络都不运行；页面主体只能调这一版声明并经本人批准的、受众含 `plugin` 的本项目动作；助理、插件、页面自己调不了 `adopt`／`restore`（S-131～S-133） | §3.10、ONB-26 |
 | SPC-11 | 生成页面加载失败、文件对不上或被撤下时显示基础首页；换版后旧版本的在途调用不生效；恢复上一版、回到基础首页都不重做已完成的业务动作；插件卡片在基础首页与生成页面里出自同一份呈现声明 | WBR-22、WBR-23、WBR-27、ONB-25 |
 | SPC-12 | 采用进度在页面上实时更新，不轮询；重进只读一次 | 第 9 节 |
-| SPC-13 | 一个套组依赖还没装的插件时照样装得上；预览里那一项标依赖未满足，只挡受影响的步骤 | ONB-54 |
+| SPC-13 | 一个官方场景包依赖还没装的插件时照样装得上；预览里那一项标依赖未满足，只挡受影响的步骤 | ONB-54 |
 | SPC-14 | `apply` 碰到要装的部分停在 `needs_install`，从不调 `plugins.install.confirm`；本人装好后同一个 `request_id` 续做；`apply` 用系统身份写主人数据被拒，嵌套调用的调用记录里有上一层；首页那一步停在 `needs_approval`，`apply`／`revert`／`remove` 嵌套调 `home.pages.adopt`／`restore` 被拒 | ONB-53、ONB-34 |
 | SPC-15 | 首页服务、场景服务都拿不到私钥：个人场景包与导入的 Skill 只经 `plugins.local_packages.sign@1` 签名，安装预览写出来源（AI 生成、导入、另存），来源不从输入读 | S-84、S-87 |
 | SPC-16 | 删项目后指向它的采用记录被清；主人插件停用或卸载后，那一步标「主人已不在」，撤销跳过并如实写出 | ONB-56、§3.12 |
@@ -459,7 +459,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 | # | 结论 |
 | --- | --- |
 | 1 事实主人 | 新事实只有两样，归新服务 `horizontal/blueprints`：场景包草稿、采用记录。角色归 Characters、设置归各自主人、Skill 启用归 Agent 定义登记、安装归 Plugin Runtime、首页选择、生成页面的版本与获准动作归首页服务 `horizontal/home`（第 6.1 节）；卡片内容归各插件、经 05② 现读；签名入口归 `plugin-install`（第 6.6 节）。读别人的事实只走第 4、8 节的读动作，场景服务不缓存主人的值 |
-| 2 插件同等待遇 | 套组、个人包、草稿同一条路；`content` 主人按声明的类型找；插件卡片只经 05② 的呈现声明，任何插件同一份；首页不认插件名。宿主只装配场景服务与首页服务，不新增构建期接线 |
+| 2 插件同等待遇 | 官方场景包、个人包、草稿同一条路；`content` 主人按声明的类型找；插件卡片只经 05② 的呈现声明，任何插件同一份；首页不认插件名。宿主只装配场景服务与首页服务，不新增构建期接线 |
 | 3 能力注册 | 第 7 节八个动作（`adoption.preview` 是 command）由 `system.blueprints`、第 6.5 节八个动作由 `system.home` 各注册一次；设置与采用都是主人自己声明的动作，读写 schema 由平台定死。草稿给 `user`、`agent`，采用与另存只给 `user`。嵌套调用的操作者、项目取自本人的调用上下文，授权按本人核，`system.blueprints` 不替人写；`adoption.apply`、`adoption.preview`、`packs.save` 等主人或签名的声明 `concurrent` |
 | 4 合同 | 改。新子路径 `platform/settings`、`platform/blueprints`、`services/blueprints`、`services/home`；改 `platform/plugin-manifest`、`platform/actions`（页面主体）、`platform/plugin-trust`、`modules/characters`、`modules/projects`；不动 `platform/ui`。M1 前，按 N35 一个 PR 改完消费者；合同先单独开 PR，按快照一次一个（第 10 节） |
 | 5 放在哪个包 | 场景服务、首页服务都是 `horizontal/` 下的新包（`horizontal/blueprints`、`horizontal/home`），依赖 contracts 与 plugin-sdk，经动作目录调主人，不 import 任何插件或 Module 的实现；共用校验在 SDK |

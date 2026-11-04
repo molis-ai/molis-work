@@ -70,7 +70,7 @@ export function renderContextToolbarExample(): string {
   const actions = `${btn('<span>找依据</span>', 'data-emphasis="true"')}${btn('<span>提反例</span>')}${btn('<span>拆步骤</span>')}${btn('<span>更多</span>', 'aria-haspopup="menu" aria-expanded="false"')}${btn('<span>助理</span>')}`;
   const narrow = `${btn('<span>找依据</span>')}${btn('<span>提反例</span>')}${btn('<span>更多</span>', 'aria-haspopup="menu" aria-expanded="false"')}${btn('', 'aria-label="助理" title="交给助理"')}`;
   return `<style>${CONTEXT_TOOLBAR_STYLES}${STATIC_STYLES}</style>
-  <p class="mw-catalog__hint">贴着手上的东西出现的一条浮条：工具（插件声明，固定在左）｜最多三个推荐动作｜更多｜助理。不抢编辑器的焦点；⌘. 进入，←→ 移动，Esc 收起。下面是几种状态的静态标本，和一块可以选字试一试的样例文字（内容和动作都是样例，不会执行）。</p>
+  <p class="mw-catalog__hint">选中下面样例里的字试一试。⌘. 进入，←→ 移动，Esc 收起。</p>
   <div class="mw-catalog__specimens">
     ${staticBar('宽：工具 + 三个推荐 + 更多 + 助理', tools + actions)}
     ${staticBar('窄：只留两个推荐，助理只剩图标', narrow)}

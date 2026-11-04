@@ -4,7 +4,6 @@
  */
 export const BOARD_EN: Record<string, string> = {
   "条件与状态": "Conditions and states",
-  "同一块生产内容放在真实的工作台环境里（下面的框架用工作台的样式表与页面程序），一次只换一个参数对照：界面语言、正文语言与混排、编程与非编程、后备字体、复制成败、容器宽度，明暗与密度用页面的偏好。缩放、触控与减少动态效果由浏览器给，框架只读出当前值。示例内容固定，不连接任何服务；标「模拟」的是板上造出的条件，不代替生产验证。": "The same production content in the real workbench context (the frame below uses the workbench's stylesheet and page programs), one parameter changed at a time: interface language, body language and mixed text, programming and non-programming, fallback fonts, copy success and failure, container width; light, dark and density use the page's preferences. Zoom, touch and reduced motion come from the browser, and the frame only reads them out. The sample content is fixed and connects to no service; conditions marked simulated are made on the board and do not replace production checks.",
   "正文语言": "Body language",
   "混排": "Mixed",
   "编程": "Programming",
@@ -44,7 +43,6 @@ export const BOARD_EN: Record<string, string> = {
   "连接中断": "Disconnected",
   // 助理信息与任务 (assistant-board-*.ts, browser/board/assistant-frame.ts).
   "助理信息与任务": "Assistant information and works",
-  "常驻助理的生产程序放在它自己的底栏里：多项工作的标签与列表、侧栏六组（工作环境、上下文、连接与工具、产出、变更、后台任务）、一轮的过程、输入框、上下文条与附件。读到的工作是固定样例（模拟），由宿主照常画好；回答问题、核对中断的一轮与处理提醒只在这一页里生效，别的写入一律被拒绝，不碰真实的工作，也不改这台电脑上工作台记住的东西。侧栏的「用量」照这一轮的报告写：进行中、已报告、暂不可用各有一项工作；「给王一骏回邮件」的问卷可以单选、多选、写「其他」和补充，交回时按钮转圈，被拒（模拟）时说明落在那一题下面。正文语言换的是工作里的话，界面语言换的是产品的字。": "The resident Assistant's production program in its own bottom bar: the tabs and list of several works, the side pane's six groups (environment, context, connections and tools, outputs, changes, background work), a round's steps, the input, the context strip and attachments. The works it reads are fixed samples (simulated), drawn by the Host as usual; answering a question, checking an interrupted round and handling a notice take effect only on this page, every other write is refused, so no real work is touched and nothing the workbench remembers on this computer changes. The side pane's Usage follows the round's own report: one work each is running, reported and unavailable. The questionnaire in “Reply to Yijun Wang's email” takes a single choice, several choices, Other and a note; while it is sent the button spins, and when it is refused (simulated) the reason sits under that question. Body language changes the words in the works; interface language changes the product's words.",
   "非编程 · 等你确认": "Non-programming · waiting for you to confirm",
   "中断 · 要核对": "Interrupted · to be checked",
   "限流 · 等待重试": "Rate-limited · waiting to retry",
@@ -62,7 +60,6 @@ export const BOARD_EN: Record<string, string> = {
   "样例文字": "Sample words",
   "样例数据（模拟）": "Sample data (simulated)",
   "插件自己的行渲染器画出的样例：数据是固定样例，行就是插件页面画的那一行。目录里的行按一栏的宽度排，主区的视图占满。": "Drawn by each plugin's own row renderer: the data is a fixed sample, and each row is the row the plugin's page draws. Directory rows take a column's width; a main-area view takes the whole width.",
-  "插件页面里的行，由插件自己的渲染器照生产参数画出：媒体材料、文件改动、编程会话。界面语言、样例文字与容器一次换一个；明暗与密度跟随页面的偏好。数据是固定样例（模拟），不代替生产验证。": "The rows of plugin pages, drawn by each plugin's own renderer with production parameters: media materials, file changes, programming sessions. Interface language, sample words and container change one at a time; light, dark and density follow the page's preferences. The data is a fixed sample (simulated) and does not replace production checks.",
   "回答问卷": "Answering the questionnaire",
   "交回": "Taken",
   "被拒（模拟）": "Refused (simulated)",

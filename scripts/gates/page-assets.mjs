@@ -242,21 +242,25 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
+// Component board upgrade (DESIGN「皮肤」「Reading load」, 2026-10-30 to 11-03), approved by the user on 2026-11-03 over the 10 KB line.
+// In all: arrival.css +10997 B, settings.css +9713 B, workbench.css +14784 B, workbench.js +765 B, coding.css +890 B.
+// - The Tray and Pill skins (design-system styles/skins.ts, its toast rule) close each of the three page sheets, about +7.3 KB on
+//   each; the page script reads, applies and follows the skin preference (the +765 B on workbench.js). The default components'
+//   details (legible disabled buttons, field error glyphs, menu shortcuts and groups) add about +2.6 KB on each sheet.
+// - The reading-load rules (DESIGN「Reading load」): outlined ghost buttons, one-line meta rows, the diff file list, the operation
+//   card's target and impact chips and the input receipt's zones as containers in their own colours; workbench.css also carries
+//   the diff view and receipts, and coding.css the one-line session row with its state chip. Record actions take their kind's
+//   colour (read in the accent, delete in red); the frame header no longer thins its action to a text link, which saves 439 B. The mist palette and the soft-fog
+//   defaults replace values and add next to nothing.
+// Tried: each skin rule is written once over shared `--sk-*` tokens; the board's own samples stay inlined on the board page;
+// the palette switch was removed from the board instead of shipped; the soft-fog commit's rewrite of buttons and badges is
+// smaller than what it replaced; no new asset.
 const APPROVED_CEILINGS = {
-  // Final T395/T405/T403/T406 carrier against main e4e98ed331. Reuse the reviewed builder and Git allowances;
-  // arrival +20 B preserves the selected directory's pre-paint geometry. The former workbench allowance is no longer needed.
-  // T411 adds 621 B for query presence, full results and retained drafts, reusing the existing renderer/guards.
-  // T414 adds 1100 B for real required-field feedback, read retry and acceptance-only refresh/cleanup; existing rendering is reused.
-  // The original admission is still unconsumed on main: total reviewed growth is 3993 B, final measured ceiling 122665.
-  "/assets/molis-work-plugins/plugin-builder.js": [118672, 122665],
-  "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
-  "/assets/molis-work-plugins/git.js": [29496, 30295],
-  "/assets/molis-work-arrival.css": [678738, 678758],
-  // User-approved exact frame growth: owner-bound reads, trusted account selection, native drag and refresh identity.
-  // Existing lifecycle/authorization/projection helpers are reused; Feed/Inbox business closures leave the eager shell.
-  "/assets/molis-work-plugin-frame.js": [191017, 207977],
-  // T403 observed owner menu regression: native Escape closes Shelf More and returns focus (+307 B).
-  "/assets/molis-work-plugins/shelf.js": [64660, 64967],
+  "/assets/molis-work-arrival.css": [678758, 689755],
+  "/assets/molis-work-plugins/coding.css": [74624, 75514],
+  "/assets/molis-work-settings.css": [816992, 826705],
+  "/assets/molis-work-workbench.css": [1179610, 1194394],
+  "/assets/molis-work-workbench.js": [1073749, 1074514],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

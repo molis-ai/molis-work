@@ -21,7 +21,7 @@ export const CRAFT_BAR_STYLES = `
     --press-shade: color-mix(in srgb, var(--ink) 5%, transparent);
     --tip-bg: var(--action); --tip-ink: var(--action-ink);
     --celebrate-a: var(--hue-green-fill, #4cb782);
-    --celebrate-b: var(--accent, #93604b);
+    --celebrate-b: var(--accent, #3c6e98);
     --celebrate-c: var(--hue-yellow-fill, #e2b203);
   }
   html[data-resolved-theme="dark"],

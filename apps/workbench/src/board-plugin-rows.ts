@@ -50,7 +50,6 @@ const PARAMS: readonly BoardFrameParam[] = [
 /** The board's section: one strip (read by the board's strip program, which 条件与状态 carries) and the conditions frame's rows part. */
 export function renderPluginRowsSection(say: Say, lang: "zh" | "en" = "zh"): string {
   return `<section class="mw-catalog__section" id="plugin-rows" data-primitive="plugin-rows"><h2>${escapeHtml(say("插件行视图"))}</h2>
-    <p class="mw-catalog__hint">${escapeHtml(say("插件页面里的行，由插件自己的渲染器照生产参数画出：媒体材料、文件改动、编程会话。界面语言、样例文字与容器一次换一个；明暗与密度跟随页面的偏好。数据是固定样例（模拟），不代替生产验证。"))}</p>
     <div class="mw-cond-params" data-rows-params>${PARAMS.map((one) => boardFrameParam(say, one, one[0] === "lang" ? lang : undefined)).join("")}</div>
     <iframe class="mw-cond-frame mw-rows-frame" data-rows-frame src="/__ui/catalog/conditions?part=rows&amp;lang=${lang}&amp;text=zh" title="${escapeHtml(say("插件行视图样例"))}" style="width:760px" loading="lazy"></iframe>
   </section>`;

@@ -93,6 +93,8 @@ Pages当前结构1保留 `page_comments`；原1→2维护及BL-157已被2026-10-
 
 ### 4.1 动手前
 
+- [ ] 在与维护窗口相同的构建上运行 `node scripts/gates/initial-versions.mjs`，逐项处理仍高于 1 的自有版本，检查通过后再执行真实 Home 步骤。此命令只读临时 Home 的运行目录。
+
 确认相关PR已按新起点收口并经验证/二审；在隔离Home验证新建、重启和错版本拒绝。确认真实Home路径与所有写入者，用户说“开始”后只按pid停常驻服务、4207/4208以及连接同一Home的Web/MCP；用service status和ps确认已无写入者。不要按进程名批量终止。
 
 ### 4.2 搬开旧 Home

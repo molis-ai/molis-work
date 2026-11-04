@@ -314,7 +314,7 @@ goals.timeline.list	1	io.molis.work.goals	io.molis.work.goals	query	query	projec
 goals.trash.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	d746974fa9af	5cbd1ffcab55	-
 goals.trash.set	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	f49258e4d4a0	c75a26d2d5e8	1ae0dcb1ca7b
 goals.tree.check	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	53a6c1f780ad	69d7e8d0bdf2	9a20bdba744a
-goals.tree.decide	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	user	attention:write,goals:decide	goal	-	-	48060aecb8c7	46b82005fc68	9a20bdba744a
+goals.tree.decide	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	user	attention:write,goals:decide	goal	-	-	48060aecb8c7	b6b52c5af36d	9a20bdba744a
 goals.tree.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	8b806aee7aad	d51688131353	-
 goals.tree.submit	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user,workflow	attention:write,goals:write	goal	-	-	142c25e7d19c	ec42af7be833	553218cb7ac7
 goals.work.resume	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	f67091d4e5d0	d4193c249847	9a20bdba744a

@@ -11,7 +11,7 @@
  *
  * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
  * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
- * A failed read leaves what the page last showed: each part is a convenience.
+ * A failed read leaves what the page last showed: each part is a convenience. A 404 (the project or Home is gone) stops the reads.
  */
 export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const { translate: L, projectId, openItem, route } = host;
@@ -71,8 +71,10 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     }
   };
   const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
+  // A 404 means this page's project (or Home) is gone: an old tab stops asking instead of reading a 404 every 15 seconds (N54).
+  let gone = false, timer = 0;
   const read = async () => {
-    if (document.hidden) return;
+    if (document.hidden || gone) return;
     if (reading) { again = true; return; }
     reading = true; again = false;
     const started = performance.now();
@@ -81,7 +83,10 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       const list = data.background_tasks, next = JSON.stringify(list);
       if (Array.isArray(list) && next !== key) { key = next; tasks = list; render(); }
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
-    } catch { /* keeps what it showed */ }
+    } catch (error) {
+      // Any other failure keeps what it showed and is asked again on the next beat.
+      if (error && error.status === 404) { gone = true; clearInterval(timer); }
+    }
     finally { reading = false; if (again) void read(); }
   };
   button?.addEventListener("click", () => {
@@ -93,5 +98,5 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void read(); });
   document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(read, 300));
   void read();
-  setInterval(read, 15000);
+  timer = setInterval(read, 15000);
 }`;

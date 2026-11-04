@@ -6,9 +6,9 @@ import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, LocalProjectDatabase, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { FunctionsStore } from "@molis-ai/molis-work-module-judgment-rules";
-import { serveTestHost } from "../../tests/fixtures/test-home.ts";
-import { startProjectPlugins } from "../../tests/fixtures/plugin-callers.ts";
-import { codingSessions, noEffect } from "../../tests/fixtures/coding-sessions.ts";
+import { serveTestHost } from "../../../tests/fixtures/test-home.ts";
+import { startProjectPlugins } from "../../../tests/fixtures/plugin-callers.ts";
+import { codingSessions, noEffect } from "../../../tests/fixtures/coding-sessions.ts";
 
 const [mode, countText, profilePath] = process.argv.slice(2);
 const count = Number(countText), home = process.env.MOLIS_WORK_HOME;

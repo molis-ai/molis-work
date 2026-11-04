@@ -1000,7 +1000,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | 2026-10-15 | 8 个中文名插件在英文界面的名字（F-20，弹窗） | 按建议英文名（推荐）；灵光、炼金术士不译；全部保持中文 | 按建议英文名 | Artifacts、Plugin Studio、Images、Lingguang、To-do、Characters、Alchemist、Workflows，只用于英文界面，中文界面不变（角色已是设置的一节，不在插件列表）；实现 #512 |
 | 2026-10-15 | 新项目摘要页等生成内容的语言（F-22，弹窗） | 跟随创建时的界面语言（推荐）；保持中文 | 跟随创建时的界面语言 | 已建的页面不改；实现 #512 |
 | 2026-10-14 | 108 卡在 work-placement-restart（弹窗） | 只停这一个文件的进程（推荐）；停整个 108；等它超时 | 只停这一个文件的进程 | 去停时 pid 35170 已自行退出、108 继续，实际没有停任何进程 |
-| 2026-10-14 | Issue 首次登记的 24,000 资源上限（复查 F-1，弹窗） | 批准过，补记录并删掉已用完的例外（推荐）；没批准，回退 | 批准过，补记录 | 记录补在 specs/issue-home-v0；`INITIAL_ASSET_BUDGETS` 已删，门禁回到只减不增（[#501](https://github.com/molis-ai/molis-work/pull/501)） |
+| 2026-10-14 | Issue 首次登记的 24,000 资源上限（复查 F-1，弹窗） | 批准过，补记录并删掉已用完的例外（推荐）；没批准，回退 | 批准过，补记录 | 记录补在 specs/archive/issue-home-v0；`INITIAL_ASSET_BUDGETS` 已删，门禁回到只减不增（[#501](https://github.com/molis-ai/molis-work/pull/501)） |
 | 2026-10-14 | Home 级内置插件的登记位置（复查 F-2，弹窗） | 改规则文字（推荐）；改代码搬到 Host 侧名单 | 改规则文字 | AGENTS.md、EXTENSION-POINTS、PLUGIN-DEVELOPMENT 写明：Home 级内置插件在 `builtin-plugins.ts` 以 `runtime: { scope: "home" }` 登记，由 `home-plugins.ts` 装配；项目级仍只走 `project-plugins.ts`（[#502](https://github.com/molis-ai/molis-work/pull/502)） |
 | 2026-10-14 | Runtime 插件的 consumes 能否调到别的插件的动作（复查 F-10，弹窗） | 只给宿主装配的内置插件；对所有插件放开；都只到宿主动作 | 对所有插件放开 | 仍受受众、权限、可用性与 schema 约束；先查授权再查目录；未列在 consumes 的动作 `actions.forbidden`。SECURITY-INVARIANTS S-15、插件开发 Skill、PLUGIN-DEVELOPMENT 已写；`tests/workspace-read-one-id.test.ts` 改为断言列出的可达、未列的拒绝，进 `test:security`（在 F109 00bbdacb7，未进 main，随 I8 落地） |
 | 2026-10-14 | main 缺模型切换的授权复核（复查 F-4，弹窗） | 单独一个小 PR 先进 main（推荐）；随 I8 一起 | 单独一个小 PR 先进 main | 上游已有：Prologue #24。Molis 侧要换包加 beforeAccept 接线，接线依赖 G5 的执行检查框架（`prologue-effects.ts`），所以这是 I8 拆分后的第一个 PR，不会很小 |
@@ -2590,7 +2590,7 @@ I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 �
 | --- | --- | --- | --- |
 | R-1 | #527 撤回了把 `tests/mcp-scene-effect-authority.test.ts` 时限从 30 秒调大的提交，理由是「调大测试自己的时限就是放宽」，并改为把安全任务拆成两片。3 分钟后合入的 #529 又把它调到 120 秒 | 当时判为推翻 #527 的决定、没有新依据，#541 改回 30 秒。用户 10-15 已定：时限可按慢机放宽（第 1 节），所以 #541 的改回是错的：30 秒下 `W3-09-AUTH-03` 在 #532 的 CI 上超时过，本机 13–16 秒 | 改成 90 秒，注释写明倍数与用途（#541 之后的修正 PR） |
 | R-2 | #520 与 #522 的单次资源例外已经用完（issues.js 实测 26,331，Pages 编辑器 703,633），可门禁里按旧大小（24,378、698,574）写的例外还在：缩回旧大小就能再用一次 | 与 F-1、F-13 同类 | 本 PR 删掉 `APPROVED_CEILINGS`，两条例外用例改成「已用完、旧大小下不再放行」。变异检查：用 main 的门禁跑，这两条失败 |
-| R-3 | #520 写明用户在 10-15 批准了 Issue 26 KiB 的例外，但 `specs/issue-home-v0` 没有这条批准的记录，只有 PR 说明和门禁注释 | 与 F-1 同类；批准由 #520 作者转述，本会话无法核实 | 记在这里；例外已在 R-2 删除 |
+| R-3 | #520 写明用户在 10-15 批准了 Issue 26 KiB 的例外，但 `specs/archive/issue-home-v0` 没有这条批准的记录，只有 PR 说明和门禁注释 | 与 F-1 同类；批准由 #520 作者转述，本会话无法核实 | 记在这里；例外已在 R-2 删除 |
 | R-4 | #516（依赖安全修补）：MCP SDK 升到 1.31.0；OAuth 凭据没有 issuer 时拒绝读取，提示「MCP 授权凭据来自旧版本，请重新连接」（stdio 不受影响） | 有依据（GHSA）的行为变化，不留兼容，符合「读取不兜底」 | 用户可见：之前保存的 OAuth MCP 连接要重新连接一次。未读钥匙串核对 |
 | R-5 | #519 为 Linux CI 调大 20 多个用例的时限与等待（「时限只防挂住，不是速度检查」），#527 对同类问题的口径相反 | 用户 10-15 已定：时限可按慢机放宽，不算放宽断言（第 1 节）；#519 的做法符合，#527 撤回时限那一步不再作为口径 | 已定，不用再问 |
 | R-6 | #521 新增浏览器脚本模板 `ISSUE_REVIEW_CLIENT_SCRIPT` | R-07（浏览器代码无打包与类型检查）方向上多一个，但这项还没有门禁 | 留给第 5 波浏览器类型化，不在本 PR 处理 |

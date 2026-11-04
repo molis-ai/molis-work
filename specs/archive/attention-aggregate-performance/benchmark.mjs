@@ -1,5 +1,5 @@
 // AAP-05. Run from the repository root, after pnpm build:
-// node --import tsx specs/attention-aggregate-performance/benchmark.mjs <baseline|fixed> <temporary-data-root> <output-dir> [seconds=60] [counts=1,7,14] [tabs=1,3]
+// node --import tsx specs/archive/attention-aggregate-performance/benchmark.mjs <baseline|fixed> <temporary-data-root> <output-dir> [seconds=60] [counts=1,7,14] [tabs=1,3]
 // Use the SAME temporary-data-root for both arms; each case restores the same closed seed at its original path.
 import assert from "node:assert/strict";
 import { fork } from "node:child_process";

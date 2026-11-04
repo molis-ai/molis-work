@@ -1,5 +1,7 @@
 # attention / Home 聚合性能
 
+> 归档（2026-11-03）：判定为**已实现**。#1073（f2e961c6f）已合入。本文保留隔离负载矩阵、关闭与撤权交错、历史失败；未用当前真实 Home 重新测量。
+
 状态：已于 2026-10-23 经 [PR #1073](https://github.com/molis-ai/molis-work/pull/1073) 合入 main（`f2e961c6f`；2026-11-03 核对）。负责人：Codex。目标完成程度：功能可用，并有真实隔离负载的修复前后对比；不包含真实 Home 安装、发布或一骏本人验收。
 
 合入前最终 head `f68798a049fb022ae686316038fe682121399eda` 的 [CI](https://github.com/molis-ai/molis-work/actions/runs/39975701114) 与 [Full suite](https://github.com/molis-ai/molis-work/actions/runs/39975690827) 均成功。下文保留各轮失败、修复与基线对照的历史记录；其中“待最终 head 验证”描述的是当时状态，不再表示当前仍待重跑。这些结果对应上述 head，不是本轮对当前 main 的重新验证。
@@ -86,7 +88,7 @@ VUX-27 的原准备只等待 DOM 存在，但插件文档在桥接完成前仍�
 | AAP-05 | 通过：下表六格测量、完整性校验与 CPU profile；环境和小样本限制如上。 |
 | AAP-06 | 通过：反复关闭连接的负对照先失败，最终 Functions 连接生命周期测试及完整聚合断言通过。 |
 
-复现入口：先在各版本执行 `pnpm build`，再从仓库根运行 `node --import tsx specs/attention-aggregate-performance/benchmark.mjs <baseline或fixed> /private/tmp/molis-attention-benchmark-<本次标识> <结果目录> 60`。两版本使用同一临时数据根，逐格恢复同一种子；基线工作树需放入本目录两份测量脚本。模型禁用，测试进程自行关闭，确认进程已退出后可删除这一个临时数据根。
+复现入口：先在各版本执行 `pnpm build`，再从仓库根运行 `node --import tsx specs/archive/attention-aggregate-performance/benchmark.mjs <baseline或fixed> /private/tmp/molis-attention-benchmark-<本次标识> <结果目录> 60`。两版本使用同一临时数据根，逐格恢复同一种子；基线工作树需放入本目录两份测量脚本。模型禁用，测试进程自行关闭，确认进程已退出后可删除这一个临时数据根。
 
 原始结果与 profile 保留在本工作树已忽略的 `.impeccable/qa/review/attention-aggregate-performance/`：根目录为基线和第一次失败的 fixed；`final/` 为最终修复、逐项比较及下表来源；`validation/` 保留构建、测试和门禁日志。这些文件不入库，需求、复现脚本和关键数字随提交保留。
 

@@ -16,7 +16,7 @@
 
 ## 1. 待你验收
 
-功能已合入 main，工程与真实场景验证记在原 spec；只差用户本人试用。系统助理一线用户已在 2026-09-30 委托由 Claude 验证，本人试用为可选。
+按[第 01 批本人试用单](post-anticorruption-roadmap/reference/acceptance-01.md)逐项试：已有实现与前置条件分别写明。BL-010／013 尚待对应实现，BL-929 待真实 Home 维护；BL-001 已委托，BL-017 已接受已有验证、个人账号路径未实测。不要把本节整体当作可立即验收或已获认可。
 
 | 编号 | 事项 | 来源 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- |
@@ -28,7 +28,7 @@
 | BL-006 | 情境驱动的动态交互 P0–P4（AC-C01–C14） | [contextual-interaction §13](archive/contextual-interaction/spec.md) | 无 | 中 | 用户 |
 | BL-007 | 系统级搜索（⌘K 搜真实内容、打开准确位置） | [system-search §12](archive/system-search/spec.md) | 无 | 中 | 用户 |
 | BL-008 | Soft Workbench 全局视觉 | [soft-workbench-rollout](archive/soft-workbench-rollout/spec.md) | 无 | 中 | 用户 |
-| BL-009 | 标题栏插件通知铃铛 | [plugin-notification-bell](archive/plugin-notification-bell/spec.md) | 先处理通知入口重复（见合入后审查问题表） | 中 | 用户 |
+| BL-009 | 插件通知铃铛（旧单写标题栏；现行入口在底栏） | [plugin-notification-bell](archive/plugin-notification-bell/spec.md) | 先处理通知入口重复（见合入后审查问题表） | 中 | 用户 |
 | BL-010 | Alchemist 场景完整使用路径的本人验收（承接旧“完整迁入”的未验收范围，随工作台升级交付） | [plugin-builder-upgrade §4](plugin-builder-upgrade/spec.md#4-alchemist完整落地场景) | 工作台升级的 Alchemist 场景实现 | 低 | 用户 |
 | BL-011 | 研究信息 Feed → Inbox → Pages 闭环 | [feed-inbox-pages-loop](archive/feed-inbox-pages-loop/spec.md) | 无 | 低 | 用户 |
 | BL-012 | 来源清单、OAuth 与有内容的项目（Onboarding） | [molis-work-context-onboarding](archive/molis-work-context-onboarding/spec.md) | 无 | 中 | 用户 |
@@ -36,7 +36,7 @@
 | BL-014 | Shelf 原生手势：真人划选不出轮盘、Finder 拖放、系统文件选择器 | [shelf-drop-wheel-arming](archive/shelf-drop-wheel-arming/spec.md)、[shelf-dropagent-parity](archive/shelf-dropagent-parity/spec.md) | 本机原生环境 | 中 | 用户 |
 | BL-015 | 菜单栏胶囊在副屏上的点击 | [macos-secondary-display-tray-click](archive/macos-secondary-display-tray-click/spec.md) | 双屏 | 低 | 用户 |
 | BL-016 | 真机中文输入法、软键盘与 VoiceOver：底栏/主区助理、Pages 评论、Todo、侧栏和动态交互 | [system-assistant/implementation.md §14](archive/system-assistant/implementation.md)、[todo-plugin/implementation.md](archive/todo-plugin/implementation.md)、[side-panel §7.4](archive/side-panel/spec.md)、[contextual-interaction](archive/contextual-interaction/spec.md)、[Pages 与助理](archive/pages-assistant-surfaces/spec.md) | 真机 | 中 | 用户 |
-| BL-017 | 平台侧栏 7.3 的 8 步，特别是在侧栏浏览器里登录真实网站（AC05） | [side-panel §7.4](archive/side-panel/spec.md) | 无 | 低 | 用户 |
+| BL-017 | 平台侧栏 7.3 的 8 步：已接受既有验证；个人账号登录真实网站（AC05）未实测，留作可选复查 | [side-panel §7.4](archive/side-panel/spec.md) | 无 | 低 | 用户 |
 | BL-105 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
 | BL-109 | #150 性能修复：完整视觉走查，以及原生窗口里的输入与导航验收 | [performance-preserving-fixes](archive/performance-preserving-fixes/spec.md) | 无 | 中 | 用户 |
 | BL-111 | 首页一屏与侧栏间距：首页在一屏内放下、侧栏间距对齐 | [home-one-screen](archive/home-one-screen/spec.md) | 无 | 低 | 用户 |
@@ -45,6 +45,17 @@
 | BL-400 | 成果库与统一壳子的用户验收：按 S1–S7、A1–A7 在真实工作台走一遍（成果库、Goal 交付物与输入、设置与能力面、创作台、侧栏「文件」），确认动线与 10-02/10-03 的决定一致 | [artifact-positioning](archive/artifact-positioning/spec.md) | 无 | 低 | 用户 |
 | BL-401 | 完成前的「必须你点头」用户验收：在真实 Goal 上打开项目规则，完成被拦、授权后放行、继续后旧授权失效，接受要求与需要本人验收的要求各走一遍 | [goal-closure-identity](archive/goal-closure-identity/spec.md) | 无 | 中 | 用户 |
 | BL-929 | 防腐线的本人体验验收：PG-077（成果库不再以插件身份登记，范围见 BL-400）与 PG-094（Goals 的 owner 绘制、通用视图和工作台入口，含 W5-17 起点 1 的真实体验）；本人认可单列，工程结果与 Full 不代签 | [privileges PG-077、PG-094](archive/repository-anti-corruption/privileges.md)、[发布检查单](../docs/releases/CHECKLIST.md) | 最终 main 产物与真实 Home 干净重建（BL-928） | 中 | 用户 |
+| BL-940 | PG-113 桌面文件打开、复制、拖出三种操作 | [权限台账](archive/repository-anti-corruption/privileges.md) | 隔离原生桌面及测试目录 | 低 | 用户 |
+| BL-945 | 状态环最终视觉（RING-04／08），规格板与 Goals 浅深色、常规和窄窗 | [原需求](archive/status-ring-system/spec.md) | 最终版本的可视入口 | 中 | 用户 |
+| BL-946 | 空 Goals 列表的弹窗、关闭再进入、非空不弹（EGCD-01～03） | [原需求](archive/empty-goal-create/spec.md) | 空测试项目 | 中 | 用户 |
+| BL-947 | 首页后台刷新不闪，显式重试和跨日日期切换仍正常（QHR-01／02） | [原需求](archive/quiet-home-refresh/spec.md) | 测试项目的空日期 | 中 | 用户 |
+| BL-948 | 引导清点超过 2500 个条目时显示中间进度、不再显示旧上限（ONB-INT-01／02） | [原需求](archive/onboarding-intake-progress/spec.md) | 无敏感内容的大测试目录 | 中 | 用户 |
+| BL-949 | 文件清单与模型设置在引导内往返，保留选过的文件（ONB-MODEL-01） | [原需求](archive/onboarding-model-link/spec.md) | 测试来源；连接另需获准的测试模型 | 中 | 用户 |
+| BL-950 | 引导可同时选多个位置，撤下一个不清空其余位置（ONB-FOLDER-01） | [原需求](archive/onboarding-folder-places/spec.md) | 隔离桌面及测试目录 | 中 | 用户 |
+| BL-951 | 已合标签组的实物审美（PTG-10）；新增工作台整合不在这次签 | [原需求](plugin-tab-groups/spec.md) | Goals、Feed 与条目各一 | 中 | 用户 |
+| BL-952 | 用真实材料实走右栏 Shelf → Pages（F1）；另复验 #784 报告 QA-030 无标题段落误用界面文案，结果出来后再定下一个落点 | [原需求](side-shelf/spec.md) | 只用可分享选段与测试文稿 | 中 | 用户 |
+| BL-953 | 视觉体验已合部分的本人走查：整体视觉、输入与附件、代码／Diff；缺口按 VUX-16～18、33、35 分项，不含 VUX-51～59 的后续实现 | [原需求](visual-ui-experience/spec.md) | 使用已存在的入口，真实规模另等条件 | 中 | 用户 |
+| BL-954 | 原生桌面中的 Pages：打开有中英文内容的文稿，超过 10 秒仍正常，再打开另一篇；与隔离 WK 备用字体、拒绝边界的工程验证分开 | [WebKit 原需求](plugin-frame-desktop-load/spec.md) | 指向隔离 Home 的桌面产物；发行物总验在 56 | 中 | 用户 |
 
 ## 2. 待你决定
 
@@ -318,7 +329,6 @@
 | BL-937 | 与真实 Home 重建（BL-928）同一时段的两件维护：① 助理库已存轮次补 `written_by` 标记（防腐 spec §7「助理库里已存轮次的补标记」，执行证据未验证，先由用户定做不做）；② 安装清单 `SCHEMA_VERSION` 从 4 收回起点 1（`apps/local-host/src/installer/home-contract.ts`，对抗式审查 N33 与 §15 第 5 项） | [防腐 spec §7](archive/repository-anti-corruption/spec.md)、[对抗式审查](../docs/reviews/adversarial-review-2026-11-01.md) §15 | 待你决定 | 中 |
 | BL-938 | W2-02 留下、防腐线没收的三个取舍：① PMR-08 的决定回执（保留现状／只留 toast／删掉；原 BL-121 ① 随 #1688 删行时没找到裁定）；② Goals「最近处理结果」贡献没有挂载点，由 Goals 主人在「挂到 Goal 文档」与「连同三处 DD2 守卫退役」里选；③ `PRODUCT.md`、`README.md`、`README.zh.md` 里「决定中心」的说法，改前先把 diff 给用户看 | [防腐 spec §7 W2-02 两个代码层取舍](archive/repository-anti-corruption/spec.md) | 待你决定 | 低 |
 | BL-939 | 旧 Pages 文档里的 Inbox 返回链接（`?inbox_entry=`）现在只打开项目：PG-070 收口把返回链接改成 `openPlugin=inbox&openItem=…` 并删了旧分支；按现行合同不留兼容，存量文档要么由维护改写，要么接受只打开项目；要保留旧链接得先写进保留机制并经用户确认 | `plugins/native/pages/src/generate.ts`、`apps/workbench/src/scripts/client/initialization.ts`、[合同变更流程](../docs/system/CONTRACT-CHANGES.md) | 待你决定 | 低 |
-| BL-940 | PG-113 桌面壳的真机验收：在真机上走 `files_open`、`files_copy`、`files_drag_out` | [privileges PG-113](archive/repository-anti-corruption/privileges.md) | 待你验收 | 低 |
 | BL-941 | 测试缺陷：沙箱插件启动失败时，`tests/assistant-input-correct.test.ts`、`tests/security-invariants-sandbox-agent-bodies.test.ts` 的安装不在 `try/finally` 里，进程挂住、占着浏览器槽不退；把安装挪进 `try/finally` | 防腐收口 CDP 诊断（2026-11-03） | 已知缺口 | 低 |
 | BL-942 | 测试只能在一台机器上跑：`tests/home-package-project-reach.e2e.test.ts`、`tests/plugin-trust-home-upgrade.e2e.test.ts`、`tests/plugin-trust-view.test.ts` 写死 `/Users/yijunwang/.local/bin/molis-test-browser`，改读 `MOLIS_WORK_TEST_CHROME`；`tests/agent-built-plugins-components.test.ts`、`tests/agent-built-plugins-workflow.test.ts`、`tests/goals-page-golden.test.ts` 要求该变量指专用测试浏览器，核它们在 CI 上的表现 | 防腐收口快照排查（2026-11-03） | 已知缺口 | 低 |
 | BL-943 | 多 Goals 窗格的宿主热点剩余：#1725 去掉重复计算后（W1-18 主线程忙 18.0 s → 14.9 s，回到基线），剩下的只有改复查语义才能降——每次可用性检查都读一遍目录（`withCatalog`）、读项目成员（`pluginMembership`）、每条插件 SQL 复查授权（`capturePermission`、`checkGrant`）、凭据配置查询、一个 Goals 页建两份集合；与对抗式审查 N42～N44 同一片，改语义要用户定 | [对抗式审查](../docs/reviews/adversarial-review-2026-11-01.md) N42～N44、#1725 | 待你决定 | 中 |

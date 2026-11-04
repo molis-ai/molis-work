@@ -2,7 +2,7 @@
 
 在个人 Home 随手记下使用中遇到的问题，并看到自己记过的全部 Issue。项目切换不改变数据，没有项目也能用。页面、Work 助理与外部 MCP 调用同一组 `issues.*` 动作；外部 MCP 仍需在能力设置逐客户端授权。
 
-包名：`@molis-ai/molis-work-plugin-issues`。本地开发中的内置 Runtime 插件，不代表已经发布或完成用户验收。试用路径见 [试用说明](../../../specs/issue-home-v0/试用说明.md)，需求与验收见 [规格](../../../specs/issue-home-v0/spec.md)（首期体验为 ISSUE-35 至 ISSUE-41，页面自己起标题为 ISSUE-50 至 ISSUE-53）。
+包名：`@molis-ai/molis-work-plugin-issues`。本地开发中的内置 Runtime 插件，不代表已经发布或完成用户验收。试用路径见 [试用说明](../../../specs/archive/issue-home-v0/试用说明.md)，需求与验收见 [规格](../../../specs/archive/issue-home-v0/spec.md)（首期体验为 ISSUE-35 至 ISSUE-41，页面自己起标题为 ISSUE-50 至 ISSUE-53）。
 
 ## 怎么用
 

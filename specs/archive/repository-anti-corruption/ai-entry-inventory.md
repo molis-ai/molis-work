@@ -86,7 +86,7 @@ Agent 运行
 
 Issue 的页面录入（#396、#420）原先不是新的入口：页面开一件助理工作，带 Issue 插件的方法 `issues-capture`（`plugins/native/issues/src/methods.ts`），一轮模型给草稿起标题、判类型，再经助理网关的 `change-reversible` 调 `issues.capture`（本人能撤销；设了每次确认就改成 `suggest-action`）。走的是 AG-1 的链和守卫。[已确认，代码，2026-10-14 审查补记]
 
-2026-10-19 改（BL-149，`specs/issue-home-v0/spec.md` ISSUE-50～53）：页面录入和重新整理不再经助理，成了两个新的等模型动作，见 TX-17、TX-18。助理在普通对话里记问题仍用方法 `issues-capture`（v11）加 `issues.create`，走 AG-1 的链和守卫；`issues.capture` 不再给助理。[已确认，代码，2026-10-19]
+2026-10-19 改（BL-149，`specs/archive/issue-home-v0/spec.md` ISSUE-50～53）：页面录入和重新整理不再经助理，成了两个新的等模型动作，见 TX-17、TX-18。助理在普通对话里记问题仍用方法 `issues-capture`（v11）加 `issues.create`，走 AG-1 的链和守卫；`issues.capture` 不再给助理。[已确认，代码，2026-10-19]
 
 ### 3.2 有界文字：插件动作
 

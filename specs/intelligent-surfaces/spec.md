@@ -64,7 +64,7 @@ flowchart LR
 
 - **对象类型**：复用搜索来源的 kind 和打开位置（`SearchSourceKind`、`SearchOpenTarget`），以及动作里的对象引用（`ActionSubject`），不另起一套身份。
 - **字段的语义角色**：标题、状态、摘要、正文片段、媒体（图像、截图组、图表、文件）、数值与进度、时间（到期、发生、更新）、人与 Agent（谁做的、谁在做、要谁）、出处（来自哪里、凭什么）、版本、关系（挂在哪个 Goal、对上哪条要求）、子项（数量和前几项）。平台按角色挑组件，插件不写样式。
-- **状态映射**：插件自己的状态映射到状态环的几种状态（[status-ring-system](../status-ring-system/spec.md)），另外标出「要你决定」「要你验收」「失败」「部分完成」「过期」。
+- **状态映射**：插件自己的状态映射到状态环的几种状态（[status-ring-system](../archive/status-ring-system/spec.md)），另外标出「要你决定」「要你验收」「失败」「部分完成」「过期」。
 
 ### 4.2 形态
 
@@ -263,7 +263,7 @@ flowchart LR
 | [项目讨论](../archive/molis-work-im/redesign-v2/spec.md) | 消息、话题、引用、草稿、成员权限 | 消息里对象卡的形态，@ 接走以后的活卡 |
 | [系统搜索](../archive/system-search/spec.md) | 来源、权限、排序 | 结果行与速览的形态 |
 | [放在哪里](../archive/work-placement/spec.md)、[成果库](../archive/artifact-positioning/spec.md) | 对象放在哪个项目与分区、成果的固定版本 | 放进去以后在别处怎么显示 |
-| [status-ring-system](../status-ring-system/spec.md) | 状态环的几种状态与画法 | 插件状态到状态环的映射 |
+| [status-ring-system](../archive/status-ring-system/spec.md) | 状态环的几种状态与画法 | 插件状态到状态环的映射 |
 | [visual-ui-experience](../visual-ui-experience/spec.md) | 版面、几何、动效、文案、性能的验收 | 形态与组合规则；视觉部分在 VUX 验收 |
 | [字体、皮肤与语言](../font-and-skin-system/spec.md) | 文字与样式的格式和切换 | 不另定样式，用它的语义变量 |
 | [unified-input-voice](../unified-input-voice/spec.md) | 输入框、引用片与附件的行为 | 引用片里对象的形态 |

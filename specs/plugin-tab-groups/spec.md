@@ -1,6 +1,6 @@
 # 插件标签组
 
-状态：执行中（2026-10-18）。
+状态：既有标签组已随 #765 合入 main（2436c371d），PTG-10 实物审美待本人验收（BL-951）。10-27 新增的统一切换与界面整合仍在做，见下文；保留本份现行合同。
 
 本文件取代 [plugin-default-no-tab](../archive/plugin-default-no-tab/spec.md) 里「插件默认页不占标签」的合同，和 `DESIGN.md`「Where am I」里的位置芯片、「Plugins carry no identity colour」在标签条上的部分。分栏几何、条目标签、首页标签、历史仍按原文。
 

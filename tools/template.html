@@ -225,7 +225,7 @@ const loginName=s=>PEOPLE[s]||s.replace(/[^A-Za-z]/g,'').slice(0,3).toLowerCase(
 function claimTag(i){
   const m=i.who.match(/^([^-（(·\s]+)-([^（(·\s]+?)-(本机|云端)/);
   if(m)return `${m[1]}-${shortName(m[2])}-${m[3]}`;
-  const agent=i.who.split(/[（(·\s]/)[0];
+  const agent=(i.who.match(/^[A-G]\d?\s*轨/)||[i.who.split(/[（(·\s]/)[0]])[0].replace(/\s/g,'');
   const place=/云/.test(i.who)?'云端':/本机/.test(i.who)?'本机':'';
   return [agent,i.login&&loginName(i.login),place].filter(Boolean).join('-');
 }
@@ -234,7 +234,7 @@ function applyBoard(md){
   const rows={};let cur=null;
   md.split(/\r?\n/).forEach(l=>{
     if(!l.startsWith('|')||/^\|\s*(---|批次\s)/.test(l))return;
-    const c=(' '+l.trim().slice(1,-1)+' ').split(/\s\|\s/).map(x=>x.trim());
+    const c=l.trim().replace(/^\||\|$/g,'').split(/(?<!\\)\|/).map(x=>x.trim());
     if(c.length!==6)return;
     if(c[0])cur=c[0];
     (rows[cur]=rows[cur]||[]).push(c);
@@ -247,8 +247,10 @@ function applyBoard(md){
       const r=rs[i]||['','','','','待认领',''];
       const name=(r[1].match(/\[([^\]]+)\]/)||[])[1]||r[1];
       if(rs[i]&&name!==it.t)boardOff++;
-      it.s=BASES.find(k=>r[4].startsWith(k))||r[4];
-      it.note=r[4].slice(it.s.length).replace(/^[（(\s]+|[）)\s]+$/g,'');
+      const base=BASES.find(k=>r[4].startsWith(k));
+      it.s=base||(r[2]&&r[2]!=='—'?'已认领':r[4]);
+      it.note=base?r[4].slice(base.length).replace(/^[（(\s]+|[）)\s]+$/g,''):r[4];
+      it.draft=/定样|只读|核查|盘点/.test(r[2]+r[4]);
       it.who=r[2];it.date=r[5];it.login=D.claimers[`${b.id}-${i+1}`]||'';
       it.prs=[...r[3].matchAll(/#(\d+)/g)].map(m=>m[1]);
       it.branch=(r[3].match(/`([^`]+)`/)||[])[1]||'';
@@ -266,7 +268,7 @@ function applyBoard(md){
   });
   // 主轨道上有人在写实现，同轨道其他实现项要等；C1～C3 在决定 17 之前算一条
   const busy={};
-  D.batches.forEach(b=>b.items.forEach(i=>{if(i.occ&&ACTIVE.has(i.s))(busy[trackFam(i.track)]=busy[trackFam(i.track)]||new Set()).add(b.id)}));
+  D.batches.forEach(b=>b.items.forEach(i=>{if(i.occ&&!i.draft&&ACTIVE.has(i.s))(busy[trackFam(i.track)]=busy[trackFam(i.track)]||new Set()).add(b.id)}));
   D.batches.forEach(b=>{
     if(D.state[b.id])return;
     const its=b.items;

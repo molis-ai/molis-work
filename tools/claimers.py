@@ -19,7 +19,7 @@ def rows(md):
     cur=None;n={};o={}
     for l in md.splitlines():
         if not l.startswith('|') or re.match(r'^\|\s*(---|批次\s)',l):continue
-        c=[x.strip() for x in re.split(r'\s\|\s',' '+l.strip()[1:-1]+' ')]
+        c=[x.strip() for x in re.split(r'(?<!\\)\|',l.strip().strip('|'))]
         if len(c)!=6:continue
         if c[0]:cur=c[0];n[cur]=0
         n[cur]+=1;o[f'{cur}-{n[cur]}']=c[2]

@@ -67,7 +67,7 @@ test("context_resolve restores Host focus outside the discovery window and write
   let store: LocalProjectDatabase | undefined;
   let runtime: MolisWorkServer | undefined;
   let served: TestHostServer | undefined;
-  let host = createMolisWorkLocalHost({ homeDirectory: directory });
+  let host: ReturnType<typeof createMolisWorkLocalHost> | undefined;
   try {
     const project = await catalog.createProject({ display_name: "Host 焦点恢复", actor_id: "focus-user" });
     store = new LocalProjectDatabase(project.database_path);
@@ -98,6 +98,8 @@ test("context_resolve restores Host focus outside the discovery window and write
       context: runtimeHost.runtimeContext, project_id: project.project_id,
       actor_id: "focus-user", user_confirmed: true,
     });
+    catalog.close();
+    host = createMolisWorkLocalHost({ homeDirectory: directory });
     const connection = {
       databasePath: project.database_path, projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
@@ -129,7 +131,7 @@ test("context_resolve restores Host focus outside the discovery window and write
     assert.equal(result.resume.focus.source, "project_recovery_order");
     await runtime.close();
     await served.close();
-    await host.close();
+    await host?.close();
     host = createMolisWorkLocalHost({ homeDirectory: directory });
     runtimeHost.focusId = "FOCUS-HOST";
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
@@ -140,9 +142,8 @@ test("context_resolve restores Host focus outside the discovery window and write
   } finally {
     await runtime?.close();
     await served?.close();
-    await host.close();
+    await host?.close();
     store?.close();
-    await catalog.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

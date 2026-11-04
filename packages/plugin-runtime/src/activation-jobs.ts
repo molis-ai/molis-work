@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError, defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, lastBegunPluginInvocation, pluginActionChecked, pluginInvocationReadOnly, runInPluginJob,
+  assertCapturedPluginActionCurrent, assertPluginPermissionChecks, currentPluginInvocation, inPluginInstance, lastBegunPluginInvocation, outsidePluginAction, pluginActionChecked, pluginInvocationReadOnly, reservePluginInvocationPlace, runInPluginJob,
   type PluginInstance,
 } from "./action-scope.js";
 
@@ -77,24 +77,27 @@ export function createActivationJobs(gate: ActivationJobGate) {
     const stop = project === null ? undefined : stoppedUpTo.get(project);
     if (stop && begun !== undefined && begun <= stop.begun) throw new ActionError("actions.cancelled", stop.reason);
     const controller = new AbortController();
+    const permission_checks = {};
     let running = true;
-    const check = () => {
+    const check = (): void => outsidePluginAction(() => runInPluginJob(scope, () => {
       if (!running || closed) throw new ActionError("actions.expired", "这个后台作业已经结束");
       controller.signal.throwIfAborted();
       gate.assertActive();
+      assertPluginPermissionChecks(permission_checks);
       for (const permission of declaration.permissions) gate.requireGrant(permission);
       gate.assertInstallationCurrent(declaration.permissions);
-    };
-    check();
+    }));
     const caller: ActionCallContext = Object.freeze({ actor_id: gate.actor_id, project_id: project, audience: "plugin", plugin_install_id: gate.install_id,
       permissions: Object.freeze([...declaration.permissions]), signal: controller.signal, assert_authority_current: () => check() });
     const control: PluginJobControl = Object.freeze({ job, signal: controller.signal, beforeEffect: async () => check(), assert_authority_current: () => check(),
       ...(project ? { project_id: project } : {}) });
+    const scope = { install_id: gate.install_id, installation_generation: gate.installation_generation, job, caller, permission_checks, begun: begun ?? reservePluginInvocationPlace() };
+    check();
     jobs.set(controller, { project, check });
-    if (!timer) { timer = setInterval(sweep, SWEEP_MS); timer.unref?.(); }
-    const run = () => runInPluginJob({ install_id: gate.install_id, installation_generation: gate.installation_generation, job, caller, ...(begun === undefined ? {} : { begun }) }, () => work(control));
+    if (!timer) { timer = outsidePluginAction(() => setInterval(sweep, SWEEP_MS)); timer.unref?.(); }
+    const run = () => outsidePluginAction(() => runInPluginJob(scope, () => work(control)));
     const stopped = new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
-    const pending = Promise.resolve().then(() => { check(); return gate.operation ? gate.operation(run) : run(); });
+    const pending = Promise.resolve().then(() => outsidePluginAction(() => { check(); return gate.operation ? gate.operation(run) : run(); }));
     const done = Promise.race([pending, stopped]).finally(() => {
       running = false; jobs.delete(controller);
       if (!controller.signal.aborted) controller.abort(new ActionError("actions.expired", "这个后台作业已经结束"));

@@ -61,11 +61,6 @@ export interface FeedSourcePorts {
   /** Releases the bodies and search records a source's history holds, before the history is deleted; reports what it could not do. */
   releaseHistory?(input: { project_id: string; source_id: string }): Promise<FeedSourceHistoryRelease>;
   appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
-  resolveConnection?(serviceId: string, connectionId: string): {
-    credentialRef: string | null;
-    accountLabel: string | null;
-    tokenRefs?: { access: string; refresh: string; expiresAt: string };
-  };
 }
 export type RegisterFeedSourceInput =
   | { kind: "research_library"; repository: string; research_source: string; name?: string }
@@ -87,8 +82,11 @@ export interface UpdateFeedSourceInput {
   description?: string;
   scope?: string;
   feed_url?: string;
-  connection_id?: string;
 }
+
+/** The services an account source can be added for: each is a `per_record` slot of Feed's Manifest and an integration the platform pulls. */
+export const FEED_ACCOUNT_SERVICES = ["github", "gmail"] as const;
+export interface AddFeedAccountSourceInput { service: typeof FEED_ACCOUNT_SERVICES[number]; name: string }
 
 export type ConfigureFeedSourceScheduleInput =
   | { mode: "manual" }

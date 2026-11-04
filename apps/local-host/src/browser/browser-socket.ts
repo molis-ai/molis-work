@@ -1,10 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
 import type http from "node:http";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { BROWSER_SOCKET_PATH, type BrowserClientMessage, type BrowserServerMessage } from "@molis-ai/molis-work-contracts/services/browser";
+import { controlTokenMatches } from "../web-control-token.js";
 import type { BrowserHost, BrowserListener, BrowserPage } from "./browser-host.js";
 
 /**
@@ -15,12 +15,6 @@ interface BrowserSocketOptions {
   readonly projectExists: (projectId: string) => boolean | Promise<boolean>;
   /** The person started using the page while the assistant drove it (spec D09): the assistant pauses first. */
   readonly onTakeover?: (page: BrowserPage) => void | Promise<void>;
-}
-
-function tokenMatches(expected: string, actual: unknown): boolean {
-  if (typeof actual !== "string") return false;
-  const a = Buffer.from(expected), b = Buffer.from(actual);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 const send = (ws: WebSocket, message: BrowserServerMessage) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message)); };
@@ -63,7 +57,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
       try { message = JSON.parse(String(raw)) as BrowserClientMessage; } catch { return; }
       try {
         if (!authed) {
-          if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
+          if (message.type !== "auth" || !controlTokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
           authed = true; send(ws, { type: "ready" }); return;
         }
         if (message.type === "watch") {

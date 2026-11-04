@@ -13,7 +13,7 @@ import {
   SCHEDULE_ACTIONS, SCHEDULE_ACTION_PERMISSIONS, createScheduleRouteHandlers, scheduleActions as s,
   type ScheduleConversationTaskView,
 } from "@molis-ai/molis-work-plugin-schedule";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
@@ -21,12 +21,15 @@ import { serveTestHost } from "./fixtures/test-home.js";
 
 test("Schedule tasks register as project actions shared by HTTP, Host callers and production MCP", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "schedule-actions-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  const project = await catalog.createProject({ display_name: "Schedule actions", actor_id: "owner" });
-  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
-  const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
+  let withCatalog = withMolisWorkProjectCatalog;
+  const policy = projectActionAvailability((options, run) => withCatalog(options, run), home);
   const watcher = callerPlugin("reminderwatcher", "project");
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy, pluginFixtures: { project: [watcher.definition] } });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  withCatalog = host.configurePersonalPlanning(home, access.withCatalog);
+  const catalog = await withCatalog({ homeDirectory: home }, current => current);
+  const project = await catalog.createProject({ display_name: "Schedule actions", actor_id: "owner" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   // The Home is served so that the MCP client's grants are saved the way a person saves them.
   const served = await serveTestHost(t, { home, host });
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
@@ -109,7 +112,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     assert.deepEqual((await bound.invoke(s.list, {})).tasks.map(row => row.task_id), [task.task_id]);
   } finally {
     await Promise.all(clients.map(sdk => sdk.close()));
-    await served.close(); await host.close(); catalog.close();
+    await served.close(); await host.close();
     await rm(home, { recursive: true, force: true });
   }
 });

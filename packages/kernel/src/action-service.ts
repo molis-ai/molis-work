@@ -6,7 +6,7 @@ import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
-  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
+  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionSceneUsage, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
@@ -48,7 +48,18 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {
-    const problems = [...inspectActionDeclarations(registration.definitions, registration.scenes), ...inspectActionCrossReferences(registration.definitions)];
+    const problems = inspectActionDeclarations(registration.definitions, registration.scenes);
+    // A background launcher may be replaced independently of its unchanged status query. Only an actual registered query
+    // of this provider and scope supplies that reference; callers cannot invent a declaration without a handler.
+    const statuses = problems.length ? [] : registration.definitions.flatMap(definition => {
+      const reference = definition.action.background_job?.status;
+      if (!reference || registration.definitions.some(item => item.capability_id === reference.capability_id && item.version === reference.version)) return [];
+      const target = this.registry.descriptor(reference, registration.provider.project_id);
+      return target?.operation === 'query' && target.action && target.action.scope === definition.action.scope
+        && target.action_provider?.provider_id === registration.provider.provider_id
+        && target.action_provider.project_id === registration.provider.project_id ? [{ ...target, action: target.action }] : [];
+    });
+    problems.push(...inspectActionCrossReferences(statuses.length ? [...registration.definitions, ...statuses] : registration.definitions));
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
     const provider = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
@@ -85,13 +96,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         if (typeof handler.handle !== "function") throw new ActionError("actions.unredeemed", `能力 ${actionKey(definition)} 缺少执行处理器`);
         const validateInput = compile(original.action.input_schema, definition.action.input_schema);
         const validateOutput = definition.action.output_schema ? compile(original.action.output_schema!, definition.action.output_schema) : undefined;
-        const availability = (context: ActionCallContext): ActionAvailability => {
+        const availability = (context: ActionCallContext, metadata = false): ActionAvailability => {
           const source = sourceAvailability(context);
           if (!source.available) return source;
-          if (!visibleAction(definition, provider, context)) return unavailable("actions.forbidden", "当前调用者不可使用此能力");
+          if (!(metadata ? metadataVisible(definition, provider, context) : visibleAction(definition, provider, context))) return unavailable("actions.forbidden", "当前调用者不可使用此能力");
           if (definition.action.scope === "project" && !context.project_id) return unavailable("actions.project_required", "请选择项目");
           const own = handler.availability?.(context) ?? { available: true };
-          return own.available ? this.dependencyAvailability(context, definition) : own;
+          return own.available ? this.dependencyAvailability(context, definition, metadata) : own;
         };
         const registeredDefinition = { ...definition, action_provider: provider };
         const callWindows = new Map<string, number[]>();
@@ -140,7 +151,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           } catch (error) { executing = false; lifetime?.dispose(); throw error; }
         };
         disposers.push(this.registry.register(registeredDefinition, execute,
-          { availability, synchronous: handler.execution === "sync" }));
+          { availability, metadataAvailability: context => availability(context, true), synchronous: handler.execution === "sync" }));
       }
       for (const original of registration.scenes ?? []) {
         const definition = structuredClone(original);
@@ -235,13 +246,14 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     });
   }
 
-  async usages(context: ActionCallContext, judgment?: ActionReference): Promise<Array<ActionSceneBinding & { availability: ActionAvailability }>> {
-    const result: Array<ActionSceneBinding & { availability: ActionAvailability }> = []; let known: ActionView[] | undefined;
+  async usages(context: ActionCallContext, judgment?: ActionReference): Promise<ActionSceneUsage[]> {
+    const result: ActionSceneUsage[] = []; let known: ActionView[] | undefined;
     for (const scene of this.scenes.values()) {
       if (!sceneVisible(scene, context)) continue;
       for (const binding of await scene.handler.bindings(context)) {
         if (!bindingBelongsTo(binding, scene.definition, context)) continue;
         if (judgment && actionKey(binding.function) !== actionKey(judgment)) continue;
+        if (matchesStageMetadata(context, scene, binding)) { result.push(await this.stageMetadataUsage(context, scene, binding)); continue; }
         const directory = known ??= this.discover(context); // one directory per call, shared by every binding
         const fn = directory.find(d => actionKey(d) === actionKey(binding.function));
         const reason = !binding.function.provider_id ? "旧绑定缺少原提供方身份，请重新选择判断规则" : actionSceneCompatibilityReason(scene.definition, fn, binding.function, directory, scene.provider);
@@ -252,6 +264,40 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       }
     }
     return result;
+  }
+
+  /** One own binding's metadata snapshot; no wider caller enters a provider or scene callback. */
+  private async stageMetadataUsage(context: ActionCallContext, scene: RegisteredScene, original: ActionSceneBinding): Promise<ActionSceneUsage> {
+    const binding = structuredClone(original), authority = context.stage_scene_metadata!;
+    const entry = requireDefinition(this.actionDefinition(context, authority.entry), authority.entry);
+    const target = requireDefinition(this.actionDefinition(context, binding.function), binding.function);
+    const entryToken = this.registry.registrationToken(entry), targetToken = this.registry.registrationToken(target);
+    const reference = { ...binding.function, provider_id: target.action_provider!.provider_id };
+    const check = () => {
+      context.signal?.throwIfAborted();
+      if (this.scenes.get(scopedSceneKey(scene.definition, scene.provider.project_id)) !== scene
+        || !entryToken || this.registry.registrationToken(entry) !== entryToken
+        || !targetToken || this.registry.registrationToken(target) !== targetToken) throw new ActionError("actions.provider_changed", "原舞台、场景或判断能力已停止或重新加载");
+      requireSynchronous(context.assert_authority_current?.(authority.entry, entry.action?.permissions));
+      requireSynchronous(context.assert_authority_current?.(reference));
+      context.signal?.throwIfAborted();
+    };
+    check();
+    await context.validate_authority?.(reference); check();
+    await context.validate_permissions?.(target.action?.permissions ?? []); check();
+    const bindings = await scene.handler.bindings(context); check();
+    const current = bindings.find(value => value.binding_id === binding.binding_id && bindingBelongsTo(value, scene.definition, context));
+    if (!current || current.revision !== binding.revision || current.enabled !== binding.enabled
+      || current.function.capability_id !== binding.function.capability_id || current.function.version !== binding.function.version
+      || current.function.provider_id !== binding.function.provider_id) throw new ActionError("actions.provider_changed", "原场景绑定已变化，请重新读取");
+    const directory = inDirectoryPass(() => registeredActionMetadata(this.registry, context, (definition, provider) => metadataVisible(definition, provider, context))
+      .map(metadata => ({ ...metadata, availability: this.registry.metadataAvailability(context, { ...metadata, action_provider: metadata.provider }) })));
+    const fn = directory.find(value => value.capability_id === reference.capability_id && value.version === reference.version && value.provider.provider_id === reference.provider_id);
+    const reason = actionSceneCompatibilityReason(scene.definition, fn, reference, directory, scene.provider), state = scene.availability(context);
+    const availability = !binding.enabled ? unavailable("actions.binding_disabled", "此使用位置已停用")
+      : !state.available ? state : reason ? unavailable("actions.binding_invalid", reason) : fn!.availability;
+    check();
+    return { ...binding, ...(fn ? { function_title: fn.action.title } : {}), availability };
   }
 
   async targets(context: ActionCallContext, judgment?: ActionReference, selection?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<ActionSceneTarget[]> {
@@ -400,7 +446,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     return matching.find(d => !d.action_provider?.project_id || d.action_provider.project_id === context.project_id) ?? matching[0];
   }
 
-  private dependencyAvailability(context: ActionCallContext, definition: ActionDefinition): ActionAvailability {
+  private dependencyAvailability(context: ActionCallContext, definition: ActionDefinition, metadata = false): ActionAvailability {
     const key = JSON.stringify([context.project_id, definition.capability_id, definition.version]);
     const checking = this.checkingDependencies.get(context) ?? this.checkingDependencies.set(context, new Set<string>()).get(context)!;
     if (checking.has(key)) return unavailable("actions.dependency_cycle", "能力之间存在循环依赖，请修正插件声明"); checking.add(key);
@@ -408,7 +454,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       for (const reference of definition.action.required_actions ?? []) {
         const dependency = this.actionDefinition(context, reference);
         if (!dependency) return unavailable("actions.dependency_missing", "所需能力未注册或版本已失效");
-        const state = this.registry.availability(context, dependency);
+        const state = metadata ? this.registry.metadataAvailability(context, dependency) : this.registry.availability(context, dependency);
         if (!state.available) return state;
         if (reference.provider_id && reference.provider_id !== dependency.action_provider?.provider_id) {
           return unavailable("actions.provider_changed", "所需能力的提供方已变化，原引用不能自动替换");
@@ -446,6 +492,22 @@ function sceneVisible(s: RegisteredScene, c: ActionCallContext): boolean {
 }
 function bindingBelongsTo(b: ActionSceneBinding, s: ActionSceneDefinition, c: ActionCallContext): boolean {
   return b.scene_id === s.scene_id && b.scene_version === s.version && b.project_id === (s.scope === "home" ? null : c.project_id);
+}
+
+function metadataVisible(definition: ActionDefinition, provider: ActionProvider, caller: ActionCallContext): boolean {
+  const metadata = caller.stage_scene_metadata;
+  return !!metadata && metadata.actions.some(ref => ref.capability_id === definition.capability_id && ref.version === definition.version && ref.provider_id === provider.provider_id)
+    && visibleAction(definition, provider, { ...caller, permissions: definition.action.permissions, allowed_actions: metadata.actions, query_only: undefined });
+}
+
+function matchesStageMetadata(caller: ActionCallContext, scene: RegisteredScene, binding: ActionSceneBinding): boolean {
+  const metadata = caller.stage_scene_metadata, entry = (caller as ActionExecutionContext).current_action;
+  return !!metadata && !!entry && metadata.actor_id === caller.actor_id && metadata.audience === caller.audience && metadata.project_id === caller.project_id
+    && metadata.entry.capability_id === entry.capability_id && metadata.entry.version === entry.version && metadata.entry.provider_id === entry.provider_id
+    && metadata.owner.plugin_id === scene.provider.plugin_id && metadata.owner.install_id === scene.provider.plugin_install_id
+    && (metadata.owner.scope === "home" ? !scene.provider.project_id : scene.provider.project_id === caller.project_id)
+    && metadata.scenes.some(value => value.scene_id === scene.definition.scene_id && value.version === scene.definition.version)
+    && !!binding.function.provider_id && metadata.actions.some(ref => ref.capability_id === binding.function.capability_id && ref.version === binding.function.version && ref.provider_id === binding.function.provider_id);
 }
 export function actionSceneCompatibilityReason(scene: ActionSceneDefinition, fn?: ActionView, reference?: ActionReference, directory: readonly ActionView[] = [], provider?: Pick<ActionProvider, "provider_id">): string | undefined {
   if (!fn) return "判断能力不存在或不可访问";

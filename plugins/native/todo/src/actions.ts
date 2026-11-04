@@ -1,5 +1,6 @@
 import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "./contract.js";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { isTodoDate, localDate } from "./dates.js";
 import { todoCallerProject } from "./caller.js";
 import { withProjectReach } from "./reach.js";
@@ -159,7 +160,7 @@ function prepareTodoFragmentOffers(input: FragmentOffersInput, project: string |
   // the personal space. The project is the caller's, never read from the input. A passage leaves the place to the person.
   const placement = input.fragment.granularity === "object" ? { placement: project ? "project" : "personal" } : {};
   return [{ offer_id: "todo", title: "记成待办", action: { capability_id: "todo.items.create", version: 1 }, input: {
-    title, ...(text !== title ? { notes: [...text].slice(0, 10_000).join("") } : {}), ...placement, request_id: input.request_id.slice(0, 160),
+    title, ...(text !== title ? { notes: [...text].slice(0, 10_000).join("") } : {}), ...placement, request_id: cutHead(input.request_id, 160),
     sources: [{ kind: "material", title: [...(object.title || "选中的内容")].slice(0, 200).join(""), excerpt: [...text].slice(0, 2000).join(""), reason: "从选中的内容记成待办",
       subject: { kind: object.kind, id: object.id }, open: null }] },
     summary: `记一条待办：「${title}」（记下它出自${object.title ? `「${object.title}」` : "选中的内容"}）`, editable: ["title", "notes", "due_date"] }];

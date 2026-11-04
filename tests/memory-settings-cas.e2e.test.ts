@@ -7,7 +7,8 @@ import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import type { MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import type { FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MemoryExportPackage } from "@molis-ai/molis-work-contracts/services/memory";
 
 const { renderMolisWorkProjectSettingsHub, renderMolisWorkSettingsStylesheet } = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
@@ -17,14 +18,14 @@ const { renderMolisWorkProjectSettingsHub, renderMolisWorkSettingsStylesheet } =
 interface Request { path: string; body: Record<string, unknown>; key: string }
 const entry = (id: string, version: number, state = "active") => ({ memory_id: id, version, state,
   text: `记忆 ${id}`, kind: "preference", source: "manual", scope: "project", applies: {}, origin: "本人", created_at: "2026-10-23T00:00:00Z" });
-async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown }) {
+async function open(t: TestContext, answer: (request: Request) => { status?: number; body: unknown } | Promise<{ status?: number; body: unknown }>) {
   const chrome = locateTestChrome(); if (!chrome) { t.skip("Chrome is required"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "memory-settings-cas-"));
   const calls: Request[] = [];
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
     candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 } };
   const project = { project_id: "project", display_name: "测试项目" };
-  const view: MolisWorkWebView = {
+  const view: MolisWorkWebView & { feed: FeedSnapshot } = {
     snapshot: { board: { project_id: "project", active_goal_id: null, created_at: "2026-10-23T00:00:00Z", updated_at: "2026-10-23T00:00:00Z" },
       cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [], project_guidance: [] },
     project, projects: [project], route_prefix: "/projects/project", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [],
@@ -42,7 +43,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
     if (path.endsWith("/history")) { response.end(JSON.stringify({ revisions: [{ version: 2, text: "旧版", at: "2026-10-22T00:00:00Z" }] })); return; }
     let raw = ""; for await (const chunk of request) raw += chunk;
     const call = { path, body: JSON.parse(raw || "{}"), key: String(request.headers["x-molis-work-idempotency-key"] || "") }; calls.push(call);
-    const result = answer(call); response.statusCode = result.status ?? 200; response.end(JSON.stringify(result.body));
+    const result = await answer(call); response.statusCode = result.status ?? 200; response.end(JSON.stringify(result.body));
   });
   let browser: ChromeHarness | undefined;
   t.after(async () => { await browser?.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true }); });
@@ -102,13 +103,20 @@ test("A conflict preserves the observed version and editor; it never refreshes a
 
 test("Partial clear and unknown retry retain the original confirmation; only complete results say done", { timeout: 50_000 }, async t => {
   let clears = 0, previews = 0;
-  const f = await open(t, call => {
+  let firstClearStarted!: () => void, releaseClear!: () => void;
+  const clearStarted = new Promise<void>(resolve => { firstClearStarted = resolve; });
+  const clearReply = new Promise<void>(resolve => { releaseClear = resolve; });
+  t.after(releaseClear);
+  const f = await open(t, async call => {
     if (call.path.endsWith("/preview")) return { body: { count: 4, fingerprint: `fixed-${++previews}` } };
     if (call.path.endsWith("/clear")) {
       clears++;
-      if (clears === 1) return { body: { removed: 1, complete: false, items: [
-        { memory_id: "a", outcome: "completed" }, { memory_id: "b", outcome: "conflict" },
-        { memory_id: "c", outcome: "unknown" }, { memory_id: "d", outcome: "not-executed" }] } };
+      if (clears === 1) {
+        firstClearStarted(); await clearReply;
+        return { body: { removed: 1, complete: false, items: [
+          { memory_id: "a", outcome: "completed" }, { memory_id: "b", outcome: "conflict" },
+          { memory_id: "c", outcome: "unknown" }, { memory_id: "d", outcome: "not-executed" }] } };
+      }
       if (clears === 2 || clears === 4) return { status: 503, body: { error: "结果待核对", code: "memory.conflict" } };
       return { body: { removed: 4, complete: true, items: ["a", "b", "c", "d"].map(memory_id => ({ memory_id, outcome: "completed" })) } };
     }
@@ -116,7 +124,13 @@ test("Partial clear and unknown retry retain the original confirmation; only com
   }); if (!f) return;
   const { page, calls } = f;
   await page.click("[data-memory-clear]"); await page.wait("document.querySelector('[data-memory-confirm-yes]')"); await page.click("[data-memory-confirm-yes]");
-  await page.wait("document.querySelector('[data-memory-clear-status]')?.textContent.includes('尚未完成')");
+  await clearStarted;
+  const pending = await page.evaluate<string>("document.querySelector('[data-memory-clear-status]').textContent");
+  assert.match(pending, /尚未完成/);
+  assert.doesNotMatch(pending, /已删除|版本冲突|结果未知|尚未执行/, "the pending reply cannot report detailed outcomes yet");
+  assert.equal(clears, 1);
+  releaseClear();
+  await page.wait("document.querySelector('[data-memory-clear-status]')?.textContent.includes('版本冲突')");
   const status = await page.evaluate<string>("document.querySelector('[data-memory-clear-status]').textContent");
   assert.match(status, /已删除 1/); assert.match(status, /版本冲突 1/); assert.match(status, /结果未知 1/); assert.match(status, /尚未执行 1/);
   assert.equal(await page.evaluate("document.querySelector('[data-memory-clear]').textContent"), "重试本次清空");

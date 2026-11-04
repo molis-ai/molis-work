@@ -57,7 +57,8 @@ test("RAC-113: a file occupying releases rejects the preview without removing it
   await fs.rm(releases);
   const release = join(releases, "owned");
   await fs.mkdir(release, { recursive: true });
-  const manifest = '{"installer":"molis-work-home-install-v1"}\n';
+  const manifest = JSON.stringify({ schema_version: 1, installer: "molis-work-home-install-v1", version: "test",
+    dependencies: "embedded", content_digest: "a".repeat(64), created_at: "2026-01-01T00:00:00.000Z" }) + "\n";
   await fs.writeFile(join(release, "release.json"), manifest);
   const plan = await service.prepare();
   assert.equal(plan.status, "ready");

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
-import { CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { registration as codingRegistration } from "@molis-ai/molis-work-plugin-coding/registration";
 import { pageText } from "./fixtures/page-text.js";
 
 // W3-02-C: the Coding MCP settings section decides "this project has not enabled Coding" from the platform's code, `actions.plugin_disabled`
@@ -53,7 +53,10 @@ function fixture(answers: (url: string, method: string) => Answer, locale: "zh" 
   const requests: { url: string; method: string }[] = [];
   const timers = { started: [] as number[], cleared: [] as number[] };
   const location = { origin: "http://127.0.0.1:1", reloads: 0, reload() { this.reloads++; } };
-  vm.runInNewContext(CODING_SETTINGS_CLIENT_SCRIPT, {
+  // RAC-2849: exercise the client the three consumers actually receive from the registration.
+  const client = codingRegistration.workbench.settingsClient;
+  assert.ok(client);
+  vm.runInNewContext(client, {
     document, location, URL, molisWorkRequest: pageRequest(answers, requests), L: pageText(locale), // the page's translator, as the Host's pages define it
     setInterval: () => { timers.started.push(timers.started.length + 1); return timers.started.length; },
     clearInterval: (id: number) => { timers.cleared.push(id); },
@@ -110,7 +113,10 @@ for (const [locale, loaded] of [["zh", "项目方法已读取。"], ["en", "Proj
   line.textContent = "Reading project methods…"; line.dataset.methodLibraryLoading = "";
   const document = Object.assign(new FakeElement(), { createElement: () => new FakeElement() });
   document.querySelector = (selector: string) => selector === "[data-coding-method-library]" ? library : null;
-  vm.runInNewContext(CODING_SETTINGS_CLIENT_SCRIPT, {
+  // RAC-2849: exercise the client the three consumers actually receive from the registration.
+  const client = codingRegistration.workbench.settingsClient;
+  assert.ok(client);
+  vm.runInNewContext(client, {
     document, location: { origin: "http://127.0.0.1:1" }, URL, setInterval: () => 0, clearInterval: () => {}, L: pageText(locale),
     molisWorkRequest: pageRequest(url => url.endsWith(STATE) ? answer(200, { workspaces: [{ workspace_id: "w", canonical_path: "/repo" }], methods: [] }) : answer(500, {})),
   });

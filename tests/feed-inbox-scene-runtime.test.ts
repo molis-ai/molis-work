@@ -6,7 +6,7 @@ import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-c
 import { createFeedSceneRuntime, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, withStagedFeedContent } from "@molis-ai/molis-work-plugin-inbox";
 
-// FI-1 (specs/repository-anti-corruption/slices/feed-inbox-runtime.md, PG-034): the judgment side of Feed's capture scene and of Inbox's
+// FI-1 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime.md, PG-034): the judgment side of Feed's capture scene and of Inbox's
 // next-step scene belongs to the plugins. The Host supplies the owners' data (the judgment ledger, the readable item) to Feed and decides
 // nothing about which judgments hold; Inbox is a Plugin Runtime plugin (FI-6) and runs its scene over the platform's scene and judgment
 // services. These tests run the plugins' runtimes over fake ports, with no database and no Host.

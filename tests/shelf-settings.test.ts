@@ -154,7 +154,7 @@ test("the action bar order keeps known slots, drops strangers, and adopts new ac
 });
 
 // W1-18-SHELF-FORMAT-01: a catalog is read only in its current shape; an older one is refused and left as it is (no read-time
-// defaults, specs/repository-anti-corruption §4.1). Stored catalogs are brought to the current shape by maintenance instead.
+// defaults, specs/archive/repository-anti-corruption §4.1). Stored catalogs are brought to the current shape by maintenance instead.
 test("an old catalog without the new settings is refused and left unchanged", async () => {
   await withHome(async (home) => {
     const store = openTestShelfStore(home, { disabled: true });

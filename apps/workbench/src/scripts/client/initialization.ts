@@ -1,4 +1,3 @@
-import { CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT } from "./deferred-plugin-client.js";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
@@ -116,6 +115,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
     const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
+      paneMessages,
+      openView: (root, selection) => tabWorkspace?.openView(root, selection),
+      invalidateView: root => tabWorkspace?.invalidateView(root),
       openBehind: (...args) => tabWorkspace?.openBehind(...args),
       mountPluginClient, interaction, receipts, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
@@ -123,7 +125,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
-    ${CODING_SETTINGS_CLIENT_SCRIPT}
     (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
@@ -134,13 +135,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
-    requestAnimationFrame(() => {
-      const entryId = new URL(location.href).searchParams.get("inbox_entry");
-      if (!entryId) return;
-      const row = inboxList?.querySelector('[data-inbox-entry-id="' + CSS.escape(entryId) + '"]');
-      if (row) tabWorkspace?.openItem("inbox", entryId, row.querySelector("strong")?.textContent);
-      else showToast(L("原 Inbox 材料在当前项目中不可用"), true);
-    });
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,
       setDirectory: (...args) => setDesktopDirectory(...args),
@@ -153,14 +147,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       showToast,
       projectId: state.project?.project_id || "",
     });
-    bindGoalCreateEvents();
+    if (goalData) bindGoalCreateEvents();
     addEventListener("popstate", (event) => {
       if (localPathname() === "/" && !collectionView) {
         setDesktopDirectory("root", false, false);
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
-      } else handleGoalPopState(event);
+      } else if (goalData) handleGoalPopState(event);
     });
-    addEventListener("hashchange", handleGoalHashChange);
+    if (goalData) addEventListener("hashchange", handleGoalHashChange);
     addEventListener("pagehide", saveUiState);
     addEventListener("keydown", (event) => {
       if (event.defaultPrevented || event.isComposing) return;
@@ -181,13 +175,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         nextTrigger.focus();
         return;
       }
-      if (handleGoalFactorKeyboard(event)) return;
-      if (handleTreeKeyboard(event)) return;
-      if (event.key === "Escape" && feedFilterPanel?.hidden === false) {
-        event.preventDefault();
-        setFeedFilterOpen(false);
-        feedFilterTrigger?.focus();
-      } else handleGoalDialogEscape(event);
+      if (goalData && handleGoalFactorKeyboard(event)) return;
+      if (goalData && handleTreeKeyboard(event)) return;
+      if (goalData) handleGoalDialogEscape(event);
     });
     addEventListener("resize", () => {
       const nextCompanionActive = document.body.dataset.desktopShell === "true" && matchMedia("(max-width: 760px)").matches;
@@ -207,6 +197,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (tuiPane) setTuiWidth(tuiPane.getBoundingClientRect().width, false);
     let restoredUi = false;
     let restoredMobileView = "";
+    let resetTabLayout = false;
+    for (const key of [goalUiStorageKey, ...["current", "archive", "trash"].map(view => goalUiStorageKey + ":" + view)]) {
+      try {
+        const ui = JSON.parse(sessionStorage.getItem(key) || "null");
+        if (ui && (Object.hasOwn(ui, "feedTask") || Object.hasOwn(ui, "goalView")
+          || Object.values(ui.feedPresets || {}).some(preset => preset && Object.hasOwn(preset, "task")))) {
+          sessionStorage.removeItem(key); resetTabLayout = true;
+        }
+      } catch { /* Unreadable caches are ignored by the existing restore below. */ }
+    }
     try {
       const stored = JSON.parse(
         sessionStorage.getItem(storageKey) ||
@@ -224,11 +224,12 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     } catch {}
     if (!restoredUi) {
       setWorkspaceMode("graph", false);
-      bindGoalEventDocument();
-      openEventReaderFromHash();
-      const initialFactor = goalFactorFromHash();
-      if (initialFactor) setGoalFactor(initialFactor, false);
-      if (feedDirectory) setFeedPreset("feed", false);
+      if (goalData) {
+        bindGoalEventDocument();
+        openEventReaderFromHash();
+        const initialFactor = goalFactorFromHash();
+        if (initialFactor) setGoalFactor(initialFactor, false);
+      }
       if (desktopDirectoryPanels.length) {
         setDesktopDirectory(treePane?.dataset.desktopDirectory || "root", false, false);
       }
@@ -239,7 +240,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
       performance.getEntriesByType("navigation")[0]?.type,
     );
-    tabWorkspace?.restore(directGoalRequested && !restoredNavigation ? selected : "");
+    tabWorkspace?.restore(directGoalRequested && !restoredNavigation ? selected : "", resetTabLayout);
     const restoredExclusive = tabWorkspace?.state?.()?.exclusive;
     const settingsKind = restoredExclusive === "settings" || restoredExclusive === "project-settings"
       ? restoredExclusive
@@ -331,7 +332,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
     }
-    openRequestedFeedRule();
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
     // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
     const askedSurface = new URLSearchParams(location.search).get("openSurface");
@@ -383,17 +383,19 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
       catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
     });
-    updateRelationPreviews();
-    updateAllRelationFormPreviews();
+    if (goalData) {
+      updateRelationPreviews();
+      updateAllRelationFormPreviews();
+    }
     // Off the Goal stage the board cursor comes with the attention read (W4-10).
     const goalStageShown = () => (document.body.dataset.desktopSurface || "goals") === "goals";
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
-      if (goalStageShown()) await refreshBoard(false, signal);
+      if (goalData && goalStageShown()) await refreshBoard(false, signal);
     }, 4000);
     document.addEventListener("molis-work:attention", event => {
       const cursor = event.detail?.board_cursor;
-      if (typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
+      if (goalData && typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
     });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();

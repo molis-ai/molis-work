@@ -80,6 +80,7 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
   kind: "integration";
+  presentSource?(id: string, input: import("./plugin-integrations.js").SourcePresentationInput): import("./plugin-integrations.js").SourcePresentation | Promise<import("./plugin-integrations.js").SourcePresentation>;
   /**
    * The driver and the adapter for one source. The plugin is started once and serves every source of its integrations; what
    * differs between sources arrives here as references (`IntegrationBinding`), so a source's change needs no restart.
@@ -128,7 +129,7 @@ export interface PluginStartContext {
   install_id: string;
   /**
    * The generation of the record this activation runs from. The Home half and the project half of a dual-instance plugin share
-   * `install_id` and differ here, and the Host's services refuse a call from the other half (specs/dual-instance-plugins U3).
+   * `install_id` and differ here, and the Host's services refuse a call from the other half (specs/archive/dual-instance-plugins U3).
    */
   readonly installation_generation: string;
   /** Trusted action identity; Home built-ins use plugin_id, project installs use install_id. */

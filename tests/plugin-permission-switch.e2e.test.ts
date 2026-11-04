@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, normalize } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -12,17 +12,22 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 // work at all (the project's list handed the row renderer its index as the send function); this clicks the switches and reads what the page sends.
 // Only the HTTP answers are stubbed: the Host's side of both doors is in that file and in security-invariants-plugin-permissions.test.ts.
 
-const viewOf = (name: string, installId: string, permissions: Array<{ permission: string; required: boolean; granted: boolean }>) => ({
+const viewOf = (name: string, installId: string, permissions: Array<{ permission: string; required: boolean; granted: boolean; requested?: boolean }>) => ({
   install_id: installId, plugin_id: `io.molis.work.${name}`, name, version: "1.0.0", trust: "pinned", publisher_label: "example", publisher_signature: "ed25519:sha256:aa",
   state: "running", manifest_available: true, jobs: [], consents: [],
-  permissions: permissions.map(item => ({ ...item, reason: `${name} 要用它`, meaning: "" })),
+  permissions: permissions.map(item => ({ requested: true, ...item, reason: `${name} 要用它`, meaning: "" })),
 });
 
 interface Seen { url: string; body: unknown }
 
-async function openPluginPage(t: TestContext) {
+async function openPluginPage(t: TestContext, dual = false) {
   const executable = locateTestChrome();
   if (!executable) { t.skip("Chrome is required for the plugin permission switches"); return null; }
+  if (process.platform === "darwin") {
+    assert.equal(executable, process.env.MOLIS_WORK_TEST_CHROME, "macOS uses the explicitly configured test browser");
+    assert.ok(isAbsolute(executable), "the dedicated test browser has an absolute path");
+    assert.doesNotMatch(normalize(executable), /^\/Applications\/Google Chrome\.app(?:\/|$)/u, "daily Chrome is not a test browser");
+  }
   const host = await serveHomeRuntime(t), project = await host.project("权限开关页面");
   const prefix = `/projects/${project.project_id}`;
   const html = await (await host.request(`${prefix}/settings/plugins`)).text();
@@ -32,8 +37,12 @@ async function openPluginPage(t: TestContext) {
     { permission: "model:read", required: false, granted: false },
     { permission: "network:api.example.com", required: false, granted: false },
   ]);
-  const homePlugin = viewOf("个人空间的插件", "home-install", [{ permission: "surface:browser", required: false, granted: true }]);
-  const state = new Map([[projectPlugin.install_id, projectPlugin], [homePlugin.install_id, homePlugin]]);
+  const homePlugin = viewOf("个人空间的插件", "home-install", [{ permission: "surface:browser", required: false, granted: true },
+    { permission: "owner-files:write", required: false, requested: false, granted: false }]);
+  const dualProject = viewOf("双实例插件", "dual-install", [{ permission: "dual:optional", required: false, granted: true }]);
+  const dualHome = { ...dualProject, state: "disabled", permissions: dualProject.permissions.map(item => ({ ...item })) };
+  const model = { home: true };
+  const state = new Map([[projectPlugin.install_id, projectPlugin], [homePlugin.install_id, homePlugin], [dualHome.install_id, dualHome]]);
   const seen: Seen[] = [];
   const server = createServer((request, response) => {
     const chunks: Buffer[] = [];
@@ -42,8 +51,9 @@ async function openPluginPage(t: TestContext) {
       const url = request.url ?? "", text = Buffer.concat(chunks).toString();
       const json = (status: number, value: unknown) => { response.writeHead(status, { "content-type": "application/json" }); response.end(JSON.stringify(value)); };
       if (request.method === "GET" && url.startsWith(`${prefix}/settings/plugins`)) { response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(html); return; }
-      if (url === `${prefix}/api/plugin-trust/overview`) { json(200, { plugins: [projectPlugin], publishers: [] }); return; }
-      if (url === "/api/settings/plugin-permissions/list") { json(200, { plugins: [homePlugin] }); return; }
+      if (url === `${prefix}/api/plugin-trust/overview`) { json(200, { plugins: [projectPlugin, ...dual ? [dualProject] : []], publishers: [], home_managed_install_ids: dual ? [dualProject.install_id] : [] }); return; }
+      if (url === "/api/settings/plugin-permissions/list") { json(200, { plugins: [homePlugin, ...dual && model.home ? [dualHome] : []] }); return; }
+      if (url === `${prefix}/api/settings/plugin-project-reach/list`) { json(200, { project_name: "权限开关页面", plugins: [], capabilities: [] }); return; }
       if (url === `${prefix}/api/plugin-trust/permissions/set` || url === "/api/settings/plugin-permissions/set") {
         const body = JSON.parse(text) as { install_id: string; permission: string; granted: boolean };
         seen.push({ url, body });
@@ -71,7 +81,7 @@ async function openPluginPage(t: TestContext) {
   const page = await harness.page();
   await page.command("Runtime.enable");
   await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}${prefix}/settings/plugins` });
-  await page.wait("document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === 1",
+  await page.wait(`document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === ${dual ? 2 : 1}`,
     { describe: "document.querySelector('[data-plugin-trust-error]')?.textContent" });
   await page.evaluate("document.querySelectorAll('details.plugin-trust-item').forEach(item => { item.open = true; })");
   const switchOf = (permission: string) => `input[role=switch][aria-label="${permission}"]`;
@@ -81,12 +91,35 @@ async function openPluginPage(t: TestContext) {
     while (seen.length < count && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 40));
     return seen;
   };
-  return { page, seen, requests, switchOf, checked, prefix };
+  return { page, seen, requests, switchOf, checked, prefix, model, dualHome };
 }
+
+test("RAC-2910 dual optional permissions have one Home switch, including stopped/crashed and missing Home states", { timeout: 120_000 }, async t => {
+  const browser = await openPluginPage(t, true); if (!browser) return;
+  const { page, requests, seen, model, dualHome } = browser;
+  const project = "[data-plugin-trust-list]", personal = "[data-plugin-trust-home]";
+  const optional = 'input[role=switch][aria-label="dual:optional"]';
+  assert.equal(await page.evaluate(`document.querySelectorAll('${project} ${optional}').length`), 0);
+  assert.match(await page.evaluate<string>(`document.querySelector('${project}').innerText`), /请在个人空间里管理这个插件的可选权限/u);
+  await page.click(`${personal} ${optional}`);
+  await requests(1); assert.deepEqual(seen[0], { url: "/api/settings/plugin-permissions/set", body: { install_id: "dual-install", permission: "dual:optional", granted: false } });
+  await page.wait(`document.querySelector('${personal} ${optional}').disabled === false`);
+  dualHome.state = "crashed";
+  await page.evaluate("location.reload()");
+  await page.wait(`document.querySelectorAll('${personal} ${optional}').length === 1`);
+  assert.equal(await page.evaluate(`document.querySelectorAll('${project} ${optional}').length`), 0);
+  model.home = false;
+  await page.evaluate("location.reload()");
+  await page.wait(`document.querySelector('${project}')?.textContent.includes('个人空间插件权限当前不可用')`);
+  assert.equal(await page.evaluate(`document.querySelectorAll('${optional}').length`), 0);
+});
 
 test("RAC-959 S-94 the 插件 page's switches, run in a browser, send the project's switch to the project's door and the Home plugin's to the Host settings door, and a wide permission waits for its confirmation", { timeout: 120_000 }, async t => {
   const browser = await openPluginPage(t); if (!browser) return;
   const { page, seen, requests, switchOf, checked, prefix } = browser;
+  // RAC2865: the real renderer shows a shape-only row but gives it no granting control.
+  assert.equal(await page.evaluate(`document.querySelector('${switchOf("owner-files:write")}')`), null);
+  assert.match(await page.evaluate<string>("document.querySelector('[data-plugin-trust-home]').innerText"), /本次未请求/u);
 
   // The project's plugin: one click on an ordinary optional permission is one request to the project's door, and the switch stays on.
   await page.click(switchOf("model:read"));

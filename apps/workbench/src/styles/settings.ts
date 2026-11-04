@@ -501,10 +501,6 @@ export const SETTINGS_STYLES = `
   .project-settings-fold-body .guidance-empty p { margin: 8px 0 16px; max-width: none; }
   .project-settings-fold-body .guidance-document:has(.guidance-empty) .guidance-aside,
   .project-settings-fold-body .guidance-document:has(.guidance-empty) .guidance-history { display: none; }
-  .coding-settings details { margin-block: 12px; }
-  .coding-settings summary { cursor: pointer; overflow-wrap: anywhere; }
-  .coding-settings .coding-method-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.65; padding: 12px; background: var(--nav-hover); }
-  .coding-settings .mw-select { max-width: 100%; }
   .project-settings-embed-pending { margin: 0; color: var(--muted); font-size: 13px; }
   .project-manager-section { padding: 16px 0 0; }
   .project-manager-section + .project-manager-section { margin-top: 4px; border-top: 0; }

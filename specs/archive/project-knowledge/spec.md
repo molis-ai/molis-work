@@ -45,7 +45,7 @@
 | 人选中的资料占不占本轮额度（10-19，弹窗） | 不占，单独计（推荐）；占；人选的不限 | **不占，单独计**：人选的资料由本人或插件读（audience `user` / `plugin`），每份按 `KNOWLEDGE_READ_MAX_CHARS` 读，长的分页并写明怎样接着读；本轮额度只管 Agent 自己找的（PMAT-42） |
 | 设了「不给 Agent 用」的资料整理不整理（10-19，弹窗） | 不整理（推荐）；照常整理 | **不整理**：不发给模型、不花额度；恢复后再排进整理（PMAT-43） |
 | 读不出正文的文件（10-19，弹窗） | 能读的都读，读不出的不整理（推荐）；只读 PDF 与 Word；都整理 | **能读的都读**：合法 UTF-8 的文本（CSV、JSON、代码）读出正文；读不出的只存原件，不发给模型，导入处写明「读不出正文」（PMAT-44） |
-| 导入读哪些格式（10-19，弹窗） | Office 与电子书（推荐）；图片与扫描 PDF 文字识别；音视频转写 | 用户原话：「use open-source project like everything to markdown, or other projects, transform more thing, including all above」：**三项都做，用开源的转 Markdown 项目**。比较后取 officeparser（MIT，纯 JavaScript）读 DOCX、PPTX、XLSX、ODT、ODS、ODP、RTF、EPUB；文字识别与转写用 Host 已有的 macOS 组件（Vision、Whisper），不另加 OCR 库；取舍记在 `specs/repository-anti-corruption/dependencies-and-sdk-plan.md` §3.6 |
+| 导入读哪些格式（10-19，弹窗） | Office 与电子书（推荐）；图片与扫描 PDF 文字识别；音视频转写 | 用户原话：「use open-source project like everything to markdown, or other projects, transform more thing, including all above」：**三项都做，用开源的转 Markdown 项目**。比较后取 officeparser（MIT，纯 JavaScript）读 DOCX、PPTX、XLSX、ODT、ODS、ODP、RTF、EPUB；文字识别与转写用 Host 已有的 macOS 组件（Vision、Whisper），不另加 OCR 库；取舍记在 `specs/archive/repository-anti-corruption/dependencies-and-sdk-plan.md` §3.6 |
 | 文字识别什么时候做（10-19，弹窗） | 导入时做、有时限（推荐）；导入后在后台做 | **导入时做、有时限**：图片 60 秒、扫描 PDF 120 秒、音视频 300 秒；超时或失败只存原件，导入处写明原因，不整理 |
 
 更正：对齐时我说这件事可以接着 W5-01 的「材料读取归平台（`services.materials`）」做。核对后，`packages/contracts/src/services/materials.ts` 是**正文提取**（OCR、PDF、转写、读网页），不是资料库。本服务会用它从 PDF、DOCX 里读出正文，但不能再叫 `materials`，见 §4.1。

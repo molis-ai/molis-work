@@ -4,7 +4,7 @@ import { PLUGIN_EVIDENCE_COLLECT_PERMISSION } from "@molis-ai/molis-work-contrac
 import { FEED_CONTENT_LEDGER_BATCH, type FeedContentLedger, type FeedContentReclaim, type FeedContentRelease } from "./content-ledger.js";
 
 /**
- * The things Feed's project instances ask of its Home half (specs/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md
+ * The things Feed's project instances ask of its Home half (specs/archive/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md
  * §3.2). They are not for a person, a workflow, an Agent or another plugin: only a Feed project instance, and only for its own project and
  * the sources it names. The project and the caller come from the call, never from the input.
  */

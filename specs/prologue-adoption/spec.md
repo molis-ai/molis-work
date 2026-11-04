@@ -78,7 +78,7 @@ Prologue 一侧每刀一个 PR，合并提交写在各节；Molis 当前已使�
 
 - 新写的：BL-301～BL-309；原 BL-300 的换包由 #887 完成后已删行，效果来源的 Molis 接入继续归 BL-162。
 - 原有、负责人原写「采用线」、现在改成「未分配」的：BL-155、BL-160、BL-171、BL-172、BL-173、BL-220、BL-221。
-- PG-054 已由 #844（`0744d7dd3`）完成新会话、方法、MCP、委派与整合的运行时目录接入；Character 相关的写死项已在 BL-372 的第一片去掉（运行时自己声明 `supports_character_limits`，默认运行时取目录的 Home 默认）；项目选运行时也已由 BL-372 做完（项目设置的 `projects.settings.runtime.read/select`，没选就是 Home 默认；选定的运行时不可用时新会话被拒绝并指向项目设置，不换一个，`specs/repository-anti-corruption/slices/bl372-runtime-declarations.md`）。
+- PG-054 已由 #844（`0744d7dd3`）完成新会话、方法、MCP、委派与整合的运行时目录接入；Character 相关的写死项已在 BL-372 的第一片去掉（运行时自己声明 `supports_character_limits`，默认运行时取目录的 Home 默认）；项目选运行时也已由 BL-372 做完（项目设置的 `projects.settings.runtime.read/select`，没选就是 Home 默认；选定的运行时不可用时新会话被拒绝并指向项目设置，不换一个，`specs/archive/repository-anti-corruption/slices/bl372-runtime-declarations.md`）。
 
 ### 接续时先读
 
@@ -902,7 +902,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 
 两处不归本线、已报统筹：
 - `docs/system/SECURITY-INVARIANTS.md` 里「Computer Use 不在 main」一条已过时（Computer Use 线）；
-- `specs/repository-anti-corruption/dependencies-and-sdk-plan.md` §4.3 需要记过渡包这个例外（防腐线）。
+- `specs/archive/repository-anti-corruption/dependencies-and-sdk-plan.md` §4.3 需要记过渡包这个例外（防腐线）。
 
 ### 6.0b 现状核对（2026-10-14）
 

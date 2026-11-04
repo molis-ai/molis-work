@@ -107,13 +107,16 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const prepareHome = async (homeDirectory: string) => {
+    await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+      const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
+      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
+    }));
+  };
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, { prepareHome }); if (!browser) return;
   const { command, sessionId, navigate, reloadPage, origin, projectId, homeDirectory } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "cognia");
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
-    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
-  }));
+
   const read = () => { const store = openCogniaStore(homeDirectory); try { return { materials: store.materials(), drafts: store.drafts() }; } finally { store.close(); } };
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -146,7 +149,8 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   await browser.waitFor(`JSON.parse(localStorage.getItem('molis-work-plugin-records:' + ${JSON.stringify(projectId)}) || '{}').cognia === ${JSON.stringify(read().materials.find(m => m.title === "本机模型整理结果")!.id)}`);
   await reloadPage(); await open(); assert.equal(read().materials.length, 2); assert.equal(requests.length, 1);
   await waitFor("document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果' && document.querySelector('[data-cognia=workbench]').dataset.expanded === 'true'");
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.models.upsert({ ...catalog.models.get("local-only")!, enabled: false })));
+  const { providers } = await browser.web.get<{ providers: { provider_id: string; display_name: string; base_url: string; api_format: string; prompt_cache: string; models: { model_id: string; enabled: boolean }[] }[] }>("/api/settings/models");
+  await browser.web.post("/api/settings/models/local-only", { ...providers.find(provider => provider.provider_id === "local-only")!, enabled: false });
   await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:model-ready'))");
   await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
   await reloadPage(); await open();

@@ -24,14 +24,16 @@ const GEOMETRY = `(() => { const box = (node) => { const b = node.getBoundingCli
     cut: controls.flatMap((node) => [...node.querySelectorAll('[data-mw-select-label]')]).filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => node.textContent) }; })()`;
 
 async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en") {
-  const browser = await openGoalBrowser(t, true); if (!browser) return null;
+  let model!: Awaited<ReturnType<typeof assistantTextModel>>;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "这一段写完了。", { pieces: 2, pause: 100 }); },
+  }); if (!browser) return null;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "coding");
   let active: Pick<typeof browser,"evaluate"|"waitFor"|"click"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
   const waitFor: typeof browser.waitFor = (...args) => active.waitFor(...args);
   const click: typeof browser.click = (...args) => active.click(...args);
-  const model = await assistantTextModel(t, homeDirectory, "这一段写完了。", { pieces: 2, pause: 100 });
   const workspace = join(homeDirectory, "steady");
   await mkdir(workspace, { recursive: true }); await writeFile(join(workspace, "note.txt"), "x\n");
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
@@ -97,9 +99,11 @@ test("VUX-16: a narrow composer keeps its settings on their own row, idle or run
 });
 
 test("VUX-16: the Assistant's box and send stay put as a file is added and a round runs, and the file sits right above the box", { timeout: 180_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
-  const model = await assistantTextModel(t, homeDirectory, "这一段写完了。", { pieces: 2, pause: 100 });
+  let model!: Awaited<ReturnType<typeof assistantTextModel>>;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "这一段写完了。", { pieces: 2, pause: 100 }); },
+  }); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
   type Place = { input: number[]; send: number[]; top: number; strip: number[] | null };
   const place = () => evaluate<Place>(`(() => { const box = (node) => { if (!node || !node.getClientRects().length) return null; const b = node.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); };
     return { input: box(document.querySelector('[data-assistant-input]')), send: box(document.querySelector('[data-assistant-send]')),

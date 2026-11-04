@@ -34,11 +34,11 @@ const RESPONSE_BARRIERS = `(() => {
   };
 })();`;
 
-export async function openAuditBrowser(t: TestContext): Promise<AuditBrowser | null> {
+export async function openAuditBrowser(t: TestContext, profileTimeouts = false): Promise<AuditBrowser | null> {
   let browser: AuditBrowser | null = null;
   browser = await openGoalBrowser(t, true, undefined, null, undefined, () => browser ? {
     workspace_id: "audit-workspace", canonical_path: join(browser.homeDirectory, "audit-workspace"), realpath_verified: true, display_name: "Audit workspace",
-  } : null);
+  } : null, {}, undefined, undefined, profileTimeouts);
   if (!browser) return null;
   await mkdir(join(browser.homeDirectory, "audit-workspace"));
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, browser.sessionId);

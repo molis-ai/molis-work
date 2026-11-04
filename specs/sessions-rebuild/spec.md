@@ -8,7 +8,7 @@
 
 用户在不同 AI 工具中推进同一项目，既要把已经积累的背景带入 Molis，也要让后续工作进展持续可见，还要在 Molis 中恢复外部会话、发送消息和交接工作。不能只接两家海外工具，再把国内工具或其他主流厂商留为无期限后续。
 
-旧 Sessions 已于 2026-10-23 随 SC-4 下线。当前 MCP 的 Runtime／项目关联不等于会话历史读取或恢复；现状见 [PRODUCT](../../PRODUCT.md)、[SC-4](../repository-anti-corruption/slices/sc-4-sessions-offline.md)。本需求承接 BL-177 与产品建议 B2；会话目录与恢复、普通消息、跨 Runtime 交接、会话搜索和首页「说一句」仍在完整范围内，不因本轮先确定厂商覆盖而删减。
+旧 Sessions 已于 2026-10-23 随 SC-4 下线。当前 MCP 的 Runtime／项目关联不等于会话历史读取或恢复；现状见 [PRODUCT](../../PRODUCT.md)、[SC-4](../archive/repository-anti-corruption/slices/sc-4-sessions-offline.md)。本需求承接 BL-177 与产品建议 B2；会话目录与恢复、普通消息、跨 Runtime 交接、会话搜索和首页「说一句」仍在完整范围内，不因本轮先确定厂商覆盖而删减。
 
 沿用 2026-10-18 的决定：Sessions 是平台事实，不恢复旧 Sessions 插件。外部工具拥有原生会话与执行状态，Molis 维护自己的关联和访问入口；不能通过读到一份日志就声称接管了原工具的运行。
 

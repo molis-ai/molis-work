@@ -14,7 +14,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
-// specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P2a: a plugin's files in the Home are declared in its
+// specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P2a: a plugin's files in the Home are declared in its
 // Manifest (`owner_files`) and nowhere else.
 
 const FILES = { store_name: "notes", entries: [{ name: "catalog.json", kind: "file" }, { name: "documents", kind: "directory" }], read_permission: "notes:read", write_permission: "notes:write" };

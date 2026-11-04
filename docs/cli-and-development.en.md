@@ -12,7 +12,7 @@ Output uses a private sibling staging directory with mode 0700 and files with mo
 
 The original SDK reader validates every ciphertext record kind and page using the original Home's key, including valid empty bodies and tombstones that retain ciphertext. Metadata-only stores and ordinary checkpoints do not require or create a key. Managed CLI recovery still requires the original installation identity and actual program at the original path; this command does not reinstall over the network or create a replacement installation.
 
-Complete `home restore`, coordinated publication/rollback and restart continuation remain follow-up work in W5-16; Memory-owner eligibility for reopening archived data and controlled recovery of valid empty state are still missing. This snapshot slice does not mark them complete. Engineering and temporary-Home tests do not replace a real-Home maintenance window or user acceptance. Scope and evidence are in the [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md).
+Run `molis-work home restore --from <snapshot-directory> [--home <original-Home>] [--json]` in the same offline window to restore to the original Home using its original keys. Preflight checks the manifest, payload digests, owner versions, Memory eligibility and target stores before moving originals. The result reports `originals_directory` when it replaces data and `unchanged` when no business writes are needed. If an interrupted restore blocks normal startup, use `molis-work home restore --recover`. It rolls back an uncommitted operation, finishes a committed one, or returns `no_recovery` when nothing is pending. Choose exactly one of `--from` and `--recover`. The real-Home backup and rebuild remains tracked in BL-928.
 
 ## Installer ownership during development
 
@@ -34,7 +34,7 @@ Goals Module owns graph integrity and structural impact. Reusable candidates com
 
 ## CLI
 
-The public CLI top level provides program install, the persistent service, demo, safe uninstall, plugin management, offline `molis-work home snapshot`, and the `molis-work v1 <operation>` management surface. The following are v1 operations:
+The public CLI top level provides program install, the persistent service, demo, safe uninstall, plugin management, offline `molis-work home snapshot` and `molis-work home restore`, and the `molis-work v1 <operation>` management surface. The following are v1 operations:
 
 ```text
 init | snapshot | active-goal
@@ -171,7 +171,7 @@ After changing a stylesheet, a client script, a plugin client pack or a font, ru
 
 This is size control, not a hard ceiling (the user’s decision of 2026-10-18): sizes may only fall by default, so reduce them where possible. Growth a feature needs and that cannot be saved elsewhere in the same asset requires the reason, bytes and attempted reductions in the PR. After review, add a one-time entry to `APPROVED_CEILINGS` in `scripts/gates/page-assets.mjs`, keyed to the exact merge-base size and capped at the measured size. Remove used entries when adding the next approval; the merged size remains frozen. Ask the user first for growth over 10 KB in one asset at once, or for a new asset.
 
-Apart from that approval, CI and `--base <ref>` compare budgets with the merge-base: raising numbers, adding entries or dropping a still-served asset cannot pass, and `--update` refuses growth too. Budgets must equal measurements. When an asset shrinks, run `node scripts/gates/page-assets.mjs --update --base origin/main` in the same PR. If main changes an asset before merge, rebuild the merge result with `pnpm workspace:build` and check again. Route discovery and uncovered cases are documented at the top of [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) and in the [anti-corruption spec](../specs/repository-anti-corruption/spec.md) §5a.
+Apart from that approval, CI and `--base <ref>` compare budgets with the merge-base: raising numbers, adding entries or dropping a still-served asset cannot pass, and `--update` refuses growth too. Budgets must equal measurements. When an asset shrinks, run `node scripts/gates/page-assets.mjs --update --base origin/main` in the same PR. If main changes an asset before merge, rebuild the merge result with `pnpm workspace:build` and check again. Route discovery and uncovered cases are documented at the top of [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) and in the [anti-corruption spec](../specs/archive/repository-anti-corruption/spec.md) §5a.
 
 ### Secret scanning before push
 

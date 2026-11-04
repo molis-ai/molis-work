@@ -50,7 +50,7 @@ export interface GoalsPagePorts<TView> {
   renderReference: (value: string, label?: string) => string;
   /** The kinds a Goal's inputs offer to make new, from the plugins the page shows. */
   creatableKinds: (view: TView) => readonly GoalInputsCreatableKind[];
-  inPluginWords: <T>(pluginId: string, run: () => T) => T;
+  inPluginWords: <T>(pluginId: string, run: (translate: GoalsTranslate) => T) => T;
   renderTerminalPane: (model: GoalsTerminalPaneModel) => string;
   renderHint: (options: GoalsHintOptions) => string;
 }

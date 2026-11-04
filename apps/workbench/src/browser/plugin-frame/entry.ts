@@ -1,8 +1,9 @@
 import { mountFrame } from "./parent.js";
 import { startChild } from "./child.js";
+import { frameAssets } from "./frame-assets.js";
 import type { FrameConfig } from "./types.js";
 
-globalThis.molisPluginFrames = { mount: mountFrame };
+globalThis.molisPluginFrames = { mount: mountFrame, assets: frameAssets };
 if (parent !== window) {
   const connect = (event: MessageEvent<{ type?: string; config: FrameConfig }>) => {
     if (event.source !== parent || event.data?.type !== "molis:plugin-connect" || event.ports.length !== 1) return;

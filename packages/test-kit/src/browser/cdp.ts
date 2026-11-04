@@ -246,6 +246,7 @@ class TimeoutProfiler {
 export class ChromeHarness {
   private nextId = 0;
   private closing = false;
+  private closeTask?: Promise<void>;
   private closed = false;
   private readonly pending = new Map<number, PendingCommand>();
   private readonly waiters = new Set<EventWaiter>();
@@ -298,7 +299,7 @@ export class ChromeHarness {
   command<T = unknown>(method: string, params: CdpParams = {}, sessionId?: string, timeoutMs = this.commandTimeoutMs): Promise<T> {
     const id = ++this.nextId;
     return new Promise<T>((resolve, reject) => {
-      if (this.closed) { reject(new Error(`CDP connection closed before ${method}`)); return; }
+      if (this.closed || this.closing) { reject(new Error(`CDP connection closed before ${method}`)); return; }
       const expression = typeof params.expression === "string" ? ` · ${params.expression.slice(0, 320)}` : "";
       // Keep the command's caller, not only the timer callback, when a renderer stops answering.
       const started = performance.now(), failure = new Error(`CDP timeout: ${method}${expression}`) as CdpTimeoutFailure;
@@ -364,6 +365,7 @@ export class ChromeHarness {
   /** Resolves with the first event of this kind that satisfies `predicate`. */
   event(method: string, predicate: (params: CdpParams) => boolean = () => true, timeoutMs = 15_000): Promise<CdpParams> {
     return new Promise((resolve, reject) => {
+      if (this.closed || this.closing) { reject(new Error(`CDP connection closed before ${method}`)); return; }
       let off = () => {};
       const waiter: EventWaiter = {
         timer: setTimeout(() => waiter.reject(new Error(`CDP event timeout: ${method}`)), timeoutMs),
@@ -387,17 +389,23 @@ export class ChromeHarness {
     return new ChromePage(this, sessionId, target);
   }
 
-  /** Drops pending work without settling it, closes the connection and ends the Chrome this harness started. */
-  async close(): Promise<void> {
+  /** Drops pending work, waits for an owned Chrome to exit normally, then releases this connection. */
+  close(): Promise<void> {
+    if (this.closeTask) return this.closeTask;
     this.closing = true;
     for (const entry of this.pending.values()) clearTimeout(entry.timer);
     for (const waiter of this.waiters) clearTimeout(waiter.timer);
     this.pending.clear();
     this.waiters.clear();
     this.listeners.clear();
-    this.socket.close();
-    await this.profile?.close();
-    await this.browser?.close();
+    this.closeTask = (async () => {
+      try { await this.profile?.close(); }
+      finally {
+        try { await this.browser?.close(); }
+        finally { this.socket.close(); }
+      }
+    })();
+    return this.closeTask;
   }
 
   private receive(raw: string): void {

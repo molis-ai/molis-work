@@ -291,10 +291,12 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const renderer = read("apps/workbench/src/renderer.ts");
   const server = WEB_DISPATCH_FILES.map(read).join("\n");
-  const uiAdapter = read("apps/workbench/src/feed-projection-ui.ts");
-  for (const retired of ["src/web/feed-native-plugin-http.ts", "apps/local-host/src/feed-native-plugin-http.ts"]) {
+  const stageModels = read("apps/workbench/src/stage-renderers.ts");
+  const uiAdapter = read("plugins/native/feed/src/stage-ui.ts");
+  for (const retired of ["src/web/feed-native-plugin-http.ts", "apps/local-host/src/feed-native-plugin-http.ts",
+    "apps/workbench/src/feed-projection-ui.ts", "apps/workbench/src/inbox-projection-ui.ts"]) {
     if (fs.existsSync(path.join(repositoryRoot, retired))) {
-      errors.push(`${retired}: the Host's Feed HTTP edge was deleted (FI-7); Feed declares its routes under /api/plugins/<plugin_id>/ and must stay that way`);
+      errors.push(`${retired}: the Host/Workbench business adapter was deleted; Feed and Inbox own their declared reads, routes and UI projections`);
     }
   }
   // The Host answers no /api/feed address of Feed's. The one /api/feed path left is the Gmail OAuth callback's, which is the Host's
@@ -314,6 +316,7 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
   const inboxPlugin = read("plugins/native/inbox/src/plugin.ts");
   const inboxManifestText = read("plugins/native/inbox/src/manifest.ts");
   const pluginUi = read("plugins/native/feed/src/ui.ts");
+  const feedQueries = read("plugins/native/feed/src/query-actions.ts"), inboxActions = read("plugins/native/inbox/src/actions.ts");
   const pluginRoutes = read("plugins/native/feed/src/routes.ts");
   const workbench = read("apps/workbench/src/index.ts") + read("apps/workbench/src/ui-composition.ts");
   const uiHost = read("packages/ui-host/src/index.ts");
@@ -328,8 +331,17 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
       errors.push(`apps/workbench/src/renderer.ts: ${forbidden} must be owned by the Feed UI Contribution`);
     }
   }
-  if (!hasInCode(renderer, "renderFeedNativePluginSurface")) {
-    errors.push("apps/workbench/src/renderer.ts: Feed caller must render through the Native Plugin adapter");
+  if (!hasInCode(renderer, "createWorkbenchStageRenderers(") || !hasInCode(renderer, "stageModel: stages.declaredStageModel")
+    || !hasInCode(renderer, "stageFragmentModel: stages.stageFragmentModel")
+    || !hasInCode(stageModels, "sharedStageModel(projectPluginId, view)") || !hasInCode(stageModels, "sharedStageModel(projectPluginId, context)")) {
+    errors.push("apps/workbench: page and object callers must use the shared declared stage model/render bindings");
+  }
+  if (!hasInCode(feedManifestText, "stage_data: { action: feedQueryActions.stage.capability_id")
+    || !hasInCode(feedManifestText, "object_action: feedQueryActions.reader.capability_id")
+    || !hasInCode(feedPlugin, "createFeedQueryHandlers(") || !hasInCode(feedQueries, "bind(feedQueryActions.stage") || !hasInCode(feedQueries, "bind(feedQueryActions.reader")
+    || !hasInCode(inboxManifestText, "stage_data: { action: inboxActions.stage.capability_id")
+    || !hasInCode(inboxPlugin, "createInboxActionHandlers(") || !hasInCode(inboxActions, "bind(inboxActions.stage")) {
+    errors.push("Feed/Inbox stages and objects must declare and bind their own real read handlers");
   }
   for (const forbidden of ["/api/feed", "handleFeedNativePluginHttp", "promoteFeedItemToGoal(", "sendFeedError("]) {
     if (server.includes(forbidden)) {
@@ -345,8 +357,9 @@ export function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (pluginRoutes.includes("/api/inbox/")) {
     errors.push("plugins/native/feed/src/routes.ts: /api/inbox must be owned by the Inbox Plugin");
   }
-  if (!hasInCode(uiAdapter, "renderFeedContribution") || !hasInCode(pluginUi, "feedUiContribution")) {
-    errors.push("Feed UI must cross the Workbench public contribution entrypoint");
+  if (!hasInCode(uiAdapter, "function buildFeedStageUiModel(") || !hasInCode(uiAdapter, "function buildFeedReaderUiModel(")
+    || !hasInCode(pluginUi, "buildFeedStageUiModel(") || !hasInCode(pluginUi, "buildFeedReaderUiModel(") || !hasInCode(pluginUi, "feedUiContribution")) {
+    errors.push("Feed UI Contribution must use its own stage and reader data projections");
   }
   if (!hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");
@@ -1549,7 +1562,60 @@ function workbenchContributionRegistered(workbench, registry, name, descriptors,
   return importsRegistry && registersPacks && contributions.includes(name);
 }
 
-export function checkProposalUiOwnership(renderer, workbench, proposalMount, surfaces, clientDispatch, registry = "", descriptors = "", pageSources = "") {
+/** DD2's concrete stage-to-page mount chain; names and direct wiring are pinned, without alias/data-flow inference. */
+function proposalPageMountProblems(stageSource, pageSource) {
+  const stageFile = ts.createSourceFile("stages.ts", stageSource, ts.ScriptTarget.Latest, true);
+  const pageFile = ts.createSourceFile("pages.ts", pageSource, ts.ScriptTarget.Latest, true);
+  const fn = (file, name) => file.statements.filter(node => ts.isFunctionDeclaration(node) && node.name?.text === name && node.body);
+  const variables = (block, name) => block?.statements.flatMap(statement => ts.isVariableStatement(statement)
+    ? statement.declarationList.declarations.filter(node => ts.isIdentifier(node.name) && node.name.text === name) : []) ?? [];
+  const value = (block, name) => { const found = variables(block, name); return found.length === 1 ? unwrapped(found[0].initializer) : undefined; };
+  const text = node => node?.getText().replace(/\s+/gu, "");
+  const returned = block => { const found = block?.statements.filter(ts.isReturnStatement) ?? []; return found.length === 1 ? unwrapped(found[0].expression) : undefined; };
+  const problems = [];
+  const stageFactory = fn(stageFile, "createWorkbenchStageRenderers");
+  const shared = stageFactory.length === 1 ? value(stageFactory[0].body, "sharedStageModel") : undefined;
+  if (!shared || !ts.isArrowFunction(shared) || !ts.isBlock(shared.body)
+    || text(shared.parameters[0]?.name) !== "projectPluginId"
+    || text(value(shared.body, "pluginId")) !== "BUILTIN_PLUGIN_CATALOG.find(entry=>entry.project_plugin_id===projectPluginId)?.manifest.plugin_id??projectPluginId") {
+    problems.push("sharedStageModel must take its pluginId from this projectPluginId's Manifest");
+  } else {
+    const result = returned(shared.body), model = result && ts.isSatisfiesExpression(result) ? unwrapped(result.expression) : result;
+    const drawing = model && ts.isObjectLiteralExpression(model) ? model.properties.filter(node => propertyNamed(node, "drawing")) : [];
+    const own = drawing.length === 1 && ts.isPropertyAssignment(drawing[0]) ? unwrapped(drawing[0].initializer) : undefined;
+    const mounts = own && ts.isObjectLiteralExpression(own) ? own.properties.filter(node => propertyNamed(node, "mount")) : [];
+    if (!own || !ts.isObjectLiteralExpression(own) || own.properties.some(opaqueProperty)
+      || mounts.length !== 1 || !ts.isPropertyAssignment(mounts[0]) || text(mounts[0].initializer) !== "mountContributionsOf(pluginId)"
+      || model.properties.slice(model.properties.indexOf(drawing[0]) + 1).some(node => opaqueProperty(node) || propertyNamed(node, "drawing"))) {
+      problems.push("sharedStageModel drawing must bind only mountContributionsOf(pluginId), with no later override");
+    }
+  }
+  const portsFactory = fn(pageFile, "goalsPagePorts"), portsBody = portsFactory.length === 1 ? portsFactory[0].body : undefined;
+  const drawings = portsBody?.statements.flatMap(statement => ts.isVariableStatement(statement)
+    ? statement.declarationList.declarations.filter(node => text(node.name) === "{drawing}") : []) ?? [];
+  const ports = returned(portsBody);
+  if (portsFactory.length !== 1 || text(portsFactory[0]?.parameters[0]?.name) !== "model" || drawings.length !== 1 || text(drawings[0].initializer) !== "model"
+    || !ports || !ts.isObjectLiteralExpression(ports) || !ports.properties.length || !ts.isSpreadAssignment(ports.properties[0]) || text(ports.properties[0].expression) !== "drawing"
+    || ports.properties.slice(1).some(node => opaqueProperty(node) || propertyNamed(node, "mount"))) {
+    problems.push("goalsPagePorts must forward this model's drawing without replacing mount");
+  }
+  const declarations = variables(pageFile, "goalsStageUiContribution"), stage = declarations.length === 1 ? unwrapped(declarations[0].initializer) : undefined;
+  const renders = stage && ts.isObjectLiteralExpression(stage) ? stage.properties.filter(node => propertyNamed(node, "render") && ts.isMethodDeclaration(node)) : [];
+  const render = renders.length === 1 ? renders[0] : undefined;
+  const portIndex = render?.body?.statements.findIndex(statement => ts.isVariableStatement(statement) && statement.declarationList.declarations.some(node => text(node.name) === "ports"));
+  const pageIndex = render?.body?.statements.findIndex(statement => ts.isVariableStatement(statement) && statement.declarationList.declarations.some(node => text(node.name) === "page"));
+  if (text(render?.parameters[0]?.name) !== "{model,surface}" || text(value(render?.body, "ports")) !== "goalsPagePorts(model)"
+    || text(value(render?.body, "page")) !== "createGoalsPage(ports)" || pageIndex !== portIndex + 1) {
+    problems.push("the actual stage render must pass its model through goalsPagePorts directly into createGoalsPage");
+  }
+  const pages = fn(pageFile, "createGoalsPage");
+  if (pages.length !== 1 || text(pages[0].parameters[0]?.name) !== "ports" || text(value(pages[0].body, "factories")) !== "createGoalsRendererFactories(ports.mount)") {
+    problems.push("createGoalsPage must build its native factories from ports.mount");
+  }
+  return problems;
+}
+
+export function checkProposalUiOwnership(renderer, workbench, proposalMount, surfaces, clientDispatch, registry = "", descriptors = "", pageSources = "", stageSources = "") {
   const errors = [];
   for (const name of ["proposedGoalName", "goalTreeProposalItemCopy", "goalTreeDecompositionIssueCopy", "renderGoalTreeProposalDecision", "renderRewireDecision", "renderContractProposal", "renderCandidateDecision", "buildDecisionGroups", "recentDecisionResults"]) {
     if (new RegExp(`function\\s+${name}\\s*\\(`, "u").test(renderer)) errors.push(`apps/workbench/src/renderer.ts: DD2 ${name} belongs to the Goals contribution`);
@@ -1566,11 +1632,8 @@ export function checkProposalUiOwnership(renderer, workbench, proposalMount, sur
   if (!matchesInCode(proposalMount, /surfaceRenderers<[^>]+>\(mount, GOALS_PROPOSAL_UI_CONTRIBUTION_ID, GOALS_PROPOSAL_UI_SURFACES\)/u)) {
     errors.push("plugins/native/goals: proposal renderers must mount the native contributions");
   }
-  // Three links of the chain from the Goals page to the registered contribution, each pinned where it is written: the shell hands the page
-  // its one mount (a different function would mount something the UiHost does not declare), that mount is the UiHost's `mountDeclared`
-  // in the slot the contribution declares, and the page's surface renderers call only the mount they were given.
-  if (!matchesInCode(renderer, /createGoalsPage<[^>]+>\(\{\s*mount: mountContributionsOf\(GOALS_PLUGIN_ID\)/u)) {
-    errors.push("apps/workbench/src/renderer.ts: DD2 the Goals page must be created with mount: mountContributionsOf(GOALS_PLUGIN_ID)");
+  for (const problem of proposalPageMountProblems(stageSources, pageSources)) {
+    errors.push(`Goals page: DD2 the stage model must bind and forward mountContributionsOf(pluginId): ${problem}`);
   }
   if (!matchesInCode(workbench, /function renderWorkbenchContribution\([^)]*\): string \{\s*return workbenchUiHost\.mountDeclared\(/u)) {
     errors.push("apps/workbench: DD2 renderWorkbenchContribution must mount through workbenchUiHost.mountDeclared");
@@ -1601,7 +1664,7 @@ export function checkProposalUiOwnershipInTree(repositoryRoot) {
   const pageDirectory = path.join(repositoryRoot, "plugins/native/goals/src/page");
   const pageSources = fs.readdirSync(pageDirectory).filter(name => name.endsWith(".ts")).map(name => fs.readFileSync(path.join(pageDirectory, name), "utf8")).join("\n");
   return checkProposalUiOwnership(renderer, workbench, proposalMount, surfaces, clientDispatch,
-    read("apps/workbench/src/plugin-workbench.ts"), builtinCatalogText(repositoryRoot), pageSources);
+    read("apps/workbench/src/plugin-workbench.ts"), builtinCatalogText(repositoryRoot), pageSources, read("apps/workbench/src/stage-renderers.ts"));
 }
 
 export function checkPackageBoundaries(repositoryRoot) {

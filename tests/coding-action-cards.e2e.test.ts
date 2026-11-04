@@ -54,15 +54,18 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
-  const b = await openGoalBrowser(t, "seeded"); if (!b) return;
+  const prepareHome = async (homeDirectory: string) => {
+    await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
+      const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
+      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
+        models: [{ model_id: "fixture-plain", enabled: true }] });
+    }));
+  };
+  const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, { prepareHome }); if (!b) return;
   const child = await pluginFrameBrowser(t, b, "coding");
   const {click, evaluate, waitFor} = child;
   const { command, sessionId, homeDirectory, projectId } = b;
-  await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => {
-    const connection = withConnectorConnections(homeDirectory, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", `http://127.0.0.1:${address.port}`); return created; });
-    catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
-      models: [{ model_id: "fixture-plain", enabled: true }] });
-  }));
+
   // The person's protected settings entry owns the current grant format, permissions and generation.
   await b.web.post("/api/settings/mcp/actions", { client_id: "agent:prologue", project_id: projectId,
     capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", enabled: true });

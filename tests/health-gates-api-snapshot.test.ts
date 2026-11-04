@@ -7,7 +7,7 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-// specs/repository-anti-corruption §4.13 (W1-04): the public API of the contracts package (every subpath) and of the plugin
+// specs/archive/repository-anti-corruption §4.13 (W1-04): the public API of the contracts package (every subpath) and of the plugin
 // SDK is written down in tooling/gates/api, and the health gate fails when the source and the snapshot differ. The snapshot
 // is refreshed on purpose with `node scripts/gates/api-snapshot.mjs --update`. Each rule is mutation-verified on a scratch
 // repository, in the style of tests/health-gates-merge-base.test.ts: one change made on a branch makes `--base main` fail,

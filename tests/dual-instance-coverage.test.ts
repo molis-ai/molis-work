@@ -15,7 +15,7 @@ import type { PluginAppContribution, PluginDefinition, PluginManifest } from "@m
 import { MemoryPluginRuntimeRepository, PluginRuntime, viewContributionId, type RedemptionScope } from "@molis-ai/molis-work-plugin-runtime";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 
-// DUAL-03 and DUAL-14 (specs/dual-instance-plugins/spec.md), with the route half of DUAL-09: the two halves of a dual-instance plugin
+// DUAL-03 and DUAL-14 (specs/archive/dual-instance-plugins/spec.md), with the route half of DUAL-09: the two halves of a dual-instance plugin
 // together offer its one Manifest exactly once. The Runtime checks only that what a half offers is declared (P1: "declared and not
 // offered" is relaxed for a marked half), so this test is where "nothing left out, nothing offered twice" holds: every action and
 // consumption scene, route, view and the input and event handlers come from exactly one half. Each half starts

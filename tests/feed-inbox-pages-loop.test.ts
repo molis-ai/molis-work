@@ -2,7 +2,7 @@ import { modelPromptText } from "@molis-ai/molis-work-contracts/platform/model-p
 import { feedCaptureFixture } from "./feed-capture-fixture.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -17,7 +17,7 @@ import type { PagesGenerationRecord } from "@molis-ai/molis-work-plugin-pages/co
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
-import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
+import { registration as inboxRegistration } from "@molis-ai/molis-work-plugin-inbox/registration";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /** Generation as the Runtime gives it: Pages' own stores, an original caller that is never refused, and the model's whole result. */
@@ -122,7 +122,7 @@ test("Host uses configured model transport and never fabricates text on failure"
   await assert.rejects(failed!("input"), /模型返回 500/);
   assert.equal(hostCompleteText({ env: {} }), undefined);
   new Function("return " + ASSISTANT_ISLAND_FACTORY_SCRIPT);
-  new Function(CLIENT_NAVIGATION_INBOX_SCRIPT);
+  assert.equal(typeof new Function("return (" + inboxRegistration.workbench!.clientFactory! + ")")(), "function", "the registered Inbox owner factory parses");
 });
 
 test("Multi-material document retains every source and a project-scoped return link", async () => {
@@ -135,10 +135,24 @@ test("Multi-material document retains every source and a project-scoped return l
     });
     const body = JSON.stringify(result.document.body);
     assert.match(body, /SUMMARY_EXPORT/); assert.match(body, /第二个来源只支持有限推断/);
-    assert.match(body, /\/projects\/project-a\/\?inbox_entry=entry-1/);
-    assert.match(body, /\/projects\/project-a\/\?inbox_entry=entry-2/);
+    assert.match(body, /\/projects\/project-a\/\?openPlugin=inbox&openItem=entry-1"/);
+    assert.match(body, /\/projects\/project-a\/\?openPlugin=inbox&openItem=entry-2"/);
     assert.deepEqual(store.generation("project-a", record.request_id)?.inputs.map(i => i.entry_id), ["entry-1", "entry-2"]);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+test("PG-070: an Inbox return link is the platform's object link, and page startup names no plugin's parameter", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-loop-link-")); const store = openPagesStore(home);
+  try {
+    const result = await generate(store, request(), async () => "材料支持这个结论。[材料 1]");
+    const links = [...JSON.stringify(result.document.body).matchAll(/\/projects\/project-a\/\?([^)"\\]+)/gu)].map(match => new URLSearchParams(match[1]));
+    assert.equal(links.length, 1);
+    // The keys the shell opens an object from (`?openPlugin=&openItem=`), the same link a framed page's click is allowed to follow.
+    assert.deepEqual([...links[0]!.keys()], ["openPlugin", "openItem"]);
+    assert.equal(links[0]!.get("openPlugin"), "inbox"); assert.equal(links[0]!.get("openItem"), "entry-1");
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+  const startup = readFileSync(new URL("../apps/workbench/src/scripts/client/initialization.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(startup, /inbox/iu, "the workbench's startup opens objects through the generic link, not an Inbox parameter");
 });
 
 test("an Inbox operation drains only its own queued event with its original caller", async () => {

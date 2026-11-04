@@ -7,7 +7,7 @@ import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals } from "@molis-ai/
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { goalsQueryOf } from "./fixtures/goal-application.js";
 
-// specs/repository-anti-corruption W2-06: a table is read and written only by the package that creates it
+// specs/archive/repository-anti-corruption W2-06: a table is read and written only by the package that creates it
 // (scripts/gates/table-owners.mjs). The host used to run SQL on four tables it does not own; these are the owners' own
 // answers it asks now (Coding's list of background work is its own query now: tests/coding-background-tasks.test.ts). The host-side tests
 // (tests/uninstall-catalog.test.ts, tests/im-local-project.test.ts) cover the callers; the Host's Feed caller, the release of a source's

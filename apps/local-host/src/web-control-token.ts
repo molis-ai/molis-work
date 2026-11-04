@@ -1,5 +1,5 @@
 import type { ServerResponse } from "node:http";
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -31,6 +31,14 @@ export function resolveWebControlToken(options: {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${token}\n`, { encoding: "utf8", mode: 0o600 });
   return token;
+}
+
+/** Constant-time check of a supplied control token. It comes from a header or page JSON: anything but a string is a failed login. */
+export function controlTokenMatches(expected: string, actual: unknown): boolean {
+  if (typeof actual !== "string" || !actual) return false;
+  const expectedBytes = Buffer.from(expected);
+  const actualBytes = Buffer.from(actual);
+  return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
 }
 
 /** SYS-14: a fresh challenge authenticates these exact health bytes without disclosing the Home key. */

@@ -18,8 +18,9 @@ test("Form standard MCP preserves submissions and publications across tool proce
   const home = await mkdtemp(join(tmpdir(), "form-mcp-"));
   let host: MolisWorkLocalHost | undefined, web: TestHostServer | undefined;
   const start = async () => {
-    host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home),
+    host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home),
       completeText: async () => JSON.stringify({ status: "done", questions: [{ title: "MCP 题目", type: "text" }] }) });
+    const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     web = await serveTestHost(null, { home, host });
   };
   const stop = async () => { await web?.close(); await host?.close(); web = undefined; host = undefined; };

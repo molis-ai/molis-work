@@ -14,7 +14,7 @@ import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 import { EXECUTOR_MODES, roleDefinitions, roleOfCapability } from "./fixtures/work-executor-fake.js";
 
-// S-51 (specs/repository-anti-corruption PG-036, C8-1): the Assistant calls a work's executor as the person at this computer, through
+// S-51 (specs/archive/repository-anti-corruption PG-036, C8-1): the Assistant calls a work's executor as the person at this computer, through
 // the same installation-grant checks the person's own page goes through, and a dispatch (a Send, a follow-up's round) binds the
 // person's client anew when it acts. A follow-up scheduled while the executor plugin held its grants is refused once they are gone.
 

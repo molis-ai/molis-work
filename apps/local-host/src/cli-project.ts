@@ -10,6 +10,7 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWork
 import { bindGoalsManagementActions } from "./goal-callers.js";
 import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
+import { preflightMemoryHome } from "./memory/memory-initialization.js";
 import { dispatchCliProjectCommand, cliFlagValue as value,
   readCliJsonPayload as payload, printV1Help } from "@molis-ai/molis-work-app-cli";
 
@@ -47,7 +48,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   });
   let homeProject = false;
   const fallback = () => {
-    if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home);
+    if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);
     if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");
     return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal });
   };

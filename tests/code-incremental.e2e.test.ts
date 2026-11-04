@@ -62,10 +62,12 @@ test("VUX-33: a streamed code block grows in place through its owner, and what i
 });
 
 test("VUX-33: the Assistant's streamed code block grows in place, keeps an opened fold and copies what it now reads", { timeout: 180_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const code = LINES.slice(0, 40).join("\n");
-  const model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 16, pause: 200 });
+  let model!: Awaited<ReturnType<typeof assistantTextModel>>;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 16, pause: 200 }); },
+  }); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click("[data-assistant-input]");
@@ -98,12 +100,14 @@ test("VUX-33: the Assistant's streamed code block grows in place, keeps an opene
 });
 
 test("VUX-33: Coding's streamed code block grows in place, coloured from its last line, and copies what it now reads", { timeout: 240_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const code = LINES.slice(0, 60).join("\n");
+  let model!: Awaited<ReturnType<typeof assistantTextModel>>;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 16, pause: 250 }); },
+  }); if (!browser) return;
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const frame = await pluginFrameBrowser(t, browser, "coding");
   const { evaluate, waitFor, click } = frame;
-  const code = LINES.slice(0, 60).join("\n");
-  const model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 16, pause: 250 });
   const workspace = join(homeDirectory, "code-grow");
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "note.txt"), "x\n");

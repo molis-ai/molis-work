@@ -165,7 +165,8 @@ test("an Agent round carries the number of the call that started it: its tool ca
   const project = await served.createProject("Numbers");
   const reference = project.reference;
   // Once the web server serves this Home, a project's directories are the catalog's: bind the one this round works in.
-  await withCatalog({ homeDirectory: home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: home, project_id: project.project_id, actor_id: "test-user", user_confirmed: true })));
+  const withHostCatalog = localHost.configurePersonalPlanning(home, withCatalog);
+  await withHostCatalog({ homeDirectory: home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: home, project_id: project.project_id, actor_id: "test-user", user_confirmed: true })));
   const ping: ActionDefinition = { capability_id: "fixture.agent.ping", version: 1, operation: "query", action: { title: "Ping", description: "Answers", kind: "query", scope: "project",
     audiences: ["agent", "mcp"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
   const handled: Array<string | undefined> = [];

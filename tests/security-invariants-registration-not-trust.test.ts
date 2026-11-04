@@ -4,7 +4,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "@molis-ai/molis-work-app-local-ho
 import { openTestHome } from "./fixtures/test-home.js";
 import { grantHomeProbe, homeProbe } from "./fixtures/home-runtime.js";
 
-// RAC-565 (specs/repository-anti-corruption/slices/w5-02-registry.md §B1, S-08, S-15): being built in is the Host's start list, the
+// RAC-565 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §B1, S-08, S-15): being built in is the Host's start list, the
 // generated `apps/local-host/src/plugin-registry.generated.ts` that lists the workspace's own packages. A package installed into the
 // Home is not made one by what it carries: a `registration` export naming a built-in's key, `bundled` and `personal` is never read.
 // Who may provide under a plugin id (ac-trust T6, S-68) stays one check elsewhere; these assert only the result.

@@ -1,6 +1,6 @@
 // molis/no-double-cast: a double assertion through `unknown`: `value as unknown as Target`, `(value as unknown) as Target`
 // (any number of parentheses) and the angle-bracket form `<Target><unknown>value`. It reports at least what the earlier
-// `as unknown as` counter reported (specs/repository-anti-corruption W1-04): the per-file numbers of the files that counter scanned are the same,
+// `as unknown as` counter reported (specs/archive/repository-anti-corruption W1-04): the per-file numbers of the files that counter scanned are the same,
 // but the mixed forms `<Target>(value as unknown)` and `(<unknown>value) as Target`, which that counter skipped, are
 // reported too. A single `as unknown` and `as any as Target` are other things and are not reported here.
 language js(typescript);

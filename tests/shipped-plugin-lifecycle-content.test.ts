@@ -1,4 +1,4 @@
-// W6-02 rest (specs/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1090–RAC-1094): the lifecycle walk of
+// W6-02 rest (specs/archive/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1090–RAC-1094): the lifecycle walk of
 // tests/fixtures/shipped-lifecycle.ts, for the shipped plugins that keep the person's titled content in a project on that
 // project's supervisor: 数据表, 演示稿, 问卷, 工作流程 and 定时任务. Each person-written thing is made through the plugin's own route and read
 // back from its list; the walk then removes the plugin from the project and adds it back, takes a required permission away and

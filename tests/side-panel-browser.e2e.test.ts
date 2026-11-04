@@ -208,6 +208,156 @@ test("R5B-01/03: real page and browser process crashes retain their distinct rec
   }
 });
 
+test("T405-S4-02 T405-S4-03 browser node tokens keep the real object through movement and refuse stale targets without mouse input", { timeout: 120_000 }, async t => {
+  const chrome = locateTestChrome(); assert.ok(chrome, "a dedicated test browser is required");
+  const home = await mkdtemp(join(tmpdir(), "browser-node-target-"));
+  const targetHtml = '<button id="target" data-target="original" style="position:absolute;left:100px;top:100px;width:120px;height:40px">移动目标</button>';
+  const site = await serve(`<!doctype html><title>Node target</title><body style="margin:0">
+    <button id="trap" style="position:absolute;left:0;top:0;width:30px;height:30px">坐标诱饵</button>${targetHtml}
+    <script>window.nodeClicks=[];document.addEventListener('click',event=>{const el=event.target.closest('button');if(el)window.nodeClicks.push({id:el.id,target:el.dataset.target||'',trusted:event.isTrusted})});</script>`);
+  const browsers = new BrowserHost({ homeDirectory: home, locate: () => ({ path: chrome, name: basename(chrome) }) });
+  const page = browsers.page("node-project"), driver = createBrowserSurfaceDriver(page);
+  const detach = page.attach({ state: () => {} }, { width: 800, height: 600, dpr: 1 });
+  let mouseInputs = 0, mousePresses = 0;
+  const mouseEvents: Array<{ sessionId: string | undefined; params: Record<string, unknown> }> = [];
+  let afterPress: (() => Promise<void>) | null = null;
+  let gate: { waiting: boolean; entered(method: string): void; hold: Promise<void> } | null = null;
+  const groups = new Set<string>();
+  const clicks = () => page.evaluate("JSON.stringify(window.nodeClicks)");
+  const observeNode = async () => {
+    const outline = new TextDecoder().decode(await driver.observe("accessibility-tree", { session_id: "node-session" }));
+    const node = /^node=(\S+) button「移动目标」/mu.exec(outline)?.[1];
+    assert.ok(node, outline);
+    assert.match(node, /^node_[a-f0-9]{32}$/u, "the token is opaque, not the current element's index");
+    return node;
+  };
+  const pointer = (node: string) => driver.perform({ what: "pointer", node, x: 0, y: 0, button: "left", clicks: 1 }, { session_id: "node-session" });
+  const refused = async (node: string, reason: string) => {
+    const beforeInputs = mouseInputs, beforeClicks = await clicks();
+    await assert.rejects(driver.describeNode!(node), /目标已不可用/u, `${reason}: approval cannot name a replacement`);
+    await assert.rejects(pointer(node), /目标已不可用/u, `${reason}: injection itself refuses`);
+    assert.equal(mouseInputs, beforeInputs, `${reason}: no mouse input was dispatched`);
+    assert.equal(await clicks(), beforeClicks, `${reason}: no target or fallback-point effect`);
+  };
+  try {
+    const running = await browsers.browser(), send = running.cdp.send.bind(running.cdp);
+    t.mock.method(running.cdp, "send", (method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs?: number) => {
+      if (method === "Input.dispatchMouseEvent") mouseInputs += 1;
+      if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed") mousePresses += 1;
+      if (method === "Runtime.evaluate" && typeof params.objectGroup === "string") groups.add(params.objectGroup);
+      return send(method, params, sessionId, timeoutMs).then(async result => {
+        if (method === "Input.dispatchMouseEvent") mouseEvents.push({ sessionId, params: { ...params } });
+        if (method === "Runtime.releaseObjectGroup") groups.delete(String(params.objectGroup));
+        const active = gate;
+        if (active && !active.waiting && (method === "Runtime.releaseObject" || method === "Input.dispatchMouseEvent" && params.type === "mouseMoved")) {
+          active.waiting = true;
+          active.entered(method);
+          await active.hold;
+        }
+        if (method === "Input.dispatchMouseEvent" && params.type === "mousePressed" && afterPress) {
+          const interrupt = afterPress; afterPress = null; await interrupt();
+        }
+        return result;
+      });
+    });
+    await page.navigate(`${site.origin}/`);
+    await until(() => page.snapshot(), state => state.title === "Node target" && !state.loading, "the node page");
+    const node = await observeNode();
+    assert.equal(await driver.describeNode!(node), "移动目标");
+    await refused("1", "an index is not a browser node token");
+    await page.evaluate("document.getElementById('target').style.left='420px';document.getElementById('target').style.top='240px';const first=document.createElement('button');first.textContent='更早的元素';first.style.cssText='position:absolute;left:100px;top:100px';document.body.prepend(first)");
+    assert.equal(await driver.describeNode!(node), "移动目标", "moving the original object does not change what was approved");
+    await pointer(node);
+    assert.equal(await clicks(), JSON.stringify([{ id: "target", target: "original", trusted: true }]), "the real CDP click reaches the moved original with isTrusted, never (0,0) or the new earlier element");
+    assert.equal(await page.evaluate("document.activeElement.id"), "target");
+    assert.deepEqual(page.snapshot().control.activity?.point, { x: 480, y: 260 }, "the owner's current position is used");
+
+    // T405-S4-03: block a real CDP response in the former cleanup gap, or the first actual move after that gap is removed.
+    // The move may already have happened; neither its completion nor a cached point permits a later press on a clone.
+    for (const interrupt of ["replace", "release"] as const) {
+      const raced = await observeNode(), beforeInputs = mouseInputs, beforePresses = mousePresses, beforeClicks = await clicks();
+      let entered: (method: string) => void = () => {}, resume: () => void = () => {};
+      const reached = new Promise<string>(resolve => { entered = resolve; });
+      const hold = new Promise<void>(resolve => { resume = resolve; });
+      gate = { waiting: false, entered, hold };
+      const acting = pointer(raced);
+      try {
+        const heldMethod = await Promise.race([reached, acting.then(() => { throw new Error("the action passed its CDP barrier"); })]);
+        if (interrupt === "replace") await page.evaluate("const original=document.getElementById('target'),replacement=original.cloneNode(true);replacement.dataset.target='raced replacement';original.replaceWith(replacement)");
+        else await driver.release!();
+        resume();
+        await assert.rejects(acting, /目标已不可用/u, `${interrupt} during the real CDP wait refuses the remaining action`);
+        assert.equal(mousePresses, beforePresses, `${interrupt}: no press follows the invalidated object or observation`);
+        assert.equal(mouseInputs, beforeInputs + (heldMethod === "Input.dispatchMouseEvent" ? 1 : 0), `${interrupt}: count an already-dispatched move, with no later input`);
+        assert.equal(await clicks(), beforeClicks, `${interrupt}: the replacement and fallback point have no click effect`);
+      } finally { resume(); gate = null; }
+    }
+
+    // T405-S4-03: a trusted mousedown replaces its own node; release the owner before the successful press returns.
+    // The action must preserve that refusal, pair its started gesture outside the viewport, and leave no click behind.
+    const downNode = await observeNode(), downStart = mouseEvents.length, beforeDownClicks = await clicks();
+    await page.evaluate("(() => {window.nodeDowns=[];const target=document.getElementById('target');target.addEventListener('mousedown',event=>{window.nodeDowns.push({trusted:event.isTrusted,button:event.button,buttons:event.buttons});const replacement=target.cloneNode(true);replacement.dataset.target='mousedown replacement';target.replaceWith(replacement)},{once:true})})()");
+    afterPress = () => driver.release!();
+    try {
+      await assert.rejects(pointer(downNode), error => {
+        assert.ok(error instanceof Error); assert.match(error.message, /目标已不可用/u); assert.doesNotMatch(error.message, /未能释放/u); return true;
+      });
+    } finally { afterPress = null; }
+    const cancelled = mouseEvents.slice(downStart);
+    assert.deepEqual(cancelled.map(event => event.params.type), ["mouseMoved", "mousePressed", "mouseReleased"], "an actual press is followed only by its cancellation release, not another target input");
+    assert.deepEqual(cancelled[2]!.params, { type: "mouseReleased", x: -1, y: -1, button: "left", buttons: 0, clickCount: 0 });
+    assert.equal(cancelled[2]!.sessionId, cancelled[1]!.sessionId, "cleanup uses the exact session that pressed, without opening another");
+    assert.equal(await page.evaluate("JSON.stringify(window.nodeDowns)"), JSON.stringify([{ trusted: true, button: 0, buttons: 1 }]));
+    assert.equal(await clicks(), beforeDownClicks, "neither the removed original, replacement nor fallback point receives a click");
+    await pointer(await observeNode());
+    assert.equal(await clicks(), JSON.stringify([{ id: "target", target: "original", trusted: true }, { id: "target", target: "mousedown replacement", trusted: true }]), "the next explicit fresh click works once, without a leftover press or cleanup click");
+
+    const replaced = await observeNode();
+    await page.evaluate("const el=document.getElementById('target'),copy=el.cloneNode(true);copy.dataset.target='replacement';el.replaceWith(copy)");
+    await refused(replaced, "same-name same-position replacement");
+    const removed = await observeNode();
+    await page.evaluate("document.getElementById('target').remove()");
+    await refused(removed, "removed original");
+    await page.evaluate(`document.body.insertAdjacentHTML('beforeend',${JSON.stringify(targetHtml)})`);
+
+    const covered = await observeNode();
+    await page.evaluate("const cover=document.createElement('div');cover.id='cover';cover.style.cssText='position:fixed;inset:0;z-index:999;background:white';document.body.append(cover)");
+    await refused(covered, "obscured original");
+    await page.evaluate("document.getElementById('cover').remove()");
+    const disabled = await observeNode();
+    await page.evaluate("document.getElementById('target').disabled=true");
+    await refused(disabled, "disabled original");
+    await page.evaluate("document.getElementById('target').disabled=false");
+
+    const invalidated = await observeNode();
+    await driver.observe("window-metadata");
+    await refused(invalidated, "a later non-tree observation");
+    const previous = await observeNode(), current = await observeNode();
+    assert.notEqual(previous, current, "a new observation never reuses an earlier token");
+    await refused(previous, "a later tree observation");
+
+    const timeOrigin = await page.evaluate("performance.timeOrigin");
+    await page.reload();
+    await until(() => page.evaluate("performance.timeOrigin"), value => value !== timeOrigin, "a new document at the same address");
+    await until(() => page.evaluate("document.readyState === 'complete' && Array.isArray(window.nodeClicks)"), value => value === true, "the new document's click listener");
+    await until(() => page.snapshot(), state => state.title === "Node target" && !state.loading, "the new document ready");
+    await refused(current, "a changed document at the same URL");
+    const released = await observeNode();
+    await driver.release!();
+    assert.equal(groups.size, 0, "round release releases the retained CDP object group");
+    await refused(released, "round release");
+    const closed = await observeNode();
+    await driver.close();
+    assert.equal(groups.size, 0, "driver close releases the retained CDP object group");
+    await refused(closed, "driver close");
+  } finally {
+    await driver.close(); detach(); await browsers.close();
+    await new Promise<void>(resolve => site.server.close(() => resolve()));
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+// T405-S4-04: retain the original coordinate, redaction, takeover and site-policy paths and their assertions below.
 test("the side panel browser shows and drives a real page, and the Assistant's driver acts on the same page within its bounds", { skip: !locateBrowser() && "no Chrome-family browser on this machine", timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "side-panel-browser-"));
   const site = await serve();

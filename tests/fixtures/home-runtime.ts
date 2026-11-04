@@ -44,9 +44,10 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
     // A supplied single-folder port remains the authority; explicit list options below still win, including an intentional undefined.
     workspacesFor: workspaceFor
       ? async projectId => { const workspace = await workspaceFor(projectId); return workspace === null ? [] : [workspace]; }
-      : projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+      : projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     ...options,
   });
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const token = randomUUID();
   server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token, ...webOptions });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { registration as feedRegistration } from "@molis-ai/molis-work-plugin-feed/registration";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPickerExtend, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
 import { builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
@@ -74,8 +76,13 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   // No plugin borrows the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).
   assert.equal(tabIcons.alchemist, "zap");
   // Soft Workbench: Feed sorts one timeline inside its row list (the per-source folds became a source menu).
-  assert.match(script, /\[data-feed-rows\]/);
-  assert.doesNotMatch(script, /feedList\.insertBefore\(wrap, feedEmpty\)/);
+  const feed = feedRegistration.workbench!.clientFactory!;
+  const timeline = readFileSync(new URL("../plugins/native/feed/src/browser/stage.ts", import.meta.url), "utf8");
+  assert.match(feed, /\[data-feed-rows\]/);
+  assert.match(timeline, /const body = q\("\[data-feed-rows\]"\)/);
+  assert.match(timeline, /rows\.sort\([\s\S]*?\.forEach\(row => body\?\.append\(row\.closest\("\[data-feed-item-wrap\]"\) \|\| row\)\)/);
+  assert.doesNotMatch(feed, /feedList\.insertBefore\(wrap, feedEmpty\)/);
+  assert.equal(typeof new Function("return (" + feed + ")")(), "function");
   new Function(script);
 });
 

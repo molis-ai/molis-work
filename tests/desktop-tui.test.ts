@@ -1,7 +1,7 @@
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { tabWorkspaceSource } from "./tab-workspace-files.js";
 
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,7 +11,7 @@ import test from "node:test";
 import { WebSocket, type RawData } from "ws";
 
 
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoGoals, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, projectActionAvailability, workspaceRefFor, seedDemoGoals, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
@@ -33,8 +33,14 @@ import { GOALS_PLUGIN_ID, goalAdvancePrompt } from "@molis-ai/molis-work-plugin-
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { goalTerminalsPath } from "./fixtures/goal-terminal.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
+const ownerDocument = (html: string, marker: string) => {
+  const documents = pluginDocuments(html).filter(document => document.includes(marker));
+  assert.equal(documents.length, 1, `one actual owner document carries ${marker}`);
+  return documents[0]!;
+};
 // The Goal terminal's client, split by concern since SC-3 (apps/workbench/src/terminal/client*.ts); read together as one program.
 const TERMINAL_DIRECTORY = new URL("../apps/workbench/src/terminal/", import.meta.url);
 const terminalSource = (...names: string[]) => names.map((name) => readFileSync(new URL(name, TERMINAL_DIRECTORY), "utf8")).join("\n");
@@ -91,6 +97,19 @@ test("native Desktop identity self-heals before layout and survives full-page na
     /location\.assign\((?:result\.(?:project_path|goal_path)|route\()/,
   );
 });
+
+function catalogWebHost(homeDirectory: string) {
+  let withCatalog = withMolisWorkProjectCatalog;
+  const availability = projectActionAvailability((options, run) => withCatalog(options, run), homeDirectory);
+  const host = new MolisWorkLocalHost({ homeDirectory,
+    actionAvailability: availability, sceneAvailability: availability,
+    projectRoutePrefix: projectId => `/projects/${encodeURIComponent(projectId)}`,
+    workspacesFor: projectId => withCatalog({ homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    workspaceFor: projectId => withCatalog({ homeDirectory }, catalog => workspaceRefFor(catalog, projectId)),
+  });
+  withCatalog = host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
+  return { host, withCatalog };
+}
 
 function createMolisWorkWebServer(
   options: Parameters<typeof createBaseMolisWorkWebServer>[0] = {},
@@ -537,6 +556,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const workbenchAssets = `<style>${renderMolisWorkWorkbenchStylesheet()}</style><script>${renderMolisWorkWorkbenchClientScript()}</script>`;
     const browser = `${renderMolisWorkWeb(view)}${workbenchAssets}`;
     const desktop = `${renderMolisWorkWeb(view, undefined, false, false, "", true)}${workbenchAssets}`;
+    const feedDocument = ownerDocument(desktop, "data-feed-workbench");
     const directGoal = renderMolisWorkWeb(view, view.goals[0]!.goal.goal_id);
     const browserMarkup = browser.slice(0, browser.indexOf("<style>"));
     assert.match(browser, /class="tui-pane"/);
@@ -625,10 +645,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(browser, /class="personal-sidebar"|class="desktop-project-context"/);
     assert.match(desktop, /data-document-pane/);
     assert.match(desktop, /data-desktop-directory="root"/);
-    assert.match(desktop, /data-inbox-directory/);
-    assert.match(desktop, /data-inbox-workbench/);
-    assert.doesNotMatch(desktop, /data-feed-entry-id="decision:/);
-    assert.doesNotMatch(desktop, /data-feed-detail="decision:/);
+    assert.match(ownerDocument(desktop, "data-inbox-workbench"), /data-inbox-directory/);
+    assert.match(ownerDocument(desktop, "data-inbox-workbench"), /data-inbox-workbench/);
+    assert.doesNotMatch(pluginDocuments(desktop).join("\n"), /data-feed-entry-id="decision:/);
+    assert.doesNotMatch(pluginDocuments(desktop).join("\n"), /data-feed-detail="decision:/);
     assert.match(browser, /data-directory-show/);
     assert.match(browser, /aria-controls="goal-tui-pane"/);
     assert.match(browser, /data-tui-kind="claude-code"/);
@@ -701,15 +721,17 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="shelf"/);
     assert.doesNotMatch(desktopMarkup, /data-shelf-stage-shell/, "Shelf has no stage in the work area; it opens in its side tab");
     assert.match(desktop, /data-plugin-section="feed"/);
-    assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
+    assert.match(ownerDocument(desktop, "data-source-directory"), /data-directory-panel="sources"[^>]*data-source-directory hidden/);
     assert.doesNotMatch(desktop, /data-directory-open="inbox"/);
     assert.match(desktop, /data-plugin-id="goals"[^>]*data-work-surface-open="goals"/);
-    assert.match(desktop, /data-plugin-id="feed"[^>]*data-work-surface-open="feed" data-feed-preset="feed"/);
+    assert.match(desktop, /data-plugin-id="feed"[^>]*data-work-surface-open="feed"/);
+    assert.match(feedDocument, /data-feed-preset="feed"/);
     assert.doesNotMatch(desktop, /data-directory-open="goals"|data-directory-open="feed"|data-directory-open="sources"|data-directory-open="sessions"|data-directory-open="inbox"|data-directory-open="artifacts"|data-directory-open="shelf"|data-feed-views/);
+    assert.doesNotMatch(feedDocument, /data-feed-views/);
     assert.doesNotMatch(desktop, /data-work-surface-open="promotion"|data-work-surface-open="visual"/);
     assert.match(desktop, /data-work-surface="goals" data-work-surface-label="Goals"/);
     assert.match(desktop, /data-work-surface="inbox" data-work-surface-label="Inbox"[^>]*hidden/);
-    assert.match(desktop, /data-work-surface="sources" data-work-surface-label="来源"[^>]*data-source-workbench hidden/);
+    assert.match(ownerDocument(desktop, "data-source-workbench"), /data-work-surface="sources" data-work-surface-label="来源"[^>]*data-source-workbench hidden/);
     assert.doesNotMatch(desktop, /data-directory-panel="promotion"|data-directory-panel="visual"/);
     assert.match(desktop, /class="desktop-project-switcher navigator-project-menu" data-project-menu/);
     assert.match(desktop, /<summary class="navigator-project-selector"[^>]*aria-label="切换项目"/);
@@ -817,7 +839,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
 test("panel APIs and the TUI pane work without a desktop shell marker", async () => {
   const fixture = await catalogFixture();
   addProjectGoal(fixture.project, "TUI-GOAL", "桌面关联 Goal");
-  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
+  const { host, withCatalog } = catalogWebHost(fixture.homeDirectory);
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory, localHost: host });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -904,14 +927,8 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     assert.deepEqual(listedBody.panels.map(panel => [panel.panel_id, panel.program]), [[payload.panel_id, { command: "cat", args: [] }]]);
 
     // The terminal's own work context resolves to the project, and stays bound once the terminal is closed.
-    const resolved = async () => {
-      const catalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
-      try {
-        return catalog.resolveRuntimeContext({ runtime_id: "command", stable_work_context_id: payload.panel_id, host_declares_stable: true }).status;
-      } finally {
-        catalog.close();
-      }
-    };
+    const resolved = () => withCatalog({ homeDirectory: fixture.homeDirectory }, catalog =>
+      catalog.resolveRuntimeContext({ runtime_id: "command", stable_work_context_id: payload.panel_id, host_declares_stable: true }).status);
     assert.equal(await resolved(), "bound");
     assert.equal((await webFetch(`${terminalsUrl}/${encodeURIComponent(payload.key)}`, { method: "DELETE" })).status, 200);
     assert.equal(await resolved(), "bound");
@@ -919,6 +936,7 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+    await host.close();
   }
 });
 
@@ -926,7 +944,8 @@ test("compound parent terminals become read-only and direct execution APIs requi
   const fixture = await catalogFixture();
   addProjectAcceptedGoal(fixture.project, "TUI-PARENT", "交付完整终端体验", "closed_compound");
   addProjectAcceptedGoal(fixture.project, "TUI-CHILD", "实现具体终端交互", "closed_leaf");
-  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
+  const { host, withCatalog } = catalogWebHost(fixture.homeDirectory);
+  const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory, localHost: host });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -941,14 +960,11 @@ test("compound parent terminals become read-only and direct execution APIs requi
     assert.equal(childTerminal.status, 200, await childTerminal.clone().text());
     const childPanelId = (await childTerminal.json() as { panel_id: string }).panel_id;
     const historicalPanelId = "plugin-historical-parent-terminal";
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
-    try {
+    await withCatalog({ homeDirectory: fixture.homeDirectory }, async catalog => {
       const { install_id, actor_id } = catalog.terminalPanels.get(childPanelId)!;
       await catalog.commit(() => catalog.terminalPanels.insert({ panel_id: historicalPanelId, install_id, project_id: projectId, actor_id, key: "before",
         subject: "TUI-PARENT", runtime: "command", launch_command: "cat", launch_args: [], title: "cat" }, fixture.homeDirectory));
-    } finally {
-      catalog.close();
-    }
+    });
     addProjectChildRelation(fixture.project, "TUI-CHILD", "TUI-PARENT");
 
     const parentPage = await (await webFetch(`${origin}${prefix}/goals/TUI-PARENT`)).text();
@@ -1025,6 +1041,7 @@ test("compound parent terminals become read-only and direct execution APIs requi
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
+    await host.close();
   }
 });
 
@@ -1065,11 +1082,11 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;
-    const page = await (await webFetch(`${origin}${prefix}`)).text();
+    const page = ownerDocument(await (await webFetch(`${origin}${prefix}`)).text(), "data-feed-workbench");
     assert.match(page, /data-feed-entry-id="feed-item-test"/);
     assert.match(page, /用 Item 启动真实工作/);
     assert.doesNotMatch(page, /测试来源资料/);
-    const detailResponse = await webFetch(`${origin}${prefix}/api/stage/feed/items/feed-item-test`);
+    const detailResponse = await webFetch(`${origin}${prefix}/api/stage/feed/objects/feed-item-test?surface=persisted-detail`);
     assert.equal(detailResponse.status, 200);
     const detail = await detailResponse.text();
     assert.match(detail, /测试来源资料/);
@@ -1103,10 +1120,11 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(added.status, 200);
     const addedAgain = await addInbox();
     assert.equal(addedAgain.status, 200);
-    const pageAfterInbox = await (await webFetch(`${origin}${prefix}`)).text();
+    const htmlAfterInbox = await (await webFetch(`${origin}${prefix}`)).text();
+    const pageAfterInbox = ownerDocument(htmlAfterInbox, "data-feed-workbench");
     assert.match(pageAfterInbox, /data-feed-entry-id="feed-item-test"[^>]*data-feed-entry-type="feed"/);
     assert.doesNotMatch(pageAfterInbox, /data-feed-entry-id="inbox:/);
-    assert.match(pageAfterInbox, /data-inbox-detail="/);
+    assert.match(ownerDocument(htmlAfterInbox, "data-inbox-workbench"), /data-inbox-detail="/);
 
     const missingRevision = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
       method: "POST",
@@ -1544,7 +1562,8 @@ test("RAC-1931 the workbench's scripts and styles, Goals' own client parts inclu
   const scripts = [renderMolisWorkWorkbenchClientScript(), renderMolisWorkWorkbenchStylesheet()].join("\n");
   const surfaceGoal = /(?:Surface|surface|SURFACE)\b[^;\n]{0,40}"goal"(?!s)|"goal"(?!s)[^;\n]{0,25}(?:Surface|surface)|surface(?:-open)?=\\?"goal\\?"/g;
   assert.deepEqual([...scripts.matchAll(surfaceGoal)].map(([hit]) => hit), []);
-  assert.doesNotMatch(scripts, /SURFACE_OVERRIDES|pluginForSurface|pluginSurface\b/);
+  assert.doesNotMatch(scripts, /SURFACE_OVERRIDES|pluginForSurface|(?<!\.)\bpluginSurface\s*(?:\(|=)/);
+  assert.match(scripts, /dataset\.pluginSurface/, "registered surface metadata is distinct from a surface-name mapper");
 });
 
 test("RAC-1933 a page opened on a Goal starts on the surface `goals`", async () => {
@@ -1625,7 +1644,7 @@ test("Inbox Message save and promote survives a Web restart without duplicating 
     const address = firstServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const page = await (await webFetch(`${origin}${prefix}`)).text();
+    const page = ownerDocument(await (await webFetch(`${origin}${prefix}`)).text(), "data-feed-workbench");
     assert.match(page, new RegExp(`data-feed-entry-id="${itemId}"[^>]*data-feed-entry-type="feed"`));
     assert.doesNotMatch(page, /data-feed-entry-id="inbox:/);
     const listed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`);

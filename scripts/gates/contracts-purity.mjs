@@ -1,4 +1,4 @@
-// Contracts purity (specs/repository-anti-corruption N-11, W1-05).
+// Contracts purity (specs/archive/repository-anti-corruption N-11, W1-05).
 //
 // packages/contracts holds types, Schemas and side-effect-free small helpers. Behavior belongs to the package that owns it.
 // This counts, per file of packages/contracts/src, what makes a helper more than a declaration:

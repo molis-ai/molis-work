@@ -18,7 +18,7 @@
 - 作者与平台共用的解析、语义解析和文件校验放在公开 SDK；contracts 只定义数据合同，Design System 保留真正的组件和样式语法。外部作者只安装 contracts 与 SDK。
 - 配置在 Host 中有独立的文件 owner，按文件操作、应用操作、资源、动作接缝拆成小模块；不增加统管字体、模型、浏览器、插件与文件的 `Manager` 或巨大 `Service`。
 
-依据：[架构](../../docs/system/ARCHITECTURE.md)、[包边界](../../docs/system/PACKAGE-BOUNDARIES.md)、[代码防腐](../repository-anti-corruption/spec.md)、[合同变化](../../docs/system/CONTRACT-CHANGES.md)。
+依据：[架构](../../docs/system/ARCHITECTURE.md)、[包边界](../../docs/system/PACKAGE-BOUNDARIES.md)、[代码防腐](../archive/repository-anti-corruption/spec.md)、[合同变化](../../docs/system/CONTRACT-CHANGES.md)。
 
 ## 2. 现行代码怎样拆成文件与引擎
 

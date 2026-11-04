@@ -222,7 +222,7 @@ export class AssistantDispatch {
     const startedAt = this.now().toISOString();
     try {
       if (!work.reply_target) await this.link.memoryForRound(work, text, context);
-      prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
+      prepared = work.thread_round ? threadReplyMaterials(work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
       handle = await this.link.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
         const started = await host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), authority);

@@ -6,7 +6,7 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 import { alwaysOnAgreed, consentSubject, pluginManifestDigest, readPluginRuntimeRecords, SqlitePluginConsentLedger, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 
-// 常开插件 from records (ac-trust T3, specs/repository-anti-corruption/slices/ac-trust-install.md §3.4). A built-in plugin is on in every
+// 常开插件 from records (ac-trust T3, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.4). A built-in plugin is on in every
 // project while its Manifest declares `always_on`, the Home's consent ledger holds a standing agreement for it, and it is installed and on.
 // Nothing here is a list of names: the answer is worked out from the catalog's Manifests, the install records and the ledger each time.
 

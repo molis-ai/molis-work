@@ -1,4 +1,4 @@
-// Static checks (specs/repository-anti-corruption §4.16, slice W1-09): a minimal Biome rule set, counted per file and
+// Static checks (specs/archive/repository-anti-corruption §4.16, slice W1-09): a minimal Biome rule set, counted per file and
 // frozen, so it can only fall. The tool is Biome (root biome.jsonc); tooling/gates/README.md ("Static checks") says why, what
 // each rule is for and how to turn a rule on for one package. scripts/check-health-gates.mjs turns every rule here into a
 // metric that behaves exactly like the compatibility markers: the head and the merge-base are measured with this same code

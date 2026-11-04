@@ -5,12 +5,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
-import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
-import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-plugin-builder';
+import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
+import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import { runBuilderBrowserAcceptance } from '../apps/local-host/src/plugin-builder/browser.js';
-import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
+import { builderBrowserExecutable, openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingSamples } from './fixtures/plugin-composition.js';
+import { detail, memoryStorage, PROPOSALS, until } from './fixtures/builder-workflow-design.js';
 
 test('Builder diagnoses accepted reads with current selection, without another call or a stale response', { timeout: 60_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'molis-builder-diagnostics-')), browser = await openStudioChrome(directory);
@@ -70,4 +72,120 @@ test('Builder diagnoses accepted reads with current selection, without another c
   } finally {
     release?.(); await browser.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('RAC-2934 RAC-2935 G7 collects independent actual failures and stops on failed isolation reset', { timeout: 120_000 }, async () => {
+  const contract = {
+    version: 1, pluginId: 'test.batch', revision: 'one', entities: [], acceptance: [],
+    operations: [
+      { id: 'read', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'string' }, effects: {}, errors: [], examples: [] },
+      { id: 'save', kind: 'command', input: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false }, output: { type: 'boolean' }, effects: {}, errors: [], examples: [] },
+    ], pages: [{ id: 'home', title: '批量', regions: [{ id: 'main', title: '批量', operationIds: ['read', 'save'] }] }],
+  };
+  const nodes = [
+    { id: 'reader', pageId: 'home', regionId: 'main', intent: 'description', purpose: '读取', kind: 'card', props: {}, read: { operationId: 'read', input: {} } },
+    { id: 'editor', pageId: 'home', regionId: 'main', intent: 'input', purpose: '暂不可提交', kind: 'form', props: { requiredText: '不能空' }, submit: { operationId: 'save', input: { text: { source: 'form', field: 'text' } } } },
+  ];
+  const acceptance = [
+    { id: 'first-fails', description: '真实可见内容使否定断言失败', steps: [{ action: 'expectAbsent', componentId: 'reader', text: 'BATCH_VISIBLE' }] },
+    { id: 'later-runs', description: '重置后仍实际读取并断言', steps: [{ action: 'expect', componentId: 'reader', text: 'BATCH_VISIBLE' }] },
+    { id: 'disabled', description: '禁用按钮不能冒充原生拒绝', steps: [{ action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' }] },
+  ];
+  const draft = { design: { contract, acceptance }, nodes, connected: ['read'] };
+  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
+  let reads = 0, submits = 0;
+  const server = createServer(async (request, response) => {
+    if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/builds/probe') { response.end(JSON.stringify({ build: draft })); return; }
+    if (request.url === '/builds/probe/call') {
+      const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      if (body.binding === 'submit') { submits++; response.end(JSON.stringify({ value: true })); }
+      else { reads++; response.end(JSON.stringify({ value: 'BATCH_VISIBLE' })); }
+      return;
+    }
+    response.writeHead(404); response.end('{}');
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/preview';
+  try {
+    for (const rejectReset of [false, true]) {
+      reads = 0; let resets = 0;
+      const result = await runBuilderBrowserAcceptance(draft as Parameters<typeof runBuilderBrowserAcceptance>[0], {
+        url, executable: dedicatedBuilderBrowser(), signal: new AbortController().signal,
+        reset: async () => { resets++; if (rejectReset) throw new Error('RESET_BOUNDARY_REJECTED'); submits = 0; },
+        trial: { submitCalls: () => submits, faultRead: () => { throw new Error('Unexpected fault request'); } },
+      });
+      assert.equal(result.passed, false, 'an actual assertion failure keeps the batch red');
+      assert.match(result.cases[0]!.detail, /验收不应显示/);
+      if (rejectReset) {
+        assert.match(result.blocked!, /RESET_BOUNDARY_REJECTED/); assert.equal(reads, 1); assert.equal(resets, 1);
+        assert.ok(result.cases.slice(1).every(row => !row.passed && /尚未执行.*RESET_BOUNDARY_REJECTED/.test(row.detail)));
+      } else {
+        assert.deepEqual(result.cases.map(row => row.passed), [false, true, false]);
+        assert.equal(reads, 3, 'every independent case reopened the real renderer and read again'); assert.equal(resets, 2);
+        assert.match(result.cases[2]!.detail, /需要可用的提交按钮/);
+      }
+      assert.equal(submits, 0);
+    }
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test('RAC-2934 last-case real CDP loss blocks the batch and never requests model repair', { timeout: 60_000 }, async () => {
+  const full = JSON.parse(detail('连接中断'));
+  full.design.acceptance = [{ id: 'last', description: '最后一例读取真实行', steps: ['expect notes TRANSPORT_VISIBLE'] }];
+  full.design.presentation = { version: 1, pages: [{ pageId: 'home', layout: { layout: 'stack', children: full.design.pages[0].parts.map((part: { id: string }) => ({ part: part.id })) } }], parts: {} };
+  full.design.pages[0].parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = 'TRANSPORT_VISIBLE';
+  const answers = [PROPOSALS, JSON.stringify(full)];
+  const requests: Array<{ role: string; task: string }> = [];
+  let current: AgentBuild | undefined, captures = 0, empty = false;
+  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
+  const server = createServer((request, response) => {
+    if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
+    response.setHeader('content-type', 'application/json');
+    if (request.url === '/builds/probe') response.end(JSON.stringify({ build: current }));
+    else if (request.url === '/builds/probe/call') { request.resume(); response.end(JSON.stringify({ value: empty ? [] : [{ id: 'one', text: 'TRANSPORT_VISIBLE' }] })); }
+    else { response.writeHead(404); response.end('{}'); }
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/preview';
+  const ports: AgentBuilderPorts = {
+    projectId: 'project', catalog: async () => [], models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
+    agent: async () => ({ async run(request) {
+      requests.push(request);
+      const output = request.role === 'designer' ? answers.shift()! : 'implemented';
+      return { id: 'scripted-' + requests.length, role: request.role, promptVersion: request.promptVersion, contractRevision: request.contractRevision,
+        instruction: request.instruction, input: request.task, output, configuredModel: 'scripted', reportedModels: [], phase: 'completed',
+        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), activity: [], usage: [] };
+    }, close: async () => {}, records: async () => [] }),
+    validateContract: assertContract, prepareBuild: async () => '/tmp/transport-fixture',
+    check: async () => ({ passed: true, gates: [], bundlePath: '/tmp/transport-fixture/plugin.mjs' }),
+    call: async () => [], resetPreview: async () => {}, selectionAvailable: () => false,
+    choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }),
+    browserAcceptance: async (build, signal) => {
+      current = build;
+      return runBuilderBrowserAcceptance(build, { url, signal, executable: dedicatedBuilderBrowser(), capture: async browser => {
+        // T405-FULL-04: observe actual transport closure, rather than racing a detached page session.
+        captures++; await browser.command('Browser.close'); await browser.close(); await browser.evaluate('true');
+      } });
+    },
+    publish: async () => { throw new Error('Unexpected publish'); }, installations: async () => [], lifecycle: async () => {},
+  };
+  try { for (const finalCapture of [false, true]) {
+    empty = finalCapture; captures = 0; requests.length = 0; answers.splice(0, answers.length, PROPOSALS, JSON.stringify(full));
+    const workflow = new AgentBuilderWorkflow(memoryStorage(), ports);
+    try {
+    const created = workflow.create('连接中断'); let build = await until(workflow, created.id, value => value.phase === 'choosing');
+    await workflow.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 45_000);
+    assert.equal(captures, 1, 'the last case reached the real renderer and closed its actual CDP browser');
+    assert.equal(build.phase, 'failed'); assert.equal(build.browserResult!.passed, false);
+    assert.match(build.browserResult!.blocked!, /验收浏览器连接不可用/);
+    assert.equal(build.browserResult!.cases.length, 1); assert.equal(build.browserResult!.cases[0]!.passed, finalCapture, 'a completed case stays passed if only the final screenshot loses transport');
+    assert.doesNotMatch(build.browserResult!.cases[0]!.detail, /尚未执行/, 'the connection failed during the actual last case, not before it');
+    assert.equal(requests.filter(request => JSON.parse(request.task).acceptanceFailures).length, 0, 'transport failure does not enter model repair');
+    assert.equal(requests.filter(request => request.role === 'designer').length, 2);
+    } finally { await workflow.close(); }
+  } } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

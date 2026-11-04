@@ -286,10 +286,10 @@ test("RAC-1774: the CLI and MCP name no Goals contract in any file and call Goal
   assert.match(changed("mcp", source => source.replace(/export const MANAGEMENT_GOAL_ACTIONS = \{[\s\S]*?\} as const;\n/u, "")), /tool-dispatch\.ts.*MANAGEMENT_GOAL_ACTIONS/);
 });
 
-// PG094-CLI-04: restore the external no-Home expression while retaining every owner, mkdir, reference and signal mutation.
+// PG094-CLI-04 / T405-FULL-09: require product admission and retain every owner, mkdir, reference and signal mutation.
 test("RAC-105-S-08: the CLI fallback requires ownership before Home init and retains its single management route", () => {
   const source = read("apps/local-host/src/cli-project.ts");
-  const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home);";
+  const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);";
   const initialize = 'if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");';
   const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal })";
   const guarded = `const fallback = () => {\n    ${own}\n    ${initialize}\n    return ${bind};\n  };`;
@@ -298,7 +298,10 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
     ["old unguarded expression", text => text.replace(guarded, `const fallback = () => ${bind};`)],
     ["missing owner preparation", text => text.replace(own, "")],
     ["wrong Home predicate", text => text.replace("homeProject || homeDatabase", "homeProject")],
-    ["wrong Home argument", text => text.replace("createMolisWorkLocalHost({ homeDirectory: home }), home);", "createMolisWorkLocalHost({ homeDirectory: home }), otherHome);")],
+    ["wrong Home argument", text => text.replace("createMolisWorkLocalHost({ homeDirectory: home }), home, preflightMemoryHome);", "createMolisWorkLocalHost({ homeDirectory: home }), otherHome, preflightMemoryHome);")],
+    ["missing product admission", text => text.replace(own, own.replace(", preflightMemoryHome)", ")"))],
+    ["wrong product admission", text => text.replace(own, own.replace("preflightMemoryHome", "otherPreflight"))],
+    ["missing product admission import", text => text.replace('import { preflightMemoryHome } from "./memory/memory-initialization.js";\n', "")],
     ["external fallback takes the selected Home", text => text.replace(bind, bind.replace("createMolisWorkLocalHost()", "createMolisWorkLocalHost({ homeDirectory: home })"))],
     ["mkdir before ownership", text => text.replace(`${own}\n    ${initialize}`, `${initialize}\n    ${own}`)],
     ["mkdir on every operation", text => text.replace(initialize, 'prepareLocalProjectStorage(databasePath, "create");')],

@@ -262,7 +262,7 @@ Manifest `methods`、撤销声明、到期提醒、后台任务回报、放置�
 
 ## 6. 交付
 
-建立一份总 spec `specs/repository-anti-corruption/spec.md`，链接上一轮的 `specs/archive/repository-systematic-review/spec.md`，不重复它的内容。按整理要求第 15 节交付，并包括：
+建立一份总 spec `specs/archive/repository-anti-corruption/spec.md`，链接上一轮的 `specs/archive/repository-systematic-review/spec.md`，不重复它的内容。按整理要求第 15 节交付，并包括：
 
 1. 第 3 节的度量：开始时与结束时对比；
 2. 兼容逻辑清除清单：删除了什么；保留了什么，以及为什么不算兼容；新基线与升级后的库逐表比对的结果；每个真实 Home 的处理；

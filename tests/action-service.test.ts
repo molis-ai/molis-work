@@ -403,7 +403,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     assert.equal(target.availability.available, false, "the caller's permission is not a plugin installation grant");
     const value = { ...binding, binding_id: target.binding_id, function: fn, title: "forged title", href: "/forged" };
     await assert.rejects(service.bind(context, value, { provider_id: target.provider_id, expected_revision: null }), { code: "actions.plugin_permission" });
-    repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write"] });
+    await runtime.regrant(installed.install_id, "notes:write", true);
     target = (await service.targets(context, fn))[0]!;
     assert.equal(target.availability.available, true);
     assert.equal((await service.targets({ ...context, permissions: [] }, fn))[0]!.availability.available, false);
@@ -415,7 +415,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     await assert.rejects(service.bind(context, value, { provider_id: target.provider_id, expected_revision: null }), { code: "actions.binding_changed" });
     needsActivation = true;
     const activationCaller = { ...context, permissions: [...context.permissions, "notes:activate"] };
-    repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write", "notes:activate"] });
+    await runtime.regrant(installed.install_id, "notes:activate", true);
     await assert.rejects(service.bind(activationCaller, value, { provider_id: target.provider_id, expected_revision: current()!.revision!, before_write: () => {
       repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write"] });
     } }), { code: "actions.plugin_permission" });

@@ -18,7 +18,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { pageText } from "./fixtures/page-text.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
 
-// specs/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff and Text Stats draw their own `/state` answer for a
+// specs/archive/repository-anti-corruption/privileges.md PG-062 (C7, the plugin half): Diff and Text Stats draw their own `/state` answer for a
 // page, in the page's language, with their own words; the Host no longer decorates their route results.
 
 const SOURCE = "io.molis.work.state-html-source", ACTOR = "tester", HAN = /[一-鿿]/;

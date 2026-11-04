@@ -1,4 +1,4 @@
-// W6-02 rest (specs/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1099–RAC-1103): the lifecycle walk of
+// W6-02 rest (specs/archive/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1099–RAC-1103): the lifecycle walk of
 // tests/fixtures/shipped-lifecycle.ts, for the shipped plugins of the coding family that run on a project's supervisor and that no
 // project starts with: 编程 (Coding), 文件 (Files), Git, 对比 (Diff) and 字数 (Text Stats). The person adds each to the project;
 // taking it out stops its installation in that project and adding it back runs it again. Coding keeps sessions; Git and Files each

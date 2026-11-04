@@ -1,4 +1,4 @@
-// Gate: dual-instance plugins (specs/dual-instance-plugins, PG-012). Only adds checks; it loosens no other rule.
+// Gate: dual-instance plugins (specs/archive/dual-instance-plugins, PG-012). Only adds checks; it loosens no other rule.
 //
 // A dual-instance plugin is one `plugin_id` with a Home half (a Home catalog entry whose `runtime` says `dual_instance: true`)
 // and a project half (the same registration's `project_runtime`, PG-067, or an entry of the project start list that a factory
@@ -9,8 +9,8 @@
 //      start list also starts is marked;
 //   2. both halves ship with the Host: every catalog entry does, so a project half on the start list says
 //      `trust: HOST_BUILD_TRUST` (the Host gives it to every `project_runtime` itself);
-//   3. no optional permission (user 2026-10-20, U1): every permission of a marked entry's Manifest is an object literal with
-//      `required: true`.
+//   3. readable permission flags (U1, 2026-11-01): each permission is an object literal with
+//      `required: true` or `required: false`; Runtime enforces the Home optional upper bound.
 //
 // Read as syntax, nothing is executed. A plugin is named by its package: the Home entry's `runtime.package_name`, the
 // `project_runtime.package_name`, the package a start-list entry's `definition: create…(…)` factory is imported from. What it cannot read fails rather than passes: a marked
@@ -122,7 +122,7 @@ function importedNames(tree) {
   return names;
 }
 
-/** Rule 3 for one marked entry: each permission of its Manifest is an object literal saying `required: true`. */
+/** Rule 3 for one marked entry: each permission's required flag is a readable boolean literal (U1). */
 function optionalPermissions(snapshot, entry) {
   const manifest = follow(snapshot, entry.file, property(entry.object, "manifest")?.initializer);
   if (!manifest || !ts.isObjectLiteralExpression(manifest.node) || spreads(manifest.node)) return [`${entry.file}: cannot read the Manifest of the dual-instance plugin ${entry.package}; write it as an object literal the gate can follow, without a spread (scripts/gates/dual-instance.mjs)`];
@@ -132,8 +132,10 @@ function optionalPermissions(snapshot, entry) {
   if (!list || !ts.isArrayLiteralExpression(list.node)) return [`${list?.file ?? manifest.file}: cannot read the permissions of the dual-instance plugin ${entry.package}; write them as an array literal the gate can follow`];
   return list.node.elements.flatMap((element) => {
     const permission = follow(snapshot, list.file, element);
-    if (permission && ts.isObjectLiteralExpression(permission.node) && !spreads(permission.node) && isTrue(property(permission.node, "required")?.initializer)) return [];
-    return [`${list.file}: the dual-instance plugin ${entry.package} has a permission that is not \`required: true\` as a literal (\`${element.getText().slice(0, 80)}\`); every permission of a dual-instance plugin is required (specs/dual-instance-plugins, U1)`];
+    const required = permission && ts.isObjectLiteralExpression(permission.node) ? property(permission.node, "required")?.initializer : undefined;
+    if (permission && ts.isObjectLiteralExpression(permission.node) && !spreads(permission.node)
+      && (isTrue(required) || unwrap(required)?.kind === ts.SyntaxKind.FalseKeyword)) return [];
+    return [`${list.file}: the dual-instance plugin ${entry.package} has a permission whose required flag is not a true/false literal (\`${element.getText().slice(0, 80)}\`); write an explicit boolean (specs/archive/dual-instance-plugins, U1)`];
   });
 }
 

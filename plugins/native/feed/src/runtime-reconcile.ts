@@ -7,7 +7,7 @@ import { connectorSlotOf } from "./runtime-connector.js";
 import { holdingsOfSnapshot } from "./source-history.js";
 
 // What a Runtime Feed sets right on its own, without a caller (FI-4 step 4e-2f, RAC-493 and RAC-518 of
-// specs/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md): the stored state of its account sources follows the account the
+// specs/archive/repository-anti-corruption/slices/feed-inbox-home-reference-ledger.md): the stored state of its account sources follows the account the
 // person bound to each, and the Home's reference ledger names every body this project's library keeps. Both run in a job the installation
 // keeps, because nothing else of an installation runs without a call: the platform's account and ledger services answer a call or a kept job.
 

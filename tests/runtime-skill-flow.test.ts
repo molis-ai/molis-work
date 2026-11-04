@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
@@ -42,18 +42,16 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     });
     assert.equal(connected.status, "bound");
     assert.ok(connected.connection.project_id);
-    const permissionsCatalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
-    try {
+    await server.close();
+    const grantedProject = await withMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory }, permissionsCatalog => {
       // The connection tools take no actor: the Host records the MCP client and the Runtime Session of the call.
       assert.deepEqual(permissionsCatalog.listRuntimeContextBindingEvents(host.runtimeContext).map((event) => [event.type, event.actor_id]), [["context.bound", "runtime:codex:skill-session"]]);
-      const project = permissionsCatalog.getProject(connected.connection.project_id);
-      // This MCP process binds its own Host to the Home, and a Home has one Host. The person saves the grant in the app (another process
-      // serving the Home), so the MCP process is stopped while it is saved and started again after, as a client reconnecting would.
-      await server.close();
-      await grantGoalsMcp(host.homeDirectory, project);
-      server = new MolisWorkServer("runtime", null, host);
-      assert.equal((await call<{ status: string }>("context_resolve", {})).status, "bound");
-    } finally { permissionsCatalog.close(); }
+      return permissionsCatalog.getProject(connected.connection.project_id);
+    });
+    // The MCP process is stopped while the person saves its grant, then reconnects to the same Home.
+    await grantGoalsMcp(host.homeDirectory, grantedProject);
+    server = new MolisWorkServer("runtime", null, host);
+    assert.equal((await call<{ status: string }>("context_resolve", {})).status, "bound");
     const created = await call<{ goal: { goal_id: string }; replayed: boolean }>("goals.create", {
       goal_id: "skill-goal", title: "交付一份可读取的结果说明", outcome: "用户可以读取完整说明",
       idempotency_key: "start",
@@ -79,6 +77,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     assert.equal(replayedNote.event_id, note.event_id);
     const state = await call<{ work_status: string }>("goals.state.read", { goal_id: created.goal.goal_id });
     assert.equal(state.work_status, "open");
+    await server.close();
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
     try {
       const project = catalog.listProjects().find((item) => item.project_id === connected.connection.project_id);

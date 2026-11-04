@@ -12,7 +12,7 @@
 
 SDK 密文由原 SDK reader 使用原 Home 的 key 验证全部记录种类和分页，合法空正文与保留密文的墓碑也验证；纯元数据或普通检查点不会要求或生成 key。受管 CLI 恢复仍要求原安装身份及原路径上的实际程序，命令不联网重装或创建替代安装。
 
-完整 `home restore`、统一发布/回滚与重启续写仍在 W5-16 后续，尚缺 Memory owner 的归档重开资格与合法空态受控恢复契约；本快照片不把它们标完成。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。现行范围和证据见 [W5-16 slice](../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+`molis-work home restore --from /快照目录 [--home /原Home] [--json]` 在同样的离线窗口把快照恢复到原 Home；`molis-work home restore --recover` 续写上次中断的恢复：未提交的回滚到操作前，已提交的做收尾，没有待恢复项时返回 `no_recovery`。两者二选一，缺一或都给直接拒绝。恢复只适用于原 Home 路径和原密钥：先完整预检（快照清单与摘要、各 owner 的版本和完整性、原 key 依赖、Memory 资格、目标集合），任何一项不过都在移动原件之前拒绝；通过后才替换业务集合，被替换的原件和失败材料保留在结果的 `originals_directory`；与快照一致时返回 `unchanged` 且不写业务内容。恢复未收尾时留有持久日志，会阻断正常启动，先跑 `--recover`。命令不联网重装、不创建替代安装或替代 key。工程与临时 Home 测试不替代真实 Home 窗口或本人验收。
 
 ## 安装代码的开发边界
 
@@ -34,7 +34,7 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 ## CLI
 
-公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载、插件管理、`molis-work home snapshot` 离线快照与 `molis-work v1 <operation>` 管理接口；下面列出 v1 操作：
+公开 CLI 顶层提供本体安装、常驻服务、demo、安全卸载、插件管理、`molis-work home snapshot` 离线快照、`molis-work home restore` 恢复与中断续接与 `molis-work v1 <operation>` 管理接口；下面列出 v1 操作：
 
 ```text
 init | snapshot | active-goal
@@ -211,7 +211,7 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 这是体积控制，不是硬上限（用户 2026-10-18 定）：默认只许变小，能省先省。功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法；评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条一次性放行，只认 merge-base 的准确数字，上限等于实测，下次添加放行时删掉用完的条目，合入后继续冻结。一个资源一次涨超过 10 KB 或新增资源，先问用户。
 
-除这条放行外，CI 与 `--base <ref>` 对照 merge-base 的预算：调大数字、新增条目或删掉仍在下发的条目都不能过关，`--update` 也不会写入变大的数字。预算必须等于实测；变小就在同一个 PR 里跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 降下来。合并前 main 若又改了资源，在合并结果上重新 `pnpm workspace:build` 后再检查。路由识别与未覆盖范围见 [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) 头部和[防腐 spec](../specs/repository-anti-corruption/spec.md) §5a。
+除这条放行外，CI 与 `--base <ref>` 对照 merge-base 的预算：调大数字、新增条目或删掉仍在下发的条目都不能过关，`--update` 也不会写入变大的数字。预算必须等于实测；变小就在同一个 PR 里跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 降下来。合并前 main 若又改了资源，在合并结果上重新 `pnpm workspace:build` 后再检查。路由识别与未覆盖范围见 [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) 头部和[防腐 spec](../specs/archive/repository-anti-corruption/spec.md) §5a。
 
 ### 推送前扫描密钥
 

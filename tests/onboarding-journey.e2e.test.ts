@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -50,7 +51,7 @@ async function openJourneyBrowser(t: TestContext, mode: true | "empty") {
   if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, navigate, origin, homeDirectory, localHost } = browser;
   const view = (width: number, height = 900, scheme: "light" | "dark" = "light") => Promise.all([
-    command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 600 }, sessionId),
+    browser.setViewport(width, height, width < 600),
     command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: scheme }] }, sessionId),
   ]);
   const press = async (key: string) => {
@@ -304,7 +305,7 @@ test("ONB-FIX-01 connected provider and model text stays literal in the real jou
   if (!journey) return;
   const provider = '<img data-ob-injected="provider" src=x onerror="globalThis.__obXss = 1"> & "供应商"';
   const model = '<svg data-ob-injected="model" onload="globalThis.__obXss = 2"></svg> <model>&\'';
-  await seedConfiguredModels(journey.homeDirectory, [{ provider_id: "literal-provider", display_name: provider, model_id: model }]);
+  await seedConfiguredModels(journey.homeDirectory, [{ provider_id: "literal-provider", display_name: provider, model_id: model }], undefined, journey.localHost!.configurePersonalPlanning(journey.homeDirectory, withMolisWorkProjectCatalog));
   const id = journey.seed(item => {
     item.sources = [{ kind: "files", selected: true, files: [{ path: "笔记.md", size: 120, modified_ms: 1 }], metadata: { files: [{ path: "笔记.md", size: 120, modified_ms: 1, identity: "upload" }], skipped: 0, truncated: false } }];
     item.previewed = true;

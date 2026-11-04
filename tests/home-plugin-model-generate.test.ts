@@ -11,7 +11,7 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandb
 import { SECOND_PLUGIN_ID, mac, operate, operationsOf, person, ref } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// BL-714 (PG-011, S-66, S-91; specs/repository-anti-corruption/slices/pg011-pg017-remaining.md §2): a package installed in the Home
+// BL-714 (PG-011, S-66, S-91; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §2): a package installed in the Home
 // reaches the model through the `model.generate` capability its `prompts.json` is for. The registry holds one entry per id, so the Home's
 // instance is registered as `model.generate.home` under the Home's own provider and the Home's catalog shows it to the package under the
 // name the package calls. It answers only the Home's own installations, with the instructions the package registered, and nothing is
@@ -41,7 +41,8 @@ async function modelHome(t: TestContext) {
   // The Host owns the Home's inference service; the model it reaches is the one the Home's settings name.
   const connection = withConnectorConnections(home.home, store => store.createToken({ serviceId: "model-api", displayName: "Fixture", token: "local-fixture" }));
   withConnectorConnections(home.home, store => store.assertTarget(connection.connection_id, "model-api", origin));
-  withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture",
+  const withHostCatalog = home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog);
+  await withHostCatalog({ homeDirectory: home.home }, catalog => catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture",
     base_url: origin + "/v1", api_format: "openai-chat-completions", models: [{ model_id: "fixture", enabled: true }] }));
   const project = await home.createProject("Model");
   const client = home.host.actionClient(project.reference);
@@ -112,6 +113,11 @@ test("RAC-2610 the Home's instance has no project half: a Home package that name
     "the Home's directory has the Home's entry and not the project's");
   // The package calls the name it always used; the Home's catalog gives it the Home's instance under that name and under no other.
   await h.install("io.molis.work.example.homebound", "home", ["model.generate.home"]);
+  const settings = `/projects/${h.project.project_id}/api/settings/plugin-project-reach`;
+  const { plugins } = await h.home.web.post<{ plugins: Array<{ plugin_id: string; snapshot: string }> }>(settings + "/list", {});
+  const plugin = plugins.find(plugin => plugin.plugin_id === "io.molis.work.example.homebound");
+  assert.ok(plugin);
+  await h.home.web.post(settings + "/grant", { plugin_id: plugin.plugin_id, snapshot: plugin.snapshot });
   await assert.rejects(h.ask("summary", "model.generate.home", "io.molis.work.example.homebound"), /这项功能依赖的能力当前不可用：model\.generate\.home/, "a package of the Home names the id the instance is registered under");
   assert.equal(h.systems.length, before, "nothing was sent to the model");
 });

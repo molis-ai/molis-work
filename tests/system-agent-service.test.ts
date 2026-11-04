@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MolisWorkLocalHost, LocalMcpServer, ensureSystemAgentService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { gitActions } from "@molis-ai/molis-work-plugin-git";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -22,7 +22,8 @@ test("closing an unused or initializing service cannot leave a runtime alive or 
   try {
     for (const initialize of [false, true]) {
       const host = new MolisWorkLocalHost({ homeDirectory: home });
-      const service = ensureSystemAgentService(host, home, catalog);
+      const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+      const service = ensureSystemAgentService(host, home, withCatalog);
       const starting = initialize ? service.ready : Promise.resolve();
       await host.close(); await starting;
       await assert.rejects(service.ready, /已关闭/);
@@ -50,11 +51,12 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     return project;
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-    workspacesFor: id => catalog({ homeDirectory: home }, c => c.listWorkspaceDirectory(id)) });
-  const mcp = new LocalMcpServer(catalog, "runtime", { projectId: project.project_id,
+    workspacesFor: id => withCatalog({ homeDirectory: home }, c => c.listWorkspaceDirectory(id)) });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+  const mcp = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id,
     databasePath: project.database_path, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory: home, runtimeContext: { runtime_id: "fixture", stable_work_context_id: null, host_declares_stable: false } }, host);
-  const service = ensureSystemAgentService(host, home, catalog);
+  const service = ensureSystemAgentService(host, home, withCatalog);
   const reference = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "workspace:read"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
@@ -69,8 +71,8 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     return actions.invoke(gitActions.prepareIndex, { workspace_id, path: ["note"], action: "stage", revision: selected.result.revision, operation_id: randomUUID() });
   };
   try {
-    assert.equal(ensureSystemAgentService(host, home, catalog), service);
-    assert.throws(() => ensureSystemAgentService(host, home + "-other", catalog), { code: "actions.home_mismatch" });
+    assert.equal(ensureSystemAgentService(host, home, withCatalog), service);
+    assert.throws(() => ensureSystemAgentService(host, home + "-other", withCatalog), { code: "actions.home_mismatch" });
     await actions.discover();
     assert.deepEqual(runtimeBusinessEntries(join(home, "agent-runtime")), [], "discovery must not initialize SDK storage beyond the Host's owner lock and SQLite sidecars");
     await assert.rejects(access(join(home, "agent-runtime/storage.key")), { code: "ENOENT" });
@@ -109,10 +111,11 @@ test("MCP composes a lazy Host-owned review service before Web; later Web approv
     const close = host.close(); assert.equal(host.close(), close); await close;
     assert.equal(service.agentHost.reviews.receipt(abandoned.review_id)?.status, "cancelled");
     await assert.rejects(service.ready, /已关闭/);
-    assert.throws(() => ensureSystemAgentService(host, home, catalog), { code: "host.closed" });
+    assert.throws(() => ensureSystemAgentService(host, home, withCatalog), { code: "host.closed" });
     const reopened = new MolisWorkLocalHost({ homeDirectory: home });
     try {
-      const next = ensureSystemAgentService(reopened, home, catalog); await next.ready;
+      const reopenedCatalog = reopened.configurePersonalPlanning(home, reopened.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+      const next = ensureSystemAgentService(reopened, home, reopenedCatalog); await next.ready;
       await next.agentHost.reviews.refresh(project.project_id);
       assert.equal(next.agentHost.reviews.receipt(first.review_id)?.effect_settled, true);
       assert.equal(next.agentHost.reviews.receipt(abandoned.review_id)?.status, "cancelled");
@@ -134,7 +137,8 @@ test("another process cannot recover the active SDK owner; ownership is released
     const exited = once(child, "exit"); child.kill("SIGKILL"); await exited;
     const host = new MolisWorkLocalHost({ homeDirectory: home });
     try {
-      const service = ensureSystemAgentService(host, home, catalog);
+      const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+      const service = ensureSystemAgentService(host, home, withCatalog);
       await service.ready; // the failed Host never initialized business storage; a new owner can recover normally
       assert.equal(service.agentHost.adapter("prologue").descriptor.runtime_id, "prologue");
     } finally { await host.close(); }

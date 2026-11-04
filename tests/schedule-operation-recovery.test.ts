@@ -33,7 +33,7 @@ test('operation recovery is a public authorized Host/HTTP action; plugin callers
   const view = (await bound.invoke(scheduleActions.list, {})).operations.find(item => item.id === id)!;
   assert.deepEqual(view.input, { text: '<本周> 笔记' }); assert.equal(view.installation?.publisher, 'example');
   const input = inputFor(view);
-  await assert.rejects(f.sdk.invoke(scheduleActions.recoverOperation, input), { code: 'actions.forbidden' });
+  await assert.rejects(f.sdk.invoke(scheduleActions.recoverOperation, input), { code: 'plugin.grant_denied' });
   await assert.rejects(f.client.invoke({ ...caller, project_id: 'elsewhere' }, scheduleActions.recoverOperation, input), { code: 'actions.scope_mismatch' });
   await assert.rejects(f.client.invoke({ ...caller, permissions: ['schedule:read'] }, scheduleActions.recoverOperation, input), { code: 'actions.forbidden' });
   await assert.rejects(f.client.invoke({ ...caller, validate_authority() { throw new Error('revoked'); } }, scheduleActions.recoverOperation, input), /revoked/);

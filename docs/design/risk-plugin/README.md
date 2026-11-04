@@ -1,6 +1,6 @@
 # 风险插件：可点的定样（路线书第 17 批）
 
-状态：待用户定样（2026-11-04）。产品代码还没写。
+状态：用户已定（2026-11-04）：风险记录用 B 两栏整页 + C 侧栏打开，总览用 A 按状态分组，复查用 A 详情里的复查段；决定记在[原需求的定样决定](../../../specs/risk-plugin/spec.md#design-decisions)。产品代码还没写。
 
 这是参考原型，不是产品界面。需求来源是[风险插件](../../../specs/risk-plugin/spec.md)（RISK-01～08）和 [Work Brief §3.5](../../../specs/work-brief/spec.md)（WBR-17～19），排期见[第 17 批](../../../specs/post-anticorruption-roadmap/reference/batches/17.md)。配色、按钮与原型控制条取自第 03 批原型 `docs/design/workbench-shared-paths`（分支 `claude/roadmap-03-shared-design`，尚未合入），经 [onboarding-full-journey](../onboarding-full-journey/README.md) 拷了一份（`base.css`、`icons.js`），没有改它。用户拍板后，定下的样子写进原需求的决策记录，再进产品代码（届时换成 `mw-*` 控件）。
 

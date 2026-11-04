@@ -3,6 +3,8 @@
   const D = window.RISK_DATA;
   const KEY = "molis-proto.risk-plugin.v1";
   const DEF = { area: "overview", scheme: { record: "A", overview: "A", review: "A" }, st: { record: "normal", overview: "normal", review: "normal" }, lang: "zh", theme: "light" };
+  // Chosen by the user on 2026-11-04 (specs/risk-plugin/spec.md#design-decisions).
+  const CHOSEN = { record: ["B", "C"], overview: ["A"], review: ["A"] };
   const STATES = {
     record: ["normal", "unlinked", "new", "gone", "conflict", "closed", "readonly", "failed"],
     overview: ["normal", "unlinked", "closed", "nomatch", "partial", "empty", "failed"],
@@ -373,7 +375,7 @@
     document.documentElement.dataset.theme = P.theme;
     document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
     document.querySelectorAll("#area button").forEach((b) => { b.textContent = t("a_" + b.dataset.area); b.setAttribute("aria-pressed", P.area === b.dataset.area); });
-    document.querySelectorAll("#scheme button").forEach((b) => b.setAttribute("aria-pressed", P.scheme[P.area] === b.dataset.scheme));
+    document.querySelectorAll("#scheme button").forEach((b) => { b.setAttribute("aria-pressed", P.scheme[P.area] === b.dataset.scheme); const ok = CHOSEN[P.area].includes(b.dataset.scheme); b.textContent = b.dataset.scheme + (ok ? " ✓" : ""); b.title = ok ? (P.lang === "zh" ? "已定（2026-11-04）" : "Chosen (2026-11-04)") : ""; });
     document.querySelectorAll("#lang button").forEach((b) => b.setAttribute("aria-pressed", P.lang === b.dataset.lang));
     document.querySelectorAll("#theme button").forEach((b) => b.setAttribute("aria-pressed", P.theme === b.dataset.themeSet));
     const s = document.getElementById("state");

@@ -195,7 +195,7 @@
 
 | 来源 | 对应批次／条件 | 决策 |
 | --- | --- | --- |
-| 翻译：BL-118、BL-455～464、BL-545、BL-546、BL-567 | [16](batches/16.md)、[55](batches/55.md) | 直接做 |
+| 翻译：BL-118、BL-455～457、BL-459～464、BL-545、BL-546、BL-567 | [16](batches/16.md)、[55](batches/55.md) | 直接做 |
 | 写后检查：BL-160、BL-171、BL-220、BL-390，以及 BL-301～303 | [24](batches/24.md)、[31](batches/31.md) | 直接做 |
 | Prologue 上游：BL-031、BL-137、BL-172、BL-173、BL-175、BL-176 | [31](batches/31.md)、[61](batches/61.md)；最近的实际换包窗口 | 直接做 |
 | 记忆误记与默认：BL-037、BL-093 | [24](batches/24.md)、[31](batches/31.md)；[Memory 原暂停](#memory-paused) | 直接做 |

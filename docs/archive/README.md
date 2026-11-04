@@ -4,6 +4,7 @@
 
 | 要找的记录 | 入口 | 当前接续位置 |
 | --- | --- | --- |
+| 0.1.x Bug 卡与验收 | [台账索引](../molis-work-bug-cards.md)、[历史总览](bug-cards/overview.md) | [规格书索引](../../specs/README.md)、[统一待办](../../specs/BACKLOG.md)；卡片原状态截至 2026-08-31 |
 | 早期产品与模块架构 | [产品家族与模块架构](goalboard-product-family-and-module-architecture.md) | [产品定义](../../PRODUCT.md)、[架构](../system/ARCHITECTURE.md)、[事实归属](../SSOT-MATRIX.md) |
 | 2026-09 系统与巨大类迁移 | [系统迁移](system-migration-2026-09.md)、[巨大类迁移](huge-class-migration-2026-09.md) | [巨大单元判定与计划](../system/HUGE-CLASS-MIGRATION.md)、[防腐 spec](../../specs/repository-anti-corruption/spec.md) |
 | 早期功能规划 | [未来功能规划](future-feature-planning.md) | [规格书索引](../../specs/README.md)、[统一待办](../../specs/BACKLOG.md)、[路线书](../../specs/post-anticorruption-roadmap/spec.md) |

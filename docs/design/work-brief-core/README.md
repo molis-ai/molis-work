@@ -1,6 +1,6 @@
 # Work Brief 首页与简报核心：可点的定样（路线书第 19 批）
 
-状态：待用户定样（2026-11-04）。产品代码还没写。
+状态：用户已定（2026-11-04）：首页、版本、来源、下一步四块都用方案 A（一页简报、版本条加当时／现在、句后角标、选项卡片）；决定记在[原需求 §7](../../../specs/work-brief/spec.md#design-decisions)。产品代码还没写。
 
 这是参考原型，不是产品界面。需求来源是 [Work Brief](../../../specs/work-brief/spec.md)（§1.1～1.3、§3、§3.5、§4，WBR-02～07、17～28）和它的[卡片与简报设计稿](../../../specs/work-brief/design.md)，排期见[第 19 批](../../../specs/post-anticorruption-roadmap/reference/batches/19.md)。配色、按钮与原型控制条取自第 03 批原型 `docs/design/workbench-shared-paths`（分支 `claude/roadmap-03-shared-design`，尚未合入），经 [onboarding-full-journey](../onboarding-full-journey/README.md) 拷了一份（`base.css`、`icons.js`），没有改它。用户拍板后，定下的样子写进原需求的决策记录，再进产品代码（届时换成 `mw-*` 控件与卡片组件）。
 

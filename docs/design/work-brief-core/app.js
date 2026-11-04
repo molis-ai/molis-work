@@ -306,7 +306,7 @@
     document.documentElement.dataset.theme = P.theme;
     document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
     document.querySelectorAll("#area button").forEach((b) => { b.textContent = t("a_" + b.dataset.area); b.setAttribute("aria-pressed", P.area === b.dataset.area); });
-    document.querySelectorAll("#scheme button").forEach((b) => b.setAttribute("aria-pressed", P.scheme[P.area] === b.dataset.scheme));
+    document.querySelectorAll("#scheme button").forEach((b) => { b.setAttribute("aria-pressed", P.scheme[P.area] === b.dataset.scheme); const ok = b.dataset.scheme === "A"; b.textContent = b.dataset.scheme + (ok ? " ✓" : ""); b.title = ok ? (P.lang === "zh" ? "已定（2026-11-04）" : "Chosen (2026-11-04)") : ""; });
     document.querySelectorAll("#lang button").forEach((b) => b.setAttribute("aria-pressed", P.lang === b.dataset.lang));
     document.querySelectorAll("#theme button").forEach((b) => b.setAttribute("aria-pressed", P.theme === b.dataset.themeSet));
     document.getElementById("state").innerHTML = STATES[P.area].map((k) => `<option value="${k}" ${st() === k ? "selected" : ""}>${t(`st_${P.area}_${k}`)}</option>`).join("");

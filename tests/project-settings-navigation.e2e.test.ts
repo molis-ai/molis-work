@@ -108,6 +108,11 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await navigate(() => click('[data-project-rename] button[type=submit]'));
   await waitFor(general, 15_000);
   assert.equal(await evaluate("document.querySelector('[data-project-rename] input').value"), "项目的新名称");
+  // VUX-52/56: the destructive entry is visible as a bordered button and only opens confirmation.
+  assert.equal(await evaluate(`(() => {
+    const style = getComputedStyle(document.querySelector('[data-project-delete-open]'));
+    return style.borderTopStyle === 'solid' && parseFloat(style.borderTopWidth) > 0 && style.borderTopColor !== 'rgba(0, 0, 0, 0)';
+  })()`), true);
   await click('[data-project-delete-open]');
   assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog]').open"), true);
   assert.equal(await evaluate("document.querySelector('[data-project-delete-dialog] button[type=submit]').disabled"), true);

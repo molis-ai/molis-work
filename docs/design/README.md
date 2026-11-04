@@ -7,7 +7,7 @@
 | [workbench-shared-paths/](workbench-shared-paths/README.md) | 项目资料、输入与输出、Coding 跟随与临时查看、右侧窄窗格的可点定样（三个方案，正常与异常状态） | 方案已定（2026-11-03：按来源分组，加「最近用过」），产品未实现；里面是示例数据 |
 | [work-mainline-switch/](work-mainline-switch/README.md) | 主线顶部事项切换：切换器、列表菜单、这件事的东西、放进事项、整理主线的可点定样（三个方案，正常与异常状态） | 方案已定（2026-11-03：最近切过加折叠分组），产品未实现；里面是示例数据 |
 | [intelligent-surfaces-forms/](intelligent-surfaces-forms/README.md) | 智能呈现第一片的四种形态（名字片、行、卡片、速览）：九种状态、四个位置（插件内、对话、项目讨论、等你）的可点定样（三个方案） | 方案已定（2026-11-03：插件领头），产品未实现；里面是示例数据 |
-| [assistant-background-tasks/](assistant-background-tasks/README.md) | 个人助理的连续对话与后台任务：§12.8 的交错路径（连续交办、插问、补充、要你定、完成、回到对话）与排队、失败、停止、断线恢复的可点切片（三个方案） | 三个方案待用户选（2026-11-03），产品未实现；按剧本模拟 |
+| [assistant-background-tasks/](assistant-background-tasks/README.md) | 个人助理的连续对话与后台任务：§12.8 的交错路径（连续交办、插问、补充、要你定、完成、回到对话）与排队、失败、停止、断线恢复的可点切片（三个方案） | 方案已定（2026-11-03：对话顶上的任务条），产品未实现；按剧本模拟 |
 | [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26；四项已拍板，视觉待用户验收），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |
 | [project-arrival-flow/](project-arrival-flow/README.md) | 打开 Molis Work：项目选择页、Welcome 与新建项目引导的高保真设计、可交互原型、状态与深色/窄屏图、三段动效录屏 | 当前的**参考原型**（2026-10-01 用户认可），生产实现见 [specs/archive/project-arrival-flow](../../specs/archive/project-arrival-flow/spec.md)。原型里的项目、材料、整理结果都是示例数据 |

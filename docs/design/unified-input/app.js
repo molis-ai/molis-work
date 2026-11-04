@@ -61,7 +61,7 @@
     lang: ["语言", "Language"], theme: ["主题", "Theme"], light: ["浅色", "Light"], dark: ["深色", "Dark"], reset: ["重置", "Reset"],
     w1: ["方案一", "Option 1"], w2: ["方案二", "Option 2"], w3: ["方案三", "Option 3"],
     title: ["统一输入框：完整状态与送达语义", "Unified input: every state and how a message is delivered"],
-    status: ["待用户定样 · 模拟（不连 Home、不调模型，回复和状态都是假的）", "Awaiting your pick · simulated (no Home, no model; replies and states are fake)"],
+    status: ["方案已定（2026-11-04，七块都照推荐）· 模拟（不连 Home、不调模型，回复和状态都是假的）", "Decided (2026-11-04, every block as recommended) · simulated (no Home, no model; replies and states are fake)"],
     introP: ["首页底栏、助理、Coding、项目讨论和创作台以后用同一个输入框。下面每一块是一个要定的问题，各有 2～3 个方案；点方案卡切换，下方的样张跟着变，可以直接打字、按键、拖文件试。顶上可以换入口、用词、语言和深浅色。", "The home bar, Assistant, Coding, project discussion and Plugin Studio will share one input. Each block below is one question with 2–3 options; pick an option card and the specimen under it changes. You can type, press keys and drop files in it. The strip on top switches entry, wording, language and theme."],
     already: ["已经定了、样张照着做的", "Already decided; the specimens follow these"],
     dec1: ["<b>分两层</b>：所有输入框共用编辑器层（长高、草稿、输入法、附件条）；只有对 AI 说话的才有送达菜单。入口切到「项目讨论」看对人的样子。", "<b>Two layers</b>: every input shares the editor layer (growing, drafts, input method, attachments); only inputs that talk to an AI get the delivery menu. Switch the entry to Project discussion to see the one for people."],
@@ -69,8 +69,8 @@
     dec3: ["<b>运行中默认补充</b>：创作台也一样，另有明确的「打断并改向」。", "<b>Adding is the default while running</b>, Plugin Studio included, with an explicit “Interrupt and redirect”."],
     dec4: ["<b>决定理由型输入</b>（评审反馈、Jelly 指令、Goals 退回）只对齐长高、输入法和草稿，不绑发送键。", "<b>Decision-reason fields</b> (review feedback, Jelly instructions, Goals send-back) share growing, input method and drafts only; no send key."],
     dec5: ["<b>项目讨论里 Esc</b> 只关局部菜单，关面板用标题栏的 ×。", "<b>Esc in project discussion</b> only closes a local menu; the panel closes from the × in its header."],
-    legend: ["带虚线下划线的词由 H4 决定，现在按方案一写、待定（第 7 块）。", "Words with a dashed underline depend on H4: written with option 1 for now, not final (block 7)."],
-    rec: ["推荐", "Recommended"], pick: ["选", "Pick"], tryIt: ["试一试", "Try"],
+    legend: ["带虚线下划线的词由 H4 决定；已定方案一（第 7 块），切别的方案只为对照。", "Words with a dashed underline depend on H4; option 1 was chosen (block 7); other options are for comparison only."],
+    rec: ["推荐 · 已定", "Recommended · chosen"], pick: ["选", "Pick"], tryIt: ["试一试", "Try"],
     // block heads
     b1: ["编辑器层", "Editor layer"], b2: ["对 AI 的送达菜单", "Delivery menu for an AI"], b3: ["新键位与改键后的一次提示", "New keys and the one-time notice"],
     b4: ["发给谁", "Who it goes to"], b5: ["运行中、失败、被丢弃、离线", "Running, failed, dropped, offline"], b6: ["插件扩展的入口", "Where plugins add to the input"], b7: ["H4 对外用词", "H4 wording"],
@@ -154,7 +154,7 @@
     vNew: ["开始一项新{work}", "Start a new {work}"], vList: ["我的{work}", "My {work}"], vBg: ["{task}「写完发布说明」· 等你定", "{task} “Finish release notes” · needs you"], vSub: ["{sub}「整理三份纪要」已完成", "{sub} “Sort three minutes” finished"],
     vFrom: ["受托于 助理", "Delegated by the Assistant"], vMenu: ["补充 · 打断并改向 · {next}", "Add · Interrupt and redirect · {next}"], vTo: ["{to}：助理", "{to}: Assistant"], vStop: ["停止这一{turn}", "Stop this {turn}"],
     h4After: ["定下来后改 GLOSSARY；文案替换在第 10 批实现里做。", "Once picked, GLOSSARY changes; replacing the strings happens in the batch-10 build."],
-    studioNote: ["创作台：统筹 11-04 第 3 条写「另加明确的『打断并改向』按钮」；需求 §4 允许按钮或菜单。选 A、B 时创作台和别处一样用菜单或三选一，选 C 时各入口都有这个按钮。", "Plugin Studio: decision 3 of 11-04 says “an explicit Interrupt and redirect button”; requirement §4 allows a button or a menu. With A or B the Studio uses the menu or switch like everywhere else; with C every entry gets the button."],
+    studioNote: ["创作台：统筹 11-04 第 3 条写「另加明确的『打断并改向』按钮」；需求 §4 允许按钮或菜单。用户 2026-11-04 定：创作台和别处一样走 ▾ 菜单。", "Plugin Studio: decision 3 of 11-04 says “an explicit Interrupt and redirect button”; requirement §4 allows a button or a menu. Decided 2026-11-04: the Studio uses the ▾ menu like everywhere else."],
     imNote: ["项目讨论是对人说话：没有送达菜单和停止，其余（键位、草稿、附件、发给谁）一样。", "Project discussion talks to people: no delivery menu and no Stop; keys, drafts, attachments and the receiver line are the same."],
     longText: ["第一节先讲这次改了什么：输入框统一成一个，回车换行，⌘↵ 发送。\n第二节讲运行中的三种送法，各配一个例子。\n第三节列出还没定的：发给谁那一行放在哪、状态写在哪。\n第四节是迁移说明：哪些入口改了键位，第一次会有提示。\n第五节是 FAQ。\n第六节附上截图。\n第七节写验收怎么做。\n第八节留给评论。", "Section 1: what changed — one input everywhere, Enter adds a line, ⌘↵ sends.\nSection 2: the three ways to send while running, one example each.\nSection 3: what is still open — where the receiver line sits, where status goes.\nSection 4: migration — which entries changed keys; a notice comes once.\nSection 5: FAQ.\nSection 6: screenshots.\nSection 7: how acceptance works.\nSection 8: room for comments."],
   };

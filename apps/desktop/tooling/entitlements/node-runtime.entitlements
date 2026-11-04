@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- 内嵌的 Node（runtime/node）。公证要求 hardened runtime，开了之后 V8 要这两项才起得来：
+       没有它们，ad-hoc 和 Developer ID 签出来的 node 都在启动时报
+       "Failed to reserve virtual memory for CodeRange" 退出（2026-11-04 本机实测）。 -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!-- 与 Node 官方清单一致：插件可以带自己的预编译原生模块，它们不是本 Team 签的，
+       不放开库校验就加载不了。本包自带的原生模块由 sign-macos-runtime.mjs 重签。
+       官方清单里的 get-task-allow 故意不带：带了公证直接拒。 -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

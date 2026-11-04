@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Tauri 构建时把这份合并进 Molis Work.app 的 Info.plist。系统第一次请求控制别的 App 时显示这句。 -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Molis Work 用快捷键收集材料时，需要读取浏览器当前标签页的地址和标题，以及 Finder 里选中的文件。</string>
+</dict>
+</plist>

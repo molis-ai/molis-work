@@ -18,7 +18,7 @@ pnpm desktop:start:macos    # 启动已安装 App
 
 自动化或验收时可设置 `MOLIS_WORK_SKIP_OPEN=1`，只安装、不立即打开窗口；也可以用 `MOLIS_WORK_APP_DIR` 指定其他用户级安装目录。
 
-构建脚本下载固定的 Node LTS，并使用 Node 官方 `SHASUMS256.txt` 校验后再生成 payload。Apple Silicon 与 Intel 分别构建，不能把两个架构的 native addon 混成一个伪 universal 包。未显式提供 `APPLE_SIGNING_IDENTITY` 时，脚本固定使用 `-`（内部 ad-hoc），避免 Tauri 自动选择本机其他开发证书；指定身份则原样保留。产物通过 codesign 完整性验证后，输出实际签名信息。签名完整不代表 Apple 公证或 Gatekeeper 放行；脚本不会替用户删除 quarantine 标记。
+构建脚本下载固定的 Node LTS，并使用 Node 官方 `SHASUMS256.txt` 校验后再生成 payload。Apple Silicon 与 Intel 分别构建，不能把两个架构的 native addon 混成一个伪 universal 包。未显式提供 `APPLE_SIGNING_IDENTITY` 时，脚本固定使用 `-`（内部 ad-hoc），避免 Tauri 自动选择本机其他开发证书；指定身份则原样保留。Tauri 只签 App 的标准位置，内嵌运行时（`Contents/Resources/molis-work-runtime`：Node、原生插件、`spawn-helper`、素材工具和电脑助手）由 `apps/desktop/tooling/sign-macos-runtime.mjs` 在打包前用同一身份逐个重签：每个 Mach-O 都开 hardened runtime，Node 带 [`node-runtime.entitlements`](../apps/desktop/tooling/entitlements/node-runtime.entitlements)，助手 App 按 bundle 整体签。macOS 对 ad-hoc 签名同样执行 hardened runtime，所以本机构建和发行包走同一套签法。打包后 `verify-macos-signatures.mjs` 逐个检查签名有效、hardened runtime、没有 `get-task-allow`；给了 Developer ID 身份时还查证书、时间戳和 Team ID 一致，再公证并装订 DMG、用 `spctl` 评估。给了签名身份却没有公证凭据时，脚本在构建前就停下。本机 ad-hoc 构建只证明签名完整，不代表 Apple 公证或 Gatekeeper 放行；脚本不会替用户删除 quarantine 标记。个人账号的签名与公证步骤见 [docs/releases/APPLE-INDIVIDUAL-ACCOUNT.md](releases/APPLE-INDIVIDUAL-ACCOUNT.md)。
 
 当前 [发布 workflow](../.github/workflows/release-macos.yml) 仅手动触发，自动 tag 触发已暂停。恢复自动 `v*` 发布前需要另行修改触发器，并配置完整 Apple Secrets；既有公开发布条件要求 Developer ID 签名与 Apple 公证。此重组不修改触发器、不上传发行物，也不把内部验证产物视为公开可发布版本。
 

@@ -10,16 +10,13 @@
   <link rel="stylesheet" href="../_catalog/dist/arrival.css" id="css-arrival">
   <link rel="stylesheet" href="../_catalog/dist/settings.css" id="css-settings" disabled>
   <link rel="stylesheet" href="../_catalog/prototype.css?v=3">
-  <link rel="stylesheet" href="proto.css?v=4">
+  <link rel="stylesheet" href="proto.css?v=9">
 </head>
 <body class="arrival-page immersive-workbench proto-on">
   <script src="../_catalog/dist/sprite.js"></script>
   <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
     <b id="p-title"></b>
-    <label><span id="p-scheme"></span>
-      <span class="mw-toggle-group" data-slot="toggle-group" role="group" id="scheme"><button type="button" class="mw-toggle" data-scheme="A">A</button><button type="button" class="mw-toggle" data-scheme="B">B</button><button type="button" class="mw-toggle" data-scheme="C">C</button></span>
-    </label>
-    <span id="p-scheme-name"></span>
+    <span id="p-scheme"></span>
     <label><span id="p-topic"></span><select class="mw-select" data-slot="select" id="topic"></select></label>
     <label><span id="p-state"></span><select class="mw-select" data-slot="select" id="state"></select></label>
     <label><span id="p-lang"></span>
@@ -31,8 +28,9 @@
     <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
   </div>
   <div id="app"></div>
+  <dialog class="mw-drawer mw-drawer--right rs-drawer" data-slot="drawer" aria-labelledby="drawer-title" id="drawer"></dialog>
   <script src="../_catalog/dist/foundation.js"></script>
   <script src="../_catalog/parts.js?v=2"></script>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

@@ -56,7 +56,7 @@ svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:
 .lead{display:flex;align-items:center;gap:6px;flex:none}
 .lead:empty{display:none}
 .tw{position:relative;display:flex;flex:none}
-.tw.rt{flex:0 1 172px;min-width:112px;contain:inline-size}
+.tw.rt{flex:0 1 172px;min-width:96px;contain:inline-size} /* shrink like Chrome before the strip scrolls (DESIGN allows 72px) */
 .tw.rt>.tab{width:100%}
 /* The current tab keeps its full width so its title stays readable when the strip is crowded. */
 .tw.rt:has(>.tab[aria-selected=true]){flex:0 0 172px}

@@ -69,6 +69,8 @@
       if (st === "fail") { m.push(head("receipts", { flag: "fail" })); cur = "h-receipts"; }
       panes = [pane("m1", false, m, cur, launch), pane("s", true, side, sideCur)];
       if (st === "removed") panes[0].groups["p:feed"].off = true;
+      // A person's group folds to its label, as Chrome does, so the day's plugins fit beside the side.
+      if (panes[0].groups["m:launch"]) panes[0].groups["m:launch"].collapsed = true;
       if (sc === "solo") { solo = "m1"; }
     }
     return { panes, sideOpen, solo, focus, undo: st === "undo" ? { plug: "feed", tabs: [head("feed"), rec("feed", "feed2"), rec("feed", "feed3")] } : null, ring: st === "locate" ? "r-goal1" : null, pressed: st === "locate" ? "goals" : null };
@@ -178,7 +180,7 @@
     if (compact()) return "";
     const side = paneById("s"), shown = visiblePanes().includes(side);
     const rail = side && !shown ? `<span class="rail" role="tablist" aria-label="${esc(t("winSide"))}">${side.tabs.map((x) => tabEl(side, x, { head: x.kind === "plugin", icon: true, noClose: true }).replace(/data-act="(head|tab)"/, 'data-act="rail"').replace('aria-selected="true"', 'aria-selected="false"')).join("")}</span>` : "";
-    return `${rail}<span class="wintools"><span class="tdiv" aria-hidden="true"></span><button type="button" data-act="pane-menu" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(t("panes"))}" title="${esc(t("panes"))}">${ic("columns")}</button><button type="button" data-act="side-toggle" aria-pressed="${WS.sideOpen}" aria-label="${esc(WS.sideOpen ? t("hideSide") : t("showSide"))}" title="${esc(WS.sideOpen ? t("hideSide") : t("showSide"))} ⌘\\">${ic("sidebar")}</button></span>`;
+    return `${rail}<span class="wintools"><span class="tdiv" aria-hidden="true"></span><button type="button" data-act="pane-menu" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(t("panes"))}" title="${esc(t("panes"))}">${ic("columns")}</button></span>`;
   }
   function strip(p, first, last) {
     const vis = visiblePanes();
@@ -194,7 +196,9 @@
     const personal = first && S.home === "2" && !compact() ? personalTray() : "";
     const status = personal ? `<span class="tbstatus">${personal}</span>` : "";
     // Pane settings live once, in the bar; the strip keeps only what opens into this pane.
-    const tools = `<span class="tools">${more}<button type="button" data-act="plus" data-p="${p.id}" aria-label="${esc(t("open"))}" title="${esc(t("open"))}" aria-haspopup="menu">${ic("plus")}</button></span>`;
+    // The side opens from its own icons (and 「在旁边打开」 in the main ＋ menu), so its strip has no ＋.
+    const plus = p.side ? "" : `<button type="button" data-act="plus" data-p="${p.id}" aria-label="${esc(t("open"))}" title="${esc(t("open"))}" aria-haspopup="menu">${ic("plus")}</button>`;
+    const tools = `<span class="tools">${more}${plus}</span>`;
     return `<div class="strip${isFocus ? " focus" : ""}${p.side ? " side" : ""}" data-p="${p.id}">${hist}${winsel}<div class="lead">${lead}</div><div class="tabs" role="tablist" aria-label="${esc(where(p))}">${parts.body}</div>${undo}${solo}${tools}${status}${last ? railAndTools() : ""}</div>`;
   }
   function personalTray() {
@@ -251,13 +255,16 @@
     const mains = vis;
     // The switcher is its glyph alone: the strip above already names what each pane shows.
     const now = mains.map((p) => { const x = curTab(p); return x.kind === "home" ? t("projectHome") : pname(x.plug); }).join(" · ");
-    const pins = ["goals", "pages", "coding", "feed", ...(S.home === "1" && (S.scene === "personal" || S.state === "fail") ? ["timer"] : [])];
-    const dock = (plug) => `<button type="button" class="dock${WS.pressed === plug ? " pressed" : ""}" data-act="dock" data-plug="${plug}" aria-label="${esc(pname(plug))}" title="${esc(pname(plug))}"${fp === plug ? ' aria-current="page"' : ""}>${ic(P[plug].icon)}</button>`;
+    const pins = ["goals", "pages", "coding", "feed"];
+    // Zoning 1: the person's own things sit at the right of the bar, before the project.
+    const mine = S.home === "1" ? ["jelly", "todo", "cognia", ...(S.scene === "personal" || S.state === "fail" ? ["timer"] : []), ...(S.state === "fail" ? ["receipts"] : [])] : [];
+    const dock = (plug) => `<button type="button" class="dock${WS.pressed === plug ? " pressed" : ""}" data-act="dock" data-plug="${plug}" aria-label="${esc(pname(plug))}" title="${esc(pname(plug))}${P[plug].keys ? " " + P[plug].keys : ""}"${fp === plug ? ' aria-current="page"' : ""}>${ic(P[plug].icon)}${plug === "receipts" ? '<span class="warn" aria-hidden="true"></span>' : ""}</button>`;
+    const mineTray = mine.length ? `<div class="tray mine" role="group" aria-label="${esc(t("personalTray"))}">${compact() ? dock(mine.includes(fp) ? fp : mine[0]) + `<button type="button" class="dock fold" aria-label="+${mine.length - 1}">+${mine.length - 1}</button>` : mine.map(dock).join("")}</div>` : "";
     return `<div class="bar">
       <div class="tray"><button type="button" class="dock switcher" data-act="switcher" aria-haspopup="menu" aria-expanded="false" aria-label="${esc((S.lang === "zh" ? "切换插件 · 现在：" : "Switch plugin · now: ") + now)}" title="${esc(S.lang === "zh" ? "切换插件" : "Switch plugin")} ⌘K">${ic("grid")}</button><span class="bdiv" aria-hidden="true"></span>
         <button type="button" class="dock" data-act="dock" data-plug="home" aria-label="${esc(t("projectHome"))}" title="${esc(t("projectHome"))}"${fp === "home" ? ' aria-current="page"' : ""}>${ic("home")}</button>${compact() ? `<button type="button" class="dock fold" aria-label="+${pins.length}">+${pins.length}</button>` : pins.map(dock).join("")}</div>
       <div class="composer"><span class="ph">${esc(t("composer"))}</span><button type="button" class="send" aria-label="${esc(t("send"))}">${ic("send")}</button></div>
-      <button type="button" class="mono" aria-label="${esc(t("project"))}" title="${esc(t("project"))}">${S.lang === "zh" ? "网" : "W"}</button>
+      ${mineTray}<button type="button" class="mono" aria-label="${esc(t("project"))}" title="${esc(t("project"))}">${S.lang === "zh" ? "网" : "W"}</button>
     </div>`;
   }
 

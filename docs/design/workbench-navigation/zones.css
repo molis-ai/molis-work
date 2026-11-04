@@ -1,0 +1,53 @@
+/* Zoning comparison (batch 07-1). Builds on shell.css; only what that sheet does not have. */
+
+.zones .leadsep,.zones .tdiv{width:1px;height:16px;background:var(--line-strong);flex:none;margin:0 4px}
+.zones .bdiv{width:1px;height:22px;background:color-mix(in srgb,var(--ink) 12%,transparent);flex:none;margin:0 4px}
+.zones .tools.wtools{margin-left:0}
+
+/* Companions: icon tabs, right-aligned; one widens in place after a short pause. */
+.zones .rail{display:flex;align-items:center;gap:2px;flex:none;margin-left:auto}
+.zones .strip.main .tools+.rail{margin-left:auto}
+.zones .strip.railstrip{justify-content:flex-end}
+.zones .rail .ctab{position:relative;width:auto;max-width:30px;padding:0 8px;gap:6px;justify-content:flex-start;overflow:visible}
+.zones .rail .ctab>span.t{display:none}
+.zones .rail .ctab.grow{max-width:200px;padding:0 10px 0 8px}
+.zones .rail .ctab.grow>span.t{display:inline;white-space:nowrap;animation:z-fade var(--dur-hover) var(--ease-quint)}
+@keyframes z-fade{from{opacity:0}to{opacity:1}}
+
+/* A count for unfinished background work: progress, so the accent. */
+.zones .zbadge{position:absolute;top:-3px;right:-4px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--accent);color:var(--paper);
+  font:600 11px/14px var(--font);text-align:center;font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--desk)}
+.zones .dock .zbadge{top:4px;right:3px;box-shadow:0 0 0 2px var(--control-fill)}
+.zones .rail .ctab.grow .zbadge{position:static;box-shadow:none;margin-left:2px}
+
+/* Plan 1: the switcher is a glyph; the tab above already names where you are. */
+.zones .switcher.sw-glyph{width:38px;padding:0;justify-content:center}
+.zones .switcher svg{width:18px;height:18px}
+.zones .switcher .chip svg{width:14px;height:14px}
+
+/* ---------- Prototype annotations: dashed accent boxes and numbered chips, never product chrome ---------- */
+.zlayer{position:fixed;inset:0;pointer-events:none;z-index:65}
+.zbox{position:absolute;border:1.5px dashed color-mix(in srgb,var(--accent) 75%,transparent);border-radius:12px}
+.zchip{position:absolute;display:flex;align-items:center;gap:5px;height:20px;padding:0 8px 0 3px;border-radius:10px;background:var(--accent);color:var(--paper);
+  font:600 11px/1 var(--font);white-space:nowrap;box-shadow:var(--lift-1)}
+.zn{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;background:var(--paper);color:var(--accent);font:700 11px/1 var(--font);flex:none}
+.explain .zlist{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:5px}
+.explain .zlist li{display:flex;gap:7px;align-items:flex-start}
+.explain .zlist .zn{background:var(--accent);color:var(--paper);margin-top:2px}
+.explain .zlist b{color:var(--ink);font-weight:500}
+.explain dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:9px 0 0;padding-top:8px;box-shadow:inset 0 1px 0 var(--line)}
+.explain dt{color:var(--muted);font-weight:500}
+.explain dd{margin:0}
+.zones .explain{max-width:min(380px,calc(100vw - 32px))}
+
+@media (max-width:760px){
+  .zones .rail .ctab{min-width:44px;max-width:44px;height:44px;padding:0 14px}
+  .zones .rail .ctab.grow{max-width:220px}
+  .zones .strip.railstrip{justify-content:flex-start}
+  .zones .strip.railstrip .rail{margin-left:4px}
+  .zones .bdiv{display:none}
+  .zones .grp .tab.head{min-width:44px;width:44px;padding:0;justify-content:center}
+  .zones .grp .tab.head>span.t{display:none}
+  .zones .switcher.sw-glyph{width:44px}
+  .zones .explain{bottom:128px;max-height:46vh;overflow:auto}
+}

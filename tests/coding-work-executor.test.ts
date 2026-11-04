@@ -109,6 +109,8 @@ test("W5-01-CODING-71..76 the roles open, read and set a Coding session the page
   }
 });
 
+// Covers only the executor's default directory part of CHO-37; telling the two directories apart on the page, "back to the work
+// directory", and real reads and writes in A with B untouched come with the input/output directories (batches 05②, 06, 07).
 test("CHO-37 batch 12 item 1: a folder picked for browsing does not move where the Assistant's rounds run", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "coding-executor-dir-"));
   const browse = await mkdtemp(join(tmpdir(), "coding-executor-browse-"));

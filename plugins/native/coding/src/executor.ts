@@ -48,7 +48,7 @@ async function settings(call: CodingActionCall, own: Settings | null, mode?: str
   if (own) return mode === undefined ? own : { ...own, intent: mode };
   const model = call.execution.models.list()[0], workspace = await currentWorkspace(call.api);
   if (!model) throw executorErrors.executor_unprepared("Coding 还没有可用的模型，先在模型设置里添加");
-  if (!workspace) throw executorErrors.executor_unprepared("Coding 需要先为这个项目选择工作目录：在项目设置里选择，或打开 Coding 选择");
+  if (!workspace) throw executorErrors.executor_unprepared("Coding 需要先为这个项目关联工作目录：在项目设置里关联");
   return { intent: mode ?? DEFAULT_MODE, provider_id: model.provider_id, model_id: model.model_id, workspace_id: workspace.workspace_id };
 }
 /** Saved to the session itself, so the page starts its next round the same way. */

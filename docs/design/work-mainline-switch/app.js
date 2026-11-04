@@ -34,7 +34,7 @@
   };
   const KEY = "molis-proto.work-mainline-switch.v1";
   const clone = (x) => JSON.parse(JSON.stringify(x));
-  const fresh = () => ({ scheme: "A", lang: "zh", theme: "light", fault: "none", current: null, prev: null, items: clone(D.items), groups: clone(D.groups), mainTab: {}, sideTab: "things", sideOpen: true, scopeOff: {}, recent: clone(D.recent), openGroups: [] });
+  const fresh = () => ({ scheme: "C", lang: "zh", theme: "light", fault: "none", current: null, prev: null, items: clone(D.items), groups: clone(D.groups), mainTab: {}, sideTab: "things", sideOpen: true, scopeOff: {}, recent: clone(D.recent), openGroups: [] });
   let S = load();
   function load() { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* storage may be unavailable */ } }

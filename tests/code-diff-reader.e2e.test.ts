@@ -108,10 +108,13 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
   // 复制补丁 copies the patch the reader was given, whole, and says so on the button; a refused clipboard says that instead.
   const copyPatch = `${reader}.querySelector('[data-coding-change-patch]')`;
   assert.equal(await evaluate(`${copyPatch}.disabled`), false, "a change on show has a patch to copy");
-  await evaluate(`(() => { window.copied = []; navigator.clipboard.writeText = (text) => { copied.push(text); return Promise.resolve(); }; ${copyPatch}.click(); })()`);
-  await waitFor(`copied.length === 1 && ${copyPatch}.textContent.includes('已复制补丁')`, 5_000);
+  await evaluate(`(() => { window.copied = []; navigator.clipboard.writeText = (text) => { copied.push(text); return new Promise(resolve => { window.acceptCopy = resolve; }); }; ${copyPatch}.click(); })()`);
+  await waitFor(`copied.length === 1 && ${copyPatch}.getAttribute('aria-busy') === 'true'`, 5_000);
+  assert.equal(await evaluate(`${copyPatch}.hasAttribute('data-copy')`), false, "pending clipboard has not reported success");
+  await evaluate("window.acceptCopy()");
+  await waitFor(`${copyPatch}.dataset.copy === 'done' && !${copyPatch}.hasAttribute('aria-busy') && ${copyPatch}.querySelector('[data-copy-face=done]').textContent === '已复制补丁'`, 5_000);
   assert.equal(await evaluate<string>("copied[0]"), patch, "the whole patch, not the coloured rows");
   assert.deepEqual(patch.match(/^@@ .* @@$/gm), ["@@ -10002,7 +10002,8 @@", "@@ -10017,7 +10018,7 @@"], "a hunk for each change, three lines around it");
   await evaluate(`(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); ${copyPatch}.click(); })()`);
-  await waitFor(`${copyPatch}.textContent.includes('复制失败')`, 5_000);
+  await waitFor(`${copyPatch}.dataset.copy === 'failed' && !${copyPatch}.hasAttribute('aria-busy') && ${copyPatch}.querySelector('[data-copy-face=failed]').textContent === '复制失败'`, 5_000);
 });

@@ -34,14 +34,14 @@ export function assistantCodeHtml(code: string, hint: string, ports: AssistantTe
   const text = String(code || "");
   const guessed = /^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : /^(@@|\+\+\+|---) /m.test(text) ? "diff" : "";
   const resolved = ports.language(hint || "");
-  const language = (typeof resolved === "string" ? resolved : "") || guessed, lines = text.split("\n").length;
+  const language = (typeof resolved === "string" ? resolved : "") || guessed, lines = text.split(/\r\n|[\r\n]/).length;
   // A block past a slice goes out as its text and the map of its pieces; the page colours it a slice a frame (assistantPaintMap).
   const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 ? assistantPaintMap(pieces) : "";
   const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("") : assistantEscape(text);
   const say = (value: string) => assistantEscape(ports.say(value));
   // The count fills the translated words, so an English count agrees with its number ("1 line", "22 lines"), not just the first {n}.
   const count = (value: string) => assistantEscape(fillMessage(ports.say(value), { n: lines }));
-  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${count("{n} 行")}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("展开全部 {n} 行")}</button>` : ""}</figure>`;
+  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text).replace(/\r/g, "&#13;")}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${count("{n} 行")}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body.replace(/\r/g, "&#13;")}${/[\r\n]$/.test(text) ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("展开全部 {n} 行")}</button>` : ""}</figure>`;
 }
 
 const BT = String.fromCharCode(96);

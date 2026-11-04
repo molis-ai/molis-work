@@ -7,11 +7,11 @@ import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 
 test("PAS-15: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
   const pageTitle = "代码验证文档";
-  // VUX-33: an indented first line and a blank last line are part of the code, shown and copied as written.
-  const code = "  // 首行缩进\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
+  // VUX-33: indentation, mixed line endings, list-like patch lines and a shorter fence are literal code.
+  const code = "  // 首行缩进\r\n-old\n- item\n~~~\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
-    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, `「${pageTitle}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n\`\`\`ts\n${code}\n\`\`\``); },
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, `「${pageTitle}」\n\n<img src=x onerror="window.injected=1"> [不能执行](javascript:alert)\n\n~~~~ts\n${code}\n~~~~`); },
   }); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "pages");
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;

@@ -70,6 +70,19 @@ export function assistantInlineHtml(text: string, ports: AssistantTextPorts): st
 }
 
 export const ASSISTANT_LIST_ITEM = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
+
+/** Accept a missing bullet space next to another list item, only when reading prose. */
+export function assistantListLine(lines: string[], index: number): string {
+  const line = lines[index]!;
+  const loose = /^(\s*)([-•])([^\s\-•].*)$/.exec(line);
+  if (loose) {
+    const neighbor = new RegExp("^\\s*\\" + loose[2] + "\\s+\\S");
+    if ([lines[index - 1], lines[index + 1]].some(value => value !== undefined && neighbor.test(value))) {
+      lines[index] = loose[1]! + loose[2]! + " " + loose[3];
+    }
+  }
+  return lines[index]!;
+}
 interface ListItem { task: string | null; parts: Array<string | List>; }
 interface List { ordered: boolean; start: number; items: ListItem[]; }
 const listHtml = (list: List): string => {
@@ -82,8 +95,8 @@ export function assistantListHtml(lines: string[], start: number, ports: Assista
   const roots: List[] = [], stack: Array<{ indent: number; list: List }> = [];
   let index = start, lastItem: ListItem | null = null;
   while (index < lines.length) {
-    const line = lines[index]!;
-    if (!line.trim()) { if (index + 1 < lines.length && ASSISTANT_LIST_ITEM.test(lines[index + 1]!)) { index += 1; continue; } break; }
+    const line = assistantListLine(lines, index);
+    if (!line.trim()) { if (index + 1 < lines.length && ASSISTANT_LIST_ITEM.test(assistantListLine(lines, index + 1))) { index += 1; continue; } break; }
     const match = ASSISTANT_LIST_ITEM.exec(line);
     if (!match) {
       if (lastItem && /^\s{2,}\S/.test(line)) { lastItem.parts.push("<br>" + assistantInlineHtml(line.trim(), ports)); index += 1; continue; }

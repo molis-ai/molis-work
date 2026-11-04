@@ -1,33 +1,20 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>基础首页定样 · Molis Work 原型</title>
-  <link rel="stylesheet" href="../workbench-shared-paths/styles.css?v=3">
-  <link rel="stylesheet" href="../intelligent-surfaces-forms/forms.css?v=5">
-  <link rel="stylesheet" href="../assistant-background-tasks/tasks.css?v=3">
-  <link rel="stylesheet" href="home.css?v=5">
+  <!-- The component board's own stylesheet and parts (the shared kit, ../kit/), then this prototype's layout layer. -->
+  <link rel="stylesheet" href="../kit/kit.css?v=1">
+  <link rel="stylesheet" href="home.css?v=8">
+  <script src="../kit/kit.js?v=1"></script>
 </head>
 <body>
-  <div id="icons"></div>
-  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
-    <b data-t="protoTitle"></b>
-    <label><span data-t="scheme"></span>
-      <span class="seg" id="scheme"><button type="button" data-scheme="A">A</button><button type="button" data-scheme="B">B</button><button type="button" data-scheme="C">C</button></span>
-    </label>
-    <label><span data-t="fault"></span><select id="fault"></select></label>
-    <label><span data-t="lang"></span>
-      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
-    </label>
-    <label><span data-t="theme"></span>
-      <span class="seg" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
-    </label>
-    <button type="button" class="btn sm sec" id="reset" data-t="reset"></button>
-  </div>
-  <main class="shell" id="app"></main>
-  <script src="../workbench-shared-paths/icons.js"></script>
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）" id="proto"></div>
+  <main class="desk" id="app"></main>
+  <div class="toast-slot" id="toast" aria-live="polite"></div>
   <script src="data.js?v=1"></script>
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

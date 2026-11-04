@@ -163,7 +163,7 @@ interface SkillResourceDeclaration {
 
 后三项取自 `CHARACTER_IMPORT_LIMITS`。
 
-**校验**：`inspectSkillDeclarations` 扩成同时查以下各项，满足 SKP-08。坏包整包拒绝，不部分安装。
+**校验**：`inspectSkillDeclarations` 扩成同时查以下各项，满足 SKP-08。坏包整包拒绝，不部分安装。每条拒绝原因都指到具体的 Skill 和文件：错误 `plugin.declaration_invalid` 带 `problems: Array<{ skill_id?: string; path?: string; reason: string }>`，例如 `{ skill_id: "meeting-notes", path: "skills/meeting-notes/SKILL.md", reason: "包里找不到" }`，界面照原样列出。
 
 - 重复的 `skill_id`；
 - 正文缺失或超长；
@@ -208,10 +208,12 @@ interface SkillInstallPreview {
   runs_scripts: boolean;                    // 有 role=script 的资源；界面单独标「会执行」
   connector_categories: string[];
   excerpt: string;                          // 正文前 200 个码点
-  change?: "added" | "body_changed" | "resources_changed" | "removed";  // 只在升级时给
-  kept_state?: "auto" | "manual";          // 只在升级时给：这一项现在的启用状态，升级后照留（界面标「仅手动会保留」）
+  change?: "added" | "body_changed" | "resources_changed" | "removed";  // 只在升级时给；removed 的项照旧给 name、applies_to（取已装版本的）
+  state: "off" | "auto" | "manual";        // 这一项在本范围现在的状态：新装与新增的是 off，升级时沿用（界面只对 manual 标「仅手动会保留」）
 }
 ```
+
+确认后的「在这个项目里用哪些」一步（E 轨定样，用户 2026-11-04 定）读的就是这里的 `state`，之后每项一次 `skills.settings.set@1`；「以后再说」不调任何动作。
 
 预览还另外给：
 
@@ -239,7 +241,7 @@ interface SkillInstallPreview {
 
 | 动作 | 输入 | 输出 |
 | --- | --- | --- |
-| `skills.import.preview@1` | `{ source: { kind: "runtime"; runtime_id } \| { kind: "project_directory"; directory_id } }` | `preview_id`；拟定的包身份（`plugin_id` 由来源种类和来源根目录确定地算出，同一来源再导入就是升级）；候选 Skill 列表，每项给名称、`description`、文件数、大小、`compatibility`（`portable` 或 `native-only` 加原因）、`runs_scripts`、与已装版本的差异 |
+| `skills.import.preview@1` | `{ source: { kind: "runtime"; runtime_id } \| { kind: "project_directory"; directory_id } }` | `preview_id`；拟定的包身份（`plugin_id` 由来源种类和来源根目录确定地算出，同一来源再导入就是升级）；候选 Skill 列表，每项给 `name`、`description`、`file_count`、`bytes`、`compatibility`（`portable` 或 `native-only` 加 `reason`）、`runs_scripts`、`change`（`new`，或同名已装时 `upgrade`：会升级成新版本） |
 | `skills.import.confirm@1` | `{ preview_id; skill_ids: string[]; scope: "project" \| "home" }`，同样不带启用参数 | 与 `plugins.install.confirm` 相同 |
 
 **规则**：
@@ -280,7 +282,7 @@ CREATE TABLE skill_settings (
 );
 ```
 
-**动作**：`skills.settings.set@1`，只给本人。输入 `{ scope, install_id, skill_id, state: "off" | "auto" | "manual", expected_revision }`，冲突时拒绝；改成 `off` 就删行。项目、操作者从上下文来。
+**动作**：`skills.settings.set@1`，只给本人。输入 `{ scope, install_id, skill_id, state: "off" | "auto" | "manual", expected_revision }`，冲突时拒绝；改成 `off` 就删行。项目、操作者从上下文来。不可用原因是 `plugin_disabled`、`publisher_revoked`、`resource_invalid` 时拒绝改状态（界面三档变灰）；`requires_unmet`、`connection_missing`、`native_only` 时照常可改。
 
 **保留规则（SKP-10）**：
 
@@ -311,7 +313,9 @@ interface SkillCatalogEntry {
   user_invocable: boolean; argument_hint?: string; tools: string[];
   resources: Array<{ path: string; role: "reference" | "script" | "asset"; bytes: number }>;
   connector_categories: string[];
-  pack: { plugin_id: string; title: string; version: string; trust: "host" | "pinned" | "home_local"; scope: "project" | "home" };
+  runs_scripts: boolean;                  // 有 role=script 的资源
+  excerpt: string;                        // 正文前 200 个码点，省得详情页为开头再读一次正文
+  pack: { plugin_id: string; title: string; version: string; publisher_label: string; trust: "host" | "pinned" | "home_local"; scope: "project" | "home" };
   state: "off" | "auto" | "manual"; settings_revision: number;
   enabled?: { at: string; by: string; scope: "project" | "home" };   // 只在启用时给，供界面回显启用的范围
   availability: { available: true } | { available: false; reason: SkillUnavailableReason; detail?: string };
@@ -358,15 +362,17 @@ interface SkillCatalogEntry {
 
 ## 10. 呈现（请 D 轨看）
 
-界面由 E 轨定样，这里只列合同给什么、按组件板对应哪个控件，供 D 轨核对：
+界面由 E 轨定样（用户 2026-11-04 定：A 的启用步骤加 C 的目录；原型在 `docs/design/skill-packs/`，分支 `claude/e-track-08-skill-pack-design`）。这里只列合同给什么、按组件板对应哪个控件，供 D 轨核对：
 
 | 位置 | 合同给的 | 组件板控件 |
 | --- | --- | --- |
-| 管理页的一行 | `name`、`pack.title`、`version`、`state`、`enabled`、`applies_to`、`availability`、`last_used` | `mw-item`；状态用 `mw-tag`；不可用的写 `reason` 对应的一句话 |
-| 状态切换 | `off` / `auto` / `manual` 三选一 | 现有分段选择 |
-| 正文与资源预览 | `skills.body.read` 的正文、资源清单 | `renderPreviewCard`；窄屏用 `renderSheet` |
-| 安装预览的一项 | 第 5 节的 `SkillInstallPreview` | `mw-item` 加展开；「会执行」「仅手动会保留」用 `mw-tag` |
-| 导入的候选 | 第 6 节的候选列表 | 同上；`native-only` 写原因 |
+| 安装与导入的确认 | 只看不选：`scope`、包版本、签名者；每项 `SkillInstallPreview`（升级时 `change`、`state`）；坏包时逐条 `problems` | `mw-item` 加展开；「会执行」「仅手动会保留」用 `mw-tag` |
+| 确认后的启用步骤 | 每项 `state`，三档默认关；每项一次 `skills.settings.set@1`；「以后再说」不调动作 | 现有分段选择 |
+| 目录左边的列表行 | `name`、`pack.title`、`state`、`availability` | `mw-item`；状态用 `mw-tag` |
+| 目录右边的详情 | `description`、`when_to_use`、`when_not_to_use`、`applies_to`、`tools`、`resources`、`runs_scripts`、`connector_categories`、`last_used`、`pack`（版本、`publisher_label`、`trust`、`scope`）、`excerpt` | `renderPreviewCard`；窄屏用 `renderSheet` |
+| 目录筛选 | 在用＝`state ≠ off` 且可用；没启用＝`off` 且可用；用不了＝不可用 | 由界面按目录项算，合同不另加字段 |
+| 不可用 | 第 8 节的原因码；`plugin_disabled` 时显示「设置保留为」当前 `state` | 文案在原型 README 的表里 |
+| 导入的候选 | 第 6 节的候选列表 | 同安装确认；`native-only` 写原因 |
 
 现在没有要「组件板新增」的。E 轨定样后若要新的控件，按 #1772 标出，由 D 轨补标本。
 

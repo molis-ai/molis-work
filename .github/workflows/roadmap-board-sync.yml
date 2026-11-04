@@ -32,7 +32,7 @@ jobs:
       # Changing the script means changing this hash, which goes through a PR.
       - uses: actions/checkout@v6
         with:
-          ref: cf1eb05a625bf8199c2628e0df2007934de5f300
+          ref: db6a671053776b808bae3f28fa3cfa713cfd5d6b
           path: pages
           persist-credentials: false
       - uses: actions/checkout@v6

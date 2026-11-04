@@ -1,0 +1,79 @@
+/* Basic home prototype (batch 15). Builds on ../workbench-shared-paths/styles.css, the decided forms in
+   ../intelligent-surfaces-forms/forms.css (option B, plugin first) and the shell in ../assistant-background-tasks/tasks.css.
+   Not production CSS. */
+:root{--h-pages:#9a6b2f;--h-todo:#4f7a3a;--h-feed:#a4506a}
+:root[data-theme=dark]{--h-pages:#d8b07a;--h-todo:#9fcb86;--h-feed:#e29ab0}
+.shell{grid-template-rows:auto minmax(0,1fr)}
+.pathbar{display:flex;align-items:baseline;gap:10px;padding:0 4px;min-width:0}
+.pathbar b{font-weight:600;white-space:nowrap}.pathbar .fact{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wscroll{flex:1;min-height:0;overflow:auto}
+.row3{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* tabs */
+.tabs3{display:flex;gap:2px;padding:6px 8px 0;border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
+.tabs3 button{position:relative;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid transparent;border-bottom:0;border-radius:var(--r-control) var(--r-control) 0 0;background:transparent;color:var(--muted);font-weight:500;white-space:nowrap}
+.tabs3 button[aria-selected=true]{background:var(--paper);border-color:var(--line);color:var(--ink);margin-bottom:-1px}
+.tabs3 .own{width:18px;height:18px}.tabs3 .own .i{width:12px;height:12px}
+.tdot{width:7px;height:7px;border-radius:50%;background:var(--accent);margin-left:2px}
+/* home */
+.home{padding:22px 28px 40px;display:flex;flex-direction:column;gap:22px;max-width:1180px}
+.hhead{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.hhead h1{margin:2px 0 0;font-size:22px;font-weight:600;letter-spacing:-.02em}
+.hhead .fact{display:inline-flex;align-items:center;gap:6px}
+.upd .spin{animation:spin 1s linear infinite}
+.lede{margin:-8px 0 0;max-width:70ch;line-height:1.7;font-size:14px}
+.hsec{display:flex;flex-direction:column;gap:10px;min-width:0}
+.hsec h2{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.cntb{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--amber-soft);color:var(--amber);font-size:11px;font-weight:600}
+.rows{display:flex;flex-direction:column;gap:6px}
+.samenote{display:flex;align-items:center;gap:6px;margin:0}
+.note2{display:flex;align-items:flex-start;gap:6px;margin:0;padding:8px 10px;border-radius:var(--r-control);background:var(--soft);font-size:12px;color:var(--ink-soft);line-height:1.55}
+.note2.warn{background:var(--amber-soft);color:var(--amber)}
+.banner3{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:var(--r-card);font-size:12.5px;flex-wrap:wrap}
+.banner3.warn{background:var(--amber-soft);color:var(--ink)}.banner3.warn>.i{color:var(--amber)}
+.startbox{display:flex;flex-direction:column;gap:8px;padding:16px 18px;border:1px dashed var(--line-strong);border-radius:var(--r-card);background:var(--soft)}
+.startbox h2{margin:0;font-size:14px;font-weight:600}.startbox p{margin:0}
+/* row tweaks */
+.row2 .ttl{color:inherit;font-weight:inherit;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.row2.stale{opacity:.85}.row2.stale strong{color:var(--ink-soft)}
+.row2.flash{animation:flash 1.6s var(--ease)}
+@keyframes flash{0%{background:color-mix(in srgb,var(--accent-soft) 80%,transparent)}100%{background:transparent}}
+@media (prefers-reduced-motion:reduce){.row2.flash{animation:none;box-shadow:inset 3px 0 0 var(--accent)}.upd .spin{animation:none}}
+.tt-time{flex:none;width:40px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+/* plugin cards */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.pgrid.small{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.pcard{display:flex;flex-direction:column;min-width:0;border:1px solid var(--line);border-radius:var(--r-card);background:var(--paper);overflow:hidden}
+.pband{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;background:color-mix(in srgb,var(--hue,var(--rail)) 12%,var(--paper));border-bottom:1px solid color-mix(in srgb,var(--hue,var(--line)) 22%,var(--line))}
+.pband b{font-weight:600;white-space:nowrap}
+.pbody{display:flex;flex-direction:column;gap:8px;padding:10px 12px 12px;flex:1}
+.pov{margin:0;font-size:12.5px;line-height:1.55}
+.prows{display:flex;flex-direction:column;gap:4px;margin:0 -6px}
+.prows .row2{padding-left:6px;padding-right:6px}
+.pfoot{display:flex;gap:6px;align-items:center;margin-top:auto;padding-top:2px}
+.pcard.off,.pcard.none{background:var(--soft)}.pcard.off .pband,.pcard.none .pband{background:transparent;border-bottom-color:var(--line)}
+.pcard.off .own,.pcard.none .own{filter:grayscale(1);opacity:.7}
+.pcard.compact .pbody{gap:6px}
+/* option C */
+.cgrid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+.tl{display:flex;flex-direction:column;gap:4px;border-left:1px solid var(--line);padding-left:10px}
+.plist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.pli{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:var(--r-row)}
+.pli:hover{background:var(--hover)}
+.pli .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.pli .tx .fact{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pli.off .own{filter:grayscale(1);opacity:.7}
+/* pages doc */
+.doc .caret{max-width:62ch;line-height:1.7}.cur{display:inline-block;width:1.5px;height:1.1em;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (max-width:1180px){.cgrid{grid-template-columns:minmax(0,1fr)}.home{padding:18px 20px 32px}}
+@media (max-width:760px){.home{padding:16px 14px 28px;gap:18px}.pathbar .fact{display:none}.pgrid,.pgrid.small{grid-template-columns:minmax(0,1fr)}.hhead .fact{white-space:normal}.tt-time{width:34px}}
+/* rows never wrap their tags (UI rule 2026-11-03): tags keep one line, the judgement line gives way first */
+.row2 .rt .stag,.row2 .rt .tag{white-space:nowrap;flex:none}
+.row2 .rt .judge{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;min-width:0}
+.row2 .rt{min-width:0}
+@media (max-width:1180px){.row2 .rt .judge{display:none}}
+/* tasks.css styles a bare .decide as its decision card; undo that for the state tag */
+.stag.decide{display:inline-flex;flex-direction:row;padding:0 7px;border:0;border-radius:var(--r-tag);gap:4px;background:var(--amber-soft)}
+.m-tag{display:none}.d-tag{display:contents}
+@media (max-width:760px){.m-tag{display:inline-flex;flex:none}.d-tag{display:none}.row2 .rt .tag{display:none}}
+.pgrid{align-items:start}.above{display:flex;align-items:center;gap:6px;margin:0}

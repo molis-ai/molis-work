@@ -32,6 +32,7 @@
 | <a id="policy-n3"></a>N3 · 11-03 | 安全表已有的 CI／本地证据列必须为每个测试文件注明对应测试名，缺引用时 CI 失败。 | [审查台账 N3](../../../docs/reviews/adversarial-review-2026-11-01.md)、[第 27 批](batches/27.md#batch-27-item-5) |
 | <a id="policy-n16"></a>N16 · 11-03 | 随公共截断函数接入，只检查源码中直接 `slice` 后加省略号的写法；既有数量只减不增。 | [审查台账 N16](../../../docs/reviews/adversarial-review-2026-11-01.md)、[第 06 批](batches/06.md#batch-06-item-2) |
 | <a id="policy-bl-937"></a>BL-937 · 11-03 | 重建时直接删除旧助理轮次。新库从空库开始，不迁入旧轮次，不补写 `written_by`。由 BL-928 的维护窗口执行。 | [维护待办](../../BACKLOG.md)、[第 02 批重建清理](batches/02.md#batch-02-item-3) |
+| <a id="policy-bl-943"></a>BL-943 · 11-04 | 打开多个 Goal 窗格时，宿主可合并重复的插件目录读取。每次数据库操作仍检查当前权限，每次写入前仍检查撤权。 | [第 06 批宿主调用整治](batches/06.md#batch-06-item-3)、[待办](../../BACKLOG.md) |
 | <a id="decision-1"></a>1 · 10-27 | 多输入目录、一个固定且可改输出目录，输入输出可相同；默认联动，临时查看不改执行位置；共用资料源，迁完消费者后退役 Files | [资料与目录](../../product-flow-governance/workspace-and-materials-design.md)，BL-023 |
 | <a id="decision-2"></a>2 · 10-27 | 一份平台输入组件，公共合同／SDK 扩展；Enter 换行，Command/Ctrl + Enter 发送或默认补充，Command/Ctrl + Shift + Enter 排队；打断用明确按钮／菜单，Esc 不直接停止；原回执与领域主人保留 | [统一输入](../../unified-input-voice/spec.md)，H2 |
 | <a id="decision-3"></a>3 · 10-27 | AI 判断长期保存与去处：记忆存偏好／背景／经验，项目说明存规矩，Skill 存复用做法；沿原主人、授权和可纠正回执 | [用途合同](../../prologue-memory-strategy/spec.md)，E3；Memory 原暂停未解除 |

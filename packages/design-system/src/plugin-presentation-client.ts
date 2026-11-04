@@ -59,6 +59,7 @@ export const PLUGIN_PRESENTATION_STYLES = `
 .pc-page[data-pc-composed] .pc-record.mw-dir-row-wrap{display:flex;flex-direction:column;align-items:stretch}
 .pc-page[data-pc-composed] .pc-record>.pc-row-actions{display:flex;align-self:stretch;justify-self:stretch;justify-content:flex-start;max-width:100%;padding:0 12px 12px;gap:8px}
 .pc-page[data-pc-composed] .pc-row-actions .pc-row-action{width:auto;max-width:100%;padding:4px 8px;height:auto}
+.pc-page[data-pc-composed] .pc-row-actions .pc-row-action:not(.mw-btn--icon,.mw-btn--icon-only,[data-pc-select],[data-danger]){border-color:var(--line-strong)}
 .pc-page[data-pc-composed] .pc-row-action [data-slot=button-label]{white-space:normal;overflow-wrap:anywhere}
 .pc-page[data-pc-composed] .pc-record[aria-current=true]{background:var(--nav-active)!important;box-shadow:none}
 .pc-page[data-pc-composed] .pc-node[data-header-action]{display:contents}

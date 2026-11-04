@@ -158,8 +158,9 @@ export function renderCodingDirectory(model: CodingUiModel): string {
 }
 
 /**
- * One session's row, the same row the page's live list draws over it (client.ts `renderDirectory`): its title and time, then its
- * state in words with the state ring, so the first paint already has the ring and nothing moves when the list takes over.
+ * One session's row, the same row the page's live list draws over it (client.ts `renderDirectory`): its title, its state in
+ * words with the state ring and its time on one line, so the first paint already has the ring and nothing moves when the list
+ * takes over.
  */
 export function renderCodingSessionRow(entry: CodingSessionEntry, p: CodingUiPrimitives): string {
   const mark = CODING_SESSION_MARKS[entry.state], id = p.escape(entry.session_id);

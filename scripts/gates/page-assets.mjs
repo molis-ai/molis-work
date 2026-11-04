@@ -242,21 +242,13 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
+// Personal merge, approved on 2026-11-04 against cbd019de6. Freeze only the measured growth.
+// Coding preserves concurrent drafts and saved history. Cognia checks the observed version on write.
+// Shelf uses the immutable version produced by the completed save for native copy.
 const APPROVED_CEILINGS = {
-  // Final T395/T405/T403/T406 carrier against main e4e98ed331. Reuse the reviewed builder and Git allowances;
-  // arrival +20 B preserves the selected directory's pre-paint geometry. The former workbench allowance is no longer needed.
-  // T411 adds 621 B for query presence, full results and retained drafts, reusing the existing renderer/guards.
-  // T414 adds 1100 B for real required-field feedback, read retry and acceptance-only refresh/cleanup; existing rendering is reused.
-  // The original admission is still unconsumed on main: total reviewed growth is 3993 B, final measured ceiling 122665.
-  "/assets/molis-work-plugins/plugin-builder.js": [118672, 122665],
-  "/assets/molis-work-plugins/plugin-builder.css": [19893, 19933],
-  "/assets/molis-work-plugins/git.js": [29496, 30295],
-  "/assets/molis-work-arrival.css": [678738, 678758],
-  // User-approved exact frame growth: owner-bound reads, trusted account selection, native drag and refresh identity.
-  // Existing lifecycle/authorization/projection helpers are reused; Feed/Inbox business closures leave the eager shell.
-  "/assets/molis-work-plugin-frame.js": [191017, 207977],
-  // T403 observed owner menu regression: native Escape closes Shelf More and returns focus (+307 B).
-  "/assets/molis-work-plugins/shelf.js": [64660, 64967],
+  "/assets/molis-work-plugins/coding.js": [290023, 297778],
+  "/assets/molis-work-plugins/cognia.js": [22157, 22189],
+  "/assets/molis-work-plugins/shelf.js": [64967, 65319],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

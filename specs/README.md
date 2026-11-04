@@ -41,7 +41,7 @@
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
-- [personal-cloud-sync](personal-cloud-sync/spec.md)：联网个人版同步总规格与分阶段计划；15 项决定、每账号 100 MB、删除保留 30 天已确认，新增功能待实施。
+- [personal-cloud-sync](personal-cloud-sync/spec.md)：联网个人版同步总规格，记录每账号 100 MB、删除保留 30 天的约定，以及各集合的接入与验证进度。
 - [personal-goals-sync](personal-goals-sync/spec.md)：Goal、关系、工作记录与可信决定的项目一致性同步。
 - [personal-linked-assets-sync](personal-linked-assets-sync/spec.md)：关联成果的个人空间同步。
 - [personal-pages-sync](personal-pages-sync/spec.md)：Pages 增量同步与冲突处理。
@@ -68,7 +68,7 @@
 - [prologue-tool-strategy](prologue-tool-strategy/spec.md)：Prologue Tool 的工具面、搜索、结果预算与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-mcp-strategy](prologue-mcp-strategy/spec.md)：Prologue MCP 的服务器信任、发现、健康与认证；独立需求，需求已整理，待评审后实施。
 - [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
-- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐收尾之后全部未完成需求的清单与实现路径——按依赖分五段、按文件分七条轨道；2026-10-28 前移公共资料／工作台整合、Sessions 历史接续、团队共同设计与创作台首条交付，明确采集到评测及报告的顺序、显式人审范围和长期观察并行；原轨道归属保留，防腐线收尾后执行。同目录的[需求开发流程](post-anticorruption-roadmap/development-workflow.md)（2026-11-03 用户定）写一项需求怎样分档、开工前检查、界面先定样。
+- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐后的执行目录，01～89 与服务端批每项一行；交付详情、需求来源、依赖、轨道、决策、阶段验收及历史分别放在 [reference 分类](post-anticorruption-roadmap/spec.md#reference)。[开发手册](post-anticorruption-roadmap/reference/development-workflow.md)规定每项／每片开工前先讲清具体工作。原范围、负责人和暂停边界保留，尚未启动产品实施。
 - [quiet-home-refresh](quiet-home-refresh/spec.md)：项目首页后台刷新停在当前画面上，日期条和标题没变就不重画，也不先换成「正在读取事项…」；第一次进入和点「重新读取」仍显示加载。2026-10-22，待验收。
 
 ## 现行规范

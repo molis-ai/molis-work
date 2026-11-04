@@ -1,7 +1,7 @@
 // The catalog board's control specimens: buttons, fields, forms, feedback, overlays, menus and tabs.
-import { icon, renderAlert, renderAutocomplete, renderAvatar, renderBadge, renderButton, renderCalendar, renderCheckbox, renderCheckboxGroup, renderDatePicker, renderEmpty, renderField, renderFieldset, renderForm, renderInput, renderInputGroup, renderKbd, renderLabel, renderMeter, renderNumberField, renderOtpField, renderProgress, renderRadio, renderRadioGroup, renderSelect, renderSeparator, renderSkeleton, renderSlider, renderSpinner, renderSwitch, renderTextarea, renderToast, renderToggle } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderAlert, renderAutocomplete, renderAvatar, renderBadge, renderButton, renderCalendar, renderCheckbox, renderCheckboxGroup, renderDatePicker, renderEmpty, renderField, renderFieldset, renderForm, renderInput, renderInputGroup, renderKbd, renderLabel, renderMeter, renderNumberField, renderOtpField, renderProgress, renderRadio, renderRadioGroup, renderSelect, renderSeparator, renderSkeleton, renderSlider, renderSpinner, renderStatusMark, renderSwitch, renderTextarea, renderToast, renderToggle } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAccordion, renderBreadcrumb, renderCollapsible, renderCombobox, renderPagination, renderTabs, renderToggleGroup, renderToolbar } from "./navigation.js";
-import { renderAlertDialog, renderCommand, renderContextMenu, renderDialog, renderDrawer, renderMenu, renderMenuItem, renderHint, renderPopover, renderPreviewCard, renderSheet, renderTooltip } from "./overlay.js";
+import { renderAlertDialog, renderCommand, renderContextMenu, renderDialog, renderDrawer, renderMenu, renderMenuGroup, renderMenuItem, renderHint, renderPopover, renderPreviewCard, renderSheet, renderTooltip } from "./overlay.js";
 import { mark, section, specimen } from "./catalog-parts.js";
 
 export function buttonSection(): string {
@@ -13,6 +13,7 @@ export function buttonSection(): string {
   const link = renderButton({ label: "打开链接", variant: "link" });
   const iconBtn = renderButton({ label: "关闭", variant: "ghost", size: "icon", icon: "x", iconOnly: true });
   const loading = renderButton({ label: "保存中", variant: "primary", loading: true });
+  const loadingIcon = renderButton({ label: "导出中", variant: "secondary", icon: "download", loading: true });
   const disabled = renderButton({ label: "不可用", variant: "primary", disabled: true });
   const disabledSecondary = renderButton({ label: "次操作不可用", variant: "secondary", disabled: true });
   const sizes = ["sm", "md", "lg"].map((size) => renderButton({ label: size, variant: "secondary", size: size as "sm" | "md" | "lg" })).join("");
@@ -20,7 +21,7 @@ export function buttonSection(): string {
       ${specimen("主操作", `${primary}${secondary}${ghost}`)}
       ${specimen("破坏性", `${danger}${dangerOutline}`)}
       ${specimen("文字 / 图标", `${link}${iconBtn}`)}
-      ${specimen("状态", `${loading}${disabled}${disabledSecondary}`)}
+      ${specimen("状态", `${loading}${loadingIcon}${disabled}${disabledSecondary}`)}
       ${specimen("尺寸", `<div class="mw-catalog__sizes">${sizes}</div>`)}
     </div>`);
 }
@@ -119,9 +120,11 @@ export function formSection(): string {
 }
 
 export function badgeSection(): string {
-  const badges = ["neutral", "info", "success", "warning", "danger"]
-    .map((tone) => renderBadge({ label: tone, tone: tone as "neutral" | "info" | "success" | "warning" | "danger" }))
-    .join("");
+  const badges = `<div class="mw-catalog__row">${([["草稿", "neutral"], ["进行中", "info"], ["已完成", "success"], ["待复核", "warning"], ["失败", "danger"]] as const)
+    .map(([label, tone]) => renderBadge({ label, tone }))
+    .join("")}</div><div class="mw-catalog__row">${([["草稿", "draft", "idle"], ["进行中", "doing", "progress"], ["已完成", "done", "done"], ["待复核", "verify", "attention"], ["失败", "failed", "blocked"]] as const)
+    .map(([label, state, tone]) => renderStatusMark({ label, state, tone }))
+    .join("")}</div>`;
   const alerts = renderAlert({ title: "保存失败", body: "连接中断，草稿仍在，可以重试。", tone: "danger" })
     + renderAlert({ title: "已保存配置", body: "拉取计划单独生效。", tone: "success" });
   const empty = renderEmpty({
@@ -211,7 +214,7 @@ export function overlaySection(): string {
     footer: secondary,
     attrs: { "data-catalog-demo": "drawer" },
   });
-  return section("overlay", "Dialog / Sheet / Alert Dialog / Drawer", `<p class="mw-catalog__hint">Sheet 贴右缘；Dialog 居中；Drawer 窄屏从边缘覆盖；Alert Dialog 用于破坏性确认。</p>
+  return section("overlay", "Dialog / Sheet / Alert Dialog / Drawer", `
       <div class="mw-catalog__specimens">${specimen("打开浮层", `
         ${renderButton({ label: "打开 Sheet", variant: "secondary", attrs: { "data-catalog-open": "sheet" } })}
         ${renderButton({ label: "打开 Dialog", variant: "secondary", attrs: { "data-catalog-open": "dialog" } })}
@@ -223,10 +226,12 @@ export function overlaySection(): string {
 
 export function menuSection(): string {
   return section("menu", "Menu / Context Menu / Popover / Tooltip / Command / Preview Card", `<div class="mw-catalog__specimens">${mark("menu", specimen("菜单", renderMenu({
-      items: renderMenuItem({ label: "固定标签", iconName: "check" }) + renderMenuItem({ label: "关闭", iconName: "x", danger: true }),
+      items: renderMenuGroup({ items: renderMenuItem({ label: "重命名", iconName: "edit", shortcut: "F2" }) + renderMenuItem({ label: "复制链接", iconName: "link", shortcut: "⌘L" }) + renderMenuItem({ label: "移到其他项目", iconName: "folder", disabled: true }) })
+        + renderMenuGroup({ items: renderMenuItem({ label: "删除", iconName: "trash", danger: true, shortcut: "⌘⌫" }) }),
     })))}${mark("context-menu", specimen("右键菜单", renderContextMenu({
-      items: renderMenuItem({ label: "固定标签", iconName: "lock" }) + renderMenuItem({ label: "关闭标签", iconName: "x", danger: true }),
-    })))}${mark("popover", specimen("弹出层", renderPopover({ body: "项目切换", preview: true })))}${mark("tooltip", specimen("标题旁说明", renderHint({ id: "catalog-hint", label: "如何生效", text: "只发送当前生效版本。" })) + specimen("短标签", renderTooltip({ text: "当前 Goal" })))}${mark("command", specimen("命令面板", renderCommand({
+      items: renderMenuGroup({ label: "显示", items: renderMenuItem({ label: "行号", checked: true }) + renderMenuItem({ label: "自动换行", checked: false }) })
+        + renderMenuGroup({ items: renderMenuItem({ label: "固定标签", iconName: "pin" }) + renderMenuItem({ label: "关闭标签", iconName: "x", danger: true, shortcut: "⌘W" }) }),
+    })))}${mark("popover", specimen("弹出层", renderPopover({ body: `<div class="mw-catalog__row">${renderInput({ name: "catalog-link", placeholder: "粘贴或输入链接", size: "sm" })}${renderButton({ label: "应用", variant: "primary" })}</div>`, preview: true })))}${mark("tooltip", specimen("标题旁说明", renderHint({ id: "catalog-hint", label: "如何生效", text: "只发送当前生效版本。" })) + specimen("短标签", renderTooltip({ text: "当前 Goal" })))}${mark("command", specimen("命令面板", renderCommand({
       labelledBy: "catalog-command",
       placeholder: "搜索并跳转",
       groups: `<button type="button" role="option">Goals · 统一控件语言</button>`,
@@ -242,7 +247,7 @@ export function tabsSection(): string {
     })))}${mark("toolbar", specimen("工具条", renderToolbar({ body: primary + ghost })))}${mark("toggle", specimen("开关按钮", renderToggle({ label: "钉住", pressed: true })))}${mark("toggle-group", specimen("分段", renderToggleGroup({
       label: "视图",
       items: [{ value: "list", label: "列表", current: true }, { value: "board", label: "看板" }, { value: "canvas", label: "画布" }],
-    })))}${mark("collapsible", specimen("折叠", renderCollapsible({ summary: "补充说明与验收条件", body: "<p>可稍后补。</p>" })))}${specimen("披露 · 设置区里的次要内容", `<details class="mw-disclosure"><summary>调整选项与高级设置</summary><p class="mw-catalog__hint">系统三角隐藏，12px 折角向右，展开后转向下。</p></details>`)}${mark("combobox", specimen("组合框", renderCombobox({
+    })))}${mark("collapsible", specimen("折叠", renderCollapsible({ summary: "补充说明与验收条件", body: "<p>可稍后补。</p>" })))}${specimen("披露 · 设置区里的次要内容", `<details class="mw-disclosure"><summary>调整选项与高级设置</summary></details>`)}${mark("combobox", specimen("组合框", renderCombobox({
       placeholder: "选择 Goal",
       items: `<button type="button" role="option">产品主链</button>`,
     })))}${mark("accordion", specimen("手风琴", renderAccordion({

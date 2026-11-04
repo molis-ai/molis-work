@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { runLocalCli } from "@molis-ai/molis-work-app-local-host";
 
 export interface InjectedSnapshotChange {
@@ -47,7 +47,7 @@ export function changeSnapshotSource(kind: string, source: string, observed: (st
     };
     syncBuiltinESMExports();
   } else {
-    Database.prototype.backup = function (this: Database.Database, ...args: Parameters<Database.Database["backup"]>) {
+    Database.prototype.backup = function (this: SqliteDatabase, ...args: Parameters<SqliteDatabase["backup"]>) {
       if (this.name === source) mutate();
       return Reflect.apply(backup, this, args);
     };

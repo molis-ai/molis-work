@@ -307,6 +307,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("packages/test-kit", "@molis-ai/molis-work-contracts/platform/testing", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"],
     capabilities: [
       "workspace-boundary-policy",
       "headless-chrome-driver",
@@ -337,6 +338,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("modules/private-work-context", "@molis-ai/molis-work-contracts/modules/private-work-context", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"],
     capabilities: [
       "runtime-context-bindings"
     ]

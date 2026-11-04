@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type Database from "better-sqlite3";
+import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createRuntimeContextBindingMetadata, RuntimeContextProjectReferences } from "./context-binding-references.js";
 import type {
@@ -14,7 +14,7 @@ export interface RuntimeContextSetupRequestRecord {
 
 export class RuntimeContextBindingRepository {
   private readonly references: RuntimeContextProjectReferences;
-  constructor(private readonly db: Database.Database, private readonly options: {
+  constructor(private readonly db: SqliteDatabase, private readonly options: {
     ledger: ContextLedgerApi;
     assertProject(projectId: string): void;
   }) { this.references = new RuntimeContextProjectReferences(options.ledger); }
@@ -226,7 +226,7 @@ export class RuntimeContextBindingRepository {
   }
 }
 
-export function createRuntimeContextBindingTables(db: Database.Database): void {
+export function createRuntimeContextBindingTables(db: SqliteDatabase): void {
   createRuntimeContextBindingMetadata(db);
   db.exec(`
     CREATE TABLE runtime_context_binding_events (
@@ -245,7 +245,7 @@ export function createRuntimeContextBindingTables(db: Database.Database): void {
   `);
 }
 
-export function createRuntimeContextSetupRequestTable(db: Database.Database): void {
+export function createRuntimeContextSetupRequestTable(db: SqliteDatabase): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS runtime_context_setup_requests (
       runtime_id TEXT NOT NULL,
@@ -261,7 +261,7 @@ export function createRuntimeContextSetupRequestTable(db: Database.Database): vo
   `);
 }
 
-export function createRuntimeContextSuggestionRejectionTable(db: Database.Database): void {
+export function createRuntimeContextSuggestionRejectionTable(db: SqliteDatabase): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS runtime_context_suggestion_rejections (
       runtime_id TEXT NOT NULL,

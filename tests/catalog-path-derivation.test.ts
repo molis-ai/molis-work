@@ -3,7 +3,7 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
@@ -21,7 +21,7 @@ import { PROJECT_DATABASE_FILENAME } from "@molis-ai/molis-work-storage";
 
 const plugins = { has: (id: string) => id === "goals", companions: () => [] };
 const open = (file: string, projectsDirectory: string) => {
-  const db = new Database(file);
+  const db = openTestSqlite(file);
   db.pragma("foreign_keys = ON");
   createProjectsSchema(db);
   return { db, projects: new ProjectsModule({ db, projects_directory: projectsDirectory, plugins }) };
@@ -94,7 +94,7 @@ test("RAC-2303 a current catalog reopens at 1; another version is refused withou
     const reopened = await openMolisWorkProjectCatalog({ homeDirectory: home });
     assert.equal(reopened.getProject(project.project_id).database_path, join(home, "projects", project.project_id, "molis-work.db"));
     reopened.close();
-    const wrong = new Database(file);
+    const wrong = openTestSqlite(file);
     assert.equal(wrong.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), "1");
     assert.equal(wrong.pragma("integrity_check", { simple: true }), "ok");
     assert.deepEqual(wrong.pragma("foreign_key_check"), []);
@@ -103,7 +103,7 @@ test("RAC-2303 a current catalog reopens at 1; another version is refused withou
     const before = readFileSync(file);
     await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "catalog.reader_too_old" });
     assert.deepEqual(readFileSync(file), before);
-    const preserved = new Database(file, { readonly: true });
+    const preserved = openTestSqlite(file, { readonly: true });
     try {
       assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), "2");
       assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "current catalog");
@@ -116,7 +116,7 @@ test("RAC-800 a current catalog has no personal planning table and refuses one w
   const home = scratch(), file = join(home, "projects", "catalog.db");
   try {
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
-    const db = new Database(file);
+    const db = openTestSqlite(file);
     assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'personal_planning_method_packs'").get(), undefined);
     db.exec("CREATE TABLE personal_planning_method_packs (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)");
     db.pragma("journal_mode = DELETE"); db.close();

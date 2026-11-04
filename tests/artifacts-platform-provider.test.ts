@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -26,13 +26,13 @@ const person: ActionCallContext = { actor_id: "web-user", project_id: projectId,
 const FINGERPRINT = `ed25519:sha256:${"c".repeat(64)}`;
 
 /** The registration the Host makes (`artifactActionProvider`), read off the real function with a runtime that has no database behind it. */
-function hostRegistration(artifacts: ArtifactsModule, db: Database.Database): ActionProviderRegistration {
+function hostRegistration(artifacts: ArtifactsModule, db: SqliteDatabase): ActionProviderRegistration {
   const runtime = { project_id: projectId, artifacts, store: { db }, coordinator: { goalQueries: { getGoal: () => null } } };
   return artifactActionProvider(runtime as never, {});
 }
 
 function openProject() {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('artifacts-platform-project'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL)");
   createArtifactsSchema(db);

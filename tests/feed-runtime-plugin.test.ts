@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -50,7 +50,7 @@ const RULES = [...WRITE, "attention:write", "judgments:write"];
  */
 async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void;
   breakWrites(count: number): void; pauseAfterWrite(pause: () => Promise<void>): void }> {
-  const db = new Database(join(home, "ledger.db"));
+  const db = openTestSqlite(join(home, "ledger.db"));
   db.exec(FEED_HOME_DATABASE.schema);
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
   const reader = { get: (sql: string, parameters?: readonly PluginSqlValue[]) => (db.prepare(sql).get(...bind(parameters)) as Record<string, PluginSqlValue> | undefined) ?? null,

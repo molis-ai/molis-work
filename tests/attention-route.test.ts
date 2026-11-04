@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { setTimeout as pause } from "node:timers/promises";
 import { handleAttentionHttp, type AttentionSources } from "@molis-ai/molis-work-app-local-host";
 import { CODING_FILE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -75,7 +75,7 @@ test("W4-10-01 QA-022 a project page's attention read counts exactly the plugin 
   assert.equal((await home.web.get<Attention>(`${base}/api/attention`)).plugin_events_pending, 0, "nothing waits in a new project");
   // As a Host crash leaves it (tests/plugin-event-recovery.e2e.test.ts), through the owner's repository on the project's database:
   // Coding published a file change, Files' delivery was cut off with its outcome unknown, and an earlier installation's cursor caught up.
-  const db = new Database(project.database_path);
+  const db = openTestSqlite(project.database_path);
   try {
     const installs = new SqlitePluginRuntimeRepository(db).list();
     const source = installs.find(record => record.plugin_id === "io.molis.work.coding"), subscriber = installs.find(record => record.plugin_id === "io.molis.work.files");

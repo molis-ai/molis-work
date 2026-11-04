@@ -1,16 +1,19 @@
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { SqlitePluginEventsRepository, SqlitePluginPrivateStorage, SqlitePluginRuntimeReleaseArtifactRepository,
+  SqlitePluginRuntimeRepository, SqlitePluginWiringRepository } from "@molis-ai/molis-work-plugin-runtime";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { DatabaseSync } from "node:sqlite";
 import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { projectSettingsCapabilities as settings, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ProjectBrowsingSettings } from "../apps/local-host/dist/project-browsing-settings.js";
+import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL, ProjectBrowsingSettings } from "../apps/local-host/dist/project-browsing-settings.js";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 
 const workspace = (id: string) => ({ workspace_id: id, canonical_path: "/test/" + id, realpath_verified: true, display_name: id });
@@ -58,8 +61,9 @@ test("Manifest gates individual settings; host scopes and projects records, reje
 });
 
 test("browsing choice persists; membership remains authoritative across restart and revocation", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
+    db.exec(PROJECT_BROWSING_SETTINGS_SCHEMA_SQL);
     const workspaces = [workspace("one"), workspace("two")];
     const preferences = new ProjectBrowsingSettings(db);
     assert.equal(preferences.read("a", workspaces), null, "nothing is chosen for the person among two");
@@ -75,8 +79,9 @@ test("browsing choice persists; membership remains authoritative across restart 
 });
 
 test("empty and multi-directory settings do not invent a selection", () => {
-  const db = new Database(":memory:");
+  const db = openTestSqlite(":memory:");
   try {
+    db.exec(PROJECT_BROWSING_SETTINGS_SCHEMA_SQL);
     const settings = new ProjectBrowsingSettings(db);
     assert.equal(settings.read("a", []), null);
     assert.equal(settings.read("a", [workspace("one"), workspace("two")]), null);
@@ -120,4 +125,21 @@ test("RAC-454 the project's Runtime pick is the person's own setting: Coding rea
     assert.equal(await host.actionClient(a).invoke(user, settings.selectRuntime, [null]), null);
     assert.equal(await coding.invoke(settings.runtime, [], control), null, "null puts the project back on the Home default");
   } finally { store.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("B4: composing project repositories cannot repair a database outside its baseline", () => {
+  const db = openTestSqlite(":memory:");
+  try {
+    db.exec("PRAGMA user_version = 9");
+    new AttentionModule(db, { exists: () => false });
+    new ProjectBrowsingSettings(db);
+    new SqlitePluginEventsRepository(db);
+    new SqlitePluginPrivateStorage(db);
+    new SqlitePluginRuntimeReleaseArtifactRepository(db);
+    const installs = new SqlitePluginRuntimeRepository(db);
+    new SqlitePluginWiringRepository(db);
+    assert.throws(() => installs.list(), /no such table: plugin_runtime_installs/);
+    assert.equal(db.pragma("user_version", { simple: true }), 9);
+    assert.deepEqual(db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all(), []);
+  } finally { db.close(); }
 });

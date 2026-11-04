@@ -46,6 +46,8 @@ node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-co
 
 ## 开发要求
 
+项目库连接的类型来自 storage；模块使用调用方持有的连接，不自行加载 SQLite 驱动。
+
 - 负责：Runtime 工作入口与项目的绑定关系、建议与拒绝记录、绑定语义的错误码。
 - 不负责：Session 与消息（已下线）、执行 Run、Goal、Artifact、Runtime 进程句柄。
 - 公开入口：`@molis-ai/molis-work-module-private-work-context`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/private-work-context`。

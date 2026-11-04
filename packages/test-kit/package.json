@@ -21,6 +21,10 @@
     "./local-host-http": {
       "types": "./dist/local-host-http/index.d.ts",
       "import": "./dist/local-host-http/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "import": "./dist/sqlite.js"
     }
   },
   "files": [
@@ -34,6 +38,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@molis-ai/molis-work-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
   }
 }

@@ -278,6 +278,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("packages/storage", "@molis-ai/molis-work-contracts/platform/storage", {
     maturity: "production",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     extraDependencies: {
       "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
       "better-sqlite3": "12.8.0"

@@ -4,6 +4,7 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
 import { commitModelProvider, modelSetupOffer, planConnectionCheck, verifyModelConnection, type ModelProviderSave } from "./model-provider-setup.js";
+import { modelCheckCode, rememberModelCheck, withModelChecks } from "./model-provider-checks.js";
 
 /** Global settings reuse the catalog's configuration and Host-owned secret store. */
 export async function handleModelSettingsHttp(
@@ -15,9 +16,11 @@ export async function handleModelSettingsHttp(
   try {
     const providerId = match[1];
     if (request.method === "GET" && !providerId) {
-      const listed = await withCatalog({ homeDirectory }, (catalog) => ({
+      const read = await withCatalog({ homeDirectory }, (catalog) => ({
         providers: catalog.models.list(), health: catalog.models.health(),
       }));
+      // Each provider's last real check comes with it, so the page can tell "never verified" from "verified" (PF-A04).
+      const listed = { ...read, health: withModelChecks(homeDirectory, read.providers, read.health) };
       if (url.searchParams.get("setup") !== "1") sendLocalWebJson(response, 200, listed);
       else {
         const offer = modelSetupOffer(url.searchParams.get("template"));
@@ -29,7 +32,13 @@ export async function handleModelSettingsHttp(
         provider_id: providerId, model_id: typeof body.model_id === "string" ? body.model_id : "",
       }));
       if (!selection) throw new Error("请先保存供应商、密钥和启用的模型");
-      const result = await testConfiguredModel(selection);
+      let result: Awaited<ReturnType<typeof testConfiguredModel>>;
+      try { result = await testConfiguredModel(selection); }
+      catch (error) {
+        if (homeDirectory) rememberModelCheck(homeDirectory, selection.provider, "failed", modelCheckCode(error instanceof Error ? error.message : ""));
+        throw error;
+      }
+      if (homeDirectory) rememberModelCheck(homeDirectory, selection.provider, "connected");
       sendLocalWebJson(response, 200, result);
     } else if (request.method === "POST" && providerId && !match[2]) {
       const body = await readLocalWebBody(request);
@@ -71,7 +80,10 @@ export async function handleModelSettingsHttp(
       const selection = await withCatalog({ homeDirectory }, (catalog) => planConnectionCheck(catalog, homeDirectory, save));
       if (selection) await verifyModelConnection(selection);
       const result = await withCatalog({ homeDirectory }, (catalog) => commitModelProvider(catalog, homeDirectory, save));
-      sendLocalWebJson(response, 200, { ...result, checked: selection !== null });
+      // The check passed for exactly what was just written: remember it against that version of the provider and its key.
+      if (selection && homeDirectory) rememberModelCheck(homeDirectory, result.provider, "connected");
+      const [health] = result.health ? withModelChecks(homeDirectory, [result.provider], [result.health]) : [];
+      sendLocalWebJson(response, 200, { ...result, ...(health ? { health } : {}), checked: selection !== null });
     } else if (request.method === "DELETE" && providerId && !match[2]) {
       const removed = await withCatalog({ homeDirectory }, (catalog) => catalog.models.remove(providerId));
       sendLocalWebJson(response, 200, { removed });

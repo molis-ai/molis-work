@@ -6,6 +6,8 @@ import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { rememberConnectorCheck } from "./connector-observations.js";
+import { refreshRefused } from "./connector-refresh-refusals.js";
+import { ApiOAuthError } from "./connector-api-oauth.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
@@ -22,9 +24,12 @@ export async function checkConnectorConnection(home: string, id: string, remembe
       : row.auth_method === "cli" ? await inspectCliConnection(home, id, false, signal) : await inspectApiConnection(home, id, false, signal);
   } catch (error) {
     await control.beforeEffect?.(); control.signal?.throwIfAborted();
+    // A refresh the token endpoint refused during the check is already remembered as such (S-70); the check leaves that mark as it is.
+    if (error instanceof ApiOAuthError && error.refused && refreshRefused(home, row)) throw error;
+    const retry_at = error instanceof ActionError && error.code === "connector.check.rate_limited" && typeof error.details?.retry_at === "string" ? error.details.retry_at : undefined;
     rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision: row.updated_at, outcome: "failed",
       authorization: error instanceof ActionError && error.code === "connector.mcp.authorization" ? "required" : "unknown",
-      ...(error instanceof ActionError ? { code: error.code } : {}) });
+      ...(error instanceof ActionError ? { code: error.code } : {}), ...(retry_at ? { retry_at } : {}) });
     throw error;
   }
   await control.beforeEffect?.(); control.signal?.throwIfAborted();

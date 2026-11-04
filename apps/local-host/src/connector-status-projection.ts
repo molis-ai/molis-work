@@ -5,7 +5,7 @@ import type { ConnectorConnectionStatus, ConnectorObservations } from "@molis-ai
 export function projectConnectorStatus(input: {
   revision: string; configured: boolean; enabled: boolean; active: boolean; source: string;
   observations: ConnectorObservations; actions: readonly ActionView[]; caller: ActionCallContext;
-  noAuthentication: boolean; live?: boolean;
+  noAuthentication: boolean; live?: boolean; now?: number;
 }): ConnectorConnectionStatus {
   const { observations, revision, actions, caller, active } = input;
   const check = observations.check?.revision === revision ? observations.check : undefined;
@@ -25,7 +25,9 @@ export function projectConnectorStatus(input: {
     configuration: { state: input.configured ? "complete" : "incomplete", enabled: input.enabled, revision, source: input.source },
     connectivity: { state: connectivity, source: input.live !== undefined ? "connection-owner-live" : recentCall ? "business-call" : "connection-check",
       ...(recentCall || check ? { observed_at: recentCall?.at ?? check!.at } : {}),
-      ...(observations.check ? { last_check: observations.check, current: observations.check.revision === revision && active } : {}) },
+      ...(observations.check ? { last_check: observations.check, current: observations.check.revision === revision && active } : {}),
+      // The service is rate limiting: the check failed for its reason, and it is looked at again after this time.
+      ...(check?.outcome === "failed" && check.retry_at && connectivity === "failed" && Date.parse(check.retry_at) > (input.now ?? Date.now()) ? { retry_at: check.retry_at } : {}) },
     authorization: {
       service: { state: input.noAuthentication ? "not-required" : check?.authorization ?? (input.live ? "verified" : "unknown"),
         scopes: check?.scopes ?? null, scope_state: check?.scopes ? "reported" : "unknown" },

@@ -19,7 +19,8 @@ const controlToken = "model-first-setup-control-token-0123456789abcdef";
 const goodKey = "stand-in-good-key-0123456789";
 const wrongKey = "stand-in-wrong-key-0123456789";
 
-interface SettingsList { providers: { provider_id: string; display_name: string; models: { model_id: string }[] }[]; health: { provider_id: string; status: string }[] }
+interface SettingsList { providers: { provider_id: string; display_name: string; models: { model_id: string }[] }[];
+  health: { provider_id: string; status: string; last_check?: { at: string; outcome: string; code?: string; current: boolean } }[] }
 
 async function withHost(run: (host: {
   origin: string;
@@ -390,6 +391,43 @@ test("英文界面里，检查失败的原因也是英文", async () => {
       assert.equal(response.status, 400);
       const { error } = await response.json() as { error: string };
       assert.match(error, /The connection check did not pass, so nothing was saved\. The service rejected this API key \(401\)/);
+    });
+  } finally { await standIn.close(); }
+});
+
+test("PF-A04 上次检查跟着供应商走：保存时的检查记下来，改名不算变，换了到达方式就不算当前；手动测试失败也记下原因，不带密钥", async () => {
+  const standIn = await startModelStandIn(goodKey);
+  try {
+    await withHost(async ({ origin, save, providers }) => {
+      const models = [{ model_id: "model-a", enabled: true }];
+      const unchecked = await save("p", form(standIn.baseUrl, models, { api_key: goodKey }));
+      assert.equal(unchecked.status, 200, unchecked.text);
+      assert.equal((await providers()).health[0]?.last_check, undefined, "没检查过就是没检查过，不显示成通过");
+
+      assert.equal((await save("p", form(standIn.baseUrl, [...models, { model_id: "model-b", enabled: true }], { check_connection: true }))).status, 200);
+      let last = (await providers()).health[0]?.last_check;
+      assert.equal(last?.outcome, "connected");
+      assert.equal(last?.current, true);
+
+      assert.equal((await save("p", form(standIn.baseUrl, models, { display_name: "改了名字", check_connection: true }))).json.checked, false);
+      assert.equal((await providers()).health[0]?.last_check?.current, true, "改名、关掉一个模型，上次检查仍然算数");
+
+      assert.equal((await save("p", form(standIn.baseUrl, models, { api_format: "anthropic-messages" }))).status, 200);
+      last = (await providers()).health[0]?.last_check;
+      assert.equal(last?.current, false, "到达方式变了（这次没要求检查），上次检查不再代表现在的配置");
+
+      // The stored key is turned away: the manual test fails, and the reason is remembered for this version, without the key.
+      assert.equal((await save("q", form(standIn.baseUrl, models, { api_key: wrongKey }))).status, 200);
+      const tested = await fetch(`${origin}/api/settings/models/q/test`, { method: "POST",
+        headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": controlToken },
+        body: JSON.stringify({ model_id: "model-a" }) });
+      assert.equal(tested.status, 400);
+      const listed = await providers();
+      const failed = listed.health.find(entry => entry.provider_id === "q")?.last_check;
+      assert.equal(failed?.outcome, "failed");
+      assert.equal(failed?.code, "model_provider.key_rejected");
+      assert.equal(failed?.current, true);
+      assert.equal(JSON.stringify(listed).includes(wrongKey), false);
     });
   } finally { await standIn.close(); }
 });

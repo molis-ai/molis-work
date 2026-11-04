@@ -17,6 +17,7 @@
 | 23 · T-189 | Workflow 仍按 60,000 单元截给模型的正文节选。原行允许保留此内部节选；字段映射和步骤输入已用共用的按字符截取函数。 |
 | 24、41、47、51、82～83 · 字符工具 | [#1681](https://github.com/molis-ai/molis-work/pull/1681) 在 SDK 区分按单元和按码点截取。Scheduler 和宿主起草已用 cutHead，Images 与 Runtime 都用 exceedsCharacters；RAC-2726 所在文件 4/4。T-262 的 request_id 和 RAC-2196 已改，按码点截取仍有重复，归 BL-977。 |
 | 29 · T-202 | 评论材料的第 18,000 个单元仍会切开一个字符，普通材料的分段也是相同算法。跨段完整性和手册的正文上限归 BL-974。 |
+| 30 · T-168 | RAC-1809～1811 区分已声明路由形状里的坏编码、未声明的页面路径和普通 Home 请求。S-47 未写这条边界，表和已有测试的对应归 BL-914。 |
 | 31 · T-208 | 下载链接、实际文件名及 Shelf 回执的 RAC-1995～1997 已在图片插件浏览器用例内。README 漏列这份文件，归 BL-973。 |
 | 34 · T-210 | [#1572](https://github.com/molis-ai/molis-work/pull/1572) 统一引导页和宿主项目名的字数上限。RAC-2250／2252 覆盖含两单元字的 120 字项目名和超限拒绝，文件 57/57。材料标题交成果库仍由另一个待办 BL-944 跟踪。 |
 | 35 · T-215 | Feed 接线门禁实际排除注释、字符串、正则和模板文字后才找三个调用。本片已改正切片说明。 |
@@ -41,5 +42,28 @@
 | 99 · T-304 | 共享核心规则、文档、PR 模板和选择器标签按清单对照，多一项、少一项和把名称移到说明栏都会失败。RAC-2444 所在文件 85/85。 [采用提交](https://github.com/molis-ai/molis-work/commit/2757323123) |
 | 103 · R-49 | 风险表同笔可空主人和部分唯一索引归 BL-968。 |
 | 108～109 · 干净 Home 评审 | 加入邀请只接受 64 位十六进制凭据，其余输入不写成员。错版本的 WAL 库被拒，数据库和 WAL 字节不变。RAC-2716、2717 所在文件分别 7/7、5/5。 [采用提交](https://github.com/molis-ai/molis-work/commit/bc986379c1) |
+| 113、126、154 · 知识检索 | T-329 和 T-333 分别修了选节标题、grep 行起点与提示。RAC-2445 钉住标题的切点；RAC-2446 经过真实宿主捕获模型数据，#1689 又核对顶层键。未读原因的剩余截断归 BL-981。内部键全集是下次改变发送结构时再核的建议。 |
+| 136～137、142～144、155 · Feed、连接器与搜索 | RAC-2711 的替身返回值归 BL-982，安全表归 BL-914。记录槽改绑沿统筹已指定的 BL-921。CONNECTOR_CLIS 还有一处归 BL-983；RAC-2415、2417 已分别断言真实错误码，RAC-2731 注释映射下次碰用例时补。搜索 RAC-2715 已断言错误对象自有键，details 与 cause 均被排除。 |
 | 147～151 · T-353 余项 | RAC-2728 只准 Pages 留一条没有长度参数的双端修剪声明。五处重复和先展开全文的写法归 BL-977；两处浏览器预算例外归 BL-978。灵光大材料的内存峰值仍未知。 |
 | 168 · T-319 | RAC-2783、2784 从真实宿主的 home.events.read 读取项目插件目录与事项，所在文件 6/6。 [采用提交](https://github.com/molis-ai/molis-work/commit/973063c793) |
+
+## 已有处置的历史风险
+
+[风险原表](https://github.com/molis-ai/molis-work/blob/22fe801a021ffac1b16d4000aef9b3584f9cf882/coordination/2026-10-14/RISKS-AND-DEFERRED.md)。采用提交均可从本次核账的 main 到达。涉及旧机器、真实资料和本人验收的条件仍按相应待办结算。
+
+| 原风险 | 处置 |
+| --- | --- |
+| R-02、03、14 | 原协调表已交接同事并行开发和机器负载；借用工作树的同步工具曾选错工作树。现行并行开发手册规定独立工作树、构建／浏览器槽位和进程归属。原机器的网络观察留给 R-67。  |
+| R-06、11、17 | Sessions SC-4 随 #1194 采用。C8-3 随 #1185 采用，执行方按钮余项归 BL-957；Goals S9-2 的旧库迁移由干净重建取代，本人验收仍归 BL-929。#1164 随项目删除清理角色运行记录。 [`f880df0c4`](https://github.com/molis-ai/molis-work/commit/f880df0c4)、[`3e96b40ea`](https://github.com/molis-ai/molis-work/commit/3e96b40ea) |
+| R-09、16、21、28、29、31、34、57 | 旧 PR 的叠放、队列拥堵、枢纽文件与人员排期已随防腐批关闭。#1304 的先入队记录保留；如今按认领板、同路径串行和机器槽位执行。第 02 批的在途 PR 与全量仍由现任统筹管理。 [`4db89e26d`](https://github.com/molis-ai/molis-work/commit/4db89e26d) |
+| R-12、13、15 | 运行中的路由停用后答带码的 403。所有调用之外的回调已有意保留原处理方式，返回 undefined 后插件自己使用它仍可能出错；处置不扩成新的调用合同。 [`01a875af0`](https://github.com/molis-ai/molis-work/commit/01a875af0) |
+| R-18、22、25 | 不可用原文件的拒绝、助理重复切换时等待首屏刷新，以及没有面板时 Esc 的处理都已有独立合入提交。保留早期红灯和过期的等待条件。 [`15fc5d9acb`](https://github.com/molis-ai/molis-work/commit/15fc5d9acb)、[`df7a3bdba8`](https://github.com/molis-ai/molis-work/commit/df7a3bdba8)、[`5248af758`](https://github.com/molis-ai/molis-work/commit/5248af758)、[`07a309317`](https://github.com/molis-ai/molis-work/commit/07a309317) |
+| R-19 | 连接器意图用例在失败时记连接 Promise 状态、HTTP 状态、码和进入标识。安装用例记阶段、下载和版本探测次数。在本次隔离 Home 分别为 10/10、3/3；原先两次超时均无足够资料反推根因。 |
+| R-20、33 | 连接器卸载清理随 #1287 合入。沙箱创作产物的 SDK 类型声明已在 #1136 补齐，原仅 macOS 暴露的构建故障有采用记录。 [`4f4e59a33`](https://github.com/molis-ai/molis-work/commit/4f4e59a33)、[`15b656648`](https://github.com/molis-ai/molis-work/commit/15b656648) |
+| R-35、41、52、54、66、69 | 旧项目库版本、Manifest 旧字段、遗留 disabled 状态和 Feed 捕获的旧生产者等存量处理都以真实 Home 完整备份及干净重建为前置，统一归 BL-928。#1101 已关闭；R-52 当年的版本冲突已过，版本起点交本批第三项。  |
+| R-36～38 | 安装包验签后才固定发布者；相同或点分嵌套 ID 在确认前拒绝（RAC-1835～1837）。两份路径判断的重复归 BL-970。Agent Host 的五个巨大单元已随 #1287 分批处理。 [`2b3dc51de`](https://github.com/molis-ai/molis-work/commit/2b3dc51de)、[`fc1e03c3c`](https://github.com/molis-ai/molis-work/commit/fc1e03c3c)、[`bed80bb90`](https://github.com/molis-ai/molis-work/commit/bed80bb90)、[`4f4e59a33`](https://github.com/molis-ai/molis-work/commit/4f4e59a33) |
+| R-50、51、55 | 开项目公告改经动作读取的修复随 #1258。Workers Builds 属当时用户明确跳过的非必需作业。#1308 已采用租户连接页的预算回收与 RAC-657，当前租户重连行为另见本批 #1290。 [`3817f8757`](https://github.com/molis-ai/molis-work/commit/3817f8757)、[`2b3dc51de`](https://github.com/molis-ai/molis-work/commit/2b3dc51de) |
+| R-58、59 | 夜间 Linux 探针分为六片并固定 uv，原预算耗尽项在后续运行收回；配置仍有 linux-probe 作业。Home 入口解析规范路径，内部链接继续拒绝。 [`0d8388b09`](https://github.com/molis-ai/molis-work/commit/0d8388b09) |
+| R-60、61 | 判断账与插件项目事务分开，RAC-845 检查项目事务回滚后 Home 的行仍在。场景判断按安装分隔，丢弃该安装时清其项目行。 [`0d8388b09`](https://github.com/molis-ai/molis-work/commit/0d8388b09)、[`0262a6d21`](https://github.com/molis-ai/molis-work/commit/0262a6d21) |
+| R-63、64、65 | T-319 让首页被拒时区分关闭项目与应诊断的失败。T-374 验证真实宿主接入项目目录。开发注册的单定义例外受 S-75 限制；真实旧库不另开读取。T-320 的 Dock 触发人提示随页面资源批采用。 [`45be6f2e1`](https://github.com/molis-ai/molis-work/commit/45be6f2e1)、[`973063c793`](https://github.com/molis-ai/molis-work/commit/973063c793)、[`9efbf8d04`](https://github.com/molis-ai/molis-work/commit/9efbf8d04)、[`0ac344d8c`](https://github.com/molis-ai/molis-work/commit/0ac344d8c) |
+| R-68、70 | 共享刷新发出以后对取消与撤权分别结算，原 S-95 的说明及 401 合流断言随 #1556。T-007、T-034 校准项目插件刷新对 crashed、disabled 和 quarantined 的处理，由 RAC-1120～1121 覆盖。本次启停刷新文件 2/2。 [`2167e044a`](https://github.com/molis-ai/molis-work/commit/2167e044a)、[`2cb1ecd0d1`](https://github.com/molis-ai/molis-work/commit/2cb1ecd0d1)、[`88a4ce949`](https://github.com/molis-ai/molis-work/commit/88a4ce949)、[`96004afd4`](https://github.com/molis-ai/molis-work/commit/96004afd4) |

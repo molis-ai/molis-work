@@ -1,0 +1,380 @@
+<title>Molis Work 需求全景图</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 布局：阶段自上而下，阶段内按开工先后从左到右；静止时不画线，选中后才显示这一批的上下游链路 */
+:root{
+  --desk:#eef3f7;--paper:#fcfdfe;--soft:#f5f8fb;--ink:#1f2b37;--ink-soft:#45525f;--muted:#586574;
+  --line:#e0e8ef;--line-strong:#c9d5e0;--action:#2d4f6c;--action-ink:#fff;
+  --up:#3c6e98;--up-soft:#e4eef7;--down:#8c5f0c;--down-soft:#f6eedd;--green:#367556;--green-soft:#e3f1e9;
+  --shadow-rgb:45,79,108;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --desk:#141a20;--paper:#1b2229;--soft:#1f272f;--ink:#e8eef3;--ink-soft:#bac6d1;--muted:#9aa8b5;
+  --line:#2c3640;--line-strong:#3f4b57;--action:#dbe6ef;--action-ink:#17212b;
+  --up:#8fb8dc;--up-soft:#1e2d3b;--down:#d9b67b;--down-soft:#322a1b;--green:#86c0a0;--green-soft:#1c2e25;
+  --shadow-rgb:0,0,0;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --desk:#141a20;--paper:#1b2229;--soft:#1f272f;--ink:#e8eef3;--ink-soft:#bac6d1;--muted:#9aa8b5;
+  --line:#2c3640;--line-strong:#3f4b57;--action:#dbe6ef;--action-ink:#17212b;
+  --up:#8fb8dc;--up-soft:#1e2d3b;--down:#d9b67b;--down-soft:#322a1b;--green:#86c0a0;--green-soft:#1c2e25;
+  --shadow-rgb:0,0,0;color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--desk);color:var(--ink);font:13px/1.5 var(--font);letter-spacing:-.005em}
+button{font:inherit;color:inherit;letter-spacing:inherit}
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--paper);border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:15px;font-weight:650}
+.tabs{display:flex;gap:2px;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.tab{border:0;background:transparent;padding:5px 10px;border-radius:7px;color:var(--muted);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.tab:hover{background:var(--soft);color:var(--ink)}
+.tab[aria-selected=true]{background:var(--action);color:var(--action-ink);font-weight:550}
+.tab:active{transform:scale(.97)}
+.spacer{flex:1 1 auto}
+.counts{display:flex;gap:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.counts span{display:inline-flex;align-items:center;gap:5px}
+.search{width:172px;min-width:0;padding:5px 10px;border:1px solid var(--line-strong);border-radius:7px;background:var(--paper);color:var(--ink);font:inherit}
+.search::placeholder{color:var(--muted)}
+.search:focus-visible,.card:focus-visible,.tab:focus-visible,.chip:focus-visible,.close:focus-visible,.detail a:focus-visible{outline:2px solid var(--up);outline-offset:2px}
+.body{display:grid;grid-template-columns:minmax(0,1fr) auto;min-height:0}
+.board{position:relative;overflow:auto;min-width:0;padding-block:6px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.lines{position:absolute;left:0;top:0;pointer-events:none;z-index:0;overflow:visible}
+.lines path{fill:none;stroke-width:1.4;opacity:.42}
+.lines path.direct{stroke-width:2.2;opacity:.95}
+.lines path.up{stroke:var(--up)}.lines path.down{stroke:var(--down)}
+.lines marker path{opacity:1;stroke:none}
+.stage{width:max-content;min-width:100%;padding-top:18px}
+.stage[hidden]{display:none}
+.stage-head{position:sticky;left:0;display:flex;align-items:baseline;gap:8px;width:max-content;padding:0 0 10px}
+h2{margin:0;font-size:14px;font-weight:650}
+.stage-head span{color:var(--muted)}
+.cols{display:flex;gap:44px;align-items:flex-start}
+.col{display:flex;flex-direction:column;gap:8px;width:186px;flex:none}
+.card{position:relative;z-index:1;display:block;width:100%;text-align:left;padding:9px 11px 8px;background:var(--paper);border:1px solid var(--line);border-radius:10px;cursor:pointer;box-shadow:0 1px 2px rgba(var(--shadow-rgb),.06);transition:opacity .16s,transform .14s,box-shadow .16s,border-color .16s,background .16s}
+.card:hover{box-shadow:0 4px 14px rgba(var(--shadow-rgb),.13);transform:translateY(-1px);border-color:var(--line-strong)}
+.card:active{transform:scale(.985)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.id{font-weight:650;font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.name{display:block;margin:2px 0 6px;color:var(--ink);font-weight:500;line-height:1.38}
+.meta{display:block;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.prog{display:flex;align-items:center;gap:6px;margin-top:6px}
+.segs{display:flex;gap:2px;flex:none}
+.seg{width:12px;height:4px;border-radius:2px;background:var(--line-strong)}
+.seg.doing{background:var(--up)}.seg.done{background:var(--green)}.seg.pause{background:var(--down)}
+.prog-t{font-size:12px;font-weight:550;color:var(--ink-soft)}
+.open-t{display:block;margin-top:6px;color:var(--action)}
+.who{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+.card.st-doing{border-color:var(--up);box-shadow:0 2px 10px rgba(var(--shadow-rgb),.14)}
+.card.st-pause{border-color:var(--down)}
+.mark.pause{background:var(--down);border-color:var(--down)}
+.src{color:var(--up);text-decoration:none;white-space:nowrap}.src:hover{text-decoration:underline}
+.items{gap:10px!important}
+.item{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--soft)}
+.item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.tag{flex:none;font-size:11px;font-weight:600;padding:0 6px;border-radius:5px;background:var(--line);color:var(--ink-soft);line-height:18px}
+.tag.doing{background:var(--up-soft);color:var(--up)}.tag.done{background:var(--green-soft);color:var(--green)}.tag.pause{background:var(--down-soft);color:var(--down)}
+.item-meta{margin-top:3px;font-size:12px;color:var(--muted)}
+.item-meta a{color:var(--up);text-decoration:none}.item-meta code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.item-d{margin-top:5px;font-size:12px;line-height:1.55;color:var(--ink-soft)}
+.warn{margin-top:8px!important;color:var(--down);font-size:12px}
+.ready{margin-top:8px!important;color:var(--action);font-size:12px;font-weight:550}
+.chip .mark{vertical-align:1px}
+.rel{display:none;font-size:11px;font-weight:600;border-radius:5px;padding:0 5px}
+.mark{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;border:1.5px solid var(--line-strong);box-sizing:border-box}
+.mark.open{border:2.5px solid var(--action)}
+.mark.doing{background:var(--up);border-color:var(--up)}
+.mark.done{background:var(--green);border-color:var(--green)}
+.card.st-open{border:1.5px solid var(--action)}
+.card.st-done{background:var(--green-soft)}
+.focus .card{opacity:.34;box-shadow:none}
+.focus .card[data-rel]{opacity:1}
+.focus .card.far{opacity:.82}
+.card[data-rel=up]{background:var(--up-soft);border-color:var(--up)}
+.card[data-rel=down]{background:var(--down-soft);border-color:var(--down)}
+.card[data-rel=up] .rel{display:inline;background:var(--paper);color:var(--up)}
+.card[data-rel=down] .rel{display:inline;background:var(--paper);color:var(--down)}
+.card[data-rel=self]{background:var(--action);border-color:var(--action);box-shadow:0 10px 26px rgba(var(--shadow-rgb),.28);transform:translateY(-1px);opacity:1}
+.card[data-rel=self] .id,.card[data-rel=self] .name,.card[data-rel=self] .meta,.card[data-rel=self] .prog-t,.card[data-rel=self] .who{color:var(--action-ink)}
+.search-on .card:not(.hit){opacity:.26}
+.detail{width:0;overflow:hidden;background:var(--paper);border-left:1px solid transparent;transition:width .2s cubic-bezier(.2,.8,.2,1)}
+.detail.on{width:408px;border-left-color:var(--line);box-shadow:-10px 0 30px rgba(var(--shadow-rgb),.08)}
+.inner{width:408px;box-sizing:border-box;height:100%;overflow-y:auto;padding:16px 18px 28px}
+.d-head{display:flex;justify-content:space-between;align-items:center;color:var(--muted);gap:8px}
+.close{border:0;background:transparent;width:28px;height:28px;border-radius:7px;font-size:17px;line-height:1;cursor:pointer;color:var(--muted)}
+.close:hover{background:var(--soft);color:var(--ink)}
+.detail h3{margin:2px 0 8px;font-size:18px;line-height:1.35;font-weight:650;text-wrap:balance}
+.status{display:inline-flex;align-items:center;gap:6px;color:var(--ink-soft)}
+.d-sec{margin-top:18px}
+.d-sec h4{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--muted)}
+.d-sec p{margin:0;line-height:1.62;color:var(--ink);max-width:65ch}
+.d-sec ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.d-sec li b{font-weight:600}
+.d-sec li{line-height:1.55;overflow-wrap:anywhere}
+.chain{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chain>div{min-width:0}
+.chips{display:flex;flex-direction:column;gap:4px}
+.chip{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--soft);padding:4px 8px;border-radius:7px;cursor:pointer;line-height:1.35;transition:border-color .14s,background .14s}
+.chip:hover{border-color:var(--line-strong);background:var(--paper)}
+.chip b{font-weight:650;font-variant-numeric:tabular-nums;margin-right:3px}
+.chip small{display:block;color:var(--muted);font-size:11px}
+.chain h4.u{color:var(--up)}.chain h4.d{color:var(--down)}
+.none{color:var(--muted)}
+.links{display:flex;gap:14px;margin-top:20px;padding-top:12px;border-top:1px solid var(--line)}
+.links a{color:var(--up);text-decoration:none}.links a:hover{text-decoration:underline}
+.foot{position:sticky;left:0;width:max-content;max-width:min(680px,88vw);margin-top:26px;color:var(--muted);font-size:12px}
+@media (max-width:760px){
+  .search{flex:1 1 120px}.counts{display:none}.spacer{display:none}.src{order:5;font-size:12px}
+  .body{grid-template-columns:minmax(0,1fr)}
+  .detail{position:fixed;left:0;right:0;bottom:0;width:auto!important;height:0;z-index:5;border-left:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;transition:height .22s cubic-bezier(.2,.8,.2,1);box-shadow:0 -10px 30px rgba(var(--shadow-rgb),.2)}
+  .detail.on{height:74%}
+  .chain{grid-template-columns:minmax(0,1fr)}
+  .inner{width:auto;padding-bottom:max(28px,env(safe-area-inset-bottom,0px));padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.card:hover,.card:active,.tab:active{transform:none}}
+</style>
+<div class="app">
+  <header class="top">
+    <h1>需求全景图</h1>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="按阶段查看"></nav>
+    <span class="spacer"></span>
+    <div class="counts" id="counts"></div>
+    <input class="search" id="search" type="search" placeholder="搜编号或名称" aria-label="搜编号或名称">
+  </header>
+  <div class="body">
+    <main class="board" id="board"><svg class="lines" id="lines" aria-hidden="true"><defs>
+      <marker id="au" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--up)"/></marker>
+      <marker id="ad" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--down)"/></marker>
+    </defs><g id="paths"></g></svg><div id="stages"></div><p class="foot" id="foot"></p></main>
+    <aside class="detail" id="detail" aria-label="批次详情"><div class="inner" id="inner"></div></aside>
+  </div>
+</div>
+<script>
+const D=/*DATA*/null;
+const STAGES=[['0','阶段 0','收口'],['1','阶段 1','基础路径与共同设计'],['2','阶段 2','个人工作完整可用'],['3','阶段 3','持续工作与创作'],['4','阶段 4','复杂场景与最终收口'],['S','服务端批','开工时间另定，01～89 不等它']];
+const STATUS={wait:'等前置',open:'可领',doing:'进行中',pause:'暂停',done:'已完成'};
+const REPO='https://github.com/molis-ai/molis-work';
+const ITEM_TONE={'已合入':'done','已认领':'doing','定样中':'doing','实施中':'doing','待评审':'doing','暂停':'pause'};
+const BOARD_API='https://api.github.com/repos/molis-ai/molis-work/issues/1743';
+const BASES=['已认领','定样中','实施中','待评审','已合入','暂停','放弃','待认领','移到服务端批'];
+const ACTIVE=new Set(['已认领','定样中','实施中','待评审']);
+const KIND={m:'可先开发，合入要等它',p:'只挡其中一部分',c:'核出缺口才等'};
+const byId=Object.fromEntries(D.batches.map(b=>[b.id,b]));
+const stName=Object.fromEntries(STAGES.map(s=>[s[0],s[1]]));
+const stateOf=id=>D.state[id]||'wait';
+let boardOff=0;
+// 认领板正文 -> 每项进展 -> 每批状态。页面只有这一份算法，内嵌快照和线上读到的都走它
+function applyBoard(md){
+  const rows={};let cur=null;
+  md.split(/\r?\n/).forEach(l=>{
+    if(!l.startsWith('|')||/^\|\s*(---|批次\s)/.test(l))return;
+    const c=(' '+l.trim().slice(1,-1)+' ').split(/\s\|\s/).map(x=>x.trim());
+    if(c.length!==6)return;
+    if(c[0])cur=c[0];
+    (rows[cur]=rows[cur]||[]).push(c);
+  });
+  boardOff=0;
+  D.batches.forEach(b=>{
+    const rs=rows[b.id]||[];
+    if(rs.length!==b.items.length)boardOff++;
+    b.items.forEach((it,i)=>{
+      const r=rs[i]||['','','','','待认领',''];
+      const name=(r[1].match(/\[([^\]]+)\]/)||[])[1]||r[1];
+      if(rs[i]&&name!==it.t)boardOff++;
+      it.s=BASES.find(k=>r[4].startsWith(k))||r[4];
+      it.note=r[4].slice(it.s.length).replace(/^[（(\s]+|[）)\s]+$/g,'');
+      it.who=r[2];it.date=r[5];
+      it.prs=[...r[3].matchAll(/#(\d+)/g)].map(m=>m[1]);
+      it.branch=(r[3].match(/`([^`]+)`/)||[])[1]||'';
+    });
+  });
+  const nodeItems=n=>n.items.map(i=>byId[n.owner].items[i]);
+  const nodes={};D.batches.forEach(b=>b.nodes.forEach(n=>{n.owner=b.id;nodes[n.id]=n}));
+  const done=id=>nodeItems(nodes[id]).every(i=>i.s==='已合入');
+  D.batches.forEach(b=>{
+    const its=b.items;
+    b.merged=its.filter(i=>i.s==='已合入').length;
+    b.ready=b.nodes.filter(n=>!done(n.id)&&nodeItems(n).some(i=>i.s==='待认领'||i.s==='放弃')&&n.hard.every(done));
+    b.undone=[...new Set(b.nodes.filter(n=>nodeItems(n).some(i=>ACTIVE.has(i.s))).flatMap(n=>n.hard).filter(h=>!done(h)&&nodes[h].owner!==b.id))];
+    D.state[b.id]=b.merged===its.length?'done':its.some(i=>ACTIVE.has(i.s))?'doing':b.ready.length?'open':its.some(i=>i.s==='暂停')?'pause':b.merged?'doing':'wait';
+  });
+}
+applyBoard(D.board);
+const el=(t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e};
+const $=id=>document.getElementById(id);
+const up={},down={};
+D.batches.forEach(b=>{up[b.id]=new Set(b.pre);down[b.id]=down[b.id]||new Set()});
+D.batches.forEach(b=>b.pre.forEach(p=>down[p].add(b.id)));
+const reach=(id,adj)=>{const s=new Set(),st=[...adj[id]];while(st.length){const x=st.pop();if(!s.has(x)){s.add(x);st.push(...adj[x])}}return s};
+// 阶段内：最长路径定列，父节点平均位置定列内顺序，让相连的卡尽量靠近
+function layout(stage){
+  const own=D.batches.filter(b=>b.stage===stage),set=new Set(own.map(b=>b.id)),mem={};
+  const lv=id=>mem[id]??(mem[id]=1+Math.max(-1,...byId[id].pre.filter(p=>set.has(p)).map(lv)));
+  own.forEach(b=>lv(b.id));
+  const max=Math.max(0,...Object.values(mem));
+  if(set.has('89'))mem['89']=max+(max>0&&own.some(b=>b.id!=='89'&&mem[b.id]===max)?1:0);
+  const cols=[];own.forEach(b=>(cols[mem[b.id]]=cols[mem[b.id]]||[]).push(b.id));
+  const pos={};cols.forEach(c=>c.forEach((id,i)=>pos[id]=i));
+  for(let pass=0;pass<6;pass++){
+    const bary=(id,adj)=>{const n=[...adj[id]].filter(x=>set.has(x));return n.length?n.reduce((a,x)=>a+pos[x],0)/n.length:pos[id]};
+    const list=pass%2?[...cols].reverse():cols;
+    list.forEach(c=>{if(!c)return;c.sort((a,b)=>bary(a,pass%2?down:up)-bary(b,pass%2?down:up));c.forEach((id,i)=>pos[id]=i)});
+  }
+  return cols.filter(Boolean);
+}
+const cards={};
+function buildCard(id){
+  const b=byId[id],st=stateOf(id),c=el('button','card st-'+st);c.type='button';c.dataset.id=id;
+  const r=el('span','row');r.append(el('span','id',id));const right=el('span','row');
+  right.append(el('span','rel'));const m=el('span','mark '+st);m.title=STATUS[st];right.append(m);r.append(right);
+  c.append(r,el('span','name',b.title));
+  const n=id==='89'?'全部做完才收口':(up[id].size?`要等 ${up[id].size}`:'无前置')+` · 放行 ${down[id].size}`;
+  c.append(el('span','meta',n));
+  const lead=b.items.find(i=>ITEM_TONE[i.s]==='doing')||b.items.find(i=>i.s==='暂停');
+  if(st!=='wait'&&st!=='open'||b.merged){
+    const p=el('span','prog');const bar=el('span','segs');
+    b.items.forEach(i=>bar.append(el('i','seg '+(ITEM_TONE[i.s]||'none'))));
+    p.append(bar,el('span','prog-t',lead?lead.s+(b.items.length>1?` · 合入 ${b.merged}/${b.items.length}`:''):(st==='done'?'已合入':`合入 ${b.merged}/${b.items.length}`)));
+    c.append(p);
+    if(lead&&lead.who)c.append(el('span','who',lead.who));
+  }else if(st==='open')c.append(el('span','prog-t open-t','可领'));
+  c.setAttribute('aria-label',`${id} ${b.title}，${STATUS[st]}`);
+  c.addEventListener('click',()=>select(selected===id?null:id));
+  cards[id]=c;return c;
+}
+STAGES.forEach(([s,name,sub])=>{
+  const sec=el('section','stage');sec.dataset.s=s;
+  const h=el('div','stage-head');h.append(el('h2',null,name),el('span',null,sub));
+  const cs=layout(s),n=cs.reduce((a,c)=>a+c.length,0);h.append(el('span',null,`· ${n} 批`));
+  const row=el('div','cols');
+  cs.forEach(c=>{const col=el('div','col');c.forEach(id=>col.append(buildCard(id)));row.append(col)});
+  sec.append(h,row);$('stages').append(sec);
+});
+$('foot').textContent=D.foot;
+const src=el('a','src');src.href=REPO+'/issues/1743';src.target='_blank';src.rel='noopener';$('counts').after(src);
+let boardAt=D.boardAt,boardFailed=false;
+function renderSource(){
+  const d=new Date(boardAt),p=n=>String(n).padStart(2,'0'),when=`${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  src.textContent=(boardFailed?`暂时读不到 #1743，显示的是 ${when} 的进展`:`进展来自 #1743 · 更新于 ${when}`)+(boardOff?` · ${boardOff} 处与路线书对不上`:'');
+}
+let tab='all',selected=null;
+function renderTabs(){
+  $('tabs').replaceChildren(...[['all','全部'],...STAGES.map(s=>[s[0],s[1]])].map(([k,l])=>{
+    const t=el('button','tab',l);t.type='button';t.setAttribute('role','tab');t.setAttribute('aria-selected',tab===k);t.onclick=()=>setTab(k);return t}));
+}
+function setTab(k){tab=k;renderTabs();document.querySelectorAll('.stage').forEach(s=>s.hidden=k!=='all'&&s.dataset.s!==k);$('board').scrollTo({left:0,top:0});drawLines()}
+function renderCounts(){
+  const c={wait:0,open:0,doing:0,pause:0,done:0};D.batches.forEach(b=>c[stateOf(b.id)]++);
+  $('counts').replaceChildren(...Object.keys(STATUS).filter(k=>k!=='pause'||c.pause).map(k=>{const s=el('span');s.append(el('i','mark '+k),document.createTextNode(`${STATUS[k]} ${c[k]}`));return s}));
+}
+function chip(id){
+  const b=byId[id],x=el('button','chip');x.type='button';const mk=el('i','mark '+stateOf(id));mk.title=STATUS[stateOf(id)];x.append(mk,document.createTextNode(' '),el('b',null,id),document.createTextNode(b.title));
+  const here=byId[selected];if(here&&b.stage!==here.stage)x.append(el('small',null,stName[b.stage]));
+  x.onclick=()=>{if(tab!=='all'&&b.stage!==tab)setTab(b.stage);select(id)};return x;
+}
+function chipList(ids,empty){
+  if(!ids.length)return el('div','none',empty);
+  const w=el('div','chips');ids.forEach(i=>w.append(chip(i)));return w;
+}
+const sorted=s=>[...s].sort((a,b)=>D.order[a]-D.order[b]);
+function renderDetail(id){
+  const b=byId[id],box=$('inner');box.replaceChildren();
+  const h=el('div','d-head');const left=el('span');left.textContent=`第 ${id} 批 · ${stName[b.stage]}`;
+  const x=el('button','close','×');x.type='button';x.setAttribute('aria-label','关闭详情');x.onclick=()=>select(null);h.append(left,x);box.append(h);
+  box.append(el('h3',null,b.title));
+  const s=el('div','status');s.append(el('i','mark '+stateOf(id)),document.createTextNode(STATUS[stateOf(id)]));box.append(s);
+  const sec=(t,c)=>{const d=el('div','d-sec');d.append(el('h4',null,t),c);box.append(d)};
+  sec('这批要做什么',el('p',null,b.intro));
+  const ul=el('ul','items');b.items.forEach(i=>{
+    const li=el('li','item');const top=el('div','item-top');top.append(el('b',null,i.t));
+    const tag=el('span','tag '+(ITEM_TONE[i.s]||'none'),i.s);top.append(tag);li.append(top);
+    const m=[];if(i.note)m.push(i.note);if(i.who)m.push(i.who);if(i.date)m.push('更新 '+i.date);
+    if(m.length)li.append(el('div','item-meta',m.join(' · ')));
+    if(i.prs.length||i.branch){const w=el('div','item-meta');
+      i.prs.forEach(p=>{const a=el('a',null,'#'+p);a.href=REPO+'/pull/'+p;a.target='_blank';a.rel='noopener';w.append(a,document.createTextNode(' '))});
+      if(i.branch&&!i.prs.length)w.append(el('code',null,i.branch));li.append(w)}
+    li.append(el('div','item-d',i.d));ul.append(li)});
+  sec(`进展（合入 ${b.merged}/${b.items.length}）`,ul);
+  if(b.undone.length)box.lastChild.append(el('p','warn',`前置还没合入：${b.undone.join('、')}。批次文件写明可并行的部分不受影响。`));
+  if(b.ready.length){const names=b.split?[...new Set(b.ready.flatMap(n=>n.items.filter(i=>b.items[i].s==='待认领'||b.items[i].s==='放弃').map(i=>b.items[i].t)))].join('、'):'';
+    box.lastChild.append(el('p','ready',(names?`现在能领：${names}。`:'前置已合入。')+'认领前先确认同一轨道没有别的写手。'))}
+  const ch=el('div','d-sec chain');
+  const u=el('div'),d=el('div');const nu=reach(id,up).size,nd=reach(id,down).size;
+  u.append(el('h4','u',id==='89'?'要先完成':`要先完成（上游共 ${nu} 批）`),id==='89'?el('div','none','除服务端批外的其余全部批次'):chipList(sorted(up[id]),'没有前置'));
+  d.append(el('h4','d',`它放行（下游共 ${nd} 批）`),chipList(sorted(down[id]),id==='89'?'这是整条路线的最后一批':'没有批次必须等它'));
+  ch.append(u,d);box.append(ch);
+  if(b.split)sec('开放方式',el('p',null,'这批的子项前置不同，可能先开放其中几项。'));
+  if(b.soft.length){const l=el('ul');b.soft.forEach(k=>{const li=el('li');li.append(el('b',null,k.id+' '),document.createTextNode(byId[k.id].title+'：'+KIND[k.k]));l.append(li)});sec('不挡开工，但要知道',l)}
+  if(b.cond.length||b.ask){const l=el('ul');b.cond.forEach(t=>l.append(el('li',null,t)));if(b.ask){const li=el('li');li.append(el('b',null,'需要负责人做的：'),document.createTextNode(b.ask));l.append(li)}sec('开工条件',l)}
+  const links=el('div','links');[['批次文件',b.url],['Goal Prompt',b.url+'#goal-prompt']].forEach(([t,u])=>{const a=el('a',null,t+' ↗');a.href=u;a.target='_blank';a.rel='noopener';links.append(a)});box.append(links);
+  box.scrollTop=0;
+}
+function select(id){
+  selected=id;
+  Object.values(cards).forEach(c=>{delete c.dataset.rel;c.classList.remove('far');c.setAttribute('aria-pressed','false');c.querySelector('.rel').textContent=''});
+  const bd=$('board');
+  if(!id){bd.classList.remove('focus');$('detail').classList.remove('on');$('paths').replaceChildren();return}
+  const a=reach(id,up),d=reach(id,down);
+  a.forEach(x=>{const c=cards[x];c.dataset.rel='up';c.querySelector('.rel').textContent='上游';if(!up[id].has(x))c.classList.add('far')});
+  d.forEach(x=>{const c=cards[x];c.dataset.rel='down';c.querySelector('.rel').textContent='下游';if(!down[id].has(x))c.classList.add('far')});
+  cards[id].dataset.rel='self';cards[id].setAttribute('aria-pressed','true');
+  bd.classList.add('focus');renderDetail(id);$('detail').classList.add('on');
+  drawLines();
+  // 等详情面板展开、看板变窄之后再判断卡片是否被遮住
+  setTimeout(()=>{if(selected!==id)return;const r=cards[id].getBoundingClientRect(),b=bd.getBoundingClientRect();
+    if(r.left<b.left+20||r.right>b.right-20||r.top<b.top+20||r.bottom>b.bottom-20)cards[id].scrollIntoView({block:'center',inline:'center',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'})},240);
+}
+function drawLines(){
+  const svg=$('lines'),g=$('paths'),bd=$('board');g.replaceChildren();
+  svg.setAttribute('width',bd.scrollWidth);svg.setAttribute('height',bd.scrollHeight);
+  if(!selected)return;
+  const a=reach(selected,up),d=reach(selected,down),B=bd.getBoundingClientRect();
+  const P=e=>{const r=e.getBoundingClientRect(),x=bd.scrollLeft-B.left,y=bd.scrollTop-B.top;return{l:r.left+x,r:r.right+x,cx:r.left+x+r.width/2,top:r.top+y,bot:r.bottom+y,y:r.top+y+r.height/2}};
+  const NS='http://www.w3.org/2000/svg';
+  const visible=id=>cards[id].offsetParent!==null;
+  D.edges.forEach(([p,u])=>{
+    const isUp=(a.has(p)&&(a.has(u)||u===selected)),isDown=((d.has(u))&&(d.has(p)||p===selected));
+    if(!isUp&&!isDown||!visible(p)||!visible(u))return;
+    const direct=p===selected||u===selected;
+    // 跨阶段的线只画直接相连的，其余在详情里列出，避免长线穿过整屏
+    if(!direct&&byId[p].stage!==byId[u].stage)return;
+    const s=P(cards[p]),t=P(cards[u]),dx=Math.max(26,Math.abs(t.l-s.r)*.45);
+    const path=document.createElementNS(NS,'path');
+    const back=t.l<s.r+12,dy=Math.max(24,Math.abs(t.top-s.bot)*.5);
+    path.setAttribute('d',back?`M${s.cx} ${s.bot}C${s.cx} ${s.bot+dy} ${t.cx} ${t.top-dy} ${t.cx} ${t.top-1}`:`M${s.r} ${s.y}C${s.r+dx} ${s.y} ${t.l-dx} ${t.y} ${t.l-1} ${t.y}`);
+    path.setAttribute('class',(isUp?'up':'down')+(direct?' direct':''));
+    path.setAttribute('marker-end',`url(#${isUp?'au':'ad'})`);
+    g.append(path);
+  });
+}
+$('search').addEventListener('input',e=>{
+  const q=e.target.value.trim().toLowerCase();$('board').classList.toggle('search-on',!!q);
+  Object.entries(cards).forEach(([id,c])=>c.classList.toggle('hit',!!q&&(id.toLowerCase().startsWith(q)||byId[id].title.toLowerCase().includes(q))));
+});
+$('search').addEventListener('keydown',e=>{if(e.key!=='Enter')return;const h=document.querySelector('.card.hit');if(h){const id=h.dataset.id;if(tab!=='all'&&byId[id].stage!==tab)setTab(byId[id].stage);select(id)}});
+addEventListener('keydown',e=>{if(e.key==='Escape'&&selected)select(null)});
+new ResizeObserver(()=>drawLines()).observe($('board'));
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(drawLines);
+renderTabs();renderCounts();renderSource();
+function repaint(){
+  Object.keys(cards).forEach(id=>cards[id].replaceWith(buildCard(id)));
+  renderCounts();
+  if(selected)select(selected);else drawLines();
+  $('search').dispatchEvent(new Event('input'));
+}
+let boardBody=D.board,boardRead=0;
+async function readBoard(){
+  boardRead=Date.now();
+  try{
+    const r=await fetch(BOARD_API,{headers:{Accept:'application/vnd.github+json'}});
+    if(!r.ok)throw new Error(String(r.status));
+    const j=await r.json();
+    boardFailed=false;boardAt=j.updated_at;
+    if(j.body!==boardBody){boardBody=j.body;applyBoard(boardBody);repaint()}
+  }catch(e){boardFailed=true}
+  renderSource();
+}
+readBoard();
+// 没带令牌的 GitHub 接口每个 IP 每小时 60 次，切回页面时最多 5 分钟读一次
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-boardRead>3e5)readBoard()});
+const h=location.hash.match(/^#b(.+)$/);if(h&&byId[h[1]])select(h[1]);
+</script>

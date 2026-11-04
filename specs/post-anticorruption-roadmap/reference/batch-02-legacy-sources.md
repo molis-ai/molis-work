@@ -103,7 +103,7 @@
 | 原风险 | 处置 |
 | --- | --- |
 | R-02、03、14 | 原协调表已交接同事并行开发和机器负载；借用工作树的同步工具曾选错工作树。现行并行开发手册规定独立工作树、构建／浏览器槽位和进程归属。原机器的网络观察留给 R-67。  |
-| R-06、11、17 | Sessions SC-4 随 #1194 采用。C8-3 随 #1185 采用，执行方按钮余项归 BL-1032；Goals S9-2 的旧库迁移由干净重建取代，本人验收仍归 BL-929。#1164 随项目删除清理角色运行记录。 [`f880df0c4`](https://github.com/molis-ai/molis-work/commit/f880df0c4)、[`3e96b40ea`](https://github.com/molis-ai/molis-work/commit/3e96b40ea) |
+| R-06、11、17 | Sessions SC-4 随 #1194 采用。C8-3 随 #1185 采用，执行方按钮余项归 BL-1034；Goals S9-2 的旧库迁移由干净重建取代，本人验收仍归 BL-929。#1164 随项目删除清理角色运行记录。 [`f880df0c4`](https://github.com/molis-ai/molis-work/commit/f880df0c4)、[`3e96b40ea`](https://github.com/molis-ai/molis-work/commit/3e96b40ea) |
 | R-08 · Shelf S2 | 在同一台机器用离线依赖、相同 Node、各自临时 Home，对 [#1051](https://github.com/molis-ai/molis-work/pull/1051) 的最终候选 `3cea145b10` 和合并时的主线基线 `1ded3c218d` 分别构建，再串行跑原评审点名的三份用例。候选依次 8/8、12/12、10/10。基线依次 7/8、12/12、10/10，Shelf AI 的“every recipe reaches its registered instruction”报模型请求失败或超时（本地夹具）。第一次基线构建期间工作树被移除，重新从相同提交完整构建后才计入结果。原首败和 Swift 环境记录仍留原评审；这次候选三文件通过，未复现当年材料提取的三个取消／撤回超时。 |
 | R-09、16、21、28、29、31、34、57 | 旧 PR 的叠放、队列拥堵、枢纽文件与人员排期已随防腐批关闭。#1304 的先入队记录保留；如今按认领板、同路径串行和机器槽位执行。第 02 批的在途 PR 与全量仍由现任统筹管理。 [`4db89e26d`](https://github.com/molis-ai/molis-work/commit/4db89e26d) |
 | R-12、13、15 | 运行中的路由停用后答带码的 403。所有调用之外的回调已有意保留原处理方式，返回 undefined 后插件自己使用它仍可能出错；处置不扩成新的调用合同。 [`01a875af0`](https://github.com/molis-ai/molis-work/commit/01a875af0) |

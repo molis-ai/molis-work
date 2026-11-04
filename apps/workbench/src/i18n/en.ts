@@ -223,7 +223,7 @@ export const EN: Record<string, string> = {
   "这件事": "This item",
   "收起详情": "Close detail",
   "打开 Session": "Open Session",
-  "今天还没有事件走进来": "Nothing arrived today yet",
+  "今天还没有事项": "No items yet today",
   "这一天没有事件": "Nothing on this day",
   "今天接到 {n} 件事": "{n} {n|item|items} arrived today",
   "这一天有 {n} 件事": "{n} {n|item|items} on this day",

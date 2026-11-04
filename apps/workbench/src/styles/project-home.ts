@@ -230,8 +230,6 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-shortcut:hover .home-shortcut-edit, .immersive-home .home-shortcut-edit:focus-visible { opacity: 1; }
   .immersive-home .home-shortcut:not(.home-shortcut-add) .home-shortcut-main { padding-right: 32px; }
   .immersive-home .home-shortcut-error { margin: 12px 0 0; color: var(--red); font-size: 12px; line-height: 1.6; }
-  .immersive-home .home-margin-note { display: flex; align-items: center; gap: 8px; margin: 32px 0 0; color: var(--muted); font-size: 12px; }
-  .immersive-home .home-margin-note svg { width: 14px; height: 14px; }
   .immersive-home :is(button, a, input, textarea):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   @media (prefers-reduced-motion: reduce) {
     .immersive-home :is(.home-day, .home-quick__item, .home-shortcut-main, .home-erow__chev svg) { transition: none; }
@@ -252,7 +250,6 @@ export const PROJECT_HOME_STYLES = `
     .immersive-home .home-launch { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); column-gap: 24px; }
     .immersive-home .home-launch > :is(h2, .home-shortcut-error) { grid-column: 1 / -1; }
     .immersive-home :is(.home-quick, .home-shortcuts) { display: contents; }
-    .immersive-home .home-margin-note { display: none; }
   }
   @container project-home (max-width: 640px) {
     .immersive-home .home-scroll { padding: 24px 16px 24px; }

@@ -48,7 +48,7 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       <h2 id="memory-form-title">${L("怎么形成")}</h2>
       ${prefRow(L, "form", L("允许记住"), personal ? L("总开关。关掉后不再形成新的记忆，也不提建议；已有的照常使用。") : L("关掉后不再为这个项目形成新的记忆，也不提建议。"))}
       <div class="settings-setting-row memory-pref-static"><span class="setting-copy"><strong>${L("明确要求时记住")}</strong><span>${L("你说“以后……”“记住……”时直接记住，并告诉你在哪里生效。")}</span></span><span class="setting-value settings-muted">${L("总是")}</span></div>
-      ${prefRow(L, "auto", L("自动记住低风险的偏好与经验"), L("你在两次不同的工作里都这样要求时自动记住，出现在“最近变动”里，可以撤销。关掉则都先问你。"))}
+      ${prefRow(L, "auto", L("自动记住偏好与约定"), L("你在两次不同的工作里都这样要求时，助理会记住这项偏好或约定。你可以在“最近变动”里撤销。记住事实和经验前仍会问你。关掉后，偏好和约定也会先问你。"))}
       ${prefRow(L, "learn_from_work", L("从工作里提出建议"), L("工作结束时提出值得记住的内容，等你认可。"))}
       ${prefRow(L, "learn_from_ui", L("从界面操作里学习"), L("只数你采纳、忽略、改写、撤销界面建议的次数，不保存内容；反复出现才提出建议。"))}
     </section>

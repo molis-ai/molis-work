@@ -31,7 +31,6 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
             <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>
           </section>
           <section class="placement-related" data-placement-related aria-label="${L("关联资料")}" hidden></section>
-          <p class="home-margin-note">${icon("shield")}${L("你的节奏，你的工作空间。")}</p>
         </aside>
         <section class="home-tl" aria-label="${L("当天的事件")}">
           <div class="home-tl__head"><h2>${L("当天的事件")}<small data-home-list-count></small></h2><span data-home-list-stats></span></div>

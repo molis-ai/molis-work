@@ -37,7 +37,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const detailNode = $("[data-home-detail]");
   const detailHolder = $("[data-home-detail-holder]");
   const labels = {
-    todayEmpty: L("今天还没有事件走进来"),
+    todayEmpty: L("今天还没有事项"),
     empty: L("这一天没有事件"),
     todaySum: (n) => L("今天接到 {n} 件事", { n }),
     daySum: (n) => L("这一天有 {n} 件事", { n }),

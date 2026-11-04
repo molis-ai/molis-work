@@ -20,7 +20,6 @@ export const HOME_EN: Record<string, string> = {
   "已有工作仍在，可以从当前目标继续，或从这里开始一件新的事。": "Your work is still here. Continue from the current Goal, or start something new here.",
   "手边": "At hand",
   "回到手边的内容": "Back to what's at hand",
-  "你的节奏，你的工作空间。": "Your pace, your workspace.",
   "找到下一步": "Find the next step",
   "自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断": "Automatic judgment only considers the actions Feed has been granted; grant more in permissions or judge manually if you need them.",
   "阅读与留下": "Read and keep",

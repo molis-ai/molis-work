@@ -2,7 +2,7 @@
 
 状态：用户已定（2026-11-04）：记了什么 A 分类清单、保留与清理 A 期限加手动清理、占用 A 数字加分类条、覆盖与缺口 B 先列缺口，都是推荐方案；决定记在[原需求 §9](../../../specs/observation-collection/spec.md#9-决策记录)。产品代码还没写。
 
-这是参考原型，不是产品界面。需求来源是[观测和采集层](../../../specs/observation-collection/spec.md)（§2.1、§2.5、§2.6，OCL-02、09、11、12），设计见 [design.md](../../../specs/observation-collection/design.md) §6～8，排期见[第 21 批](../../../specs/post-anticorruption-roadmap/reference/batches/21.md)。配色、控件与图标取自第 04 批原型 [onboarding-full-journey](../onboarding-full-journey/README.md)（`base.css`、`icons.js` 拷了一份，没有改它）。用户拍板后，定下的方案写进原需求的决策记录，再进产品代码（届时换成 `mw-*` 控件）。
+这是参考原型，不是产品界面。需求来源是[观测和采集层](../../../specs/observation-collection/spec.md)（§2.1、§2.5、§2.6，OCL-02、09、11、12），设计见 [design.md](../../../specs/observation-collection/design.md) §6～8，排期见[第 21 批](../../../specs/post-anticorruption-roadmap/reference/batches/21.md)。配色与图标取自第 04 批原型 [onboarding-full-journey](../onboarding-full-journey/README.md)（`base.css`、`icons.js` 拷了一份，没有改它）。2026-11-04 按定样规则（[开发流程 §5](../../../specs/post-anticorruption-roadmap/reference/development-workflow.md)：先用组件板 `/__ui/catalog` 已有的控件、状态与布局，新增的标出来）把定下的四个方案改成组件板的构件，见下面「对照组件板」。进产品代码时换成对应的 `mw-*` 控件。
 
 ## 怎么打开
 
@@ -33,6 +33,28 @@ python3 -m http.server 4421 --bind 127.0.0.1 --directory docs/design/work-record
 | 覆盖与缺口 | A 覆盖表：来源 × 记录种类，每格一个状态 | 全貌最完整；格子多，窄屏要横向滚 |
 | | **B 先列缺口（已定）**：顶上一句总况，「需要注意」逐条写来源、时间段、原因，点开看影响与处理；完整和不适用折叠 | 先看到要管的事；看不出全貌 |
 | | C 时间线：每个来源一条横道，断开的地方就是缺口 | 一眼看出哪段时间没记全；看不出是哪类记录 |
+
+## 对照组件板
+
+顶上原型控制里点「标出组件」：每个构件用虚线框出并写组件板上的名字；红框是**组件板新增**，写着为什么已有的不够。下表是定下的四个方案用到的构件。
+
+| 方案 | 构件（组件板名） |
+| --- | --- |
+| 记了什么 A | 顶上状态 Alert；五类记录各一行 Item Row · Collapsible（点开看记／不记）；「可以用在哪里」Settings Row + Switch；页签 Tabs |
+| 保留与清理 A | 期限 Settings Row + Select；需要多长的依据 Item Row，末尾 Status mark（保得住／会失去）；手动清理 Dialog，里面 Select、Date Picker、Checkbox Group；清理中与部分失败用 Alert |
+| 占用 A | 用量 Stat；提醒线 Settings Row + Number Field + Switch，下方 Meter（满格就是提醒线）；到期清理 Settings Row；接近、超过、磁盘不足用 Alert |
+| 覆盖与缺口 B | 总况 Alert；来源筛选 Toggle Group + Select；每处缺口 Item Row · Collapsible，末尾 Status mark；「完整」「不适用」折叠 Collapsible |
+
+状态的颜色用 Status mark 的语气：完整 done；暂不可用、截断 attention；丢失 blocked；已脱敏、到期清除 hold；未接入 idle；不适用、按规则不记 quiet。
+
+**组件板新增**（进产品前先在组件板补标本，再用）：
+
+| 新增 | 为什么已有的不够 |
+| --- | --- |
+| 分类条 | Meter 与 Progress 只显示一个数；占用要按五类记录分段看各占多少，带图例 |
+| 种类色标记 | 组件板的 Mark 是中性色；五类记录在清单、对话框、缺口里要一眼分开（界面通用规则 11-03：不同内容用搭配的不同颜色） |
+
+没选的方案（B 时间轴、A 覆盖表等）不做，没有逐个对照。
 
 ## 每块的状态
 

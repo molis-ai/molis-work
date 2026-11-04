@@ -33,7 +33,7 @@ body{overflow:auto}
 .tile.lg{width:36px;height:36px;border-radius:10px}.tile.lg svg.i{width:18px;height:18px}
 .status{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-card);box-shadow:inset 0 0 0 1px var(--line);background:var(--paper)}
 .status .bd{flex:1;min-width:0}.status strong{display:block;font-weight:600;font-size:14px}.status .fact{display:block;margin-top:1px}
-.status.warn{background:var(--amber-soft);box-shadow:none}.status.err{background:var(--red-soft);box-shadow:none}
+.status.warn{background:var(--amber-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--amber) 30%,transparent)}.status.err{background:var(--red-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red) 30%,transparent)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 18%,transparent)}
 .dot.amber{background:var(--amber);box-shadow:0 0 0 3px color-mix(in srgb,var(--amber) 18%,transparent)}
 .dot.red{background:var(--red);box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 18%,transparent)}
@@ -49,8 +49,8 @@ body{overflow:auto}
 .more div{font-size:12px;line-height:1.55;color:var(--ink-soft)}
 .more b{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:2px}
 .more .no{color:var(--muted)}
-.toggle{position:relative;width:34px;height:20px;border-radius:999px;border:0;background:var(--line-strong);flex:none;transition:background var(--dur-hover)}
-.toggle:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:var(--lift-1);transition:transform var(--dur-move) var(--ease)}
+.toggle{position:relative;width:36px;height:22px;border-radius:999px;border:0;background:var(--line-strong);flex:none;transition:background var(--dur-hover)}
+.toggle:after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:var(--lift-1);transition:transform var(--dur-move) var(--ease)}
 .toggle[aria-checked=true]{background:var(--action)}.toggle[aria-checked=true]:after{transform:translateX(14px)}
 :root[data-theme=dark] .toggle[aria-checked=true]:after{background:#17212b}
 .toggle[disabled]{opacity:.5;cursor:not-allowed}
@@ -66,11 +66,12 @@ select.fld,input.fld{height:32px;border-radius:var(--r-control);border:1px solid
 input.fld.num{width:72px;text-align:right}
 .st{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:var(--r-tag);font-size:11.5px;font-weight:500;white-space:nowrap;background:var(--rail);color:var(--ink-soft)}
 .st:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.85}
-.st.ok{background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green)}
-.st.warn{background:var(--amber-soft);color:var(--amber)}.st.err{background:var(--red-soft);color:var(--red)}
-.st.info{background:var(--accent-soft);color:var(--accent-strong)}
-.st.mute{background:transparent;border:1px dashed var(--line-strong);color:var(--muted)}
-.st.na{background:transparent;color:var(--faint)}.st.na:before{background:transparent;border:1px solid currentColor}
+/* 组件板 Status mark 的七种语气 */
+.st.done{background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green)}
+.st.attention{background:var(--amber-soft);color:var(--amber)}.st.blocked{background:var(--red-soft);color:var(--red)}
+.st.hold,.st.progress{background:var(--accent-soft);color:var(--accent-strong)}
+.st.idle{background:var(--rail);color:var(--ink-soft)}
+.st.quiet{background:var(--rail);color:var(--muted)}.st.quiet:before{opacity:.45}
 .tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:var(--r-tag);font-size:11px;font-weight:500;background:var(--rail);color:var(--ink-soft);white-space:nowrap}
 .kchip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px 0 4px;border-radius:7px;font-size:12px;font-weight:500;background:color-mix(in srgb,var(--hue) 11%,var(--paper));color:color-mix(in srgb,var(--hue) 80%,var(--ink))}
 .kchip svg.i{width:14px;height:14px}
@@ -136,13 +137,13 @@ table.cov td button.st.sel{outline:2px solid var(--accent);outline-offset:1px}
 .ticks{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px;font-size:11px;color:var(--muted)}
 .ticks div{display:flex;justify-content:space-between}
 .gap{border-radius:var(--r-card);box-shadow:inset 0 0 0 1px var(--line);background:var(--paper)}
-.gap+.gap{margin-top:8px}
+.gap+.gap{margin-top:8px}.gap>.item{min-height:52px}
 .gap .gh{display:flex;align-items:center;gap:10px;padding:8px 10px;min-height:46px;cursor:pointer;border-radius:var(--r-card)}
 .gap .gh:hover{background:var(--hover)}
 .gap .gh .nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .gap .gh .fact{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .gap .gb{padding:0 12px 12px 48px;font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:6px}
-.gap.err{box-shadow:inset 3px 0 0 var(--red),inset 0 0 0 1px var(--line)}.gap.warn{box-shadow:inset 3px 0 0 var(--amber),inset 0 0 0 1px var(--line)}
+
 .sec-h{display:flex;align-items:center;gap:8px;margin:6px 0 2px;font-size:12px;font-weight:600;color:var(--muted)}
 .sumrow{display:flex;gap:8px;flex-wrap:wrap}
 .sumrow .tag{height:24px;font-size:12px;padding:0 9px}
@@ -182,7 +183,6 @@ table.cov td button.st.sel{outline:2px solid var(--accent);outline-offset:1px}
   .rec-app .desk{padding:8px}
   .sheet{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
   .need{flex-wrap:wrap}.need .fact{margin-left:24px;width:100%}
-  .gap .gh .fact{display:none}
   .snav{flex-direction:row;padding:8px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
   .snav h2{display:none}.snav button{flex:none}
   .shead{padding:12px 14px 0}.subnav{padding:8px 14px 0}.sbody{padding:14px 14px 24px}
@@ -193,3 +193,34 @@ table.cov td button.st.sel{outline:2px solid var(--accent);outline-offset:1px}
   .wb .bar .marker span.lbl{display:none}
   .wb .composer{display:none}
 }
+
+/* 组件板 Settings Row：左边标题与说明，右边控件 */
+.setrow{display:flex;align-items:center;gap:12px;min-height:48px;padding:8px 2px}
+.setrow+.setrow{border-top:1px solid var(--line)}
+.setrow .tt{flex:1;min-width:0}.setrow .tt strong{display:block;font-weight:500}.setrow .tt p{margin:2px 0 0;font-size:12px;color:var(--muted);line-height:1.5}
+.setrow .ctl{flex:none;display:flex;align-items:center;gap:8px}
+/* 组件板 Item Row：标记、两行文字、末尾状态 */
+.items{display:flex;flex-direction:column}
+.item{display:flex;align-items:center;gap:10px;min-height:46px;padding:6px 8px;border-radius:var(--r-row)}
+.items .item+.item{border-top:1px solid var(--line);border-radius:0}
+.item.click{cursor:pointer}.item.click:hover{background:var(--hover)}
+.item .tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.item .tx strong{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .tx small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 组件板 Checkbox Group */
+.chkgroup{display:flex;flex-wrap:wrap;gap:6px 16px}
+.chk{display:inline-flex;align-items:center;gap:6px;min-height:28px;cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--action);margin:0}
+/* 组件板 Number Field、Meter、Stat */
+.numfield{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}.numfield .fld.num{width:64px;text-align:right}
+.meterrow{display:flex;align-items:center;gap:10px;margin:6px 0 2px}.meterrow meter{flex:1;height:10px}
+.stat-l{margin:0;font-size:12px;color:var(--muted)}.stat-d{margin:2px 0 0;font-size:12px;color:var(--muted)}
+/* 「标出组件」：原型用的标注，不是产品界面 */
+body.cat [data-cat]{outline:1px dashed color-mix(in srgb,var(--accent) 70%,transparent);outline-offset:2px;position:relative}
+body.cat [data-cat]:before{content:attr(data-cat);position:absolute;top:-9px;right:4px;z-index:3;font:500 10px/14px var(--font, system-ui);padding:0 4px;border-radius:3px;background:var(--accent);color:#fff;pointer-events:none;white-space:nowrap}
+body.cat [data-new]{outline:2px solid var(--red);outline-offset:2px;position:relative;display:block}
+body.cat span[data-new]{display:inline-block}
+body.cat [data-new]:after{content:"组件板新增 · " attr(data-new);position:absolute;left:0;top:calc(100% + 4px);z-index:4;max-width:280px;font:500 10.5px/15px var(--font, system-ui);padding:2px 6px;border-radius:3px;background:var(--red);color:#fff;pointer-events:none;white-space:normal;width:max-content}
+html[lang=en] body.cat [data-new]:after{content:"New for component board · " attr(data-new)}
+.proto #cat[aria-pressed=true]{background:var(--action);color:#fff}
+body.cat [data-new].rep:after{display:none}

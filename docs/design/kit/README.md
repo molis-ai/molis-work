@@ -7,6 +7,7 @@
 | `kit.css` | design-system 的 `VISUAL_FOUNDATION_STYLES`（色板、阴影层级、圆角、时长与曲线、`mw-*` 控件、状态环、提示条）与 `MOTION_STYLES`（四种进场、落定底色），加页面常放的部件：差异视图、过程折叠（plugin-sdk `processFold` 按 `.pf-group`／`.pf-step` 生成）、展开、交互卡、输入回执、看图放大、复制反馈、溢出渐隐、等宽数字。生成文件，不手改 |
 | `kit.js` | 主题启动脚本；真实渲染函数挂在 `window.mwKit`；图标表 `window.mwKitSprite`；客户端脚本字符串 `window.mwKitClient`（视觉基础：按下回弹、分段滑块、状态环动画、主题切换）和 `window.mwKitClients`（`mediaZoom`、`dropZone`、`copy`、`overflowFade`）。生成文件，不手改 |
 | `build.mjs` | 生成上面两份的脚本 |
+| `coding-proto.js`、`coding-proto.css` | Coding 样张共用的框架 `window.codingProto(cfg)`（手写）：原型控制条、Coding 头部、文件栏（12 已定的目录 C）、对话列、输入框、从按钮长出的弹层、提示条、04 的恢复框架（12 已定的恢复 A）、过程折叠，以及「标出组件板新增」开关（`ctx.fresh(理由)` 给一处界面打上 `data-new`）。叠在 12 的布局层 `../coding-execution-states/styles.css` 之上；第 33 批 [coding-env-recovery](../coding-env-recovery/README.md)、第 35 批 [coding-daily-basics](../coding-daily-basics/README.md) 在用 |
 
 `window.mwKit` 现有：`renderButton`、`renderStatusMark`、`renderBadge`、`renderAlert`、`renderStateRing`、`icon`、`escapeHtml`（plugin-sdk `ui`）；`renderDiff`、`compareChange`、`diffViewText`（plugin-sdk `diff-view`）；`renderMenu`、`renderMenuItem`、`renderMenuGroup`、`renderPopover`、`renderTooltip`（design-system `primitives/overlay`）；`renderToggleGroup`、`renderTabs`（`primitives/navigation`）；`renderFileKind`、`renderFileRow`、`renderFileGroup`、`renderBarStatus`、`renderSteps`（`primitives/arrival`）。
 

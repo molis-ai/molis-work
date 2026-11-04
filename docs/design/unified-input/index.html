@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>统一输入框定样 · Molis Work 原型</title>
+  <link rel="stylesheet" href="base.css?v=1">
+  <link rel="stylesheet" href="input.css?v=1">
+</head>
+<body>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b data-t="protoTitle"></b>
+    <label><span data-t="entry"></span><select id="entry"></select></label>
+    <label><span data-t="words"></span>
+      <span class="seg" id="words"><button type="button" data-words="1"></button><button type="button" data-words="2"></button><button type="button" data-words="3"></button></span>
+    </label>
+    <label><span data-t="lang"></span>
+      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
+    </label>
+    <label><span data-t="theme"></span>
+      <span class="seg" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
+    </label>
+    <button type="button" class="btn sm sec" id="reset" data-t="reset"></button>
+  </div>
+  <div class="page">
+    <nav class="toc" id="toc" aria-label="目录"></nav>
+    <main id="app"></main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

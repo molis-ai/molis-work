@@ -1,6 +1,6 @@
 # 风险插件：可点的定样（路线书第 17 批）
 
-状态：用户已定（2026-11-04）：风险记录用 B 两栏整页 + C 侧栏打开，总览用 A 按状态分组，复查用 A 详情里的复查段；决定记在[原需求的定样决定](../../../specs/risk-plugin/spec.md#design-decisions)。2026-11-04 按组件板实件重做（版式与取舍不变，只换成 `mw-*` 实件），等用户确认。产品代码还没写。
+状态：用户已定（2026-11-04）：风险记录用 B 两栏整页 + C 侧栏打开，总览用 A 按状态分组，复查用 A 详情里的复查段；决定记在[原需求的定样决定](../../../specs/risk-plugin/spec.md#design-decisions)。2026-11-04 按组件板实件重做（版式与取舍不变，只换成 `mw-*` 实件），用户已确认。产品代码还没写。
 
 这是参考原型，不是产品界面。需求来源是[风险插件](../../../specs/risk-plugin/spec.md)（RISK-01～08）和 [Work Brief §3.5](../../../specs/work-brief/spec.md)（WBR-17～19），排期见[第 17 批](../../../specs/post-anticorruption-roadmap/reference/batches/17.md)。控件、卡片、提示、状态、人像、进展列表都由组件板的渲染函数画出（`window.MW`，见[组件板实件](../component-board/README.md)），样式就是组件板现行的那一份；`risk.css` 只排位置、只用组件板令牌。原型只画用户选定的方案；没选的 A/B/C 方案在 Git 历史里（提交 `1a904fa8ae`，PR #1766 合入时的样子）。
 

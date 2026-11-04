@@ -48,7 +48,7 @@ python3 -m http.server 4471 --bind 127.0.0.1 --directory docs/design/sessions-so
 
 | 文件 | 是什么 |
 | --- | --- |
-| `mw.css` | 生成的组件板快照，与[第 21 批工作记录](../work-records/README.md)是同一份（9abbaa90e 到 main 4fd250564 之间组件板没有改动）：`renderMolisWorkSettingsStylesheet()` 加 `renderMolisWorkPrimitiveCatalog()` 页内的 `<style>`；去掉了 `@font-face` |
+| `mw.css` | 生成的组件板快照，与第 21 批工作记录定样（[#1773](https://github.com/molis-ai/molis-work/pull/1773) 的 `docs/design/work-records/mw.css`）是同一份（9abbaa90e 到 main 4fd250564 之间组件板没有改动）：`renderMolisWorkSettingsStylesheet()` 加 `renderMolisWorkPrimitiveCatalog()` 页内的 `<style>`；去掉了 `@font-face` |
 | `mw-icons.js` | 生成的：`renderIconSprite()` 与 `renderStateRing()` |
 | `proto.css` | 本原型自己的：原型控制条与「标出组件」标注、一项组件板新增的原型画法、把现成组件放进外壳的排版（只用组件板令牌） |
 | `app.js` | 画法照 `packages/plugin-sdk/src/ui` 与 `packages/design-system/src/primitives` 里各个 `render*` 的输出逐字写 |

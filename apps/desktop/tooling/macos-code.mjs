@@ -5,8 +5,8 @@
 // bundle is one of those sealed files: it has to be signed before the bundle, and never again afterwards, or the bundle
 // no longer verifies. So the tree is split into bundles and loose files, every Mach-O is assigned to the innermost bundle
 // that holds it, and bundles are signed innermost first.
-import { execFileSync } from "node:child_process";
-import { closeSync, lstatSync, openSync, readSync, readdirSync, existsSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { closeSync, lstatSync, openSync, readSync, readdirSync, realpathSync, existsSync } from "node:fs";
 import path from "node:path";
 
 const BUNDLE_SUFFIXES = [".app", ".framework", ".bundle", ".xpc", ".appex"];
@@ -33,8 +33,14 @@ export function isCodeBundle(directory) {
     .some(relative => existsSync(path.join(directory, relative)));
 }
 
-/** The bundle's main executable, or null (a resource-only bundle has none). */
+const mainExecutables = new Map();
+/** The bundle's main executable as a real path (matching the walk), or null (a resource-only bundle has none). */
 export function mainExecutable(bundle) {
+  if (!mainExecutables.has(bundle)) mainExecutables.set(bundle, readMainExecutable(bundle));
+  return mainExecutables.get(bundle);
+}
+
+function readMainExecutable(bundle) {
   for (const [plist, executableDir] of [["Contents/Info.plist", "Contents/MacOS"], ["Resources/Info.plist", "."],
     ["Versions/Current/Resources/Info.plist", "Versions/Current"]]) {
     const info = path.join(bundle, plist);
@@ -42,7 +48,11 @@ export function mainExecutable(bundle) {
     let name = "";
     try { name = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleExecutable", info], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
     catch { name = ""; /* no CFBundleExecutable: a resource-only bundle */ }
-    return name ? path.join(bundle, executableDir, name) : null;
+    if (!name) return null;
+    const executable = path.join(bundle, executableDir, name);
+    // A versioned framework names it through Versions/Current, a link; the walk records the real Versions/A path.
+    if (!existsSync(executable)) return null;
+    return path.join(realpathSync(path.dirname(executable)), path.basename(executable));
   }
   return null;
 }
@@ -71,4 +81,19 @@ export function scanCode(root) {
   walk(root, isCodeBundle(root) ? root : null);
   bundles.sort((a, b) => b.split(path.sep).length - a.split(path.sep).length);
   return { bundles, machos };
+}
+
+/** What `codesign` says about one signed item: valid, signed with a certificate (not ad-hoc), hardened, get-task-allow. */
+export function signatureOf(code) {
+  const valid = spawnSync("/usr/bin/codesign", ["--verify", "--strict", code], { stdio: "ignore" }).status === 0;
+  const details = spawnSync("/usr/bin/codesign", ["-d", "--verbose=4", code], { encoding: "utf8" });
+  const text = `${details.stdout}${details.stderr}`;
+  const flags = text.match(/^CodeDirectory .*flags=0x[0-9a-f]+\(([^)]*)\)/m)?.[1] ?? "";
+  const entitlements = spawnSync("/usr/bin/codesign", ["-d", "--entitlements", "-", "--xml", code], { encoding: "utf8" }).stdout ?? "";
+  return {
+    valid,
+    certificate: /^Authority=/m.test(text),
+    runtime: /\bruntime\b/.test(flags),
+    getTaskAllow: /<key>com\.apple\.security\.get-task-allow<\/key>\s*<true\s*\/>/.test(entitlements),
+  };
 }

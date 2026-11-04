@@ -71,9 +71,9 @@ security find-identity -v -p codesigning
 4. **Tauri 打包、签 App、公证并装订 App**。App 的 entitlements 是 `src-tauri/Entitlements.plist`（向 Safari、Chrome、Finder 发 Apple Events），说明文字在 `src-tauri/Info.plist` 的 `NSAppleEventsUsageDescription`。
 5. **逐个检查签名**（`verify-macos-signatures.mjs --release`）：每个 Mach-O 和 bundle 签名有效、hardened runtime、没有 `get-task-allow`、Node 有 JIT 权限、都是 Developer ID、都带时间戳、只有一个 Team ID。
 6. **签名、公证、装订 DMG**（`notarytool submit --wait`、`stapler staple`）。用户可能第一次在断网时打开下载的 DMG，所以 DMG 也要带自己的票据。
-7. **Gatekeeper 评估**：App 和 DMG 各 `stapler validate` 一次，`spctl --assess` 一次。
+7. **Gatekeeper 评估**：App 和 DMG 各 `stapler validate` 一次、`spctl --assess` 一次，输出里必须是 `source=Notarized Developer ID`（关了 Gatekeeper 评估的机器上 spctl 也会说 accepted）。
 
-不给身份时（本机），同样逐个 ad-hoc 签、开 hardened runtime，同样跑第 5 步的本机部分（不查证书、时间戳和 Team）。macOS 对 ad-hoc 签名也执行 hardened runtime，所以本机能跑起来，签法就和发行包一致。`tests/desktop-macos-signing.test.ts` 在 macOS 上用真实的 Node 和原生插件验这一套。
+只有 `Developer ID Application:` 开头的身份算发行。不给身份时（本机）逐个 ad-hoc 签、开 hardened runtime，跑第 5 步的本机部分（不查证书、时间戳和 Team），不公证；已经用本机证书签好、开了 hardened runtime 的 bundle（电脑助手）保持原签名，免得屏幕录制、辅助功能、输入监控每次重建都要重新授权。给别的身份（如本机的 `Tauri Local Development` 证书）时用它签全部代码，同样只做本机检查、不公证。macOS 对 ad-hoc 签名也执行 hardened runtime，所以本机能跑起来，签法就和发行包一致。`tests/desktop-macos-signing.test.ts` 在 macOS 上验重签和本机签名检查两个脚本（用跑测试的 Node、一个真实原生插件和一个助手 App 拼成的小运行时），不含公证、装订和 Gatekeeper。
 
 ## 8. 第一次用真身份构建：要验的（等第 1～5 步做完）
 

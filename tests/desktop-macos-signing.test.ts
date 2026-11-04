@@ -1,8 +1,9 @@
 // Batch 26 item 1 (signing, notarization and install preparation), c-end-readiness.md §3.1 C-1 and probe S2: the
-// repository side that needs no Apple credential. The release path signs every piece of embedded code with hardened
-// runtime, gives Node the entitlements it needs and nothing notarization refuses, seals helper apps as bundles, and
-// checks all of that locally before Apple is asked. The darwin cases build a small runtime with the real Node and native
-// addons, sign it ad-hoc (macOS enforces hardened runtime for ad-hoc signatures too) and run it.
+// repository side that needs no Apple credential. What it covers: the declared entitlements and Info.plist, the order of
+// steps in build-macos-release.sh (as text), and the two scripts — re-signing (sign-macos-runtime.mjs) and the local
+// signature check (verify-macos-signatures.mjs) — on a small runtime built from the Node running the tests, a real
+// native addon and a helper app, signed ad-hoc (macOS enforces hardened runtime for ad-hoc signatures too) and run.
+// It does not cover notarization, stapling or Gatekeeper, the downloaded Node 24 build, or a full App build.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -15,7 +16,13 @@ const root = path.resolve(import.meta.dirname, "..");
 const desktop = path.join(root, "apps/desktop");
 const signScript = path.join(desktop, "tooling/sign-macos-runtime.mjs");
 const verifyScript = path.join(desktop, "tooling/verify-macos-signatures.mjs");
-const darwin = { skip: process.platform !== "darwin" };
+/** The fixture copies the running Node; a Node that loads a separate libnode (Homebrew's) does not start from a copy. */
+function darwinSkip(): string | false {
+  if (process.platform !== "darwin") return "macOS only";
+  const libraries = spawnSync("/usr/bin/otool", ["-L", process.execPath], { encoding: "utf8" }).stdout ?? "";
+  return /libnode/.test(libraries) ? "this Node links a separate libnode, so a copy of it cannot start" : false;
+}
+const darwin = { skip: darwinSkip() };
 
 const read = (relative: string) => readFileSync(path.join(root, relative), "utf8");
 const grants = (plist: string, key: string) => new RegExp(`<key>${key.replaceAll(".", "\\.")}</key>\\s*<true\\s*/>`).test(plist);

@@ -25,8 +25,10 @@ export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 # A Developer ID build is a release candidate: it must also be notarized, or it is not something to give a person
 # (docs/releases/POLICY.md). Notarization credentials are read by name from the environment only (the release workflow
 # passes them); this script never prints or stores them. Tauri notarizes the .app; the DMG is notarized below.
+# Any other identity (a local stable certificate such as "Tauri Local Development", which keeps the computer helper's
+# macOS permissions across rebuilds, specs/computer-use D08) is a local build: signed, checked, never notarized.
 RELEASE_SIGNING=0
-if [[ "$APPLE_SIGNING_IDENTITY" != "-" ]]; then
+if [[ "$APPLE_SIGNING_IDENTITY" == "Developer ID Application:"* ]]; then
   RELEASE_SIGNING=1
   if [[ -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_ISSUER:-}" && -n "${APPLE_API_KEY_PATH:-}" ]]; then
     NOTARY_AUTH=(--key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER")
@@ -73,8 +75,17 @@ if [[ "$RELEASE_SIGNING" == 1 ]]; then
   xcrun notarytool submit "$DMG_PATH" "${NOTARY_AUTH[@]}" --wait
   xcrun stapler staple "$DMG_PATH"
   xcrun stapler validate "$DMG_PATH"
-  spctl --assess --type execute --verbose=4 "$APP_PATH"
-  spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG_PATH"
+  # spctl also says "accepted" on a machine where Gatekeeper assessment is turned off; only the notarized source counts.
+  APP_ASSESSMENT="$(spctl --assess --type execute --verbose=4 "$APP_PATH" 2>&1)" || { echo "$APP_ASSESSMENT" >&2; exit 1; }
+  DMG_ASSESSMENT="$(spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG_PATH" 2>&1)" || { echo "$DMG_ASSESSMENT" >&2; exit 1; }
+  echo "$APP_ASSESSMENT"
+  echo "$DMG_ASSESSMENT"
+  for result in "$APP_ASSESSMENT" "$DMG_ASSESSMENT"; do
+    if [[ "$result" != *"source=Notarized Developer ID"* ]]; then
+      echo "Gatekeeper did not accept the package as Notarized Developer ID." >&2
+      exit 1
+    fi
+  done
 fi
 
 OUTPUT_DIR="$REPO_ROOT/release/macos"
@@ -93,6 +104,6 @@ echo "  $OUTPUT_ZIP"
 if [[ "$RELEASE_SIGNING" == 1 ]]; then
   echo "Actual App signature (notarized, stapled and accepted by Gatekeeper above):"
 else
-  echo "Actual App signature (ad-hoc: signature validity is not notarization or Gatekeeper approval):"
+  echo "Actual App signature (local build: signature validity is not notarization or Gatekeeper approval):"
 fi
 codesign -dv --verbose=2 "$APP_PATH" 2>&1

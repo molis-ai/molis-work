@@ -117,13 +117,18 @@ interface ProjectDirectories {
 
 **目录的 id 和路径脱钩**（#1805 第 2 条）。现在 `workspace_id` 是路径哈希（`modules/projects/src/workspace.ts` 的 `normalizeProjectWorkspace`），`repair` 换了路径就换了 id，旧关联随之删掉；而资料引用写的是 `<workspace_id>:<相对路径>`，修复以后旧引用就指向一个不存在的 id。改成：
 
-- `add` 时发一个新 id，以后不再随路径变；「同一个文件夹只关联一次」改由 `canonical_path` 唯一来守。加一个已经关联过的文件夹，返回原来那一项，不新发 id。
-- `repair` 只改 `canonical_path`，id 不变，所以历史引用和固定版本不受影响（WMD-04）。新路径已经是本项目另一个目录时拒绝，错误码 `projects.directory_duplicate`，不悄悄合并两项。
-- 现有的哈希 id 本来就是不透明的字符串，照旧有效，不重写、不重映射。
+- 文件夹是 Home 级的一行（`modules/projects` 的 `workspaces`，`canonical_path` 全局唯一），和项目多对多关联（`workspace_project_memberships`）。这个形状不变。
+- `add` 时发一个新 id，以后不再随路径变；「同一个文件夹只关联一次」由 `canonical_path` 的唯一约束来守。加一个别的项目已经关联过的文件夹，关联到原来那一行，不新发 id。
+- **唯一性只认核实过的路径**：`add`、`repair` 都必须 realpath 核实成功；核实不了（不存在、读不了）就拒绝，错误码 `projects.directory_missing`，不退回 `path.resolve` 的结果。这样大小写不同、经符号链接的同一个文件夹不会被当成两个。
+- **`repair` 说的是「这个文件夹搬到了这里」**，是文件夹的事实，不是某个项目的：只在这一行的状态是 `missing` 时允许，改的是这一行的 `canonical_path`，id 不变，所以每个关联它的项目一起跟着走，历史引用和固定版本都不受影响（WMD-04）。每个关联的项目各记一条 `project.workspace_path_repaired`。想换成另一个文件夹，是移除再添加，不是修复。
+- 新路径已经是另一行（不论哪个项目关联着）时拒绝，错误码 `projects.directory_duplicate`，不悄悄合并两行。
+- **不再从路径推 id**：现在 `apps/local-host/src/project-catalog.ts`、`modules/private-work-context/src/project-binding-validation.ts` 用 `normalizeProjectWorkspace` 按路径哈希推 id。脱钩以后一律改成按 `canonical_path` 查那一行，`normalizeProjectWorkspace` 不再出 id。否则旧的哈希 id 照旧推得对、新发的推不对，就成了一条没写明的兼容路径。
+- 现有的哈希 id 本来就是不透明的字符串，照旧有效，不重写、不重映射；以后只是不再从路径算它。
 
 **没写目录时取输出目录**（#1805 第 3 条）。现在有十几处不传 `workspace_id`，靠 `preferredPath` 隐含取一个目录（Schedule 的唤醒、Goals 的终端、到达页都是）。规则定为：
 
-- 没传 `workspace_id` 的读、写、执行，一律取**输出目录**。`modules/projects` 导出 `outputDirectory(project_id)`，替掉 `preferredPath`，不留旧名。
+- 没传 `workspace_id` 的读、写、执行，一律取**输出目录**。合同里的 `preferredWorkspacePath`（`modules/projects.ts` 的读取端口，有 api 快照）和动作 `projects.workspace.read` 都换成按角色给的读法：端口改成 `outputDirectory(project_id)`，动作并进 `projects.directories.get`，不留旧名。
+- 第 06 批核账 C 表里的每个调用方，实现时逐个标明是改用输出目录，还是必须显式传目录：手里已经有引用的（如 `artifact-actions.ts` 按引用定位文件）用引用里自带的 `workspace_id`，不改成输出目录。
 - 要用输入目录，必须显式传它的 `workspace_id`，服务按当前角色核对；不按「最近看过」「第一个加的」去猜。
 
 ## 4. 浏览和执行，以及撤权
@@ -132,13 +137,13 @@ interface ProjectDirectories {
 
 | 位置 | 主人 | 存在哪里 | 能不能写或执行 |
 | --- | --- | --- | --- |
-| 项目配置（输入和输出） | `modules/projects` | 项目库，持久 | 只有输出目录可写；只作输入的目录只能读（§2.1） |
+| 项目配置（输入和输出） | `modules/projects` | 项目库，持久 | 只有输出目录可写；只作输入的目录对谁都只能读，Agent、插件、Git 一样（WMD §2.1、WMD-11）。要在某个文件夹里写，就把它设成输出（输入和输出可以是同一个） |
 | 本轮执行位置 | agent-host，在轮次开始时冻结 | 轮次记录 | 是输出目录，或临时工作树 |
 | 面板正在看的位置 | 工作台的视图状态 | 页面，按窗口各自记 | 永远不能，只是看 |
 
 **现在的「浏览目录」设置删掉**（#1805 第 1 条）。main 上有一份持久的浏览选择：动作 `projects.settings.browsing-workspace.read`、`.select`，宿主表 `project_browsing_settings`（`apps/local-host/src/project-browsing-settings.ts`），Files、Git、Coding 和助理的环境都在读。按上表它是页面状态，所以：
 
-- 这两个动作、这张表、`workspace-settings-events.ts` 里对应的事件一起删，同一次切换里改完所有读它的地方，不留别名（N35）。
+- 这两个动作和这张表一起删，同一次切换里改完所有读它的地方，不留别名（N35）。页面事件 `host.workspace.changed@1`（S-54 管着）**保留**，只改「项目打开」那一路（`announceProjectOpened`）的载荷，不再带浏览设置。同一次切换里要改的还有：`projectWorkspacesRoute`、`plugin-page-workspaces.ts`、Coding Manifest 的 `consumes`、`skills/molis-plugin-dev/elements.md`、`docs/platform/PROJECT-SETTINGS.md`。
 - **Git**：动作的输入显式带 `workspace_id`，不传就是输出目录（第 3 节）；页面把正在看的目录作为输入传过去，服务按当前角色核对。
 - **Coding**：浏览的目录只在页面里；执行位置只从 `RunDirectories.execution` 来（下一段）。Coding 现在把两者混在一起（`routes-sessions.ts`、`executor.ts`），浏览器代码要整块改：归 B 轨；借助理执行器（`assistant-executor.ts`）的那部分归 A 轨（轨道规则 7）。
 - **助理的环境**：「你正在看什么」由页面经现有的情境通道交给助理，只当提示，不带授权；不再读持久设置。
@@ -159,7 +164,7 @@ interface RunDirectories {
 - **冻结的是「在哪」，不是「准不准」。** 每次读、写、执行，都按**当前**的目录角色和授权重新核一遍。撤权、文件夹失效、移除输入会立即拒绝之后的访问，不能拿「已经冻结了」当理由继续（WMD-09）。被拒的调用照 AGENTS 的规矩不写业务记录。
 - **配置变了**：轮次视图同时给出 `RunDirectories` 和当前的 `ProjectDirectories`，界面据此显示「本轮还在原位置，下一轮起用新位置」。
 - **浏览不改权限**：面板正在看哪里不进任何合同，只是工作台的页面状态。临时查看一个输入目录不改执行位置（CHO-36～39），也不获得写入权限。
-- **只有输出目录可写**（#1805 第 5 条）。现在 `workspaceRefFor` 的注释说只给授权目录，实际给的是所有已验证目录；目前没有因此多放权，但改成 `roles` 以后要说死：Agent 能写的只有 `RunDirectories.output`（或它的临时工作树），输入目录只读。实现时补一条断言「写输入目录被拒」的测试，并在 `docs/system/SECURITY-INVARIANTS.md` 加一行（编号由实现片取）。
+- **只有输出目录可写**（#1805 第 5 条）。现在 `agent-host-composition.ts` 里，`workspaceRefFor` 取的是最近更新的那条关联，`workspaceGrants` 给的是所有已验证目录；目前没有因此多放权，但改成 `roles` 以后要说死：一轮里能写的只有 `RunDirectories.output`（或它的临时工作树），输入目录只读，和上表对所有写入方的规矩一致。实现时补一条断言「写输入目录被拒」的测试，并在 `docs/system/SECURITY-INVARIANTS.md` 加一行（编号由实现片取）。
 - **失效时的错误**：用 `projects.directory_missing`、`projects.directory_revoked`、`projects.directory_duplicate`，在 `modules/projects` 的 `defineErrorCodes("projects", …)` 里声明。
 
 ## 5. 智能呈现的声明
@@ -240,7 +245,7 @@ interface MountDeclaration {
   - Home 级插件（如 Todo）的概况动作走 `project_reach`，按调用上下文给它可达的项目，不在输入里带项目。
 - **没有声明的对象**：平台兜底显示图标、名字、所属插件和「打开」，打开位置用 `SearchOpenTarget`（IUI-02）。
 - **文案键**：`label_key` 用插件的稳定文字键，和第 15 批「前三个插件声明从首片起用稳定文字键」一致。
-- **装不上要说清**：声明不合法时安装被拒，并说明是哪一项错了（IUI-01）。校验是第 6 节的 `validatePresentationDeclaration`。
+- **装不上要说清**：声明不合法时安装被拒，并说明是哪一项错了（IUI-01）。校验是第 7 节的 `validatePresentationDeclaration`。
 
 ## 6. 组合服务的公开合同
 
@@ -271,9 +276,9 @@ interface SurfaceGroup {
   owner_plugin_id?: string;         // 只在 plugin 组
   state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared";   // disabled、undeclared 只用在 plugin 组
   read_at?: string;                 // state 为 stale 时有
-  /** 没有放进来的。第一片只收 disabled：不给 forbidden，「有几件你看不了」本身就是泄露。 */
+  /** 没有放进来的。第一片只收 disabled：不给 forbidden，「有几件你看不了」本身就是泄露。件数只给 user 受众；plugin 受众只给有没有，不给件数。 */
   excluded?: Array<{ reason: "disabled"; count: number }>;
-  hidden_above?: { count: number; label: TextRef };   // 「另有 N 件」
+  hidden_above?: { count: number; label: TextRef };   // 「另有 N 件」：只数调用方读得了的
   title?: TextRef;
   items: SurfaceItem[];
 }
@@ -301,8 +306,8 @@ interface SurfaceItem {
 | `surfaces.correct@1` | command | 用户换形态、移走、固定。按调用方和位置记住，同一位置下次先照纠正来（IUI-06）。用 `expected_revision` |
 
 - **组的规矩**：`disabled`、`undeclared` 用在 plugin 组以外，`assertSurfaceDescription` 拒绝。停用卡上的「启用」引用平台动作 `plugins.installed.enable@1`（只给本人），不另造。
-- **revision 要把授权算进去**：哈希的输入里加调用方的授权版本（或动作目录给的可用性版本）。只换了授权、别的没变时，可点的操作已经不同，revision 也必须变，页面才会重画。
-- **关系类型要登记**：现在 context-ledger 的 `ContextEdge.type` 是自由字符串，写入方各自定常量（如 `horizontal/placement/src/index.ts` 的 `TYPES`）。C-3 在 contracts 的 `modules/context-ledger` 加一张平台关系类型表 `ContextRelationType`，先放 `created_from`；`merged` 只认表里的类型。这条边由执行「从这件新建」的平台路径写，不由插件自称。
+- **revision 要把授权算进去**：main 上没有单独的「授权版本」，所以哈希的输入里加上动作目录 `discover()` 给每个操作的 `availability`。只换了授权、别的没变时，可点的操作已经不同，revision 也必须变，页面才会重画。
+- **关系类型要登记**：现在 context-ledger 的 `ContextEdge.type` 是自由字符串，写入方各自定常量（如 `horizontal/placement/src/index.ts` 的 `TYPES`）。C-3 在 contracts 的 `modules/context-ledger` 加一张平台关系类型表 `ContextRelationType`：放进 placement 已有的 `placement.derived_from`、`placement.copied_from` 等（照原名，归 placement），再加 `created_from`；`merged` 只认表里的类型。三者不重叠：`copied_from` 是复制出的副本，`derived_from` 是由别的对象派生出的版本，`created_from` 是在操作面上「从这件新建」出的另一件东西，两者主人可以不同。这条边由执行「从这件新建」的平台路径写，不由插件自称。
 - **授权核对只读**：组合服务核对「这个操作此刻能不能点」直接用动作目录的 `discover()`，它带 `availability`，不另开接口。
 - **操作就是动作**：`SurfaceItem.actions` 里只能是动作目录里现有的动作，或者平台的通用操作。点下去的时候走动作网关，用当时的授权，不用组合当时的授权（IUI-07）。
 - **组合不存值**：描述里只有引用、形态和该显示哪些字段，值由页面另取。所以描述可以缓存，值照样是主人的当前值。
@@ -350,7 +355,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 本稿里另外两处存量：
 
 - **删掉的浏览设置表**（第 4 节）：重建之前落，第 1 版建表里直接不建；之后落，升级步删表，不搬数据（它本来就是页面状态）。
-- **Files 退役**（#1805 第 7 条）：去向写在[第 06 批第 1 项](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-1)。要点：产生动作和版本读取归平台的资料服务（`services.materials`），用现有的过程项设施；原来的输出绑定在同一次切换里改到新动作，不留别名；侧栏的文件来源归 `horizontal/knowledge`；历史过程项按维护步处理，涉及真实 Home 的进维护时段，先问用户。
+- **Files 退役**（#1805 第 7 条）：去向写在[第 06 批第 1 项](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-1)。要点：产生动作和版本读取归平台的资料服务，用现有的过程项设施（产生者的身份要先在合同里补，见那一节）；原来的输出绑定在同一次切换里改到新动作，不留别名；侧栏的文件来源归 `horizontal/knowledge`；历史过程项按维护步处理，涉及真实 Home 的进维护时段，先问用户。
 
 ## 9. PR 怎么拆
 
@@ -391,7 +396,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 | SSC-13 | 主人读不到时 `PresentationValues` 给 `stale` 和 `read_at`，界面写「x 分钟前的值」，不当成当前值 | IUI-10 |
 | SSC-14 | 不经组合服务，按声明和 `PresentationValues` 单独画出「行」（MLN-23），与组合服务画出的同一形态一致 | MLN-23、IUI-03 |
 | SSC-15 | Agent 只能写输出目录（或它的临时工作树）；写输入目录被拒，有断言拒绝本身的测试和安全不变量一行 | WMD-09、#1805 第 5 条 |
-| SSC-16 | `repair` 以后目录 id 不变，旧的 `MaterialRef` 照样能读；修到本项目已有的另一个目录时被拒 | WMD-04、#1805 第 2 条 |
+| SSC-16 | `repair` 只在文件夹失效时允许，以后 id 不变，关联它的每个项目的旧 `MaterialRef` 照样能读；修到已有的另一行时被拒；realpath 核实不了的路径 `add`、`repair` 都被拒；不再有从路径推 id 的读法 | WMD-04、#1805 第 2 条 |
 | SSC-17 | 没传 `workspace_id` 的读、写、执行都取输出目录；要用输入目录必须显式传，并按当前角色核对 | WMD-07、#1805 第 3 条 |
 | SSC-18 | 插件级概况的动作 schema 与平台定的一字不差，否则安装被拒；`start` 只能引用同一次注册里的动作 | #1798 第 12 节第 1 条 |
 | SSC-19 | 只换了授权、别的不变时，`surfaces.compose` 的 revision 也变 | #1798 评审 |

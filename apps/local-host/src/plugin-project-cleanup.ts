@@ -48,7 +48,7 @@ export interface PluginProjectLibraries {
  * project goes: the rows its library declares, deleted by the platform on its own connection, waiting for a write the instance has in
  * progress; or, for a library partitioned by project, the library is closed and refused to every call already under way and the
  * project's library is removed, and only then may a call begun after the deletion open
- * it again (specs/plugin-project-partition §2.5). A plugin with background work and no data of a project gets a step of its own that
+ * it again (specs/archive/plugin-project-partition §2.5). A plugin with background work and no data of a project gets a step of its own that
  * only stops that work; the confirmation lists the work that will stop.
  */
 export function registerPluginProjectCleanup(home: string, runtime: PluginRuntime, entries: readonly PluginProjectCleanupEntry[],

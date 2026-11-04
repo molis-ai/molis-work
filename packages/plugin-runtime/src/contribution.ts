@@ -125,6 +125,9 @@ export function assertContributionMatchesManifest(
 ): void {
   assertKind(manifest, contribution);
   const problems = assertActions(manifest, contribution, scope);
+  if (contribution.kind === "integration" && Boolean(manifest.source_presentations?.length) !== (typeof contribution.presentSource === "function")) {
+    problems.push("source_presentations 声明与 presentSource 必须一同兑现");
+  }
   if (contribution.kind === "app") problems.push(
     ...assertViews(manifest, contribution, scope),
     ...assertRoutes(manifest, contribution, scope),

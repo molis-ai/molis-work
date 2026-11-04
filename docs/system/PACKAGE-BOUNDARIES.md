@@ -1,7 +1,7 @@
 # Package 边界规则
 
 状态：已确认（F1）  
-完整包清单：[`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md)
+包的事实 owner 与成熟度：[`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md)；层、状态和人工审查记录：[现行包清单](#7-现行包清单)。
 
 ## 1. 依赖方向
 
@@ -46,7 +46,7 @@ the published surface (contracts, plugin-sdk) is the lowest layer
 - Module 导入 Horizontal Service、App 或 Plugin（代码 import 与 `package.json` 依赖都查，`module-upward-dependency`）。
 - Plugin 导入另一个 Plugin implementation、Store 或未公开 UI 组件。
 - Plugin 导入 App、Horizontal Service 或 Module implementation（`plugin-upward-dependency`）。在册的唯一例外：`plugins/native/shelf → modules/shelf`（Shelf 仍用 Shelf Module 的配方与设置解析，是待还的债，不是先例）。Goals 插件曾声明却从未导入 `modules/goals`，该依赖已删。
-- 生产源码导入任何插件的 `./testing` 出口，或插件自己的其他模块导入它的 `testing` 模块（`plugin-testing-entry-import`）。`./testing` 是测试在运行时之外开插件数据的入口（现在没有插件带这个出口：Pages 的 `openPagesStore` 已搬进测试夹具 `tests/fixtures/plugin-home-stores.ts`，PG-023；规则留着，不让它再长出来）；生产代码经 Plugin Runtime 取数据，不经它。
+- 生产源码导入任何插件的 `./testing` 出口，或插件自己的其他模块导入它的 `testing` 模块（`plugin-testing-entry-import`）。`./testing` 是测试在运行时之外开插件数据的入口（现在没有插件带这个出口：Pages 的 `openPagesStore` 已搬进测试夹具 `tests/fixtures/plugin-home-stores.ts`，PG-023；规则留着，不让它再长出来）；生产代码经 Plugin Runtime 取数据，不经它。同一条线上：插件包（Todo、Form、灵光、Dataset、PPT、Workflows、Jelly、Cognia、Pages）的 `package.json` 不依赖私有的 `@molis-ai/molis-work-storage`，不导出 `openXStore` 一类按路径开 Home 库文件的函数；运行中的插件用 Runtime 给的 `services.database`，测试要开库就用夹具 `tests/fixtures/plugin-home-stores.ts`（`tests/plugin-storage-dependency.test.ts` 钉住）。目前还依赖 storage 的只有 Images 与 Alchemist（Alchemist 随 BL-376/377 重做）。
 - Plugin SDK 导入或依赖 contracts 以外的任何工作区包（`public-sdk-private-dependency`，源码 import 与 `package.json` 依赖都查）。外部作者只装 contracts 与 SDK 两个包；SDK 依赖了私有包，打包后的示例就装不上（2026-09-30 出过一次）。所以作者和平台共用、会运行的工具放在 SDK 里，而不是私有的 kernel 或 plugin-runtime，平台各层从 SDK 取同一份。现在在 SDK 里的是执行生命周期（kernel、宿主、调度服务、Shelf 模块和沙箱从 SDK 取）、Manifest 解析与版本比较（`parsePluginManifest` 等，Plugin Runtime 与命令行从 SDK 取）动作、Agent、方法的声明检查（`inspectActionDeclarations` 等，kernel 注册时用）和逐行文本比较（`compareTexts` 等，工作台审查界面、Coding 与 Diff 从 SDK 取；结果与行的类型留在合同包）以及动作的两个绑定函数（`bindPluginActionRoute`、`bindOwnerPluginAction`，失败按错误的 kind 答，合同包里的那张状态表随之删除）；W3-03 要从合同包搬出的三样会运行的东西都已在 SDK 里；W3-02-C 又把这两个绑定函数从合同包搬了进来。
 - Plugin 导入私有的界面包 `design-system`、`im-ui`、`ui-host`（`plugin-private-ui-dependency`，源码 import 与 `package.json` 依赖都查）。插件画界面用 SDK 公开的部件（`/ui` 的字符串部件、`/browser` 的 DOM 工具、`/page-globals` 的页面全局类型），外部作者装的也是这一套，内置插件不另走私有的路（2026-10-18「插件同等待遇」）。唯一在册的例外是 plugin-builder（创作台是平台能力，名单在 `packages/test-kit/src/boundaries.ts` 的 `PRIVATE_UI_EXEMPT_PLUGINS`，只许减少）。伙伴页面的舞台（Files、Git、Diff、Text Stats）不是公开部件，四个插件各自用公开部件写。
 - App 导入另一个 App，列出的启动器边之外都拒绝（`app-dependency-not-allowed`）：产品根的启动器 → desktop / local-host / mcp，desktop → local-host，local-host → cli / mcp / workbench，`apps/server` → desktop / local-host。
@@ -94,7 +94,7 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 3. 包 README 写「开发要求」（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`），并在 `docs/horizontal/` 加手册。
 4. 要给页面、工作流、Agent、MCP、插件用的，都写成动作：动作定义写 `audiences`；Host 的装配点是 `apps/local-host/src/<名>-actions.ts`，返回 `registration: { provider, definitions, handlers }`（样例 `knowledge-actions.ts`）。插件使用它，要在自己的 Manifest `capabilities.consumes` 里声明。
 5. `pnpm build` 之后跑 `pnpm actions:update`（系统动作记在 `tooling/gates/actions/host-actions.tsv`），改了公开合同再跑 `pnpm api:update`，提交 `tooling/gates/`。
-6. `node scripts/gates/package-inventory.mjs --table` 重新生成 `specs/repository-anti-corruption/spec.md` §5.1 的包清单行。
+6. 用 `node scripts/gates/package-inventory.mjs --table` 核对本文「现行包清单」的机器列，补入新增包；保留原包的「计划深度」「审查」及证据，不用生成器默认的「待审」覆盖人工结论。
 7. `pnpm boundary:check` 与 `node scripts/check-health-gates.mjs --base origin/main` 都要过。
 
 ## 5. Adapter 放置
@@ -124,7 +124,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 
 健康门禁里还有静态检查（Biome：空 `catch`、`as unknown as`、没处理的 promise、显式 `any`、`console`、`debugger`，按文件计数、只许减少，口径与按包开新规则见 `tooling/gates/README.md`「静态检查」）。非 TypeScript 的代码由两个作业查，都在 `Verify` 的 `needs` 里，不看数字、有告警就失败：`native-checks`（macOS：`apps/desktop` 的 `rustfmt --check`、`cargo clippy -D warnings` 与 `cargo test`，Rust 版本固定；Swift 的 `swiftc -typecheck`，`jelly-whisper` 包的 `swift build` 暂不挡合并，见 BL-122）和 `shell-checks`（Linux：被跟踪的 `.sh` 的 `shellcheck`，被跟踪的 `.py` 能解析）。脚本是 `scripts/gates/native-checks.mjs`，规则的测试是 `tests/native-checks.test.mjs`。
 
-`ci.yml` 里另有一个不挡合并的 `linux-probe` 作业（依据 `specs/repository-anti-corruption` 决定 #14）：`continue-on-error: true`，不在 `Verify` 的 `needs` 里，分支保护不动。它只在每晚的定时运行（main，`schedule`，有自己的并发组，夜里的合并取消不到它）和手动触发（`workflow_dispatch`）时跑，PR 和推送上不跑（用户 2026-10-14 定：每次推送占一小时 runner 却不决定任何事，main 上又常被下一次合并取消）。它在 ubuntu 上是六片矩阵（R-58，用户 2026-10-26）：每片 `--shard k/6`（k 为 1 到 6），按排序后的可跑文件列表每隔六个取一个，六片合起来每个文件恰好一次；每片各自装 uv、`pnpm build`，再用 `scripts/ci-linux-probe.mjs` 跑自己那份，记下哪些在 Linux 上通过：
+`ci.yml` 里另有一个不挡合并的 `linux-probe` 作业（依据 `specs/archive/repository-anti-corruption` 决定 #14）：`continue-on-error: true`，不在 `Verify` 的 `needs` 里，分支保护不动。它只在每晚的定时运行（main，`schedule`，有自己的并发组，夜里的合并取消不到它）和手动触发（`workflow_dispatch`）时跑，PR 和推送上不跑（用户 2026-10-14 定：每次推送占一小时 runner 却不决定任何事，main 上又常被下一次合并取消）。它在 ubuntu 上是六片矩阵（R-58，用户 2026-10-26）：每片 `--shard k/6`（k 为 1 到 6），按排序后的可跑文件列表每隔六个取一个，六片合起来每个文件恰好一次；每片各自装 uv、`pnpm build`，再用 `scripts/ci-linux-probe.mjs` 跑自己那份，记下哪些在 Linux 上通过：
 
 - 每个文件经 `scripts/run-tests.mjs` 单独跑（环境和本地一样，每个文件一份新的 `MOLIS_WORK_HOME`），CI 里同时跑两个（`--jobs 2`）；失败的文件重跑一次（`--retries 1`），重跑通过的记为 `flaky`；每次尝试最多 10 分钟（`--timeout-seconds 600`），超时记 `timeout` 且不重跑；整体开始新文件的时间上限 85 分钟（`--budget-minutes 85`，每片各自），剩下的记 `not-run`，作业本身硬上限 120 分钟（每片各自，到点按取消处理，见下）。
 - 每个文件按自己的源码（连同它引用的 `tests/` 下的辅助文件：沿着相对路径的 import 一路跟下去，测试里写的 `./fixtures/x.js` 指的是 `x.ts`，也跟）打标记。这是读文本的静态规则，看不到 `tests/` 以外的文件、拼出来的路径、测试起的子进程里发生的事，所以标记是线索不是证明。规则在 `scripts/ci-linux-probe/select.mjs`：`browser` 是文件名带 `.e2e.test.`，或出现 Chrome 的路径、调试端口，或引用 test-kit 的浏览器子路径 `@molis-ai/molis-work-test-kit/browser`（不跑，记 `excluded`）；`darwin` 是平台判断、Seatbelt、Keychain、launchctl、Swift 助手、`/Applications/` 这类 macOS 专有的路径与工具（照跑并标出，失败时先当作平台差异读）；`live` 是文件名带 `live`，或用 `MOLIS_WORK_LIVE_*` 这类真实模型、真实网络的开关（探针不把这些开关传给测试，所以文件里的 live 测试会跳过）。整个文件只有 live 测试的（如 `tests/prologue-node-live.test.ts`）记 `skipped`，不算通过；文件里还有别的测试在跑的（如 `tests/plugin-sandbox-network.test.ts`、`tests/agent-built-plugins-dependencies.test.ts`），没失败就是 `pass`，跳过的个数记在 `report.json` 的 `skipped`，摘要里列在「Passed with some tests skipped」下，仍进 `pass.txt`（通过的只是在 Linux 上真正跑到的那一部分）。
@@ -174,7 +174,7 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 | `hybridPlugins` | 已由 Plugin Runtime 启动、宿主却还有同名文件或手工 `registerProvider(<插件>…Provider(…))` 的插件（现在：shelf、coding、git），报告里标出 | 混合装配既不是 Runtime 形状也不是批过例外的构建期形状，名单看不出来。Characters 按 2026-10-08 决定第 26 项并进了宿主和 `modules/characters`，不再是 Runtime 插件（CHR-1，2026-10-22），名单里没有它了 |
 | `pluginOutsideMentions` | 每个内置插件的包名在它自己的包之外出现在多少个源码或配置文件里（import、`package.json` 依赖、工作区清单） | 加一个插件除了它自己的包还要改几处。新插件的额度是 0（W5-02 PR-C，统筹 10-23 定）：生成器写的两份文件不算，两个应用与根的 `package.json` 只在插件依赖正好等于生成文件 import 的那一组（根是两份的并集）时不算 |
 
-安装生命周期和发布类型这条链沿用 `apps/local-host/src/installed-plugin-host.ts` 作为创作台类型接缝：由它 `export type` 转出 `AgentBuilderPorts`、`AgentRelease`，`installed-plugin-lifecycle.ts`、`installed-plugin-version.ts`、`installed-release.ts` 再以 `import type` 取得所需类型，不增加运行时依赖。这一约定只限定上述类型链；其他创作台调用方和私路的后续处理见[特权清单](../../specs/repository-anti-corruption/privileges.md)。不得为压低 `pluginOutsideMentions` 数字，借该接缝加入新的运行时依赖。
+安装生命周期和发布类型这条链沿用 `apps/local-host/src/installed-plugin-host.ts` 作为创作台类型接缝：由它 `export type` 转出 `AgentBuilderPorts`、`AgentRelease`，`installed-plugin-lifecycle.ts`、`installed-plugin-version.ts`、`installed-release.ts` 再以 `import type` 取得所需类型，不增加运行时依赖。这一约定只限定上述类型链；其他创作台调用方和私路的后续处理见[特权清单](../../specs/archive/repository-anti-corruption/privileges.md)。不得为压低 `pluginOutsideMentions` 数字，借该接缝加入新的运行时依赖。
 
 这些数字**看不到**的（没有类型检查器和跨文件数据流，靠评审；每个模块的文件头写得更细）：
 
@@ -203,3 +203,96 @@ typed 条目的新增、Repository 导出的新增、宿主入口的变宽、合
 Goals 的十四个 typed 桥已删除；`checkNoGoalTypedAdapters` 用 AST 拒绝它们的名称、literal 与旧模块重新进入生产定义、注册、导出和调用。`tests/goals-query-boundaries.test.mjs` 注入别名、动态引用和拼接 literal 验门禁；`tests/typed-registry-inventory.test.ts` 核实际 Host 剩余宿主内注册和 Goals 动作目录。CLI 与管理 MCP 经宿主造的管理调用者调用 Goals 动作（Host 私有 `bindGoalsManagementActions`，`actionClient(reference, false)`；MCP 只接管理动作端口或 null）。门禁 `checkGoalTransportCallers` 用 AST 核对实际动作调用与 Host 装配，并以 mutation 拒绝 typed/domain 路线、Runtime 获得管理端口、提前准备插件或丢失原库身份预打开。Host 只对未登记到当前 Home 的项目保留原 `client(reference).withScope(() => undefined)` 空 scope；已登记项目从目录取得原路径与项目身份，避免转发进程先打开项目，Apps MCP 不持有客户端，标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。它们仍不得越过 Host 直接读写领域 owner。2026-10-07 的 N-12 决定是对外只走动作、没有生产调用方的 Goals typed 桥要删（W2-08、W3-07 做），在此之前 `typedCapabilities` 只许减少，不许新增。
 
 Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public entrypoint 仍导出构造类型，尚待将 Host 装配与普通消费者接口分清。`moduleRepositoryExports` 把现有导出冻结住，只许减少。不能将现有导出视为任意调用 Store 的许可，也不能通过删除此约束宣称边界已完成收口。
+
+
+## 7. 现行包清单
+
+包登记的唯一事实源是 `scripts/workspace-packages.mjs`；本表记录层、代码判定的状态及人工审查。`node scripts/gates/package-inventory.mjs --check` 与健康门禁读取本表，作为不比较 merge-base 的绝对规则：每个登记包恰好一行，层、状态与代码一致，各列符合取值规则。增删包、插件迁到 Plugin Runtime 或 import 可达性改变后，同一 PR 更新对应行。
+
+`node scripts/gates/package-inventory.mjs --table` 重新量机器列，也重新建议计划深度，并默认输出「待审」。更新时须按包路径保留既有「计划深度」「审查」及审查证据，不能整表覆盖人工结论。数字列只检查写法，不逐次比较实测值；要刷新数字时才重测。
+
+本表沿用 2026-10-26 从 #1295 收口组合（`cbf060ca` 加原 `eb617d59` 增量）生成的记录及后续已采用更新，保留原人工列和证据切点；涉及的 owner 行仍待固定头增量复审。历史逐包结论见[防腐 spec §12.9](../../specs/archive/repository-anti-corruption/spec.md#129-已完成源码审查的逐包结论持续归回整改另计)，缺陷修复与运行未完成项见该 spec §12.8/§12.11。本次迁出不把「待审」改为「已审」，也不以历史包数代替当前登记。
+
+### 列的口径
+
+- 层：登记里的 `kind`，中文名由 `scripts/gates/package-inventory.mjs` 的 `LAYERS` 给出。包的职责、owner 和成熟度仍归 SSOT；不在这里另写一份可修改的包登记。
+- 源文件、行数：`<包>/src/` 下的 `.ts`、`.mts`，不含 `.d.ts`、测试、`dist`、`fixtures`；行数按换行切开的段数计算。最大文件路径相对 `src/`。这是同一脚本和巨大单元门禁的计数口径。
+- 公开入口：`package.json` 的 `exports` 条数。依赖内部包：`dependencies` 里的 workspace 包个数。被依赖：反方向的个数。
+- 状态：从 `apps/desktop` 出发沿包内 `.ts`/`.mts` 的 import 判断可达性，包含启动器和类型导入，不含测试、声明文件、夹具或模板字符串里的生成代码。非内置插件可达时为「在用」；内置插件可达时再按下表区分。
+
+| 状态 | 代码里的判定 |
+| --- | --- |
+| 在用 | 从产品入口 `apps/desktop` 可达，且不是内置插件 |
+| Runtime | 可达的内置插件，其登记声明 `runtime` 或 `project_runtime`，或项目监督器 `apps/local-host/src/project-plugins.ts` 包含其包名 |
+| 构建期 | 可达的内置插件，没有上述 Runtime 声明且项目监督器没有其包名；旧路径冻结名单在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少 |
+| 非产品 | 从产品入口不可达；有自己的启动器或仅被测试导入不等于从产品入口可达 |
+
+**计划深度**按风险定。四个量各给分：源文件行数 ≥ 9,000 记 2 分、≥ 3,000 记 1 分；2026-09-08（Cutover）以来碰过这个包的非合并提交数 ≥ 100 记 2 分、≥ 40 记 1 分；被依赖数 ≥ 17 记 2 分、≥ 4 记 1 分；`tooling/gates/baseline.json` 里记在它名下的巨大单元数 ≥ 10 记 2 分、≥ 4 记 1 分。总分 ≥ 4 为「深」。另有两个包放在授权脊梁上，也列「深」：`packages/kernel`（`ActionService`：可信身份、`beforeEffect`、撤销后不再写，见 `AGENTS.md` 硬约束）和 `packages/plugin-runtime`（安装、grant、签名）；每个能力调用和每次插件安装都经过它们，体量小，出错的代价最大。其余有 ≥ 1,000 行源码、或有巨大单元、或被 ≥ 3 个包依赖的为「中」，再其余为「浅」。深度是人工计划，门禁只校验「深/中/浅」取值；跨过风险阈值不会自动改列或让门禁失败，审查时再判定。
+
+**审查**：「待审」包含尚未开始和已开始但未审完；「已审」须有完整逐包结论和已核实的实现覆盖。历史结论仍在上述防腐 spec 的对应证据节，后续增量复审注明准确包与证据切点。代码审查、缺陷修复、工程通过、产品实操分别判定，任何一项不能代替另一项。
+
+| 包 | 层 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 | 状态 | 计划深度 | 审查 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `apps/cli` | 应用 | 4 | 159 | `command-dispatch.ts` 63 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `apps/desktop` | 应用 | 11 | 1,239 | `capsule-shell.ts` 548 | 1 | 6 | 1 | 在用 | 中 | 已审 |
+| `apps/local-host` | 应用 | 653 | 65,025 | `assistant/assistant-service.ts` 1,837 | 1 | 62 | 2 | 在用 | 深 | 待审 |
+| `apps/mcp` | 应用 | 16 | 956 | `runtime-context-tools.ts` 193 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `apps/server` | 应用 | 5 | 192 | `main.ts` 81 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
+| `apps/workbench` | 应用 | 303 | 51,590 | `i18n/en.ts` 3,266 | 2 | 31 | 1 | 在用 | 深 | 已审 |
+| `horizontal/agent-host` | 横向 | 96 | 13,630 | `adapters/prologue-stream.ts` 723 | 1 | 2 | 1 | 在用 | 深 | 已审 |
+| `horizontal/connector-host` | 横向 | 5 | 754 | `connection-store.ts` 396 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `horizontal/knowledge` | 横向 | 11 | 1,300 | `index.ts` 425 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/placement` | 横向 | 2 | 650 | `index.ts` 613 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
+| `horizontal/scheduler` | 横向 | 2 | 622 | `index.ts` 541 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `horizontal/search` | 横向 | 2 | 659 | `index.ts` 585 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/artifacts` | 模块 | 23 | 2,284 | `service.ts` 341 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
+| `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/judgment-rules` | 模块 | 17 | 1,963 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
+| `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
+| `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |
+| `packages/im-ui` | 基础 | 23 | 1,730 | `views.ts` 168 | 1 | 3 | 3 | 在用 | 中 | 已审 |
+| `packages/kernel` | 基础 | 14 | 1,879 | `action-service.ts` 487 | 2 | 2 | 1 | 在用 | 深 | 已审 |
+| `packages/plugin-runtime` | 基础 | 52 | 7,889 | `index.ts` 784 | 1 | 2 | 3 | 在用 | 深 | 待审 |
+| `packages/plugin-sandbox` | 基础 | 14 | 1,681 | `broker.ts` 336 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `packages/plugin-sdk` | 基础 | 57 | 6,707 | `manifest.ts` 443 | 7 | 1 | 41 | 在用 | 中 | 待审 |
+| `packages/storage` | 基础 | 20 | 3,378 | `adapters/file-secret-store.ts` 744 | 1 | 1 | 10 | 在用 | 中 | 已审 |
+| `packages/test-kit` | 基础 | 11 | 1,242 | `boundaries.ts` 610 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
+| `packages/ui-host` | 基础 | 8 | 808 | `request-client.ts` 298 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
+| `plugins/native/alchemist` | 内置插件 | 106 | 10,872 | `studio/server/db/pulse-repository.ts` 563 | 2 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/coding` | 内置插件 | 206 | 23,321 | `styles.ts` 749 | 3 | 2 | 2 | Runtime | 深 | 已审 |
+| `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/diff` | 内置插件 | 18 | 829 | `comparison.ts` 192 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
+| `plugins/native/feed` | 内置插件 | 85 | 9,735 | `store/listener.ts` 779 | 3 | 2 | 2 | Runtime | 深 | 待审 |
+| `plugins/native/files` | 内置插件 | 31 | 1,688 | `actions.ts` 167 | 2 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 36 | 3,245 | `store.ts` 466 | 3 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/git` | 内置插件 | 32 | 2,655 | `browser/source.ts` 249 | 2 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/goals` | 内置插件 | 220 | 25,273 | `event-document-client.ts` 742 | 4 | 2 | 2 | Runtime | 深 | 待审 |
+| `plugins/native/images` | 内置插件 | 34 | 2,092 | `service.ts` 181 | 3 | 3 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/inbox` | 内置插件 | 19 | 1,443 | `scene-runtime.ts` 190 | 2 | 1 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/issues` | 内置插件 | 28 | 1,908 | `browser/capture.ts` 183 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
+| `plugins/native/jelly` | 内置插件 | 56 | 4,517 | `messages.ts` 257 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/lingguang` | 内置插件 | 28 | 2,264 | `store.ts` 362 | 3 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/pages` | 内置插件 | 112 | 17,055 | `styles.ts` 770 | 5 | 2 | 2 | Runtime | 深 | 待审 |
+| `plugins/native/plugin-builder` | 内置插件 | 19 | 2,960 | `agent-authoring.ts` 800 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/ppt` | 内置插件 | 36 | 2,853 | `store.ts` 295 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/schedule` | 内置插件 | 46 | 3,103 | `tasks.ts` 300 | 2 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/shelf` | 内置插件 | 61 | 6,192 | `styles.ts` 647 | 2 | 3 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/text-stats` | 内置插件 | 16 | 553 | `core.ts` 105 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
+| `plugins/native/todo` | 内置插件 | 49 | 5,225 | `organize.ts` 328 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/workflows` | 内置插件 | 44 | 4,602 | `model.ts` 438 | 2 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/official-integrations/catalog` | 官方接入 | 10 | 2,184 | `catalog.ts` 1,013 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/github` | 官方接入 | 6 | 960 | `provider.ts` 592 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
+| `plugins/official-integrations/gmail` | 官方接入 | 16 | 2,641 | `history-cursor.ts` 529 | 3 | 2 | 2 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/rss` | 官方接入 | 8 | 1,308 | `catalog.ts` 513 | 2 | 2 | 2 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/web-query` | 官方接入 | 1 | 42 | `index.ts` 42 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
+| `plugins/official-integrations/youtube` | 官方接入 | 2 | 123 | `channel.ts` 80 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
+| `server` | 模块 | 18 | 1,120 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
+| `tooling/plugin-cli` | 工具 | 8 | 359 | `sample-source.ts` 108 | 1 | 3 | 0 | 在用 | 浅 | 已审 |

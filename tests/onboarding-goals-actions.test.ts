@@ -71,7 +71,8 @@ test("the first-run Goal is made by the Goals action, as the person, and leaves 
       "one row: the Goals action, nothing beside it");
     assert.deepEqual(settled.filter(row => row.capability_id === goalsActions.create.capability_id).map(row => [row.operation, row.ok]), [["command", true]]);
 
-    const reference = molisWorkHostProjectReference({ databasePath: (await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId))).database_path, projectId });
+    const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
+    const reference = molisWorkHostProjectReference({ databasePath: (await withHostCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId))).database_path, projectId });
     const goal = (await bindActionClient(host.actionClient(reference), () => personCaller(projectId)).invoke(goalsActions.snapshot, {})).goals.find(item => item.goal_id === created.goal_id);
     assert.equal(goal?.outcome, "让第一次使用的人建立可以继续澄清的目标");
     assert.equal(goal?.definition_state, "draft");

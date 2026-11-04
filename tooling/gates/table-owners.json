@@ -7,14 +7,14 @@
         "modules/projects",
         "plugins/native/alchemist"
       ],
-      "reason": "Two different tables in two different databases: the project catalog's workspaces (modules/projects, the catalog database) and the Alchemist's workspaces (plugins/native/alchemist, one studio.sqlite per project). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
+      "reason": "Two different tables in two different databases: the project catalog's workspaces (modules/projects, the catalog database) and the Alchemist's workspaces (plugins/native/alchemist, one studio.sqlite per project). Neither package reads the other's; specs/archive/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
     },
     "jobs": {
       "packages": [
         "plugins/native/alchemist",
         "plugins/native/images"
       ],
-      "reason": "Two different tables in two different databases: the Alchemist's jobs (plugins/native/alchemist, one studio.sqlite per project) and Images' jobs (plugins/native/images, images.db). Neither package reads the other's; specs/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
+      "reason": "Two different tables in two different databases: the Alchemist's jobs (plugins/native/alchemist, one studio.sqlite per project) and Images' jobs (plugins/native/images, images.db). Neither package reads the other's; specs/archive/repository-anti-corruption spec.md section 9.5 item 9 keeps the names."
     }
   },
   "areas": {

@@ -16,7 +16,7 @@
 - 负责：插件创作台：用自然语言设计、生成、试用并发布独立插件。
 - 不负责：模型凭据、运行时所有权、任意代码执行。
 - 公开入口：`@molis-ai/molis-work-plugin-builder`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - resetPreview 的旧 job 在 stopRunner 等待后再次核原 token，才能清预览数据或改构建。升级的授权表单传秘密值到 Host；只对本 release 声明的名称分批验证后切换，失败恢复本次秘密与原版本，较新的安装或启停选择优先。公开清单和批准记录不含秘密正文。
   - 执行只经 Host 的 Prologue 能力；Agent 挂载的规范来自 `skills/molis-plugin-dev`（设计、体验、界面、复查与代码按阶段挂载，各不超过 20000 字）。
@@ -41,6 +41,8 @@
 组件交互说明随呈现词表进入 UI 和评审：弹层入口用输入部件的 title、提交用 submitLabel；行内动作自动选中当前记录，成功反馈是临时消息。有全文路径的组合目录使用两行摘要，正文保留原文。主线验收使用符合任务的内容长度；短样本和静态截图不能证明全文、动效或未展示状态的质量。
 
 G7 与截图复查使用独立验收存储，不读取或清空人的试用内容。宽窄屏结构检查发现溢出与操作遮挡；当前模型声明图片输入能力时，经 Prologue 查看画布截图，最多一轮修订、一次确认。无图片能力如实显示「功能已验证；视觉未复查」。结构故障仍阻止完成。实际截图与真实模型记录须和手写样例分开判断。
+
+负向验收用显式 `submitBlocked`（必填字段 `valueMissing`）、`faultRead`（当前 trial 的绑定 query 单次失败）、`retry` 与 `expectValue`；普通 `submit` 仍只接受成功。表单 `requiredText` 由真实 invalid 事件显示，读取失败由真实组件显示错误和重试，不由执行器写 DOM。每例独立重置，断言失败先收齐其余独立例，再将整批实际失败交原有限修复流程；环境或 reset 失败标明未执行并停止修复。详情见 [生成设计 DSL](../../../skills/molis-plugin-dev/generated-design.md)。
 
 实施与验收：[整页设计与视觉复查](../../../specs/archive/plugin-builder/work-items/visual-composition/spec.md)。
 

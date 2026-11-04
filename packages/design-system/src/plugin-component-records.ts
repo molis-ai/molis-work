@@ -31,7 +31,7 @@ export function pcRelations(c: State & Kit) {
   /** A form that adds something new: every value typed by the person, nothing taken from elsewhere, nothing to show back. */
   const composer = (node: PluginComponentNode) => !node.read && !!node.submit && !node.submit.outputPath && Object.values(node.submit.input).some(source => source.source === 'form')
     && Object.values(node.submit.input).every(source => source.source === 'form' && !source.prefill) && operation(node.submit!.operationId)?.kind === 'command';
-  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, input: operation(node.submit?.operationId)?.input, composer: composer(node) });
+  const signature = (node: PluginComponentNode) => JSON.stringify({ kind: node.kind, read: node.read, submit: node.submit, input: operation(node.submit?.operationId)?.input, submitKind: operation(node.submit?.operationId)?.kind, composer: composer(node) });
   const selectPage = (id: string) => {
     c.currentPage = id; pages.forEach((page, key) => { page.hidden = key !== id; });
     tabList.querySelectorAll<HTMLButtonElement>('button').forEach(tab => { tab.setAttribute('aria-selected', String(tab.dataset.page === id)); tab.classList.toggle('is-active', tab.dataset.page === id); });

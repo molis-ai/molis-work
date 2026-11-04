@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import test from "node:test";
 import { openDualHome } from "./fixtures/dual-home.js";
 
-// DUAL-11 and DUAL-13 (specs/dual-instance-plugins/spec.md): each half's permissions and lifetime are its own record's. Neither half
+// DUAL-11 and DUAL-13 (specs/archive/dual-instance-plugins/spec.md): each half's permissions and lifetime are its own record's. Neither half
 // starts on the other's grants, stopping or restarting the Home half leaves the project half's handles as they were and never
 // revives its own old ones, a deleted project takes its half with it and leaves the Home half's data, and closing the Home ends
 // every Home handle. The handle of an instance that stopped (switched off, its project deleted, or the Home closed) is refused and,

@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { L, clientI18nScript, ownerLabel, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { registerPluginMessages, renderMcpAccessRows, unregisterPluginMessages, type McpAccessEntry } from "@molis-ai/molis-work-app-workbench";
+import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
+import { createLocalHostWorkbenchRenderer, L, clientI18nScript, ownerLabel, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
+import { registerPluginMessages, renderMcpAccessRows, unregisterPluginMessages, type McpAccessEntry, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
 // PG-071 (hub review 2026-10-25): when the Host draws text a Plugin supplied, it translates it with that Plugin's own
 // dictionary, so a third-party Plugin's action title and deletion-dialog description get English the same way a built-in one
@@ -30,6 +32,32 @@ function withAcme<T>(run: () => T): T {
   assert.deepEqual(registerPluginMessages(declared(OTHER, { contributions: [], translations: { [TITLE]: "Other's tidy-up" } })), []);
   try { return run(); } finally { unregisterPluginMessages(ACME); unregisterPluginMessages(OTHER); }
 }
+
+test("RAC-603 RAC-772 a stage's cross-owner translator keeps the requested owner's words and restores its outer scope", () => withAcme(() => {
+  const view = JSON.parse(readFileSync(new URL("fixtures/goals-page-golden/view.json", import.meta.url), "utf8")) as MolisWorkWebView;
+  const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+  const stage = renderer.declaredStageModel("goals", view) as StagePageModel;
+  assert.ok(stage.drawing);
+  const words = stage.drawing.inPluginWords;
+  runWithLocale("en", () => {
+    assert.equal(stage.primitives.text(TITLE), TITLE, "Goals does not inherit another plugin's words");
+    assert.equal(words(ACME, translate => {
+      assert.equal(translate(TITLE), "Tidy notes");
+      assert.equal(translate("共 {count} 条笔记", { count: 2 }), "2 notes");
+      assert.equal(translate("设置"), "Settings", "platform words still take precedence");
+      assert.equal(stage.primitives.text(TITLE), TITLE, "the enclosing stage keeps its own bound translator");
+      assert.equal(translate(TITLE), "Tidy notes", "the stage's nested translation restores the requested owner");
+      assert.equal(words(OTHER, other => other(TITLE)), "Other's tidy-up");
+      assert.equal(translate(TITLE), "Tidy notes", "the nested owner restores the outer owner");
+      return "returned";
+    }), "returned");
+    assert.equal(L(TITLE), TITLE, "returning restores the platform scope");
+    const failure = new Error("cross-owner callback failed");
+    assert.throws(() => words(ACME, translate => { assert.equal(translate(TITLE), "Tidy notes"); throw failure; }), failure);
+    assert.equal(L(TITLE), TITLE, "throwing restores the platform scope too");
+  });
+  runWithLocale("zh", () => assert.equal(words(OTHER, translate => translate(TITLE)), TITLE));
+}));
 
 test("RAC-770 a third-party Plugin's deletion-dialog description is English in that Plugin's own words, and the Host's own use of the sentence is not", () => withAcme(() => {
   const owner = { label: DATA, words_of: ACME };

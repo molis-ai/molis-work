@@ -1,3 +1,4 @@
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -15,7 +16,8 @@ import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixt
 
 test("Inbox shows and runs an installed plugin judgment, then withdraws advice while preserving its stopped binding and history", { timeout: 90000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
-  const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, origin } = browser;
+  const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, origin } = browser;
+  const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "inbox");
   assert.ok(localHost); assert.ok(projectId);
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
   await localHost.withProject(reference, () => undefined);
@@ -41,11 +43,12 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     enabled: true, function: { capability_id: definition.capability_id, version: 1 }, title: "Inbox 下一步", href: `/projects/${projectId}/?openPlugin=inbox` });
   const open = async () => {
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=inbox` }, sessionId));
-    await waitFor("document.querySelector('[data-plugin-id=inbox]')");
-    if (await evaluate("document.body.dataset.desktopSurface") !== "inbox") {
-      await click('[data-plugin-strip] [data-plugin-id=inbox]');
+    await browser.waitFor("document.querySelector('[data-plugin-id=inbox]')");
+    if (await browser.evaluate("document.body.dataset.desktopSurface") !== "inbox") {
+      await browser.click('[data-plugin-strip] [data-plugin-id=inbox]');
     }
-    await waitFor("document.body.dataset.desktopSurface === 'inbox'");
+    await browser.waitFor("document.body.dataset.desktopSurface === 'inbox'");
+    await waitFor("document.querySelector('.inbox-next-config')");
     await evaluate("document.querySelector('.inbox-next-config').open = true");
   };
   try {

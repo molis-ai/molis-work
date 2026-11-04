@@ -473,7 +473,7 @@ test("pages through results with a cursor bound to the query", async t => {
   await assert.rejects(ask(f, owner("a"), "别的词", { cursor: one.next_cursor }), (error: { code?: string }) => error.code === "actions.input_invalid");
 });
 
-// Decision 19 (specs/repository-anti-corruption): searching an owner's data at query time had no producer in the product and was removed
+// Decision 19 (specs/archive/repository-anti-corruption): searching an owner's data at query time had no producer in the product and was removed
 // with `defineSearchQueryAction`. What it declared is no longer a search source. The fixture below is what that helper produced on main
 // (canonical schemas, wording and audiences included), so these tests fail against the code that still honored it.
 const subjectSchema = { type: "object", properties: { kind: { type: "string", minLength: 1 }, id: { type: "string", minLength: 1 } }, required: ["kind", "id"], additionalProperties: false };

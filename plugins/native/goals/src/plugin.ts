@@ -10,6 +10,7 @@ import { GOALS_CATCH_UP_JOB, goalsManifest } from "./manifest.js";
 import { personalPlanningActions } from "./personal-planning-actions.js";
 import { goalsTreeUiContribution } from "./tree-ui.js";
 import { goalsSettingsUiContribution } from "./settings-ui.js";
+import { goalsStageUiContribution } from "./page/workbench-stage.js";
 import { GoalsModule, GoalInputBindings, resolvePlanningMethodPacks } from "./module/index.js";
 import { requestHash } from "./module/command-support.js";
 import { GovernanceCollaborationModule } from "./governance/index.js";
@@ -152,7 +153,7 @@ export function createGoalsPlugin(): PluginDefinition {
       }
     }).done.then(() => undefined, () => undefined);
 
-    return { kind: "app", views: [goalsTreeUiContribution, goalsSettingsUiContribution],
+    return { kind: "app", views: [goalsTreeUiContribution, goalsSettingsUiContribution, goalsStageUiContribution],
       actions: handlers.map(windowed),
       routes: goalsRoutes({ actions: request => ({ discover: async () => [], invoke: (definition, input) => actions.invoke(definition, input, request.execution) }) }) };
   }, async health() { return problem ? { ok: false, message: problem } : { ok: true, message: "Goals 已接通" }; } };

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -7,6 +7,19 @@ import { createMolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } fro
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { storageOwnerProcesses } from "./fixtures/home-storage-owner.js";
 import { managementGoals } from "./goal-management-caller.js";
+import { homeStorageTree } from "./fixtures/home-storage-files.js";
+
+test("T405-FULL-07: Home init with an injected unbound Host refuses a nonempty ledger-free Home before writing", async t => {
+  const root = await mkdtemp(join(tmpdir(), "cli-unbound-home-")), home = join(root, "home");
+  const host = createMolisWorkLocalHost({ completeText: null });
+  t.after(async () => { await host.close(); await rm(root, { recursive: true, force: true }); });
+  await mkdir(home); await writeFile(join(home, "retained.txt"), "Keep the original user bytes", { mode: 0o640 });
+  const before = homeStorageTree(home), database = join(home, "projects", "new-project", "board.sqlite");
+  await assert.rejects(runV1Cli(["init", "--db", database, "--json", JSON.stringify({ project_id: "new-project", idempotency_key: "refused-init" })],
+    { homeDirectory: home, localHost: host }), { code: "memory.unavailable" });
+  assert.deepEqual(homeStorageTree(home), before, "root entries, bytes, modes and mtimes remain unchanged");
+  await assert.rejects(stat(dirname(database)), { code: "ENOENT" });
+});
 
 test("RAC-105-S-08: CLI Home init is refused by an actual offline owner before creating the target directory", async t => {
   const peers = storageOwnerProcesses(t), root = await mkdtemp(join(tmpdir(), "cli-owner-entry-")), home = join(root, "home");

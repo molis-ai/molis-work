@@ -45,7 +45,8 @@ for (const version of [2, 1] as const) {
     const home = await rejectedStore(version), before = readStore(runtimePath(home));
     const beforeBytes = await readFile(runtimePath(home));
     const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home,
-      actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home) });
+      actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home) });
+    const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     const first = host.homePlugins!.ready();
     const refusal = version === 2 ? { code: "storage.schema_version_mismatch" } : { code: "actions.execution_failed" };
     await assert.rejects(first, refusal);

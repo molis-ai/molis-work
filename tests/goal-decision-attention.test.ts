@@ -10,6 +10,7 @@ import { GOALS_PLUGIN_ID, goalsManifest, hostEventDecisionAuthority } from "@mol
 import { renderMolisWorkWeb } from "./workbench-renderer-fixture.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { recordInstallation } from "./fixtures/plugin-installations.js";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 const BOARD = "board";
 
@@ -135,14 +136,18 @@ test("Goal pending decisions appear in Inbox and on the Goal document, not in Fe
     const view = buildMolisWorkWebView(data.store, data.app, { projectId: BOARD });
     const home = renderMolisWorkWeb(view);
     const goalPage = renderMolisWorkWeb(view, "root");
+    // T403's cold owner document is the HTML the bridge puts into the real opaque Inbox frame.
+    const documents = pluginDocuments(home);
+    const inbox = documents.filter(document => document.includes("data-inbox-workbench"));
+    assert.equal(inbox.length, 1, "the rendered page carries one actual Inbox owner document");
     assert.match(home, /data-desktop-directory="root"/);
     assert.match(home, /data-inbox-directory/);
     assert.match(home, /data-inbox-workbench/);
-    assert.match(home, /data-inbox-subject-type="goal_decision"/);
-    assert.match(home, /data-inbox-subject-id="root"/);
-    assert.match(home, /打开 Goal/);
-    assert.doesNotMatch(home, /data-feed-entry-id="decision:/);
-    assert.doesNotMatch(home, /data-feed-detail="decision:/);
+    assert.match(inbox[0]!, /data-inbox-subject-type="goal_decision"/);
+    assert.match(inbox[0]!, /data-inbox-subject-id="root"/);
+    assert.match(inbox[0]!, /打开 Goal/);
+    assert.doesNotMatch(documents.join("\n"), /data-feed-entry-id="decision:/);
+    assert.doesNotMatch(documents.join("\n"), /data-feed-detail="decision:/);
     assert.match(goalPage, /data-goal-decision-panel/);
     assert.match(goalPage, /data-goal-tree-decision-form/);
   } finally {

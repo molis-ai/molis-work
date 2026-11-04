@@ -1,10 +1,12 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 import { childMessages } from "./messages.js";
+import { childConnectionSlot } from "./connection-slot.js";
 import { pageFiles } from "./files.js";
 import { childTerminal } from "./terminal.js";
 import { pageConfirmBox } from "./confirm-box.js";
@@ -52,7 +54,9 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   view.install(document);
   globalThis.molisWorkRequest = Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
   globalThis.molisWorkControlHeaders = call.headers;
-  const root = document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
+  const ownRoots = config.mount ? [...document.querySelectorAll<HTMLElement>("[data-ui-client-root]")] : [];
+  if (config.mount && ownRoots.length !== 1) throw new Error("View unavailable");
+  const root = ownRoots[0] ?? document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
   root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
   root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
@@ -66,8 +70,12 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   Object.assign(globalThis, { molisWorkOpenExternalUrl: async (url: string) => send({ type: "link", url: new URL(url, config.origin).href, download: false }) });
   const terminal = globalThis.molisPageTerminal = childTerminal(port, scope, config.origin);
   const select = pageSelection(root, scope, config.searchRow);
+  let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
+    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope),
+    openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
+    invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
@@ -75,6 +83,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     terminal,
     messages: childMessages(port),
     invokeAction: <Output = unknown>(reference: ActionReference, input: unknown) => call<Output>(route("/api/host/plugin-page-actions"), { body: { reference, input }, scope }),
+    actionAvailability: (reference: ActionReference) => call<import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability>(route("/api/host/plugin-page-actions"), { body: { mode: "availability", reference }, scope }),
     surfaceFor: (kind: string) => config.subjectSurfaces[kind] ?? null,
     pluginId: config.pluginId, pluginRoute: (path: string) => route("/api/plugins/" + config.pluginId + path),
     projectId: () => config.projectId, projectTitle: () => config.projectTitle, route, headers: call.headers,
@@ -102,7 +111,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
       if (prior !== document.documentElement.dataset.resolvedTerminalTheme) dispatchEvent(new CustomEvent("molis-work:terminal-theme-change"));
     }
     else if (message.type === "focus") scope.frame(() => { if (scope.visible) dispatchEvent(new Event("focus")); });
-    else if (message.type === "select") select(message.detail);
+    else if (message.type === "select") { itemTab = message.itemTab; select(message.detail); }
     else if (message.type === "collapse") collapsePage(root);
     else if (message.type === "model-ready") document.dispatchEvent(new CustomEvent("molis-work:model-ready"));
     else if (message.type === "dispose") scope.dispose();
@@ -123,5 +132,5 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   await load("/assets/molis-work-plugins/" + encodeURIComponent(config.bundle) + ".js");
   const factory = globalThis.molisWorkbenchPluginFactories?.[config.bundle];
   if (!factory) throw new Error(L("无法加载界面，请重试"));
-  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childNavigation(port, scope, config); context(); send({ type: "ready" });
+  childPresentation(port, scope); childModal(port, scope); factory(host satisfies UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>); childPlacement(port, scope); childFrameAssets(port, scope, root); childNavigation(port, scope, config, () => itemTab); context(); send({ type: "ready" });
 }

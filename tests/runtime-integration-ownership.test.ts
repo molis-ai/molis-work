@@ -10,13 +10,17 @@ async function fixture(t: TestContext, before = 'model = "original"\n') {
   t.after(() => rm(directory, { recursive: true, force: true }));
   const home = join(directory, "home"), userHome = join(directory, "user");
   const config = join(userHome, ".codex", "config.toml"), skill = join(userHome, ".codex", "skills", "goal-advance");
-  const skillSource = join(home, "releases", "test", "skills", "goal-advance");
+  const skillSource = join(home, "releases", "molis-work-test", "skills", "goal-advance");
   const launcher = join(home, "bin", "molis-work-mcp");
   await Promise.all([mkdir(join(home, "config"), { recursive: true }), mkdir(join(home, "bin"), { recursive: true }),
     mkdir(skillSource, { recursive: true }), mkdir(join(userHome, ".codex", "skills"), { recursive: true })]);
   await Promise.all([writeFile(launcher, "#!/bin/sh\nexit 0\n", { mode: 0o755 }), writeFile(config, before),
-    writeFile(join(home, "config", "installation.json"), JSON.stringify({ schema_version: 2,
-      installer: "molis-work-home-install-v1", release_path: "releases/test" }))]);
+    writeFile(join(home, "config", "installation.json"), JSON.stringify({ schema_version: 1,
+      installer: "molis-work-home-install-v1", version: "test", release_path: "releases/molis-work-test",
+      content_digest: "a".repeat(64), updated_at: "2026-01-01T00:00:00.000Z" })),
+    writeFile(join(home, "releases", "molis-work-test", "release.json"), JSON.stringify({ schema_version: 1,
+      installer: "molis-work-home-install-v1", version: "test", dependencies: "embedded", content_digest: "a".repeat(64),
+      created_at: "2026-01-01T00:00:00.000Z" }))]);
   const service = (validateConnection: RuntimeIntegrationServiceOptions["validateConnection"] = () => true) =>
     new RuntimeIntegrationService({ homeDirectory: home, userHomeDirectory: userHome,
       runtimeExecutables: { codex: launcher }, validateConnection });

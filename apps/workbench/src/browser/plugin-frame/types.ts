@@ -3,6 +3,8 @@ import type { HostReviewFactory } from "./review-slots.js";
 import type { UiRequest, UiClientScope, UiClientTranslate, UiPluginClientHost, UiPageView, UiPageReviewQuery, UiPageReviewOutcome, UiPageMessage, UiPageTerminal, UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ContextUp, ContextDown } from "./context.js";
 import type { PresentationMessage } from "./presentation.js";
+import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAssetReference } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { frameAssets } from "./frame-assets.js";
 
 export type Translate = UiClientTranslate;
 export interface FrameScope extends UiClientScope {
@@ -27,14 +29,18 @@ export interface FrameHost {
   showToast?(message: string, failure?: boolean): void;
   readRefusal?(status: number, code: unknown): string;
   status?(...args: unknown[]): void;
+  openView?(root: HTMLElement, selection: UiViewSelection): void;
+  invalidateView?(root: HTMLElement): void;
 }
 export interface FramePack { id: string; plugin_id: string; bundle: string; assets: string[];
   recordRow?: { selector: string; idDataset: string };
   searchRow?: { selector: string; idDataset: string };
   authorization?: { page_id: string; storage_scope: string } }
 export interface FrameConfig {
+  mount: UiClientMount | null;
   searchRow?: FramePack["searchRow"];
   recordRow?: FramePack["recordRow"];
+  itemTab: { tabId: string; itemId: string } | null;
   surface: string;
   pluginId: string;
   nativeFiles: boolean;
@@ -42,6 +48,7 @@ export interface FrameConfig {
   subjectSurfaces: Readonly<Record<string, string>>;
   stage: { title: string; description: string };
   shortcuts: string[];
+  search?: string;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   messages: Record<string, string>; titles: Record<string, string>; storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }
@@ -52,6 +59,11 @@ export type FrameRequest = FrameFetch | { type: "abort" | "pull"; id: number };
 export type FrameAnswer = { type: "response"; id: number; status: number; statusText: string; headers: [string, string][] }
   | { type: "chunk"; id: number; bytes: ArrayBuffer } | { type: "end"; id: number } | { type: "fetch-error"; id: number; message: string };
 export type FrameUp =
+  | { type: "frame-asset-layout"; handle: string; slots: Array<{ reference: UiFrameAssetReference; box: { x: number; y: number; width: number; height: number } | null }> }
+  | { type: "connection-slot-cancel"; id: number }
+  | { type: "view-open"; selection: UiViewSelection }
+  | { type: "view-invalidate" }
+  | { type: "connection-slot"; id: number; slot_id: string; record_key: string; mode: "read" | "choose"; box?: { x: number; y: number; width: number; height: number } }
   | { type: "on-closing"; action: Parameters<UiPageView["onClosing"]>[0] }
   | { type: "placement-slots"; slots: Array<{ id: number; target: boolean; home: boolean; saved: boolean; box: {x: number; y: number; width: number; height: number} | null }> }
   | { type: "placement-open"; id: number }
@@ -64,7 +76,8 @@ export type FrameUp =
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
-  | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number } | { type: "refresh-shell" }
+  | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string } }
+  | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
   | { type: "context-intake"; intake_id: string; id: string; title: string; text: string }
   | { type: "copy"; id: number; text: string }
   | { type: "draft"; id: number; key: string; value?: string | null }
@@ -74,10 +87,12 @@ export type FrameUp =
   | { type: "terminal"; id: number; command: UiTerminalCommand }
   | { type: "download"; filename: string; mime: string; bytes: ArrayBuffer } | { type: "print"; html: string }
   | { type: "page-message"; message: UiPageMessage }
-  | { type: "ui"; name: "openItem" | "openBeside" | "openPlugin" | "hideDirectory" | "showToast" | "status"; args: unknown[] }
+  | { type: "ui"; name: "openItem" | "openBeside" | "openPlugin" | "hideDirectory" | "showToast" | "status"; args: unknown[]; itemTabId?: string }
   | { type: "link"; url: string; download: boolean } | { type: "context"; value: string | null; expanded: string | null }
   | { type: "storage"; area: "localStorage" | "sessionStorage"; key: string; value: string | null };
 export type FrameDown =
+  | { type: "frame-asset-source"; handle: string }
+  | { type: "connection-slot"; id: number; value?: UiConnectionSlotChoice | null; error?: string }
   | { type: "placement-label"; id: number; html: string }
   | { type: "review-size"; id: number; height: number }
   | { type: "review-shown"; id: number; error?: string }
@@ -93,9 +108,10 @@ export type FrameDown =
   | { type: "model-ready" }
   | { type: "terminal-event"; event: UiTerminalEvent } | { type: "terminal-sent"; id: number; error?: string }
   | { type: "page-message"; message: UiPageMessage }
-  | { type: "select"; detail: unknown } | { type: "collapse" } | { type: "dispose" };
+  | { type: "select"; detail: unknown; itemTab: FrameConfig["itemTab"] } | { type: "collapse" } | { type: "dispose" };
 
 declare global {
+  interface Window { molisPluginFrames: typeof globalThis.molisPluginFrames }
   var molisPlacement: { paintBar(slot: HTMLElement): Promise<void>; paintTargets(root: HTMLElement): void } | undefined;
   var molisFrameReviews: HostReviewFactory;
   var molisFrameFillMessage: Translate;
@@ -107,7 +123,7 @@ declare global {
   var MOLIS_WORK_PLUGIN_WORDS: Record<string, Record<string, string>> | undefined;
   var L: Translate;
   var molisWorkbenchPluginFactories: Record<string, (host: UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>) => void>;
-  var molisPluginFrames: { mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
+  var molisPluginFrames: { assets: typeof frameAssets; mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };
   var molisFrameUi: (translate: Translate) => {
     mountPluginClient(root: HTMLElement): FrameScope | null;
     interaction: typeof import("@molis-ai/molis-work-design-system").createInteractionClient;

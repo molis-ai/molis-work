@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,11 +48,14 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>): Promise<T>
     ]);
     await Promise.all([
       writeFile(join(home, "config", "installation.json"), `${JSON.stringify({
-        schema_version: 2,
+        schema_version: 1,
         installer: "molis-work-home-install-v1",
         version: "test",
         release_path: "releases/molis-work-test",
+        content_digest: "a".repeat(64), updated_at: "2026-01-01T00:00:00.000Z",
       }, null, 2)}\n`),
+      writeFile(join(release, "release.json"), JSON.stringify({ schema_version: 1, installer: "molis-work-home-install-v1",
+        version: "test", dependencies: "embedded", content_digest: "a".repeat(64), created_at: "2026-01-01T00:00:00.000Z" })),
       writeFile(join(skillSource, "SKILL.md"), "---\nname: goal-advance\n---\n"),
       writeFile(launcher, "#!/bin/sh\nexit 0\n", { mode: 0o755 }),
       writeFile(codex, "#!/bin/sh\nexit 0\n", { mode: 0o755 }),
@@ -274,7 +277,7 @@ test("Codex App user data is sufficient detection when no codex CLI is on PATH",
   });
 });
 
-test("remove is already complete when program artifacts are gone and unrelated Runtime config remains", async () => {
+test("IMETA-04 remove is already complete when program artifacts are gone and unrelated Runtime config remains", async () => {
   await withFixture(async (fixture) => {
     await mkdir(join(fixture.userHome, ".codex"), { recursive: true });
     await writeFile(join(fixture.userHome, ".codex", "config.toml"), 'model = "keep-me"\n');
@@ -286,6 +289,49 @@ test("remove is already complete when program artifacts are gone and unrelated R
     assert.equal((await integration.prepare("claude-code", "remove")).status, "no_change");
     assert.match(await readFile(join(fixture.userHome, ".codex", "config.toml"), "utf8"), /keep-me/);
     assert.match(await readFile(join(fixture.userHome, ".claude.json"), "utf8"), /keep-me/);
+  });
+});
+
+test("IMETA-04 unsupported installation or referenced release refuses Runtime connection before and after preview without writes", async () => {
+  await withFixture(async fixture => {
+    const config = join(fixture.userHome, ".codex", "config.toml"), skill = join(fixture.userHome, ".codex", "skills", "goal-advance");
+    await mkdir(join(fixture.userHome, ".codex"), { recursive: true }); await writeFile(config, 'model = "kept"\n');
+    const installationPath = join(fixture.home, "config", "installation.json"), releasePath = join(fixture.release, "release.json");
+    const installationText = await readFile(installationPath, "utf8"), releaseText = await readFile(releasePath, "utf8");
+    const installation = JSON.parse(installationText), release = JSON.parse(releaseText);
+    for (const [target, metadata] of [
+      [installationPath, { ...installation, schema_version: 4 }], [releasePath, { ...release, schema_version: 4 }],
+      [releasePath, { schema_version: 1, installer: "molis-work-home-install-v1", version: "test", source_directory: fixture.directory, created_at: release.created_at }],
+      [releasePath, { ...release, content_digest: "f".repeat(64) }],
+    ] as const) for (const afterPreview of [false, true]) {
+      let validations = 0;
+      const integration = service(fixture, { validateConnection() { validations++; return true; } });
+      const prepared = afterPreview ? await integration.prepare("codex", "connect") : null;
+      if (prepared) assert.equal(prepared.status, "ready");
+      await writeFile(target, JSON.stringify(metadata));
+      try {
+        const before = (await readdir(fixture.home, { recursive: true })).sort();
+        const plan = prepared ?? await integration.prepare("codex", "connect");
+        if (!afterPreview) assert.equal(plan.status, "unavailable");
+        const result = await integration.confirm({ runtime_id: "codex", plan_id: plan.plan_id, decision: "confirmed" });
+        assert.equal(result.status, "unavailable"); assert.equal(validations, 0);
+        assert.equal(await readFile(config, "utf8"), 'model = "kept"\n');
+        assert.equal(await pathMissing(skill), true);
+        assert.deepEqual((await readdir(fixture.home, { recursive: true })).sort(), before, "no receipt, attempt or backup is written");
+      } finally { await writeFile(installationPath, installationText); await writeFile(releasePath, releaseText); }
+    }
+    const connected = service(fixture);
+    const first = await connected.prepare("codex", "connect");
+    assert.equal((await connected.confirm({ runtime_id: "codex", plan_id: first.plan_id, decision: "confirmed" })).status, "connected");
+    const repeat = await connected.prepare("codex", "connect"); assert.equal(repeat.status, "no_change");
+    const beforeConfig = await readFile(config), receiptPath = join(fixture.home, "runtime-integrations", "codex.json");
+    const beforeReceipt = await readFile(receiptPath);
+    await writeFile(releasePath, JSON.stringify({ ...release, schema_version: 4 }));
+    assert.equal((await connected.confirm({ runtime_id: "codex", plan_id: repeat.plan_id, decision: "confirmed" })).status, "unavailable");
+    assert.deepEqual(await readFile(config), beforeConfig); assert.deepEqual(await readFile(receiptPath), beforeReceipt);
+    const remove = await connected.prepare("codex", "remove");
+    assert.equal((await connected.confirm({ runtime_id: "codex", plan_id: remove.plan_id, decision: "confirmed" })).status, "removed",
+      "a valid ownership receipt still permits safe removal when installation metadata is unsupported");
   });
 });
 

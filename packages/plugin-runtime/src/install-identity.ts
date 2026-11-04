@@ -4,7 +4,7 @@ import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contr
 import { assertConsentsDeclared, assertPluginTrust, assertScopeFitsRuntime, assertTrustFitsDefinition, type InProcessAdmission } from "./trust-rules.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
-// Who an install may say it is (ac-trust T6, specs/repository-anti-corruption/slices/ac-trust-install.md §3.6, S-75). A publisher's
+// Who an install may say it is (ac-trust T6, specs/archive/repository-anti-corruption/slices/ac-trust-install.md §3.6, S-75). A publisher's
 // signature is a label the author writes unless a pinned key backs it, so the label alone never gives a plugin another's identity, and
 // the names plugins live under (`plugin_id`, the contribution ids made from it) belong to whoever came first.
 

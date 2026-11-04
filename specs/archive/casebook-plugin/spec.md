@@ -1,6 +1,6 @@
 # Casebook：Molis Work RSI 插件的产品流程与前置能力
 
-> 归档（2026-10-10）：判定为**已作废**。用户 2026-10-10 决定删除 Casebook 及全部相关内容，插件以后重做（`specs/repository-anti-corruption` §1）；宿主里的子系统、通道、typed 能力与项目库的 5 张表已随删除 PR 一起移除，本文只留作历史。
+> 归档（2026-10-10）：判定为**已作废**。用户 2026-10-10 决定删除 Casebook 及全部相关内容，插件以后重做（`specs/archive/repository-anti-corruption` §1）；宿主里的子系统、通道、typed 能力与项目库的 5 张表已随删除 PR 一起移除，本文只留作历史。
 
 状态：现行规范（2026-10-01 合入后梳理确认）。外部 Casebook 插件对宿主前置能力的说明，docs/SSOT-MATRIX.md 引用。
 

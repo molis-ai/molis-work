@@ -105,6 +105,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
   - MCP 只经动作工具（逐客户端授权、常驻 Host）调用 Goals，不能指定数据库或自填作者、创建渠道。
   - Goals 管理业务只走注册动作，没有 typed 管理写入桥；输入类型不含 `actor_id`、`actor_kind` 或决定 authority，结构提交不含 `submitted_session_id`，结构决定不含 `runtime_actor_id`。真实 CLI/MCP 由 Host 私有管理工厂固定本人和出处；两个管理 authority 的证据规则仍归 `src/management-evidence.ts`。`tests/management-door-identity.test.ts` 核公开入口和动作输入类型，`tests/goal-management-identity.test.ts` 核十四个旧 v1 引用即使伪造描述符也拒绝，AST 门禁不许恢复 typed 定义/注册/导出/消费者。Coding 在自己的 `goals-actions.ts` 里按动作 id 与版本就地声明（`GOALS_ACTIONS`，不 import Goals 合同）；四项受限读写核当前内置实例资格，身份仍取原调用上下文，其余测试用现行动作验证业务。
   - Feed 升格为 Goal 经 `goals.directory.read`、`goals.create`、`goals.inputs.confirm` 写 Goals（升格动作用 `required_actions` 声明了这三项，授权设置要一起授权），Feed 不写 Goals 的表；Goals 不在项目里时升格不可用，Feed 的入口也不再出现。
+  - 个人规划方法住在 Home 那一半（`GOALS_HOME_DATABASE` 的 `personal_planning_method_packs`），项目半的动作读它只经 `goals.planning.personal.list` 的快照：`runtime-ports.ts` 的 `PersonalMethodsSnapshot` 在数据库窗口之外按需取一次，窗口里同步读这份快照。没有取过时第一次读抛 `goals.planning.personal_not_loaded`，`run` 取一次后整个调用从头再跑一遍（第一次写的随失败的事务回滚）；Home 半没有回应抛 `goals.planning.personal_unavailable`，事务回滚、不留半写，不造临时 Home、不返回空的个人方法。
   - `src/module/`（原 `modules/goals`）的不变量：
     - Repository 只由包内装配；公开 Module、查询服务和只读装配不提供 `repository` 成员，调用方通过命令、查询、事件及生命周期服务工作。
     - `events` 是当前工作状态与完成效果的唯一写入者。

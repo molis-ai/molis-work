@@ -59,7 +59,8 @@ test("nothing is bound: the pulse sends no credential, whatever GitHub accounts 
 test("a bound account lends its token to api.github.com and to nothing else, and a renewed, replaced or disconnected token applies to the next request", async t => {
   const directory = await home();
   const first = connect(directory, "first", "first-token");
-  const second = connect(directory, "second", "second-token", "oauth");
+  // A GitHub connection of the old device flow (a token under `auth_method: "oauth"`) needs reauthorizing since W5-11 slice 8, so it lends nothing.
+  const second = connect(directory, "second", "second-token");
   const sent = recordNetwork(t);
   const port = alchemistPulseGithub(directory);
 
@@ -89,6 +90,17 @@ test("a bound account lends its token to api.github.com and to nothing else, and
   await port.fetch(GITHUB_SEARCH, {});
   assert.equal(sent.at(-1)!.authorization, null, "no account bound: anonymous");
   assert.equal(port.read().selectedConnectionId, null);
+});
+
+test("a bound GitHub connection of the old device flow's shape (reauth_required) falls back to anonymous: its token is never lent", async t => {
+  const directory = await home();
+  const old = connect(directory, "old-device", "old-device-token", "oauth");
+  const sent = recordNetwork(t);
+  const port = alchemistPulseGithub(directory);
+  port.select(old.connection_id);
+  await port.fetch(GITHUB_SEARCH, {});
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.authorization, null, "a connection that needs reauthorizing lends nothing, and the pulse still searches");
 });
 
 test("the picker lists only token and OAuth GitHub accounts with their state, never a credential, and refuses anything the Host cannot send a token for", async t => {

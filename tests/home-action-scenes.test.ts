@@ -74,7 +74,7 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     const cache = new Map();
     const viewOptions = { databasePath, projectId: reference.project_id, homeDirectory: home };
     const view = await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);
-    assert.equal("home_dock_suggested_behavior_ids" in view.feed.feed_items.find(row => row.item_id === item.item_id)!, false, "WebView no longer holds a second copy of Home recommendations");
+    assert.equal("feed" in view, false, "the cached platform WebView holds no Feed aggregate or second copy of Home recommendations");
     denied = "functions.published.system_pick_home_dock";
     assert.deepEqual((await actions.invoke(homeActions.recommendations, {})).judgments, []);
     await cachedMolisWorkWebView(cache, runtime.store, viewOptions, actions);

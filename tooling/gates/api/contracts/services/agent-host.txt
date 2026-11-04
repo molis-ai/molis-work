@@ -1692,13 +1692,11 @@ export interface AgentSubagentsCapability {
     cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
 }
 
-export interface AgentTextMaterial {
+export type AgentTextMaterial = {
     material_id: string;
     title: string;
     text: string;
-    source_artifact_id: string;
-    source_version: number;
-}
+} & AgentMaterialSource;
 
 export interface AgentTextReviewDocument {
     kind: "text-edit";
@@ -2082,9 +2080,7 @@ interface AgentFrozenStartFields {
     text_materials: Array<{
         material_id: string;
         title?: string;
-        source_artifact_id: string;
-        source_version: number;
-    }>;
+    } & AgentMaterialSource>;
     image_materials?: Array<{
         material_id: string;
         title: string;
@@ -2092,6 +2088,14 @@ interface AgentFrozenStartFields {
     }>;
     budget: AgentRunBudget | null;
 }
+
+type AgentMaterialSource = {
+    source_artifact_id: string;
+    source_version: number;
+} | {
+    source_artifact_id?: never;
+    source_version?: never;
+};
 
 type AgentMemoryLocation = {
     scope: AgentMemoryEntry["scope"];

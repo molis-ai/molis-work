@@ -24,7 +24,7 @@
 | [issue-home-v0](../../issue-home-v0/spec.md) | 产品线（Issue 插件） | [01](batches/01.md) | 直接做：BL-149 合入或关掉后归档 |
 | [computer-use](../../computer-use/spec.md) | 产品线（助理） | [01](batches/01.md) | 要决策：BL-325 真机验收（你）；BL-326／327 留 Backlog |
 | [ai-development-handbook](../../ai-development-handbook/spec.md) | 横向能力（AI 方法） | [01](batches/01.md)、[09](batches/09.md) | 要决策：BL-320 你验收；ADH-23／BL-321 在 09 直接做 |
-| 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../../plugin-project-database/spec.md)、[dual-instance-plugins](../../dual-instance-plugins/spec.md)、[plugin-project-partition](../../plugin-project-partition/spec.md) | 底层与架构 | [01](batches/01.md) | 直接做：随防腐线收 |
+| 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../../archive/plugin-project-database/spec.md)、[dual-instance-plugins](../../archive/dual-instance-plugins/spec.md)、[plugin-project-partition](../../archive/plugin-project-partition/spec.md) | 底层与架构 | [01](batches/01.md) | 直接做：随防腐线收 |
 | BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401 | 跨线 | [01](batches/01.md) | 要决策：你一次走完验收单（验收方式见[决定 12](decisions.md#decision-12)） |
 | [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md) | 要决策：恢复授权前不启动（原暂停），见下 |
 | 右栏选一段放进文稿（产品建议 F1；#712、#720） | 产品线（工作台）、横向能力（落点） | [01](batches/01.md) | 要决策：真实材料实走后再定下一个落点 |
@@ -143,7 +143,7 @@
 
 ### 发布与系统集成
 
-发布原要求见 [C 端 M1／M2](../../repository-anti-corruption/c-end-readiness.md)，本表不另设发行门槛。
+发布原要求见 [C 端 M1／M2](../../archive/repository-anti-corruption/c-end-readiness.md)，本表不另设发行门槛。
 
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |

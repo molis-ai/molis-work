@@ -1,4 +1,4 @@
-// Per-file counts of the old names and of the empty catches in browser programs (specs/repository-anti-corruption §4.13 /
+// Per-file counts of the old names and of the empty catches in browser programs (specs/archive/repository-anti-corruption §4.13 /
 // §4.16, slice W1-04). Each rule counts per file and may only fall; a file with no record starts at 0, so new code starts
 // clean. The counts of empty catch blocks and `as unknown as` casts in TypeScript code moved to the static checks (W1-09:
 // scripts/gates/lint.mjs, tooling/gates/lint/*.grit), which report the same sites file by file; this file keeps what a

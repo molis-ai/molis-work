@@ -108,7 +108,9 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
-打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版；词典和测试写法见 [逐插件客户端方案](../../specs/repository-anti-corruption/slices/w5-04-plugin-client-bundles.md)。
+打包的 TypeScript 客户端使用 `@molis-ai/molis-work-contracts/platform/ui` 的 `UiPluginClientHost`，用 `Pick` 只取需要的字段，不另写一套宿主接口；DOM 类型由浏览器消费者传入泛型。`molisWorkRequest` 的形状也来自该合同；全局声明由 Plugin SDK 公共入口提供，浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk"` 纳入，页面不重复声明、不另建请求实现。用 `host.pluginRoute(relativePath)` 请求自己的路由，用 `host.route(platformPath)` 请求已获准的平台路径；`host.pluginId` 来自 Manifest，仅作展示，授权仍由宿主绑定。生命周期 `scope.fetch` 与 `assertCurrent` 保留取消及迟到回应拒绝。打包器作为包的直接开发依赖，与根目录同版。
+
+构建与检查（样板 `plugins/native/form`）：浏览器代码在 `src/browser/*.ts`，入口 `factory.ts`；页面状态放在一个页面对象里，各部件是拿它当第一个参数的函数。包里的 `tsconfig.browser.json` 只含 `src/browser/**/*.ts`、`noEmit`、带 DOM 库；`package.json` 的 `build` 先 `tsc -p tsconfig.browser.json`，再用包内直接声明的 `esbuild`（命令直接写 `esbuild`，不写根目录二进制的相对路径）打成 `dist/<插件>-client.js`（`--bundle --format=iife --minify`，banner 与 footer 把它包成 `(host) => {…}`），`typecheck` 同样含这一步；`src/client.ts` 只读这份包。升级 esbuild 会改变压缩后的字节，页面资源预算照 `AGENTS.md` 的规则办，不能借工具升级绕过。页面每句话用 `<插件>.<区域>.<名称>` 的稳定键，中英文并排放 `src/messages.ts`，在 Manifest 的 `ui.messages` 声明，写法与迁移步骤见 [工作台「界面文字」](../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)；迁移时英文保持页面原来实际显示的那句（以宿主合并后的 `EN` 为准，不是只看自己的词典）。包自己的钉住测试（样板 `tests/form-client-bundle.test.ts`）：翻译用 `scripts/gates/translations.mjs` 的 `scanTree` 核对真实调用，不另写只认某种引号的正则；浏览器代码不直接 `fetch`，没有 `any`、`as unknown as`、空 `catch`、浏览器弹窗，不写自己的插件 id 与 `/api/plugins/` 前缀；打包内容用解析器独有的标识确认。
 
 Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 

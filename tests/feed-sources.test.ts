@@ -1,3 +1,4 @@
+import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,7 +6,6 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 
-import { listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 
@@ -22,6 +22,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
+import { pluginDocuments } from "./fixtures/plugin-documents.js";
 
 test("public Feed sources register offline, replay terminal sync, and roll back failed commits", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-"));
@@ -84,7 +85,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
         };
       };
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory);
-      const definition = listFeedSourceCatalog()[0]!;
+      const definition = listTestFeedSourceCatalog()[0]!;
       const firstRegistration = service.register({ kind: "rss", definition_id: definition.id });
       assert.equal(firstRegistration.registered, true);
       assert.equal(runtimeCreated, 0, "registration must not perform network/runtime setup");
@@ -163,7 +164,7 @@ test("public Feed interruption preserves current owner failures and an uncoded r
         inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; }, delete() { return false; },
         collect() { return { deleted: [], kept: [] }; } }, async shutdown() {},
     }));
-    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
     for (const [error, expected, operation] of [
       [failure, "connector.needs_auth", "owner-code-1"],
       [Object.assign(new Error("Unsafe upstream value"), { code: "private detail with spaces" }), "feed.provider_interrupted", "owner-code-2"],
@@ -202,7 +203,7 @@ test("custom RSS registration rejects private and catalog-shadowing URLs before 
       assert.deepEqual(refusal(() => service.register({ kind: "youtube_channel", channel_id: "not a channel" })), ["youtube.channel_invalid", 400]);
       assert.deepEqual(refusal(() => service.register({ kind: "web_query", query: "x" })), ["feed.source_query_invalid", 400]);
       assert.deepEqual(refusal(() => service.register({ kind: "rss", definition_id: "no-such-feed" })), ["feed.source_definition_unavailable", 400]);
-      const catalog = listFeedSourceCatalog()[0]!;
+      const catalog = listTestFeedSourceCatalog()[0]!;
       assert.throws(
         () => service.register({ kind: "custom_rss", feed_url: catalog.feed_url }),
         (error: unknown) => error instanceof ActionError && error.code === "feed.source_use_catalog",
@@ -284,7 +285,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
             });
           },
         }));
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const first = await service.sync(source.source_id, { idempotencyKey: "rss-http-sync-0001" }).catch((error) => {
         const failed = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
         assert.fail(`first RSS sync failed with ${failed.last_error_code}: ${String(error)}`);
@@ -305,7 +306,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
       assert.deepEqual(second.run.receipt?.rss_http, {
         status: 304,
         not_modified: true,
-        final_url: listFeedSourceCatalog()[0]!.feed_url,
+        final_url: listTestFeedSourceCatalog()[0]!.feed_url,
         validator: "etag",
       });
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
@@ -347,7 +348,7 @@ test("RSS transient failures preserve history and become actionable only after t
         },
         async shutdown() {},
       }));
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         await assert.rejects(
           service.sync(source.source_id, { idempotencyKey: `rss-recovery-000${attempt}` }),
@@ -416,7 +417,7 @@ test("RSS parse failures immediately create a configuration recovery reference",
         },
         async shutdown() {},
       }));
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const result = await service.sync(source.source_id, { idempotencyKey: "rss-parse-fault-0001" });
       assert.equal(result.run.error_code, "feed_parse_failed");
       assert.equal(result.source.status, "error");
@@ -447,7 +448,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
     try {
       let now = new Date("2026-08-30T09:00:00.000Z");
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => now);
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const scheduled = service.configureSchedule(source.source_id, {
         mode: "interval",
         enabled: true,
@@ -506,7 +507,7 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
     try {
       let now = new Date("2026-08-30T09:00:00.000Z");
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => now);
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
       now = new Date("2026-08-30T09:05:00.000Z");
       const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async () => {
@@ -543,7 +544,7 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
     const store = new LocalProjectDatabase(databasePath);
     try {
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
-      const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const source = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       const updated = service.update(source.source_id, {
         name: "Product RSS",
         description: "产品与 Agent 更新",
@@ -564,7 +565,7 @@ test("source lifecycle keeps secrets out of configuration and honors explicit hi
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).sources.some((item) => item.source_id === source.source_id), false);
       assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
 
-      const replacement = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+      const replacement = service.register({ kind: "rss", definition_id: listTestFeedSourceCatalog()[0]!.id }).source;
       service.feed.ingestItem({
         source: replacement,
         externalId: "lifecycle-item-2",
@@ -623,10 +624,12 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
   process.env.NODE_ENV = "test";
   resetSecretStoreCache();
   // Feed runs in the Plugin Runtime of a project that has it (FI-7): the page and its routes are the project's, under its prefix.
+  let databasePath: string;
   const projectId = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
     const created = await catalog.createProject({ display_name: "来源", actor_id: "test" });
     if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
-    const seeded = new LocalProjectDatabase(catalog.getProject(created.project_id).database_path);
+    databasePath = catalog.getProject(created.project_id).database_path;
+    const seeded = new LocalProjectDatabase(databasePath);
     try { gmailSource(seeded.db, created.project_id); } finally { seeded.close(); }
     return created.project_id;
   });
@@ -651,17 +654,37 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
         body: body == null ? undefined : JSON.stringify(body),
       });
     };
-    const page = await (await fetch(`${origin}${prefix}/`)).text();
+    const ownerDocument = (html: string, marker = "data-feed-workbench") => {
+      const documents = pluginDocuments(html).filter(document => document.includes(marker));
+      assert.equal(documents.length, 1, `the page carries one actual ${marker} owner document`);
+      return documents[0]!;
+    };
+    const hostPage = await (await fetch(`${origin}${prefix}/`)).text();
+    const page = ownerDocument(hostPage);
     assert.match(page, /data-feed-sources-dialog/);
     assert.match(page, /id="feed-source-dialog-title">添加来源/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
-    assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
+    assert.match(ownerDocument(hostPage, "data-source-workbench"), /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
     assert.match(page, /打开 Connectors/);
-    assert.match(page, /在 Connectors 授权 Gmail 后，当前项目的 Feed 会按邮箱关联来源。/);
+    assert.match(page, /在 Connectors 授权 Gmail 后创建来源，再在来源设置里为它选邮箱账号。/);
+    // RAC-2667 (T-121): an account source's settings name the plugin, the slot and the record, never an account or an installation; the
+    // page script reads and binds through the Host's record-slot path, and an account already chosen is changed by disconnecting first.
+    assert.match(page, /data-plugin-record-slot="\{&quot;plugin_id&quot;:&quot;io\.molis\.work\.feed&quot;,&quot;slot_id&quot;:&quot;gmail&quot;,&quot;service_id&quot;:&quot;gmail&quot;,&quot;record_key&quot;:&quot;[^&]+&quot;\}"/);
+    assert.doesNotMatch(page, /data-source-config-field="connection_id"/);
+    assert.ok([...page.matchAll(/data-plugin-record-slot="([^"]*)"/g)].every(([, slot]) => !slot!.includes("install_id") && !slot!.includes("connection_id")));
+    assert.match(page, /<form class="feed-account-source" data-feed-add-account="github">/);
+    const client = await fetch(`${origin}/assets/molis-work-plugins/feed.js`);
+    assert.equal(client.status, 200);
+    const script = await client.text();
+    assert.ok(script.includes("connectionSlot") && script.includes("[data-plugin-record-slot-account]"), "the actual Feed owner reads and chooses through the Host's record-slot port");
+    const bridge = await fetch(`${origin}/assets/molis-work-plugin-frame.js`);
+    assert.equal(bridge.status, 200);
+    assert.ok((await bridge.text()).includes("/api/host/plugin-page-slot"), "the trusted bridge binds through the current page's record-slot path");
+    assert.ok(!script.includes('data-source-config-field="connection_id"'), "and no longer saves an account with the source");
     assert.doesNotMatch(page, /data-feed-connector-token/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 
-    const definition = listFeedSourceCatalog()[0]!;
+    const definition = listTestFeedSourceCatalog()[0]!;
     const registered = await mutate("/api/plugins/io.molis.work.feed/sources", "POST", {
       kind: "rss",
       definition_id: definition.id,
@@ -692,14 +715,25 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
       { mode: "interval", enabled: true, interval_minutes: 30 },
     );
     assert.equal(scheduled.status, 200);
-    assert.equal((await scheduled.json() as { source: { schedule: { mode: string } } }).source.schedule.mode, "interval");
+    const scheduledSource = (await scheduled.json() as { source: { enabled: boolean; status: string; schedule: { mode: string } } }).source;
+    assert.equal(scheduledSource.schedule.mode, "interval");
+    assert.equal(scheduledSource.enabled, false, "saving a schedule does not resume the paused source");
+    assert.equal(scheduledSource.status, "paused");
 
-    const realPage = await (await fetch(`${origin}${prefix}/`)).text();
+    const updatedHostPage = await (await fetch(`${origin}${prefix}/`)).text();
+    const feedPage = ownerDocument(updatedHostPage);
+    assert.match(feedPage, new RegExp(`data-feed-task="${registeredBody.source.source_id}"`));
+    assert.match(feedPage, new RegExp(`data-feed-task-config="${registeredBody.source.source_id}"`));
+    assert.match(feedPage, new RegExp(`data-feed-source-toggle="${registeredBody.source.source_id}" data-feed-source-enabled="false"`));
+    const realPage = ownerDocument(updatedHostPage, "data-source-workbench");
     assert.match(realPage, new RegExp(`data-real-source-id="${registeredBody.source.source_id}"`));
     assert.match(realPage, /data-source-config-save/);
     assert.match(realPage, /首次拉取后验证 Feed 并记录条件请求/);
     assert.match(realPage, /data-source-schedule-save/);
     assert.match(realPage, /data-source-runtime-action="pause"/);
+    assert.match(realPage, new RegExp(`data-source-config-save data-source-id="${registeredBody.source.source_id}"`));
+    assert.match(realPage, new RegExp(`data-source-schedule-save data-source-id="${registeredBody.source.source_id}"`));
+    assert.match(realPage, new RegExp(`data-source-runtime-action="resume" data-source-id="${registeredBody.source.source_id}"`));
 
     const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-test-token-12345" }));
     const feed = await (await fetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/snapshot`)).json() as {
@@ -707,8 +741,8 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
       connector_auth: { github: { bound: boolean } };
     };
     assert.equal(feed.connector_auth.github.bound, true);
-    // The catalog is the shell's to give with the page, not Feed's route's (the vocabulary is read only inside Feed's own action, S-97).
-    assert.ok(((await (await fetch(`${origin}${prefix}/api/board`)).json()) as { feed_source_catalog: unknown[] }).feed_source_catalog.length > 0);
+    // Feed's own stage reads the instance vocabulary (S-97); the page carries that owner result.
+    assert.ok(((await (await fetch(`${origin}${prefix}/api/board`)).json()) as { stage_data: { feed: { source_catalog: unknown[] } } }).stage_data.feed.source_catalog.length > 0);
     assert.equal(feed.sources.some((source) => source.kind === "github"), false, "a connection alone adds no Feed source");
     assert.equal(JSON.stringify(feed).includes("github-test-token-12345"), false);
 
@@ -723,6 +757,34 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     );
     assert.equal(deleted.status, 200);
     assert.equal((await deleted.json() as { history_decision: string }).history_decision, "retain_history");
+    // RAC-2665: the page adds an account source empty, through Feed's own route; the same name is the same source, and no account is named.
+    const added = await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Work GitHub" });
+    assert.equal(added.status, 201, await added.clone().text());
+    assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Work GitHub" })).status, 200, "the same name is the same source");
+    assert.equal((await mutate("/api/plugins/io.molis.work.feed/sources/accounts", "POST", { service: "github", name: "Other", connection_id: github.connection_id })).status, 201,
+      "the route passes on only the service and the name");
+
+    // S-71 RAC-2666: the source's account is chosen on its record slot; a record bound to one account is not moved to another there (409,
+    // the binding and the source's cursor as they were) until the person unbinds it.
+    const record = { plugin_id: "io.molis.work.feed", slot_id: "github", service_id: "github", record_key: (await added.json() as { source: { source_id: string } }).source.source_id };
+    const choose = (connection_id: string | null) => fetch(`${origin}/api/settings/connectors/plugin-slots/record?project=${encodeURIComponent(projectId)}`, {
+      method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": `feed-record-slot-${++mutation}` }, body: JSON.stringify({ ...record, connection_id }) });
+    const sourceNow = () => { const board = new LocalProjectDatabase(databasePath); try { return createLocalFeedApplication(board.db).sources.get(projectId, record.record_key); } finally { board.close(); } };
+    const [first, second] = withConnectorConnections(home, store => [store.createToken({ serviceId: "github", displayName: "GitHub one", token: "github-test-token-24680" }),
+      store.createToken({ serviceId: "github", displayName: "GitHub two", token: "github-test-token-67890" })]);
+    const chosen = await choose(first!.connection_id);
+    assert.equal(chosen.status, 200, await chosen.clone().text());
+    { const board = new LocalProjectDatabase(databasePath); try { const feedHere = createLocalFeedApplication(board.db); feedHere.sources.upsert({ ...feedHere.sources.get(projectId, record.record_key), cursor: { after: "kept" } }); } finally { board.close(); } }
+    const moved = await choose(second!.connection_id);
+    assert.equal(moved.status, 409, await moved.clone().text());
+    const boundTo = async () => (await (await fetch(`${origin}/api/settings/connectors/plugin-slots/record?${new URLSearchParams({ project: projectId, plugin_id: record.plugin_id, slot_id: record.slot_id, record_key: record.record_key })}`,
+      { headers: { origin, "x-molis-work-control-token": controlToken } })).json() as { connection: { connection_id: string } | null }).connection?.connection_id ?? null;
+    assert.equal(await boundTo(), first!.connection_id);
+    assert.deepEqual(sourceNow().cursor, { after: "kept" });
+    assert.equal((await choose(first!.connection_id)).status, 200, "the same account again is no change");
+    assert.equal((await choose(null)).status, 200);
+    assert.equal((await choose(second!.connection_id)).status, 200);
+    assert.equal(await boundTo(), second!.connection_id);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

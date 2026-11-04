@@ -1,25 +1,36 @@
-import { studioFrameAsset } from "./fixtures/studio-framed-page.js";
-import { pluginPagesFor, sendLocalWebJson } from "@molis-ai/molis-work-app-local-host";
+import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
+import { serveHomeRuntime } from './fixtures/home-runtime.js';
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
+import { studioFrameAsset, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
+import { pluginPagesFor, sendLocalWebJson, authorizeLocalWebRequest, HomeConsentLedger, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { memoryStorage, proposal, detail, experience, finding, detailUsing, proposalsUsing, detailWithFour, composition, PROPOSALS, CAPABILITY_WORDS, COMPONENT_WORDS, GOALS_CATALOG, until } from './fixtures/builder-workflow-design.js';
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
+import childProcesses, { execFileSync, type ChildProcess } from 'node:child_process';
+import { pluginOnDemandStylesheet } from '@molis-ai/molis-work-app-workbench';
+import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
-import { releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
 import { builderSkill } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
+import { syncBuiltinESMExports } from 'node:module';
+import { readyPublication } from './fixtures/studio-publishing.js';
+
+const publicationAuthority = { signal: new AbortController().signal, beforeEffect: async () => {}, assert_authority_current() {} };
 
 /** In-memory storage with the atomic replacement the Builder store requires. */
 
@@ -64,7 +75,7 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
     },
     selectionAvailable: () => true,
     browserAcceptance: async () => ({ passed: true, cases: [{ id: 'add-note', passed: true, detail: 'hello visible' }], at: new Date().toISOString() }),
-    publish: async () => ({ directory: '/tmp/release', bundlePath: '/tmp/release/plugin.mjs', packagePath: '/tmp/release.tgz' }),
+    publish: async (_build, _manifest, _bundle, version, control) => control.commit({ directory: '/tmp/release/v' + version, bundlePath: '/tmp/release/v' + version + '/plugin.mjs', packagePath: '/tmp/release/v' + version, prompts: [] }),
     installations: async () => [], lifecycle: async () => {},
   };
   return state;
@@ -72,8 +83,185 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 
 /** What the workflow said to Jev before the two sentences were registered, word for word. */
 
+// T405-FULL-04: real G1–G6 include the Seatbelt typecheck and sandbox workers.
+const nativeBuildChecks = { skip: process.platform !== 'darwin' && 'Real G1–G6 require macOS Seatbelt (/usr/bin/sandbox-exec)' };
+
+async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
+  let closeStudio: (() => Promise<void>) | undefined, server: ReturnType<typeof createServer> | undefined;
+  t.after(async () => {
+    try { await closeStudio?.(); }
+    finally { if (server?.listening) await new Promise<void>(resolve => { server!.close(() => resolve()); server!.closeAllConnections(); }); }
+  });
+  const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Shared revision sources');
+  const store = await f.host.withProject(project.reference, runtime => runtime.store);
+  closeStudio = async () => { try { await releaseAgentStudio(store, project.project_id); } finally { await releaseInstalledPlugins(store, project.project_id); } };
+  const answer = JSON.parse(detail('共享清单'));
+  answer.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };
+  answer.design.operations[0].examples = [{ input: {}, output: { items: [] } }];
+  answer.design.pages[0].parts[2].read = { op: 'notes.list', show: 'items' };
+  setup.configure?.(answer);
+  const helper = "import type { SandboxSdk } from '@molis/plugin-sdk';\nimport { row } from './nested/index.js';\nexport async function list(sdk: SandboxSdk) { const value = await sdk.storage.get('rows'); return Array.isArray(value) ? value : []; }\nexport async function add(sdk: SandboxSdk, text: string) { await sdk.storage.set('rows', [...await list(sdk), row(text)]); return { id: 'n1' }; }\n";
+  const nested = "export function row(text: string) { return { id: 'n1', text }; }\n";
+  const coded: Array<{ id: string; before: string }> = [];
+  let firstRoot = '';
+  const actions = f.host.actionRegistry(project.reference);
+  const options: Parameters<typeof handleAgentStudioHttp>[3] = {
+    store, projectId: project.project_id, homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID,
+    routePrefix: '/projects/' + project.project_id, parallel: 1,
+    models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
+    // This existing executable rejects Chrome flags; BuilderBrowser cannot fall back to a personal browser.
+    browserExecutable: setup.browserExecutable ?? process.execPath,
+    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: caller => f.host.inspectActions(caller, project.reference), project_id: project.project_id },
+    choice: { selectionAvailable: () => false, choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }) },
+    agents: async build => ({ close: async () => {}, records: async () => [], async run(request) {
+      const task = JSON.parse(request.task);
+      let output = '';
+      if (request.role === 'designer') {
+        output = task.mode === 'propose' ? PROPOSALS : task.mode === 'experience' ? experience()
+          : task.mode === 'compose' ? setup.configure ? JSON.stringify({ summary: '脚本化完整布局', presentation: { version: 1, pages: answer.design.pages.map((page: { id: string; parts: Array<{ id: string }> }) => ({ pageId: page.id, layout: { layout: 'stack', children: page.parts.map(part => ({ part: part.id })) } })), parts: {} } }) : composition() : JSON.stringify(answer);
+      } else {
+        if (task.operations) throw new Error('SCRIPTED_REPAIR_FORBIDDEN');
+        assert.ok(build.directory); firstRoot ||= build.directory;
+        const id = request.operationIds![0]!;
+        coded.push({ id, before: await fs.readFile(join(build.directory, task.implementation), 'utf8') });
+        await fs.mkdir(join(build.directory, 'src/nested'), { recursive: true });
+        await fs.writeFile(join(build.directory, 'src/store.ts'), helper);
+        await fs.writeFile(join(build.directory, 'src/nested/index.ts'), nested);
+        const source = id === 'notes.list'
+          ? "import type { SandboxJson, SandboxSdk } from '@molis/plugin-sdk';\nimport { list } from '../store.js';\nexport default async function operation(_input: SandboxJson, sdk: SandboxSdk): Promise<SandboxJson> { return { items: await list(sdk) }; }\n"
+          : "import type { SandboxJson, SandboxSdk } from '@molis/plugin-sdk';\nimport { add } from '../store.js';\nexport default async function operation(input: SandboxJson, sdk: SandboxSdk): Promise<SandboxJson> { return add(sdk, (input as { text: string }).text); }\n";
+        await fs.writeFile(join(build.directory, task.implementation), source);
+        await fs.writeFile(join(build.directory, task.tests), "import type { SandboxTest } from '@molis/plugin-sdk';\nexport const tests: SandboxTest[] = [async (_sdk, call, assert) => { assert.same(await call(" + (id === 'notes.list' ? '{}), { items: [] }' : "{ text: 'fixture' }), { id: 'n1' }") + "); }];\n");
+      }
+      return { id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion, contractRevision: request.contractRevision,
+        instruction: request.instruction, input: request.task, output, configuredModel: 'scripted', reportedModels: ['scripted'],
+        phase: 'completed', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), activity: [], usage: [] };
+    } }),
+  };
+  const mutations = new Map<string, LocalMutationState>();
+  const trialKeys: string[] = [], trialProbes: Promise<void>[] = [], trialProbeErrors: unknown[] = [];
+  server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (studioFrameAsset(response, url.pathname)) return;
+    const stylesheet = url.pathname === '/assets/molis-work-plugins/plugin-builder.css' ? pluginOnDemandStylesheet('plugin-builder') : url.pathname === '/assets/molis-work-settings.css' ? VISUAL_FOUNDATION_STYLES : undefined;
+    if (stylesheet !== undefined) { response.writeHead(200, { 'content-type': 'text/css' }); response.end(stylesheet); return; }
+    if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
+    const key = url.searchParams.get('acceptance');
+    if (key && !trialKeys.includes(key)) {
+      trialKeys.push(key);
+      if (setup.probeTrials) trialProbes.push(assert.rejects(send('/builds/' + crypto.randomUUID() + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /这轮界面验收已结束/).catch(error => { trialProbeErrors.push(error); }));
+    }
+    const local = new URL(url); local.pathname = local.pathname.slice(options.routePrefix!.length);
+    void pluginPagesFor(f.home).bind(request, url).then(async release => {
+      if (release) response.once('close', release);
+      if (key && url.searchParams.get('frame') === 'workbench') await setup.trialPage?.(key, url.pathname.split('/').at(-1)!, send);
+      return handleAgentStudioHttp(request, response, local, options, f.token);
+    }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
+  });
+  await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port;
+  const send = async <T>(path: string, body?: unknown): Promise<T> => {
+    const response = await fetch(origin + options.routePrefix + '/api/plugin-builder/studio' + path, {
+      method: body === undefined ? 'GET' : 'POST', headers: { origin, 'content-type': 'application/json', 'x-molis-work-control-token': f.token,
+        'x-molis-work-idempotency-key': crypto.randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    assert.ok(response.ok, await response.clone().text()); return await response.json() as T;
+  };
+  const wait = async (id: string) => {
+    for (let attempt = 0; attempt < 1200; attempt++) {
+      const { build } = await send<{ build: AgentBuild }>('/builds/' + id);
+      if (!build.active && ['choosing', 'paused', 'failed', 'ready'].includes(build.phase)) return build;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    throw new Error('revision fixture did not settle');
+  };
+  const created = await send<{ build: AgentBuild }>('/builds', { brief: '共享清单' });
+  let current = await wait(created.build.id);
+  await send('/builds/' + current.id + '/action', { action: 'choose', revision: current.revision, candidateId: 'quick' });
+  current = await wait(current.id);
+  const passed = (build: AgentBuild) => {
+    assert.equal(build.checks.global?.passed, true, JSON.stringify(build.checks.global));
+    assert.deepEqual(build.checks.global!.gates.map(gate => [gate.id, gate.passed]), ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'].map(id => [id, true]));
+    assert.equal(build.browserResult?.passed, setup.browserExecutable ? setup.browserPassed ?? true : false, JSON.stringify(build.browserResult));
+    if (!setup.browserExecutable) assert.match(build.browserResult!.cases[0]!.detail, /验收浏览器未能启动/);
+  };
+  passed(current);
+  await Promise.all(trialProbes); assert.deepEqual(trialProbeErrors, []);
+  return { f, answer, coded, helper, nested, send, wait, passed, current, trialKeys,
+    rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
+    async revise() { await send('/builds/' + current.id + '/action', { action: 'revise', revision: current.revision, message: '只调整界面' }); current = await wait(current.id); return current; },
+  };
+}
+
+test('RAC-2931 RAC-2932 real Host revision preserves shared sources and operation mappings without rewriting correct code', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), old = f.rootFor(f.current);
+  const oldList = await fs.readFile(join(old, 'src/operations/0.ts'), 'utf8'), oldAdd = await fs.readFile(join(old, 'src/operations/1.ts'), 'utf8');
+  await fs.chmod(join(old, 'src/index.ts'), 0o600); await fs.writeFile(join(old, 'src/index.ts'), 'throw new Error("OLD_INDEX_MUST_NOT_COPY");\n');
+  f.answer.design.operations.reverse(); f.answer.design.pages[0].parts[2].props.emptyText = '新空态';
+  let revised = await f.revise(); f.passed(revised);
+  assert.equal(f.coded.length, 2, 'a pure UI revision never invokes coder');
+  const directory = f.rootFor(revised);
+  assert.equal(await fs.readFile(join(directory, 'src/store.ts'), 'utf8'), f.helper);
+  assert.equal(await fs.readFile(join(directory, 'src/nested/index.ts'), 'utf8'), f.nested);
+  assert.equal(await fs.readFile(join(directory, 'src/operations/0.ts'), 'utf8'), oldAdd);
+  assert.equal(await fs.readFile(join(directory, 'src/operations/1.ts'), 'utf8'), oldList);
+  assert.doesNotMatch(await fs.readFile(join(directory, 'src/index.ts'), 'utf8'), /OLD_INDEX_MUST_NOT_COPY/);
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [] } });
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text: '  原样正文  ' } } }), { value: { id: 'n1' } });
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [{ id: 'n1', text: '  原样正文  ' }] } });
+  f.answer.design.operations[0].input.text = 'string(1..250) 笔记';
+  revised = await f.revise(); f.passed(revised);
+  assert.equal(f.coded.length, 3); assert.equal(f.coded[2]!.id, 'notes.add');
+  assert.match(f.coded[2]!.before, /NOT_IMPLEMENTED/);
+});
+
+test('RAC-2933 real Host revision rejects shared source file and directory links without reading outside', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), directory = f.rootFor(f.current), outside = join(f.f.home, 'outside');
+  await fs.mkdir(outside); await fs.writeFile(join(outside, 'private.ts'), 'OUTSIDE_BYTES');
+  for (const kind of ['file', 'directory'] as const) {
+    const link = join(directory, 'src', kind === 'file' ? 'foreign.ts' : 'foreign');
+    await fs.symlink(kind === 'file' ? join(outside, 'private.ts') : outside, link);
+    const before = new Set(await fs.readdir(dirname(directory)));
+    const rejected = await f.revise();
+    assert.match(rejected.error ?? '', /Symbolic links are not allowed/);
+    assert.equal(f.coded.length, 2, 'unsafe reuse does not ask coder to hide the failure');
+    for (const name of await fs.readdir(dirname(directory))) if (!before.has(name) && !name.endsWith('.settled')) {
+      await assert.rejects(fs.lstat(join(dirname(directory), name, 'src', kind === 'file' ? 'foreign.ts' : 'foreign')), { code: 'ENOENT' });
+    }
+    assert.equal(await fs.readFile(join(outside, 'private.ts'), 'utf8'), 'OUTSIDE_BYTES');
+    await fs.unlink(link);
+  }
+});
+
+test('RAC-2933 real Host revision rejects a non-regular shared source before reading', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), directory = f.rootFor(f.current);
+  execFileSync('mkfifo', [join(directory, 'src/blocked.ts')]);
+  const rejected = await f.revise();
+  assert.match(rejected.error ?? '', /Build source must be a regular file: src\/blocked\.ts/);
+  assert.equal(f.coded.length, 2, 'non-regular reuse fails without asking coder to hide it');
+});
+
+test('RAC-2932 real Host revision with no reusable operations implements new contracts without reading old helpers', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t), old = f.rootFor(f.current), outside = join(f.f.home, 'private.ts');
+  await fs.writeFile(outside, 'OUTSIDE_BYTES'); await fs.unlink(join(old, 'src/store.ts'));
+  await fs.symlink(outside, join(old, 'src/store.ts'));
+  f.answer.design.operations[0].input = { 'query?': 'string' };
+  f.answer.design.operations[1].input.text = 'string(1..250) 笔记';
+  const revised = await f.revise(); f.passed(revised);
+  assert.deepEqual(f.coded.slice(2).map(entry => entry.id).sort(), ['notes.add', 'notes.list']);
+  for (const entry of f.coded.slice(2)) assert.match(entry.before, /NOT_IMPLEMENTED/);
+  assert.equal(await fs.readFile(join(f.rootFor(revised), 'src/store.ts'), 'utf8'), f.helper);
+  assert.equal(await fs.readFile(outside, 'utf8'), 'OUTSIDE_BYTES');
+  const text = 'x'.repeat(201);
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text } } }), { value: { id: 'n1' } });
+  assert.deepEqual(await f.send('/builds/' + revised.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [{ id: 'n1', text }] } });
+});
+
 test('designer answer wrapped in reasoning and broken JSON goes back once with the reason, then the build reaches ready and publishes', async () => {
   const h = harness(['<think>先想想用户要什么</think>{"candidates":[{"id":"quick",', '<think>修正</think>\n' + PROPOSALS, detail('笔记板')]);
+  let preparedManifest: Parameters<AgentBuilderPorts['prepareBuild']>[2] | undefined;
+  const prepare = h.ports.prepareBuild;
+  h.ports.prepareBuild = async (...args) => { preparedManifest = structuredClone(args[2]); return prepare(...args); };
   const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
   try {
     const created = workflow.create('做一个随手记笔记的插件');
@@ -96,6 +284,8 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
     const detailTask = JSON.parse(h.requests.filter(request => request.role === 'designer').at(-1)!.task);
     assert.equal(detailTask.mode, 'detail'); assert.equal(detailTask.proposal.id, 'board', 'only the chosen proposal is designed in full');
     assert.deepEqual(build.design!.contract.operations[1]!.effects, { storage: ['read', 'write'] }, 'a command that writes also reads its storage');
+    // SDK-1: real adopt -> prepareBuild receives this fixed oracle, not an expectation computed by the SDK under test.
+    assert.deepEqual(preparedManifest, { version: 1, pluginId: build.design!.contract.pluginId, revision: build.design!.contract.revision, effects: { storage: ['read', 'write'] } });
     // Parts are UI catalog components; the fixture Jev takes the last legal one.
     assert.deepEqual(build.nodes.map(node => [node.id, node.kind]), [['title', 'frame'], ['editor', 'dialog'], ['notes', 'accordion']]);
     const collection = build.steps.find(step => step.target === 'notes' && step.action === 'place');
@@ -109,9 +299,9 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
     assert.equal(build.browserResult?.passed, true);
     assert.deepEqual(h.requests.filter(request => request.role === 'coder').map(request => request.operationIds), [['notes.add'], ['notes.list']], 'one operation per code run; the one that writes the data goes first');
 
-    const release = await workflow.action(created.id, { action: 'publish', revision: build.revision });
+    const release = await workflow.action(created.id, { action: 'publish', revision: build.revision }, publicationAuthority);
     assert.equal((release as { version: number }).version, 1);
-    await assert.rejects(workflow.action(created.id, { action: 'publish', revision: workflow.store.require(created.id).revision }), /没有新的改动/, 'an unchanged build is not published twice');
+    await assert.rejects(workflow.action(created.id, { action: 'publish', revision: workflow.store.require(created.id).revision }, publicationAuthority), /没有新的改动/, 'an unchanged build is not published twice');
   } finally { await workflow.close(); }
 });
 
@@ -738,14 +928,14 @@ test('whole-page design survives Jev failure; visual revision and undo keep the 
     assert.equal(build.visualResult?.status, 'unavailable');
     assert.equal(build.visualResult?.structural, true);
     const original = structuredClone(build), counts = [prepared, checked, h.requests.filter(r => r.role === 'coder').length];
-    await workflow.action(id, { action: 'publish', revision: build.revision });
+    await workflow.action(id, { action: 'publish', revision: build.revision }, publicationAuthority);
     await workflow.action(id, { action: 'visual', revision: workflow.store.require(id).revision, message: '收紧间距' });
     build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
     assert.deepEqual([prepared, checked, h.requests.filter(r => r.role === 'coder').length], counts, 'no new backend directory, build or coder');
     assert.deepEqual(build.design!.contract, original.design!.contract);
     assert.deepEqual(build.connected, original.connected);
     assert.notDeepEqual(build.design!.presentation, original.design!.presentation);
-    await workflow.action(id, { action: 'publish', revision: build.revision });
+    await workflow.action(id, { action: 'publish', revision: build.revision }, publicationAuthority);
     assert.deepEqual(workflow.store.versions(id)[0]!.design.presentation, build.design!.presentation);
     await workflow.action(id, { action: 'undo', revision: workflow.store.require(id).revision });
     assert.deepEqual(workflow.store.require(id).design!.presentation, original.design!.presentation);
@@ -879,6 +1069,43 @@ test('experience planning reshapes parts before detail and freeze, preserving se
     assert.equal(build.design!.acceptance[0]!.steps[0]!.action, 'fill');
     assert.equal(h.requests.find(request => JSON.parse(request.task).mode === 'experience')!.skills?.[0]?.id, 'molis-plugin-dev.experience');
     assert.equal(h.requests.filter(request => JSON.parse(request.task).mode === 'experience').length, 1);
+  } finally { await workflow.close(); }
+});
+
+test('RAC-2930 a wrapped list returns to detail for an explicit projection before freezing or calling code', async () => {
+  const rejected = JSON.parse(detail('清单'));
+  rejected.design.operations[0].output = { items: [{ id: 'string', text: 'string' }] };
+  rejected.design.operations[0].examples = [{ input: {}, output: { items: [] } }];
+  const corrected = structuredClone(rejected);
+  corrected.design.pages[0].parts[2].read = { op: 'notes.list', show: 'items' };
+  const h = harness([PROPOSALS, JSON.stringify(rejected), JSON.stringify(corrected)]);
+  let prepared = 0;
+  h.ports.prepareBuild = async () => {
+    prepared++;
+    assert.equal(h.requests.filter(request => request.role === 'designer').length, 3);
+    assert.equal(h.requests.filter(request => request.role === 'coder').length, 0, 'invalid design never reaches code');
+    return '/tmp/molis-build-fixture';
+  };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('清单');
+    let build = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
+    assert.equal(build.phase, 'ready', build.error ?? '');
+    const repair = JSON.parse(h.requests[2]!.task);
+    assert.equal(repair.mode, 'detail');
+    assert.match(repair.repair.validationError, /read\.show.*数组字段/);
+    assert.equal(repair.repair.previousAnswer, JSON.stringify(rejected));
+    assert.equal(prepared, 1);
+    assert.equal(build.design!.parts.find(part => part.id === 'notes')!.intent, 'collection');
+    assert.equal(build.design!.parts.find(part => part.id === 'notes')!.read!.outputPath, 'items');
+    assert.deepEqual(build.design!.contract.operations[0]!.output, { type: 'object', properties: {
+      items: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' } }, required: ['id', 'text'], additionalProperties: false } },
+    }, required: ['items'], additionalProperties: false });
+    assert.deepEqual(build.design!.acceptance[0]!.steps.map(step => step.action), ['fill', 'submit', 'expect']);
+    assert.deepEqual(h.requests.filter(request => request.role === 'coder').map(request => request.operationIds), [['notes.add'], ['notes.list']]);
+    assert.equal(h.requests.filter(request => /^(?:acceptance|repair)\//.test(request.promptVersion)).length, 0, 'no backend acceptance-repair run');
   } finally { await workflow.close(); }
 });
 
@@ -1067,7 +1294,7 @@ test('through the studio surface: the studio asks Jev the question the person sa
 // W2-18-BUILDER-LATE-01: a reset belonging to an older job cannot adopt or connect into its replacement.
 test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed build preview', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
   const home = mkdtempSync(join(tmpdir(), 'builder-reset-http-')), file = join(home, 'project.db'); seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) };
+  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0), browserExecutable: dedicatedBuilderBrowser() };
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
@@ -1147,4 +1374,266 @@ for (const stage of ["adopt", "connect"] as const) test(`a late ${stage} reset c
     release.resolve(); await paused;
     assert.deepEqual(workflow.store.require(created.id), snapshot, 'old token changes neither revision, steps, code/contract nor connected list');
   } finally { release.resolve(); await workflow.close(); }
+});
+
+
+for (const withdrawal of ['disconnect', 'page'] as const) test('PUB-2 actual HTTP ' + withdrawal + ' during a publication write leaves no late release or final directory', { timeout: 30_000 }, async t => {
+  const held = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>();
+  const controller = new AbortController(), cleanups: Array<() => void | Promise<unknown>> = [];
+  const home = await fs.mkdtemp(join(tmpdir(), 't149-http-publish-'));
+  t.after(async () => {
+    resume.resolve(); controller.abort(); const failures: unknown[] = [];
+    for (const close of [...cleanups.reverse(), () => fs.rm(home, { recursive: true, force: true })]) {
+      try { await close(); } catch (error) { failures.push(error); }
+    }
+    if (failures.length) throw new AggregateError(failures, 'HTTP publication fixture cleanup failed');
+  });
+  // Fixed checked source is only the precondition; publication, HTTP control and page cancellation below are production paths.
+  const source = readyPublication(home, DEMO_PROJECT_ID, 'project'); cleanups.push(() => source.workflow.close());
+  const file = join(home, 'project.db'); seedDemoBoard(file); const store = new LocalProjectDatabase(file); cleanups.push(() => store.close());
+  const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, routePrefix: '/projects/' + DEMO_PROJECT_ID, ...agentStudioFixture(0) };
+  const installed = await ensureInstalledPlugins(options);
+  installed.storage.set('plugin-builder:agent-built:v1', source.storage.get('plugin-builder:agent-built:v1')!);
+  cleanups.push(() => releaseInstalledPlugins(store, DEMO_PROJECT_ID), () => releaseAgentStudio(store, DEMO_PROJECT_ID));
+  const token = crypto.randomUUID(), mutations = new Map<string, LocalMutationState>(), pages = pluginPagesFor(home);
+  const pageId = /"page_id":"([^"]+)"/.exec(isolatedStudioHarness(home, DEMO_PROJECT_ID, token))![1]!;
+  cleanups.push(() => pages.close(pageId));
+  let handled: Promise<unknown> = Promise.resolve();
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost'); response.once('close', () => disconnected.resolve());
+    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
+    handled = pages.bind(request, url, response).then(async () => {
+      const local = new URL(url); local.pathname = local.pathname.slice(options.routePrefix.length);
+      await handleAgentStudioHttp(request, response, local, options, token);
+    });
+    void handled.catch(error => response.destroy(error as Error));
+  });
+  cleanups.push(async () => { server.closeAllConnections(); await Promise.all([handled, new Promise<void>(resolve => server.close(() => resolve()))]); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port, writes: string[] = [];
+  const write = fs.writeFile, writing = t.mock.method(fs, 'writeFile', async (...args: Parameters<typeof fs.writeFile>) => {
+    await write(...args);
+    if (typeof args[0] === 'string' && args[0].startsWith(join(source.root, 'releases') + '/')) {
+      writes.push(args[0]); held.resolve(); await resume.promise;
+    }
+  });
+  syncBuiltinESMExports(); cleanups.push(() => { writing.mock.restore(); syncBuiltinESMExports(); });
+  const result = fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + source.build.id + '/action', {
+    method: 'POST', signal: controller.signal, headers: { origin, 'content-type': 'application/json', 'x-molis-work-control-token': token,
+      'x-molis-work-idempotency-key': crypto.randomUUID(), ...(withdrawal === 'page' ? { 'x-molis-plugin-page': pageId } : {}) },
+    body: JSON.stringify({ action: 'publish', revision: source.build.revision }),
+  }).then(async response => ({ status: response.status, body: await response.text() }), error => ({ error: error as Error }));
+  await Promise.race([held.promise, result.then(value => { throw new Error('Publication did not reach its actual write: ' + JSON.stringify(value)); })]);
+  if (withdrawal === 'disconnect') { controller.abort(); await disconnected.promise; }
+  else pages.close(pageId);
+  resume.resolve(); await handled; const outcome = await result;
+  if (withdrawal === 'disconnect') assert.ok('error' in outcome);
+  else assert.equal('status' in outcome ? outcome.status : undefined, 400);
+  assert.equal(writes.length, 1, 'the invalidated HTTP call performs no next publication write');
+  assert.deepEqual(installed.releases.versions(source.build.id), []);
+  assert.deepEqual(await fs.readdir(join(source.root, 'releases', source.build.id)), [], 'no final version or staging directory survives');
+  assert.ok(await fs.stat(join(home, 'config', 'plugin-publisher.json')), 'the identity created while authorized is preserved');
+});
+
+test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed download/import/pin reaches a working Home plugin', { skip: process.platform !== 'darwin', timeout: 240_000 }, async t => {
+  const cleanups: Array<() => Promise<unknown>> = []; t.after(async () => { for (const close of cleanups) await close(); });
+  const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Signed publishing');
+  const store = await f.host.withProject(project.reference, runtime => runtime.store), directory = join(f.home, 'browser-test');
+  const browser = await openStudioChrome(directory); assert.ok(browser, 'dedicated browser is required'); cleanups.push(() => browser.close());
+  const fixture = agentStudioFixture(0), actions = f.host.actionRegistry(project.reference), seen: Array<string | null> = [];
+  const probe = (scope: 'project' | 'home'): ActionDefinition => ({ capability_id: 'scope.read', version: 1, operation: 'query',
+    action: { title: 'Scope read', description: 'Observe trusted scope', kind: 'query', scope, audiences: ['user', 'plugin'], permissions: [], subject_kinds: [],
+      input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false }, output_schema: { type: 'string' }, execution: { cost: 'none' } } });
+  const projectProbe = probe('project');
+  const stopProjectProbe = actions.registerProvider({ provider: { provider_id: 't149-project', title: 'Project only', kind: 'system', project_id: project.project_id }, definitions: [projectProbe],
+    handlers: [{ ...projectProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
+  let modelCalls = 0, enabledProjectPlugins = 0;
+  const options = { store, projectId: project.project_id, homeDirectory: f.home, routePrefix: '/projects/' + project.project_id,
+    ...fixture, browserExecutable: dedicatedBuilderBrowser(), actorId: LOCAL_PERSON_ACTOR_ID, actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: caller => f.host.inspectActions(caller, project.reference), project_id: project.project_id },
+    homeActions: { registry: f.host.actionRegistry(), client: f.host.homeActionClient(), inspect: f.host.inspectActions.bind(f.host), project_id: null },
+    enablePlugin: async () => { enabledProjectPlugins++; throw new Error('A Home check cannot enable a project plugin'); },
+    agents: async (build: AgentBuild) => { const agent = await fixture.agents(build); return { ...agent, async run(request: BuilderAgentRequest) {
+      modelCalls++; const record = await agent.run(request);
+      if (request.role === 'designer') { const answer = JSON.parse(record.output);
+        if (answer.design) { answer.design.operations = answer.design.operations.filter((operation: { id: string }) => operation.id !== 'notes.expand');
+          answer.design.operations.find((operation: { id: string }) => operation.id === 'notes.list').effects.capabilities = ['scope.read'];
+          answer.design.pages[0].parts = answer.design.pages[0].parts.filter((part: { id: string }) => part.id !== 'expand');
+          answer.design.acceptance = answer.design.acceptance.filter((item: { id: string }) => item.id !== 'expand'); record.output = JSON.stringify(answer); }
+      } else if (request.operationIds?.includes('notes.list')) { const task = JSON.parse(request.task), file = join(build.directory!, task.implementation);
+        await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replace('  const rows =', "  await sdk.capability.call('scope.read', {});\n  const rows =")); }
+      return record;
+    } }; } };
+  const mutations = new Map<string, LocalMutationState>();
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (studioFrameAsset(response, url.pathname)) return;
+    if (url.pathname === '/__t149_studio') { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(f.home, project.project_id, f.token)); return; }
+    if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
+    void pluginPagesFor(f.home).bind(request, url).then(release => { if (release) response.once('close', release);
+      const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + '/')) local.pathname = local.pathname.slice(options.routePrefix.length);
+      return handleAgentStudioHttp(request, response, local, options, f.token);
+    }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  cleanups.push(async () => { await releaseAgentStudio(store, project.project_id); await releaseInstalledPlugins(store, project.project_id);
+    await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }); });
+  const origin = 'http://127.0.0.1:' + (server.address() as AddressInfo).port, raw = await browser.page(), page = await framedStudioPage(t, browser, raw);
+  const screenshots = join(process.cwd(), '.impeccable/qa/review/t149'); await fs.mkdir(screenshots, { recursive: true });
+  const ready = async (timeoutMs: number) => {
+    const current = async () => ((await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/state')).json()) as { builds: AgentBuild[] }).builds[0]!;
+    const describe = async () => { const build = await current(); return JSON.stringify({ phase: build.phase, error: build.error, checks: build.checks, browser: build.browserResult, steps: build.steps.slice(-5) }); };
+    try { await page.wait(`['ready','failed','paused'].includes(document.querySelector('[data-as-phase]')?.dataset.phase)`, { timeoutMs }); }
+    catch (error) { await raw.screenshot(join(screenshots, 'not-ready.png')); throw new Error(await describe(), { cause: error }); }
+    assert.equal((await current()).phase, 'ready', await describe());
+  };
+
+  await raw.command('Page.navigate', { url: origin + '/__t149_studio' });
+  await page.wait(`document.querySelector('[data-as-model] option[value^="fixture"]')`);
+  await page.evaluate(`(()=>{const select=document.querySelector('[data-as-model]');select.value=[...select.options].find(option=>option.value.startsWith('fixture')).value;select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await page.wait(`document.querySelector('[data-as-model-note]').textContent.includes('预览替身')`);
+  await page.fill('[data-as-input]', '创建一个可以保存并阅读笔记的插件'); await page.click('.as-send');
+  await page.wait(`document.querySelector('[data-as-candidate="board"]')`); await page.click('[data-as-candidate="board"]');
+  await page.wait(`document.querySelector('[data-as-choose="board"]')`); await page.click('[data-as-choose="board"]');
+  await ready(100_000);
+  assert.ok(seen.includes(project.project_id)); const before = modelCalls;
+  const buildId = await page.evaluate<string>(`document.querySelector('[data-as-builds]').value`), info = async () => await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + buildId)).json() as { build: AgentBuild; versions: AgentRelease[] };
+  await page.click('[data-as-scope="home"]'); await page.wait(`!!document.querySelector('[data-as-action="recheck"]')`);
+  assert.equal((await info()).build.browserResult, undefined); assert.deepEqual((await info()).build.checks, {});
+  await page.click('[data-as-action="recheck"]');
+  await page.wait(`document.querySelector('[data-as-phase]')?.dataset.phase==='failed'`);
+  assert.match((await info()).build.error ?? '', /目标范围.*scope.read/);
+  await raw.screenshot(join(screenshots, 'home-check-refused.png'));
+  assert.equal((await info()).versions.length, 0); assert.equal(enabledProjectPlugins, 0); assert.equal(modelCalls, before);
+  assert.equal(await fs.stat(join(f.home, 'config', 'plugin-publisher.json')).then(() => true, () => false), false);
+  stopProjectProbe(); // The kernel intentionally forbids a global and project provider with the same capability id.
+  const homeProbe = probe('home');
+  f.host.actionRegistry().registerProvider({ provider: { provider_id: 't149-home', title: 'Home read', kind: 'system' }, definitions: [homeProbe],
+    handlers: [{ ...homeProbe, handle(caller) { seen.push(caller.project_id ?? null); return 'observed'; } }] });
+  seen.length = 0; await page.click('[data-as-action="recheck"]');
+  await page.wait(`!['failed','paused'].includes(document.querySelector('[data-as-phase]')?.dataset.phase)`);
+  await ready(60_000);
+  assert.ok(seen.length); assert.ok(seen.every(id => id === null), 'Home checks and live preview calls carry the trusted null project identity');
+  assert.equal(modelCalls, before, 'scope checks never call a model');
+  await page.click('[data-as-action="publish"]'); await page.wait(`!!document.querySelector('[data-as-download]')`);
+  await raw.screenshot(join(screenshots, 'home-published.png'));
+  const downloaded = join(directory, 'downloads'); await fs.mkdir(downloaded);
+  await browser.command('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloaded, eventsEnabled: true });
+  const completed = browser.event('Browser.downloadProgress', params => params.state === 'completed');
+  await page.click('[data-as-download]'); await completed;
+  const files = await fs.readdir(downloaded); assert.equal(files.length, 1);
+  const file = join(downloaded, files[0]!), bundle = verifyPluginPackageSignature(JSON.parse(await fs.readFile(file, 'utf8'))).bundle;
+  assert.equal(bundle.payload.manifest.runtime?.scope, 'home'); const pluginId = bundle.payload.manifest.plugin_id;
+  assert.deepEqual(new HomeConsentLedger(f.home).publishers(), []);
+  await raw.command('Page.navigate', { url: f.origin + '/projects/' + project.project_id + '/settings/plugins' });
+  await raw.wait(`!!document.querySelector('[data-plugin-trust-pick]')`);
+  const select = async () => { const doc = await raw.command<{ root: { nodeId: number } }>('DOM.getDocument');
+    const input = await raw.command<{ nodeId: number }>('DOM.querySelector', { nodeId: doc.root.nodeId, selector: '[data-plugin-trust-pick]' });
+    await raw.command('DOM.setFileInputFiles', { nodeId: input.nodeId, files: [file] }); await raw.wait(`document.querySelector('[data-plugin-trust-preview]')?.hidden===false`); };
+  await select(); const shown = await raw.evaluate<string>(`document.querySelector('[data-plugin-trust-preview]').innerText`);
+  assert.ok(shown.includes(bundle.payload.manifest.publisher.signature)); assert.match(shown, /个人|Home/);
+  await raw.screenshot(join(screenshots, 'install-preview.png'));
+  await raw.click('[data-plugin-trust-preview] .mw-btn--secondary'); await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
+  assert.deepEqual(new HomeConsentLedger(f.home).publishers(), []); assert.equal(f.host.homePlugins!.installation(pluginId), null);
+  await select(); await raw.fill('[data-plugin-trust-preview] input', 'My local publisher'); await raw.click('[data-plugin-trust-preview] .mw-btn--primary');
+  await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
+  assert.equal(f.host.homePlugins!.installation(pluginId)!.execution, 'sandbox');
+  const installedRaw = await browser.page(), installed = await framedStudioPage(t, browser, installedRaw);
+  await installed.command('Page.enable');
+  await installed.command('Page.navigate', { url: f.origin + '/plugins/' + pluginId + '?frame=workbench' });
+  await installedRaw.wait(`!!document.querySelector('iframe[data-plugin-frame]')`);
+  await installed.wait(`!!document.querySelector('[data-component-id="editor"] [data-field]')`);
+  await installed.fill('[data-component-id="editor"] [data-field]', 'Saved through the signed Home plugin');
+  await installed.click('[data-component-id="editor"] [type=submit]');
+  await installed.wait(`document.querySelector('[data-component-id="notes"]')?.innerText.includes('Saved through the signed Home plugin')`);
+  await installedRaw.screenshot(join(screenshots, 'home-in-use.png'));
+  await installed.command('Page.reload');
+  await installed.wait(`document.querySelector('[data-component-id="notes"]')?.innerText.includes('Saved through the signed Home plugin')`);
+});
+
+test('RAC-2935 RAC-2936 RAC-2937 real Host negative trials use native refusal, one read fault, retry and isolated cleanup', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
+  const f = await revisionHelperStudio(t, { browserExecutable: dedicatedBuilderBrowser(), browserPassed: false, probeTrials: true, configure(answer) {
+    const page = answer.design.pages[0];
+    page.parts.find((part: { id: string }) => part.id === 'editor').props.requiredText = '正文不能为空';
+    page.parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = '清单还是空的';
+    answer.design.pages.push({ id: 'away', title: '另页', parts: [{ id: 'offscreen', intent: 'collection', purpose: '另一页读取', props: { idField: 'id', titleField: 'text' }, read: { op: 'notes.list', show: 'items' } }] });
+    answer.design.acceptance = [
+      { id: 'blocked', description: '真实必填拒绝且没有业务写入', steps: [
+        'fill editor.text = ""', { action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' },
+        'expect editor 正文不能为空', 'expect-not editor 已添加', 'expect notes 清单还是空的',
+      ] },
+      { id: 'read-retry', description: '故障来自真实call，重试恢复并保草稿', steps: [
+        'fill editor.text = "  保留草稿  "', { action: 'faultRead', componentId: 'notes' }, 'expect notes 读取失败',
+        'expect-not notes 清单还是空的', { action: 'expectValue', componentId: 'editor', field: 'text', value: '  保留草稿  ' },
+        { action: 'retry', componentId: 'notes' }, 'expect notes 清单还是空的',
+        { action: 'expectValue', componentId: 'editor', field: 'text', value: '  保留草稿  ' },
+      ] },
+      { id: 'unconsumed', description: '未实际读取的故障必须报错', steps: [{ action: 'faultRead', componentId: 'offscreen' }, 'expect notes 清单还是空的'] },
+      { id: 'after-failure', description: '独立例重置后无故障残留', steps: ['expect notes 清单还是空的'] },
+    ];
+  } });
+  assert.deepEqual(f.current.browserResult!.cases.map(row => [row.id, row.passed]), [['blocked', true], ['read-retry', true], ['unconsumed', false], ['after-failure', true]]);
+  assert.match(f.current.browserResult!.cases[2]!.detail, /单次读取故障未由目标查询消费/);
+  assert.equal(f.coded.length, 2, 'no failure is repaired by rewriting the backend fixture');
+  assert.deepEqual(await f.send('/builds/' + f.current.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), { value: { items: [] } });
+  await assert.rejects(f.send('/builds/' + f.current.id + '/call', { componentId: 'notes', binding: 'faultRead', payload: {} }), /未知的组件操作/);
+  assert.ok(f.trialKeys.length > 0);
+  for (const key of f.trialKeys) await assert.rejects(f.send('/builds/' + f.current.id + '/call', { acceptance: key, componentId: 'notes', binding: 'read', payload: {} }), /这轮界面验收已结束/);
+});
+
+test('RAC-2934 batch repair receives all actual failures once and isolation failure never requests a repair', async () => {
+  for (const blocked of [false, true]) {
+    const full = JSON.parse(detail('批量修复'));
+    full.design.acceptance = [{ id: 'add-note', description: 'first', steps: ['fill editor.text = first', 'submit editor', 'expect notes first'] }, { id: 'remove-note', description: 'second', steps: ['fill editor.text = second', 'submit editor', 'expect notes second'] }];
+    const h = harness([PROPOSALS, JSON.stringify(full)]); let batches = 0;
+    h.ports.browserAcceptance = async () => ++batches === 1 ? {
+      passed: false, at: new Date().toISOString(), ...(blocked ? { blocked: 'reset refused' } : {}),
+      cases: [{ id: 'add-note', passed: false, detail: 'FIRST_ACTUAL_FAILURE' }, { id: 'remove-note', passed: false, detail: 'SECOND_ACTUAL_FAILURE' }],
+    } : { passed: true, cases: [{ id: 'add-note', passed: true, detail: 'fixed' }, { id: 'remove-note', passed: true, detail: 'fixed' }], at: new Date().toISOString() };
+    const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+    try {
+      const created = workflow.create('批量修复'); let build = await until(workflow, created.id, value => value.phase === 'choosing');
+      await workflow.action(build.id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+      build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+      const repairs = h.requests.filter(request => JSON.parse(request.task).acceptanceFailures);
+      assert.equal(repairs.length, blocked ? 0 : 1);
+      if (blocked) { assert.equal(batches, 1); assert.equal(build.phase, 'failed'); assert.match(build.error!, /reset refused/); }
+      else { assert.equal(build.phase, 'ready'); assert.deepEqual(JSON.parse(repairs[0]!.task).acceptanceFailures.map((failure: { detail: string }) => failure.detail), ['FIRST_ACTUAL_FAILURE', 'SECOND_ACTUAL_FAILURE']); }
+    } finally { await workflow.close(); }
+  }
+});
+
+test('RAC-2937 a held real trial call cannot write or create a runner after its case resets', { ...nativeBuildChecks, timeout: 120_000 }, async t => {
+  const held = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let hold = false, visits = 0, outcome: { error?: unknown } | undefined;
+  let pending: Promise<{ error?: unknown }> | undefined;
+  const children: ChildProcess[] = [], stat = fs.stat, spawn = childProcesses.spawn;
+  const statMock = t.mock.method(fs, 'stat', async (...args: Parameters<typeof fs.stat>) => {
+    const result = await stat(...args);
+    if (hold && String(args[0]).endsWith('/plugin.mjs')) { hold = false; held.resolve(); await release.promise; }
+    return result;
+  });
+  const spawnMock = t.mock.method(childProcesses, 'spawn', (...args: Parameters<typeof childProcesses.spawn>) => {
+    const child = spawn(...args);
+    if (Array.isArray(args[1]) && args[1].some(arg => String(arg).endsWith('/worker.mjs'))) children.push(child);
+    return child;
+  });
+  syncBuiltinESMExports();
+  t.after(async () => { release.resolve(); await pending; statMock.mock.restore(); spawnMock.mock.restore(); syncBuiltinESMExports(); });
+  const f = await revisionHelperStudio(t, { browserExecutable: dedicatedBuilderBrowser(), configure(answer) {
+    answer.design.pages[0].parts.find((part: { id: string }) => part.id === 'notes').props.emptyText = '清单还是空的';
+    answer.design.acceptance = ['first', 'after-reset'].map(id => ({ id, description: '独立清单保持为空', steps: ['expect notes 清单还是空的'] }));
+  }, async trialPage(key, buildId, send) {
+    if (++visits === 1) {
+      hold = true;
+      pending = send('/builds/' + buildId + '/call', { acceptance: key, componentId: 'editor', binding: 'submit', payload: { form: { text: 'LATE_FROM_OLD_CASE' } } }).then(() => ({}), error => ({ error }));
+      await Promise.race([held.promise, pending.then(() => { throw new Error('Trial call did not reach the held bundle stat'); })]);
+    } else if (visits === 2) {
+      release.resolve(); outcome = await pending;
+    }
+  } });
+  assert.equal(f.current.phase, 'ready', f.current.error ?? '');
+  assert.deepEqual(f.current.browserResult!.cases.map(row => row.passed), [true, true]);
+  assert.match(String(outcome?.error), /界面验收用例已结束/);
+  assert.ok(children.length > 0, 'the regression used actual sandbox processes');
+  assert.ok(children.every(child => child.exitCode !== null || child.signalCode !== null), 'the completed trial stopped every sandbox it created');
 });

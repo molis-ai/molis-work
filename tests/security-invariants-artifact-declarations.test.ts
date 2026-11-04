@@ -87,7 +87,7 @@ const refusal = { code: "plugin.definition_conflict" };
 const undeclared = { code: "artifacts.artifact.type_undeclared" };
 const twoProjects = async (t: TestContext) => {
   const testHome = await openTestHome(t), [a, b] = [await testHome.createProject("项目 A"), await testHome.createProject("项目 B")];
-  return { home: testHome.home, pa: project(t, testHome.home, { file: a.database_path, projectId: a.project_id }), pb: project(t, testHome.home, { file: b.database_path, projectId: b.project_id }) };
+  return { home: testHome.home, withCatalog: testHome.host.configurePersonalPlanning(testHome.home, withMolisWorkProjectCatalog), pa: project(t, testHome.home, { file: a.database_path, projectId: a.project_id }), pb: project(t, testHome.home, { file: b.database_path, projectId: b.project_id }) };
 };
 
 /** The production restore creates its catalog identity; every later call opens a new, unsupervised target connection. */
@@ -168,7 +168,7 @@ test("RAC-416-R2 S-81 production restore refuses a missing exact release and an 
 });
 
 test("RAC-417-R1 S-82 a missing catalog project's library refuses installs and keeps another version's rule and user sample through real cleanup", async t => {
-  const { home, pa, pb } = await twoProjects(t);
+  const { home, pa, pb, withCatalog } = await twoProjects(t);
   await pa.supervisor.start([entry(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
   await pb.supervisor.start([entry(plugin(PRODUCER, "2.0.0", ["example.note", "example.sheet"]))]);
   const [ia, ib] = [pa.supervisor.installation(PRODUCER)!.install_id, pb.supervisor.installation(PRODUCER)!.install_id];
@@ -176,7 +176,7 @@ test("RAC-417-R1 S-82 a missing catalog project's library refuses installs and k
   seedSceneRules(home, { provider_id: PRODUCER, plugin_id: PRODUCER, title: "笔记", kind: "plugin" }, [declaredScene("example.pick", declaredRule("restore_rule_hold"))], DECLARED_RULE_OPTIONS);
   const rule = () => withFunctionsService(home, service => service.getByKey("restore_rule_hold"), DECLARED_RULE_OPTIONS);
   const before = withFunctionsService(home, service => service.addSample(rule()!.id, { input: "另一版本安装的用户样例" }), DECLARED_RULE_OPTIONS);
-  const target = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.getProject(pb.projectId));
+  const target = await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(pb.projectId));
   const missing = target.database_path + ".temporarily-unavailable";
   renameSync(target.database_path, missing);
   try {

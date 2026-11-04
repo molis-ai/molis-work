@@ -113,7 +113,7 @@ FlyLeaf 投递的是内存快照，重启只能靠 retain/restore 手工恢复�
 
 `horizontal/agent-host` 拥有 Agent 运行契约，不拥有模型、凭据或业务语义。
 
-**2026-10 更新（[反腐败整理 spec](../repository-anti-corruption/spec.md) §1 的 W2-18 决定 1）**：下面的 CLI Runtime adapter（`claude` 命令行）已删除，Prologue 是唯一的 adapter，外部 Agent 运行时按口径暂缓、要回来时另写需求；本文及 [coding-plugin](../coding-plugin/spec.md) 里其余提到「两个 adapter」「CLI adapter」的地方，都是删除之前的设计与记录，现行行为以本节这句和 `horizontal/agent-host/README.md` 为准。
+**2026-10 更新（[反腐败整理 spec](../archive/repository-anti-corruption/spec.md) §1 的 W2-18 决定 1）**：下面的 CLI Runtime adapter（`claude` 命令行）已删除，Prologue 是唯一的 adapter，外部 Agent 运行时按口径暂缓、要回来时另写需求；本文及 [coding-plugin](../coding-plugin/spec.md) 里其余提到「两个 adapter」「CLI adapter」的地方，都是删除之前的设计与记录，现行行为以本节这句和 `horizontal/agent-host/README.md` 为准。
 
 - **Prologue adapter（主）**：`@prologue/sdk/node` 的 `createNodeHost`。local-host 本来就是 Node single writer，Session/Run、审批 Review、Diff/命令/检查点、子 Agent、用量回执整条链可直接复用 FlyLeaf 已验证的语义。
 - **CLI Runtime adapter（辅）**：复用现有 `horizontal/runtime-host` 与 PTY，把 Claude Code / Codex 等 CLI 当 runtime。能力矩阵按能力申报（`supported | partial | unsupported`），产品按矩阵降级显示，不假装支持。

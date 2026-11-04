@@ -24,7 +24,8 @@ async function memoryHome(t: TestContext) {
   try { await catalog.createProject({ project_id: projectId, display_name: "Memory presets", actor_id: LOCAL_PERSON_ACTOR_ID }); } finally { catalog.close(); }
   const open = async () => {
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    const agents = ensureSystemAgentService(host, home, withMolisWorkProjectCatalog); await agents.ready;
+    const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
+    const agents = ensureSystemAgentService(host, home, withCatalog); await agents.ready;
     const ledger = openMemoryLedger({ homeDirectory: home });
     const backend = prologueMemoryBackend(async () => agents.agentHost.adapter("prologue").memory!).withCaller(person);
     const service = new MemoryService({ ledger, backend });

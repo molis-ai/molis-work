@@ -6,7 +6,7 @@ import type { PluginOwnerFilesClient } from "@molis-ai/molis-work-contracts/plat
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { grantOwnerFiles, ownerFileActions, ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
-// specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P2b (统筹 10-24 裁 R1): a plugin may use its own files outside
+// specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P2b (统筹 10-24 裁 R1): a plugin may use its own files outside
 // an action (in `start`, in a timer it set up there) when the installation's current grants cover `storage:private` and the file
 // permission, as every other service decides there. Inside an action nothing changed (security-invariants-plugin-owner-files-lifecycle).
 

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, LocalMcpServer, MCP_TOOLS } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * The five connection tools (bind, unbind, reject a suggestion, create and bind, delete a project) name no actor: the Host
@@ -20,15 +20,16 @@ type Reply = { isError: boolean; content: Array<{ text: string }> };
 async function fixture(t: TestContext, session: string | null = "identity-session") {
   const directory = await mkdtemp(join(tmpdir(), "molis-mcp-connection-identity-"));
   const home = join(directory, "home");
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: home });
+  const withCatalog = localHost.configurePersonalPlanning(home, localHost.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   const host = { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: session, host_declares_stable: session !== null } };
-  const server = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, host);
-  t.after(async () => { await server.close(); catalog.close(); await rm(directory, { recursive: true, force: true }); });
+  const server = new LocalMcpServer(withCatalog, "runtime", null, host, localHost);
+  t.after(async () => { await server.close(); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
   const call = async (name: string, args: Record<string, unknown>, meta?: Record<string, unknown>) => (await server.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/call",
     params: { name, arguments: args, ...(meta ? { _meta: meta } : {}) } }) as { result: Reply }).result;
-  return { directory, home, catalog, host, server, call };
+  return { directory, home, withCatalog, host, server, call };
 }
-const bindingActors = (catalog: Catalog, context: Parameters<Catalog["listRuntimeContextBindingEvents"]>[0]) => catalog.listRuntimeContextBindingEvents(context).map(event => [event.type, event.actor_id]);
+const bindingActors = (value: Catalog, context: Parameters<Catalog["listRuntimeContextBindingEvents"]>[0]) => value.listRuntimeContextBindingEvents(context).map(event => [event.type, event.actor_id]);
 
 test("none of the five connection tools lists or requires an actor", () => {
   const tools = FIVE.map(name => MCP_TOOLS.find(tool => tool.name === name));
@@ -41,8 +42,8 @@ test("none of the five connection tools lists or requires an actor", () => {
 });
 
 test("a connection tool that is sent an actor refuses it and changes nothing", async t => {
-  const { home, catalog, host, call } = await fixture(t);
-  const project = await catalog.createProject({ display_name: "已有的项目", actor_id: "test-user" });
+  const { home, withCatalog, host, call } = await fixture(t);
+  const project = (await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "已有的项目", actor_id: "test-user" })));
   const arguments_: Record<string, Record<string, unknown>> = {
     molis_work_v1_context_bind: { project_id: project.project_id, user_confirmed: true },
     molis_work_v1_context_unbind: { user_confirmed: true },
@@ -58,31 +59,31 @@ test("a connection tool that is sent an actor refuses it and changes nothing", a
       assert.match(reply.content[0]?.text ?? "", new RegExp(field));
     }
   }
-  assert.deepEqual(catalog.listProjects().map(item => item.project_id), [project.project_id], "no project was made or deleted");
+  assert.deepEqual((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjects())).map(item => item.project_id), [project.project_id], "no project was made or deleted");
   assert.equal(existsSync(project.database_path), true);
-  assert.deepEqual(catalog.listProjectDeletions(), []);
-  assert.deepEqual(catalog.listRuntimeContextBindings(), [], "nothing was bound");
+  assert.deepEqual((await withCatalog({ homeDirectory: home }, catalog => catalog.listProjectDeletions())), []);
+  assert.deepEqual((await withCatalog({ homeDirectory: home }, catalog => catalog.listRuntimeContextBindings())), [], "nothing was bound");
   // The same calls without an actor are the ones that work.
   const bound = await call("molis_work_v1_context_bind", arguments_.molis_work_v1_context_bind!);
   assert.equal(bound.isError, false, bound.content[0]?.text);
-  assert.deepEqual(bindingActors(catalog, host.runtimeContext), [["context.bound", "runtime:codex:identity-session"]]);
+  assert.deepEqual(await withCatalog({ homeDirectory: home }, catalog => bindingActors(catalog, host.runtimeContext)), [["context.bound", "runtime:codex:identity-session"]]);
   assert.ok(home);
 });
 
 test("what the Host records is the MCP client and the Runtime Session of the call", async t => {
-  const { catalog, host, call } = await fixture(t);
-  const project = await catalog.createProject({ display_name: "已有的项目", actor_id: "test-user" });
+  const { home, withCatalog, host, call } = await fixture(t);
+  const project = (await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "已有的项目", actor_id: "test-user" })));
 
   assert.equal((await call("molis_work_v1_context_bind", { project_id: project.project_id, user_confirmed: true })).isError, false);
   assert.equal((await call("molis_work_v1_context_unbind", { user_confirmed: true })).isError, false);
-  assert.deepEqual(bindingActors(catalog, host.runtimeContext), [["context.bound", "runtime:codex:identity-session"], ["context.unbound", "runtime:codex:identity-session"]]);
+  assert.deepEqual(await withCatalog({ homeDirectory: home }, catalog => bindingActors(catalog, host.runtimeContext)), [["context.bound", "runtime:codex:identity-session"], ["context.unbound", "runtime:codex:identity-session"]]);
 
   // A host that says which Session each call is made in (the `_meta` of the call) is recorded by that Session.
   const created = await call("molis_work_v1_context_create_and_bind", { display_name: "新建的项目", user_confirmed: true, idempotency_key: "identity-create" }, { "molis-work/sessionId": "per-call-session" });
   assert.equal(created.isError, false, created.content[0]?.text);
   const createdId = (JSON.parse(created.content[0]!.text) as { connection: { project_id: string } }).connection.project_id;
-  assert.equal(catalog.getProject(createdId).display_name, "新建的项目");
-  const perCall = catalog.listRuntimeContextBindingEvents({ ...host.runtimeContext, stable_work_context_id: "per-call-session" });
+  assert.equal((await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(createdId))).display_name, "新建的项目");
+  const perCall = (await withCatalog({ homeDirectory: home }, catalog => catalog.listRuntimeContextBindingEvents({ ...host.runtimeContext, stable_work_context_id: "per-call-session" })));
   assert.deepEqual(perCall.map(event => [event.type, event.actor_id]), [["context.bound", "runtime:codex:per-call-session"]]);
 
   const deleted = await call("molis_work_v1_project_delete", { project_id: createdId, delete_confirmed: true, idempotency_key: "identity-delete" }, { "molis-work/sessionId": "per-call-session" });
@@ -91,8 +92,8 @@ test("what the Host records is the MCP client and the Runtime Session of the cal
 });
 
 test("a Runtime that names no Session is recorded as the client alone, and a host with no Runtime id is refused", async t => {
-  const { catalog, call } = await fixture(t, null);
-  const project = await catalog.createProject({ display_name: "已有的项目", actor_id: "test-user" });
+  const { home, withCatalog, call } = await fixture(t, null);
+  const project = (await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "已有的项目", actor_id: "test-user" })));
   const deleted = await call("molis_work_v1_project_delete", { project_id: project.project_id, delete_confirmed: true, idempotency_key: "client-only-delete" });
   assert.equal(deleted.isError, false, deleted.content[0]?.text);
   assert.equal((JSON.parse(deleted.content[0]!.text) as { deletion: { actor_id: string } }).deletion.actor_id, "runtime:codex");

@@ -47,7 +47,7 @@ export function summaryMarkdown({ results, meta }) {
   return [
     "## Linux probe: which test files pass on Linux",
     "",
-    "Informational (specs/repository-anti-corruption decision #14): this job does not block a merge. Browser files are not run.",
+    "Informational (specs/archive/repository-anti-corruption decision #14): this job does not block a merge. Browser files are not run.",
     incomplete,
     platform,
     `${meta.platform} ${meta.arch}, node ${meta.node}, commit \`${String(meta.commit).slice(0, 10)}\`, ${meta.minutes} min, ${meta.shard ? `shard ${meta.shard}, ` : ""}${meta.jobs} at a time, ${meta.timeoutSeconds} s per file, ${meta.retries} retry.`,

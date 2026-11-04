@@ -33,7 +33,7 @@ const formList = (project: TestProject) => `/projects/${encodeURIComponent(proje
 const todoItems = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.todo/items`;
 
 function mcpFor(home: TestHome, project: TestProject) {
-  return new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: home.origin },
+  return new LocalMcpServer(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: home.origin },
     { homeDirectory: home.home, webBaseUrl: home.origin, runtimeContext: { runtime_id: "hidden-personal", stable_work_context_id: "hidden-personal-session", host_declares_stable: true } }, home.host, home.origin);
 }
 async function toolNames(mcp: LocalMcpServer): Promise<string[]> {
@@ -61,14 +61,14 @@ test("RAC-580 S-72 an always-on plugin stays in reach because the project's cata
   const home = await openTestHome(t, { catalogPolicy: false });
   const project = await home.createProject("Always on", ["goals"]);
   await hide(home, project, "pages");
-  const listed = await withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => {
+  const listed = await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog => {
     const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
     return { enabled: plugins, hidden };
   });
   assert.deepEqual(listed.hidden, ["pages"], "what the person hid is listed, and a 常开 plugin is never among it");
   const shown = shownProjectPlugins(listed.enabled, listed.hidden);
   assert.ok(shown.includes("shelf") && !shown.includes("pages"));
-  const availability = projectActionAvailability(withMolisWorkProjectCatalog, home.home);
+  const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   assert.deepEqual(await availability(callerIn(project.project_id), view("shelf")), { available: true });
   assert.equal((await availability(callerIn(project.project_id), view("pages"))).available, false);
 });
@@ -77,7 +77,7 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
   const home = await openTestHome(t, { catalogPolicy: false });
   const hiding = await home.createProject("Hides Pages", ["goals"]), showing = await home.createProject("Shows Pages", ["goals"]);
   await hide(home, hiding, "pages");
-  const availability = projectActionAvailability(withMolisWorkProjectCatalog, home.home);
+  const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   const refused = { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" };
   const states = async (caller: ActionCallContext, plugin: string) => {
     const discovery = await availability.snapshotForDiscovery(caller);
@@ -101,7 +101,7 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
 test("PG094-HOME-02 S-72 only a genuine Home Runtime provider bypasses the project list, consistently for live and discovery", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
   const project = await home.createProject("Installed Goals");
-  assert.equal(await withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog =>
+  assert.equal(await home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog)({ homeDirectory: home.home }, catalog =>
     catalog.projectPluginMembership(project.project_id).plugins.includes("goals")), true);
   const homeCaller = { ...callerIn(null), permissions: ["goals:read", "goals:write"] };
   const action = (await home.host.homeActionClient().discover(homeCaller))
@@ -109,7 +109,7 @@ test("PG094-HOME-02 S-72 only a genuine Home Runtime provider bypasses the proje
   assert.ok(action, "the provider comes from the actual Home Runtime directory");
   assert.ok(action.provider.plugin_install_id);
   assert.equal(action.provider.project_id, undefined);
-  const availability = projectActionAvailability(withMolisWorkProjectCatalog, home.home);
+  const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   const check = async (caller: ActionCallContext, candidate: Pick<ActionView, "provider">, available: boolean) => {
     assert.equal((await availability(caller, candidate)).available, available);
     const snapshot = await availability.snapshotForDiscovery(caller);
@@ -187,7 +187,7 @@ test("RAC-569 RAC-582 S-72 a personal Home plugin outside the build (named only 
   const hiding = await home.createProject("Hides the probe"), showing = await home.createProject("Shows the probe");
   const state = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/${probe.id}/state`;
   const probeView: Pick<ActionView, "provider"> = { provider: { provider_id: probe.id, plugin_id: probe.id, title: "probe", kind: "plugin" } };
-  const availability = projectActionAvailability(withMolisWorkProjectCatalog, home.home);
+  const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   assert.equal((await home.web.get<{ project_id: string | null }>(state(hiding))).project_id, hiding.project_id, "shown until the project hides it");
   assert.deepEqual(probe.routed, [hiding.project_id]);
   assert.deepEqual(probe.seen.map(call => call.project_id), [hiding.project_id]);

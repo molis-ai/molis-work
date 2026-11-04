@@ -1,4 +1,4 @@
-// Gate: a table is read and written only by the package that creates it (specs/repository-anti-corruption §4.11, W2-06).
+// Gate: a table is read and written only by the package that creates it (specs/archive/repository-anti-corruption §4.11, W2-06).
 //
 // "Owner" is a package: the nearest ancestor directory of a source file that holds a package.json, or that is listed as an
 // area (below), whichever is nearer. A table's owners are the

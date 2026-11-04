@@ -50,7 +50,8 @@ async function withFixture(t: TestContext, run: (fixture: {
     });
   });
   await home.grant("runtime:codex", project.project_id, [action]);
-  await withCatalog({ homeDirectory: home.home }, catalog => catalog.commit(() => catalog.terminalPanels.insert({
+  const withHostCatalog = home.host.configurePersonalPlanning(home.home, withCatalog);
+  await withHostCatalog({ homeDirectory: home.home }, catalog => catalog.commit(() => catalog.terminalPanels.insert({
     panel_id: panelId, install_id: "fixture-install", project_id: project.project_id, actor_id: "user", key: "main", subject: "alias-test",
     runtime: "codex", launch_command: "codex", launch_args: [], title: "Alias fixture",
   }, home.home)));
@@ -59,7 +60,7 @@ async function withFixture(t: TestContext, run: (fixture: {
   const gates: Gate[] = [];
   const pending: Promise<Outcome>[] = [];
   // Only the return of a successful, real alias transaction is delayed. Catalog, grant and dispatch stay real.
-  const runner: ConstructorParameters<typeof LocalMcpServer>[0] = (options, operation) => withCatalog(options, async catalog => {
+  const runner: ConstructorParameters<typeof LocalMcpServer>[0] = (options, operation) => withHostCatalog(options, async catalog => {
     const observed: Parameters<typeof catalog.terminalPanels.aliasSession>[0][] = [];
     const panels = new Proxy(catalog.terminalPanels, { get(target, key) {
       if (key === "aliasSession") return (input: Parameters<typeof target.aliasSession>[0]) => {

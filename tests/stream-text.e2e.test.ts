@@ -97,10 +97,12 @@ test("VUX-14/15: stream text keeps unchanged nodes, eases in only grown text by 
 });
 
 test("VUX-14/15: the Assistant's streamed reply keeps its blocks, shows only new words arriving and reopens without replay", { timeout: 180_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true); if (!browser) return;
-  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
   const reply = "第二段带一个[链接](https://example.com/a?b=1&c=2)和 `行内代码`，还有 👩‍💻。\n\n- 第一项\n- 第二项\n\n> 引用的一句\n\n```ts\nconst x = 1;\n```\n\n最后一段写完。";
-  const model = await assistantTextModel(t, homeDirectory, reply, { pieces: 12, pause: 180 });
+  let model!: Awaited<ReturnType<typeof assistantTextModel>>;
+  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
+    prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, reply, { pieces: 12, pause: 180 }); },
+  }); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   // Every piece the page shows arriving is counted from the first script on, so a reopen that replayed would be seen.
   const watch = "window.freshSeen = 0; new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) if (node.nodeType === 1 && (node.matches('.mw-fresh') || node.querySelector('.mw-fresh'))) window.freshSeen += 1; }).observe(document, { subtree: true, childList: true });";
   await command("Page.addScriptToEvaluateOnNewDocument", { source: watch }, sessionId);

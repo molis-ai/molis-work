@@ -167,7 +167,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     body.immersive-workbench .project-island .navigator-directory-toggle svg { transition: none; }
   }
   body.immersive-workbench .directory-content-scroll {
-    display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain;
+    display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-right: 4px;
   }
   body.immersive-workbench .tree-pane .goal-list-view { display: block; }
   body.immersive-workbench[data-desktop-shell="true"] .plugin-section.is-expanded .desktop-goal-directory:not([hidden]),

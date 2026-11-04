@@ -5,7 +5,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-// PG-094 S12 (specs/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §6): the Host keeps no private road to Goals. A static
+// PG-094 S12 (specs/archive/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §6): the Host keeps no private road to Goals. A static
 // scan of its source, so the paths stay deleted: a person's act reaches Goals as one more caller of the registered actions, with the
 // provenance its entry gives (`entryUserAction`) and the permissions the installation's grants solve (`localWebActionContext`).
 

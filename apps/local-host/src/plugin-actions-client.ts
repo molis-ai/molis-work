@@ -2,7 +2,7 @@ import { bindActionClient, ActionError, requireSynchronous, type ActionAvailabil
 import type { HostPluginCaller, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { pluginErrors, type PluginActionClient, type PluginExecutionControl, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, insideOpenPluginCall, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, insideOpenPluginCall, markPluginActionChecked, pluginInvocationReadOnly, withPluginPermissionChecks } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
@@ -216,7 +216,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
     ...(declaresActionDelegation(manifest) ? { directory: pluginActionDirectory(context, manifest, options) } : {}),
     dependencies: pluginActionDependencies(context, manifest, options),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => {
+    invoke: <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => withPluginPermissionChecks(context, async () => {
       const outer = currentPluginInvocation(), job = outer && "job" in outer ? outer : undefined;
       // A job's calls are the installation's own, in the job's project (PG-038): never a request's, whose control names its person.
       if (job && control && routedControls.has(control)) throw new ActionError("actions.forbidden", "后台作业不能用请求的 control 调用动作");
@@ -225,6 +225,8 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
         ? { project_id: outer.caller.project_id, client: options.client }
         : callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
+      options.assertActive();
+      for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
       // A call whose audience is `plugin` (the outer call is a plugin's, or there is none) goes the way a job's does, below: with the Host's
       // issued caller, as the installation itself, never as a caller shaped here to look like the person. A control the Host routed is the
       // person's request (a route, or a page action, whose control names no caller); `callScope` has already refused one whose request ended.
@@ -233,13 +235,11 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       if (!own && !consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
       // otherwise answer that the action is not there.
-      options.assertActive();
-      for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
       // Inside a job the installation's own actions too are reached as the plugin audience, not as the person who kept the job.
       const providerId = own ? ownProvider : await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId, outer), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
       options.assertActive();
       return passed(outer, definition, await bindActionClient(scope.client, () => dependencyCaller(own ?? definition, projectId, outer, providerId)).invoke(definition, input, control, transport));
-    },
+    }),
   };
 }
 

@@ -29,14 +29,16 @@ export type AgentWorkspace =
   /** Business work: no directory; the Host gives it unified actions (by effect) and root-free tools only. */
   | { workspace: "business"; directory?: never };
 
-export interface AgentTextMaterial {
+type AgentMaterialSource =
+  | { source_artifact_id: string; source_version: number }
+  | { source_artifact_id?: never; source_version?: never };
+
+export type AgentTextMaterial = {
   material_id: string;
   title: string;
   /** Verbatim text the model may read. Frozen before the Run starts. */
   text: string;
-  source_artifact_id: string;
-  source_version: number;
-}
+} & AgentMaterialSource;
 
 /**
  * An image the person brought, already taken in by the runtime (its bytes stay with the runtime; this is only the
@@ -53,11 +55,13 @@ export interface AgentImageMaterial {
 export function agentTextMaterialContent(material: AgentTextMaterial): string {
   if (!material || typeof material.title !== "string" || material.title.length > 2000
     || typeof material.material_id !== "string" || !material.material_id || material.material_id.length > 240
-    || typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
-    || !Number.isSafeInteger(material.source_version) || material.source_version < 1 || typeof material.text !== "string") {
-    throw new Error("固定材料的标题、来源或版本无效");
-  }
-  const header = JSON.stringify({ title: material.title, artifact_id: material.source_artifact_id, version: material.source_version });
+    || typeof material.text !== "string") throw new Error("固定材料的标题、来源或版本无效");
+  const sourced = "source_artifact_id" in material || "source_version" in material;
+  if (sourced && (typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
+    || typeof material.source_version !== "number" || !Number.isSafeInteger(material.source_version) || material.source_version < 1)) throw new Error("固定材料的标题、来源或版本无效");
+  const header = JSON.stringify(sourced
+    ? { title: material.title, artifact_id: material.source_artifact_id, version: material.source_version }
+    : { title: material.title, material_id: material.material_id });
   const content = `${header}\n\n${material.text}`;
   // Prologue's required text resources reject more than 20,000 UTF-16 units.
   if (content.length > 20_000) throw new Error("材料连同来源超过 20,000 字符，请在文件中选择较小片段后重新保存");
@@ -178,7 +182,7 @@ interface AgentFrozenStartFields {
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
-  text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
+  text_materials: Array<{ material_id: string; title?: string } & AgentMaterialSource>;
   /** Images the model was shown in this Run (references only). */
   image_materials?: Array<{ material_id: string; title: string; media_type: string }>;
   budget: AgentRunBudget | null;

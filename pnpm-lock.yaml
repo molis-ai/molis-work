@@ -705,6 +705,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   modules/attention-resumption:
     dependencies:
@@ -956,6 +959,16 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+      marked:
+        specifier: ^18.0.11
+        version: 18.0.11
+      sanitize-html:
+        specifier: ^2.17.7
+        version: 2.17.7
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/files:
     dependencies:
@@ -1026,6 +1039,13 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/issues:
     dependencies:
@@ -1125,6 +1145,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
 
   plugins/native/ppt:
     dependencies:

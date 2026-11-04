@@ -29,9 +29,11 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
     if (race === "stop-post-start-reader" && armed) { pending.push(res); return; }
     res.writeHead(200, { "content-type": "text/event-stream" }); res.end(streamed("回复仍只属于原评论"));
   });
+  t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const withHostCatalog = host.configurePersonalPlanning(home, withCatalog);
   const originalClient = host.actionClient.bind(host);
   const observedClients = new WeakSet<object>();
   const readOwner = () => {
@@ -75,7 +77,7 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
   let server: ReturnType<typeof factory> | undefined;
   try {
     await runWithMolisWorkHome(home, async () => {
-      const project = await withCatalog({ homeDirectory: home }, async catalog => {
+      const project = await withHostCatalog({ homeDirectory: home }, async catalog => {
         const project = await catalog.createProject({ display_name: "线程最后检查", actor_id: "owner" });
         await catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "pages", actor_id: "owner" });
         const endpoint = "http://127.0.0.1:" + address.port;
@@ -134,7 +136,7 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
   } finally {
     release.resolve(); for (const res of pending) res.destroy();
     if (server) { server.closeAllConnections(); await new Promise<void>(resolve => server!.close(() => resolve())); }
-    await host.close(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve()));
+    await host.close();
     await rm(home, { recursive: true, force: true });
   }
 });
@@ -151,7 +153,7 @@ async function until<T>(read: () => Promise<T>, accept: (value: T) => boolean): 
   throw new Error("expected thread state was not reached");
 }
 
-test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original thread; delivery retries do not call the model twice; stop prevents late comments", { timeout: 120000 }, async () => {
+test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original thread; delivery retries do not call the model twice; stop prevents late comments", { timeout: 120000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "assistant-thread-"));
   const requests: string[] = [];let hold = false;let pending: ServerResponse | null = null;
   const model = createServer(async (req, res) => {
@@ -161,6 +163,7 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
     if (hold) { pending = res;return; }
     res.writeHead(200, { "content-type": "text/event-stream" });res.end(streamed("只在原评论里的答复"));
   });
+  t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   const address = model.address();assert.ok(address && typeof address !== "string");
   const factory = createDesktopWebHost({ ptyClientFilePath: () => "" });
@@ -171,16 +174,21 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
       await catalog.addProjectPlugin({ project_id: p.project_id, plugin_id: "pages", actor_id: "owner" });
       return p;
     });
-    const configureModel = () => withCatalog({ homeDirectory: home }, catalog => {
-      const endpoint = `http://127.0.0.1:${address.port}`;
-      const connection = withConnectorConnections(home, store => { const value = store.createToken({ serviceId: "model-api", displayName: "fixture", token: randomUUID() });store.assertTarget(value.connection_id, "model-api", endpoint);return value; });
-      catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "fixture", display_name: "Fixture", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "fixture", enabled: true }] });
-    });
     const token = resolveWebControlToken({ homeDirectory: home });
     server = factory({ homeDirectory: home, controlToken: token });
     await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
     const bound = server.address();assert.ok(bound && typeof bound !== "string");
     let origin = `http://127.0.0.1:${bound.port}`, prefix = origin + `/projects/${project.project_id}`;
+    const configureModel = async () => {
+      const endpoint = `http://127.0.0.1:${address.port}`;
+      const connection = withConnectorConnections(home, store => { const value = store.createToken({ serviceId: "model-api", displayName: "fixture", token: randomUUID() });store.assertTarget(value.connection_id, "model-api", endpoint);return value; });
+      const response = await fetch(origin + "/api/settings/models/fixture", { method: "POST", headers: { origin, "content-type": "application/json",
+        "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify({
+          display_name: "Fixture", base_url: endpoint, api_format: "anthropic-messages", enabled: true, prompt_cache: "off",
+          connection_id: connection.connection_id, check_connection: false, models: [{ model_id: "fixture", enabled: true }],
+        }) });
+      assert.equal(response.status, 200, await response.text());
+    };
     const api = async <T>(path: string, body?: unknown): Promise<T> => {
       const response = await fetch(prefix + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", origin,
         "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -235,7 +243,6 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
     } finally { db.close(); }
   }); } finally {
     if (server) { server.closeAllConnections();await new Promise<void>(resolve => server!.close(() => resolve())); }
-    model.closeAllConnections();await new Promise<void>(resolve => model.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
   }
 });

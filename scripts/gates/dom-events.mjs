@@ -1,4 +1,4 @@
-// Gate: the page events of the Workbench are registered (specs/repository-anti-corruption §4.8, W2-13).
+// Gate: the page events of the Workbench are registered (specs/archive/repository-anti-corruption §4.8, W2-13).
 //
 // The Workbench is one page made of a shell, plugin surfaces and a few frames, and they talk through DOM `CustomEvent`s.
 // packages/contracts/src/platform/dom-events.ts lists every event (name, kind, owner, where it is dispatched, payload,

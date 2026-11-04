@@ -1,3 +1,4 @@
+import { publishCheckedStudioFixture } from './fixtures/checked-studio-release.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer } from 'node:http';
@@ -58,7 +59,8 @@ test('installed and authoring model calls bind their own release through the rea
     const service = new ActionService();
     // The project's id is its own everywhere (its seeded board, its Studio storage, its actions, the installed plugins the Host runs in it), so a sandbox's identity
     // belongs to the project it runs in; two projects stay two scopes for the prompts their installations register.
-    return { store, service, id, actions: { registry: service, client: service, project_id: id }, builder: new AgentBuilderStore(studioStorage(store.db, id)) };
+    const storage = studioStorage(store.db, id);
+    return { store, storage, service, id, actions: { registry: service, client: service, project_id: id }, builder: new AgentBuilderStore(storage) };
   };
   const a = project('project-a'), b = project('project-b'), draft = a.builder.create('Prompt binding fixture');
   const pluginId = 'io.molis.work.generated.' + draft.id, directory = join(home, 'build');
@@ -75,7 +77,7 @@ test('installed and authoring model calls bind their own release through the rea
     nodes: [], manifest: buildManifest(contract), permissions: { capabilities: ['model.generate'] }, publishedAt: new Date().toISOString() };
   const v2: AgentRelease = { ...v1, version: 2, prompts: [{ ...v1.prompts![0]!, body: 'RELEASE_TWO' }, { id: 'new-only', title: 'New', purpose: 'p', body: 'NEW_ONLY' }] };
   a.builder.update(draft.id, draft.revision, build => { build.directory = directory; build.design = v1.design; });
-  a.builder.release(v1); b.builder.release(v1); b.builder.release(v2);
+  publishCheckedStudioFixture(a.storage, v1); publishCheckedStudioFixture(b.storage, v1); publishCheckedStudioFixture(b.storage, v2);
   const one = await ensureInstalledPlugins({ store: a.store, projectId: a.id, homeDirectory: home, actions: a.actions });
   const two = await ensureInstalledPlugins({ store: b.store, projectId: b.id, homeDirectory: home, actions: b.actions });
   await one.lifecycle('install', v1, { consent: true }); await two.lifecycle('install', v2, { consent: true });
@@ -97,7 +99,7 @@ test('installed and authoring model calls bind their own release through the rea
   await two.lifecycle('uninstall', v2);
   assert.equal(registry.prompt(key).default_body, 'RELEASE_ONE'); assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
-  registry.reset(key, 1, 'person'); a.builder.release(v2);
+  registry.reset(key, 1, 'person'); publishCheckedStudioFixture(a.storage, v2);
   await one.lifecycle('upgrade', v2);
   assert.equal(await invoke(a, 2), 'GENERATED'); assert.match(systems.at(-1)!, /RELEASE_TWO/);
   await one.lifecycle('rollback', v1);

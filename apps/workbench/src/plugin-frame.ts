@@ -5,6 +5,7 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { readFileSync } from "node:fs";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
+import type { UiClientMount } from "@molis-ai/molis-work-contracts/platform/ui";
 import { COPY_FEEDBACK_CLIENT_SCRIPT, CRAFT_FINISH_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, INPUT_RECEIPTS_CLIENT_SCRIPT, INTERACTION_CLIENT_SCRIPT_TYPED_DATES, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 
 /**
@@ -17,8 +18,11 @@ function sheetLinks(bundle: string): string {
 }
 
 /** HTML from a plugin remains inert data until placed in its opaque frame, including closing-script sequences. */
-export function renderPluginFrameSurface(html: string, id: string, title: string, hidden = true, settings = false, bundle = id): string {
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="${escapeHtml(id)}" data-work-surface-label="${escapeHtml(title)}"${settings ? ` data-settings-page="${escapeHtml(id)}"` : ""} data-deferred-surface${hidden ? " hidden" : ""}><script type="application/json" data-plugin-document>${JSON.stringify(sheetLinks(bundle) + html).replaceAll("<", "\\u003c")}</script></section>`;
+export function renderPluginFrameSurface(html: string, id: string, title: string, hidden = true, settings = false, bundle = id, mount?: UiClientMount, pluginId?: string, producer?: string): string {
+  const directory = mount?.target_slot_id === "workbench.directory";
+  const metadata = mount ? ` data-plugin-client="${escapeHtml(bundle)}" data-plugin-owner="${escapeHtml(pluginId ?? "")}" data-plugin-contribution="${escapeHtml(mount.contribution_id)}" data-plugin-surface="${escapeHtml(mount.surface)}" data-plugin-slot="${escapeHtml(mount.target_slot_id)}"${producer ? ` data-plugin-producer="${escapeHtml(producer)}"` : ""}` : "";
+  const content = mount ? html.replace(/^(\s*<[a-z][a-z0-9-]*)\b/u, "$1 data-ui-client-root") : html;
+  return `<section class="${directory ? "desktop-directory-panel" : "desktop-work-surface"} plugin-stage-shell" ${directory ? "data-directory-panel" : "data-work-surface"}="${escapeHtml(id)}" data-work-surface-label="${escapeHtml(title)}"${metadata}${directory ? ' style="position:relative;height:100%;overflow:hidden"' : ""}${settings ? ` data-settings-page="${escapeHtml(id)}"` : ""} data-deferred-surface${hidden ? " hidden" : ""}><script type="application/json" data-plugin-document>${JSON.stringify(sheetLinks(bundle) + content).replaceAll("<", "\\u003c")}</script></section>`;
 }
 
 let client: string | undefined;

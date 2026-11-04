@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import type { UiTerminalCommand, UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createPageTerminal } from "@molis-ai/molis-work-app-workbench/terminal";
 
-// PG-053 (specs/repository-anti-corruption/slices/pg053-plugin-terminals.md): the terminal the shell gives a page it draws itself, and the
+// PG-053 (specs/archive/repository-anti-corruption/slices/pg053-plugin-terminals.md): the terminal the shell gives a page it draws itself, and the
 // rule that the workbench's terminal entry names no plugin. The Shelf and Characters clients that use it have their own tests.
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));

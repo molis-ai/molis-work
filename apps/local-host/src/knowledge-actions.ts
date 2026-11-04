@@ -107,19 +107,26 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     related: (projectId, query, limit, snippets) => ports.index.related(projectId, query, limit, snippets).map(document => ({ kind: document.kind, id: document.object_id, snippet: document.snippet })) });
   const cards = new KnowledgeCards(store, organizer);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const settling = new Set<Promise<void>>();
   let closed = false;
   // Something in the project changed with nobody searching: its sources are brought current with the owner's authority first, so
   // the catalog (each round's directory and counts, the cards) holds the new piece before anyone asks for it.
   const settle = async (projectId: string) => {
     if (ports.ownerContext) {
       const owner = await ports.ownerContext(projectId).catch(error => { ports.onError?.(error, "knowledge.catch_up"); return null; });
+      if (closed) return;
       if (owner) await service.catchUp({ client: ports.clientFor(owner), caller: owner }).catch(error => ports.onError?.(error, "knowledge.catch_up"));
     }
     if (!closed) await organizer.kick(projectId);
   };
   const changed = (projectId: string | null) => {
     if (closed || !projectId || timers.has(projectId)) return;
-    const timer = setTimeout(() => { timers.delete(projectId); void settle(projectId); }, KICK_DELAY_MS);
+    const timer = setTimeout(() => {
+      timers.delete(projectId);
+      const work = settle(projectId).finally(() => settling.delete(work));
+      settling.add(work);
+      void work.catch(error => ports.onError?.(error, "knowledge.catch_up"));
+    }, KICK_DELAY_MS);
     (timer as { unref?: () => void }).unref?.();
     timers.set(projectId, timer);
   };
@@ -184,6 +191,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
       await organizer.close();
+      await Promise.all([...settling]);
       store.close();
     },
   };

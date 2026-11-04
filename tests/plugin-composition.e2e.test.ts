@@ -154,7 +154,7 @@ test('G7 waits for selection reads before acting on a repainted record and refus
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
 });
 
-test('W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts preserve newer drafts in forms, sheets and dialogs', { timeout: 90_000 }, async () => {
+test('RAC-2927 W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed query and command receipts preserve newer drafts in forms, sheets and dialogs', { timeout: 90_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'molis-component-draft-')), browser = await openStudioChrome(directory);
   assert.ok(browser, 'Chrome is required');
   try {
@@ -164,10 +164,10 @@ test('W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts prese
       + ';globalThis.requests=[];globalThis.app=(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')({root:document.querySelector("#root"),call:(id,binding,payload)=>{requests.push(structuredClone(payload));return new Promise((resolve,reject)=>{globalThis.deliver=error=>error?reject(Error(error)):resolve({saved:true})})}});app.update(view);</script>';
     await writeFile(join(directory, 'index.html'), html);
     const page = await browser.page(); await page.viewport(1024, 800);
-    for (const kind of ['form', 'sheet', 'dialog']) {
+    for (const query of [false, true]) for (const kind of ['form', 'sheet', 'dialog']) {
       await page.command('Page.navigate', { url: 'file://' + join(directory, 'index.html') });
       await page.wait('document.querySelector("[name=title]")');
-      await page.evaluate(`(async()=>{view=structuredClone(view);view.nodes[0].kind=${JSON.stringify(kind)};await app.update(view)})()`);
+      await page.evaluate(`(async()=>{view=structuredClone(view);view.nodes[0].kind=${JSON.stringify(kind)};if(${query}){const op=view.contract.operations.find(op=>op.id==='notes.add');op.kind='query';op.effects={}}await app.update(view)})()`);
       if (kind !== 'form') await page.click('[data-pc-open=editor]');
       await page.fill('[name=title]', 'A'); await page.fill('[name=text]', 'A body');
       await page.click('[type=submit]'); await page.wait('requests.length===1');
@@ -179,10 +179,11 @@ test('W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts prese
       assert.match(await page.evaluate<string>('document.querySelector("[data-pc-feedback]").textContent'), /新输入还未提交/, 'the saved receipt does not claim that B was saved');
       await page.click('[type=submit]'); await page.wait('requests.length===2');
       assert.equal(await page.evaluate('requests[1].form.title'), 'B');
-      await page.evaluate('deliver()'); await page.wait('document.querySelector("[name=title]").value===""');
-      assert.equal(await page.evaluate('!!document.querySelector("dialog[open]")'), false, 'the unchanged submitted draft closes');
+      await page.evaluate('deliver()'); await page.wait('!document.querySelector("[type=submit]").disabled');
+      assert.equal(await page.evaluate('document.querySelector("[name=title]").value'), query ? 'B' : '', 'queries keep input; commands retain their reset rule');
+      assert.equal(await page.evaluate('!!document.querySelector("dialog[open]")'), query && kind !== 'form', 'only commands close an unchanged submitted overlay');
 
-      if (kind !== 'form') await page.click('[data-pc-open=editor]');
+      if (kind !== 'form' && !query) await page.click('[data-pc-open=editor]');
       await page.fill('[name=title]', 'retry'); await page.fill('[name=text]', 'retry body'); await page.click('[type=submit]'); await page.wait('requests.length===3');
       await page.evaluate('deliver("保存失败")'); await page.wait('document.querySelector(".pc-error")?.textContent.includes("保存失败")');
       assert.equal(await page.evaluate('document.querySelector("[name=title]").value'), 'retry');
@@ -192,9 +193,10 @@ test('W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts prese
       assert.equal(await page.evaluate('document.querySelector("[name=title]").value'), 'new revision');
       assert.doesNotMatch(await page.evaluate<string>('document.querySelector("[data-pc-feedback]").textContent'), /late failure/);
       await page.click('[type=submit]'); await page.wait('requests.length===5');
-      await page.evaluate('(async()=>{view=structuredClone(view);view.contract.revision="third";await app.update(view);document.querySelector("[name=title]").value="third draft";document.querySelector("[name=title]").dispatchEvent(new Event("input",{bubbles:true}));deliver()})()');
+      await page.evaluate('(async()=>{view=structuredClone(view);view.contract.revision="third";await app.update(view);document.querySelector("[name=title]").value="third draft";document.querySelector("[name=title]").dispatchEvent(new Event("input",{bubbles:true}));document.querySelector(".pc-output").textContent="new revision result";deliver()})()');
       await page.wait('!document.querySelector("[type=submit]").disabled');
       assert.equal(await page.evaluate('document.querySelector("[name=title]").value'), 'third draft', 'old revision success cannot clear current input');
+      assert.equal(await page.evaluate('document.querySelector(".pc-output").textContent'), 'new revision result', 'stale success cannot replace current result');
       await page.click('[type=submit]'); await page.wait('requests.length===6');
       await page.evaluate('app.destroy();deliver();');
       await page.evaluate('new Promise(resolve=>setTimeout(resolve,0))');

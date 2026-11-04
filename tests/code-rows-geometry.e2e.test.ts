@@ -12,8 +12,8 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const primitives = { escape, text: diffPageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
-const BEFORE = ["function check(x) {", "\treturn x;", "// 中文注释：行高不变", "const mark = 'ok';", "\t\tnested(1);", "}", ""].join("\n");
-const AFTER = ["function check(x) {", "\treturn x + 1;", "// 中文注释：行高不变，再加几个字", "const mark = '🙂✅';", "\t\tnested(1);", "\tadded(2);", "}", ""].join("\n");
+const BEFORE = ["function check(x) {", "\treturn x;", "// 中文注释", "const mark = 'ok';", "\t\tnested(1);", "}", ""].join("\n");
+const AFTER = ["function check(x) {", "\treturn x + 1;", "// 中文说明", "const mark = '🙂✅';", "\t\tnested(1);", "\tadded(2);", "}", ""].join("\n");
 
 function write() {
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-rows", applied: true, files: [{ path: "rows.ts", kind: "modified", added_lines: 4, removed_lines: 3, diff: "",

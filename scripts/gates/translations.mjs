@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Translation check (specs/repository-anti-corruption decision #16, slice W1-08): one scan over every translator call and
+// Translation check (specs/archive/repository-anti-corruption decision #16, slice W1-08): one scan over every translator call and
 // every dictionary in the source tree, instead of a hand-kept list of files. It is also a health-gate metric:
 // scripts/check-health-gates.mjs adds `createTranslationMetric(...)` to its METRICS, so CI runs it with the merge-base
 // comparison that already protects the other numbers.

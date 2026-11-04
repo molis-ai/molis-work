@@ -7,7 +7,7 @@ import type { AgentAnswerControl } from "../services/agent-interaction.js";
 import { AGENT_INPUT_KEY_PATTERN, AGENT_INPUT_SOURCES, AGENT_STEER_MODES, type AgentInputSend, type AgentSteerReceipt } from "../services/agent-inputs.js";
 
 /**
- * How a plugin takes on a work the Assistant hands it (PG-036, specs/repository-anti-corruption): one action per role below, all
+ * How a plugin takes on a work the Assistant hands it (PG-036, specs/archive/repository-anti-corruption): one action per role below, all
  * from one provider, each with its role's input and output types. The Assistant finds an executor in the project's common
  * directory by these types, never by a list or a plugin's name, and calls it only as the local person (audience `user`), through
  * the person's own client and its checks of the installation's grants. The provider's other actions and audiences stay its own.

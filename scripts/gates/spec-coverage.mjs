@@ -1,4 +1,4 @@
-// Spec acceptance ids and the tests that cite them (specs/repository-anti-corruption §4.8 "需求可追溯", slice W2-14). The
+// Spec acceptance ids and the tests that cite them (specs/archive/repository-anti-corruption §4.8 "需求可追溯", slice W2-14). The
 // convention is written in specs/README.md ("验收编号"); scripts/check-spec-coverage.mjs is the command, and
 // scripts/check-health-gates.mjs --report prints the one-line summary. This module is the reading, not a gate yet: it
 // returns what it found, and the command decides whether that fails anything (report mode never does; --strict does).

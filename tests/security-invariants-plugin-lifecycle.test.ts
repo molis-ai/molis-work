@@ -291,10 +291,12 @@ test("RAC-2298 S-84 a signed-package plugin whose kept package is gone that meet
     await h.install(signedPackage(publisher, readsAndWrites));
     await add(h, "one");
     assert.deepEqual(await notes(h), ["one"], "the installation holds business data");
-    const installed = await only(h), pins = h.ledger.publishers(), data = await h.data(installed.install_id);
+    const pins = h.ledger.publishers(), data = await h.data((await only(h)).install_id);
     assert.notDeepEqual(data, [], "the installation's private data is not empty");
     const root = join(h.home, "plugin-packages"), [directory] = await readdir(root), kept = join(root, directory!);
     for (const file of await readdir(kept)) await unlink(join(kept, file));
+    // The listing reads the kept package (#1642), so the installation as it was is the one seen once that package is gone.
+    const installed = await only(h);
     await assert.rejects(h.install(signedPackage(publisher, readsAndWrites)), refused("plugin.upgrade_required"), "the same version again, with the kept package gone");
     assert.deepEqual(await only(h), installed, "the installation is as it was");
     assert.deepEqual(h.ledger.publishers(), pins, "and its publisher's pin");

@@ -5,10 +5,10 @@ import type { PluginPermissionDeclaration } from "@molis-ai/molis-work-contracts
 const OWN = "读写 Feed 内容、捕捉规则与首页事项，处理消息去向与管理来源";
 
 /**
- * Every permission of Feed's Manifest. Feed runs as a dual-instance plugin (each project's half and the Home's reference ledger), so all of
- * them are required: a person cannot switch one off (specs/dual-instance-plugins, U1), and the gate `scripts/gates/dual-instance.mjs` reads
- * this list as a literal. `tests/feed-runtime-plugin.test.ts` holds it to what the actions, the jobs and the services declare, so a new
- * permission cannot be used without being listed here.
+ * Every permission of Feed's Manifest. Required collection/read permissions stay independent of the optional Functions management grant.
+ * Feed's two instances retain their own grants; Home also caps the project's optional permission (specs/archive/dual-instance-plugins, U1).
+ * The gate reads this literal list. `tests/feed-runtime-plugin.test.ts` holds it to the actions, jobs and services, so a new permission
+ * cannot be used without being listed here.
  */
 export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "feed:read", required: true, reason: OWN },
@@ -37,6 +37,7 @@ export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "scenes:use", required: true, reason: "绑定并运行捕捉规则的判断场景" },
   { permission: "judgments:read", required: true, reason: "读取捕捉规则的判断记录" },
   { permission: "judgments:write", required: true, reason: "记录捕捉规则的判断结果" },
+  { permission: "functions:manage", required: false, reason: "在来源规则里创建、读取、修改、试跑并发布本 Home 的判断规则；可在权限设置关闭" },
   { permission: "functions:invoke", required: true, reason: "按 Inbox 绑定的规则，替当前调用者给 Feed 带来的新事项判断下一步" },
   { permission: "actions:delegate", required: true, reason: "替当前这个调用者请 Inbox 与首页判断下一步、读取已发布的判断规则" },
   { permission: "connections:use", required: true, reason: "读取你为每个账号来源选好的账号是否还能用" },

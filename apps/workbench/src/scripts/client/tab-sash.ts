@@ -26,6 +26,8 @@ export const TAB_SASH_FACTORY = String.raw`({ panes, root, find, sync, persist, 
     finish(false);
     // The press must not start a text selection across the panes it sits between.
     event.preventDefault(); sash.setPointerCapture(event.pointerId);
+    // Protect the first movement across an iframe, before it can reach the drag threshold.
+    root.classList.add("is-resizing"); root.dataset.resizing = node.direction;
     const abort = new AbortController(), on = (target, type, listener, capture = false) => target.addEventListener(type, listener, { signal: abort.signal, capture });
     drag = { sash, node, abort, pointer: event.pointerId, start: node.ratio, x: event.clientX, y: event.clientY, moved: false, snapped: false };
     on(sash, "pointermove", (pointer) => {
@@ -33,7 +35,7 @@ export const TAB_SASH_FACTORY = String.raw`({ panes, root, find, sync, persist, 
       if (!sash.isConnected) { finish(false); return; }
       if (!drag.moved) {
         if (Math.hypot(pointer.clientX - drag.x, pointer.clientY - drag.y) < 4) return;
-        drag.moved = true; root.classList.add("is-resizing"); root.dataset.resizing = node.direction; sash.classList.add("is-dragging");
+        drag.moved = true; sash.classList.add("is-dragging");
       }
       const box = sash.parentElement.getBoundingClientRect(), size = sizeOf(sash, node), bounds = range(node, size);
       if (!bounds) return;

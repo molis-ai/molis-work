@@ -92,9 +92,22 @@ export interface ActionUserAction {
   readonly prompted_subject_id?: string;
 }
 
+/** Host-only metadata snapshot for one authenticated stage entry; never an execution grant or plugin callback field. */
+export interface StageSceneMetadataAuthority {
+  readonly actor_id: string;
+  readonly audience: ActionAudience;
+  readonly entry: ExactActionReference;
+  readonly owner: { readonly plugin_id: string; readonly install_id: string; readonly installation_generation: string; readonly scope: "home" | "project" };
+  readonly project_id: string | null;
+  readonly scenes: readonly { readonly scene_id: string; readonly version: number }[];
+  readonly actions: readonly ExactActionReference[];
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
+  /** Only the same stage entry may inspect its own saved scene bindings through these accepted exact refs. */
+  readonly stage_scene_metadata?: StageSceneMetadataAuthority;
   /** Memory read intent fixed by a protected Host entry; never copied from business/model input. Absent means task. */
   readonly memory_read_mode?: "explicit" | "task";
   /** Validated Memory HTTP command identity, separate from this request's call_id. Grants nothing; never a model argument. */
@@ -446,7 +459,11 @@ export interface ActionSceneView {
   readonly reason?: string;
 }
 
-export interface ActionSceneUsage extends ActionSceneBinding { readonly availability: ActionAvailability }
+export interface ActionSceneUsage extends ActionSceneBinding {
+  readonly availability: ActionAvailability;
+  /** Present only on an exact own binding read by an authenticated stage metadata entry. */
+  readonly function_title?: string;
+}
 
 /** An actual configuration location owned by the consumer, including an unbound fixed slot. */
 export interface ActionSceneTargetDefinition {

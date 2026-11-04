@@ -9,6 +9,7 @@ import { withPluginPermissionSettingsEntry } from "./plugin-consent-settings-ent
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { runningProjectPlatform } from "./project-plugins.js";
 
 /** A package carries the plugin's code and files, base64 inside the signed bundle; the command line's route takes the same. */
 const MAX_PACKAGE_BYTES = 24 * 1024 * 1024;
@@ -17,7 +18,7 @@ const MAX_PACKAGE_BYTES = 24 * 1024 * 1024;
  * The workbench's door to a project's plugins (ac-trust T7): what is installed here with its permissions and agreements, installing a
  * signed package (preview, then confirm; a newer package of an installed plugin is its upgrade), switching it off and on, taking it off. Each route invokes the shared actions as the person, and says so itself: the entry stamps the
  * person's own page request (`user_action`, S-58) and nothing in the request body is read for it. Taking an agreement back is not here:
- * `plugins.consents.revoke@1` takes only the Host's settings door (`/api/settings/plugin-consents/revoke`, S-77), so the page calls that.
+ * `plugins.consents.revoke@2` takes only the Host's settings door (`/api/settings/plugin-consents/revoke`, S-77), so the page calls that.
  * Switching one optional permission of an install in this project (`permissions/set`, PG-002, S-94) is the person's own act in this project's
  * settings: the project is the route's, the credential is the entry's own (a different one from the consent door's), and a plugin's page is refused.
  */
@@ -40,7 +41,11 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
         client.invoke(person, { capability_id: definition.capability_id, version: definition.version, provider_id }, input);
       if (method === "GET" && route === "overview") {
         const [installed, publishers] = await Promise.all([call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.installed, {}), call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.publishers, {})]);
-        return { status: 200, body: { ...(installed as object), ...(publishers as object) } };
+        const managed = await ports.localHost.withProject(ports.projectRef, async runtime => {
+          const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
+          return platform?.runtime.list().filter(row => row.state !== "uninstalled" && platform.dualInstance(row.plugin_id)).map(row => row.install_id) ?? [];
+        });
+        return { status: 200, body: { ...(installed as object), ...(publishers as object), home_managed_install_ids: managed } };
       }
       if (method !== "POST") return null;
       if (route === "install/preview") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.preview, body) };

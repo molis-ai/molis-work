@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Action-contract snapshot (specs/repository-anti-corruption §4.7, slice W2-15): the callable contract of every built-in
+// Action-contract snapshot (specs/archive/repository-anti-corruption §4.7, slice W2-15): the callable contract of every built-in
 // Manifest, written down in tooling/gates/actions/. One row per action (`capability_id@version`) and one per consumer scene
 // (`scene_id@version`): the provider that registers it, what kind of call it is and who may make it, and a hash each of its
 // input schema, its output schema and the rest of its structured declaration. Persisted consumers pin exactly this

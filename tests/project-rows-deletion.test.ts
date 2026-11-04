@@ -17,7 +17,7 @@ import { describeSqliteSchema, homeSqlitePath, homeStoreRegistry, openBaselineHo
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// PG-024 (specs/repository-anti-corruption/slices/w5-02-registry.md §2): a library in the Home declares which of its rows belong to a
+// PG-024 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §2): a library in the Home declares which of its rows belong to a
 // project (`databases.home.project_rows`), and the platform deletes them with the project, on its own connection to that library,
 // running none of the plugin's code.
 

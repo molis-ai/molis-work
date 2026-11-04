@@ -10,7 +10,7 @@ type HalfAction = ActionDefinition<{ call?: string }, Answer>;
 type Share = Omit<PluginAppContribution, "kind">;
 
 /**
- * A dual-instance plugin (specs/dual-instance-plugins): one Manifest, two halves.
+ * A dual-instance plugin (specs/archive/dual-instance-plugins): one Manifest, two halves.
  * - The Home half offers two Home actions (`home`; `home-reach`, which only a person reaches), the `home` route and the stage view.
  * - The project half offers two project actions (`project`; `reach`, which only a person reaches), the `project` route and the
  *   input port's handler. The Manifest also publishes an event, which only a project instance can.
@@ -50,7 +50,7 @@ export function dualPlugin(name = "dualprobe", writes = false, viewIn: Half = "h
     return found;
   };
   const stage = { descriptor: { contribution_id: view, kind: "embedded" as const, label: name,
-    surfaces: [{ surface_id: "workbench", target_slot_id: "stage", format: "html" }], slots: [] }, render: () => `<section>${name}</section>` };
+    surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] }, render: () => `<section>${name}</section>` };
   /** One half's share of the Manifest; `extra` adds to it, for a half that offers more than its share. */
   const half = (which: Half, extra: (all: typeof actions) => Share = () => ({})): PluginDefinition => ({ manifest,
     event_types: [{ event_type_id: changed, type_version: 1, validate: payload => payload }],

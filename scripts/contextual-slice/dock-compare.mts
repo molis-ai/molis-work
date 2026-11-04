@@ -31,7 +31,8 @@ if (jevFrom) {
   process.env.TYPESAFE_API_KEY = key;
 }
 
-const host = new MolisWorkLocalHost({ homeDirectory, actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, homeDirectory) });
+const host = new MolisWorkLocalHost({ homeDirectory, actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), homeDirectory) });
+const withCatalog = host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
 try {
   const reference = molisWorkHostProjectReference({ databasePath: path.join(homeDirectory, "projects", projectId, "molis-work.db"), projectId });
   const caller = await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);

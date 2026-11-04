@@ -9,6 +9,23 @@ const entries = new WeakSet<ActionUserAction>();
 const permissionEntries = new WeakSet<ActionUserAction>();
 // The same switch for the plugins that run as the Home's own instance (BL-700, S-94): the Host settings door, no project; a third membership.
 const homePermissionEntries = new WeakSet<ActionUserAction>();
+const projectReachEntries = new WeakMap<ActionUserAction, string>();
+
+export async function withProjectReachSettingsEntry<Result>(caller: ActionCallContext,
+  invoke: (caller: ActionCallContext) => Promise<Result>): Promise<Result> {
+  if (!caller.project_id) throw new ActionError("actions.forbidden", "项目同意需要项目设置入口");
+  const user_action: ActionUserAction = Object.freeze({ source: "web", conversation_ref: "web:settings:plugin-project-reach", message_ref: `web:request:${randomUUID()}` });
+  projectReachEntries.set(user_action, caller.project_id);
+  try { return await invoke({ ...caller, user_action }); }
+  finally { projectReachEntries.delete(user_action); }
+}
+
+export function assertProjectReachSettingsEntry(caller: ActionCallContext): void {
+  if (caller.audience !== "user" || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || !caller.project_id
+    || caller.host_plugin || caller.delegated_by || !caller.user_action || projectReachEntries.get(caller.user_action) !== caller.project_id) {
+    throw new ActionError("actions.forbidden", "项目同意只接受本人在对应项目设置里的操作");
+  }
+}
 
 export async function withPluginConsentSettingsEntry<Result>(caller: ActionCallContext,
   invoke: (caller: ActionCallContext) => Promise<Result>): Promise<Result> {
@@ -36,7 +53,7 @@ export async function withHomePluginPermissionSettingsEntry<Result>(caller: Acti
 
 /** Snapshot ordinary audit locators as before; an issued, immutable credential keeps its identity through the Host's queue. */
 export function snapshotHostUserAction(action: ActionUserAction): ActionUserAction {
-  return entries.has(action) || permissionEntries.has(action) || homePermissionEntries.has(action) ? action : { ...action };
+  return entries.has(action) || permissionEntries.has(action) || homePermissionEntries.has(action) || projectReachEntries.has(action) ? action : { ...action };
 }
 
 export function assertPluginConsentSettingsEntry(caller: ActionCallContext): void {

@@ -24,7 +24,7 @@ export interface State {
   view: PluginComponentView | undefined; currentPage: string; selection: Record<string, unknown>; disposed: boolean; epoch: number; fresh: boolean;
   selectionVersions: Map<string, number>; parts: Map<string, Part>; pages: Map<string, HTMLElement>; regions: Map<string, HTMLElement>; details: Map<string, DetailView>;
   /** Replaced by the query layer; the layers built before it call it only when something happens. */
-  refresh: () => Promise<unknown>;
+  refresh: (componentId?: string) => Promise<unknown>;
 }
 export type Kit = ReturnType<typeof pcKit>;
 export type Rel = ReturnType<typeof pcRelations>;

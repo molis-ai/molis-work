@@ -32,10 +32,10 @@ function looksLikeImage(bytes: Buffer): boolean {
 }
 
 /** Split a long text into materials the runtime accepts (each at most 20,000 characters with its header). */
-function chunked(base: Omit<AgentTextMaterial, "text" | "material_id">, id: string, text: string): AgentTextMaterial[] {
+function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: string): AgentTextMaterial[] {
   const size = 18_000;
   const parts = Math.max(1, Math.ceil(text.length / size));
-  return Array.from({ length: parts }, (_, index) => ({ ...base, material_id: parts === 1 ? id : `${id}.${index + 1}`,
+  return Array.from({ length: parts }, (_, index) => ({ material_id: parts === 1 ? id : `${id}.${index + 1}`,
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
 
@@ -64,18 +64,17 @@ export class AssistantRoundMaterials {
     const situation = [`现在是 ${local}（时区 ${zone}，${now.toISOString()}）。`, `这项工作：「${work.title}」，${where}。`,
       work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : "",
       pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : "", knowledgeFact(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered)].filter(Boolean).join("\n");
-    const base = { source_artifact_id: work.work_id, source_version: 1 };
-    const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn), out: AgentTextMaterial[] = [{ ...base, material_id: "situation", title: "本轮情况", text: situation }, ...(setup ? [setup] : [])];
+    const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn), out: AgentTextMaterial[] = [{ material_id: "situation", title: "本轮情况", text: situation }, ...(setup ? [setup] : [])];
     // What this round tells that is told only once: marked after the round has started, not before (a start that fails tells nothing).
     const told = { undos: [] as string[], unsettled: [] as string[] };
     // What the person did with earlier suggestions since the last round: the next round goes on from there.
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
-    if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
+    if (handled.length) out.push(...chunked({ title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
     // Changes the person took back since (the base says what follows from that).
     const undone = this.store.undos(this.actorId, work.work_id).filter(item => item.state === "undone" && !item.told);
     if (undone.length) {
-      out.push(...chunked({ ...base, title: "用户撤销的修改" }, "undone", ["下面这些你做过的修改，用户已经撤销：",
+      out.push(...chunked({ title: "用户撤销的修改" }, "undone", ["下面这些你做过的修改，用户已经撤销：",
         ...undone.map(item => `- 「${item.title}」（${item.undone_at ?? ""}）`)].join("\n")));
       told.undos = undone.map(item => item.undo_id);
     }
@@ -86,24 +85,24 @@ export class AssistantRoundMaterials {
         const made = this.store.relations.forWork(identity(child)).filter(row => row.relation === "result").map(row => `${row.object.kind} ${row.object.id}`);
         return `- 「${child.title}」（验收标准：${child.delegated_by!.acceptance.slice(0, 300)}）${made.length ? `；它已产出：${made.slice(0, 5).join("、")}` : "；它还没有产出"}`;
       });
-      out.push(...chunked({ ...base, title: "用户收回的子任务" }, "taken-back", ["用户把下面的子任务收回到这项工作，它们已停下，已产出的成果保留：",
+      out.push(...chunked({ title: "用户收回的子任务" }, "taken-back", ["用户把下面的子任务收回到这项工作，它们已停下，已产出的成果保留：",
         ...lines].join("\n")));
     }
     // Background work it started: those still running, and those that ended since its latest round began.
     const jobs = await this.link.jobs.material(work).catch(() => undefined);
-    if (jobs) out.push(...chunked({ ...base, title: "后台任务" }, "jobs", jobs));
+    if (jobs) out.push(...chunked({ title: "后台任务" }, "jobs", jobs));
     // What its sub-tasks handed back that it has not had yet (marked with the rest once the round has started).
-    const handed = await this.link.delegations.material(work, base);
+    const handed = await this.link.delegations.material(work);
     if (handed) out.push(handed);
     // Professional roles this work may hand a part to (published here, runnable now): delegation names one by its id.
     if (!work.delegated_by && work.project_ref && this.ports.characters && work.executor.kind !== "plugin") {
       const roles = (await this.ports.characters(work.project_ref).catch(() => [])).filter(item => item.available);
-      if (roles.length) out.push(...chunked({ ...base, title: "可委托的专业角色" }, "roles",
+      if (roles.length) out.push(...chunked({ title: "可委托的专业角色" }, "roles",
         roles.map(item => `- 「${item.title}」 v${item.reference.version}（id：${item.reference.artifact_id}）`).join("\n")));
     }
     // What the person selected on a page when it prepared a card here: kept for the rounds that follow.
     const selected = this.store.cards(work.work_id).filter(card => card.from && card.materials?.length).slice(-2);
-    if (selected.length) out.push(...chunked({ ...base, title: "用户在页面上选中的内容" }, "page-selection", selected.map(card =>
+    if (selected.length) out.push(...chunked({ title: "用户在页面上选中的内容" }, "page-selection", selected.map(card =>
       [`「${card.from!.title ?? card.from!.surface}」页面为操作卡「${card.title}」带来的选中内容：`,
         ...card.materials!.map(item => `《${item.title}》\n${item.text.slice(0, 4000)}`)].join("\n")).join("\n\n")));
     // What the person asked to be remembered reaches the round as Prologue memory-recall data (memoryForRound), not here;
@@ -111,27 +110,27 @@ export class AssistantRoundMaterials {
     const left = this.chosenMemory.get(work.work_id)?.omitted ?? [];
     if (left.length) {
       const budget = left.filter(item => item.reason !== "conflict").length, conflicts = left.length - budget;
-      out.push(...chunked({ ...base, title: "没有带上的记忆" }, "memory-left",
+      out.push(...chunked({ title: "没有带上的记忆" }, "memory-left",
         `和这一轮相关的记忆里，${budget ? `有 ${budget} 条因为篇幅没有带上` : ""}${budget && conflicts ? "，" : ""}${conflicts ? `有 ${conflicts} 条和另一条互相矛盾、带上的是用户明确说过的那条` : ""}。`));
     }
     // Forming memories switched off: the round is told, and where the person turns it on (the work layer says what follows).
-    if (this.ports.memory?.() && !this.link.memoryTools(work)) out.push(...chunked({ ...base, title: "记忆设置" }, "memory-off",
+    if (this.ports.memory?.() && !this.link.memoryTools(work)) out.push(...chunked({ title: "记忆设置" }, "memory-off",
       "用户关闭了“允许记住”（在 设置 · 个人 · 记忆 打开），这一轮不能长期记住或忘掉任何事。"));
     // Changes a stopped round left running, and how each ended (the base says not to submit an unsettled one again blindly).
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {
       const words = { pending: "还没有结果", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
-      out.push(...chunked({ ...base, title: "上一轮停止时仍在执行的修改" }, "unsettled", unsettled.map(change => `- 「${change.title}」：${words[change.state]}${change.detail ? `（${change.detail}）` : ""}`).join("\n")));
+      out.push(...chunked({ title: "上一轮停止时仍在执行的修改" }, "unsettled", unsettled.map(change => `- 「${change.title}」：${words[change.state]}${change.detail ? `（${change.detail}）` : ""}`).join("\n")));
       told.unsettled = unsettled.filter(change => change.state !== "pending").map(change => change.change_id);
     }
     const objects = await this.link.workObjects(work);
-    if (objects.length) out.push(...chunked({ ...base, title: "这项工作的对象" }, "objects", describeObjects(objects)));
+    if (objects.length) out.push(...chunked({ title: "这项工作的对象" }, "objects", describeObjects(objects)));
     // Work a professional Agent did for this work comes back here: its session, as its owner reports it.
     for (const object of objects.filter(item => item.relation === "session" && item.state !== "missing")) {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
-      if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
+      if (progress) out.push(...chunked({ title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
-    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ ...base, title }, id, text));
+    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
@@ -140,31 +139,31 @@ export class AssistantRoundMaterials {
       if (JSON.stringify([...listed, method]).length > 18_000) break;
       listed.push(method);
     }
-    if (listed.length) out.push({ ...base, material_id: "methods", title: "可用角色资料与方法", text:
+    if (listed.length) out.push({ material_id: "methods", title: "可用角色资料与方法", text:
       `按需读取资料：read-capability 的 capability_id 为 assistant.methods.read，version 为 2，provider_id 为 ${ASSISTANT_RULES_PROVIDER}。input 是对象，例如 {"method_id":"owner/method","version":1}；签名条目必须附目录中的完整 default_ref 和 installation。\n` +
       SIGNED_MATERIAL_NOTICE + "\n" + JSON.stringify(listed) });
     // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
     // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
     if (context?.object) {
       const background = await this.objectBackground(work, context.object);
-      if (background) out.push(...chunked({ ...base, title: "当前对象（所有者提供）" }, "object", background));
+      if (background) out.push(...chunked({ title: "当前对象（所有者提供）" }, "object", background));
     }
     if (context) {
       const lines = [`页面：${context.source.title ?? context.source.surface}${context.source.plugin_id ? `（${context.source.plugin_id}）` : ""}`,
         context.object ? `正在看的对象：${context.object.title ?? context.object.id}（${context.object.kind}${context.object.version !== undefined ? `，版本 ${context.object.version}` : ""}）` : "",
         context.unsaved ? "对象有未保存的修改：选区来自草稿，不是已保存版本。" : "",
         context.selection ? `选中的内容${context.selection.truncated ? "（已截断）" : ""}：\n${context.selection.text}` : ""].filter(Boolean).join("\n");
-      out.push(...chunked({ ...base, title: "当前页面（发送时）" }, "page", lines), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context, base));
+      out.push(...chunked({ title: "当前页面（发送时）" }, "page", lines), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context));
     }
     for (const material of materials) {
       if (material.method?.default_ref) {
         if (!material.text || material.text.length > 20_000) throw assistantErrors.invalid("签名资料正文超过单份材料预算，请减少内容后重发");
-        out.push({ ...base, material_id: `signed-${material.material_id}`, title: material.title, text: material.text }); continue;
+        out.push({ material_id: `signed-${material.material_id}`, title: material.title, text: material.text }); continue;
       }
       const head = [`${material.explicit ? "用户明确添加" : "来自当前页面，用户保留"}；类型：${material.kind}${material.draft ? "；未保存草稿" : ""}`,
         material.source ? `来源：${material.source.title ?? material.source.surface}` : "",
         material.object ? `对象：${material.object.title ?? material.object.id}（${material.object.kind}${material.object.version !== undefined ? `，版本 ${material.object.version}` : ""}）` : ""].filter(Boolean).join("\n");
-      out.push(...chunked({ ...base, title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
+      out.push(...chunked({ title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
     const signed = out.filter(item => item.material_id.startsWith("signed-"));
     return { materials: [...out.filter(item => !item.material_id.startsWith("signed-")).slice(0, 30 - signed.length), ...signed], told };

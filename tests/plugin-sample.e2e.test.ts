@@ -43,6 +43,15 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
       join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],
     { cwd: project, encoding: "utf8" });
+    // SDK-1: the author has installed only contracts + SDK, including the sandbox Manifest owner.
+    const sandbox = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { effectsFromContract, sandboxPluginManifest, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+      const effects=effectsFromContract({operations:[{effects:{storage:["read"]}},{effects:{storage:["write","read"]}}]});
+      const manifest=parsePluginManifest(sandboxPluginManifest({pluginId:"io.molis.work.example.sandbox",name:"Sandbox author",version:"1.0.0",publisher:{publisher_id:"author",signature:"author-binding"},presentation:true,effects,runtime:{scope:"home"}}));
+      console.log(JSON.stringify({effects,entry:manifest.entrypoints[0].entrypoint,scope:manifest.runtime.scope,requires:manifest.requires.map(x=>[x.capability_id,x.version])}));
+    `], { cwd: project, encoding: "utf8" });
+    assert.equal(sandbox.status, 0, sandbox.stderr);
+    assert.deepEqual(JSON.parse(sandbox.stdout), { effects: { storage: ["read", "write"] }, entry: "./plugin.mjs", scope: "home", requires: [["ui.plugin-presentation", 1]] });
     const definition = (await import(pathToFileURL(join(project, "index.mjs")).href)).default as PluginDefinition;
     assert.equal(definition.manifest.plugin_id, validated.plugin_id);
     assert.equal(definition.manifest.schema_version, 2);

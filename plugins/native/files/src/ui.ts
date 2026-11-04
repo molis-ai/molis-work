@@ -71,6 +71,7 @@ export const filesUiContribution: UiContribution<FilesUiModel | CompanionStageMo
     const stage = request.model as CompanionStageModel;
     switch (request.surface) {
       case "workbench": return renderFilesStage(stage);
+      case "tree": return "nodes" in request.model ? renderFilesTree(request.model) : renderFilesBrowserDirectory(stage.primitives.text);
       case "browser-directory": return renderFilesBrowserDirectory(stage.primitives.text);
       case "browser-result": return renderFilesBrowserResult(stage.primitives.text);
       case "reader": return renderFilesReader(request.model as FilesUiModel);

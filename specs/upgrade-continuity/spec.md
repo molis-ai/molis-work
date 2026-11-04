@@ -11,7 +11,7 @@
 - **库的版本不对就拒绝。**
   - `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 见到别的版本就抛 `SqliteSchemaVersionError`，提示「不就地升级……备份后移走这个库让它重建」；
   - 25 个文件里有 55 处调用 `applySqliteBaseline` 或 `openBaselineHomeSqlite`，全部照此办理；
-  - 目录库、会话库等自管版本的库也一样（[C 端就绪方案](../repository-anti-corruption/c-end-readiness.md) F5）。
+  - 目录库、会话库等自管版本的库也一样（[C 端就绪方案](../archive/repository-anti-corruption/c-end-readiness.md) F5）。
   - 所以开发期间，任何改了库版本的构建，对旧 Home 都是「打不开」。用户说这种事经常遇到。
 - **合同一改形状，旧引用就失效。**
   - 工作流程步骤、Characters 草稿、MCP 客户端、Skill 里固定的 `capability@version`，在动作改形状后要么找不到，要么报错；
@@ -22,7 +22,7 @@
   - 有离线快照命令 `molis-work home snapshot`（`apps/cli/README.md`）；
   - 有插件回放工具 `scripts/replay-plugins.mjs`：存量插件样本能加载、按 `upgrade_compatibility` 升级、能调用；
   - 合同的读取兼容流程已经写进[合同变更流程](../../docs/system/CONTRACT-CHANGES.md)第 4 节，从「阶段二起点」生效；
-  - [C 端就绪方案](../repository-anti-corruption/c-end-readiness.md) C-2 设计了库的升级链，C-3 设计了自动更新。
+  - [C 端就绪方案](../archive/repository-anti-corruption/c-end-readiness.md) C-2 设计了库的升级链，C-3 设计了自动更新。
 
 本书把这些合成一个用户能感觉到的承诺，补上缺的几块，并把库的起点提前。
 

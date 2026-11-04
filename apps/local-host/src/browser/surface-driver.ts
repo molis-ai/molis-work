@@ -3,62 +3,16 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceObservationKind } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { browserAddress, shortcutCommands, type BrowserPage } from "./browser-host.js";
+import { BrowserSurfaceNodes, ELEMENT_LIMIT } from "./surface-nodes.js";
 
 /**
  * The side panel page as the Assistant sees and drives it (specs/archive/side-panel D05–D10). Prologue decides whether each
  * look and each action may happen; this driver only does it, on the same page the person watches, and marks what it
  * does so the panel can show it. While the person has taken the page over, every action is refused.
  */
-const ELEMENT_LIMIT = 300;
-const TEXT_BUDGET = 6_000;
 /** The scope a page that has not opened a site reports (Prologue's blank browser page). */
 const BLANK_SCOPE = "about:blank";
 const IDLE_RELEASE_MS = 60_000;
-
-/** Runs in the page: what can be acted on in the viewport, with centres to click, and the visible text around it. */
-const OUTLINE_SCRIPT = `(() => {
-  const vw = innerWidth, vh = innerHeight, out = [];
-  const selector = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=checkbox],[role=radio],[role=tab],[role=menuitem],[role=option],[role=switch],[role=combobox],[role=textbox],[role=searchbox],[contenteditable=""],[contenteditable=true]';
-  const clean = (value, max) => String(value || '').replace(/\\s+/g, ' ').trim().slice(0, max);
-  const sensitive = el => el.type === 'password' || /cc-|one-time-code/.test(el.getAttribute('autocomplete') || '');
-  const nameOf = el => clean(el.getAttribute('aria-label') || (el.labels && el.labels[0] && el.labels[0].innerText) || el.getAttribute('title') || el.getAttribute('placeholder') || (el.tagName === 'INPUT' ? '' : el.innerText) || el.getAttribute('alt') || el.getAttribute('name') || (el.tagName === 'INPUT' && /submit|button/.test(el.type) ? el.value : ''), 80);
-  for (const el of document.querySelectorAll(selector)) {
-    const r = el.getBoundingClientRect();
-    if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) continue;
-    const style = getComputedStyle(el);
-    if (style.visibility === 'hidden' || style.display === 'none' || style.pointerEvents === 'none' || Number(style.opacity) === 0) continue;
-    const x = Math.round(Math.min(vw - 1, Math.max(0, r.left + r.width / 2))), y = Math.round(Math.min(vh - 1, Math.max(0, r.top + r.height / 2)));
-    const hit = document.elementFromPoint(x, y);
-    if (hit && !(hit === el || el.contains(hit) || hit.contains(el))) continue;
-    const tag = el.tagName;
-    const role = el.getAttribute('role') || (tag === 'A' ? 'link' : tag === 'BUTTON' ? 'button' : tag === 'SELECT' ? 'select' : tag === 'TEXTAREA' ? 'textarea' : tag === 'INPUT' ? 'input:' + (el.type || 'text') : el.isContentEditable ? 'editor' : tag.toLowerCase());
-    let value = '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA') value = sensitive(el) ? (el.value ? '(已填写，已隐藏)' : '') : clean(el.value, 60);
-    if (tag === 'SELECT') value = clean(el.selectedOptions && el.selectedOptions[0] && el.selectedOptions[0].text, 60);
-    const states = [];
-    if (el.disabled || el.getAttribute('aria-disabled') === 'true') states.push('不可用');
-    if (el.checked || el.getAttribute('aria-checked') === 'true') states.push('已选中');
-    if (el.getAttribute('aria-expanded') === 'true') states.push('已展开');
-    if (el.required) states.push('必填');
-    if (document.activeElement === el) states.push('有焦点');
-    let href = '';
-    if (tag === 'A') { try { const u = new URL(el.href); href = u.origin === location.origin ? u.pathname : u.origin + u.pathname; } catch {} }
-    out.push({ role, name: nameOf(el), value, states, x, y, href });
-    if (out.length >= ${ELEMENT_LIMIT}) break;
-  }
-  const text = [], seen = new Set();
-  let budget = ${TEXT_BUDGET};
-  for (const el of document.querySelectorAll('h1,h2,h3,h4,p,li,td,th,dt,dd,blockquote,figcaption,[role=heading],[role=alert],[role=status]')) {
-    if (budget <= 0) break;
-    const r = el.getBoundingClientRect();
-    if (r.height < 1 || r.bottom < 0 || r.top > vh) continue;
-    const line = clean(el.innerText, 240);
-    if (!line || seen.has(line)) continue;
-    seen.add(line); text.push((/^H[1-4]$/.test(el.tagName) ? '# ' : '') + line); budget -= line.length;
-  }
-  const page = document.scrollingElement || document.documentElement;
-  return JSON.stringify({ path: location.origin + location.pathname, title: document.title, vw, vh, sy: Math.round(scrollY), max: Math.max(0, Math.round(page.scrollHeight - vh)), elements: out, text });
-})()`;
 
 const MASK_ID = "__molis_side_mask";
 const MASK_ON = `(() => { if (document.getElementById('${MASK_ID}')) return; const s = document.createElement('style'); s.id = '${MASK_ID}';
@@ -94,6 +48,7 @@ function keyOf(name: string): { key: string; code: string; keyCode: number; text
 /** Uploads come from a path Prologue has already checked against its floor table (never `.ssh` and the like). */
 export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: string) => boolean = () => false, enabled: () => boolean = () => true): HostSurfaceDriver {
   const producedScreens: string[] = [];
+  const nodes = new BrowserSurfaceNodes(page);
   let idle: ReturnType<typeof setTimeout> | undefined;
   const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
   const releaseControl = () => { if (page.controlMode === "assistant") page.setControl({ mode: "person", work_id: null, activity: null }); };
@@ -129,6 +84,7 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       return page.snapshot().origin || BLANK_SCOPE;
     },
     async observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }) {
+      const observation = await nodes.clear();
       assertEnabled();
       await page.ensure();
       // A site the person blocked is not even looked at, from the moment they said so (Prologue's own deny rule joins
@@ -161,16 +117,14 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
         const capture = await page.capture();
         return new TextEncoder().encode(`页面：${capture.title}\n网站：${capture.origin}\n\n${capture.text}${capture.truncated ? "\n[页面正文较长，只取了开头]" : ""}`);
       }
-      const raw = await page.evaluate(OUTLINE_SCRIPT);
-      const outline = JSON.parse(typeof raw === "string" ? raw : "{}") as { path: string; title: string; vw: number; vh: number; sy: number; max: number;
-        elements: Array<{ role: string; name: string; value: string; states: string[]; x: number; y: number; href: string }>; text: string[] };
+      const outline = await nodes.observe(observation);
       const lines = [
         `页面：${outline.title || "（无标题）"}`,
         `地址：${outline.path}`,
         `视口：${outline.vw}×${outline.vh}，已向下滚动 ${outline.sy}/${outline.max}`,
         "",
-        "可操作的元素（点击时用 @ 后面的中心坐标）：",
-        ...outline.elements.map((element, index) => `[${index + 1}] ${element.role}「${element.name || "无名称"}」${element.value ? ` 值=${element.value}` : ""}${element.href ? ` → ${element.href}` : ""}${element.states.length ? ` （${element.states.join("、")}）` : ""} @(${element.x},${element.y})`),
+        "可操作的元素（点击元素时把完整标识填入 node；@ 后是当前中心坐标）：",
+        ...outline.elements.map(element => `node=${element.node} ${element.role}「${element.name || "无名称"}」${element.value ? ` 值=${element.value}` : ""}${element.href ? ` → ${element.href}` : ""}${element.states.length ? ` （${element.states.join("、")}）` : ""} @(${element.x},${element.y})`),
         ...(outline.elements.length >= ELEMENT_LIMIT ? ["（元素较多，只列出前 300 个）"] : []),
         "",
         "视口里的文字：",
@@ -186,15 +140,47 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       const send = (method: string, params: Record<string, unknown>) => session.send(method, params);
       switch (action.what) {
         case "pointer": {
-          const label = await labelAt(action.x, action.y);
-          mark(sessionId, `在 ${origin()} ${action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击"}${label ? `「${label}」` : `（${action.x}, ${action.y}）`}`, { x: action.x, y: action.y });
-          await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: action.x, y: action.y, button: "none", buttons: 0 });
-          for (let click = 1; click <= Math.max(1, Math.min(3, action.clicks)); click += 1) {
-            await send("Input.dispatchMouseEvent", { type: "mousePressed", x: action.x, y: action.y, button: action.button, buttons: 1, clickCount: click });
-            await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: action.x, y: action.y, button: action.button, buttons: 0, clickCount: click });
+          const coordinate = action.node === undefined ? { x: action.x, y: action.y, label: await labelAt(action.x, action.y) } : null;
+          const gesture: { pressed: { session: typeof session; button: typeof action.button } | null } = { pressed: null };
+          let failure: unknown;
+          const pointerSend = async (params: Record<string, unknown>) => {
+            // Each actual node input rereads the original object. In particular, a move that already happened grants
+            // no permission to press after a replacement, later observation, round release or browser takeover.
+            const target = action.node !== undefined ? await nodes.resolve(action.node) : null;
+            try {
+              const { x, y, label } = target ?? coordinate!;
+              assertEnabled();
+              if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
+              mark(sessionId, `在 ${origin()} ${action.button === "right" ? "右键点击" : action.clicks > 1 ? "双击" : "点击"}${label ? `「${label}」` : `（${x}, ${y}）`}`, { x, y });
+              target?.assertCurrent();
+              const inputSession = target?.session ?? session;
+              await inputSession.send("Input.dispatchMouseEvent", { ...params, x, y });
+              if (params.type === "mousePressed") gesture.pressed = { session: inputSession, button: action.button };
+              else if (params.type === "mouseReleased") gesture.pressed = null;
+            } finally { await target?.release(); }
+          };
+          try {
+            await pointerSend({ type: "mouseMoved", button: "none", buttons: 0 });
+            for (let click = 1; click <= Math.max(1, Math.min(3, action.clicks)); click += 1) {
+              await pointerSend({ type: "mousePressed", button: action.button, buttons: 1, clickCount: click });
+              await pointerSend({ type: "mouseReleased", button: action.button, buttons: 0, clickCount: click });
+            }
+            await settle();
+            return;
+          } catch (error) { failure = error; throw error; }
+          finally {
+            // This only pairs a press this action actually dispatched. A refused target must not leave the button held,
+            // and releasing outside the viewport with no click count must not click a replacement or the old point.
+            const held = gesture.pressed;
+            if (held && page.owns(held.session.targetId)) {
+              try { await held.session.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: -1, y: -1, button: held.button, buttons: 0, clickCount: 0 }); }
+              catch (cleanupError) {
+                if (!(failure instanceof Error)) throw cleanupError;
+                failure.cause = new AggregateError([failure.cause, cleanupError], "鼠标手势清理失败");
+                failure.message += "（已按下的鼠标未能释放。）";
+              }
+            }
           }
-          await settle();
-          return;
         }
         case "key": {
           // The keys are pressed together (["Control", "a"]); "Control+a" in one entry means the same.
@@ -245,6 +231,17 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
         }
       }
     },
+    async describeNode(node: string) {
+      assertEnabled();
+      if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
+      const target = await nodes.resolve(node);
+      try {
+        target.assertCurrent();
+        assertEnabled();
+        if (blocked(page.snapshot().origin)) throw browserErrors.load_failed("用户禁止助理查看或操作这个网站。");
+        return target.label;
+      } finally { await target.release(); }
+    },
     describePoint: (x: number, y: number) => labelAt(x, y),
     async focusedField() {
       const raw = await page.evaluate(`JSON.stringify((() => { const el = document.activeElement; if (!el || el === document.body) return { label: '', sensitive: false };
@@ -253,8 +250,8 @@ export function createBrowserSurfaceDriver(page: BrowserPage, blocked: (origin: 
       const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as { label?: string; sensitive?: boolean };
       return { label: parsed.label ?? "", sensitive: parsed.sensitive === true };
     },
-    async release() { clearTimeout(idle); releaseControl(); },
-    async close() { clearTimeout(idle); releaseControl(); },
+    async release() { clearTimeout(idle); releaseControl(); await nodes.clear(); },
+    async close() { clearTimeout(idle); releaseControl(); await nodes.clear(); },
     masked(bytes: Uint8Array) { return producedScreens.includes(digest(bytes)); },
   };
 }

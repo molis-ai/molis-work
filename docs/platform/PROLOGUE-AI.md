@@ -704,7 +704,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 方法正文：非空、不超过 20,000 字符，同一插件不重复登记 | 宿主登记时（`apps/local-host/src/agent-definitions/agent-definitions.ts`），开跑读取时再核一次（`horizontal/agent-host/src/index.ts` 的 `readSkill`） | 拒绝 |
 | 方法同一版本正文变了；方法要的工具超过角色 | 开跑时（`prologue-methods.ts` 的 `inlineMethods`；SDK 的 `prepareSkillIntent`） | 拒绝 |
 | 打包：`files` 明确列出，没有符号链接和越界路径，不超过 64 MiB；不执行 glob 和 lifecycle script | `molis-work-plugin pack`（`tooling/plugin-cli/src/package-files.ts`） | 拒绝 |
-| 包内容与签名：路径越界或重复、缺入口文件或 `manifest.json`、Manifest 对不上；签名与发布者不符、内容被改过 | `packages/plugin-runtime` 的 `parsePluginPackage`、`verifyPluginPackage`；作者命令 `sign`、`verify` | 拒绝。用户把包装进 Home 还没有路径（`docs/platform/PLUGIN-DEVELOPMENT.md`「打包与签名」） |
+| 包内容与签名：路径越界或重复、缺入口文件或 `manifest.json`、Manifest 对不上；签名与发布者不符、内容被改过 | `packages/plugin-runtime` 的 `parsePluginPackage`、`verifyPluginPackage`；作者命令 `sign`、`verify` | 拒绝。签名的沙箱包由本人在插件设置里导入：`plugins.install.preview` 检查签名、发布者、包的格式、范围和权限，`plugins.install.confirm` 在本人同意并命名固定发布者后安装，清单写了 `runtime: { scope: "home" }` 的装进 Home，没写的装进项目（[插件开发手册「沙箱包格式与安装」](PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)）；`pack` 打的源码包不是安装器（同一手册「打包与签名」） |
 | 声明了视图、路由、动作或命令却没交付 | Plugin Runtime 启动插件时（`packages/plugin-runtime/src/contribution.ts`） | 拒绝启动 |
 | Manifest 引用的文件在不在 | 只查入口文件 | 其余不查 |
 | 摘要写得清不清楚、正文是否冗长、Skill 值不值得用 | 没有工具 | 报告：人看，或按 16.6 评测 |

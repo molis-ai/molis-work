@@ -6,16 +6,17 @@
 //   A  enable as the next step, in the same place, right after install — catalog grouped by pack, three-way choice per row
 //   B  pick inside the install confirmation (switches default off)     — catalog grouped by pack, switch + "manual only"
 //   C  install only lists; enable later in the catalog                  — catalog as list + detail
+// Decided by the user 2026-11-04: A's enable step + C's catalog (option "AC", the default); A, B, C stay for comparison.
 // Every control is a component-board part from window.MW. Standalone review prototype: nothing is written anywhere.
 (() => {
   const M = window.MW;
   const D = window.SKILL_DATA;
-  const KEY = "molis-proto.skill-packs.v1";
-  const DEF = { opt: "A", area: "install", st: "new", lang: "zh", theme: "light" };
+  const KEY = "molis-proto.skill-packs.v2";
+  const DEF = { opt: "AC", area: "install", st: "new", lang: "zh", theme: "light" };
   const AREA_STATES = { install: ["new", "upgrade", "bad"], import: ["found", "none"], manage: ["normal", "empty", "failed"] };
   const T = {
     zh: {
-      protoTitle: "技能包 · 原型", tbd: "待定：A／B／C", opt: "方案", optA: "A 装完接着启用", optB: "B 确认时一并选", optC: "C 到目录里再开",
+      protoTitle: "技能包 · 原型", tbd: "已定：A 的启用＋C 的目录", opt: "方案", optAC: "已定 A＋C", optA: "A 装完接着启用", optB: "B 确认时一并选", optC: "C 到目录里再开",
       area: "区域", a_install: "安装预览", a_import: "从本机导入", a_manage: "技能目录", state: "状态", lang: "语言", theme: "主题", light: "浅色", dark: "深色", reset: "重置",
       st_new: "新装", st_upgrade: "升级 1.4 → 2.0", st_bad: "包有问题", st_found: "找到 3 个", st_none: "没找到", st_normal: "正常", st_empty: "还没有技能", st_failed: "保存失败",
       settings: "设置", tabPlugins: "插件", tabSkills: "技能", projectScope: "项目：{p}",
@@ -56,7 +57,7 @@
       kb: "{n} KB",
     },
     en: {
-      protoTitle: "Skill packs · prototype", tbd: "Open: A / B / C", opt: "Option", optA: "A Enable right after", optB: "B Pick while confirming", optC: "C Enable in catalog",
+      protoTitle: "Skill packs · prototype", tbd: "Decided: A's enabling + C's catalog", opt: "Option", optAC: "Decided A+C", optA: "A Enable right after", optB: "B Pick while confirming", optC: "C Enable in catalog",
       area: "Area", a_install: "Install preview", a_import: "Import from this computer", a_manage: "Skill catalog", state: "State", lang: "Language", theme: "Theme", light: "Light", dark: "Dark", reset: "Reset",
       st_new: "New install", st_upgrade: "Upgrade 1.4 → 2.0", st_bad: "Broken package", st_found: "Found 3", st_none: "Found none", st_normal: "Normal", st_empty: "No skills yet", st_failed: "Save fails",
       settings: "Settings", tabPlugins: "Plugins", tabSkills: "Skills", projectScope: "Project: {p}",
@@ -120,6 +121,9 @@
   };
   let ui = freshUi();
   const unavailable = (s) => s.unavailable || null;
+  // Decided (user 2026-11-04): "AC" = A's enable step right after install / import + C's list-and-detail catalog.
+  const enableStep = () => P.opt === "A" || P.opt === "AC";
+  const splitCatalog = () => P.opt === "C" || P.opt === "AC";
   const blocking = (s) => ["plugin_disabled", "publisher_revoked", "resource_invalid"].includes(unavailable(s)?.reason);
 
   /* ---------- shared parts ---------- */
@@ -162,7 +166,7 @@
       const st = ui.pre[s.id].state;
       end = switchPair("pre:" + s.id, L(s.name), st, false, { on: t("enableAfter") + "：" });
     }
-    if (P.opt === "A" && ui.step === "enable") under = stateGroup("pre:" + s.id, L(s.name), ui.pre[s.id].state);
+    if (enableStep() && ui.step === "enable") under = stateGroup("pre:" + s.id, L(s.name), ui.pre[s.id].state);
     return `<li class="mw-item sk-row">${mark("book")}<span class="sk-main"><strong>${esc(L(s.name))}</strong><small>${esc(L(s.desc))}</small>${skillTags(s, marks)}${under ? `<span class="sk-under">${under}</span>` : ""}</span>${end ? `<span class="mw-item__end">${end}</span>` : ""}${ui.step === "review" ? skillDetails(s) : ""}</li>`;
   }
   function removedRow() {
@@ -319,7 +323,7 @@
   }
   function catalog() {
     if (P.st === "empty") return `${catalogHead()}${M.renderEmpty({ icon: "book", title: t("emptyT"), body: t("emptyD"), action: `<div class="sk-actions sk-actions--center">${btn(t("importBtn"), { icon: "download", attrs: act("area", "import") })}${btn(t("market"), { variant: "primary", attrs: act("sim", "market") })}</div>` })}`;
-    return P.opt === "C" ? catalogSplit() : catalogGrouped();
+    return splitCatalog() ? catalogSplit() : catalogGrouped();
   }
 
   /* ---------- page ---------- */
@@ -327,15 +331,15 @@
     const onPlugins = P.area === "install";
     const tabs = M.renderTabs({ label: t("settings"), className: "sk-tabs", tabs: [{ id: "plugins", label: t("tabPlugins"), selected: onPlugins, attrs: act("area", "install") }, { id: "skills", label: t("tabSkills"), selected: !onPlugins, attrs: act("area", "manage") }] });
     const body = P.area === "install" ? installPanel() : P.area === "import" ? importPanel() : catalog();
-    return `<div class="proto-sheet sk-sheet"><header class="sk-sheet__head"><h1>${esc(t("settings"))}</h1><span class="sk-muted">${esc(t("projectScope", { p: L(D.project) }))}</span></header>${tabs}<div class="sk-body${P.area === "manage" && P.opt === "C" ? " sk-body--wide" : ""}">${body}</div></div>`;
+    return `<div class="proto-sheet sk-sheet"><header class="sk-sheet__head"><h1>${esc(t("settings"))}</h1><span class="sk-muted">${esc(t("projectScope", { p: L(D.project) }))}</span></header>${tabs}<div class="sk-body${P.area === "manage" && splitCatalog() ? " sk-body--wide" : ""}">${body}</div></div>`;
   }
 
   /* ---------- prototype strip (not product) ---------- */
   function renderStrip() {
     const tg = (label, key, values) => M.renderToggleGroup({ label, items: values.map(([v, text]) => ({ value: v, label: text, current: P[key] === v, attrs: { "data-set": key, "data-v": v } })) });
     const options = AREA_STATES[P.area].map((k) => `<option value="${k}"${P.st === k ? " selected" : ""}>${esc(t("st_" + k))}</option>`).join("");
-    document.getElementById("strip").innerHTML = `<b>${esc(t("protoTitle"))}</b>${M.renderBadge({ label: t("tbd"), tone: "warning" })}
-      <span class="proto-field">${esc(t("opt"))}${tg(t("opt"), "opt", [["A", t("optA")], ["B", t("optB")], ["C", t("optC")]])}</span>
+    document.getElementById("strip").innerHTML = `<b>${esc(t("protoTitle"))}</b>${M.renderBadge({ label: t("tbd"), tone: "success" })}
+      <span class="proto-field">${esc(t("opt"))}${tg(t("opt"), "opt", [["AC", t("optAC")], ["A", t("optA")], ["B", t("optB")], ["C", t("optC")]])}</span>
       <span class="proto-field">${esc(t("area"))}${tg(t("area"), "area", [["install", t("a_install")], ["import", t("a_import")], ["manage", t("a_manage")]])}</span>
       <label>${esc(t("state"))}<select class="mw-select" data-slot="select" id="state">${options}</select></label>
       <span class="proto-field">${esc(t("lang"))}${tg(t("lang"), "lang", [["zh", "中文"], ["en", "English"]])}</span>
@@ -389,11 +393,11 @@
       case "area": return go(v);
       case "go-manage": return go("manage");
       case "install":
-        if (P.opt === "A") { ui.step = "enable"; break; }
+        if (enableStep()) { ui.step = "enable"; break; }
         if (P.opt === "C") { ui.step = "done-c"; break; }
         { const n = Object.values(ui.pre).filter((x) => x.state !== "off").length; go("manage"); return toast(n ? t("t_enabled", { k: n }) : t("t_installed", { n: L(packOf(D.install.pack).title) }), "success"); }
       case "import":
-        if (P.opt === "A") { ui.step = "enable"; break; }
+        if (enableStep()) { ui.step = "enable"; break; }
         if (P.opt === "C") { ui.step = "done-c"; break; }
         { const n = Object.values(ui.picks).filter(Boolean).length; go("manage"); return toast(t("t_imported", { k: n }), "success"); }
       case "finish": {

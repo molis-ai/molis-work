@@ -1,6 +1,6 @@
 # 现有 SDK 能力盘点（路线书 24、31 批用，2026-11）
 
-状态：只读盘点，2026-11-03 写。为路线书[第 24 批](../post-anticorruption-roadmap/reference/batches/24.md)「核清 SDK 缺口」和[第 31 批](../post-anticorruption-roadmap/reference/batches/31.md)「只按 24 核出的缺口补」提供依据。没有运行构建、测试或真实模型；能力「有」只说明公开包里有导出或系统工具，不等于 Molis 已接通或验收。
+状态：盘点完成。2026-11-03 读包写成；2026-11-04 用三个一次性用例核完第 5.3 节的 K-1～K-3，结果已回填。为路线书[第 24 批](../post-anticorruption-roadmap/reference/batches/24.md)「核清 SDK 缺口」和[第 31 批](../post-anticorruption-roadmap/reference/batches/31.md)「只按 24 核出的缺口补」提供依据。没有运行真实模型（用例用脚本化的假模型）；能力「有」只说明公开包里有导出或系统工具，不等于 Molis 已接通或验收。
 
 ## 1. 口径
 
@@ -37,12 +37,12 @@
 | 写后检查，主轮（A2-2，#822） | `checkAfterWrite`、`afterWriteCheckReceiptKey`，执行器只解析不执行 | `adapters/prologue-after-write.ts` 已接，回执在运行视图 `command_outputs` | **有**，已接 |
 | 写后检查进时间线（BL-301，PA-35） | 回执键已有 | 时间线还没读回执 | **有**；缺口在 Coding 时间线 |
 | 写后检查浏览器证据（BL-303，PA-29） | — | 审查卡截图未单独留 | **有**；缺口是 Molis 的浏览器验收 |
-| 子任务目录里的写入也跑写后检查（BL-302） | 写后检查挂在写工具上（`system-tools-workspace`）；`SubagentRunOptions`、`subagent-dispatch` 的类型里看不到执行器或 `afterWrite` 的承接 | 子任务会话由 SDK 派出，不经 `startPrologueRun`，没接执行器 | **待核**：先在 Molis 用 `SubagentRunOptions` 给子 Run 接执行器，看写后检查会不会发出；发不出就是上游缺（子 Run 要能承接父 Run 的写后检查配置） |
+| 子任务目录里的写入也跑写后检查（BL-302） | 写后检查只在会话绑了带 `afterWriteCheck` 标记的包、且有执行器时才开（`agent-run-tool-runner`）；包只能经 `sessions.create`/`sessions.open` 绑定、对下一跑生效。子会话由 SDK 在派出时建，`SubagentRunOptions` 没有给子会话包或执行器的字段，`onStarted` 到时子 Run 已经开跑 | 子任务会话由 SDK 派出，不经 `startPrologueRun`，没接执行器 | **上游缺**（K-1 已核）：子 Run 要能承接写后检查的配置 |
 | 截图、进展进时间线 | `ScreenshotPolicy`、`surface-observe`/`surface-act`，`board-report` | `prologue-surfaces.ts`、`computer-driver.ts` 用 `surface-observe` | **有**；时间线呈现在 Molis（「既有呈现复用」） |
 | 输入回执：接收、放进上下文、读到、没读到 | `acknowledge-inputs`、`projectInputReceipts`、`InputReceiptState` | `prologue-inputs.ts`、`coding/report-inputs.ts` 已接 | **有**，已接 |
 | 输入回执：跨轮持久排队、撤回、纠正带 `about`（BL-314，阶段 4 后一半） | `inputQueueView`、`takeQueued`、`withdrawQueued`，排队条目和转向都带 `about` | 没有消费 `inputQueueView`/`takeQueued` | **有**；缺口在 Molis 的阶段 4 后一半 |
 | 待答带 `about`，回答、过期、取消 | `PendingAbout`、`answerHeldPending`、`cancelHeldPending`、`reviveHeldPending` | 部分已接（问卷线） | **有** |
-| TaskBoard：节点绑定、执行尝试、接续、等待、负责人 | `taskboard-*` 全套、`board-*` 工具、`driveBoard`；`waits` 支持 `all`/`any`；`external-checks` 的检查端口与时间表 | `prologue-collaboration.ts`、`prologue-node-port.ts` 已接 P1–P4 | **有**。§3.1 TaskBoard、waits 两行的「必须补齐」看起来已进包，要逐条对一遍 P1–P4 的合并记录再划掉 |
+| TaskBoard：节点绑定、执行尝试、接续、等待、负责人 | `taskboard-*` 全套、`board-*` 工具、`driveBoard`；`waits` 支持 `all`/`any`；`external-checks` 的检查端口与时间表 | `prologue-collaboration.ts`、`prologue-node-port.ts` 已接 P1–P4 | **有**（K-3 已核，见 5.3）。§3.1 TaskBoard、waits、yield 三行的「必须补齐」已进包 |
 | P5 协作与关联线集成（BL-307） | 同上，加 `session` 的输入与待答 | 没开工 | **有**；缺口在 Molis |
 | Run 与恢复：重启后不补跑、不复活、不双唤醒（BL-308） | `assemble-recovery`、`subagent-recovery`、`recoverSubagents`、`refreshClosedSubagentRun`、`reviveHeldPending` | `prologue-recovery.ts` 已接一部分 | **有**；缺口是 Molis 的旧路径退出和联合恢复验收 |
 | App 模式（无文件根的业务工具 Agent）带子代理 | `agent-run-admission.js` 仍然拒绝：App-tools Agent 不能带 `subagents`、skills、MCP、挂载 | 助理等 App 模式 Agent 不能派子代理 | **上游缺**（§3.1 已列，现包仍未补） |
@@ -68,9 +68,9 @@
 | --- | --- | --- | --- |
 | 后台协作 | prologue-adoption §4.6；Coding A4 | 后台队列、心跳、`hand-off`、`session-*` 工具、`await-commands`、`await-subagents`、`board-wait` 都在 | 普通 Agent **有**。**上游缺**：App 模式不能带子代理（见 3.1 最后一行），助理这类 App 模式 Agent 做不了有界后台协作 |
 | 子代理：父代理转向 | subagent-interaction §5 | `steer-subagent`、`SubagentControls.steer`（下一个模型边界生效，2,000 字封顶） | **有** |
-| 子代理：用户直接对子代理说话（SAI-02、SAI-03） | subagent-interaction §5 | `runtime.subagents` 只给 `list`/`get`/`cancel`。注释写明「给看、给掐，不给发话」，App 插话要走「插入动作那一册」 | **待核，多半上游缺**：要确认受信 App 能不能用会话级排队输入（`assertQueueInput`）投给子 Session，且回执来源记为用户、不经父模型代转。不能就是上游缺 |
-| 子代理：结束后继续同一逻辑子任务（SAI-05） | subagent-interaction | `taskboard-attempts`、`taskboard-continuations` | **有**；Molis 侧接入未做 |
-| 子代理：伪造身份、旧代次、已收回对象被拒（SAI-08） | subagent-interaction | `taskboard-ownership`，派出前授权（第 2 项） | **有**，要补拒绝用例 |
+| 子代理：用户直接对子代理说话（SAI-02、SAI-03） | subagent-interaction §5 | `runtime.subagents` 只给 `list`/`get`/`cancel`；但 `onStarted` 交给 App 每个子 Run 的 `AgentControl`，`steer` 缺省来源是人、带幂等键和 `about`、有回执；子会话也是普通 `Session`，可以 `queueInput` | **有**（K-2 已核）：运行中的子代理收到 App 代用户发的话，模型看到的是用户原话；结束后在子会话排一句、再开一跑，原话也带了进去。Molis 现在给子 Run 转话一律用 `source: "app"`（`prologue-run.ts` 的 `watchChild`），缺口在 Molis |
+| 子代理：结束后继续同一逻辑子任务（SAI-05） | subagent-interaction | `taskboard-attempts`、`taskboard-continuations` | 图上的尝试与接续**有**。但 K-2 核出：App 在子会话上直接开的一跑是普通 Run，子代理句柄仍是 `completed`，不记成同一子任务的新尝试 | **上游缺**：要一个「继续这个子代理」的入口，沿原父子关系，记成新尝试 |
+| 子代理：伪造身份、旧代次、已收回对象被拒（SAI-08） | subagent-interaction | `taskboard-ownership`、`BoardScope.generation`，派出前授权（第 2 项） | 派出时**有**。但 K-2 核出：App 在子会话上开的续跑，SDK 不按子代理原来收窄的权限求交（派出时只给 `read`，续跑带上 `write`、`run-command` 也照收） | **上游缺**，和上一行同一个入口：续跑沿原权限求交。补上之前，Molis 自己续跑子会话时必须自己收窄 |
 | 任务关联与恢复 | prologue-adoption P5、P6 | 见 3.1 | **有**；缺口在 Molis |
 | LSP（代码智能） | Coding A4、A4-1 | 没有。官方场景包明写 SDK 不内置语言服务器 | **上游缺**：A4-1 要 SDK 的语言服务器模块（按文件类型按需启动、会话结束关闭）、只读工具「代码智能」，以及 Manifest `lsp_servers` 的声明式装配 |
 | 首批 Skill 自动选用 | prologue-skill-strategy SKL-01～16 | 有 `invoke-skill`、`autoSelectable` 和 `humanInvocable` 两个开关、`inline`/`fork`、配方、权限岛。**没有** `find-skills`、选择器（`router`、`maxSelected`）；`SkillManifest` 没有 `description`、`when_to_use`、`when_not_to_use`、`applies_to`；参考与脚本没有按需读取 | **上游缺**：SKL-02（选择器）、SKL-03（只返回元数据的查找）、SKL-05（按需读取与路径校验）、SKL-07（回执带理由）、SKL-15（选中后工具可见）。SKL-01 的开关语义 SDK 已有字段，Molis 侧接入和点名优先可以先做 |
@@ -84,11 +84,13 @@
 1. **App 模式带有界子代理**：`agent-run-admission` 放行 `subagents`，同时给每个子 Session 装配业务工具，仍然没有默认的文件和命令权限（§3.1 原话：不能只删禁止条件）。
 2. **语言服务器模块与「代码智能」只读工具**，Manifest 声明式装配（A4-1）。
 3. **Skill 选择**：`find-skills` 只返回元数据、带上限的选择器和可解释理由、`SkillManifest` 补描述与适用条件、参考和脚本的按需读取与路径校验、回执带理由（SKL-02、03、05、07、15）。
-4. **待核后可能要补的两项**：
-   - 受信 App 代表用户向指定子代理投递输入（SAI-02、SAI-03）；
-   - 子 Run 承接父 Run 的写后检查配置（BL-302）。
+4. **子代理的两项**（用例核实）：
+   - 子 Run 承接写后检查的配置（K-1，BL-302）；
+   - 「继续这个子代理」的入口：沿原父子关系、按原来收窄的权限求交、记成同一子任务的新尝试（K-2，SAI-05、SAI-08）。
 
-这些是 31 换包时「请 Prologue 改哪些」的候选，范围要用户定（31 前置里的「要决策：具体换包／上游范围」）。
+受信 App 代用户给子代理发话（SAI-02、SAI-03）**不缺**：运行中用 `AgentControl.steer`，结束后用子会话的 `queueInput`（K-2）。
+
+这些已列进 [31 批](../post-anticorruption-roadmap/reference/batches/31.md)「请 Prologue 补的清单」，范围仍要用户定（31 前置里的「要决策：具体换包／上游范围」）。
 
 ### 5.2 24 现在就能做、不等 SDK 的（缺口在 Molis）
 
@@ -96,15 +98,18 @@
 - 写后检查进时间线（BL-301）和浏览器证据（BL-303）；
 - 输入回执阶段 4 后一半（BL-314）；
 - P5 协作与关联（BL-307）、P6 旧路径退出与恢复验收（BL-308）；
+- 子 Run 转话改用人作来源：Molis 给子代理转用户的话时不再一律记成 `app`（SAI-03）；
 - 逐项交付与证据关联合同（第 3 项）：合同在 Molis，执行证据引用 `EvidenceLedger`。
 
-### 5.3 待核清单（各需一个小用例）
+### 5.3 待核清单与结果
 
-| 编号 | 要核的 | 怎么核 | 核不过意味着 |
+三项都用一次性用例在临时目录里核过：测试走机器槽位（`MOLIS_WORK_SLOT_DIR=/tmp/molis-work-slots-node-a`、`--jobs 1`），模型是脚本化的假回复，不碰真实 Home。用例断言的是现在的缺口或宽松行为，留下会挡住以后的修复，所以跑完删掉，没有入库。
+
+| 编号 | 要核的 | 怎么核 | 结果 |
 | --- | --- | --- | --- |
-| K-1 | 子 Run 会不会发出写后检查 | 在隔离 Home 里用 `SubagentRunOptions` 给子 Run 接执行器，让子代理写一个文件，看有没有 `afterWriteCheck` 调用和回执 | BL-302 变成上游缺 |
-| K-2 | 受信 App 能不能把用户输入投给子 Session | 用 `assertQueueInput` 投给子 Session，查回执来源是否为用户、子代理是否读到原文 | SAI-02、03 变成上游缺 |
-| K-3 | §3.1 TaskBoard、waits、yield 三行的「必须补齐」是否都已进包 | 对照 P1–P4 合并记录和 `taskboard-*` 的类型逐条划掉 | 剩下的并入 5.1 |
+| K-1 | 子 Run 会不会发出写后检查 | 照 `tests/prologue-writer-authority.test.ts` 的独立目录写入：协调者把子目录交给子代理，项目对主目录和子目录都存了 `node --check` 检查器；子代理把 `bad.js` 写成语法错误，人批准写入 | **不会**。审查只有派出和写入两张，没有检查命令；写入结果里没有检查输出，文件照写。同一检查器在主轮里会发（`tests/coding-diagnose-after-write.test.ts`）。原因见 3.1 BL-302 一行：子会话拿不到包和执行器。**上游缺** |
+| K-2 | 受信 App 能不能把用户的话投给子代理 | 直接用 SDK：父 Run 绑一个任务图节点后派出只读子代理；①子 Run 第一次调模型时，App 用 `onStarted` 给的 `control.steer` 发一句（不写来源）；②子代理结束后，App 在子会话 `queueInput` 一句，再在子会话上开一跑、带上排队输入，工具多给 `write`、`run-command` | ①**能**：有回执，子 Run 下一次调模型时这句作为用户消息出现。②**能投**：队列里来源记为人，开跑后记 `carried`，模型收到原话。**但**续跑是普通 Run：多给的工具照收，不按原来的收窄求交；子代理句柄仍是 `completed`，不算新尝试。前者不缺，后者**上游缺** |
+| K-3 | §3.1 TaskBoard、waits、yield 三行的「必须补齐」是否已进包 | 读 `orchestration/core` 的类型，加上 K-2 用例里的现象 | **已进包**。协作节点强制绑定：`dispatch-subagent` 等在 `BOUND_ONLY_TOOL_NAMES` 里，K-2 用例里父 Run 没绑节点时根本拿不到这个工具。执行尝试：`NodeAttempt` 带代次、会话、Run、来源和请求键。接续：`Continuation`、`ContinuationClaim`。代次：`BoardScope.generation`。外部条件：四态（`pending`、`satisfied`、`failed`、`unknown`），首次间隔后翻倍退避、每次有时限、连续未知有上限。等待结算：`WaitSettlement`。消息：信封有 `scope`，兄弟之间的受限通信没有逐条核，留给 P5（BL-307）。App 模式那一行仍缺，见 5.1 |
 
 ## 6. 不在本文范围
 

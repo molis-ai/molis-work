@@ -786,8 +786,8 @@ PR 号取自归档 spec §10 各波进度段、各片记录和 PR 标题；门�
 | 对抗式审查交接：安装清单 `SCHEMA_VERSION` 4→1 | 原机器待执行 | 同上 §15 第 5 条 | 和真实 Home 清空重建同一时段合入（BL-928）；记 BL-937 ② |
 | 对抗式审查交接：R4、R6、R7 及第 16～19 节新增（N1～N56） | 做不了 | 同上 §15 第 6、8～12 条 | 本轮未收；部分要先问用户（N3、N16、产品版本复位到 0.1.0 删 tag）；BACKLOG 没有行 |
 | 对抗式审查交接：R8 待办单一出处（风险登记与零碎单并进 BACKLOG） | 做不了 | 同上 §15 第 7 条 | 本轮未收；本完成表第十节可作底稿 |
-| 并入 #1725 的六个 PR 关闭 | 已实现并由门禁或测试证明 | [#1724](https://github.com/molis-ai/molis-work/pull/1724)（并入 #1725）、[#1727](https://github.com/molis-ai/molis-work/pull/1727)（并入 #1725）、[#1683](https://github.com/molis-ai/molis-work/pull/1683)（并入 #1725）、[#1677](https://github.com/molis-ai/molis-work/pull/1677)（并入 #1725）、[#1672](https://github.com/molis-ai/molis-work/pull/1672)（并入 #1725）、[#1669](https://github.com/molis-ai/molis-work/pull/1669)（并入 #1725） | 2026-11-03 合入后已关闭；各 PR 头提交用 `git merge-base --is-ancestor` 核过是 `3246b618c` 的祖先；分支保留，删不删由用户定 |
-| 自有工作树与分支清理（R-06、R-16） | 用户待验收 | `git worktree list` | 合入后清；删远端分支要用户点头 |
+| 并入 #1725 的六个 PR 关闭 | 已实现并由门禁或测试证明 | [#1724](https://github.com/molis-ai/molis-work/pull/1724)（并入 #1725）、[#1727](https://github.com/molis-ai/molis-work/pull/1727)（并入 #1725）、[#1683](https://github.com/molis-ai/molis-work/pull/1683)（并入 #1725）、[#1677](https://github.com/molis-ai/molis-work/pull/1677)（并入 #1725）、[#1672](https://github.com/molis-ai/molis-work/pull/1672)（并入 #1725）、[#1669](https://github.com/molis-ai/molis-work/pull/1669)（并入 #1725） | 2026-11-03 合入后已关闭；各 PR 头提交用 `git merge-base --is-ancestor` 核过是 `3246b618c` 的祖先；分支已于 2026-11-04 经用户同意删除（[deleted-remote-branches.md](deleted-remote-branches.md)） |
+| 自有工作树与分支清理（R-06、R-16） | 用户待验收 | `git worktree list`；[deleted-remote-branches.md](deleted-remote-branches.md) | 收口用的 6 个本机工作树已清；收口留下的 24 条远端分支已于 2026-11-04 经用户同意删除；三个子会话的工作树（goals、archive-prep、沙箱诊断）还在，等用户点头归档时一起清 |
 | BL-925：第三个双实例插件已出现（Feed） | 用户待验收 | BL-925 | 触发条件已满足，评审待统筹 |
 | post-anticorruption-roadmap §3.8：67 条 BL「随防腐线收，收尾时逐条核」 | 用户待验收 | 其中 40 条仍在 BACKLOG：BL-072、080、086、117、122、123、124、127、136、178、324、375、378、381、382、505、507、520、525、526、527、531、532、550、581、586、587、589、619～623、625～627、637、639、647、657 | 统筹逐条核：留、并、或改归别的需求线 |
 | PG-060、PG-093 的设备 A 回读 | 原机器待执行 | privileges 两行状态为「待做」；记 BL-936 ① | 合入后在设备 A 读回 T-403 资源结算与 Full，再把两行改成已做 |
@@ -825,8 +825,7 @@ PR 号取自归档 spec §10 各波进度段、各片记录和 PR 标题；门�
 | Goals「最近处理结果」挂载点；「决定中心」措辞 | BL-938 ②③ | Goals 主人二选一；PRODUCT.md 的 diff 先给用户看 | Goals 主人、用户 |
 | PG-113 桌面壳真机验收 | BL-940 | 在真机上走 files_open、files_copy、files_drag_out | 用户 |
 | 真人读屏、中文输入法、软键盘 | BL-016 | 真机走查 | 用户 |
-| 旧成果表备份删除；合入后留下的远端分支删除 | 无 | 用户确认后自己删 | 用户 |
-| 删除并入 #1725 的六个 PR 的分支与收口用的远端集成分支 | 无 | 六个 PR 已于合入后关闭；分支（含 `integration/anticorr-closeout*`、`fix/*` 收口分支）保留，等用户点头再删 | 用户 |
+| 旧成果表备份删除；§7 合入后留下的远端分支删除（#192–#215 那批，和 2026-11-04 删的收口分支不是一批） | 无 | 用户确认后自己删 | 用户 |
 
 ### STATUS.md 里的其他待办
 

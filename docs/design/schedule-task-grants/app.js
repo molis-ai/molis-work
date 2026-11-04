@@ -13,7 +13,7 @@
   const STATES = ["normal", "first", "nosource", "reconfirm", "provider", "revoked", "failed"];
   const T = {
     zh: {
-      protoTitle: "定时任务能读的数据 · 原型", tbd: "待定：D／E／F", area: "区域", a_detail: "任务详情", a_new: "新建任务", opt: "方案", optD: "D 就地展开", optE: "E 平台侧栏", optF: "F 开关即生效", state: "状态", lang: "语言", theme: "主题", light: "浅色", dark: "深色", reset: "重置",
+      protoTitle: "定时任务能读的数据 · 原型", tbd: "已定：F 开关即生效", area: "区域", a_detail: "任务详情", a_new: "新建任务", opt: "方案", optD: "D 就地展开", optE: "E 平台侧栏", optF: "F 开关即生效", state: "状态", lang: "语言", theme: "主题", light: "浅色", dark: "深色", reset: "重置",
       st_normal: "已允许 4 类", st_first: "刚建好，还没选", st_nosource: "没有可读的插件数据", st_reconfirm: "需要重新确认", st_provider: "一类的插件已停用", st_revoked: "撤回一类", st_failed: "失败",
       tasks: "定时任务", newBtn: "新建", dailyAt: "每天 {t}", next: "下次 {t}", notScheduled: "没有排上", enabled: "已启用", paused: "已暂停", needsRe: "需要重新确认", kData: "读数据", kFiles: "读文件",
       edit: "编辑", pause: "暂停", archive: "归档", instr: "说明", assistant: "助理", system: "系统",
@@ -40,7 +40,7 @@
       sep: "、",
     },
     en: {
-      protoTitle: "Data a scheduled task may read · prototype", tbd: "Open: D / E / F", area: "Area", a_detail: "Task detail", a_new: "New task", opt: "Option", optD: "D Expand in place", optE: "E Platform side panel", optF: "F Switches apply at once", state: "State", lang: "Language", theme: "Theme", light: "Light", dark: "Dark", reset: "Reset",
+      protoTitle: "Data a scheduled task may read · prototype", tbd: "Chosen: F switches apply at once", area: "Area", a_detail: "Task detail", a_new: "New task", opt: "Option", optD: "D Expand in place", optE: "E Platform side panel", optF: "F Switches apply at once", state: "State", lang: "Language", theme: "Theme", light: "Light", dark: "Dark", reset: "Reset",
       st_normal: "4 kinds allowed", st_first: "Just created, none chosen", st_nosource: "No plugin data to read", st_reconfirm: "Needs re-confirming", st_provider: "One kind's plugin is off", st_revoked: "Revoke one kind", st_failed: "Failure",
       tasks: "Scheduled tasks", newBtn: "New", dailyAt: "Daily at {t}", next: "Next {t}", notScheduled: "Not scheduled", enabled: "On", paused: "Paused", needsRe: "Re-confirm", kData: "Reads data", kFiles: "Reads files",
       edit: "Edit", pause: "Pause", archive: "Archive", instr: "Instructions", assistant: "Assistant", system: "System",
@@ -242,7 +242,7 @@
   function renderStrip() {
     const tg = (label, key, values) => M.renderToggleGroup({ label, items: values.map(([v, text]) => ({ value: v, label: text, current: P[key] === v, attrs: { "data-set": key, "data-v": v } })) });
     const options = STATES.map((k) => `<option value="${k}"${P.st === k ? " selected" : ""}>${esc(t("st_" + k))}</option>`).join("");
-    document.getElementById("strip").innerHTML = `<b>${esc(t("protoTitle"))}</b>${M.renderBadge({ label: t("tbd"), tone: "warning" })}
+    document.getElementById("strip").innerHTML = `<b>${esc(t("protoTitle"))}</b>${M.renderBadge({ label: t("tbd"), tone: "success" })}
       <span class="proto-field">${esc(t("opt"))}${tg(t("opt"), "opt", [["D", t("optD")], ["E", t("optE")], ["F", t("optF")]])}</span>
       <span class="proto-field">${esc(t("area"))}${tg(t("area"), "area", [["detail", t("a_detail")], ["new", t("a_new")]])}</span>
       <label>${esc(t("state"))}<select class="mw-select" data-slot="select" id="state">${options}</select></label>

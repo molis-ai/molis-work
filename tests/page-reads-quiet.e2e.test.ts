@@ -34,12 +34,15 @@ test("07-2a N53: the project chooser asks for no project's surfaces and no page 
   await new Promise(resolve => setTimeout(resolve, 3_000));
   assert.equal(reads.count("/api/contextual/surfaces"), 0, `the chooser has no project to ask about: ${JSON.stringify(reads.seen.map(one => one.path))}`);
   assert.equal(reads.count("/favicon.ico"), 0, "the chooser asks for no favicon");
+  // Headless Chrome may not report the favicon fetch on the page session, so the page's own answer is checked too.
+  assert.equal(await browser.evaluate<string>("document.querySelector('link[rel=icon]')?.getAttribute('href') ?? ''"), "data:,", "the chooser answers its icon itself");
 
   reads.seen.length = 0;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && Boolean(document.querySelector('.workbench-bar'))", 30_000);
   await new Promise(resolve => setTimeout(resolve, 3_000));
   assert.equal(reads.count("/favicon.ico"), 0, "a project page asks for no favicon");
+  assert.equal(await browser.evaluate<string>("document.querySelector('link[rel=icon]')?.getAttribute('href') ?? ''"), "data:,", "a project page answers its icon itself");
   const failed = reads.seen.filter(one => one.path === "/api/contextual/surfaces" && (one.status ?? 200) >= 400);
   assert.deepEqual(failed, [], "a project page's surface reads succeed");
   t.diagnostic(`project home load: ${reads.seen.length} requests, ${reads.count("/api/contextual/surfaces")} surface reads`);

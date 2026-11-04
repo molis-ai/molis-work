@@ -1,4 +1,4 @@
-/* 35-2 additions on top of 12's layout layer and kit/coding-proto.css. Tokens only; every part marked "board addition" in app.js. */
+/* 35-2 additions on top of 12's layout layer and ../coding-frame/coding-proto.css. Tokens only; every part marked "board addition" in app.js. */
 
 /* Slash menu: the board's mw-menu, wider, with the command in mono on the left */
 .mw-menu.cmdmenu{width:min(440px,calc(100vw - 32px));max-height:min(460px,70vh);overflow:auto}
@@ -32,7 +32,7 @@
 :root[data-theme="dark"] .thumb i{background:hsl(var(--h) 14% 42%)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .thumb{background:hsl(var(--h) 18% 22%)}:root:not([data-theme="light"]) .thumb i{background:hsl(var(--h) 14% 42%)}}
 .you__imgs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.imgtray{display:flex;gap:8px;padding:10px 12px 0;overflow-x:auto}
+.imgtray{display:flex;gap:8px;padding:10px 12px 0;overflow-x:auto;scrollbar-width:thin}
 .imgtray__item{display:flex;align-items:center;gap:8px;flex:none;max-width:240px;padding:4px 2px 4px 4px;border-radius:10px;background:var(--surface-soft);animation:craft-rise var(--dur-move) var(--ease-quint) both}
 .imgtray__meta{display:grid;gap:2px;min-width:0;font-size:12px}
 .imgtray__meta b{font-weight:500;color:var(--ink-soft)}

@@ -2,7 +2,7 @@
 // the Coding head, the files column (12: directory C), the conversation column, the composer, popovers grown from their trigger,
 // the graphite toast, the 04 recovery frame (12: recovery A) and the "component-board additions" marker. Every control is the
 // component board's own renderer from kit.js (window.mwKit); the layout layer is coding-execution-states/styles.css plus
-// kit/coding-proto.css. A sample calls window.codingProto({...}) with its blocks; nothing here reads a folder, runs a command
+// coding-frame/coding-proto.css. A sample calls window.codingProto({...}) with its blocks; nothing here reads a folder, runs a command
 // or calls a model.
 (() => {
   window.codingProto = function codingProto(cfg) {

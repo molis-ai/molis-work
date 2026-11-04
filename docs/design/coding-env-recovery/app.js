@@ -1,4 +1,4 @@
-// 33 · Coding 任务与环境恢复 — design sample on the shared Coding frame (../kit/coding-proto.js) and the component board's parts.
+// 33 · Coding 任务与环境恢复 — design sample on the shared Coding frame (../coding-frame/coding-proto.js) and the component board's parts.
 // All data is sample data; nothing reads a folder, runs a command or calls a model.
 (() => {
   const Z = (zh, en) => [zh, en];

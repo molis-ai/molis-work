@@ -1,4 +1,4 @@
-// 35-2 · Coding A 期：命令、图片、工具准备与诊断 — design sample on the shared Coding frame (../kit/coding-proto.js) and the
+// 35-2 · Coding A 期：命令、图片、工具准备与诊断 — design sample on the shared Coding frame (../coding-frame/coding-proto.js) and the
 // component board's parts (menus, buttons, status marks, the diff view, the media zoom). All data is sample data; nothing reads a
 // folder, runs a command, downloads a tool or calls a model.
 (() => {

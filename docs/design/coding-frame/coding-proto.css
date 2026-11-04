@@ -82,5 +82,6 @@ html.show-new:lang(en) [data-new]::before{content:"Board addition · " attr(data
 .c-column>*{min-width:0}
 .c-column .rise>*{min-width:0;max-width:100%}
 .box__foot .cap.ell{min-width:0}
-@media (max-width:560px){.hint{flex-wrap:wrap;padding:8px 8px 8px 12px}.hint .grow{flex:1 1 calc(100% - 32px);white-space:normal}.hint .acts{flex-wrap:wrap;margin-left:auto}}
+@media (max-width:560px){.hint{flex-wrap:wrap;padding:8px 8px 8px 12px}.hint .grow{flex:1 1 calc(100% - 32px);white-space:normal}.hint .acts{flex:1 1 100%;flex-wrap:wrap;justify-content:flex-end;min-width:0}}
 @media (max-width:560px){.round>.ell{white-space:normal;line-height:24px}.round:has(.sumchip)::after{display:none}}
+@media (max-width:560px){.box__foot .cap.ell{display:none}}

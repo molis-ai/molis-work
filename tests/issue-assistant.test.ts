@@ -82,7 +82,7 @@ async function assistantHome(t: TestContext) {
 /** The model replies are scripted; HTTP, Prologue, confirmation, Action Host and SQLite are real. */
 test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal and stale versions do not write", { timeout: 120_000 }, async t => {
   const { replies, requests, request, list, state, send } = await assistantHome(t);
-  const change = (capability_id: string, input: unknown) => reply({ name: "change-capability", input: { capability_id, version: capability_id === "issues.delete" ? 1 : 2, provider_id: ISSUES_PLUGIN_ID, input } });
+  const change = (capability_id: string, input: unknown) => reply({ name: "change-capability", input: { capability_id, version: 1, provider_id: ISSUES_PLUGIN_ID, input } });
   const input = { title: "按确认标题记录", type: "experience", description: "  我的原话\n第二行。\n" };
   const decide = (id: string, view: AssistantWorkView, decision: "approve" | "reject") => request(`/api/assistant/works/${id}/reviews/${view.reviews[0]!.review_id}`, { decision });
   {

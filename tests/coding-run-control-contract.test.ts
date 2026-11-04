@@ -24,10 +24,10 @@ function rejected(value: unknown): void {
   assert.throws(() => assertActionInput(schema, value), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");
 }
 
-// ADOPT-CONTROL-V2-01, RC-01, RCPT-321: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5; 6: withdraw, and a supplement's about, specs/ai-input-receipts 3b-2a; 7: a supplement's source, RCPT-368, BL-144).
-test("coding.runs.control uses version 8 and remains exclusive to the person at this computer", () => {
+// ADOPT-CONTROL-V2-01, RC-01, RCPT-321: the current control input and owner restriction survive the version reset.
+test("coding.runs.control uses version 1 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 8);
+  assert.equal(control.definition.version, 1);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 

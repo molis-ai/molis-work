@@ -44,8 +44,8 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
     [{ ...base, database_path: other.database_path }, "actions.scope_mismatch"],
     [{ ...base, project_id: other.project_id }, "actions.scope_mismatch"],
     [{ ...base, capability: { ...base.capability, provider_id: "forged" } }, "actions.input_invalid"],
-    // S8 (PLIB-15): the action is at version 2 now, so the version the platform no longer serves is 1 (replaced, not kept beside it) and 3 is the one that never existed.
-    [{ ...base, capability: { ...base.capability, version: 1 } }, "actions.dependency_missing"],
+    // S8 (PLIB-15): the reset action is at 1; the previously served version 2 and the unused version 3 are both refused.
+    [{ ...base, capability: { ...base.capability, version: 2 } }, "actions.dependency_missing"],
     [{ ...base, capability: { ...base.capability, version: 3 } }, "actions.dependency_missing"],
     [{ ...base, capability: { capability_id: "goals.progress.record", version: 1 } }, "actions.dependency_missing"],
   ];

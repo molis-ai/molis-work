@@ -54,7 +54,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     assert.deepEqual(JSON.parse(sandbox.stdout), { effects: { storage: ["read", "write"] }, entry: "./plugin.mjs", scope: "home", requires: [["ui.plugin-presentation", 1]] });
     const definition = (await import(pathToFileURL(join(project, "index.mjs")).href)).default as PluginDefinition;
     assert.equal(definition.manifest.plugin_id, validated.plugin_id);
-    assert.equal(definition.manifest.schema_version, 2);
+    assert.equal(definition.manifest.schema_version, 1);
     const action = (suffix: string) => definition.manifest.actions!.find(value => value.capability_id === definition.manifest.plugin_id + "." + suffix)!;
     const publicHealth = action("health"), readResult = action("results.read"), publishResult = action("results.publish");
     assert.ok(publicHealth && readResult && publishResult);

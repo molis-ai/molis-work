@@ -26,7 +26,7 @@ function manifest() {
 test("public Manifest parser preserves author declarations and rejects unsupported Host API before use", () => {
   const input = manifest();
   assert.deepEqual(parsePluginManifest(input), input);
-  assert.throws(() => parsePluginManifest({ ...input, host_api_version: 1 }),
+  assert.throws(() => parsePluginManifest({ ...input, host_api_version: 2 }),
     (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid"
       && error.message.includes("host_api_version"));
 });
@@ -89,7 +89,7 @@ test("real Plugin CLI validates in a clean directory without executing entrypoin
     assert.deepEqual(JSON.parse(valid.stdout), { valid: true, plugin_id: "io.molis.work.example.notes", version: "1.0.0" });
     assert.equal(readFileSync(manifestPath, "utf8"), bytes);
     assert.equal(existsSync(join(directory, "executed")), false);
-    writeFileSync(manifestPath, JSON.stringify({ ...manifest(), host_api_version: 1 }));
+    writeFileSync(manifestPath, JSON.stringify({ ...manifest(), host_api_version: 2 }));
     const incompatible = invoke("validate", manifestPath);
     assert.equal(incompatible.status, 1);
     assert.equal(JSON.parse(incompatible.stderr).code, "plugin.manifest_invalid");

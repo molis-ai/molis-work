@@ -1,6 +1,6 @@
 # 确定组合平台服务（路线书 15 ①）
 
-状态：设计稿，2026-11-04 写，没有实现。写在 C3（只写设计稿和核查）；实现等[05②](https://github.com/molis-ai/molis-work/pull/1771)的呈现合同（C-2、C-3）、第 14 批 A 段的 `TextRef` 合入和 C 轨交接；服务骨架 S-1 不等第 16 批，首页与接页面的片在第 16 批切换之后合入（第 12 节第 7 条，统筹 11-04 定）。第 7 节对着第 15 批的基础首页定样写，请 D 轨共审；第 4 节和第 12 节牵涉合同，请 C 轨看。现状核查见[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。05② 的稿子（`specs/shared-sources-and-surfaces/spec.md`）和基础首页定样（`docs/design/basic-home/`）还在 #1771、#1778 上，合入 main 后把这里的链接改成仓库内链接。
+状态：设计稿，2026-11-04 写，没有实现。写在 C3（只写设计稿和核查）；实现等[05②](https://github.com/molis-ai/molis-work/pull/1771)的呈现合同（C-2、C-3）、第 14 批 A 段的 `TextRef` 合入和 C 轨交接；服务骨架 S-1 不等第 16 批，首页与接页面的片在第 16 批切换之后合入（第 12 节第 7 条，统筹 11-04 定）。第 7 节对着第 15 批的基础首页定样写，D 轨 11-04 共审过；第 4 节和第 12 节牵涉的合同缺口 C 轨 11-04 已同意，收进 C-2、C-3。现状核查见[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。05② 的稿子（`specs/shared-sources-and-surfaces/spec.md`）和基础首页定样（`docs/design/basic-home/`）还在 #1771、#1778 上，合入 main 后把这里的链接改成仓库内链接。
 
 ## 0. 给人讲清楚
 
@@ -213,6 +213,7 @@ surface_corrections        项目库
 | 「合并了哪件」 | 被合并的对象挂在留下的那个下面（第 12 节第 5 条：`SurfaceItem` 要能带被合并的对象） |
 | 行用主按钮 | 每行的 primary 操作；「等你」组之外的行只给次按钮 |
 | Inbox 停用时「少算了几件」 | 停用插件的「等你」条目不放，组上写 `excluded: [{ plugin_id, count, reason: "disabled" }]`（第 12 节第 4 条）。`reason` 只有 `disabled`，没有 `forbidden`：「有几件你看不了」本身就是泄露 |
+| 点了某一行的操作，这一行就地变成回执「已验收 · 撤销」（D 轨共审补） | 服务不另给回执字段，回执由页面按第 10 节画：字取自动作元数据里结果的说法（同 6.4，不由声明自称）；「撤销」只在动作声明了反向操作时才给；回执留到下一份描述的 revision 到来为止，之后按新描述画（这件事已不在「等你」就消失）。同一件事在对话里那张卡也跟着变，靠的是同一个变更事件和调用记录（第 10 节） |
 
 「等你」只从 attention-resumption 来；呈现声明里的 `attention` 只管色点和状态标签，不产生条目（05② SSC-11）。Feed 同步来的资料不进「等你」，所以首页的「等你」本来就不把它算成工作（WBR-24、BL-098）。
 
@@ -236,8 +237,8 @@ surface_corrections        项目库
 | Goals 读不到：显示 2 小时前的值，标「读不到」，给「再读一次」 | 卡片 `state: "stale"`、`read_at`；行照 6.5 | 对象级有；插件卡这一级要第 4 条 |
 | Inbox 已停用：「已停用，内容都还在」，给「启用」 | 卡片 `state: "disabled"`，操作是平台动作 `plugins.installed.enable@1`（只给本人） | **没有**（第 4 条） |
 | 没有声明首页内容的插件：只显示名字和「打开」 | 卡片 `state: "undeclared"` | **没有**（第 4 条） |
-| Feed 的行标「本项目」「个人」 | 行的一个字段，值由 Feed 按真实项目关联给 | 字段角色里没有对应的（第 12 节第 6 条） |
-| Inbox 的「要紧 · 对上『手机排版』」 | 判断标签加理由 | 字段角色里没有对应的（第 6 条） |
+| Feed 的行标「本项目」「个人」 | 字段角色 `held_in`，值由 Feed 按真实关联给；只在一处同时出现两种值时才显示 | **没有**，D 轨定加（第 12 节第 6 条） |
+| Inbox 的「要紧 · 对上『手机排版』」 | 字段角色 `judgment`：标签加理由，主人给 | **没有**，D 轨定加（第 6 条） |
 
 卡片的顺序：有「等你」的插件在前，其余按插件在 Dock 里的顺序；不按插件名写死。
 
@@ -332,7 +333,7 @@ surface_corrections        项目库
 
 ## 12. 要定的事
 
-前五条是合同缺口，C 轨 2026-11-04 评审已同意收进 C-2、C-3（[#1798 评论](https://github.com/molis-ai/molis-work/pull/1798#issuecomment-6636296876)），形状照下面写；C 轨等 #1771 合入后用一个文档 PR 并进 05② 第 5、6 节，合同的写法只留那一处。第 6 条请 D 轨定；第 7 条请统筹看。
+前五条是合同缺口，C 轨 2026-11-04 评审已同意收进 C-2、C-3（[#1798 评论](https://github.com/molis-ai/molis-work/pull/1798#issuecomment-6636296876)），形状照下面写；C 轨等 #1771 合入后用一个文档 PR 并进 05② 第 5、6 节，合同的写法只留那一处。第 6 条 D 轨已定，第 7 条统筹已定，都写在下面。
 
 1. **插件级的概况声明（C 轨已收）。** 首页每张插件卡要「一句概况、说明、前几个对象、开始入口」，05② 原来只有对象级的声明。
    - 在 `presentation` 里加 `overview: { capability_id, version, note_key? }`，指向本插件自己的一个 query 动作。
@@ -345,7 +346,9 @@ surface_corrections        项目库
 3. **给人看的字都用 `TextRef`（C 轨已收）。** 不只是分组标题，「另有 N 件」「同一件事」也是。所以 C-3 排在第 14 批 A 段的 `TextRef` 合入之后。
 4. **按种类区分的组（C 轨已收）。** `SurfaceGroup = { kind: "attention" | "continue" | "plugin" | "slot"; owner_plugin_id?（只在 plugin 组）; state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared"; read_at?; excluded?; hidden_above?; title?: TextRef; items }`。`undeclared`、`disabled` 只用在 plugin 组，用错了 `assertSurfaceDescription` 拒绝；`excluded` 的 `reason` 只有 `disabled`。停用卡的「启用」引用 `plugins.installed.enable@1`。
 5. **被合并的对象（C 轨已收）。** `SurfaceItem` 加 `merged?: Array<{ subject; owner_plugin_id; relation }>`；contracts 的 `modules/context-ledger` 加平台关系类型表，先放 `created_from`，由执行「从这件新建」的平台路径写（context-program §3.3 的 `intake`）。现有的 `placement.derived_from` 怎样并进这张表，随 C-3 定。
-6. **两个字段角色（请 D 轨定）。** Inbox 的「要紧 · 对上『手机排版』」是判断标签加理由（智能呈现 §8 第一条），Feed 的「本项目」「个人」是归属。05② 的 16 个角色里没有对应的。建议加 `judgment`（标签加理由）和一个归属角色（`project`／`personal`）；归属这个角色不叫 `scope`，会和动作的 `scope`、`AssistantScope` 撞名（C 轨评审），名字由 D 轨定。D 轨认为能用现有角色画，就写明映射。
+6. **两个字段角色（D 轨定，2026-11-04，[#1798 评论](https://github.com/molis-ai/molis-work/pull/1798#issuecomment-6636597572)；由 C 轨在 C-2、C-3 里收进合同）。** 现有 16 个角色都画不出这两样，硬套会把意思弄错：「要紧」不是生命周期状态，放进 `status` 会去改状态环；「本项目」「个人」不是来源，放进 `origin` 会和「从邮件来」这类值混在一起。加上这两个，一共 18 个角色。
+   - **`judgment`：判断标签加理由。** 值的形状是 `{ label: TextRef; reason?: string }`：`label` 是主人声明过的词（「要紧」）；`reason` 是主人给的一句话（「对上『手机排版』」），平台不生成、不改写。理由里提到的对象如果要能点开，另放一个 `relation` 字段，不塞进 `reason`。这个词和术语表里的「判断规则」（`modules/judgment-rules`）是同一个：Inbox 的判断标签就是判断记录的结果。四种形态怎么画：名字片不显示；行里是一个带主人色的徽标，标签和理由写在一起，太长先省略，600px 以下不显示（卡片里还有）；卡片里一行徽标；速览里是徽标，理由写全。
+   - **`held_in`：这一项挂在哪里，值只有 `"project"` 和 `"personal"`。** 不叫 `scope`（和动作的 `scope`、`AssistantScope` 撞名，C 轨评审），也不叫 `reach`（合同里的 `project_reach` 说的是 Home 级插件能到哪些项目，是另一件事）。值由主人按真实关联给出（Feed 按订阅属于项目还是个人），平台只校验是不是这两个值之一，不推断。只在一处同时出现两种值时才显示，比如基础首页的 Feed 卡，用中性的徽标写「本项目」「个人」；全是 `project` 的地方不显示。
 7. **合入时机（统筹 2026-11-04 定，[#1798 评论](https://github.com/molis-ai/molis-work/pull/1798#issuecomment-6636404522)）。** 批次文件「在 16 的切换之后合入」管的是声明稳定键的部分和接到页面上的消费者。S-1 两样都不碰，所以**不等 16，可以先合**，条件四个：
    1. S-1 不改任何页面，不登记 DOM 事件，不加界面翻译；四处位置在 S-1 里只有组合规则和测试，接页面归消费者那一片；
    2. S-1 里给人看的字只引用插件目录已经声明的 `TextRef` 键，本片不新声明稳定键；测试用的键只放在测试夹具里；

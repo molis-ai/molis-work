@@ -106,6 +106,7 @@
 | BL-373 | 助理的注意规则选不到创作台装的 Runtime 插件页面：PG-036-1 让写规则时只认已装插件的页面（`apps/local-host/src/assistant/assistant-pages.ts` 取各项目显示的插件页面，再加 `home`），但创作台装的 Runtime 插件由 `plugin-builder/agent-surface.ts` 的 `installedPluginStages` 列出，要项目库和 Coding 服务，不在这份列表里，给它们写规则会被拒。原来的 SURFACES 枚举本来也不含它们，不算回归 | PR #845（PG-036-1） | 已知缺口 | 「项目里装了哪些页面」现在有两个来源（显示的插件目录、创作台装的阶段），应由平台给一份；做法和创作台的去向（`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 行）一起定 | 创作台去向 | 低 | ③（防腐线） |
 | BL-956 | 统一输入重做承接 #631。第 10 批交可复用输入组件，第 11 批接入助理等入口，第 53 批再接本机语音。旧原型按现行交互重新核准。 | [旧 PR #631](https://github.com/molis-ai/molis-work/pull/631)、[现行需求](unified-input-voice/spec.md) | 明确后续做 | 旧 PR 已关闭，未采用原整片交互 | 各批的定样与合同 | 中 | A 轨（具体会话待分配） |
 | BL-957 | 成果页按本项目可用执行方呈现委派入口。当前仍查 Coding 的侧栏节点，并把 Coding id 写死在交办事件里。助理接收端已有可用执行方清单。 | [旧评审 #1185](https://github.com/molis-ai/molis-work/pull/1185#issuecomment-6381652434) | 已知缺口 | 发送端与接收端的发现规则不同 | 成果与助理入口协作 | 中 | 待分配 |
+| BL-962 | 助理选项目角色时，Characters 为单条损坏的发布记录给出诊断，其余合法版本仍可选。列表读取失败时，选择器显示错误，不同时声称项目还没有角色。核对一次打开选择器重复枚举发布记录的成本。 | [旧评审和统筹裁定 #1211](https://github.com/molis-ai/molis-work/pull/1211)、PG-086 | 已知缺口 | 选择器已显示请求错误，随后仍按空数组画“还没有发布”；每个版本的 runnable 都重新经 selectPublication 读该项目的发布。 | Characters 提供结果与诊断，助理消费；实际运行时重新核对所选版本 | 中 | Characters 主人、A 轨助理（具体会话待分配） |
 
 ## 4. 搜索、放置与工作流
 

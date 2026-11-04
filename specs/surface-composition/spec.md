@@ -1,6 +1,6 @@
 # 确定组合平台服务（路线书 15 ①）
 
-状态：设计稿，2026-11-04 写，没有实现。写在 C3（只写设计稿和核查）；实现等[05②](https://github.com/molis-ai/molis-work/pull/1771)的呈现合同（C-2、C-3）合入和 C 轨交接，合入排在第 16 批的切换之后。第 7 节对着第 15 批的基础首页定样写，请 D 轨共审；第 4 节和第 12 节牵涉合同，请 C 轨看。现状核查见[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。05② 的稿子（`specs/shared-sources-and-surfaces/spec.md`）和基础首页定样（`docs/design/basic-home/`）还在 #1771、#1778 上，合入 main 后把这里的链接改成仓库内链接。
+状态：设计稿，2026-11-04 写，没有实现。写在 C3（只写设计稿和核查）；实现等[05②](https://github.com/molis-ai/molis-work/pull/1771)的呈现合同（C-2、C-3）、第 14 批 A 段的 `TextRef` 合入和 C 轨交接；服务骨架 S-1 不等第 16 批，首页与接页面的片在第 16 批切换之后合入（第 12 节第 7 条，统筹 11-04 定）。第 7 节对着第 15 批的基础首页定样写，请 D 轨共审；第 4 节和第 12 节牵涉合同，请 C 轨看。现状核查见[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。05② 的稿子（`specs/shared-sources-and-surfaces/spec.md`）和基础首页定样（`docs/design/basic-home/`）还在 #1771、#1778 上，合入 main 后把这里的链接改成仓库内链接。
 
 ## 0. 给人讲清楚
 
@@ -321,7 +321,7 @@ surface_corrections        项目库
 | S-2 首页位置 | `home` 的三组、插件概况读取、去重与「另有 N 件在上面」、停用与读不到 | C3 | S-1；第 12 节第 1、4 条进合同；工作记录读取（21／28，没交就先不出「接着做」） |
 | 消费者 | 四种形态的组件、页面接线、Goals／Inbox／Coding 的声明（第 15 批第 2 项）；基础首页与 Feed 归属（第 3 项）；现有分支退出（核账） | D 轨、E 轨、各插件 | S-1；首页用 S-2 |
 
-两片服务都在一个分支上叠，S-1 做完开 PR；合入排在第 16 批切换之后（本批前置）。
+两片服务都在一个分支上叠，S-1 做完开 PR。S-1 按第 12 节第 7 条的四个条件不等 16，排在 C-2、C-3 和第 14 批 A 段 `TextRef` 之后合入；S-2 和接页面的片在第 16 批切换之后合入（统筹 2026-11-04 定）。
 
 门禁与测试：
 
@@ -346,7 +346,11 @@ surface_corrections        项目库
 4. **按种类区分的组（C 轨已收）。** `SurfaceGroup = { kind: "attention" | "continue" | "plugin" | "slot"; owner_plugin_id?（只在 plugin 组）; state: "ok" | "unreadable" | "stale" | "disabled" | "undeclared"; read_at?; excluded?; hidden_above?; title?: TextRef; items }`。`undeclared`、`disabled` 只用在 plugin 组，用错了 `assertSurfaceDescription` 拒绝；`excluded` 的 `reason` 只有 `disabled`。停用卡的「启用」引用 `plugins.installed.enable@1`。
 5. **被合并的对象（C 轨已收）。** `SurfaceItem` 加 `merged?: Array<{ subject; owner_plugin_id; relation }>`；contracts 的 `modules/context-ledger` 加平台关系类型表，先放 `created_from`，由执行「从这件新建」的平台路径写（context-program §3.3 的 `intake`）。现有的 `placement.derived_from` 怎样并进这张表，随 C-3 定。
 6. **两个字段角色（请 D 轨定）。** Inbox 的「要紧 · 对上『手机排版』」是判断标签加理由（智能呈现 §8 第一条），Feed 的「本项目」「个人」是归属。05② 的 16 个角色里没有对应的。建议加 `judgment`（标签加理由）和一个归属角色（`project`／`personal`）；归属这个角色不叫 `scope`，会和动作的 `scope`、`AssistantScope` 撞名（C 轨评审），名字由 D 轨定。D 轨认为能用现有角色画，就写明映射。
-7. **合入时机。** 本批前置写「合入在 16 的切换之后」；S-1 不改任何现有页面，只加服务和动作，是否也要等 16，请统筹定。不等的话 S-1 可以先合，消费者再等 16。
+7. **合入时机（统筹 2026-11-04 定，[#1798 评论](https://github.com/molis-ai/molis-work/pull/1798#issuecomment-6636404522)）。** 批次文件「在 16 的切换之后合入」管的是声明稳定键的部分和接到页面上的消费者。S-1 两样都不碰，所以**不等 16，可以先合**，条件四个：
+   1. S-1 不改任何页面，不登记 DOM 事件，不加界面翻译；四处位置在 S-1 里只有组合规则和测试，接页面归消费者那一片；
+   2. S-1 里给人看的字只引用插件目录已经声明的 `TextRef` 键，本片不新声明稳定键；测试用的键只放在测试夹具里；
+   3. S-2（首页）和各处位置接页面的片，照批次文件在 16 的切换之后合入；
+   4. S-1 排在 05② 的 C-2、C-3 和第 14 批 A 段的 `TextRef` 合入之后；动作快照变了，在 PR 里写对调用方的影响。
 
 ## 13. 验收编号（候选）
 

@@ -33,9 +33,11 @@ interface SessionRead {
 const known = (mode: string) => {
   if (!CODING_EXECUTOR_MODES.some(entry => entry.id === mode)) throw executorErrors.executor_mode_unknown(`Coding 没有「${mode}」这种方式`);
 };
-/** The directory new rounds run in, picked as the page's directory read picks it: the project's browsing workspace, else its preferred one. */
-const currentWorkspace = async (api: PluginActionClient) =>
-  await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null);
+/**
+ * The directory a round the Assistant starts runs in: the project's preferred one. Not the folder Files and Git browse — looking around
+ * there must not move where work runs (batch 12 item 1, BL-023).
+ */
+const currentWorkspace = async (api: PluginActionClient) => await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null);
 /** The session's next-round settings as Coding keeps them, or null when none were chosen. */
 const kept = (a: CodingActivation, sessionId: string): Settings | null => {
   const saved = a.context.services?.storage?.get(`configuration:${sessionId}`);

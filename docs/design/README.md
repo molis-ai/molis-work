@@ -19,6 +19,7 @@
 | [onboarding-full-journey/](onboarding-full-journey/README.md) | Onboarding 全程的可点定样：首次使用、新项目、已有项目加做法、从 Coding 的缺项进入再回去；全部画在打开软件时那套沉浸式全屏框架里（开场大字、一问一景、底栏步骤条与 ↵），含失败、改范围、部分采用失败与重启接续 | 用户已批准（2026-11-04）；产品未实现；首页与成员编辑是占位，里面是示例数据 |
 | [coding-execution-states/](coding-execution-states/README.md) | 第 12 批 Coding 执行的可点定样：目录（执行目录、临时查看、冻结、输出不见了）、规则和模式（只读提示与切换、规则来源）、恢复（失败、结果未知、取消、超时、被系统结束、重启后、等待前一步，沿用 04 的恢复框架）、计划卡与任务板按位置编号；每块 A／B／C 三个方案，中英文、浅深色 | 用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
 | [service-connections/](service-connections/README.md) | 服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒 | 用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据 |
+| [sessions-sources/](sessions-sources/README.md) | 第 22 批外部会话定样：发现会话、归属建议、查看历史三块，各两到三个方案，含读取中、来源没读成、没有会话、模型不可用、改选后来了新建议、读到一半断了、这一版读不了、已停止读取；按组件板实件做 | 用户已定（2026-11-04：B 按时间排加来源条、B 待归类集中处理、A 原文对话，记在 [Sessions 需求 §8](../../specs/sessions-rebuild/spec.md#8-决策记录)）；产品未实现；里面是示例数据 |
 | [molis-work-onboarding/](molis-work-onboarding/proposal.md) | 「从已有工作开始」的引导与项目创建方案 | 流程与数据边界仍有效；视觉由 Soft Workbench 引导窗口取代 |
 | [ui-renewal-2026-09-21/](ui-renewal-2026-09-21/README.md) | 设计讨论、研究与共识 | 历史参考 |
 | [immersive-workbench/](immersive-workbench/README.md) | 画布中心工作台原型（Linear 方向） | 历史原型，视觉已被取代 |

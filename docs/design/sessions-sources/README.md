@@ -1,6 +1,6 @@
 # 外部会话：可点的定样（路线书第 22 批）
 
-状态：定样中（2026-11-04），等用户三处各挑一个方案；产品代码还没写。
+状态：用户已定（2026-11-04）：发现会话 B 按时间排加来源条、归属建议 B 待归类集中处理、查看历史 A 原文对话，都是推荐方案；决定记在[原需求 §8](../../../specs/sessions-rebuild/spec.md#8-决策记录)。没选的方案留在原型里作对照，不再实施。产品代码还没写。
 
 这是参考原型，不是产品界面。需求来源：[Sessions 重做](../../../specs/sessions-rebuild/spec.md) §1.2「获准后自动发现」、§1.3「项目归属」、§3「读取可展示历史」，验收 SRB-02、08、12～16。来源盘点见[来源盘点](../../../specs/sessions-rebuild/source-inventory-2026-11.md)，排期见[第 22 批](../../../specs/post-anticorruption-roadmap/reference/batches/22.md)。
 

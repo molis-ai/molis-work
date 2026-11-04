@@ -102,7 +102,7 @@ type BlueprintProposal =
   | { kind: "role"; template: RoleTemplate }                              // 第 5 节
   | { kind: "setting"; key: string; value: SandboxJson }                  // 第 4 节，key 是主人声明的设置项
   | { kind: "connection"; category: string; purpose: TextRef }            // 需要哪类服务的账号；不带凭据
-  | { kind: "content"; type: string; body: SandboxJson };          // type 写成带主人前缀的类型 id，如 molis.home-page.v1、<主人>.<名字>.v1                 // 交给声明接受这种内容的主人（第 8 节）：首页、工作流程、项目说明草稿……
+  | { kind: "content"; type: string; body: SandboxJson };          // 交给声明接受这种内容的主人（第 8 节）：首页、工作流程、项目说明草稿……；type 写成带主人前缀的类型 id，如 molis.home-page.v1、<主人>.<名字>.v1
 ```
 
 每种建议对应一个主人和一条采用路径：
@@ -223,7 +223,7 @@ interface RoleTemplate {
 
 这个 Home 的发布身份归宿主的创作台（`apps/local-host/src/plugin-builder/publisher-identity.ts` 的 `studioPublisherIdentity`，「只在明确发布时调用」，撤销见 S-87）。插件、`horizontal/blueprints` 都不拿私钥，也不直接调签名（密钥只给引用）。所以加一个平台签名入口，归发布身份的主人：
 
-- **`plugins.local_packages.sign@1`**（command，只给 `user`，提供方是发布身份的主人）：输入包的种类（`content` 或 `page`）、Manifest 与文件；输出 `plugins.install.preview` 的 `preview_id`。每次调用就是一次明确的发布。首页提供方的「采用这一页」、场景服务的 `packs.save`、外部 Skills 导入（08 第 6 节）都在本人的调用里嵌套调它，带本人的上下文（第 7 节），只交文件，拿回 `preview_id`。
+- **`plugins.local_packages.sign@1`**（command，只给 `user`，提供方是宿主的 `plugin-install`，和 `plugins.install.preview`、`plugins.installed.enable` 同一个；它在宿主里调发布身份的签名函数，创作台不另注册动作）：输入包的种类（`content` 或 `page`）、Manifest 与文件；输出 `plugins.install.preview` 的 `preview_id`。每次调用就是一次明确的发布。首页提供方的「采用这一页」、场景服务的 `packs.save`、外部 Skills 导入（08 第 6 节）都在本人的调用里嵌套调它，带本人的上下文（第 7 节），只交文件，拿回 `preview_id`。
 - **来源**：签名入口按调用上下文里的上一层（哪个提供方、哪个动作）写一份随包签名的来源记录：`ai_generated`（助理按 Skill 生成）、`imported`（从本机导入）、`saved`（另存）。来源不从输入读。安装预览在发布者「这个 Home」旁边写出来源，例如「这个 Home · AI 生成的页面」，让本人在 S-84 的确认里看得到这份代码是怎么来的。
 - 它不装、不授予：装仍是 S-84 那一条路。
 
@@ -348,10 +348,10 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 ## 13. 要定的事
 
 1. **页面形态 A 还是 B**（第 6 节）。这是对 Work Brief §2「页面定义归 Work Brief」的落法：A 下，页面的源文件、版本与恢复仍归首页提供方，运行中的那一份是一个插件安装，代价是要加一条「装入的页面脚本」安全不变量（装进来的包第一次带自己的 JS 进框架）；B 下全部归首页提供方，但要新增授权主体、改 S-47。推荐 A，合同台同意。要用户拍板，请统筹问。
-2. **草稿采用时不必先打包**（第 3 节）：只有要装的新东西（Skill、页面代码）才签名打包。请统筹确认这符合 #1793 裁定第 3 条。
-3. **场景服务放在 `horizontal/blueprints`**，草稿与采用记录在它自己的 Home 库（第 7 节）。请统筹确认。
+2. **草稿采用时不必先打包**（第 3 节）：只有要装的新东西（Skill、页面代码）才签名打包。合同台 2026-11-04 核过，符合 #1793 裁定第 3 条的更正（个人场景包、AI 生成的草稿、外部导入都用这个 Home 已有的发布身份）。
+3. **场景服务放在 `horizontal/blueprints`**，草稿与采用记录在它自己的 Home 库（第 7 节）。合同台 2026-11-04 确认，与第 21 批 D2 同一做法。
 4. **界面名统一成「场景包」**（第 3 节）：「场景方案」「方案」不再用；用户 11-04 定的「官方场景套组」要不要改称「官方场景包」，是改用户定过的名字，请统筹问用户。英文键 `blueprint`。
-5. **平台签名入口** `plugins.local_packages.sign@1` 归发布身份的主人（今天是宿主的创作台），只给本人，每次是一次明确发布（第 6.1 节）。请统筹确认归属。
+5. **平台签名入口** `plugins.local_packages.sign@1`：合同台 2026-11-04 定，提供方是宿主的 `plugin-install`（和安装预览、启用同一个），在宿主里调发布身份的签名函数；发布身份本身留在原处。创作台是批过的构建期例外（BL-377 重做），不往它身上加动作。只给本人，每次是一次明确发布（第 6.1 节）。
 
 ## 14. 验收编号（候选）
 

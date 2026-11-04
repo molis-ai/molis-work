@@ -142,9 +142,15 @@ my-skill-plugin/
 | `resources` | `SkillResourceDeclaration[]`，见下 | 可选 | 可选 |
 | `connector_categories` | 正文里用到的连接器类别占位符，如 `project-tracker`，取值见[助理统一接入服务](../assistant-service-connections/spec.md) | 可选 | 可选 |
 
-`applies_to` 和 `description` 在 `methods` 里必填。main 上已有三个内置插件声明了 `methods`：Todo（`plugins/native/todo/src/manifest.ts`）、Issues（`plugins/native/issues/src/manifest.ts`）、Pages（`plugins/native/pages/src/manifest.ts`），经 `apps/local-host/src/plugin-instructions.ts` 的 `declaredMethods` 在运行时登记。改成必填后，这三份 Manifest 要在同一个改动里补上，否则会被拒。它们是 E 轨独占的文件，按轨道规则 7 由 E 轨落，C-1 叠在后面（第 12 节）。沙箱 app 包的方法由宿主派生，C-3 一并补齐。（2026-11-04 更正，依据 09 核账 #1804，统筹裁定。）
+`applies_to` 和 `description` 在 `methods` 里最终必填，分两步改，中间不让任何现有插件装不上（合同台评审 2026-11-04 查出）：
 
-**`tools` 在 Coding 里只当说明**（统筹 2026-11-04 定）：方法的 `tools` 取值只能在 `SKILL_TOOLS` 里，这是声明检查。Coding 开轮时不拿它和角色的 `host_tools` 比较，也**永远不能用它扩大 Coding 角色的 `host_tools`**。要有一条测试断言这一点：给 Coding 角色选一个声明了它没有的工具的方法，开轮后那个工具仍不可用。现在开轮时的比较（`horizontal/agent-host/src/index.ts` 的方法工具检查）随第 09 批的 9-5 改掉；C-1 只定合同上的说法。
+1. **C-1 把两个字段加进 `AgentSkillDeclaration`，先是可选。** 没有这两个字段之前，插件写进去过不了类型检查，所以合同必须先落。
+2. **E 轨补上取值。** main 上已有三个内置插件声明了 `methods`：取值写在 `plugins/native/todo/src/roles.ts`（`todoSkills`）、`plugins/native/issues/src/skills.ts`、`plugins/native/pages/src/skills.ts`，各自的 `manifest.ts` 只是映射过去，经 `apps/local-host/src/plugin-instructions.ts` 的 `declaredMethods` 在运行时登记。这三处是 E 轨的文件，按轨道规则 7 由 E 轨落，叠在 C-1 后面。
+3. **改成必填和 C-3 放在同一片**：C-3 把沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明，包自己带上这两个字段，宿主不再替它派生、也不替它编默认值。这样改成必填的那一刻，没有一个现有包会被拒。
+
+（2026-11-04 更正，依据 09 核账 #1804，统筹裁定；分步依据合同台评审。）
+
+**`tools` 在 Coding 里只当说明**（统筹 2026-11-04 定）：方法的 `tools` 取值只能在 `SKILL_TOOLS` 里，这是声明检查。Coding 开轮时不拿它和角色的 `host_tools` 比较，也**永远不能用它扩大 Coding 角色的 `host_tools`**。要有一条测试断言这一点：给 Coding 角色选一个声明了它没有的工具的方法，开轮后那个工具仍不可用。现在开轮时的比较（`horizontal/agent-host/src/index.ts` 的方法工具检查，`role_execution_exceeded`）对所有角色都生效；第 09 批的 9-5 把它对 Coding 角色改掉，别的执行方式由 9-5 一并核定。`tests/agent-host.test.ts` 里断言这条拒绝的用例，到时记成预期变化，由 SKC-13 接替。C-1 只定合同上的说法。
 
 ```ts
 interface SkillResourceDeclaration {
@@ -398,9 +404,9 @@ interface SkillCatalogEntry {
 
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
-| C-1 声明合同 | contracts：`PluginKind` 的 `"content"`、`AgentSkillDeclaration` 的新字段、`SkillResourceDeclaration`、`SkillRef`、内容包的文件常量。SDK：`inspectContentPlugin`、扩展后的 `inspectSkillDeclarations`、`skillDeclarationFromFrontmatter`、内容包的解析。GLOSSARY 加一行；刷新 api 快照。Todo、Issues、Pages 三份 Manifest 补 `applies_to`、`description` 的改动由 E 轨落（规则 7），本片叠在它后面。给第 09 批 9-1 留位：委派协议的「本轮技能」用 `SkillRef` | 02 交接；#1762 合入；E 轨补好三份 Manifest |
+| C-1 声明合同 | contracts：`PluginKind` 的 `"content"`、`AgentSkillDeclaration` 的新字段、`SkillResourceDeclaration`、`SkillRef`、内容包的文件常量。SDK：`inspectContentPlugin`、扩展后的 `inspectSkillDeclarations`、`skillDeclarationFromFrontmatter`、内容包的解析。GLOSSARY 加一行；刷新 api 快照。新字段先是可选；E 轨随后补上 Todo、Issues、Pages 的取值，改成必填随 C-3 一起做（第 4.2 节）。给第 09 批 9-1 留位：委派协议的「本轮技能」用 `SkillRef` | 02 交接；#1762 合入 |
 | C-2 目录、设置与导入的动作合同 | `services/skills.ts`：第 6、7、8 节的六个动作声明、`SkillCatalogEntry` 与 `SkillUnavailableReason`；`plugins.install.preview` 的 `skills` 与 `requires`；`plugins.bundled.list@1`；刷新动作快照 | C-1；E 轨定样定下 |
-| C-3 方法写法合一（统筹 2026-11-04 定：做） | 沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明；跑 `pnpm studio:replay`；已有数据按第 11 节同一条 02③ 分界 | C-1 |
+| C-3 方法写法合一（统筹 2026-11-04 定：做） | 沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明；`applies_to`、`description` 在同一片改成必填；跑 `pnpm studio:replay`；已有数据按第 11 节同一条 02③ 分界 | C-1；E 轨补好三个内置插件的取值 |
 | 实现 | Plugin Runtime 的「已声明、不启动」装配；随安装包带上的官方包与 `plugins.bundled.list@1`；宿主的目录、设置和用量；导入服务与 CLI `pack-content`；助理与 Coding 两个消费方，以及删掉 Coding 的旧路；BL-165 设计与无障碍内容包 | C-1、C-2 合入；E 轨定样 |
 
 ## 13. 统筹裁定（2026-11-04，见 #1794 上的统筹评论）
@@ -421,7 +427,6 @@ interface SkillCatalogEntry {
 | SKC-01 | 写 `kind: "content"` 的 Manifest，只收第 3 节白名单里的键；出现别的键时安装被拒，报 `plugin.declaration_invalid` 并点名那个键；内置、生成、导入、第三方走同一个 `inspectContentPlugin` | SKP-01、SKP-08、ONB-53 |
 | SKC-02 | 只有声明的插件能装、能启用、能停用、能卸载，不起进程、不挂路由、不进 MCP 工具表；正文或资源的摘要不符时不启用，并写明原因 | SKP-01、PLP-01 |
 | SKC-03 | 坏包整包被拒，不部分安装：正文缺失、重复 id、路径逃逸、超长、资源缺失、`applies_to` 非法、`tools` 不在 `SKILL_TOOLS` 里 | SKP-08 |
-| SKC-13 | 方法的 `tools` 不扩大 Coding 角色的 `host_tools`：选一个声明了角色没有的工具的方法，开轮后那个工具仍不可用 | SKP-06；统筹 2026-11-04 |
 | SKC-04 | 升级时正文或资源变了而 Skill 的 `version` 没有增加，就被拒；预览按 Skill 标出新增、正文变了、资源变了、移除 | SKP-07 |
 | SKC-05 | 装上、导入、打开看都是 `off`，安装与导入的确认都不启用任何一项；启用后默认 `auto`，目录回显启用的时间、操作者和范围；`manual` 在停用再启用、升级之后不变；卸载后再装从 `off` 开始 | SKP-10 |
 | SKC-06 | `manual` 的 Skill 只在本轮冻结的点名名单里能读，模型在输入里写精确引用也读不到 | SKP-10 |
@@ -431,3 +436,4 @@ interface SkillCatalogEntry {
 | SKC-10 | 从一个真实的本机 Skills 目录导入，得到一个本机签名的只有声明的插件，走同一个安装确认；原目录之后的改动不影响已装的版本；再导入一次就是升级 | G2、SKP-04 |
 | SKC-11 | 代码里没有只给技能包用的注册表或安装入口；Coding 的 `agent.skills.discover.v1`、`agent.skills.install.v1` 与 `molis-coding-method` 已删 | SKP-04 |
 | SKC-12 | 被拒或取消的轮次不记 `skill_uses`；卸载以后用量历史仍可读，保留当时的名称和版本 | SKP-07 |
+| SKC-13 | 方法的 `tools` 不扩大 Coding 角色的 `host_tools`：选一个声明了角色没有的工具的方法，开轮后那个工具仍不可用 | SKP-06；统筹 2026-11-04 |

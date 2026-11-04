@@ -16,7 +16,7 @@ import { assistantErrors } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, executorProviders, offerExecutors, type ExecutorControl } from "./assistant-executor.js";
-import { AssistantInputs, inputsOf, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, addressesRound, assertRoundToAddress, inputsOf, type SendIntent } from "./assistant-inputs.js";
 import { ownerOf, roundStartInput } from "./assistant-round-start.js";
 import { recoveryAction } from "./assistant-parked-answer.js";
 import { RUNTIME, MAX_TEXT, sessionRef, HANDOVER_MARK, assertSendCurrent, type AssistantServicePorts, type AssistantCaller, type RoundMaterials } from "./assistant-service-shared.js";
@@ -142,6 +142,7 @@ export class AssistantDispatch {
     const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: { beforeEffect: async () => { await beforeStart?.(); requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); },
       assert_authority_current: () => { requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); } } });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
+    assertRoundToAddress(Boolean(work.executor.session_id), intent);
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
     if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
     const sessionId = (work.executor as { session_id: string }).session_id;
@@ -149,7 +150,8 @@ export class AssistantDispatch {
     assertSendCurrent(stillCurrent);
     if (read.recovery) throw assistantErrors.needs_check(read.recovery.message, { action: L("到执行方的页面核对") });
     const latest = read.runs.at(-1);
-    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
+    assertRoundToAddress(Boolean(latest), intent);
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent))) {
       // The executor's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => executor.control(sessionId, latest.ref.run_id, control),
         send: async input => { const receipt = await executor.send(sessionId, latest.ref.run_id, input); handoff?.accepted(); return receipt; } }, intent);
@@ -179,6 +181,7 @@ export class AssistantDispatch {
     } } : base), original_input });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
+    assertRoundToAddress(Boolean(work.session_id), intent);
     if (!work.session_id) {
       const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
@@ -191,7 +194,8 @@ export class AssistantDispatch {
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: recoveryAction([session.latest_run && await adapter.read(session.latest_run.ref).catch(() => null)]) });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
-    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
+    assertRoundToAddress(Boolean(latest), intent);
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent))) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: async input => {
           await authority.beforeStart?.();

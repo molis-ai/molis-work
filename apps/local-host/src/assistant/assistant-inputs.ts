@@ -2,7 +2,7 @@ import { personalInputText } from "../memory/memory-source-identity.js";
 import type { AgentRunView, AgentSessionView, AgentRuntimeAdapter, AgentRunRef, AgentOriginalInputRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerMode, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { textFieldId } from "../agent-question-card.js";
 import { assistantErrors } from "./assistant-errors.js";
@@ -18,7 +18,7 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
  * the person's (a page or the Host wrote them), so the runtime records them as the Host's. `about`: the earlier input
  * these words correct (D34); the runtime keeps the link, the words say what changes.
  */
-export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef }
+export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef }
 
 /** Source identities point into the Runtime's immutable originals; run_id is only the route used to re-read them. */
 export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; version: "1"; original?: AgentOriginalInputRef }
@@ -135,7 +135,7 @@ export class AssistantInputs {
     const key = intent.id && new RegExp(AGENT_INPUT_KEY_PATTERN).test(`send.${intent.id}`) ? { key: `send.${intent.id}` } : {};
     const original = !intent.byHost && intent.original_input?.written_by === "person" ? { text: intent.original_input.text, source: "person" as const } : undefined;
     const derived = intent.byHost || !original || materials.length > 0 || Boolean(context?.selection);
-    const receipt = await port.send({ text: this.compose(text, materials, context), ...(derived && original ? { original } : {}), ...key, ...(derived ? { source: "host" as const } : {}), ...(intent.about ? { about: intent.about } : {}) });
+    const receipt = await port.send({ text: this.compose(text, materials, context), ...(derived && original ? { original } : {}), ...key, ...(derived ? { source: "host" as const } : {}), ...(intent.about ? { about: intent.about } : {}), ...(intent.delivery ? { mode: intent.delivery } : {}) });
     // A round that ended as the words arrived does not take them; they wait in its session for the next round.
     return receipt?.delivered === "queued" ? "queued" : "steered";
   }
@@ -149,6 +149,19 @@ export class AssistantInputs {
     if (materials.some(item => item.method?.default_ref) && joined.length > this.maxText) throw assistantErrors.invalid("签名资料正文超过本次输入预算，请减少材料后重发");
     return joined.slice(0, this.maxText);
   }
+}
+
+/**
+ * 打断并改向 and 下一轮再做 speak to the round under way (specs/unified-input-voice §4, UIV-17; specs/ai-input-receipts §4.1) and
+ * never start one. A round that has ended still takes them: the runtime keeps them in its session for the next round the
+ * person starts and says so (`queued`), just as when the round ends while they are on their way. 补充 (`next-boundary`, or
+ * none) goes on as before: it starts a round when none is under way.
+ */
+export function addressesRound(intent?: SendIntent): boolean { return intent?.delivery === "interrupt" || intent?.delivery === "after-run"; }
+
+/** A work that never had a round has none to interrupt or wait behind: refused before a session is opened, never turned into a start. */
+export function assertRoundToAddress(hasRound: boolean, intent?: SendIntent): void {
+  if (!hasRound && addressesRound(intent)) throw assistantErrors.state("这项工作还没有开始过一轮，没有可以打断或排在后面的；这句话没有发送，可以直接发出开始第一轮");
 }
 
 /**

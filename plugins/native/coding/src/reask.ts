@@ -35,5 +35,5 @@ export async function reaskMaterial(context: PluginStartContext, record: CodingS
   if (question.answerable !== false) throw codingReaskErrors.reask_question_open("这个问题还能回答，请直接回答");
   const drafts = (() => { try { return JSON.parse(context.services?.storage?.get(`question-drafts:${record.session_id}`) ?? "{}") as Record<string, unknown>; } catch { return {}; } })();
   const { title, text } = questionDraftMaterial(question, drafts[JSON.stringify([runId, pendingId, question.pending_revision])]);
-  return { material_id: `reask-${pendingId}`.slice(0, 240), title, text, source_artifact_id: `question:${pendingId}`.slice(0, 200), source_version: question.pending_revision ?? 1 };
+  return { material_id: `reask-${pendingId}`.slice(0, 240), title, text };
 }

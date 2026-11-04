@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 
-// specs/repository-anti-corruption §4.16 (W1-09): the checks for what is not TypeScript (scripts/gates/native-checks.mjs).
+// specs/archive/repository-anti-corruption §4.16 (W1-09): the checks for what is not TypeScript (scripts/gates/native-checks.mjs).
 // Each check is broken once on a scratch repository and must go red; the clean case must pass. A check whose tool is not on
 // this machine is skipped here and says so (CI runs rust and swift on macOS and shell on Linux, so none is skipped there);
 // the shell plumbing (which files are handed over, the severity flag, a failing exit) is also tested against a stub

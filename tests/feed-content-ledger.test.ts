@@ -96,7 +96,7 @@ test("RAC-494: a release that fails part way leaves the ledger as it was, so a r
   assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]), { bodies_deleted: 1, bodies_kept: 0, complete: true }, "a retry finds one of them already gone");
 });
 
-// FI-C-06 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a deletion gives a source's history back in bounded
+// FI-C-06 (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a deletion gives a source's history back in bounded
 // batches; a batch not reached yet stays held, and a failure throws so the source stays to be deleted again.
 test("FI-C-06: a large history is given back in batches of at most 5000 bodies and 1000 records; a failure part way keeps what is not reached, and deleting again finishes", async t => {
   const f = fixture(t);

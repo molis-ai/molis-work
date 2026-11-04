@@ -14,7 +14,7 @@ import {
 import { withLibrary } from "./fixtures/home-library.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
-// specs/plugin-project-partition: a Home plugin's library partitioned by project. Each call reaches the library of the project it
+// specs/archive/plugin-project-partition: a Home plugin's library partitioned by project. Each call reaches the library of the project it
 // runs in, which the Host takes from the call; the plugin's API (`services.database`) is the one an unpartitioned library has.
 
 /** How often the Host looks for idle libraries (`PARTITION_IDLE_MS` in apps/local-host/src/plugin-database-partitions.ts). */

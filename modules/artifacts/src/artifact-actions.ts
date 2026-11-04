@@ -1,5 +1,6 @@
 import { ARTIFACT_LINK_SUBJECTS_BATCH, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, bindArtifactPreview, defineArtifactPreviewAction, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchRevisionOf, searchText, type SearchEntry, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ARTIFACT_FILE_IMPORT_ACTION, ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./artifact-browser.js";
@@ -218,7 +219,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
       return [...latest.values()].map((record): SearchEntry => {
-        const summary = payloadText(record.payload, searchText(record.title)).join("\n").slice(0, 4000);
+        const summary = cutHead(payloadText(record.payload, searchText(record.title)).join("\n"), 4000);
         // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
         // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
         return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),

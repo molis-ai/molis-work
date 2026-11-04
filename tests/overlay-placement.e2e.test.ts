@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pluginSurfaceClients, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { OVERLAY_AFTER, OVERLAY_BEFORE, OVERLAY_OPEN, OVERLAY_TRIGGERS, type OverlayLayer, type OverlayTrigger } from "./fixtures/overlay-audit.js";
 
 // specs/visual-ui-experience §adaptive-focus (VUX-29): a layer opened from the board, the project page or a plugin stays
@@ -13,8 +15,28 @@ const pause = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 test("VUX-29: layers opened on the board, the project page and every plugin stay on screen, grow from their side and give focus back on Escape", { timeout: 1_800_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const clients = new Map<string, { top: Awaited<ReturnType<typeof pluginFrameBrowser>>; nested: Awaited<ReturnType<typeof pluginFrameBrowser>> }>();
+  for (const { id } of pluginSurfaceClients(pluginWorkbenchPacks())) clients.set(id, {
+    top: await pluginFrameBrowser(t, browser, id),
+    nested: await pluginFrameBrowser(t, browser, id, `iframe[data-ov-plugin-owner="${id}"]`),
+  });
+  type Owner = { id: string; nested: boolean };
+  const visibleOwners = () => evaluate<Owner[]>(`(() => {
+    const owners=[];
+    const scan=(doc,owner)=>{for(const frame of doc.querySelectorAll('iframe[data-plugin-frame]')){
+      if(!frame.checkVisibility())continue;
+      const id=frame.dataset.pluginFrame;if(owner)owner.dataset.ovPluginOwner=id;
+      owners.push({id,nested:Boolean(owner)});
+    }};
+    scan(document,null);
+    for(const owner of document.querySelectorAll('iframe:not([data-plugin-frame])'))if(owner.checkVisibility()&&owner.contentDocument)scan(owner.contentDocument,owner);
+    return owners;
+  })()`);
   const escape = async () => {
-    for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 }, sessionId);
+    for (const type of ["rawKeyDown", "keyUp"] as const) {
+      const input = { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 };
+      await command("Input.dispatchKeyEvent", input, sessionId);
+    }
     await pause();
   };
   const open = async (path: string) => {
@@ -23,7 +45,6 @@ test("VUX-29: layers opened on the board, the project page and every plugin stay
     await command("Page.bringToFront", {}, sessionId);
     await waitFor("document.readyState === 'complete'", 20_000);
     await pause(1500);
-    return evaluate<OverlayTrigger[]>(OVERLAY_TRIGGERS);
   };
   const surfaces: [string, string][] = [["组件板", "/__ui/catalog"], ["项目页", `/projects/${projectId}/`],
     ...PLUGINS.map((id): [string, string] => [id, `/projects/${projectId}/?openPlugin=${id}`])];
@@ -34,34 +55,51 @@ test("VUX-29: layers opened on the board, the project page and every plugin stay
     const seen = new Set<string>();
     await command("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
     for (const [name, path] of surfaces) {
-      const triggers = await open(path);
-      const url = await evaluate<string>("location.href");
-      for (const trigger of triggers) {
-        if (seen.has(`${trigger.name} ${trigger.kind}`)) continue;
-        seen.add(`${trigger.name} ${trigger.kind}`);
-        const label = `${width} ${name} "${trigger.name}"`;
-        const point = await evaluate<{ x: number; y: number } | null>(`(() => { const el = document.querySelector('[data-ov-trigger="${trigger.index}"]');
-          if (!el || !el.getClientRects().length) return null; document.querySelectorAll('[data-ov-active]').forEach(n => n.removeAttribute('data-ov-active'));
-          el.dataset.ovActive = ''; el.scrollIntoView({ block: 'nearest', behavior: 'instant' }); const box = el.getBoundingClientRect();
-          return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) ? { x: box.x + box.width / 2, y: box.y + box.height / 2 } : null; })()`);
-        if (!point) continue;
-        await evaluate(OVERLAY_BEFORE);
-        for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, sessionId);
-        await pause();
-        const layer = await evaluate<OverlayLayer | null>(OVERLAY_OPEN);
-        if (layer) {
-          opened++;
-          const out = Math.min(layer.left, layer.top, layer.right, layer.bottom);
-          if (out < 0) found.push(`${label}: ${layer.tag} is ${-out}px off screen`);
-          if (layer.animated && ((layer.side === "above" && layer.originY < 0.5) || (layer.side === "below" && layer.originY > 0.5))) found.push(`${label}: ${layer.tag} opens ${layer.side} but grows from y ${layer.originY}`);
-          if (trigger.kind === "details" && !await evaluate<boolean>("document.querySelector('[data-ov-active]').parentElement.hasAttribute('data-layer-open')")) found.push(`${label}: an open floating details is not marked as a layer`);
-          await escape();
-          const after = await evaluate<{ open: boolean; back: boolean; on: string }>(OVERLAY_AFTER);
-          if (after.open) found.push(`${label}: Escape left ${layer.tag} open`);
-          else if (!after.back) found.push(`${label}: focus went to ${after.on}`);
+      await open(path);
+      const owners = await visibleOwners();
+      assert.equal(new Set(owners.map(owner => `${owner.id}:${owner.nested}`)).size, owners.length, "each visible plugin audit is bound to one actual owner");
+      for (const owner of [undefined, ...owners]) {
+        const child = owner ? clients.get(owner.id)?.[owner.nested ? "nested" : "top"] : undefined;
+        if (owner) assert.ok(child, `the registered owner ${owner.id} has a real frame fixture`);
+        const read = child ? child.evaluate : evaluate;
+        const triggers = await read<OverlayTrigger[]>(OVERLAY_TRIGGERS);
+        const openedBefore = opened;
+        const url = await evaluate<string>("location.href");
+        for (const trigger of triggers) {
+          const key = `${owner?.id || "host"} ${trigger.name} ${trigger.kind}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const label = `${width} ${name} ${owner?.id || "host"} "${trigger.name}"`;
+          const point = await read<{ x: number; y: number } | null>(`(() => { const el = document.querySelector('[data-ov-trigger="${trigger.index}"]');
+            if (!el || !el.getClientRects().length) return null; document.querySelectorAll('[data-ov-active]').forEach(n => n.removeAttribute('data-ov-active'));
+            el.dataset.ovActive = ''; el.scrollIntoView({ block: 'nearest', behavior: 'instant' }); const box = el.getBoundingClientRect();
+            return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)) ? { x: box.x + box.width / 2, y: box.y + box.height / 2 } : null; })()`);
+          if (!point) continue;
+          await read(OVERLAY_BEFORE);
+          if (child) await child.click(`[data-ov-trigger="${trigger.index}"]`);
+          else for (const type of ["mousePressed", "mouseReleased"] as const) await command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, sessionId);
+          await pause();
+          const layer = await read<OverlayLayer | null>(OVERLAY_OPEN);
+          if (layer) {
+            opened++;
+            let out = Math.min(layer.left, layer.top, layer.right, layer.bottom);
+            if (owner) {
+              const viewport = await read<{width:number;height:number}>("({width:innerWidth,height:innerHeight})");
+              const offset = await evaluate<{x:number;y:number}>(`(()=>{const owner=${owner.nested ? `document.querySelector('iframe[data-ov-plugin-owner=${JSON.stringify(owner.id)}]')` : "null"},doc=owner?owner.contentDocument:document,frame=doc.querySelector('iframe[data-plugin-frame=${JSON.stringify(owner.id)}]'),box=frame.getBoundingClientRect(),outer=owner?.getBoundingClientRect()||{x:0,y:0};return {x:box.x+outer.x,y:box.y+outer.y}})()`);
+              out = Math.min(out, ...[offset.x + layer.left, offset.y + layer.top, width - offset.x - viewport.width + layer.right, 800 - offset.y - viewport.height + layer.bottom].map(Math.round));
+            }
+            if (out < 0) found.push(`${label}: ${layer.tag} is ${-out}px off screen`);
+            if (layer.animated && ((layer.side === "above" && layer.originY < 0.5) || (layer.side === "below" && layer.originY > 0.5))) found.push(`${label}: ${layer.tag} opens ${layer.side} but grows from y ${layer.originY}`);
+            if (trigger.kind === "details" && !await read<boolean>("document.querySelector('[data-ov-active]').parentElement.hasAttribute('data-layer-open')")) found.push(`${label}: an open floating details is not marked as a layer`);
+            await escape();
+            const after = await read<{ open: boolean; back: boolean; on: string }>(OVERLAY_AFTER);
+            if (after.open) found.push(`${label}: Escape left ${layer.tag} open`);
+            else if (!after.back) found.push(`${label}: focus went to ${after.on}`);
+          }
+          if (await evaluate<string>("location.href") !== url) { await open(path); await visibleOwners(); }
+          else if ((await read<{ open: boolean }>(OVERLAY_AFTER)).open) await escape();
         }
-        if (await evaluate<string>("location.href") !== url) await open(path);
-        else if ((await evaluate<{ open: boolean }>(OVERLAY_AFTER)).open) await escape();
+        t.diagnostic(`${width} ${name} ${owner?.id || "host"}: ${triggers.length} triggers discovered, ${opened - openedBefore} layers opened`);
       }
     }
   }

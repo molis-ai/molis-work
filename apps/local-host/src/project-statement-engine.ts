@@ -1,7 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginProjectDatabaseErrors, pluginStatementGuard, type PluginProjectDatabaseRecord } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalSqliteStorage, openHomeSqliteFile } from "@molis-ai/molis-work-storage";
-import { assertReadStatement, assertWriteStatement, type StatementReply, type StatementRequest, type StatementRow, type StatementValue } from "./project-statement-protocol.js";
+import { assertReadStatement, assertWriteStatement, type StatementReply, type StatementStep, type StatementRow, type StatementValue } from "./project-statement-protocol.js";
 
 // The statements of one sandboxed plugin, run on connections of this process's own to the project's library. This runs in the
 // SQL Worker inside the child of `project-statement-process.ts`; its controller kills the whole process independently of the Host:
@@ -9,7 +9,7 @@ import { assertReadStatement, assertWriteStatement, type StatementReply, type St
 // `pluginStatementGuard`); the grants and the original caller are the Host's, asked between the steps it sends.
 
 export interface StatementEngine {
-  handle(request: Exclude<StatementRequest, { readonly op: "open" }>): StatementReply;
+  handle(request: StatementStep): StatementReply;
   close(): void;
 }
 
@@ -71,7 +71,7 @@ function homeConnections(path: string): StatementConnections {
 export function openStatementEngine(path: string, record: PluginProjectDatabaseRecord | null): StatementEngine {
   const connections = record === null ? homeConnections(path) : projectConnections(path, record);
   const { reader, writer, check } = connections;
-  const handle = (request: Exclude<StatementRequest, { readonly op: "open" }>): StatementReply => {
+  const handle = (request: StatementStep): StatementReply => {
     switch (request.op) {
       case "get": {
         assertReadStatement(request.sql); check(reader, request.sql, request.parameters, "read");

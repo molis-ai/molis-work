@@ -24,7 +24,10 @@ test("RAC-105-S-02: an idle real Host refuses the actual CLI before any backup f
 });
 
 test("RAC-105-S-02: a second real process cannot start a Host while snapshot owns the original inode", { timeout: 30_000 }, async t => {
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  // T405-FULL-07: initialize a valid product Home before testing the snapshot's exclusive ownership.
+  const f = await smallSnapshotHome(t), initialized = createMolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  await initialized.close();
+  await f.file("images/assets/kept.bin");
   const original = fs.writeSync; let attempts = 0;
   const peer = `import{createMolisWorkLocalHost}from'@molis-ai/molis-work-app-local-host';let host;try{host=createMolisWorkLocalHost({homeDirectory:process.argv[1]});process.stdout.write(JSON.stringify({state:'entered'}));}catch(error){process.stdout.write(JSON.stringify({state:'refused',code:error.code}));}finally{await host?.close();}`;
   const mocked = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {

@@ -57,7 +57,7 @@ test("RAC-711 the workbench entry has no `export *`, `export type *` or `export 
   assert.deepEqual(unnamed.map(node => node.getText(entry).slice(0, 60)), []);
 });
 
-test("RAC-711 the names ui-composition, i18n and capsule-view give out are listed in the entry, one by one", () => {
+test("RAC-711 the names ui-composition and i18n give out are listed in the entry, one by one", () => {
   const named = (module: string) => exportDeclarations.flatMap(node => node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === module
     && node.exportClause && ts.isNamedExports(node.exportClause) ? node.exportClause.elements.map(element => element.name.text) : []).sort();
   assert.deepEqual(named("./ui-composition.js"), [...UI_COMPOSITION_NAMES].sort());
@@ -65,7 +65,7 @@ test("RAC-711 the names ui-composition, i18n and capsule-view give out are liste
   for (const [name, users] of Object.entries(PLUGIN_WORDS_USERS)) {
     for (const file of users) assert.match(read(file), new RegExp(`\\b${name}\\b`, "u"), `${file} uses ${name}`);
   }
-  assert.deepEqual(named("./capsule-view.js"), ["CapsuleGoalItem", "CapsuleSnapshot", "CapsuleState", "CapsuleStateKind", "CapsuleTab", "CapsuleTabKind"]);
+  assert.deepEqual(named("./capsule-view.js"), [], "Capsule projections and their types belong to Goals");
   for (const name of [...UI_COMPOSITION_NAMES, "createWorkbenchLocale", "LOCALE_COOKIE", "WEB_LOCALES", "LOCALE_SWITCH_STYLES", ...Object.keys(PLUGIN_WORDS_USERS)]) {
     assert.ok(name in workbench, `${name} is given out`);
   }
@@ -73,8 +73,7 @@ test("RAC-711 the names ui-composition, i18n and capsule-view give out are liste
 
 /** Names the entry gives out with no importer outside the workbench, each with why it stays. */
 const KEPT_WITHOUT_IMPORTER: Readonly<Record<string, string>> = {
-  ...Object.fromEntries(["createWorkbenchGoalsPageRenderer", "WorkbenchShellPageView", "WorkbenchShellPageOwners"].map(name => [name, "Goals' interface adapters, removed when Goals S11 moves them out"])),
-  ...Object.fromEntries(["CapsuleGoalItem", "CapsuleSnapshot", "CapsuleState", "CapsuleStateKind", "CapsuleTab", "CapsuleTabKind", "ChooserArrival",
+  ...Object.fromEntries(["ChooserArrival",
     "ProjectSettingsFoldId", "SideViewDocumentInput"].map(name => [name, "types the Host's declarations name without importing (TS2742 without)"])),
 };
 
@@ -109,4 +108,12 @@ test("RAC-1115 every name the workbench entry gives out has an importer outside 
   }
   assert.deepEqual([...given].filter(name => !used.has(name) && !(name in KEPT_WITHOUT_IMPORTER)).sort(), [], "take these out of the entry; the workbench's own modules still have them");
   assert.deepEqual(Object.keys(KEPT_WITHOUT_IMPORTER).filter(name => !given.has(name) || used.has(name)).sort(), [], "an entry here that left the entry or found an importer comes off the list");
+});
+
+// RAC-2684: Schedule already mounts through its declared stage; the old factory has no caller.
+test("RAC-2684 ui-composition has no Goals adapter or dead Schedule factory", () => {
+  const composition = read("apps/workbench/src/ui-composition.ts");
+  assert.doesNotMatch(composition, /@molis-ai\/molis-work-plugin-goals/u);
+  assert.doesNotMatch(composition, /@molis-ai\/molis-work-plugin-schedule|renderScheduleContribution/u);
+  assert.equal("createWorkbenchGoalsPageRenderer" in workbench, false, "the private shell factory is not a public Goals adapter");
 });

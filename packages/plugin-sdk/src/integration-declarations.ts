@@ -10,18 +10,22 @@ const SERVICE_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const INTEGRATION_ID = /^[a-z][a-z0-9-]{0,63}$/u;
 const DOCUMENT_SOURCE = /^[a-z][a-z0-9-]{0,63}$/u;
 const GROUPS = new Set(["mail", "files", "chat", "code", "work", "design", "crm", "social"]);
-const AUTH_KINDS = new Set(["github", "gmail", "notion", "feishu", "token", "none"]);
+const AUTH_KINDS = new Set(["oauth", "feishu", "token", "none"]);
 const METHOD_KINDS = new Set(["oauth", "cli", "token", "mcp"]);
 const FULFILLMENTS = new Set(["live", "unfulfilled"]);
 const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins"]);
 const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
-export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown }): string[] {
-  const { connection_services: services, integrations } = manifest;
-  if (services === undefined && integrations === undefined) return [];
+export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown; source_presentations?: unknown }): string[] {
+  const { connection_services: services, integrations, source_presentations: presentations } = manifest;
+  if (services === undefined && integrations === undefined && presentations === undefined) return [];
   if (manifest.kind !== "integration") return ["只有 Integration Plugin 能声明 connection_services 和 integrations"];
   const problems: string[] = [];
+  if (presentations !== undefined && (!Array.isArray(presentations) || !presentations.length || presentations.length > 32
+    || presentations.some(id => typeof id !== "string" || !INTEGRATION_ID.test(id)) || new Set(presentations).size !== presentations.length)) {
+    problems.push("source_presentations 必须是 1 到 32 个不重复的集成名字");
+  }
   const serviceIds = new Set<string>();
   if (services !== undefined) {
     if (!Array.isArray(services) || services.length === 0) problems.push("connection_services 必须是至少一项的数组");
@@ -96,9 +100,12 @@ function methodProblems(id: string, auth: unknown): string[] {
       problems.push(`连接服务 ${id} 的接入方式 kind 必须是 oauth、cli、token、mcp 之一`);
       continue;
     }
-    if (kinds.has(method.kind)) { problems.push(`连接服务 ${id} 的接入方式重复：${method.kind}`); continue; }
-    kinds.add(method.kind);
+    // An `oauth` method is one per grant (the web flow and the device grant side by side); every other kind is once.
+    const slot = method.kind === "oauth" ? `oauth:${method.grant === "device" ? "device" : "authorization_code"}` : method.kind;
+    if (kinds.has(slot)) { problems.push(`连接服务 ${id} 的接入方式重复：${slot === "oauth:device" ? "oauth（device）" : method.kind}`); continue; }
+    kinds.add(slot);
     if (method.kind === "oauth") { problems.push(...oauthMethodProblems(id, method)); continue; }
+    if (method.kind === "mcp" && Object.keys(method).length > 1) { problems.push(...mcpMethodProblems(id, method)); continue; }
     if (method.kind !== "token") {
       if (Object.keys(method).length !== 1) problems.push(`连接服务 ${id} 的 ${method.kind} 接入方式现在只写 kind，数据仍在平台的表里`);
       continue;
@@ -107,6 +114,33 @@ function methodProblems(id: string, auth: unknown): string[] {
     if (unknown.length > 0) problems.push(`连接服务 ${id} 的 token 接入方式不认这些字段：${unknown.join("、")}`);
     if (!text(method.label)) problems.push(`连接服务 ${id} 的 token 接入方式要写 label`);
     if (method.placeholder !== undefined && typeof method.placeholder !== "string") problems.push(`连接服务 ${id} 的 token.placeholder 必须是文字`);
+  }
+  return problems;
+}
+
+/** The remote MCP declaration is data; the Host keeps admission and the connection's live source checks. */
+function mcpMethodProblems(id: string, method: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  const fields = new Set(["kind", "endpoint", "auth", "registration", "endpoint_pattern", "token_scheme"]);
+  const unknown = Object.keys(method).filter(field => !fields.has(field));
+  if (unknown.length) problems.push(`连接服务 ${id} 的 mcp 接入方式不认这些字段：${unknown.join("、")}`);
+  let endpoint: URL | undefined;
+  try { endpoint = typeof method.endpoint === "string" && method.endpoint.length <= 4096 ? new URL(method.endpoint) : undefined; } catch { endpoint = undefined; }
+  if (!endpoint || endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash ||
+    [...endpoint.searchParams.keys()].some(key => /^(auth|authorization|password|secret|token|access_token|refresh_token|api[_-]?key)$/iu.test(key))) {
+    problems.push(`连接服务 ${id} 的 mcp.endpoint 必须是无凭据的 HTTPS 地址`);
+  }
+  if (typeof method.auth !== "string" || !["oauth", "bearer", "either", "none"].includes(method.auth)) problems.push(`连接服务 ${id} 的 mcp.auth 必须是 oauth、bearer、either 或 none`);
+  if (method.registration !== undefined && method.registration !== "manual") problems.push(`连接服务 ${id} 的 mcp.registration 只可写 manual；省略表示 dynamic`);
+  if (method.token_scheme !== undefined && method.token_scheme !== "Sentry-Bearer") problems.push(`连接服务 ${id} 的 mcp.token_scheme 只可写 Sentry-Bearer`);
+  if (method.endpoint_pattern !== undefined) {
+    const pattern = method.endpoint_pattern;
+    if (!isRecord(pattern) || Object.keys(pattern).some(key => key !== "source" && key !== "flags") || typeof pattern.source !== "string" ||
+      pattern.source.length > 2048 || !pattern.source.startsWith("^") || !pattern.source.endsWith("$") || typeof pattern.flags !== "string" || !["u", "iu"].includes(pattern.flags)) {
+      problems.push(`连接服务 ${id} 的 mcp.endpoint_pattern 必须是完整地址的 { source, flags: u 或 iu }`);
+    } else {
+      try { new RegExp(pattern.source, pattern.flags); } catch { problems.push(`连接服务 ${id} 的 mcp.endpoint_pattern 无法编译`); }
+    }
   }
   return problems;
 }

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
+import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -39,8 +40,9 @@ function createdEvents(database: string, id: string) {
 
 test("a stable project recovered during real lock waiting keeps the committed identity, body and single creation event", async () => {
   await withHome(async home => {
-    const a = await openMolisWorkProjectCatalog({ homeDirectory: home });
-    const b = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const owner = acquireStorageOwner(join(home, "agent-runtime"));
+    const a = await openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner: owner });
+    const b = await openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner: owner });
     const writer = new Database(a.databasePath); writer.exec("BEGIN IMMEDIATE");
     let release!: () => void, reached!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -62,13 +64,14 @@ test("a stable project recovered during real lock waiting keeps the committed id
       assert.deepEqual(a.getProject(id), adopted);
       assert.deepEqual(snapshot(adopted), before);
       assert.equal(createdEvents(a.databasePath, id), 1);
-    } finally { release(); await first; if (writer.inTransaction) writer.exec("ROLLBACK"); writer.close(); a.close(); b.close(); }
+    } finally { release(); await first; if (writer.inTransaction) writer.exec("ROLLBACK"); writer.close(); a.close(); b.close(); owner.release(); }
   });
 });
 
 test("simultaneous stable project preparation adopts the winner without deleting its staging or body", async () => {
   await withHome(async home => {
-    const catalogs = await Promise.all([1, 2, 3].map(() => openMolisWorkProjectCatalog({ homeDirectory: home })));
+    const owner = acquireStorageOwner(join(home, "agent-runtime"));
+    const catalogs = await Promise.all([1, 2, 3].map(() => openMolisWorkProjectCatalog({ homeDirectory: home, storageOwner: owner })));
     try {
       const id = `project-onboarding-${randomUUID()}`;
       const records = await Promise.all(catalogs.map(c => c.createProject({ project_id: id, display_name: "共同身份", actor_id: "user" })));
@@ -76,7 +79,7 @@ test("simultaneous stable project preparation adopts the winner without deleting
       assert.equal(snapshot(records[0]!).board.project_id, id);
       assert.equal(createdEvents(catalogs[0]!.databasePath, id), 1);
       assert.equal((await fs.readdir(join(home, "projects"))).some(name => name.startsWith(".staging-")), false);
-    } finally { for (const c of catalogs) c.close(); }
+    } finally { for (const c of catalogs) c.close(); owner.release(); }
   });
 });
 

@@ -4,7 +4,7 @@ import test from "node:test";
 import { PROBE, later, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, write } from "./fixtures/partition-probe.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
-// specs/plugin-project-partition §2.5: deleting a project removes its library of a Home plugin partitioned by project, whether or
+// specs/archive/plugin-project-partition §2.5: deleting a project removes its library of a Home plugin partitioned by project, whether or
 // not the plugin runs, and no call begun before the deletion reaches that project's library again.
 
 /** SQLite removes the write-ahead log when the last connection to a library closes, so it shows whether the Host holds one open. */

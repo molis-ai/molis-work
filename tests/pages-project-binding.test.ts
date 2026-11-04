@@ -39,6 +39,7 @@ test("W5-01-PAGES-02 Host 路由里的项目与 query/body 不一致时，发布
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const first = await catalog.createProject({ display_name: "项目 A", actor_id: "test" });
   const second = await catalog.createProject({ display_name: "项目 B", actor_id: "test" });
+  catalog.close();
   const server = await listen(home);
   try {
     const created = await fetch(`${server.origin}/projects/${first.project_id}/api/plugins/io.molis.work.pages/pages?project_id=${first.project_id}`, {
@@ -108,7 +109,6 @@ test("W5-01-PAGES-02 Host 路由里的项目与 query/body 不一致时，发布
     }
   } finally {
     await server.close();
-    catalog.close();
     await rm(home, { recursive: true, force: true });
   }
 });

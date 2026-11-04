@@ -81,18 +81,22 @@ SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象�
 
 ```text
 Coding 页面 → plugins/native/coding/src/routes.ts
-  → agent.run.start.v1@2 → AgentHost.start（horizontal/agent-host/src/index.ts）
+  → agent.run.start.v1@3 → AgentHost.start（horizontal/agent-host/src/index.ts）
       冻结角色（调用者这次激活的 Manifest 与定义里的 `agent_prompts`；没有调用者就没有角色，PG-051）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
   → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
-  ← agent.run.wait.v1@3 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
+  ← agent.run.wait.v1@4 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
+
+普通文字材料只有 `material_id/title/text`，模型的数据头是 `{title, material_id}`。只有实际固定引用才成对提供 `source_artifact_id/source_version`，其数据头保持 `{title, artifact_id, version}`；固定引用可能来自成果或过程项，原 owner 不变。两种材料的正文都逐字进入 SDK data 资源，头与正文合计不超过 20,000 UTF-16 units；半份或非法来源在派发前拒绝。冻结记录仅保留实际提供的来源，Work、Session、Question 与实时 Page 标识不能充当固定引用。
 
 **每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。
 
 正式 AgentHost Action 的启动输入允许既有 `original_input` 草稿和 `continued_from`，但 project/plugin/install/actor 只由 Host 调用上下文推导，冻结角色不从输入读。原件草稿不是本人证明：Host 仍比对受保护输入的安装、正文、作者、编号及首次时间。Run、Session 最新轮次与等待输出保留 canonical `original_input`，顶层未知字段仍拒绝。助理向通用执行方转交补充时，只匹配所选插件当前安装的精确 `run.control` Action/版本，原话通过 Host 上下文传递，不放进业务 `original` 字段。
+
+Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
 
 ## 4. 新增一个 AI 能力：调用骨架与可执行示例
 
@@ -145,7 +149,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 
 **等待一轮后台 Agent：`services.agents.run`**（`packages/contracts/src/platform/plugin-agents.ts`，`apps/local-host/src/plugin-agent-service.ts`）。项目插件声明 `agent:run` 与自己的角色，在声明同项权限的 concurrent command 或保留 job 中调用；只传角色、任务、标题、可选工作区 id 和至多十分钟的时限。平台从实际激活派生身份，核项目工作区，复用本 Home 的同一个 Prologue 与现行提示/记忆装配。完成时返回正文与会话/运行引用。原动作取消、停用、撤权、超时或等待人工交互时取消本次运行；不留下脱离原调用的 Agent，也不向插件开放其他运行的控制句柄。真实 Runtime、HTTP 模型与取消零写回归在 `tests/security-invariants-plugin-agents.test.ts`。
 
-**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke` 或只读的 `model:read`、平台有 Home，`context.services.model` 才存在（沙箱执行的包也有，经 broker 的 `sdk.model` 用，请求只写登记过的指令 id，PG-017 P1、S-66）；`model:read` 只开 `choices()` 与 `availability()`（二者认 `model:read` 或 `model:invoke`，既声明又持有其一即可），发请求的 `complete()` 只认 `model:invoke`；它不是 typed 能力，生成插件今天仍走 `model.generate`（创作台一侧还没接上 `sdk.model`，见 `specs/repository-anti-corruption/slices/pg017-sandbox-services.md` §4）。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时把它的声明改成「未运行」（设置里仍可看、可改，方法不给别的 Agent，卸载才删，PG-051 Q1 b），不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
+**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke` 或只读的 `model:read`、平台有 Home，`context.services.model` 才存在（沙箱执行的包也有，经 broker 的 `sdk.model` 用，请求只写登记过的指令 id，PG-017 P1、S-66）；`model:read` 只开 `choices()` 与 `availability()`（二者认 `model:read` 或 `model:invoke`，既声明又持有其一即可），发请求的 `complete()` 只认 `model:invoke`；它不是 typed 能力，生成插件今天仍走 `model.generate`（创作台一侧还没接上 `sdk.model`，见 `specs/archive/repository-anti-corruption/slices/pg017-sandbox-services.md` §4）。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时把它的声明改成「未运行」（设置里仍可看、可改，方法不给别的 Agent，卸载才删，PG-051 Q1 b），不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
 
 - **只在插件自己的动作里**：处理器所在的动作要在 `action.permissions` 里写 `model:invoke`，并且 `scheduling: "concurrent"`。Runtime 给每个动作处理器包一层（`action-scope.ts`，`AsyncLocalStorage`），记下正在执行的动作和这次调用的 `beforeEffect`；插件不传、也伪造不了。`start()`、路由、定时器、别的插件的动作、串行动作、没声明权限的动作里调用，在发出之前就以 `plugin.model_action_required`、`plugin.model_action_not_concurrent`、`plugin.model_permission_undeclared` 拒绝。
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。

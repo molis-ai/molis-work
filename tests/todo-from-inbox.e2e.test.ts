@@ -13,6 +13,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   if (!browser) return;
   const { store, localHost, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click, surfaceReady, origin } = browser;
   const todo = await pluginFrameBrowser(t, browser, "todo");
+  const inbox = await pluginFrameBrowser(t, browser, "inbox");
   const lingguang = await pluginFrameBrowser(t, browser, "lingguang");
   assert.ok(localHost); assert.ok(projectId);
   await localHost.withProject(molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId }), () => undefined);
@@ -42,8 +43,8 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   await load(`?openPlugin=inbox&openItem=${encodeURIComponent(entry.entry_id)}`, "inbox");
   await waitFor("document.body.dataset.desktopSurface === 'inbox'");
   const detail = `[data-inbox-detail="${entry.entry_id}"]`;
-  await waitFor(visible(`${detail} [data-context-intake=todo]`));
-  await click(`${detail} [data-context-intake=todo]`);
+  await inbox.waitFor(visible(`${detail} [data-context-intake=todo]`));
+  await inbox.click(`${detail} [data-context-intake=todo]`);
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   const [fromInbox] = todos();
   assert.equal(fromInbox!.title, "供应商报价需要回复");
@@ -55,7 +56,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
 
   // Converting it again finds the same todo instead of making a second one.
   await evaluate("document.querySelectorAll('.placement-toast').forEach(card => card.remove())");
-  await click(`${detail} [data-context-intake=todo]`);
+  await inbox.click(`${detail} [data-context-intake=todo]`);
   await waitFor(`Boolean(${CARD("已记成待办")})`, 10_000);
   assert.equal(todos().length, 1);
 
@@ -66,7 +67,8 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   await todo.waitFor(`document.querySelector('[data-todo-sources]').textContent.includes('供应商报价需要回复')`);
   await screenshot("inbox-todo");
   await todo.click(`[data-todo-sources] [data-workbench-item-plugin=inbox][data-workbench-item-id="${entry.entry_id}"]`);
-  await waitFor(`document.body.dataset.desktopSurface === 'inbox' && ${visible(`${detail} .feed-detail-header`)}`);
+  await waitFor("document.body.dataset.desktopSurface === 'inbox'");
+  await inbox.waitFor(visible(`${detail} .feed-detail-header`));
 
   // 灵光: what is on screen, including words not saved yet, becomes the todo; the spark stays where it is.
   await load("", "lingguang");

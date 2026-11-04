@@ -1,6 +1,6 @@
 # 创建入口：每个插件一句话新建，选中内容自动创建
 
-状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 已在交接分支 #411 里通过工程用例，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
+状态：执行中（2026-10-12）。完整设计与既有验收保留；W0 独立原型已打磨并实操；产品接入的 W1、W2 随 #411（70c928ae0）已合入 main，后续已合片与未做片按总纲状态句核对，真实 Jev 评估、桌面原生拖出与一骏本人验收未完成。接续入口、现状、没做的事和下一步见[总纲第 20 节「远端交接」](../context-program/spec.md)，证据见总纲第 16 节；以下标为 2026-10-09 的现状表是历史快照，不代表本轮重新验证。
 
 ## 1. 用户的话与要解决的事
 
@@ -476,7 +476,7 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 - SDK：新增 `packages/plugin-sdk/src/passage-draft.ts`，改 `packages/plugin-sdk/src/index.ts`
 - Inbox：`plugins/native/inbox/src/content-actions.ts`、`manifest.ts`，新增 `intake-offers.ts`；`plugins/native/inbox/package.json` 与 `pnpm-lock.yaml`
 - Pages：`plugins/native/pages/src/intake-offers.ts`（W4-2 新加的文件）
-- 包清单：`specs/repository-anti-corruption/spec.md` §5.1 包清单的行（用脚本重新生成）
+- 包清单：`specs/archive/repository-anti-corruption/spec.md` §5.1 包清单的行（用脚本重新生成）
 - 快照：`tooling/gates/actions/`、`tooling/gates/api/`
 - 文档：`skills/molis-plugin-dev/contextual.md`、本文 §7
 - 测试：`tests/workflow-content-actions.test.ts`、`tests/plugin-context-declarations.test.ts`、`tests/contextual-create.test.ts`、`tests/contextual-draft.test.ts`、`tests/pages-actions.test.ts`、`tests/inbox-action-scenes.test.ts`；新增 `tests/contextual-inbox.e2e.test.ts`
@@ -507,9 +507,9 @@ W4-6a 合入之前原本要请统筹（①）回答两个问题；⑧ 在自己�
 1. **真实 Home 里固定了 `receive@1` 的已存流程与运行中的实例，由用户自己在编辑器里修**（用户 2026-10-19 定）：把站点拿掉再加回来，新引用固定 `receive@2`，也就是 action-architecture §3 说的「显式修复」。
    - 产品里不写迁移代码，也不为开发用的 Home 写迁移脚本；W4-6a 的 PR 也不碰任何真实 Home 或真实数据。
    - 修之前，这些流程与实例照现行规则报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何记录（`W4-6-04`）。
-   - 因为不加迁移机制，所以不用登记到 `specs/repository-anti-corruption` 的保留机制；只在其 §1 的决定表里记一行（见下一条）。
-2. **八个 MCP 工具改名，不留别名**（用户 2026-10-19 同意，⑧ 问的）：`molis_work_v1_action_<站>.content.receive__v1` 变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样，八个站是 `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt`。按 CONTRACT-CHANGES §3.5，已在 `specs/repository-anti-corruption/spec.md` §1 记了一行（2026-10-19），W4-6a 的 PR 里列出新旧名字。
-3. **授权与角色里固定的 `receive@1`**（用户 2026-10-19 定，D25）：按准确版本固定 `receive@1` 的另外两类引用也一样对不上，产品里不迁移：MCP 客户端与内置 Agent 的动作授权（`apps/local-host/src/mcp-action-grants.ts` 按版本配授权；授权页把 v1 那条列为「找不到原能力、版本或提供方」，v2 未授权，要在授权页重新授权 v2，之前调不到）；Characters 角色动作范围里选过的 v1（保存或发布时报「原能力 … · v1 不可用或尚未授权给内置 Agent」，要移除 v1、改选 v2；这项检查原在 `plugins/native/characters/src/plugin.ts`，CHR-1，2026-10-22 起在 `modules/characters/src/agent-actions.ts`）。用户原话：「不想手动改：在真实 Home 上做一次性维护，把授权和角色里的 receive v1 改成 v2。先在一次性 Home 上演练、先备份，时间由我定。」所以由一次性维护把八个站在这两类引用里的 v1 改成 v2：v2 的权限或受众比 v1 宽的那一条不带过去，列给用户在授权页重新授权；角色按人自己改角色时的版本规则处理，不就地改已发布的那一版；先在一次性 Home 上演练、整份备份，真实 Home 那一次由用户定时间、当次同意。维护脚本放会话临时目录、不进仓库，产品代码里也不加迁移，所以不登记到 `specs/repository-anti-corruption` 的保留机制（`docs/system/CONTRACT-CHANGES.md` §3 第 4 条）。**结项（用户 2026-10-20 定）：** 原来那台电脑上的 Home 不再用，现在的开发机上没有真实 Home，这次维护没有在任何真实 Home 上跑过；两次一次性 Home 演练都通过了，脚本留在会话临时目录、不进仓库。已存的工作流不在这次维护里，仍由用户在编辑器里修。
+   - 因为不加迁移机制，所以不用登记到 `specs/archive/repository-anti-corruption` 的保留机制；只在其 §1 的决定表里记一行（见下一条）。
+2. **八个 MCP 工具改名，不留别名**（用户 2026-10-19 同意，⑧ 问的）：`molis_work_v1_action_<站>.content.receive__v1` 变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样，八个站是 `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt`。按 CONTRACT-CHANGES §3.5，已在 `specs/archive/repository-anti-corruption/spec.md` §1 记了一行（2026-10-19），W4-6a 的 PR 里列出新旧名字。
+3. **授权与角色里固定的 `receive@1`**（用户 2026-10-19 定，D25）：按准确版本固定 `receive@1` 的另外两类引用也一样对不上，产品里不迁移：MCP 客户端与内置 Agent 的动作授权（`apps/local-host/src/mcp-action-grants.ts` 按版本配授权；授权页把 v1 那条列为「找不到原能力、版本或提供方」，v2 未授权，要在授权页重新授权 v2，之前调不到）；Characters 角色动作范围里选过的 v1（保存或发布时报「原能力 … · v1 不可用或尚未授权给内置 Agent」，要移除 v1、改选 v2；这项检查原在 `plugins/native/characters/src/plugin.ts`，CHR-1，2026-10-22 起在 `modules/characters/src/agent-actions.ts`）。用户原话：「不想手动改：在真实 Home 上做一次性维护，把授权和角色里的 receive v1 改成 v2。先在一次性 Home 上演练、先备份，时间由我定。」所以由一次性维护把八个站在这两类引用里的 v1 改成 v2：v2 的权限或受众比 v1 宽的那一条不带过去，列给用户在授权页重新授权；角色按人自己改角色时的版本规则处理，不就地改已发布的那一版；先在一次性 Home 上演练、整份备份，真实 Home 那一次由用户定时间、当次同意。维护脚本放会话临时目录、不进仓库，产品代码里也不加迁移，所以不登记到 `specs/archive/repository-anti-corruption` 的保留机制（`docs/system/CONTRACT-CHANGES.md` §3 第 4 条）。**结项（用户 2026-10-20 定）：** 原来那台电脑上的 Home 不再用，现在的开发机上没有真实 Home，这次维护没有在任何真实 Home 上跑过；两次一次性 Home 演练都通过了，脚本留在会话临时目录、不进仓库。已存的工作流不在这次维护里，仍由用户在编辑器里修。
 
 ### 11.10 待补浏览器验证（用户 10-19 暂停）
 

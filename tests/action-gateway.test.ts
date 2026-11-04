@@ -46,7 +46,7 @@ test("official MCP process uses the shared Host registry and durable writes with
   const origin = served.origin;
   const gateway = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id });
   const sdk = new Client({ name: "untrusted-name", version: "1" });
-  await withCatalog({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({
+  await host.configurePersonalPlanning(home, withCatalog)({ homeDirectory: home }, catalog => catalog.bindRuntimeContext({
     context: { runtime_id: "gateway", stable_work_context_id: "gateway-session", host_declares_stable: true },
     project_id: project.project_id, actor_id: "user", user_confirmed: true,
   }));

@@ -260,20 +260,28 @@ export function renderWorkbenchBar(
   </div>`;
 }
 
+/** A panel may name an alias inside its HTML; only unmarked panels acquire their owner's identity from the wrapper. */
+export function directoryPanelIdentity(owner: string, panel: string): { ids: string[]; wrap: boolean } {
+  const marked = [...panel.matchAll(/\bdata-directory-panel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)].map(match => match[1] ?? match[2] ?? match[3]!);
+  return { ids: panel ? marked.length ? marked : [owner] : [], wrap: !!panel && !marked.length };
+}
+
 /** Application chrome only. Plugin owners continue to render and operate their content. */
 export function renderDirectoryPluginSections(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
   panels: Readonly<Record<string, string>>,
+  directory: PluginDirectory,
   activeDirectory = "root",
   settingsSection = "",
 ): string {
   const current = currentListPlugin(activeDirectory);
-  const plugins = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).flatMap((plugin) => {
+  const plugins = directoryPlugins(directory, enabled, english(primitives)).flatMap((plugin) => {
     const panel = panels[plugin.id] || "";
     if (!panel) return [];
+    const identity = directoryPanelIdentity(plugin.id, panel);
     const visible = plugin.id === current;
-    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}"${panel.includes('data-directory-panel=') ? "" : ` data-directory-panel="${plugin.id}"`} data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
+    return [`<section class="plugin-section is-expanded" data-plugin-section="${plugin.id}"${identity.wrap ? ` data-directory-panel="${plugin.id}"` : ""} data-plugin-expanded="true"${visible ? "" : " hidden"}>${pluginLink(primitives, plugin)}<div class="plugin-section-body" id="plugin-section-body-${plugin.id}">${panel}</div></section>`];
   }).join("");
   return `${plugins}${settingsSection}`;
 }

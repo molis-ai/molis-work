@@ -1,3 +1,4 @@
+import { CHARACTERS_SETTINGS_ENTRY_STYLES, CHARACTERS_STYLES } from "./styles.js";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CHARACTER_IMPORT_HTML, CHARACTER_SOURCE_HTML } from "./import-ui.js";
 
@@ -18,6 +19,7 @@ export function renderCharactersSettingsEntry(model: CharactersSettingsUiModel):
   const { projects, primitives: p } = model;
   const rows = projects.map(project => `<a class="characters-project-link" href="${p.escape(project.href)}">${icon("folder")}<span>${p.escape(project.name)}</span>${icon("chevron-right")}</a>`).join("");
   return `<section class="settings-document characters-settings-entry" aria-labelledby="settings-title" data-settings-panel="characters">
+      <style>${CHARACTERS_SETTINGS_ENTRY_STYLES}</style>
       <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">角色</h1></div>
         <p>角色是交给 AI 的做事方式：你自己写的，以及系统和插件带来的。角色属于你，发布时固定到一个项目，所以在项目里管理。</p></header>
       <section class="settings-section"><h2>在哪个项目里打开</h2>${rows || `<p class="characters-hint">还没有项目。先创建一个项目，再回来写角色。</p>`}</section>
@@ -33,6 +35,7 @@ const STEPS: readonly [string, string][] = [
 export function renderCharacters(model: CharactersUiModel): string {
   const steps = STEPS.map(([title, detail], index) => `<li><span class="characters-step-mark" aria-hidden="true">${index + 1}</span><span><strong>${title}</strong><small>${detail}</small></span></li>`).join("");
   return `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="角色" data-settings-page="characters" hidden data-characters data-expanded="false" data-character-api="${model.primitives.escape(model.route_prefix)}/api/plugins/io.molis.work.characters">
+    <style>${CHARACTERS_STYLES}</style>
     <div class="characters-list-view" data-character-list-view>
       <header class="settings-heading characters-heading"><div class="settings-heading-title"><h1>角色</h1></div>
         <p>角色是交给 AI 的做事方式。写你自己的角色，或调整系统与插件带来的角色；任务开始时再选用哪一个。</p></header>

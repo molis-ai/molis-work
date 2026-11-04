@@ -10,24 +10,33 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 ## 1. 文档各管什么
 
+按使用、开发、发布或接续任务选阅读路径，先看[文档入口](README.md)；具体问题的权威来源按下表查。本索引维护分工与事实归属，不代替各份文档的规则或验收记录。
+
 | 问题 | 唯一权威来源 |
 | --- | --- |
 | 产品是什么（插件基座加多插件）、对用户承诺什么 | [`PRODUCT.md`](../PRODUCT.md) |
+| 安装、启动、维护与卸载 | [`docs/installation.md`](installation.md)（[English](installation.en.md)） |
+| CLI 命令、源码构建与日常开发 | [`docs/cli-and-development.md`](cli-and-development.md)（[English](cli-and-development.en.md)）；仓库执行约束见 [`AGENTS.md`](../AGENTS.md) |
+| 生产界面的视觉与交互规范 | [`DESIGN.md`](../DESIGN.md)及其引用的现行规范；[`docs/design/`](design/README.md)是设计参考与原型 |
+| 模型调用、Agent、提示词与上下文 | [`docs/platform/PROLOGUE-AI.md`](platform/PROLOGUE-AI.md)；执行步骤见 [`skills/molis-prologue-ai/SKILL.md`](../skills/molis-prologue-ai/SKILL.md) |
+| 发布规则、操作步骤与某次发布的范围 | [`docs/releases/POLICY.md`](releases/POLICY.md)管规则，[`CHECKLIST.md`](releases/CHECKLIST.md)管步骤；[`CHANGELOG.md`](releases/CHANGELOG.md)及各版本发布记录管变化、验证与缺口 |
+| Home 里的库、文件归谁，如何备份与卸载 | [`docs/system/HOME-DATA.md`](system/HOME-DATA.md) |
 | 本次重组的完整决策、范围和逐包 Contract | [`specs/molis-work-architecture-reorganization/spec.md`](../specs/molis-work-architecture-reorganization/spec.md) |
 | 分层、部署与端到端调用 | [`docs/system/ARCHITECTURE.md`](system/ARCHITECTURE.md) |
 | 允许和禁止的代码依赖 | [`docs/system/PACKAGE-BOUNDARIES.md`](system/PACKAGE-BOUNDARIES.md) |
 | 概念与命名：一个概念一个名字、一个定义，旧称、界面用词与代码改名清单 | [`docs/system/GLOSSARY.md`](system/GLOSSARY.md) |
-| 兼容逻辑清单与删除进度 | [`specs/repository-anti-corruption`](../specs/repository-anti-corruption/spec.md) §4（迁移期记录已归档到 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)） |
-| 每个包的规模、运行状态（在用 / Runtime / 构建期 / 非产品，不是下面第 2 节的状态词）和计划审查深度 | [`specs/repository-anti-corruption`](../specs/repository-anti-corruption/spec.md) §5.1 的包清单表；`scripts/gates/package-inventory.mjs` 按登记表和代码检查，随 `pnpm health:check` 跑。每个包的成熟度（第 2 节四词）唯一写在 `scripts/workspace-packages.mjs`，各表的「包成熟度」列由 `scripts/package-owners.mjs` 逐行校验，随 `pnpm boundary:check` 跑 |
+| 兼容逻辑清单与删除进度 | [`specs/archive/repository-anti-corruption`](../specs/archive/repository-anti-corruption/spec.md) §4（迁移期记录已归档到 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)） |
+| 每个包的规模、运行状态（在用 / Runtime / 构建期 / 非产品，不是下面第 2 节的状态词）和计划审查深度 | [`specs/archive/repository-anti-corruption`](../specs/archive/repository-anti-corruption/spec.md) §5.1 的包清单表；`scripts/gates/package-inventory.mjs` 按登记表和代码检查，随 `pnpm health:check` 跑。每个包的成熟度（第 2 节四词）唯一写在 `scripts/workspace-packages.mjs`，各表的「包成熟度」列由 `scripts/package-owners.mjs` 逐行校验，随 `pnpm boundary:check` 跑 |
 | 巨大单元只许变小 | `pnpm health:check`（基线 `tooling/gates/baseline.json`，必须长的登记在 `tooling/gates/giant-exceptions.json`）；全部单元的 owner、判定与计划见 [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md)，2026-09 的迁移历史在 [`docs/archive/huge-class-migration-2026-09.md`](archive/huge-class-migration-2026-09.md) |
 | 评审截图、根目录杂项、vendored 补丁的去留 | [`docs/system/REPOSITORY-HYGIENE.md`](system/REPOSITORY-HYGIENE.md)；`pnpm health:check` 按评审组限制入库的 `.impeccable/` 文件，只许减少 |
-| 13 个业务事实 Module（另有 4 个尚未建包的未来 owner；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
-| 9 个 `horizontal/` 包：5 个横向运行服务，4 个平台产品服务（记忆、放置、搜索、项目资料） | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |
+| 业务事实 Module（当前包与尚未建包的未来 owner 见 §5；插件自有的库见 §7） | [`docs/modules/`](modules/README.md) |
+| `horizontal/` 下的横向运行服务与平台产品服务（记忆、放置、搜索、项目资料），当前包见 §6 | [`docs/horizontal/`](horizontal/README.md)（Memory、Placement 的边界见各自包 README） |
 | Plugin、存储、交换、UI 等平台机制 | [`docs/platform/`](platform/README.md) |
 | Molis Work 自己联网去哪里（出站网络逐类登记：主机、触发、发出去什么、限制） | [`docs/platform/NETWORK.md`](platform/NETWORK.md)（[English](platform/NETWORK.en.md)）；设置页「服务连接」链到它；到 AnySearch 的出站只有 `apps/local-host/src/anysearch-transport.ts` 一条 |
 | 新插件先写什么、怎么接到产品 | [`skills/molis-plugin-dev/SKILL.md`](../skills/molis-plugin-dev/SKILL.md)（Host/CLI/接入分文件）；命令与录取四问仍是 [`docs/platform/PLUGIN-DEVELOPMENT.md`](platform/PLUGIN-DEVELOPMENT.md) |
 | 新增一个插件、服务集成、设置分区、界面语言、操作系统平台等要改哪里、目标几处；内置插件迁到 Plugin Runtime 的计划；第三方插件的安装方案 | [`docs/system/EXTENSION-POINTS.md`](system/EXTENSION-POINTS.md)、[`docs/system/RUNTIME-MIGRATION.md`](system/RUNTIME-MIGRATION.md)、[`docs/system/THIRD-PARTY-PLUGINS.md`](system/THIRD-PARTY-PLUGINS.md) |
 | 某次实现具体改什么、如何验收 | 对应 `specs/<task>/spec.md` 或已接受 Goal Contract |
+| 查找执行中需求、现行规范与归档；接续剩余工作 | [`specs/README.md`](../specs/README.md)管分类与索引，[`specs/BACKLOG.md`](../specs/BACKLOG.md)管统一待办；排期见[路线书](../specs/post-anticorruption-roadmap/spec.md)，步骤见[需求开发流程](../specs/post-anticorruption-roadmap/reference/development-workflow.md) |
 | 可执行类型、Schema 和兼容测试 | `packages/contracts` 的 public subpath；F3 自动门禁与 `packages/test-kit` 边界测试 |
 | 多会话并行开发的规矩 | [`docs/system/PARALLEL-DEVELOPMENT.md`](system/PARALLEL-DEVELOPMENT.md) |
 | 合同怎样变更（现在不留兼容期；读取兼容的流程与起点） | [`docs/system/CONTRACT-CHANGES.md`](system/CONTRACT-CHANGES.md) |
@@ -46,9 +55,9 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 四个词只用于第 3 至 7 节各表的「包成熟度」格（含未来目标路径行），与「运行状态」（在用 / Runtime / 构建期 / 非产品）不是一件事。判定由人依据该行行文与迁移切片验收作出；`scripts/workspace-packages.mjs` 是判定结果的唯一写入处，`scripts/package-owners.mjs` 在 `pnpm boundary:check` 里逐行校验：真实包的成熟度格必须等于登记表的值，没有对应 workspace 包的目标路径行必须是 `absent`。
 
-迁移期的 `legacy-mixed`、`contract-only`、`partial`、`implemented`、`retired`、`workspace-root + legacy-release` 已退役；历史见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md) 与 [`specs/repository-anti-corruption/roadmap-2026-10-07.md`](../specs/repository-anti-corruption/roadmap-2026-10-07.md)。
+迁移期的 `legacy-mixed`、`contract-only`、`partial`、`implemented`、`retired`、`workspace-root + legacy-release` 已退役；历史见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md) 与 [`specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`](../specs/archive/repository-anti-corruption/roadmap-2026-10-07.md)。
 
-当前 70 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、9 horizontal、24 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-25 核对）：`production` 54、`slice` 14、`experimental` 2。另外 10 个仅含描述符的占位包已删除；下表保留 8 个未来目标路径并标为 `absent`，不参与构建或发布；`apps/workbench/src/judgment-rules` 是包内目标路径行，跟随 `apps/workbench` 的成熟度。
+当前 workspace 包清单、分层与成熟度以 `scripts/workspace-packages.mjs` 为准，`pnpm workspace:check` 输出当前 `packageCount`；下表逐包列出职责、成熟度与归属，不另维护汇总数量。`server` 按 Module 计，`modules/`、`horizontal/` 的概念文档不等于现存包清单。仅含描述符的占位包已删除；下表的未来目标路径标为 `absent`，不参与构建或发布；`apps/workbench/src/judgment-rules` 是包内目标路径行，跟随 `apps/workbench` 的成熟度。
 
 ## 3. Apps
 
@@ -120,7 +129,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 **规划中的平台产品服务：观测和采集层。** [独立需求](../specs/observation-collection/spec.md)于 2026-10-27 从主动助理中迁出，尚未实现，包位置待设计；不计入上表当前包与成熟度。它负责获准的观察记录、工作关联、历史证据可用性与覆盖缺口，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
 
-成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 第二步工程候选已迁入平台；真实项目键清理仍待维护窗口，未经验收。
+成果库的浏览、嵌入与文档导入界面属于 `apps/workbench/src/artifacts/`，不登记 Plugin；动作提供方仍为 `io.molis.work.artifacts`。PG-077 已随 #1633 合入 main：提供方为平台的 `kind: "system"`，`plugins/native/artifacts` 旧包已删；本人验收与真实 Home 干净重建下的实操未完成（见 `specs/archive/repository-anti-corruption/privileges.md` PG-077）。
 
 ## 7. Plugins
 
@@ -144,11 +153,11 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/git` | Git 工作区变更与提交草稿（`app`，Coding 家族） | Runtime 托管；`git` 由平台的工作区 Git 服务运行（宿主的 `workspace-git*.ts`，只给插件调的动作 `projects.workspace.git.*`、`projects.workspace.writers.*`），插件经 SDK 解析 porcelain v1、把每处改动发布为可对比的变更集。接受一次 Coding Run 的改动不经 Git：主工作区里的每次写入先由人审查，并行子任务的成果经 Coding 的整合审查（`review:git-integration`）回到主工作区 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/diff` | 对比界面：同一处理三种输入（`app`，Coding 家族） | Runtime 托管；输入是 Files 的两个快照、Coding Run 准备的变更集、Git 工作区里的改动；变更集过程项类型 `diff.changeset.v1` 按这个消费者定义 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/text-stats` | 对已取得的文件快照数字符、UTF-8 字节和行（`app`，Coding 家族） | Runtime 托管；消费一个文件快照输入；两个查询动作（`text-stats.state` 读取已固定快照的统计，`text-stats.count` 统计给定文本），没有输出端口、事件和存储 | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/issues` | 个人问题的原始描述、类型、上下文与版本 | Home Runtime 托管；业务表 `{home}/issues/issues.db`；页面、助理、MCP 共用 `issues.*`，项目切换不分库；连接和授权由 Host 提供 | `production` | `specs/issue-home-v0/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/issues` | 个人问题的原始描述、类型、上下文与版本 | Home Runtime 托管；业务表 `{home}/issues/issues.db`；页面、助理、MCP 共用 `issues.*`，项目切换不分库；连接和授权由 Host 提供 | `production` | `specs/archive/issue-home-v0/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/images` | 个人生图与项目生成记录 | Home Runtime 独占原库/文件；生图经有限服务和 Prologue | `production` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | Home Runtime 独占原库；模型及配置经有限服务 | `production` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `production` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果；由 Plugin Runtime 装配（每个项目一份），经 `actions:delegate` 以调用者本人的身份调站点与步骤，不放宽调用者的授权 | `production` | `specs/action-architecture/spec.md` 工作流程节；`specs/repository-anti-corruption/spec.md` W5-01-WORKFLOWS | 内置插件：@yijunw0212 |
+| `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果；由 Plugin Runtime 装配（每个项目一份），经 `actions:delegate` 以调用者本人的身份调站点与步骤，不放宽调用者的授权 | `production` | `specs/action-architecture/spec.md` 工作流程节；`specs/archive/repository-anti-corruption/spec.md` W5-01-WORKFLOWS | 内置插件：@yijunw0212 |
 | `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件；现有实现先绕过，后续作为平台场景组装能力的创作入口（2026-10-27） | 见下文「插件创作工作台」；缺片：整体体验与端到端交付（用户 2026-10-27 反馈至今未完整跑通），包含新能力创作与手动／个人助理组合已有插件，Alchemist 为落地场景；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧实现证据：`specs/archive/plugin-builder/work-items/studio-v3/spec.md`） | 内置插件：@yijunw0212 |
 | `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `production` | `specs/archive/connector-method-directory/spec.md` | 官方集成：@yijunw0212 |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
@@ -170,12 +179,12 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 入口 | 当前 owner / 状态 | 交付边界 |
 | --- | --- | --- |
 | plugin CLI 与示例 | tooling/plugin-cli；examples/plugin-sample | 公开 SDK scaffold → validate/pack/sign → 本地安装 → Artifact/UI；样例不进生产 workspace |
-| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | 全部 70 个 workspace 包由 `pnpm workspace:build` 拓扑构建；发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
+| workspace / npm | 根 scripts 调用 App-owned 构建与打包工具 | `pnpm workspace:build` 按依赖顺序构建输入或产物已变化的包，跳过构建记录仍有效的包；`pnpm build:clean` 强制整体重建。发布包包含必要内部 JS 和资产，消费者安装原生依赖；不独立发布私有包 |
 | CLI / MCP / Web bins | apps/desktop/launchers/cli/main.ts、apps/desktop/launchers/mcp/server.ts、apps/desktop/launchers/web/server.ts | 只保留启动环境/stdio/资源路径与公开 App 入口；无业务 SQL 或状态机 |
 | Desktop / Tauri | apps/desktop + apps/desktop/src-tauri | App/DMG/zip、bundle、ad-hoc codesign、本地安装/恢复；Developer ID、公证和公开发布不在本期验收承诺内 |
 | Runtime Skill | skills/goal-advance | 仅消费正式公开 Contract 与入口，不读取内部 Store |
 | Plugin 开发 Skill | skills/molis-plugin-dev | 随 npm / Home 发布；不自动挂 Runtime 接入；本仓库 `.cursor/skills` 只是符号链接 |
-| CI / vendor | .github/workflows、vendor；App-owned 发布工具 | PR 与 main push 触发：包边界与 workspace 校验、健康门禁、Goal 边界与存储基线、发布资产、启动器类型检查、动作与插件合同、单一外壳与成果声明门禁、炼金术士测试；全量产品测试仍在本地跑（`specs/archive/repository-systematic-review/spec.md` F-08）。vendor 的来源、版本、许可证、SBOM 保留；发布包排除 `vendor/prologue-sdk/*.tgz` |
+| CI / vendor | .github/workflows、vendor；App-owned 发布工具 | `ci.yml` 的 `Verify` 汇总包边界与 workspace 校验、健康门禁、原生与 shell 检查、动作与插件合同、安全不变量、产品子集和密钥扫描；PR 选择、合并队列与 main 复用规则见 [并行开发 §3](system/PARALLEL-DEVELOPMENT.md#3-合并)。产品全量（含浏览器用例）由 `full-suite.yml` 分片运行，macOS 专有用例在本机补，触发与本机执行约束见 [§5.1](system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)和 [§7](system/PARALLEL-DEVELOPMENT.md#7-集成分支上跑全量)。vendor 的来源、版本、许可证、SBOM 保留；发布包排除 `vendor/prologue-sdk/*.tgz` |
 | 文档 | 本索引与对应 owner 文档 | 当前位置以此表为准；迁移期记录见 [`docs/archive/system-migration-2026-09.md`](archive/system-migration-2026-09.md)，阶段性验收保留历史，不代表未来能力落地 |
 
 ## 9. 变更规则
@@ -185,7 +194,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 3. 每个包的成熟度或目标能力变化，同时更新对应 Module/Service 文档与本矩阵的状态；成熟度只写第 2 节四个词之一。
 4. 标为 `slice` 或 `experimental` 的包不得被 UI、CLI、MCP 或 Plugin Runtime 宣称为已交付的正式功能。
 5. 旧 owner 从登记表与本矩阵退场（删行或并入别的包）前，先确认 caller 清零、行为兼容、数据迁移和回滚证据齐全；本矩阵不保留过渡词。
-6. 第 3 至 7 节各表的「归属」列（角色与评审账号）和 `.github/CODEOWNERS` 由 `scripts/package-owners.mjs` 的规则生成，不手改。新增、删除、改名 package 或换负责人后，改规则并运行 `node scripts/package-owners.mjs --write`；`pnpm boundary:check` 检查每个工作区包恰有一行、「归属」列与规则一致、CODEOWNERS 与规则一致。未建包的行（`absent`）归属写 `—`。「包成熟度」列由 `scripts/workspace-packages.mjs` 写、同一个检查逐行核对：真实包必须等于登记表的值，没有 workspace 包的目标路径行必须是 `absent`（`absent` 行不参与构建）。CODEOWNERS 只请求评审，不改分支保护（`specs/repository-anti-corruption/spec.md` §1，2026-10-02、10-07；成熟度词表 2026-10-25，W5-15）。
+6. 第 3 至 7 节各表的「归属」列（角色与评审账号）和 `.github/CODEOWNERS` 由 `scripts/package-owners.mjs` 的规则生成，不手改。新增、删除、改名 package 或换负责人后，改规则并运行 `node scripts/package-owners.mjs --write`；`pnpm boundary:check` 检查每个工作区包恰有一行、「归属」列与规则一致、CODEOWNERS 与规则一致。未建包的行（`absent`）归属写 `—`。「包成熟度」列由 `scripts/workspace-packages.mjs` 写、同一个检查逐行核对：真实包必须等于登记表的值，没有 workspace 包的目标路径行必须是 `absent`（`absent` 行不参与构建）。CODEOWNERS 只请求评审，不改分支保护（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-02、10-07；成熟度词表 2026-10-25，W5-15）。
 
 ## Agent Host 保存的人的配置
 

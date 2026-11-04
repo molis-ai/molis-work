@@ -1,4 +1,5 @@
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { StorageOwner } from "@molis-ai/molis-work-storage";
 import type { RuntimeIntegrationService } from "./runtime-integration.js";
 import type { RuntimeIntegrationPlan } from "./runtime-integration-contract.js";
 import type { MolisWorkWebServiceManager } from "./web-service.js";
@@ -81,5 +82,5 @@ export interface UninstallReceipt {
 
 export interface UninstallProjectAccess {
   inspect(): Promise<CatalogInspection>;
-  removeDemos(input: { project_ids: string[]; plan_id: string }): Promise<void>;
+  removeDemos(input: { project_ids: string[]; plan_id: string }, owner: StorageOwner): Promise<void>;
 }

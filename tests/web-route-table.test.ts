@@ -10,7 +10,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-// specs/repository-anti-corruption W5-07: handleMolisWorkWebRequest became an ordered route table. What the table must keep is which
+// specs/archive/repository-anti-corruption W5-07: handleMolisWorkWebRequest became an ordered route table. What the table must keep is which
 // handler answers each address, in the same order, and what falls through to the 404s. This asks the public web server (the same
 // local control guard in front) a fixed list of requests and pins what comes back: status, content type, redirect, and the JSON
 // error code and message or the top-level keys, or an HTML page's title. The snapshot was written on main before the refactor
@@ -201,18 +201,18 @@ async function fingerprint(response: Response, scrub: (text: string) => string):
 test("W5-07: every address reaches the same handler, in the same order, and the rest falls through to the same 404s", async t => {
   const home = mkdtempSync(join(tmpdir(), "web-route-table-"));
   const token = "web-route-table-control-token-0123456789";
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const access = host.ensureWebCatalog(home, openMolisWorkProjectCatalog);
+  const catalog = await host.configurePersonalPlanning(home, access.withCatalog)({ homeDirectory: home }, current => current);
   const created = await catalog.createProject({ display_name: "路由表", actor_id: "test" });
   // Inbox is a plugin of the project's Runtime: the pages and routes under test are the project's only when it has it.
   catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "inbox", actor_id: "test" });
   const missing = await catalog.createProject({ display_name: "没有库", actor_id: "test" });
   rmSync(catalog.getProject(missing.project_id).database_path, { force: true });
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
   const web = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   t.after(async () => {
     await new Promise<void>(resolve => web.close(() => resolve()));
     await host.close();
-    catalog.close();
     rmSync(home, { recursive: true, force: true });
   });
   await new Promise<void>(resolve => web.listen(0, "127.0.0.1", resolve));

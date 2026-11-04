@@ -1,4 +1,4 @@
-// Whose error is this (specs/repository-anti-corruption W3-02-B; user decision 2026-10-10 「一律用主人名开头」): every error code is
+// Whose error is this (specs/archive/repository-anti-corruption W3-02-B; user decision 2026-10-10 「一律用主人名开头」): every error code is
 // `<owner>.<reason>`, the owner's name first. This is the table that says which part of the repository speaks for which owner, and the
 // count of the codes that do not start with the name of the owner of the file that raises them.
 //

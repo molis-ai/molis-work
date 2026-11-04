@@ -29,7 +29,7 @@ test('the network door refuses every address of the shared table that is not pub
   for (const address of ADDRESSES_PUBLIC) assert.equal(publicAddress(address), true, address);
 });
 
-// What the door took over from the sandbox proxy's policy (specs/repository-anti-corruption §6): it used to refuse all of 192.0.0.0/16 (so public
+// What the door took over from the sandbox proxy's policy (specs/archive/repository-anti-corruption §6): it used to refuse all of 192.0.0.0/16 (so public
 // addresses such as 192.0.78.x were out of reach) and accepted any IPv6 outside a short list (a mapped public IPv4 address among them).
 // Now only the special-purpose parts of 192.0.0.0/16 are refused, and IPv6 is accepted inside 2000::/3 only.
 test('the network door reaches the public addresses of 192.0.0.0/16, refuses its special-purpose parts and every mapped IPv4 spelling', () => {

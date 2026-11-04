@@ -11,6 +11,7 @@ import { pluginRouteControl } from "./plugin-route-control.js";
 export interface PageActionRequest {
   reference: ActionReference;
   input: unknown;
+  mode?: "availability";
   project_id: string | null;
   signal: AbortSignal;
   assertCurrent(): void;
@@ -40,6 +41,9 @@ export function pluginPageActions(manifest: PluginManifest, context: PluginStart
       validate_authority: async () => { await request.beforeEffect(); check(); }, assert_authority_current: check };
     await request.beforeEffect();
     const view = await pluginActionView(options.client, caller, { ...reference, ...(own ? { provider_id: options.provider } : {}) });
+    await request.beforeEffect();
+    check(undefined, view.action.permissions);
+    if (request.mode === "availability") return view.availability;
     const route = projectRouteControl(pluginRouteControl(request.signal, options.caller.assertActive, request.assertCurrent),
       request.project_id, options.client, request.beforeBackgroundEffect, undefined, { id: randomUUID() });
     try {

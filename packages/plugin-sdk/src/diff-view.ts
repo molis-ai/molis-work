@@ -255,8 +255,8 @@ function renderFileList(model: DiffViewModel): string {
   if (model.view.files.length <= 1 || model.sides === false) return "";
   return `<ul class="mw-diff-files">${model.view.files.map((file, index) =>
     `<li data-kind="${escape(file.kind)}"><button type="button" data-action="diff.show-file"`
-    + ` data-change-index="${index}" data-path="${escape(file.path)}">${index + 1}. ${escape(file.path)}</button>`
-    + `<span class="mw-diff-counts">+${escape(file.added_lines)} −${escape(file.removed_lines)}</span></li>`).join("")}</ul>`;
+    + ` data-change-index="${index}" data-path="${escape(file.path)}"><span class="mw-diff-file-n">${index + 1}.</span> <span class="mw-diff-path"><span dir="ltr">${escape(file.path)}</span></span></button>`
+    + `<span class="mw-diff-counts"><span data-sign="insert">+${escape(file.added_lines)}</span> <span data-sign="delete">−${escape(file.removed_lines)}</span></span></li>`).join("")}</ul>`;
 }
 
 /**

@@ -3,13 +3,12 @@ import { renderStateRing, STATE_RING_FAMILIES, STATE_RING_LABELS } from "@molis-
 export function renderStateRingCatalog(): string {
   const choices = STATE_RING_FAMILIES.map(family => `<div class="mw-ring-catalog__family">${renderStateRing({ state: family.key, size: 28 })}<div><strong>${family.label}</strong><div class="mw-ring-catalog__aliases">${family.states.map(state => `<button type="button" class="mw-btn mw-btn--ghost" data-ring-choice="${state}" aria-pressed="${state === "done"}">${STATE_RING_LABELS[state]}</button>`).join("")}</div></div></div>`).join("");
   return `<section class="mw-catalog__section" id="status-ring" data-primitive="status-ring"><h2>状态 · 轻量环刻</h2>
-    <p class="mw-catalog__hint">43 个状态复用 21 套样式。外观可以共用，含义由旁边的文字说明。进行中安静停驻，有真实执行才持续流动；完成、已保存与本轮结束共用对勾，各自保留原意。</p>
     <div class="mw-ring-catalog__preview">
       <div class="mw-ring-catalog__hero">${renderStateRing({ state: "done", size: 64, label: "已完成" })}<strong data-ring-chosen>已完成</strong></div>
       <div class="mw-ring-catalog__row">${renderStateRing({ state: "done" })}<span>整理本周项目进展</span><small data-ring-chosen>已完成</small></div>
       <div class="mw-ring-catalog__sizes">${[12, 16, 20, 32].map(size => `<span>${renderStateRing({ state: "done", size })}<small>${size}px</small></span>`).join("")}</div>
     </div>
-    <p class="mw-catalog__hint">点下面的状态，观察同一组件在行内和大尺寸中的变化。部分完成的绿/黄和中断的灰/暖棕默认只表达两类结果；有真实数量时才传入完成比例。同步保持环面翻转，重试向后蓄力再展开。系统启用减少动态效果后全部静止。</p>
+    <p class="mw-catalog__hint">点下面的状态，看同一个环在行内和大尺寸里的变化。</p>
     <div class="mw-ring-catalog__grid">${choices}</div>
     <style>
       #status-ring svg.mw-state-ring { width: var(--ring-size); height: var(--ring-size); }

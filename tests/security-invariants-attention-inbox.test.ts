@@ -19,7 +19,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { recordInstallation } from "./fixtures/plugin-installations.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// PG-094 S12 (specs/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §6): the person's Inbox is the unassigned entries and
+// PG-094 S12 (specs/archive/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §6): the person's Inbox is the unassigned entries and
 // the owned entries whose owner declared their kind (`attention.inbox` in its Manifest). It is the platform that reads the declaration
 // from the installation; Feed names no plugin.
 

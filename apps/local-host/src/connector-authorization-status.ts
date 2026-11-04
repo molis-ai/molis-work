@@ -129,9 +129,10 @@ export function requireConnectorInitiator(home: string, id: string, caller: Pick
 }
 
 /** Protocol recovery inspects active requests; this does not expose their one-use state. */
-export function pendingConnectorAuthorizations(home: string, serviceId: string) {
-  return withAttempts(home, db => db.prepare("SELECT id FROM connector_authorization_results WHERE service_id=? AND status='pending' AND expires_at>=?")
-    .all(serviceId, Date.now()) as Array<{ id: string }>);
+export function pendingConnectorAuthorizations(home: string, serviceId?: string) {
+  return withAttempts(home, db => (serviceId === undefined
+    ? db.prepare("SELECT id FROM connector_authorization_results WHERE status='pending' AND expires_at>=?").all(Date.now())
+    : db.prepare("SELECT id FROM connector_authorization_results WHERE service_id=? AND status='pending' AND expires_at>=?").all(serviceId, Date.now())) as Array<{ id: string }>);
 }
 
 /** The same authority record starts before the person enters a credential or an OAuth session exists. */

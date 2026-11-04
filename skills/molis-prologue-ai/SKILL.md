@@ -103,6 +103,8 @@ AI 要人补信息、确认一步或挑一个对象时，用下面四条共用�
 
 改了这四条中的任何一条，跑 `node scripts/run-tests.mjs tests/interaction-examples.test.ts tests/agent-question-types.test.ts tests/agent-reference-questions.test.ts tests/action-cards.test.ts tests/form-draft-questions.test.ts tests/security-invariants-object-references.test.ts`。
 
+Host 解析 MCP 账号时可交出可信的同步 `assertCurrent`，闭包固定本次原声明与安装世代，不序列化进 SDK 配置。Agent 库让同一闭包覆盖凭据桥的等待、连接/刷新、工具调用后续配置和工作区读取、调用者等待、实际 SDK 网络派发及结果交付；validate 返回或缓存 revision 相同都不代表后续自动获准。旧调用不能在末尾换捕新世代；失效前已发出的外部请求不回滚，但晚到正文不交付且不通知 succeeded。回归：`tests/connector-mcp.test.ts` 的「RAC2885 Agent source withdrawal after validate」「RAC2885 Agent source withdrawal during an actual in-flight tool」。
+
 ## 验证与验收
 
 - `node scripts/run-tests.mjs tests/action-model-scheduling.test.ts`（等模型的动作必须并发，例外要写理由）。
@@ -130,4 +132,6 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 
 `agent.inputs.send.v3` / `coding.runs.control` v8 的业务输入不收 `original`，自报 `source: person` 不授予本人身份。本人 HTTP 发送由 Host 以 `use: supplement` 证明绑定当前安装、动作与 `send.<input_id>`；附材料或选区只改变外层模型 text，raw 原话沿同一 SDK 输入记录保存，不能拆标记推断。无证明的 Action 输入按 Host 处理；初始原件证明与补充证明不能互换。
 
-初始原件与接续通过正式 `agent.run.start.v1@2` 输入；`agent.session.read.v1@3`、`agent.run.read.v1@3`、`agent.run.wait.v1@3` 保留 canonical 原件，读取三口旧 @1/@2、启动口旧 @1 引用已失效。字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema 并升动作 version。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。
+普通文字材料只带 `material_id/title/text`；只有实际固定引用才带完整 `source_artifact_id/source_version`。前者 data 头用 `{title, material_id}`，后者保留 `{title, artifact_id, version}`；正文逐字保留，头与正文合计至多 20,000 UTF-16 units，非法或半份来源派发前拒绝。冻结记录只保留实际提供的来源，不用 Work、Session、Question 或实时 Page 标识占位。
+
+初始原件与接续通过正式 `agent.run.start.v1@3` 输入；`agent.session.read.v1@4`、`agent.run.read.v1@4`、`agent.run.wait.v1@4` 保留 canonical 原件，读取三口旧 @1/@2、启动口旧 @1 引用已失效。字段只表达草稿与来源引用，不能带 project/plugin/install/actor 或冻结角色。Host 校验原件证明，`readRun`、`readSession.latest_run` 与 `waitRun.view` 保留 canonical 原件；新增字段必须同步严格 Action schema 并升动作 version。助理通用执行方的补充经所选插件精确 `run.control` Action 与当前安装转交证明，不把协议角色本身当作本人授权。

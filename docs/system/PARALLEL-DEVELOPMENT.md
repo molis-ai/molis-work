@@ -2,14 +2,14 @@
 
 状态：现行规范（2026-10-08 入库）。同一台机器上常有几个会话（人和 Agent）、很多个工作树、几个在途 PR 同时在改这个仓库。这份文档写它们怎样不互相踩：开工、改枢纽文件、构建与测试排时段、合并、清理。每条规则后面写了依据；还没做、还开着的在最后一节「还没做、还开着」。`AGENTS.md`「协作」一节指到这里。
 
-文中的「路线图」是 `specs/repository-anti-corruption/roadmap-2026-10-07.md`，`W1-13` 这样的编号是它排出的切片，进度以 `specs/repository-anti-corruption/spec.md` §10 为准；「spec」指该目录的 `spec.md`。
+文中的「路线图」是 `specs/archive/repository-anti-corruption/roadmap-2026-10-07.md`，`W1-13` 这样的编号是它排出的切片，进度以 `specs/archive/repository-anti-corruption/spec.md` §10 为准；「spec」指该目录的 `spec.md`。
 
 合同怎样变更见 [合同变更流程](CONTRACT-CHANGES.md)。每个包归谁见 [`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md) 的「归属」列和 `.github/CODEOWNERS`。
 
 ## 1. 开工
 
 - 先看别人在做什么：`git fetch -q origin main`、`git worktree list`、`gh pr list --state open`。
-- 自己开工作树，不在主检出里改。分支从最新 `origin/main` 开，不基于别的分支或旧分支开新工作（`specs/repository-anti-corruption/spec.md` §1，2026-10-03「任务书来源」）：
+- 自己开工作树，不在主检出里改。分支从最新 `origin/main` 开，不基于别的分支或旧分支开新工作（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-03「任务书来源」）：
 
   ```sh
   cd <主检出> && git fetch -q origin main
@@ -40,7 +40,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发，连同它的路由表 `web-project-platform-routes.ts`、`web-catalog-index-routes.ts`）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
 | 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`（与同目录的 `plugin-manifest.ts`、`plugin-host-services.ts`、`plugin-routes.ts`）、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
-| 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
+| 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/archive/repository-anti-corruption/spec.md` |
 | 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
 
 `apps/local-host/src/project-plugins.ts` 不到 7 次，但 `AGENTS.md` 把每个新内置插件的装配点指到它的监督器条目，按枢纽对待。`tests/ci-product-subset.txt`（2026-10-09 才有，谈不上次数）也按枢纽对待：它点名三百多个用例，其中任何一个改名或删除，都要在同一个 PR 里改它的那一行，不然 `pnpm health:check` 变红（见第 3 节）；一行一个文件，解冲突时两边的行都留。
@@ -69,7 +69,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 - main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到；2026-10-15 去掉了「必须与 main 同步」，加了带合并队列的规则集）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `gates`、`health-gate-rules`（两份）、`architecture-boundaries`、`action-contracts`、`secret-scan`、`native-checks`、`shell-checks`、`security-invariants`、`product-subset` 九项实际检查均成功，仅 PR 成功选择的对应 `none` 允许该项 skipped；needs 里另有 `queue-check`（只在 push main 上运行，T-129）和 `test-selection`（PR 选择），两者是辅助依赖，不是额外必须成功的检查；`queue-check` 只让队列已验过的提交在 main 上不重跑；改这个作业的名字就等于改保护规则）；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
 - PR 描述按 `.github/pull_request_template.md` 写，包括验证结果、基线比对、API 与动作合同影响和基本合同检查。
-- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；本次按已定的“观察后并入”与只许变严合同加入 `Verify`，不改分支保护。现在 `ci.yml` 挡合并的是 `gates`（健康门禁与文档、运行器、扫描器的变异用例，不要构建）、`health-gate-rules`（健康门禁各条规则的变异用例，分两份）、`architecture-boundaries`（构建与构建之上的门禁）、`action-contracts`（构建与动作、插件合同，分两份）、`secret-scan`、`native-checks`、`shell-checks`、`security-invariants`（安全不变量，分两份）、`product-subset`（产品子集，分两份），并行跑，经 `verify` 汇总，二十来分钟（`ci.yml` 里 T-128 统计的各作业最长一次成功运行：`gates` 6.8 分钟、`health-gate-rules` 5.2、`architecture-boundaries` 5.8；`action-contracts` 的 15.4 是合并队列里一台慢 runner 上的那次。`gates`、`health-gate-rules`、`architecture-boundaries`、`action-contracts`、`security-invariants` 和 `product-subset` 各有作业超时，只为挡住 6 小时的挂死：挡合并的作业一律不低于 30 分钟，且都不低于各自最长一次成功运行的 1.8 倍（`security-invariants` 40 分钟、`product-subset` 35 分钟）；每个 `Install pnpm` 步骤 3 分钟；T-128，数值与依据在 `ci.yml` 注释和 `tests/ci-timeouts.test.ts`，调高时两处和新的实测一起改）；不挡合并的只剩 `linux-probe`。`security-invariants` 和 `product-subset` 在合并队列里跑整张清单；PR 上由 `test-selection` 作业按改动挑文件（T-130），some 跑选中项，whole、空或未知 mode、选择器故障回退整套；只有成功且对应 mode 为 none 才跳过，`Verify` 逐项核该依据才允许 skipped；合并队列已验过的 push main 和别的挡合并作业一样跳过，直推、每晚与手动运行整套跑。`linux-probe` 每晚（和所有手动触发时）在 ubuntu 上把全部非浏览器用例逐个跑一遍，记下哪些通过（只记录，约 60 分钟，PR 和推送上不跑）；`product-subset` 跑 `tests/ci-product-subset.txt`（快而稳、走用户动线的约 400 个文件，加 5 个浏览器冒烟、`tests/i18n.test.ts`），4 个非浏览器文件同时跑（2026-10-14 起），有时间预算，不稳定的文件写进 `tests/quarantine.json`（`file`、`owner`、`since`、`expires`、`reason`，至多 30 天（从 `since` 数起，`since` 不能比运行当天晚）、最多 10 条，到期自动重新计入）。做法、预算、退出码见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」。**日常怎么用**：产品用例新增或改动后，若它快（几秒）、在 Linux 上稳、走用户动线，就加进清单；`product-subset` 作业红了，先看摘要里「Failed」与「Flaky」两节，是自己引入的就修，是偶发的就按摘要里附的条目格式写进隔离名单（owner 写你自己），不要跳过或放宽断言，也不要为了变绿把文件从清单里拿掉。全量产品用例和浏览器用例的全量在 `.github/workflows/full-suite.yml` 分片跑（第 7 节），也可以在本机跑。
+- 产品子集（决定 #14）与安全不变量现已纳入 `Verify`，分支保护仍只要求 `Verify`。作业分工、PR 选择与整套回退、分片、预算、退出码及隔离规则统一见 [PACKAGE-BOUNDARIES.md「自动门禁」](PACKAGE-BOUNDARIES.md#6-自动门禁)与[「产品子集作业」](PACKAGE-BOUNDARIES.md#产品子集作业w2-16决定-14)；作业超时及调整依据见 `.github/workflows/ci.yml` 注释与 `tests/ci-timeouts.test.ts`。**日常怎么用**：新增或修改的产品用例若快、在 Linux 上稳、走用户动线，就加进 `tests/ci-product-subset.txt`；作业红了先看摘要的 Failed 与 Flaky，回归要修，偶发失败按摘要条目写入 `tests/quarantine.json`，不跳过或放宽断言、不为变绿删清单。全量安排见第 7 节，本次执行范围以第 5.1 节覆盖说明为准。
 - 清单和隔离文件自己的规则也挡合并：这些规则（每行的文件存在、没有 live 或 macOS 专有的用例、冒烟 3 到 5 个、`tests/i18n.test.ts` 在内、隔离项的字段与日期）在 `pnpm health:check` 里，随挡合并的 `gates`（经 `Verify`）检查，没有基线，出一处就失败。这是 W2-16 实现时加的，当时决定 #14 说的是作业先不挡合并（记在 spec §1 同一行）。对每个人的影响：重命名或删除清单里的某个用例，要在同一个 PR 里改 `tests/ci-product-subset.txt` 那一行；给清单里的用例加上 macOS 专有或 live 的用法（直接写，或经它引入的夹具）也会变红，那个用例已经不适合 Linux 子集，在 PR 描述里说明后从清单拿掉。需要日期的两条（隔离到期、`since` 不在将来）不在门禁里，由运行器按当天日期判断。
 
 上述本地 Full 为通用运行能力；本次接续执行按第 5.1 节覆盖说明。
@@ -244,7 +244,7 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
 
 - 只有 `horizontal/agent-host` 依赖 `@prologue/sdk`（`AGENTS.md` 硬约束）。包放在 `vendor/prologue-sdk/`，目录里只留当前使用的一份，最多再加一份在途分支的；换新包时删掉旧包，旧包从 Git 历史取。健康门禁数这个目录里的 `.tgz` 包数，上限是 `tooling/gates/limits.json` 的 `vendoredPrologueSdk`（现在是 2：当前一份加一份在途）。
 - 两条线要不同的 SDK 改动时，合成一个包共用，不各带一份：先落地的线在 Prologue 仓库里把几条分支合成一个分支，打一个包；后一条线在这个包的基础上重建，不另加包。当前包的来源记在 `vendor/prologue-sdk/<包>.provenance.json` 和 `.sha256`，`vendor/prologue-sdk/README.md` 当前一节写重建步骤（检出哪个上游提交、构建、`pnpm pack`）与验证结果；这几份的写法就是模板，`pnpm health:check` 核对它们和 tgz 相符。
-- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：来源分支 `feat/molis-side-panel-surfaces-on-memory` 收敛到上游基线，按一个合成流程、一个负责人；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。方案是 [dependencies-and-sdk-plan.md](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md)：来源分支早已作为 Prologue PR #3 合入上游 main，没有要推的东西；25 份历史补丁已删，记录在 `vendor/prologue-sdk/patch-history.json`（W1-23）；tgz 移出公开仓库（方案 §5）还没做，做完之前上面的做法照旧，删除 vendored 的 tgz 按用户当次的授权办。
+- 方向已定（spec §1，2026-10-08「Prologue SDK 收敛与私有包」）：来源分支 `feat/molis-side-panel-surfaces-on-memory` 收敛到上游基线，按一个合成流程、一个负责人；删掉重建用不着的历史补丁，记下 sha256 与来源；`prologue-sdk`、`adeptify intelligence-client`、`search-evidence-layer` 的 tgz 改从私有 registry 或 release 附件取，不再放进公开仓库。来源分支早已作为 Prologue PR #3 合入上游 main，没有要推的东西；历史补丁已删，记录在 `vendor/prologue-sdk/patch-history.json`（W1-23）。换包的规矩：Molis 只依赖 Prologue `main` 上的一个具名提交，不依赖分支、不叠补丁；一次换包是一个 Molis PR，里面是 `vendor/` 的新包与记录、`pnpm-lock.yaml`、`horizontal/agent-host` 的适配与测试，不夹别的改动；需要先试用没合并的 SDK 改动时才临时多放一份在途包（`vendoredPrologueSdk` 的上限 2），合并前换成 `main` 上的提交。不自动前进，只在功能需要上游的改动、安全修复、或负责人看过落后提交数决定追时才换。tgz 移出公开仓库（改从私有 release 附件取、清单加取包脚本、CI 配只读凭据、门禁改成不允许跟踪 tgz）还没做，设计见 [dependencies-and-sdk-plan.md](../../specs/archive/repository-anti-corruption/dependencies-and-sdk-plan.md) §5；做完之前上面的做法照旧，删除 vendored 的 tgz 按用户当次的授权办。
 - 合成负责人：还没有指定人。上面的决定要求设一个，W1-20 出方案时提名。在那之前，谁要换包谁做，并把 README 写全；`/vendor/` 在 `.github/CODEOWNERS` 里走默认规则，只请求 @yijunw0212。指定之后，把负责人写在这一节。
 
 ## 12. 还没做、还开着

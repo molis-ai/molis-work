@@ -13,7 +13,8 @@ const controlToken = "artifact-source-links-control-token-0123456789";
 // specs/artifact-positioning A4b: a pinned version says whether its work object changed since, and who refers to it.
 test("a pinned document shows when the original changed or was deleted, and which Goals and documents use it", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-source", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-source", actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
   await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
   const store = new LocalProjectDatabase(project.database_path);
@@ -89,7 +90,8 @@ test("a pinned document shows when the original changed or was deleted, and whic
 
 test("a pinned document that moved to another place says so, instead of saying it was deleted", async t => {
   const served = await openTestHome(t);
-  const project = await withCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-moved", actor_id: "test" }));
+  const withHostCatalog = served.host.configurePersonalPlanning(served.home, withCatalog);
+  const project = await withHostCatalog({ homeDirectory: served.home }, catalog => catalog.createProject({ display_name: "artifact-moved", actor_id: "test" }));
   const DEMO_PROJECT_ID = project.project_id;
   await seedDemoGoals(project.database_path, DEMO_PROJECT_ID);
   const origin = served.origin;

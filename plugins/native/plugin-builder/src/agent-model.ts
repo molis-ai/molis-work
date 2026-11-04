@@ -9,6 +9,9 @@ export interface BrowserAcceptance {
     | { action: 'page'; pageId: string }
     | { action: 'fill'; componentId: string; field: string; value: string | boolean }
     | { action: 'submit'; componentId: string }
+    | { action: 'submitBlocked'; componentId: string; field: string; reason: 'valueMissing' }
+    | { action: 'faultRead'; componentId: string }
+    | { action: 'retry'; componentId: string }
     /** A record is chosen by its stable id or, since ids are made at run time, by text it shows. */
     | { action: 'select'; componentId: string; recordId?: string; text?: string }
     | { action: 'expect'; componentId: string; text: string }
@@ -58,7 +61,9 @@ export interface AgentBuildSnapshot {
   /** The designer's own authoring answer for this design; a revision hands it back so the model edits its own format. */
   designSource?: string;
   checks?: Record<string, BuildCheckResult>;
-  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string };
+  /** Absence denotes the project's check context; Home checks are explicit. */
+  checksScope?: 'home';
+  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string; blocked?: string };
   visualResult?: { structural: boolean; status: 'reviewed' | 'unavailable' | 'failed'; issues: string[]; at: string; revision: string; elapsedMs: number };
   /** A paused visual revision resumes without starting code generation. */
   pendingVisual?: string;
@@ -68,11 +73,15 @@ export interface AgentBuild extends AgentBuildSnapshot {
   phase: 'draft' | 'designing' | 'clarifying' | 'choosing' | 'building' | 'paused' | 'failed' | 'ready';
   messages: Array<{ role: 'user' | 'assistant'; text: string }>;
   candidates: AgentProposal[]; chosen?: string; questions: string[]; clarificationAnswered: boolean;
-  active: { token: string; stage: 'design' | 'detail' | 'revise' | 'build' | 'visual'; contractRevision?: string } | null;
+  active: { token: string; stage: 'design' | 'detail' | 'revise' | 'build' | 'visual' | 'check'; contractRevision?: string } | null;
+  /** The project's draft by default; the first publication fixes this choice. */
+  runtimeScope?: 'home';
+  /** Existing source needs the target's gates again; resume must not invoke a model. */
+  scopeCheckPending?: true;
   /** The designer's last host-normalized notes (dropped unknown settings), shown so nothing disappears silently. */
   notes?: string[];
   steps: AgentBuildStep[]; checks: Record<string, BuildCheckResult>;
-  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string };
+  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string; blocked?: string };
   runs: Array<{ id: string; role: string; phase: string; configuredModel: string; reportedModels: string[]; promptVersion: string; error?: string }>;
   pendingPart?: { id: string; candidates: string[]; reason: string };
   /** Plugins the design uses that this project has not enabled: the build waits until the person enables them or declines. */
@@ -94,4 +103,17 @@ export interface AgentRelease {
   permissions: SandboxEffects; publishedAt: string;
   /** Its declared prompts, registered with the Home when it is installed. */
   prompts: PluginPrompt[];
+  /** Public distribution identity only. The release owner derives the signed file's location. */
+  distribution?: { runtime_scope: 'project' | 'home'; publisher_key_id: string };
+}
+
+export type AgentPublicationArtifact = Pick<AgentRelease, 'directory' | 'bundlePath' | 'packagePath' | 'prompts' | 'distribution'>;
+/** Trusted live call and release-store ports, never browser input or a persisted authorization. */
+export interface AgentPublicationControl {
+  readonly signal: AbortSignal;
+  beforeEffect(): Promise<void>;
+  assertCurrent(): void;
+  versions(): AgentRelease[];
+  referenced(directory: string): boolean;
+  commit(artifact: AgentPublicationArtifact): AgentRelease;
 }

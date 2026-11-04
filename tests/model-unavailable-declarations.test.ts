@@ -34,10 +34,10 @@ async function fixture(t: test.TestContext, options: { alchemistAi?: boolean } =
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   const home = await mkdtemp(join(tmpdir(), "model-unavailable-"));
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const host = new MolisWorkLocalHost({ homeDirectory: home, ...(options.alchemistAi ? { alchemist: { ai: () => injectedAi } } : {}) });
+  const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
   t.after(async () => {
-    await host.close(); catalog.close(); resetSecretStoreCache();
+    await host.close(); resetSecretStoreCache();
     if (previousBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
     await rm(home, { recursive: true, force: true });
   });
@@ -48,14 +48,14 @@ async function fixture(t: test.TestContext, options: { alchemistAi?: boolean } =
     (await host.inspectActions(caller("a", audience), ref)).find(view => view.capability_id === capabilityId)!.availability;
   const project = (audience: ActionAudience) => bindActionClient(host.actionClient(ref), () => caller("a", audience));
   const personal = bindActionClient(host.homeActionClient(), () => caller(null, USER));
-  const configureModel = () => {
+  const configureModel = () => withCatalog({ homeDirectory: home }, catalog => {
     const connection = withConnectorConnections(home, store => {
       const value = store.createToken({ serviceId: "model-api", displayName: model.providerId, token: "declared-fixture-key" });
       store.assertTarget(value.connection_id, "model-api", model.origin); return value;
     });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: model.providerId, display_name: model.providerId, base_url: model.origin + "/v1",
       api_format: "openai-chat-completions", prompt_cache: "off", models: [{ model_id: model.modelId, enabled: true }] });
-  };
+  });
   const mcp = () => createActionMcpPorts({ service: host.actionClient(ref), context: () => caller("a", "mcp"), serverInfo: { name: "declared", version: "0" } });
   return { home, availability, project, personal, mcp, configureModel };
 }
@@ -112,7 +112,7 @@ test("without a model the Assistant is told which Alchemist actions cannot run, 
     await assert.rejects(gone.callTool(name, {}), { code: "actions.connection_required" });
   }
   assert.ok(names.includes(actionMcpToolName(alchemistActions.pulseStart)), "the market pulse needs no model and stays listed");
-  f.configureModel();
+  await f.configureModel();
   for (const action of NEEDS_MODEL) assert.deepEqual(await f.availability(action.capability_id, AGENT), { available: true }, action.capability_id);
   const listed = (await f.mcp().tools).map(tool => tool.name);
   for (const action of NEEDS_MODEL) assert.ok(listed.includes(actionMcpToolName(action)), `${action.capability_id} comes back with a model`);

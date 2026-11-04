@@ -11,7 +11,7 @@ import {
   type UiRequestPorts,
 } from "@molis-ai/molis-work-ui-host";
 
-// The one browser request helper (specs/repository-anti-corruption W3-10): control headers, one-time key, errors as a message
+// The one browser request helper (specs/archive/repository-anti-corruption W3-10): control headers, one-time key, errors as a message
 // plus a code plus a diagnostic ID, and the button that shows and copies the ID. Everything here goes through the package's
 // public entry with fake ports, the way a page, a plugin client (W5-04) or a bundled client receives them.
 

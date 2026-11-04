@@ -1,0 +1,94 @@
+import { lstatSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { acquireStorageOwner, acquireStorageOwnerForRecovery, assertStorageOwner } from "@molis-ai/molis-work-storage";
+import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
+import { readHomeRestoreArchive } from "./home-restore-archive.js";
+import { prepareRestoreMemory, assertCompleteRestoreMemory } from "./home-restore-memory.js";
+import type { HomeRestoreCatalogInspector, HomeRestoreControl, HomeRestoreResult } from "./home-restore-contract.js";
+import { assertRestoreDependencies } from "./home-restore-dependencies.js";
+import { verifyCommittedHomeRestore } from "./home-restore-finish.js";
+import { homeRestoreErrors } from "./home-restore-input.js";
+import { inspectRestoreArchiveContents, inspectRestoreOwnerContents } from "./home-restore-inspection.js";
+import { homeRestoreJournalWriter, readHomeRestoreJournal } from "./home-restore-journal.js";
+import { publishHomeRestore } from "./home-restore-publish.js";
+import { rollbackHomeRestore } from "./home-restore-rollback.js";
+import { collectRestoreStoreInputs } from "./home-restore-stores.js";
+import { planHomeRestoreTarget } from "./home-restore-target.js";
+import { resolveConfiguredHome } from "./product-home.js";
+
+interface HomeRestoreBaseOptions {
+  readonly homeDirectory?: string;
+  readonly signal?: AbortSignal;
+  /** Trusted product platform composition, not an input flag or a user-selected inspector. */
+  readonly inspectCatalog: HomeRestoreCatalogInspector;
+}
+export interface HomeRestoreOptions extends HomeRestoreBaseOptions { readonly source: string }
+export type HomeRestoreRecoveryOptions = HomeRestoreBaseOptions;
+
+function existingHome(requested?: string): string {
+  const path = resolve(resolveConfiguredHome(requested)), info = lstatSync(path);
+  if (!info.isDirectory() || info.isSymbolicLink()) throw homeRestoreErrors.invalid("恢复需要已经存在的原 Home 普通目录");
+  return realpathSync(path);
+}
+
+/** The exact original Home is held for all preflight and publication; no Host, SDK Runtime or business initializer starts. */
+export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<HomeRestoreResult> {
+  const home = existingHome(options.homeDirectory), root = agentRuntimeDirectory(home);
+  options.signal?.throwIfAborted();
+  const owner = acquireStorageOwner(root);
+  try {
+    const lease = () => assertStorageOwner(root, owner);
+    const control: HomeRestoreControl = { signal: options.signal, assertCurrent() { options.signal?.throwIfAborted(); lease(); } };
+    const archive = readHomeRestoreArchive(home, options.source), stores = collectRestoreStoreInputs(home, archive);
+    const inspected = await inspectRestoreArchiveContents(home, archive, stores, options.inspectCatalog, control);
+    const inputs = await prepareRestoreMemory(archive.root + "/data", inspected, control, async () => { await planHomeRestoreTarget(home, inspected, control); });
+    const target = await planHomeRestoreTarget(home, inputs, control);
+    const preflightCurrent = () => {
+      control.assertCurrent();
+      try {
+        const current = readHomeRestoreArchive(home, options.source);
+        if (!isDeepStrictEqual(current.manifest, archive.manifest)) throw homeRestoreErrors.changed("恢复预检期间归档清单已变化");
+      } catch (error) {
+        if (error === options.signal?.reason) throw error;
+        throw homeRestoreErrors.changed("完整预检后归档的内容或清单已变化，未移动原件");
+      }
+      assertRestoreDependencies(home, inputs.registry, stores.dependencies); control.assertCurrent();
+    };
+    return await publishHomeRestore(home, inputs, target, control, { assertCurrent: lease }, async journal => {
+      if (journal) verifyCommittedHomeRestore(journal, target.registry, options.inspectCatalog, control);
+      assertRestoreDependencies(home, inputs.registry, stores.dependencies);
+      await inspectRestoreOwnerContents(home, home, inputs.registry, [...inputs.files.keys(), ...inputs.directories.keys()], control);
+      assertCompleteRestoreMemory(home, [archive.root]);
+    }, preflightCurrent);
+  } finally { owner.release(); }
+}
+
+/** Explicit reentry uses the same underlying SQLite acquisition, never a second lock or a same-PID exception. */
+export async function recoverHomeRestore(options: HomeRestoreRecoveryOptions): Promise<HomeRestoreResult> {
+  const home = existingHome(options.homeDirectory), root = agentRuntimeDirectory(home);
+  options.signal?.throwIfAborted();
+  const owner = acquireStorageOwnerForRecovery(root);
+  try {
+    const control: HomeRestoreControl = { signal: options.signal, assertCurrent() { options.signal?.throwIfAborted(); assertStorageOwner(root, owner); } };
+    const pending = readHomeRestoreJournal(home);
+    if (!pending) return { status: "no_recovery", home_directory: home };
+    const { journal, registry } = pending, writer = homeRestoreJournalWriter(journal, true);
+    if (journal.phase === "committed") {
+      try {
+        verifyCommittedHomeRestore(journal, registry, options.inspectCatalog, control);
+        await inspectRestoreOwnerContents(home, home, registry, [...journal.files, ...journal.directories].map(node => node.path), control);
+        assertCompleteRestoreMemory(home, [journal.originals_directory]);
+      } catch (error) {
+        if (error === options.signal?.reason) throw error;
+        throw homeRestoreErrors.changed(`已提交恢复的内容、owner 资格或原依赖已变化；保留阻断与原件 ${journal.originals_directory}`);
+      }
+      try { writer.clear(); }
+      catch { throw homeRestoreErrors.published_unconfirmed(`恢复已提交，解除阻断未确认；保留 ${journal.originals_directory} 并重试 home restore --recover`); }
+      return { status: "finished", home_directory: home, originals_directory: journal.originals_directory };
+    }
+    try { await rollbackHomeRestore(journal, registry, control); writer.clear(); }
+    catch { throw homeRestoreErrors.recovery_required(`原状态回滚未完成；保留 ${journal.originals_directory} 与阻断，保持其他入口关闭后重试 home restore --recover`); }
+    return { status: "rolled_back", home_directory: home, originals_directory: journal.originals_directory };
+  } finally { owner.release(); }
+}

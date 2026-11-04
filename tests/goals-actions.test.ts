@@ -123,7 +123,7 @@ async function openGoalsMcp(t: TestContext) {
     t.signal.removeEventListener("abort", traceAbort);
   };
   try {
-    await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({
+    await host.configurePersonalPlanning(home, withCatalog)({ homeDirectory: home }, c => c.bindRuntimeContext({
       context: { runtime_id: "goals-actions", stable_work_context_id: "goals-actions-session", host_declares_stable: true },
       project_id: project.project_id, actor_id: "user", user_confirmed: true,
     }));

@@ -1,4 +1,4 @@
-// Typed Host capabilities: no new entries (specs/repository-anti-corruption N-12, W1-05; decision 2026-10-07).
+// Typed Host capabilities: no new entries (specs/archive/repository-anti-corruption N-12, W1-05; decision 2026-10-07).
 //
 // A HostCapabilityDefinition is the old, second way to register a capability. Called through LocalHost.invoke it skips the
 // action service's schema validation, execution limits and call log. The decision: external capabilities go through the

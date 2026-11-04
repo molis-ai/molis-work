@@ -48,9 +48,10 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     return respond(request, requests.length);
   });
   const host = new MolisWorkLocalHost({ homeDirectory: home,
-    workspacesFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
-    workspaceFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => workspaceRefFor(catalog, projectId)),
+    workspacesFor: projectId => withCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    workspaceFor: projectId => withCatalog({ homeDirectory: home }, catalog => workspaceRefFor(catalog, projectId)),
   }), controlToken = randomUUID();
+  const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const create = createDesktopWebHost({ ptyClientFilePath: () => join(home, "unused-pty-client.js") });
   const server = create({ homeDirectory: home, localHost: host, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -66,7 +67,8 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   assert.equal(added.status, 201, JSON.stringify(added.body));
   const workspaces = await call<{ workspaces: Array<{ workspace_id: string }> }>(project.project_id, "/api/project-settings/workspaces");
   const workspaceId = workspaces.body.workspaces[0]!.workspace_id;
-  assert.equal((await call(project.project_id, "/api/project-settings/workspaces", { workspace_id: workspaceId })).status, 200);
+  const selected = await call(project.project_id, "/api/project-settings/workspaces", { workspace_id: workspaceId });
+  assert.equal(selected.status, 200, JSON.stringify(selected.body));
   const ended = (ref: AgentRunRef) => new Promise<AgentRunView>((resolve, reject) => {
     const adapter = ensureSystemAgentService(host, home).agentHost.adapter("prologue");
     let off = () => {}; const timer = setTimeout(() => { off(); reject(new Error("controlled Coding Run did not finish")); }, 15_000);

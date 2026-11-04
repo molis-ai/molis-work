@@ -4,7 +4,7 @@ import test from "node:test";
 import { homeStores } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
-// specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P1: a library in the Home is declared in the plugin's
+// specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P1: a library in the Home is declared in the plugin's
 // Manifest (`databases.home`) and nowhere else. The start entries, the build's catalog and the Host's entry types carry no `database`.
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");

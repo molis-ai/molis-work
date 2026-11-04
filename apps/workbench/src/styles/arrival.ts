@@ -88,8 +88,7 @@ export const ARRIVAL_STYLES = String.raw`
   .chooser-search__key .mw-kbd { min-height: 18px; padding: 0 6px; font-size: 11px; line-height: 18px; border-radius: 4px; border: 0; background: var(--control-fill); }
   .chooser-dir { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 -8px; padding: 0 8px 8px; }
   .chooser-dir > [data-slot="directory-heading"] { padding: 10px 8px 4px; }
-  .chooser-dir .mw-dir-row--meta { height: auto; min-height: 46px; padding-block: 6px; border-radius: var(--r-row, 10px); }
-  .chooser-dir .mw-dir-row--meta .mw-dir-row__copy { grid-template-rows: 18px 16px; row-gap: 1px; }
+  .chooser-dir .mw-dir-row--meta { height: auto; min-height: 40px; padding-block: 6px; border-radius: var(--r-row, 10px); }
   .chooser-none { padding: 20px 8px; color: var(--muted); font-size: 13px; }
   .chooser-none[hidden] { display: none; }
   .chooser-foot { display: flex; align-items: center; gap: 8px; padding: 0 8px; color: var(--faint); font-size: 12px; }
@@ -183,7 +182,9 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-source + .ob-source { border-top: 1px solid var(--line); }
   .ob-source .mw-dir-row--meta { grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; height: auto; min-height: 56px; padding: 8px 10px; border-radius: var(--r-row, 10px); }
   .ob-source .mw-dir-row__icon { width: 32px; height: 32px; margin: 0; border-radius: var(--r-control, 8px); background: var(--rail); color: var(--ink-soft); }
-  .ob-source .mw-dir-row--meta .mw-dir-row__copy { grid-template-rows: 18px 16px; row-gap: 1px; }
+  /* A source is a choice with its explanation, like an option card: its words stay under its name. */
+  .ob-source .mw-dir-row--meta .mw-dir-row__copy { grid-template-columns: minmax(0, 1fr); grid-template-rows: 18px 16px; grid-auto-flow: row; align-items: center; row-gap: 1px; }
+  .ob-source .mw-dir-row--meta .mw-dir-row__headline { display: grid; }
   .ob-source__act { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; pointer-events: none; }
   .ob-source__act svg { width: 14px; height: 14px; }
   .ob-source .mw-dir-row:hover .ob-source__act.mw-btn { background: var(--nav-press); }

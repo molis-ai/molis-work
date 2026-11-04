@@ -10,7 +10,7 @@ import { ACTION_ERRORS_FILE, ERROR_OWNERS_FILE, errorOwnerProblems, errorOwnersW
 // @ts-expect-error the gate modules are plain .mjs
 import { createErrorMetrics } from "../scripts/gates/error-metrics.mjs";
 
-// specs/repository-anti-corruption W3-02-B. tests/health-gates-errors.test.ts runs the gate on scratch repositories and shows that each
+// specs/archive/repository-anti-corruption W3-02-B. tests/health-gates-errors.test.ts runs the gate on scratch repositories and shows that each
 // rule fails when it is broken. This file pins the decisions inside the rules, each one with a small piece of source or a small table read
 // in memory: the names a status test is read through, the places a status can sit, what a factory call has to look like, how the owner of
 // a file is picked among paths, what the table rejects, and what the comparison of two tables calls looser. Each case is here because

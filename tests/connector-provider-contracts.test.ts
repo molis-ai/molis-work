@@ -116,7 +116,9 @@ for (const mode of ["direct", "broker"] as const) for (const c of contracts) tes
   const origin = "http://127.0.0.1:19478";
   const base = "https://auth.molis.test";
   // A client the person registered keeps the service's registered alias; the generic callback is the platform's own.
-  const redirect = mode === "broker" ? `${base}/callback` : `${origin}${c.id === "gmail" ? "/api/feed/connectors/gmail/oauth/callback" : "/api/settings/connectors/methods/oauth/callback"}`;
+  // Gmail and Notion have their registered callbacks, the services' aliases; Notion's names `localhost`, which the platform judges the same origin.
+  const redirect = mode === "broker" ? `${base}/callback` : c.id === "notion" ? `${origin.replace("127.0.0.1", "localhost")}/api/settings/connectors/notion/oauth/callback`
+    : `${origin}${c.id === "gmail" ? "/api/feed/connectors/gmail/oauth/callback" : "/api/settings/connectors/methods/oauth/callback"}`;
   const env: BrokerEnv = { PUBLIC_ORIGIN: base, ENVELOPE_KEY: randomBytes(32).toString("base64url"), OAUTH_APPS: JSON.stringify({ [c.id]: { clientId: "molis-test", clientSecret: "secret-test", settings: c.settings } }), AUTH_RATE_LIMITER: { limit: async () => ({ success: true }) } };
   let exchanges = 0, refreshes = 0, identities = 0; let authorizationChallenge: string | null = null;
   const upstream = (async (input, init) => {

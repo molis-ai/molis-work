@@ -1,4 +1,4 @@
-// Which test files the Linux probe runs, and what each file is marked as (specs/repository-anti-corruption §4.7, W1-11,
+// Which test files the Linux probe runs, and what each file is marked as (specs/archive/repository-anti-corruption §4.7, W1-11,
 // decision #14). Static: it reads the test files and the fixtures they import under tests/, it never runs them.
 //
 //   browser  needs a browser (a `.e2e.test.` file, or one that reaches Chrome through its own code or a fixture). Not run:

@@ -297,7 +297,8 @@ test("MEM-35: protected Assistant supplements keep literal material markers inta
     if (turn === 2) await second.promise;
     return cogniaScriptedResponse(undefined, "已读完补充。");
   });
-  await runWithMolisWorkHome(home.home, () => withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => {
+  const withCatalog = home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog);
+  await runWithMolisWorkHome(home.home, () => withCatalog({ homeDirectory: home.home }, catalog => {
     const connection = withConnectorConnections(home.home, store => {
       const row = store.createToken({ serviceId: "model-api", displayName: "Source model", token: "fixture-loopback-only" });
       store.assertTarget(row.connection_id, "model-api", model.base); return row;

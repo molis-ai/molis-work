@@ -1,6 +1,6 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -40,12 +40,13 @@ test("search exposes keyboard selection and offers a touch dismissal that return
 test("Feed creates two independent tasks in one page and shared controls keep readable dimensions", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { click, evaluate, waitFor, navigate, command, sessionId, projectId, origin } = b;
-  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
-  catalog.addProjectPlugin({ project_id: projectId!, plugin_id: 'feed', actor_id: 'ui-test' });
-  catalog.close();
+  const feedView = await pluginFrameBrowser(t, b, "feed");
+  await addProjectPlugin(b.web, projectId!, 'feed');
+
   await command('Emulation.setDeviceMetricsOverride', { width: 1024, height: 768, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id=feed]');
+  await feedView.waitFor("document.querySelector('[data-feed-workbench]')");
   await evaluate(`{ const original = window.fetch; window.createdSources = []; window.fetch = async (url, options) => {
     const response = await original(url, options);
     if (options?.method === 'POST' && String(url).endsWith('/api/plugins/io.molis.work.feed/sources')) {
@@ -54,33 +55,40 @@ test("Feed creates two independent tasks in one page and shared controls keep re
     return response;
   }; }`);
   for (const [index, name] of ['设计观察', '独立的第二个任务'].entries()) {
-    await click('[data-feed-source-rail] [data-feed-add-toggle]');
-    await waitFor("document.querySelector('[data-feed-source-choices]').hidden === false");
-    await click('[data-feed-choose-kind=custom_rss]');
-    assert.equal(await evaluate("document.querySelector('[data-feed-add-name]').value"), '');
-    assert.equal(await evaluate("document.querySelector('[data-feed-source-register]').disabled"), false);
+    await feedView.click('[data-feed-source-rail] [data-feed-add-toggle]');
+    await feedView.waitFor("document.querySelector('[data-feed-source-choices]').hidden === false");
+    await feedView.click('[data-feed-choose-kind=custom_rss]');
+    assert.equal(await feedView.evaluate("document.querySelector('[data-feed-add-name]').value"), '');
+    assert.equal(await feedView.evaluate("document.querySelector('[data-feed-source-register]').disabled"), false);
     if (index === 0) {
-      const metrics = await evaluate<{ font: number; height: number; border: number }>(`(() => {
+      const metrics = await feedView.evaluate<{ font: number; height: number; border: number }>(`(() => {
         const trigger = document.querySelector('[data-feed-create-frequency]').parentElement.querySelector('[data-mw-select-trigger]');
         const style = getComputedStyle(trigger);
         return { font: parseFloat(style.fontSize), height: trigger.getBoundingClientRect().height, border: parseFloat(style.borderTopWidth) };
       })()`);
       assert.ok(metrics.font >= 13 && metrics.height >= 36 && metrics.border === 1, JSON.stringify(metrics));
-      await click('[data-feed-create-frequency] + [data-mw-select-trigger]');
-      const menu = await evaluate<{ font: number; height: number; bottom: number }>(`(() => {
+      await feedView.click('[data-feed-create-frequency] + [data-mw-select-trigger]');
+      const menu = await feedView.evaluate<{ font: number; height: number; bottom: number; viewportHeight: number }>(`(() => {
         const item = document.querySelector('.mw-select-picker__menu:popover-open [data-mw-select-option]');
         const rect = item.parentElement.getBoundingClientRect();
-        return { font: parseFloat(getComputedStyle(item).fontSize), height: item.getBoundingClientRect().height, bottom: rect.bottom };
+        return { font: parseFloat(getComputedStyle(item).fontSize), height: item.getBoundingClientRect().height, bottom: rect.bottom, viewportHeight: innerHeight };
       })()`);
-      assert.ok(menu.font >= 13 && menu.height >= 32 && menu.bottom <= 768, JSON.stringify(menu));
+      const offset = await evaluate<number>("document.querySelector('[data-work-surface=feed] iframe[data-plugin-frame=feed]').getBoundingClientRect().top");
+      assert.ok(menu.font >= 13 && menu.height >= 32 && menu.bottom <= menu.viewportHeight && offset + menu.bottom <= 768, JSON.stringify({menu,offset}));
       await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
-      assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true, 'Escape closes only the menu');
+      assert.equal(await feedView.evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true, 'Escape closes only the menu');
     }
-    await evaluate(`{ document.querySelector('[data-feed-add-name]').value = ${JSON.stringify(name)};
+    await feedView.evaluate(`{ document.querySelector('[data-feed-add-name]').value = ${JSON.stringify(name)};
       const url = document.querySelector('[data-feed-source-value=custom_rss]'); url.value = 'https://example.com/ui-${index}.xml';
     }`);
-    await click('[data-feed-source-register]');
-    await waitFor(`window.createdSources.length === ${index + 1} && document.querySelector('[data-feed-sources-dialog]').hidden && document.querySelector('[data-feed-source-rail] [data-feed-task="' + window.createdSources[${index}] + '"][aria-current=page]')`);
+    await feedView.click('[data-feed-source-register]');
+    await waitFor(`window.createdSources.length === ${index + 1}`);
+    const sourceId = await evaluate<string>(`window.createdSources[${index}]`);
+    try { await feedView.waitFor(`document.querySelector('[data-feed-sources-dialog]').hidden && document.querySelector('[data-feed-source-rail] [data-feed-task=${JSON.stringify(sourceId)}][aria-current=page]')`); }
+    catch (error) {
+      t.diagnostic('source creation owner state '+JSON.stringify(await feedView.evaluate(`({selected:document.querySelector('[data-feed-workbench]')?.dataset.selectedSource,view:document.querySelector('[data-feed-workbench]')?.dataset.feedView,dialog:{hidden:document.querySelector('[data-feed-sources-dialog]')?.hidden,busy:document.querySelector('[data-feed-sources-dialog]')?.getAttribute('aria-busy')},created:document.querySelector('[data-feed-add-form]')?.dataset.createdSourceId,error:document.querySelector('[data-feed-add-error]')?.textContent,rows:[...document.querySelectorAll('[data-feed-task]')].map(node=>({id:node.dataset.feedTask,current:node.getAttribute('aria-current')}))})`).catch(observation=>({observation:String(observation)}))));
+      throw error;
+    }
   }
   const ids = await evaluate<string[]>('window.createdSources');
   assert.equal(new Set(ids).size, 2);

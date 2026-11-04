@@ -1,10 +1,11 @@
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentLocale } from "./web-locale.js";
+import { assertPluginRoutePermissions } from "@molis-ai/molis-work-plugin-runtime";
 
 /** HTTP binds the local owner, page language and request lifetime; accepted background work retains installation authority. */
 export function pluginRouteControl(signal: AbortSignal, assertCurrent: () => void, assertRequestCurrent?: () => void): PluginExecutionControl {
-  const check = () => { requireSynchronous(assertCurrent(), "最终路由授权检查必须同步完成"); };
+  const check = () => { requireSynchronous(assertCurrent(), "最终路由授权检查必须同步完成"); assertPluginRoutePermissions(); };
   const request = () => { signal.throwIfAborted(); check(); requireSynchronous(assertRequestCurrent?.()); };
   return { signal, locale: currentLocale(), beforeEffect: async () => { request(); }, assert_authority_current: request,
     retainBackgroundAuthority: () => {

@@ -86,7 +86,7 @@ test("npm staging packs workspace assets without host binaries or modifying the 
   } finally { await rm(temporary, { recursive: true, force: true }); }
 });
 
-// User decision 2026-10-10 (specs/repository-anti-corruption/spec.md section 1): the npm archive keeps the Feishu/Lark connector as a
+// User decision 2026-10-10 (specs/archive/repository-anti-corruption/spec.md section 1): the npm archive keeps the Feishu/Lark connector as a
 // registry dependency, and the two things that brings are accepted as long as they are written down where a consumer and a release
 // manager read them. This test does not install the archive (that needs the registry and native prebuilds, which no run can repeat);
 // it keeps the words, and the pinned version they were written for, from drifting away from the archive.
@@ -135,7 +135,7 @@ test("the accepted npm-archive facts of the Feishu/Lark connector stay written i
   for (const fact of ["basic-ftp", "keytar", "lark-mcp-nodejs", "overrides", "bundledDependencies", "npm view @larksuiteoapi/lark-mcp version"]) {
     assert.ok(releaseLine!.includes(fact), `the release checklist line must mention ${fact}`);
   }
-  const plan = await text("specs/repository-anti-corruption/dependencies-and-sdk-plan.md");
+  const plan = await text("specs/archive/repository-anti-corruption/dependencies-and-sdk-plan.md");
   const section = plan.slice(plan.indexOf("### 3.5 "), plan.indexOf("\n## 4. "));
   assert.match(section, /结论（2026-10-10，用户答复：选（a）接受/);
   assert.match(section, /重新问用户的条件/);
@@ -144,7 +144,7 @@ test("the accepted npm-archive facts of the Feishu/Lark connector stay written i
   assert.doesNotMatch(section, /归档开始带 `overrides` 或 `bundledDependencies`/);
   assert.match(section, /`@larksuiteoapi\/lark-mcp` 及其依赖树（`basic-ftp`、`keytar` 等）进了 `bundledDependencies`（工作区包本来就在里面，不算）/);
   assert.match(plan, /^8\. ~~npm 归档上飞书\/Lark 连接器/m);
-  const decision = (await text("specs/repository-anti-corruption/spec.md")).split("\n")
+  const decision = (await text("specs/archive/repository-anti-corruption/spec.md")).split("\n")
     .find(line => line.startsWith("| 2026-10-10 |") && line.includes("GHSA-c475-qrg2-pj4r"));
   assert.ok(decision?.includes("keytar") && decision.includes("接受"), "spec.md section 1 needs the decision row");
 });

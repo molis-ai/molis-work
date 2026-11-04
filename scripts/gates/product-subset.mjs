@@ -1,4 +1,4 @@
-// Health gate: the CI product subset's two files keep their rules (specs/repository-anti-corruption §4.7, W2-16, decision #14).
+// Health gate: the CI product subset's two files keep their rules (specs/archive/repository-anti-corruption §4.7, W2-16, decision #14).
 //
 //   tests/ci-product-subset.txt   the test files the CI job `product-subset` runs; 3 to 5 of them are browser smokes
 //   tests/quarantine.json         the flaky ones among them, each with an owner and an end date

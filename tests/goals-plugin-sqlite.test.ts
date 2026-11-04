@@ -5,7 +5,7 @@ import type { GovernanceSqliteDatabase } from "./fixtures/goals-modules.js";
 import { memoryPluginDatabase } from "./fixtures/plugin-database.js";
 import { PluginSqlite } from "./fixtures/plugin-legal-sql.js";
 
-// PG-094 S11 (specs/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §3): the platform's statement handle as the Goals
+// PG-094 S11 (specs/archive/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §3): the platform's statement handle as the Goals
 // and Governance repositories take their database. The handle is lent for one synchronous body; outside it nothing is reachable.
 
 const SCHEMA = "CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT NOT NULL, blob BLOB)";

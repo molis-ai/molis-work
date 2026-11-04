@@ -18,8 +18,10 @@ import { pageIntake } from "./intake.js";
 import { subjectSurfaces } from "./subjects.js";
 import { pageModal } from "./modal.js";
 import { pagePresentation } from "./presentation.js";
+import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
+import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
@@ -33,6 +35,14 @@ function stored(prefix: string): FrameConfig["storage"] {
     } catch { /* Storage can be unavailable; the view itself still opens. */ }
   }
   return storage;
+}
+
+/** An isolated directory has no in-flow owner content to give its Host column height. */
+function directoryLayout(root: HTMLElement): void {
+  if (root.dataset.pluginSlot !== "workbench.directory" || document.querySelector("style[data-plugin-directory-layout]")) return;
+  const style = document.createElement("style"); style.dataset.pluginDirectoryLayout = "";
+  style.textContent = '.plugin-section:has(>.plugin-section-body>[data-plugin-slot="workbench.directory"]:not([hidden])),.plugin-section-body:has(>[data-plugin-slot="workbench.directory"]:not([hidden])){flex:1;min-height:0}';
+  document.head.append(style);
 }
 
 /**
@@ -64,10 +74,22 @@ function navigate(root: HTMLElement, message: Extract<FrameUp, { type: "link" }>
 }
 
 /** An installed surface may have appeared since this shell loaded. The server rebuilds the current project's catalog. */
-function openPlugin(host: FrameHost, surface: unknown, prefix: string): void {
+function openPlugin(host: FrameHost, surface: unknown, prefix: string, view?: unknown, panel?: unknown): void {
   if (typeof surface !== "string" || !/^[a-z][a-z0-9-]{0,100}$/u.test(surface)) return;
-  if (host.openPlugin && document.querySelector('[data-work-surface="' + CSS.escape(surface) + '"]')) host.openPlugin(surface);
+  if (host.openPlugin && document.querySelector('[data-work-surface="' + CSS.escape(surface) + '"]')) host.openPlugin(surface, typeof view === "string" && view.length <= 1000 ? view : undefined, typeof panel === "string" && panel.length <= 100 ? panel : undefined);
   else location.assign(prefix + "/?openSurface=" + encodeURIComponent(surface));
+}
+
+/** The current item belongs to this surface's own pane, including a pane with its own local strip. */
+function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] {
+  const pane = root.closest<HTMLElement>("[data-tab-pane]");
+  if (!root.isConnected || !pane) return null;
+  const chrome = root.ownerDocument.querySelector<HTMLElement>("[data-titlebar-tabs]");
+  const strip = chrome?.checkVisibility({ visibilityProperty: true }) && chrome.dataset.chromePane === pane.dataset.tabPane
+    ? chrome : pane.querySelector<HTMLElement>("[data-tab-strip]");
+  const tab = strip?.querySelector<HTMLElement>('[data-tab-id][aria-current="page"]');
+  return tab?.dataset.tabKind === "item" && tab.dataset.plugin === pack.id && tab.dataset.tabId && tab.dataset.itemId
+    ? { tabId: tab.dataset.tabId, itemId: tab.dataset.itemId } : null;
 }
 
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
@@ -77,16 +99,23 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   // The owner's deferred client already wrote the same guard before it called this; only the raw mounts own it.
   let own = false;
   try {
-  const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id }, scope });
+  const mount = root.dataset.pluginContribution && root.dataset.pluginSurface && root.dataset.pluginSlot
+    ? { contribution_id: root.dataset.pluginContribution, surface: root.dataset.pluginSurface, target_slot_id: root.dataset.pluginSlot } : null;
+  if (mount && root.dataset.pluginOwner !== pack.plugin_id) throw new Error("View owner changed");
+  directoryLayout(root);
+  const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id, ...(mount ? { mount, ...(root.dataset.pluginProducer ? { producer: root.dataset.pluginProducer } : {}) } : {}) }, scope });
   const surfaces = await subjectSurfaces(route, scope);
   scope.assertCurrent();
   root.dataset.pluginPage = grant.page_id;
   const storagePrefix = "molis-plugin-page:" + grant.storage_scope + ":", storage = stored(storagePrefix);
   const frame = document.createElement("iframe"), channel = new MessageChannel();
   frame.setAttribute("sandbox", "allow-scripts allow-forms"); frame.setAttribute("referrerpolicy", "no-referrer");
-  frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = pack.id;
-  frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent";
+  frame.title = root.dataset.workSurfaceLabel ?? pack.id; frame.dataset.pluginFrame = mount?.target_slot_id === "workbench.directory" ? pack.id + ":" + mount.surface : root.dataset.workSurface || pack.id;
+  frame.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;padding:0;background:transparent";
   const port = channel.port1, requests = frameRequests(port, grant.page_id, scope);
+  const documentReads = new Map<number, AbortController>();
+  const cancelDocuments = () => { for (const controller of documentReads.values()) controller.abort(); documentReads.clear(); };
+  scope.own(cancelDocuments);
   const terminal = frameTerminal(port, scope, grant.page_id);
   const contextMessage = frameContext(port, scope, root, frame, pack.plugin_id, grant.page_id);
   const drafts = pageDrafts(port, scope, storagePrefix), navigation = pageNavigation(scope, port, Boolean(host.side));
@@ -108,25 +137,57 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
     void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
   });
+  let invalidated = false;
   const visible = () => {
+    if (frame.hidden) return false;
     for (let node: Element | null = root; node; node = node.ownerDocument.defaultView?.frameElement ?? null)
       if (!node.checkVisibility({ visibilityProperty: true })) return false;
     return scope.visible;
   };
-  const state = () => port.postMessage({ type: "state", visible: visible(),
-    theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) });
+  const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),
+    theme: Object.fromEntries(["theme", "resolvedTheme", "density", "terminalTheme", "resolvedTerminalTheme"].map(key => [key, document.documentElement.dataset[key] ?? ""])) }); };
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
   scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
+  scope.observe(new MutationObserver(state), frame, { attributes: true, attributeFilter: ["hidden"] });
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
+  // Structured surfaces follow the Runtime's existing display revision; each read is cancelled on hiding.
+  let revision: string | undefined;
+  if (mount) scope.whenVisible(() => {
+    const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = async () => {
+      try {
+        const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pack.plugin_id + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": grant.page_id } });
+        scope.assertCurrent(); if (controller.signal.aborted) return;
+        if (revision !== undefined && revision !== value.revision) port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) });
+        revision = value.revision;
+      } catch { /* A hidden or withdrawn page cannot publish a display update. */ }
+      if (!controller.signal.aborted && scope.alive) timer = setTimeout(() => void read(), 1500);
+    };
+    void read(); return () => { controller.abort(); clearTimeout(timer); };
+  });
   const fail = (error: Error) => {
     clearTimeout(deadline);
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
     readyReject(error);
   };
+  const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, host.translate);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
+    if (message.type === "document-cancel") { documentReads.get(message.id)?.abort(); documentReads.delete(message.id); return; }
+    if (message.type === "frame-asset-layout") { assetLayout(message); return; }
+    if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
+    if (message.type === "connection-slot") { void connectionSlot(message); return; }
+    if (message.type === "view-invalidate") { if (scope.visible) host.invalidateView?.(root); return; }
+    if (message.type === "view-open") {
+      const value = message.selection;
+      if (scope.visible && value && typeof value.surface === "string" && value.surface.length < 200
+        && (value.id === undefined || typeof value.id === "string" && value.id.length <= 1000)
+        && (value.panel === undefined || typeof value.panel === "string" && value.panel.length <= 100)
+        && (value.intent === undefined || value.intent === "open" || value.intent === "select")) host.openView?.(root, value);
+      return;
+    }
     if (message.type === "on-closing") {
       try { if (message.action === null || message.action && typeof message.action === "object" && JSON.stringify(message.action).length <= 16000) closing = message.action; }
       catch { /* A cyclic registration is not a closing action. */ }
@@ -149,7 +210,13 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; }
     if (message.type === "refresh-shell") { location.reload(); return; }
-    if (message.type === "read-document") { void readPageDocument(port, message.id, root, route, pack, grant.page_id, scope); return; }
+    if (message.type === "read-document") {
+      if (!Number.isSafeInteger(message.id) || message.id <= 0 || documentReads.has(message.id)) return;
+      const controller = new AbortController(); documentReads.set(message.id, controller);
+      void readPageDocument(port, message.id, root, route, pack, grant.page_id, scope, message.object, controller.signal)
+        .finally(() => { if (documentReads.get(message.id) === controller) documentReads.delete(message.id); });
+      return;
+    }
     if (message.type === "copy") { void copyFromPage(port, message); return; }
     try {
       if (message.type === "page-message") receiveMessage(message.message);
@@ -163,7 +230,13 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui" && Array.isArray(message.args)) {
         if (message.name === "showToast" && typeof message.args[0] === "string") host.showToast?.(message.args[0], message.args[1] === true);
-        else if (message.name === "openPlugin") openPlugin(host, message.args[0], route(""));
+        else if (message.name === "openPlugin") openPlugin(host, message.args[0], route(""), message.args[1], message.args[2]);
+        else if (message.name === "openItem" && message.itemTabId !== undefined) {
+          if (!root.isConnected || !visible() || typeof message.itemTabId !== "string" || ownItemTab(root, pack)?.tabId !== message.itemTabId) return;
+          const [, id, title] = message.args;
+          if (typeof id !== "string" || !id || id.length > 1000 || typeof title !== "string") return;
+          host.openItem?.(pack.id, id, title.slice(0, 1000));
+        }
         else if (["openItem", "openBeside", "hideDirectory", "status"].includes(message.name)) host[message.name as "openItem"]?.(...message.args);
       } else if (message.type === "link") {
         if (message.download) void downloadFrameFile(new URL(message.url), grant.page_id, scope).catch(error => host.showToast?.(String(error.message), true));
@@ -180,7 +253,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       }
     } catch (error) { host.showToast?.(error instanceof Error ? error.message : String(error), true); }
   };
-  scope.listen(root, "molis-work:select-item", event => { port.postMessage({ type: "select", detail: (event as CustomEvent).detail }); });
+  scope.listen(root, "molis-work:select-item", event => { const detail = (event as CustomEvent).detail; if (detail?.invalidate && !visible()) { invalidated = true; return; } port.postMessage({ type: "select", detail, itemTab: ownItemTab(root, pack) }); });
   scope.observe(new MutationObserver(() => {
     if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });
@@ -189,7 +262,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.onload = () => {
     if (loaded) { fail(new Error("Plugin page navigated")); scope.dispose(); return; }
     loaded = true;
-    const config: FrameConfig = { subjectSurfaces: surfaces, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, surface: pack.id,
+    const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
@@ -199,7 +272,9 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   frame.srcdoc = frameDocument(root, pack);
   own = root.dataset.uiClientState !== "loading";
   if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
+  frame.hidden = Boolean(root.dataset.previewTab);
   root.append(frame);
+  const assetLayout = pageFrameAssets(port, scope, root, frame);
   await ready; return { frame, scope };
   } catch (error) {
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }

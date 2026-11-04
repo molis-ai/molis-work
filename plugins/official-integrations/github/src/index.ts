@@ -16,7 +16,7 @@ export const githubIntegrationManifest = {
   // 1.2.0: the account check moved to the connector action `connectors.account.read`.
   // 1.3.0: declares its connection service and its Feed source (`connection_services`, `integrations`).
   // 1.4.0: declares its OAuth flow as data (W5-11).
-  version: "1.4.0",
+  version: "1.5.0",
   name: "GitHub",
   kind: "integration",
   publisher: {
@@ -40,13 +40,18 @@ export const githubIntegrationManifest = {
     title: "GitHub",
     group_id: "code",
     summary: "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
-    auth_kind: "github",
-    // The web flow for a client of the person's own; the device flow is still the Host's own route (W5-11 slice 8).
+    auth_kind: "oauth",
+    // Two ways to sign in, side by side: the web flow for a client of the person's own, and the device flow for the product's (the person
+    // types a code on GitHub's page). Both read the account the same way.
     auth: { methods: [{
       kind: "oauth", grant: "authorization_code", authorize_url: "https://github.com/login/oauth/authorize",
       token_url: "https://github.com/login/oauth/access_token", scopes: ["notifications", "read:user"], pkce: "S256",
       identity: { url: "{service}/user", account_id: [["identity:/id"]], label: ["identity:/login"] },
-    }] },
+    }, {
+      kind: "oauth", grant: "device", device_authorization_url: "https://github.com/login/device/code",
+      token_url: "https://github.com/login/oauth/access_token", scopes: ["notifications", "read:user"], client_secret: "optional", client_auth: "post",
+      identity: { url: "{service}/user", account_id: [["identity:/id"]], label: ["identity:/login"] },
+    }, { kind: "mcp", endpoint: "https://api.githubcopilot.com/mcp/", auth: "either", registration: "manual" }] },
     capabilities: [
       { label: "Feed 拉未读通知", fulfillment: "live" },
       { label: "在连接设置中检查当前账号", fulfillment: "live" },
@@ -77,5 +82,3 @@ export function createGithubIntegrationPlugin(input: {
     now: input.now,
   });
 }
-
-export * from "./oauth.js";

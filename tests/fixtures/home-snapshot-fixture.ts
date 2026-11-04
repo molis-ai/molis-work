@@ -69,7 +69,7 @@ export async function populatedSnapshotHome(t: TestContext) {
   await file("runtime-config-backups/codex/snapshot-config.bak", JSON.stringify(descriptor) + "\n");
   const bookmark = JSON.stringify({ documents: { path: workspace, bookmark: "fixture opaque directory authorization" } }) + "\n";
   await file("directory-access/bookmarks.json", bookmark, 0o640, false);
-  for (const path of ["config/onboarding.json", "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json",
+  for (const path of ["config/onboarding.json", "config/plugin-publisher.json", "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json",
     "git-operation-details.json", "runtime-integrations/fixture.json", "runtime-integration-attempts/fixture.json", "browser/sites.json"]) {
     // These are retained byte examples; no runtime configuration reader or authorization is fabricated by snapshotting them.
     await file(path, JSON.stringify({ schema_version: 1, note: "Retained " + path }) + "\n");

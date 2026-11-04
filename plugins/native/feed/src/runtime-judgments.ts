@@ -11,7 +11,7 @@ import type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 import { createFeedSceneRuntime } from "./scene-runtime.js";
 import { createFeedCaptureTrigger } from "./scenes.js";
 
-// How a Runtime Feed judges (FI-4 step 4e-2f, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12). The scene is
+// How a Runtime Feed judges (FI-4 step 4e-2f, specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §12). The scene is
 // Feed's own (`services.scenes`, `services.judgments`); Home's and the Inbox's judgments are their public actions, reached through the action
 // directory as the caller of the action that is running. Judging happens inside that action, after the commit that brought the item in:
 // every callback of the scene writes through a commit of its own, and the ledger row is recorded before the rows that point at it.

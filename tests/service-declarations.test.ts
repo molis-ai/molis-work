@@ -11,7 +11,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 
-// specs/repository-anti-corruption/slices/pg022-manifest-declarations.md, P3: a plugin's model settings and image connections are
+// specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md, P3: a plugin's model settings and image connections are
 // declared in its Manifest (`model_configuration`, `image_generation`) and nowhere else.
 
 const MODEL = { preference: { store_name: "notes", file_name: "preferences.json" }, custom_provider: { provider_id: "notes-text", display_name: "Notes 模型" },

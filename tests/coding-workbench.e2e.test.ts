@@ -218,6 +218,14 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
+  await b.click('.navigator-directory-toggle');
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "the real directory control closes the Dock's drawer");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
+  await b.click('[data-directory-show]');
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), true);
+  await b.evaluate("molisWorkOpenPlugin('files')");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "explicit main navigation dismisses the actual open drawer");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
   await click(`${files} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${files} [data-files-text]').hidden`);
   await b.evaluate("localStorage.setItem('molis-work:theme','dark');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'dark'}))");
@@ -232,6 +240,9 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   await open('git');
   await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");
+  await b.click('.navigator-directory-toggle');
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').dataset.mobileView`), "document", "the real directory control closes the Git Dock's drawer");
+  assert.equal(await b.evaluate(`document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')`), false);
   await click('[data-companion=git] [data-git-history]');
   assert.equal(await evaluate("document.activeElement.hasAttribute('data-git-close')"), true);
   assert.equal(await evaluate("document.querySelector('[data-companion=git] [data-git-results]').getAttribute('aria-busy')"), 'false');

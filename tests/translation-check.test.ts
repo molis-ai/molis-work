@@ -7,7 +7,7 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { MESSAGES_ROOT, SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-// specs/repository-anti-corruption decision #16 (W1-08): the translation check scans every translator call and every
+// specs/archive/repository-anti-corruption decision #16 (W1-08): the translation check scans every translator call and every
 // dictionary instead of a list of files. It is a health-gate metric, so these tests drive scripts/check-health-gates.mjs on a
 // small scratch repository, the way tests/health-gates-merge-base.test.ts does: each rule is mutation-verified (one violation
 // added on a branch makes `--base main` fail, and rewriting the baseline in that branch hides nothing), and the changes

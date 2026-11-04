@@ -1,3 +1,4 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
@@ -95,7 +96,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
       if (scenario !== "read-only" || model.requests.length !== firstReadTurn) return [];
       assert.match(given, /接入已完成。现在按你的最新要求/);
       return ["will_do"];
-    });
+    }, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
     const sent = await home.web.post<AssistantSendResult>(prefix + "/api/assistant/send", { text: "接入库存来源，读取 inventory://quarter 并保存到 Pages", request_id: crypto.randomUUID() });
     const read = () => server.web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);
     const approved = new Set<string>();
@@ -149,7 +150,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
 test("ASC-25 ASC-34: setup context is scoped to the actor, session and project and respects the current read grant", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Setup context", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
-  const model = await connectorAssistantModel(t, home.home, () => "已查看本轮情况。");
+  const model = await connectorAssistantModel(t, home.home, () => "已查看本轮情况。", undefined, home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog));
   const sent = await home.web.post<AssistantSendResult>(prefix + "/api/assistant/send", { text: "先查看本轮情况", request_id: crypto.randomUUID() });
   const settled = (rounds: number) => untilSetup(async () => {
     const view = await home.web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);

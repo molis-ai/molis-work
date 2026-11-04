@@ -55,7 +55,13 @@
 | Coding 另有一条路：从项目目录找 Skill（`agent.skills.discover.v1`），装进 Prologue 存储（`agent.skills.install.v1`，类型 `molis-coding-method`） | `horizontal/agent-host/src/adapters/prologue-methods.ts`；SSOT「Agent Host 保存的人的配置」 | 第二份名单，与助理不共用 |
 | Character 导入会扫五种本机 Agent 的规则和 Skills，导入的 Skills 只在选了这个 Character 的那一轮全文展开 | `packages/contracts/src/modules/character-import.ts`、`horizontal/agent-host/src/character-import.ts` | G2：不进目录，不能按需披露，也不能单项启用 |
 | 安装预览 @5 有 `agent_bodies`（种类、名字、前 200 字）和 `declarations` | `apps/local-host/src/plugin-install-actions.ts` | 缺 Skill 的适用说明、资源和依赖状态 |
+| 签名包只认沙箱包：要有 `plugin.mjs`，`kind` 只能是 `app` 或 `integration` | `apps/local-host/src/plugin-install-service.ts`、`apps/local-host/src/sandbox-package.ts` | 内容包装不进来 |
+| 插件的方法跟着运行的定义登记：定义起来才登记，插件停下就不再提供 | `apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`；`agent-definitions.ts` 的 `offering` | 不起进程的插件，方法永远登记不上 |
+| 宿主构建的内置插件拿 `HOST_BUILD_TRUST`，安装记录自动跟着构建走：不经确认，也不能拒绝升级 | `apps/local-host/src/project-plugins.ts`；`packages/plugin-runtime/src/install-rules.ts` 的 `recordToFollow` | 套组要首次确认、可以不升级（ONB-53、ONB-55），走内置登记就做不到 |
+| 升级差异只比角色和方法的正文 | `apps/local-host/src/plugin-install-service.ts` | 要按 Skill 比资源与版本；场景声明的整份差异归第 20 批 |
 | 代码里没有「自动选用 / 仅手动」的状态 | 全仓搜索无结果 | 要新加 |
+
+第 20 批第 2 项的只读核查（F 轨，[#1793](https://github.com/molis-ai/molis-work/pull/1793)，同样对照 `4fd250564`）也列了上面后四项，本稿据此改了第 3 节的交付方式和第 13 节的问题一。
 
 ## 3. 只有声明的插件
 
@@ -86,12 +92,21 @@
 
 **装配**：Plugin Runtime 把它当作「已声明、不启动」。安装、启用、停用、卸载、发布者撤销的状态与记录，和其他插件完全一样；但它不起进程、不开沙箱实例、不挂路由，也不进 MCP 工具表。装配检查只做一件事：声明的正文和资源都在、摘要相符，否则不启用，并写明原因。
 
-**两种来路，同一个形状**：
+**方法怎样登记**：今天方法跟着运行的定义登记（第 2 节）。只有声明的插件没有定义可起，所以改成：安装记录启用时，宿主从保存的已验证包里读出正文，登记进 Agent 定义登记；停用就撤下。这条路对所有插件都成立，不是给内容插件开的分支：别的插件的方法正文本来也随包发布。
 
-| 来路 | 怎么交 | 信任 |
+**只有一种来路：签名的内容包**。新的包种类「内容包」：`payload.files` 正好是 `manifest.json`，加上声明里列出的正文与资源，不多不少；没有 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json`。安装服务按 `kind` 分派到沙箱包或内容包的解析，签名验证（`verifyPluginPackageSignature`）是同一个。包从哪里来，只影响签名是谁的：
+
+| 包从哪里来 | 签名 | 信任 |
 | --- | --- | --- |
-| 随系统带上 | 插件包自己的 `registration`，不写 `runtime`，也不写 `project_runtime`；`workbench.contributions` 为空 | `host`（随宿主构建） |
-| 签名包 | 新的包种类「内容包」：`payload.files` 正好是 `manifest.json`，加上声明里列出的正文与资源，不多不少；没有 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` | 按签名：固定的发布者是 `pinned`；本机导入的由这个 Home 的发布者密钥签名，就是 Plugin Builder 用的那把 |
+| 随安装包带上（官方技能包如 BL-165，第 20 批的官方套组） | Molis Work 的官方发布者密钥 | 按签名；首次要不要固定这个发布者，见第 13 节问题一 |
+| 第三方文件 | 第三方发布者 | 固定的发布者是 `pinned` |
+| 本机导入（第 6 节） | 这个 Home 的发布者密钥，就是 Plugin Builder 用的那把 | 本机 |
+
+不走内置插件的 `registration`：那条路给的是 `HOST_BUILD_TRUST`，安装记录自动跟着构建升级，不经确认，也不能拒绝升级（第 2 节），与 ONB-53、ONB-55 冲突。
+
+随安装包带上的包，要有一份「带了、还没装」的只读清单，给挑选处和助理推荐读：`plugins.bundled.list@1`，只给本人，主人是插件安装服务。它只列包的身份、名称、说明与签名，不安装，也不登记方法。这是读，不是第二条安装路径：装仍然走 `plugins.install.preview`（第 5 节）。
+
+**第 20 批加套组的键**：英文键名不用 `scene`（`action_scenes`、`scenes:use`、`services.scenes` 都已占用），名字由第 20 批第 2 项定，并在 GLOSSARY 登记。依赖沿用 `requires`（含 `optional`）；「挡第几步」「需要哪家服务的账号」由那一项加在场景声明里，采用时由平台按能力找提供方，不直接写插件 id。
 
 ## 4. 公共格式
 
@@ -206,6 +221,8 @@ interface SkillInstallPreview {
 `agent_bodies` 只留角色资料。方法都改成在 `skills` 里列，app 包派生出来的方法也一样，所以「方法」只有一种列法。这一步按 N35 原地改形状，刷新动作快照。
 
 **确认**：`plugins.install.confirm` 不变，不带启用参数：装上不等于启用。启用只走 `skills.settings.set@1`（第 7 节）。E 轨 2026-11-04 定的做法是：装完在同一处接着显示「启用到本项目」这一步，或在确认里放默认全关的开关，确认后由界面再调一次 `set`。哪种由用户在定样时选，两种都不用把启用并进安装动作。
+
+**升级差异**：现在只比角色和方法的正文（第 2 节）。改成按 Skill 比：正文、资源摘要与 `version`，见 4.3。场景声明的整份差异（ONB-55）由第 20 批第 2 项接在同一个预览上。
 
 **升级**：装更高版本的包，同一个发布者，`compatible_from_versions` 要包含当前版本，和其他签名包一样。升级不改启用状态。正在跑的轮次固定原版本，不改绑。被移除的 Skill，其设置随之删除；新增的 Skill 是「没启用」。
 
@@ -370,13 +387,13 @@ interface SkillCatalogEntry {
 | 片 | 内容 | 前置 |
 | --- | --- | --- |
 | C-1 声明合同 | contracts：`PluginKind` 的 `"content"`、`AgentSkillDeclaration` 的新字段、`SkillResourceDeclaration`、`SkillRef`、内容包的文件常量。SDK：`inspectContentPlugin`、扩展后的 `inspectSkillDeclarations`、`skillDeclarationFromFrontmatter`、内容包的解析。GLOSSARY 加一行；刷新 api 快照 | 02 交接；#1762 合入 |
-| C-2 目录、设置与导入的动作合同 | `services/skills.ts`：第 6、7、8 节的六个动作声明、`SkillCatalogEntry` 与 `SkillUnavailableReason`；`plugins.install.preview` 的 `skills` 与 `requires`；刷新动作快照 | C-1；E 轨定样定下 |
+| C-2 目录、设置与导入的动作合同 | `services/skills.ts`：第 6、7、8 节的六个动作声明、`SkillCatalogEntry` 与 `SkillUnavailableReason`；`plugins.install.preview` 的 `skills` 与 `requires`；`plugins.bundled.list@1`；刷新动作快照 | C-1；E 轨定样定下 |
 | C-3 方法写法合一（看问题二） | 沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明；要跑 `pnpm studio:replay` | C-1；统筹定 |
 | 实现 | Plugin Runtime 的「已声明、不启动」装配；宿主的目录、设置和用量；导入服务与 CLI `pack-content`；助理与 Coding 两个消费方，以及删掉 Coding 的旧路；BL-165 设计与无障碍内容包 | C-1、C-2 合入；E 轨定样 |
 
 ## 13. 待定问题（交统筹）
 
-1. **随系统带的技能包和官方场景套组怎么交？** 推荐：用插件包自己的 `registration`，不写 runtime（第 3 节），和别的内置插件一样进目录，项目里选了才启用，不开新路。另一种做法是把签名包放进安装包、宿主列出「可装」。这样要多一个「随包带上的待装包」目录，是新路，不推荐。这件事和第 20 批第 2 项共用，F 轨在核查套组，请一并定。
+1. **随安装包带上的官方包，首次要不要固定发布者？** 交付方式已改成签名的内容包（第 3 节；原来推荐走内置 `registration`，F 轨核查指出它拿 `HOST_BUILD_TRUST`，与 ONB-53、ONB-55 冲突，所以改了）。剩下的是：官方发布者的公钥随宿主构建一起带上，是视为已固定（首次只确认依赖与范围），还是和第三方一样首次要本人命名固定。这件事和 F 轨在 #1793 交统筹的三项（套组包形态、首次是否固定发布者、个人场景包与 AI 生成方案的信任档）是同一组，请一起定。
 2. **沙箱 app 包现有的三键方法写法要不要并进来？** 推荐并，开 C-3。不并，就长期有两种写法，app 包的方法也没有 skill_id、版本和资源。代价是要动 Plugin Builder 的生成辅助（Plugin Builder 是用户批过的构建期例外），并跑回放。
 3. **Character 快照里的 Skills 要不要改成引用目录？** 推荐改：导入一次，处处都用，可以单项启用。但这是 Characters 的合同，不在 08 做，建议另记一条待办，交给 Characters 的主人。
 

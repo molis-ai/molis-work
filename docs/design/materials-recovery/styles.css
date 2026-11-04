@@ -110,24 +110,36 @@
 .ob-funnel li.is-later b{color:var(--faint);font-weight:500;font-size:13px;line-height:25px}
 .ob-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .ob-rows{list-style:none;margin:0;padding:4px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft)}
-/* The reason is what this list is for, so it never gets cut: it takes its own line under the name and source, and the fix button
-   stays at the end of the row, beside both lines. */
-.ob-r{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;column-gap:12px;row-gap:2px;min-height:48px;padding:8px;border-radius:10px;transition:background-color var(--dur-hover) var(--ease-quint)}
-.ob-r>:first-child{grid-row:1/3}
-.ob-r .nm{grid-column:2;grid-row:1}
-.ob-r .ob-track{grid-column:3;grid-row:1}
-.ob-r .ob-r__word{grid-column:2/4;grid-row:2;line-height:1.5}
-.ob-r .mw-btn{grid-column:4;grid-row:1/3}
-.ob-r:hover{background:var(--nav-hover)}
-.ob-r .nm{display:grid;min-width:0}
-.ob-r .nm b{font-size:13px;font-weight:500}.ob-r .nm small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
-.ob-r__word{font-size:12px;color:var(--muted)}
-.ob-r.is-issue .ob-r__word{color:var(--amber)}
+/* B: one compact row per file (the board's renderFileRow, 04's density), in a box that scrolls on its own. The counts and the
+   filter above it stay put; the page and the right column don't scroll. Scrollbars are hidden as in the product, and a soft fade
+   at the top or bottom edge says there is more. */
+.ob-right:has(.ob-scene.is-list){overflow:hidden;align-items:stretch;padding-top:clamp(24px,6vh,64px)}
+.ob-scene.is-list{min-height:0;height:100%;grid-template-rows:auto auto minmax(0,1fr) auto}
+.ob-listbox{min-height:0;display:flex;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft)}
+.ob-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:4px 12px 6px;scrollbar-width:none;border-radius:inherit;--ob-fs:0px;--ob-fe:0px;transition:--ob-fs var(--dur-hover) var(--ease-quint),--ob-fe var(--dur-hover) var(--ease-quint)}
+.ob-list::-webkit-scrollbar,.ob-sheet::-webkit-scrollbar,.ob-left::-webkit-scrollbar,.ob-right::-webkit-scrollbar{display:none}
+.ob-sheet,.ob-left,.ob-right{scrollbar-width:none}
+.ob-list:focus-visible{outline:2px solid var(--focus-ring,var(--accent));outline-offset:-2px}
+.ob-list[data-more]{mask-image:linear-gradient(to bottom,#0000 0,rgb(0 0 0/.35) calc(var(--ob-fs)*.4),#000 var(--ob-fs),#000 calc(100% - var(--ob-fe)),rgb(0 0 0/.35) calc(100% - var(--ob-fe)*.4),#0000 100%)}
+.ob-list:is([data-more=start],[data-more=both]){--ob-fs:28px}
+.ob-list:is([data-more=end],[data-more=both]){--ob-fe:28px}
+@property --ob-fs{syntax:"<length>";inherits:false;initial-value:0px}
+@property --ob-fe{syntax:"<length>";inherits:false;initial-value:0px}
+.ob-list .mw-file-row{grid-template-columns:minmax(4em,1fr) auto auto;box-sizing:border-box;min-height:34px}
+.ob-list .mw-file-row__size{max-width:none}
+.ob-cells{display:inline-flex;align-items:center;gap:10px}
+.ob-cells .mw-status{min-width:5.75em;justify-content:center}
+/* A row that needs you: the same row, tinted, and one more line under it with the whole reason and its fix. */
+.ob-list .mw-file-row.is-issue{background:color-mix(in srgb,var(--amber) 7%,transparent);border-bottom-left-radius:0;border-bottom-right-radius:0}
+.ob-why{list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;margin:-1px 0 4px -8px;padding:0 8px 6px 52px;border-radius:0 0 var(--r-row,10px) var(--r-row,10px);background:color-mix(in srgb,var(--amber) 7%,transparent);font-size:12px;line-height:1.5;color:var(--ink-soft)}
+.ob-why>span{flex:1 1 16em;min-width:0}
+.ob-why .mw-btn{margin-right:-4px}
+.ob-list .ob-more{padding:8px 0 4px;text-align:center}
 .ob-track{display:inline-flex;gap:3px}
 .ob-track i{width:12px;height:6px;border-radius:3px;background:var(--line-strong);transition:background-color var(--dur-move) var(--ease-quint)}
 .ob-track i.on{background:var(--green)}
 .ob-track i.stop{background:color-mix(in srgb,var(--amber) 70%,var(--paper))}
-.ob-r:not(.is-issue) .ob-track i.stop{background:var(--line-strong)}
+.ob-list .mw-file-row:not(.is-issue) .ob-track i.stop{background:var(--line-strong)}
 
 /* C: one result line of chips; a chip opens its files */
 .ob-card{padding:16px 18px;border-radius:14px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--lift-2,var(--shadow-soft));transition:opacity var(--dur-move) var(--ease-quint)}
@@ -198,14 +210,26 @@
   .ob-bar__mid .mw-steps{display:none}
   .ob-bar__mid .ob-stepname{display:inline}
   .ob-crumb{display:none}
-  .ob-r{grid-template-columns:auto minmax(0,1fr) auto;row-gap:4px}
-  .ob-r .mw-btn{grid-column:2/4;grid-row:3;justify-self:start}
   .ob-funnel{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:12px}
+  .ob-right:has(.ob-scene.is-list){overflow:visible;padding-top:8px}
+  .ob-scene.is-list{height:auto;grid-template-rows:none}
+  .ob-listbox{height:min(440px,60vh)}
+  .ob-list{padding-inline:8px}
+  .ob-why{padding-left:8px}
   .ob-funnel li:nth-child(4){box-shadow:none}
   .ob-scene .mw-file-row__size{max-width:12em}
   .ob-fix,.ob-fix--group{padding-left:0}
   .ob-loc__tools{padding-left:12px}
   .mrow b{max-width:9em}
+}
+/* Phone width: the row keeps one line by giving up the type tag and slimming the cells; the size is never cut, the name gives way. */
+@media (max-width:560px){
+  .ob-list .mw-file-kind{display:none}
+  .ob-list .mw-file-row{column-gap:8px}
+  .ob-list .mw-file-row__size{max-width:none;overflow:visible}
+  .ob-cells{gap:6px}
+  .ob-cells .ob-track i{width:6px}
+  .ob-cells .mw-status{min-width:0;padding-inline:6px}
 }
 @media (prefers-reduced-motion:reduce){.is-arriving .ob-col>*,.is-arriving .ob-right>*,.ob-card.is-landed,.ob-chipbody{animation:none}.ob-chip:hover{transform:none}}
 

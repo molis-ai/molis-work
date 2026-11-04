@@ -125,19 +125,31 @@
         } else if (scheme === "B") {
           const filter = S.v.filter || "all";
           const track = (n) => `<span class="ob-track" role="img" aria-label="${esc(L(`走到第 ${n} 步，共 5 步`, `Step ${n} of 5`))}"${c.fresh(L("五格走到哪：发现、选中、读好、用到、带进项目；组件板没有这个部件", "Five-cell progress: found, ticked, read, used, brought in; not on the board"))}>${[0, 1, 2, 3, 4].map((i) => `<i class="${i < n ? "on" : ""}${i === n && n < 4 ? " stop" : ""}"></i>`).join("")}</span>`;
+          // One compact row per file, the board's renderFileRow at 04's density: type, name, source and size, five cells, status.
+          // Only a row that needs you gets a second line, with the whole reason and its fix (the cells and that line are new on the board).
+          const W = {
+            used: [L("用到", "Used"), "done", "done"], content: [L("按内容认出", "By content"), "done", "done"], unused: [L("没用到", "Not used"), "idle", "quiet"],
+            ref: [L("只留引用", "Reference"), "idle", "idle"], unread: [L("读不了", "No text"), "blocked", "attention"], held: [L("没发送", "Held back"), "blocked", "hold"], sent: [L("已发送", "Sent"), "done", "done"],
+          };
           const rowsAll = [
-            ...PROBLEMS.map((p) => ({ n: p.n, loc: p.loc, size: p.size, step: 2, word: p.why, g: "issue", p })),
-            { n: ".env.local", loc: "web", size: "1 KB", step: sent ? 4 : 3, word: sent ? L("已发送去掉值的版本", "Sent without values") : L("读了，没发给模型", "Read, not sent"), g: "issue", held: true },
-            ...READ.slice(0, 5).map(([n, loc, size, how]) => ({ n, loc, size, step: 4, word: how === "content" ? L("按内容认出 · 用到", "By content · used") : L("用到", "Used"), g: "ok" })),
-            ...UNUSED.slice(0, 2).map(([n, loc, size]) => ({ n, loc, size, step: 3, word: L("读了，没用到", "Read, not used"), g: "unused" })),
-            ...IMAGES.slice(0, 1).map(([n, loc, size]) => ({ n, loc, size, step: 2, word: L("只留引用", "Reference only"), g: "ref" })),
+            ...PROBLEMS.map((p) => ({ n: p.n, loc: p.loc, size: p.size, step: 2, w: "unread", g: "issue", why: p.why, fix: p.acts.length ? btn(p.acts[0][0], { v: "ghost", act: "toast", arg: L(`选一份新的替换 ${p.n}（模拟）`, `Pick a file to replace ${p.n} (sample)`) }) : "" })),
+            { n: ".env.local", loc: "web", size: "1 KB", step: sent ? 4 : 3, w: sent ? "sent" : "held", g: sent ? "ok" : "issue", why: sent ? "" : L("像是密钥（STRIPE_KEY=…），读了，没发给模型", "Looks like secrets (STRIPE_KEY=…): read, not sent to the model"), fix: sent ? "" : btn(L("仍要发送…", "Send anyway…"), { v: "ghost", act: "send-env" }) },
+            ...READ.map(([n, loc, size, how]) => ({ n, loc, size, step: 4, w: how === "content" ? "content" : "used", g: "ok" })),
+            ...UNUSED.map(([n, loc, size]) => ({ n, loc, size, step: 3, w: "unused", g: "unused" })),
+            ...IMAGES.map(([n, loc, size]) => ({ n, loc, size, step: 2, w: "ref", g: "ref" })),
           ];
           const shown = rowsAll.filter((r) => filter === "all" || (filter === "issue" ? r.g === "issue" : r.g === "unused"));
-          const tabs = c.K.renderToggleGroup({ label: L("看哪些", "Show"), items: [["all", L("全部", "All")], ["issue", L("要处理 5", "Need you 5")], ["unused", L(`没用到 ${unused}`, `Not used ${unused}`)]].map(([v, l]) => ({ value: v, label: l, current: filter === v, attrs: { "data-act": "filter", "data-arg": v } })) });
-          right = `<div class="ob-scene">
+          const issues = rowsAll.filter((r) => r.g === "issue").length;
+          const tabs = c.K.renderToggleGroup({ label: L("看哪些", "Show"), items: [["all", L("全部", "All")], ["issue", L(`要处理 ${issues}`, `Need you ${issues}`)], ["unused", L(`没用到 ${unused}`, `Not used ${unused}`)]].map(([v, l]) => ({ value: v, label: l, current: filter === v, attrs: { "data-act": "filter", "data-arg": v } })) });
+          const row = (r) => {
+            const [word, state, tone] = W[r.w];
+            return K.renderFileRow({ name: r.n, size: `${locName(r.loc)} · ${r.size}`, state: `<span class="ob-cells">${track(r.step)}${tag(word, state, tone)}</span>`, className: r.why ? "is-issue" : "" })
+              + (r.why ? `<li class="ob-why"${c.fresh(L("原因与补救：只给要处理的行加这一行；组件板没有这个槽位", "Reason and fix: a line only rows that need you get; not on the board"))}><span>${esc(r.why)}</span>${r.fix}</li>` : "");
+          };
+          right = `<div class="ob-scene is-list">
             <ol class="ob-funnel" aria-label="${L("五件事", "Five facts")}"${c.fresh(L("一排五个数：发现、选中、读好、用到、带进项目；组件板没有", "A row of five counts; not on the board"))}>${facts.map(([k, v], i) => `<li${i === 4 ? ' class="is-later"' : ""}><b>${v}</b><span>${k}</span></li>`).join("")}</ol>
             <div class="ob-filter">${tabs}<span class="cap">${L("每一格：发现 · 选中 · 读好 · 用到 · 带进项目", "Cells: found · ticked · read · used · brought in")}</span></div>
-            <ul class="ob-rows">${shown.map((r) => `<li class="ob-r${r.g === "issue" ? " is-issue" : ""}">${kind(r.n)}<span class="nm"><b class="ell">${esc(r.n)}</b><small>${esc(locName(r.loc))} · ${esc(r.size)}</small></span>${track(r.step)}<span class="ob-r__word">${esc(r.word)}</span>${r.held && !sent ? btn(L("仍要发送…", "Send anyway…"), { v: "ghost", act: "send-env" }) : r.p && r.p.acts.length ? btn(r.p.acts[0][0], { v: "ghost", act: "toast", arg: L("选一份新的替换（模拟）", "Pick a replacement (sample)") }) : ""}</li>`).join("")}</ul>
+            <div class="ob-listbox"><ul class="mw-file-list ob-list" tabindex="0" aria-label="${L("每份材料", "Each file")}">${shown.map(row).join("")}<li class="ob-more">${L("样张只列出其中一部分", "The sample lists only some of them")}</li></ul></div>
             <details class="mw-collapsible ob-fold"><summary>${L("按规则没读 · 19,656 项", "Skipped by rule · 19,656 items")}</summary><div class="mw-collapsible__body"><p class="ob-rule">${IGNORED.map(([n, d]) => `<code>${n}/</code> ${esc(P(d))}`).join("　")}</p></div></details>
           </div>`;
         } else {
@@ -387,4 +399,16 @@
         <span class="ob-bar__end">${back}${next}</span></footer>
     </div>`;
   }
+
+  // The list box's edge fade: data-more says which edges have more to scroll to (the board's overflow fade, turned vertical).
+  const edge = (el) => {
+    const top = el.scrollTop > 2, bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 2;
+    const v = top && bottom ? "both" : top ? "start" : bottom ? "end" : "";
+    if (v) el.dataset.more = v; else delete el.dataset.more;
+  };
+  document.addEventListener("scroll", (e) => { if (e.target instanceof Element && e.target.matches(".ob-list")) edge(e.target); }, true);
+  const sync = () => document.querySelectorAll(".ob-list").forEach(edge);
+  new MutationObserver(sync).observe(document.getElementById("app"), { childList: true, subtree: true });
+  addEventListener("resize", sync);
+  sync();
 })();

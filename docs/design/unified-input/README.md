@@ -20,9 +20,11 @@ python3 -m http.server 4433 --bind 127.0.0.1 --directory docs/design
 GIT_SHA=$(git rev-parse --short origin/main) node docs/design/unified-input/extract-board.mjs
 ```
 
+B 轨的共用组件包 `docs/design/kit/`（`kit.css`、`kit.js`）合入后，本原型改为引用 `../kit/`，删掉这里的三个生成文件和 `extract-board.mjs`。
+
 用到的组件板控件：按钮（主、次、幽灵、链接、危险描边）、分体按钮 `mw-btn-group` 加 `mw-menu`（分组、快捷键、勾）、标签 `mw-tag`（发给谁、底行附件）、上传行 `mw-upload` 与进度、拖放区 `mw-drop`、状态环 `mw-status`、提示条 `mw-alert`、轻提示 `mw-toast`、弹出层 `mw-popover`（改键提示）、键帽 `mw-kbd`、字段说明 `mw-field__hint`、切换组 `mw-toggle-group`、徽标 `mw-badge`、补充的回执 `mw-receipt`。
 
-组件板没有、这次新做的三处，样里用虚线框和「新增 n」标出（顶上可以关掉），定下后先进组件板再进产品：
+组件板没有、这次新做的三处，样里用虚线框和「新增 n」标出（顶上可以关掉）；交 D 轨补组件板标本，先进组件板再进产品：
 
 | 编号 | 新增 | 现有的为什么不够 |
 | --- | --- | --- |

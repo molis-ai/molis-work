@@ -119,6 +119,7 @@ argument_hint: "<周期，可选>"
 
 ## 8. 关联
 
+- 合同设计（第 08 批，2026-11-04 设计稿）：[contract-design.md](contract-design.md)
 - 插件声明与宿主装配：[plugin-platform-v2](../plugin-platform-v2/spec.md)
 - 助理如何使用 Skill：[proactive-assistant](../proactive-assistant/spec.md) §5
 - Coding 角色与方法：[coding-plugin](../coding-plugin/spec.md)、[next-requirements](../coding-plugin/next-requirements.md) A2/A4

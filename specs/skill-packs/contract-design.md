@@ -1,0 +1,402 @@
+# 技能包的合同设计（路线书 08）
+
+状态：设计稿，2026-11-04 写，没有实现。合同归 C 轨；界面定样（安装预览、启用和管理）归 E 轨，两边字段在这里对齐（E 轨 2026-11-04 已回，第 5、7、8 节按它改了）；呈现相关的第 10 节请 D 轨看。合同实现等 C 轨接手（第 02 批 Codex 交接之后），按「合同先行」开小 PR（第 12 节）。第 13 节有三个待定问题，由统筹定，要用户拍板的由统筹去问；另两个已和 E 轨对齐。
+
+## 0. 这份稿子做什么
+
+[第 08 批](../post-anticorruption-roadmap/reference/batches/08.md#batch-08-item-1)要交「技能包基础能力」。本稿写其中的合同，共八项：
+
+1. 公共格式；
+2. 普通插件安装；
+3. 外部 Skills 导入；
+4. 启用与仅手动；
+5. 版本；
+6. 停用与卸载；
+7. 共同目录；
+8. 「只有声明的插件」这种形态。
+
+第 8 项不只给技能包用。[第 20 批第 2 项](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-item-2)的场景套组声明也用它（ONB-53）。套组只往同一份白名单里加自己的键，不按套组名开分支（第 3 节）。
+
+产品规则已经定了，这里不重定：
+
+- [技能包需求](spec.md)：§2～§5、SKP-01～12，以及 2026-10-27 用户定的「启用后默认自动选用，可改为仅手动」；
+- [产品建议](../../docs/product-operations/产品优化建议.md) G1、G2；
+- BL-165，设计与无障碍内容包；
+- [plugin-platform-v2](../plugin-platform-v2/spec.md) S1 与 PLP-01、PLP-02；
+- [官方场景套组](../onboarding-coverage/spec.md) §3.8.1 与 ONB-50～56。
+
+本稿只写合同长什么样、归谁、怎么拆 PR，不写实现。现有合同能用的都直接复用：
+
+- 精确来源用 `SignedAgentReference` 和 `SignedAgentInstallation`（`services/agent-definitions`）；
+- 安装用 `plugins.install.preview`、`plugins.install.confirm` 与签名包 `PluginPackageBundle`；
+- 导入扫描用 Character 导入的 `CharacterImportSnapshot`（`modules/character-import`）；
+- 依赖用 Manifest 的 `requires`；
+- 用量记录照 `prompt_uses` 和 `recordSignedUse` 的做法。
+
+本稿按第 02 批 #1762 之后的现行形状写：Manifest 只剩 `schema_version: 1`，动作统一到第 1 版。#1762 合入前，文中的版本号以它为准。
+
+## 1. 原则
+
+- **一个事实一个主人。** Skill 的正文与声明归提供它的插件；共同目录和启用状态归宿主的 Agent 定义登记（第 7、8 节）；安装、信任、停用、卸载归 Plugin Runtime。导入来源的原文件归用户本机，导入只做固定拷贝。
+- **插件同等待遇。** 以下几种技能包用同一份声明、同一个校验函数、同一条安装路径：随系统带的、Plugin Builder 生成的、从别处导入的、第三方签名的。只有安装信任按签名区分，宿主不按插件名或「官方」开分支。
+- **Skill 不授予权限。** 声明里的 `tools` 只是说明，用工具仍要当前的动作授权；写操作仍进审查队列。
+- **可信身份不从输入读。** 调用方、项目、安装、发布者从调用上下文和安装记录来。「本轮由用户点名」也一样：从这一轮冻结的选择来，不从模型的输入读（第 7 节）。
+- **现行取值。** 阶段 1 按 N35 原地改形状，不留旧取值的读取兜底。
+
+## 2. 现状（2026-11-04 核对 main `4fd250564`）
+
+| 现在 | 位置 | 问题 |
+| --- | --- | --- |
+| `AgentSkillDeclaration` 只有 `skill_id`、`version`、`name`、`summary`、`tools` | `packages/contracts/src/platform/plugin-agent.ts` | 没有「什么时候用」、资源清单、`applies_to` |
+| Manifest 至少要一个 `entrypoints`，安装时还要有当前部署环境的入口 | `packages/plugin-sdk/src/manifest.ts`、`packages/plugin-runtime/src/index.ts` 的 `installRecord` | 没有 runtime 的插件装不上 |
+| 沙箱 app 包已经能带方法：wire 写 `methods: [{ name, purpose, body }]`，id 由 SHA-256 算出，版本固定为 1 | [沙箱包格式与安装](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装) | 第二种方法写法，没有 skill_id、版本和资源（第 13 节问题二） |
+| 助理的 `methods()` 只留「所属插件在这个范围里有可用动作」的方法 | `apps/local-host/src/assistant/assistant-work-reads.ts` | G1：只有内容的插件，助理看不见它的方法 |
+| 宿主的 Agent 定义登记：各插件的提示词、角色和方法，加上人改过的覆盖；存在 Home 库 `agent-definitions`，第 1 版 | `apps/local-host/src/agent-definitions/agent-definitions.ts` | 这就是共同目录的主人，但还没有启用状态和资源 |
+| Coding 另有一条路：从项目目录找 Skill（`agent.skills.discover.v1`），装进 Prologue 存储（`agent.skills.install.v1`，类型 `molis-coding-method`） | `horizontal/agent-host/src/adapters/prologue-methods.ts`；SSOT「Agent Host 保存的人的配置」 | 第二份名单，与助理不共用 |
+| Character 导入会扫五种本机 Agent 的规则和 Skills，导入的 Skills 只在选了这个 Character 的那一轮全文展开 | `packages/contracts/src/modules/character-import.ts`、`horizontal/agent-host/src/character-import.ts` | G2：不进目录，不能按需披露，也不能单项启用 |
+| 安装预览 @5 有 `agent_bodies`（种类、名字、前 200 字）和 `declarations` | `apps/local-host/src/plugin-install-actions.ts` | 缺 Skill 的适用说明、资源和依赖状态 |
+| 代码里没有「自动选用 / 仅手动」的状态 | 全仓搜索无结果 | 要新加 |
+
+## 3. 只有声明的插件
+
+`PluginKind` 加 `"content"`，与 plugin-platform-v2 的 `create --kind content` 同名。界面和文档叫「只有声明的插件」，GLOSSARY 在 C-1 里加一行。
+
+**Manifest 的要求**：写 `kind: "content"` 时，以下各项必须为空：
+
+- `entrypoints: []`
+- `permissions: []`
+- `capabilities: { provides: [], consumes: [] }`
+- `artifacts: { produces: [], consumes: [] }`
+- `ui.contributions: []`
+
+其余顶层键按白名单收。白名单之外的键出现就拒绝：报 `plugin.declaration_invalid`，并点名是哪个键。
+
+| 允许 | 说明 |
+| --- | --- |
+| 身份与展示：`schema_version`、`plugin_id`、`version`、`name`、`name_en`、`summary`、`publisher`、`host_api_version`、`developer` | 与其他插件一样 |
+| `methods` | 技能，见第 4 节；只有声明的插件至少要有一项（第 20 批加入套组的键以后，改成「`methods` 或套组至少一项」） |
+| `requires` | 依赖的动作：必要的不满足就不能启用，可选的不满足只降级，安装预览列出现在满不满足（第 5 节） |
+| `upgrade_compatibility` | 与其他插件一样 |
+| `ui.messages`、`ui.translations` | 名称与说明的双语 |
+| `runtime: { scope: "home" }` | 这里只表示范围：装给个人空间，所有项目和个人助理都能用。没有进程可起，所以不受 PG-011 对 Home 代码来源的限制；没写就装进项目 |
+
+**不允许**：`actions`、`action_scenes`、`routes`、`ui.views`、`ui.page_routes`、`ports`、`events`、`databases`、`owner_files`、`background`、`connections`、`connection_services`、`integrations`、`source_presentations`、`notifications`、`attention`、`local_tools`、`model_configuration`、`image_generation`、`process_items`、`always_on`、`agent`。`agent` 是插件自己的 Agent 用的，只有声明的插件没有 Agent。场景套组要不要带角色说明，由第 20 批第 2 项定；要带时，在白名单里加一个只收文字的键，不放开 `agent`。
+
+**校验**：只有一个函数，即 SDK 的 `inspectContentPlugin(manifest)`。它在 `parsePluginManifest` 里调用，所以 CLI、Plugin Runtime、安装预览、Plugin Builder 用的是同一份。第 20 批加套组的键时，只改这份白名单和对应的检查函数。
+
+**装配**：Plugin Runtime 把它当作「已声明、不启动」。安装、启用、停用、卸载、发布者撤销的状态与记录，和其他插件完全一样；但它不起进程、不开沙箱实例、不挂路由，也不进 MCP 工具表。装配检查只做一件事：声明的正文和资源都在、摘要相符，否则不启用，并写明原因。
+
+**两种来路，同一个形状**：
+
+| 来路 | 怎么交 | 信任 |
+| --- | --- | --- |
+| 随系统带上 | 插件包自己的 `registration`，不写 `runtime`，也不写 `project_runtime`；`workbench.contributions` 为空 | `host`（随宿主构建） |
+| 签名包 | 新的包种类「内容包」：`payload.files` 正好是 `manifest.json`，加上声明里列出的正文与资源，不多不少；没有 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` | 按签名：固定的发布者是 `pinned`；本机导入的由这个 Home 的发布者密钥签名，就是 Plugin Builder 用的那把 |
+
+## 4. 公共格式
+
+### 4.1 包的形状
+
+```text
+my-skill-plugin/
+├── manifest.json               # kind: "content"
+└── skills/
+    └── <skill_id>/
+        ├── SKILL.md            # 正文
+        ├── references/         # 按需读
+        ├── scripts/            # 只在权限岛和沙箱里跑（SKP-09）
+        └── assets/
+```
+
+正文与资源的路径都相对包根，不许 `..`、绝对路径或符号链接。`SKILL.md` 的 frontmatter 只给作者工具用：SDK 的 `skillDeclarationFromFrontmatter()` 把它转成声明，CLI `pack-content` 和导入都调它。宿主只读 Manifest，不读 frontmatter。
+
+### 4.2 Skill 声明
+
+`AgentSkillDeclaration` 加下列字段，并按「用在哪里」分两种要求：
+
+| 字段 | 类型与上限 | `methods` 里（给别的 Agent） | `agent.skills` 里（插件自己的 Agent） |
+| --- | --- | --- | --- |
+| `skill_id`、`version`、`name`、`summary`、`tools` | 不变 | 必填 | 必填 |
+| `description` | 什么时候触发，1～1024 字 | 必填 | 可选 |
+| `when_to_use`、`when_not_to_use` | 各 ≤500 字 | 可选 | 可选 |
+| `applies_to` | `"assistant" \| "coding" \| "both"` | 必填 | 不许写（只给自己的 Agent 用） |
+| `user_invocable` | 布尔；不写表示可以点名 | 可选 | 不许写 |
+| `argument_hint` | ≤80 字 | 可选 | 不许写 |
+| `body` | 正文的包内路径，必须是 `skills/<skill_id>/SKILL.md` | 签名包必填；随系统带的由定义给正文 | 同左 |
+| `resources` | `SkillResourceDeclaration[]`，见下 | 可选 | 可选 |
+| `connector_categories` | 正文里用到的连接器类别占位符，如 `project-tracker`，取值见[助理统一接入服务](../assistant-service-connections/spec.md) | 可选 | 可选 |
+
+`applies_to` 在 `methods` 里必填。main 上没有内置插件声明过 `methods`，沙箱 app 包的方法由宿主派生，所以改成必填不破坏现有数据。
+
+```ts
+interface SkillResourceDeclaration {
+  path: string;                 // skills/<skill_id>/{references,scripts,assets}/…
+  role: "reference" | "script" | "asset";
+  media_type: string;           // text/markdown、text/x-python、image/png …
+  bytes: number;
+  sha256: string;               // 包内文件的摘要，装配和读取时核对
+}
+```
+
+**上限**沿用已有的数，不另起一套：
+
+- 正文：≤500 行，且不超过 Prologue 的 `MAX_SKILL_BODY_CHARS`；
+- 每个 Skill：≤300 个资源；
+- 每个包：≤4000 个文件，总共 ≤64 MiB；
+- 单个文件：≤8 MiB；
+- 一个包最多 128 个 Skill。
+
+后三项取自 `CHARACTER_IMPORT_LIMITS`。
+
+**校验**：`inspectSkillDeclarations` 扩成同时查以下各项，满足 SKP-08。坏包整包拒绝，不部分安装。
+
+- 重复的 `skill_id`；
+- 正文缺失或超长；
+- 路径逃逸；
+- 资源缺失或摘要不符；
+- `applies_to` 非法；
+- `tools` 越界；
+- `connector_categories` 不认识。
+
+### 4.3 版本
+
+- 包用 SemVer，`version` 写在 Manifest 里；每个 Skill 有自己的整数 `version`。
+- 升级时按 `skill_id` 对比：正文或任一资源的摘要变了，而 `version` 没有增加，就拒绝。`version` 只许增加。
+- 精确引用是 `SkillRef`。它在 `SignedAgentReference` 的基础上加 `version`，再配 `SignedAgentInstallation`（安装、世代、项目）：
+
+```ts
+interface SkillRef {
+  source: { kind: "plugin"; plugin_id: string; plugin_version: string; publisher_signature: string };
+  skill_id: string;
+  version: number;
+  install_id: string;
+  installation_generation: string;
+}
+```
+
+`SignedAgentReference` 的 `kind: "method"` 改成用 `SkillRef`；角色资料仍用 `kind: "role"`。随系统带的包也有 `publisher_signature`，即宿主构建的签名身份，所以引用的写法只有一种。
+
+## 5. 安装与升级
+
+只走 `plugins.install.preview` 和 `plugins.install.confirm`，没有只给技能包的入口。
+
+**预览**输出加 `skills`，每项给 E 轨定样要用的字段：
+
+```ts
+interface SkillInstallPreview {
+  skill_id: string; version: number; name: string; description: string;
+  when_to_use?: string; when_not_to_use?: string;
+  applies_to: "assistant" | "coding" | "both";
+  user_invocable: boolean; argument_hint?: string;
+  tools: string[];                          // 声明，不授予
+  resources: Array<{ path: string; role: "reference" | "script" | "asset"; bytes: number }>;
+  runs_scripts: boolean;                    // 有 role=script 的资源；界面单独标「会执行」
+  connector_categories: string[];
+  excerpt: string;                          // 正文前 200 个码点
+  change?: "added" | "body_changed" | "resources_changed" | "removed";  // 只在升级时给
+  kept_state?: "auto" | "manual";          // 只在升级时给：这一项现在的启用状态，升级后照留（界面标「仅手动会保留」）
+}
+```
+
+预览还另外给：
+
+- `requires`：每项依赖的 `capability_id@version`、是否必要、现在满不满足，以及不满足时影响哪一步；
+- `scope`：装进项目，还是装给个人空间（取自 `runtime`）。
+
+`agent_bodies` 只留角色资料。方法都改成在 `skills` 里列，app 包派生出来的方法也一样，所以「方法」只有一种列法。这一步按 N35 原地改形状，刷新动作快照。
+
+**确认**：`plugins.install.confirm` 不变，不带启用参数：装上不等于启用。启用只走 `skills.settings.set@1`（第 7 节）。E 轨 2026-11-04 定的做法是：装完在同一处接着显示「启用到本项目」这一步，或在确认里放默认全关的开关，确认后由界面再调一次 `set`。哪种由用户在定样时选，两种都不用把启用并进安装动作。
+
+**升级**：装更高版本的包，同一个发布者，`compatible_from_versions` 要包含当前版本，和其他签名包一样。升级不改启用状态。正在跑的轮次固定原版本，不改绑。被移除的 Skill，其设置随之删除；新增的 Skill 是「没启用」。
+
+## 6. 外部 Skills 导入
+
+导入的结果是一个「只有声明的插件」，由这个 Home 的发布者密钥签名，再走第 5 节同一个安装确认。导入不另设目录、不另设状态，也不另设执行路径。
+
+**来源**：
+
+- 本机 Agent 的 Skills 目录：Claude Code、Codex 等，即 `CHARACTER_IMPORT_RUNTIMES` 的五种，复用 Character 导入的扫描（`apps/local-host/src/character-import-scan.ts`）；
+- 项目授权目录里的 Skills：取代 Coding 的 `agent.skills.discover.v1` 和 `agent.skills.install.v1`（第 8 节）。
+
+**动作**（只给本人，`audiences: user`，没有 MCP 工具）：
+
+| 动作 | 输入 | 输出 |
+| --- | --- | --- |
+| `skills.import.preview@1` | `{ source: { kind: "runtime"; runtime_id } \| { kind: "project_directory"; directory_id } }` | `preview_id`；拟定的包身份（`plugin_id` 由来源种类和来源根目录确定地算出，同一来源再导入就是升级）；候选 Skill 列表，每项给名称、`description`、文件数、大小、`compatibility`（`portable` 或 `native-only` 加原因）、`runs_scripts`、与已装版本的差异 |
+| `skills.import.confirm@1` | `{ preview_id; skill_ids: string[]; scope: "project" \| "home" }`，同样不带启用参数 | 与 `plugins.install.confirm` 相同 |
+
+**规则**：
+
+- 导入的是确认那一刻的固定拷贝，原目录之后的变化不影响已装的包。「重新导入」就是再走一次预览，按 4.3 自动加版本并列出差异；用户在宿主里改过的设置不被覆盖。
+- `native-only` 的 Skill 可以导入，但在内置引擎里显示「不可用」并写原因；只有本地 Agent 能用它。
+- 来源读取遵守 Character 导入已有的路径和大小限制，不读来源目录之外的文件。
+- 预览只给本人的界面；导入的动作不交给 Agent、工作流或插件。
+
+**和 Character 的关系**：G2 要的是「导入一次，助理和 Coding 都能用」。Character 快照里的 `skills` 是否改成引用目录里的 `SkillRef`、不再整段内嵌，是 Characters 主人的合同改动，不在本批做。见第 13 节问题三。
+
+## 7. 启用与仅手动
+
+**状态**：一个 Skill 在一个范围（某个项目，或个人空间）里有三种状态。
+
+| 状态 | 意思 | 能不能被 AI 自己选 | 用户点名能不能用 |
+| --- | --- | --- | --- |
+| `off`（没启用，默认） | 装上、导入、看过都停在这里 | 不能 | 不能，提示先启用 |
+| `auto` | 启用后的默认 | 能：已启用、适用、具备必要能力与权限才进候选 | 能，点名优先 |
+| `manual` | 仅手动 | 不能，已知精确引用也绕不过 | 能，沿原权限 |
+
+只按范围记，不按「人＋范围」记（E 轨 2026-11-04 同意）：一个 Home 只有一个人，「只有本人能改」由调用上下文的操作者保证。以后有多人时，按 `docs/system/CONTRACT-CHANGES.md` 再把操作者加进主键。
+
+**主人**：宿主的 Agent 定义登记，即 `apps/local-host/src/agent-definitions/` 的 Home 库 `agent-definitions`。新增一张表，由这个包独占读写：
+
+```sql
+CREATE TABLE skill_settings (
+  scope_ref TEXT NOT NULL,          -- 项目 id，或 "home"
+  install_id TEXT NOT NULL,
+  skill_id TEXT NOT NULL,
+  state TEXT NOT NULL,              -- 'auto' | 'manual'；没有行就是 off
+  enabled_at TEXT NOT NULL,         -- 从 off 变成启用的时间；auto 与 manual 之间切换不改
+  enabled_by TEXT NOT NULL,         -- 启用时的操作者
+  revision INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  PRIMARY KEY (scope_ref, install_id, skill_id)
+);
+```
+
+**动作**：`skills.settings.set@1`，只给本人。输入 `{ scope, install_id, skill_id, state: "off" | "auto" | "manual", expected_revision }`，冲突时拒绝；改成 `off` 就删行。项目、操作者从上下文来。
+
+**保留规则（SKP-10）**：
+
+- 插件停用再启用、升级：不动行。
+- 卸载：删掉这个安装的行。再装就重新从 `off` 开始，因为卸载就是「不再用」。
+- 发布者被撤销：行留着，Skill 不可用；之后只能卸载。
+
+**「本轮由用户点名」怎么认**：一轮开始时，宿主把用户这一轮点名的 Skill（`/`、选择器、前门）冻结进这一轮的选择，形状是 `SkillRef` 的列表。`manual` 的 Skill 只在这份冻结名单里才能读，模型的输入写什么都不算。读取动作只看调用上下文里的这份名单（第 8 节）。
+
+## 8. 共同目录
+
+不新建注册表。宿主的 Agent 定义登记就是共同目录：各插件 Manifest 的 `methods`，与随系统带的定义里的方法，进的是同一份。新增一个系统提供方 `system.skills`，下面四个动作都由它提供：
+
+| 动作 | 谁能调 | 做什么 |
+| --- | --- | --- |
+| `skills.catalog.list@1` | user、plugin、agent | 列这个范围里的 Skill。输入可选 `{ applies_to?: "assistant" \| "coding"; states?: ("off" \| "auto" \| "manual")[] }`，范围从上下文来。agent 与 plugin 只拿到 `auto` 和 `manual`，看不到 `off` |
+| `skills.body.read@1` | user、plugin、agent | 按 `SkillRef` 读正文。每次都核对：安装、世代、版本仍是当前的；状态允许（`manual` 要在本轮冻结名单里）；`applies_to` 与调用方相符。被拒时说明原因，不悄悄换成别的版本 |
+| `skills.resource.read@1` | user、plugin、agent | 按 `SkillRef` 和声明里的 `path` 读一个资源，核对 `sha256`。只收声明过的路径，大小有上限，二进制资源给 base64 |
+| `skills.settings.set@1` | user | 第 7 节 |
+
+**目录项**（`SkillCatalogEntry`，E 轨的管理页和助理、Coding 读同一份）：
+
+```ts
+interface SkillCatalogEntry {
+  ref: SkillRef;
+  name: string; description: string; when_to_use?: string; when_not_to_use?: string;
+  applies_to: "assistant" | "coding" | "both";
+  user_invocable: boolean; argument_hint?: string; tools: string[];
+  resources: Array<{ path: string; role: "reference" | "script" | "asset"; bytes: number }>;
+  connector_categories: string[];
+  pack: { plugin_id: string; title: string; version: string; trust: "host" | "pinned" | "home_local"; scope: "project" | "home" };
+  state: "off" | "auto" | "manual"; settings_revision: number;
+  enabled?: { at: string; by: string; scope: "project" | "home" };   // 只在启用时给，供界面回显启用的范围
+  availability: { available: true } | { available: false; reason: SkillUnavailableReason; detail?: string };
+  last_used?: { at: string; caller: "assistant" | "coding" | "agent"; run_ref?: string };
+}
+```
+
+**不可用的原因码**（`SkillUnavailableReason`）。每个码对应一件用户能做的事，界面按码给入口：
+
+| 码 | 意思 | 界面给的事 |
+| --- | --- | --- |
+| `plugin_disabled` | 包所在的插件停用了 | 去启用插件 |
+| `publisher_revoked` | 发布者已撤销 | 只能卸载 |
+| `resource_invalid` | 正文或资源缺失、摘要不符 | 重新安装或重新导入 |
+| `requires_unmet` | 必要依赖不满足（`detail` 写哪一项） | 去添加那个插件 |
+| `connection_missing` | 正文用到的连接器类别在本范围没有连接（`detail` 写类别） | 去连接 |
+| `native_only` | 只有本地 Agent 能用，内置引擎用不了 | 换本地 Agent，或不用 |
+| `not_applicable` | `applies_to` 不含当前调用方（只在 user 看全部时出现） | 无 |
+
+`off` 不算不可用，它是状态，界面按状态给「启用」。
+
+**渐进披露（SKP-05）**：目录项只带元数据。正文由 `skills.body.read` 按需读，资源由 `skills.resource.read` 按正文的指引读，不会整包进上下文。
+
+**用量**：Skill 的正文交给一轮、并拿到接受回执后，宿主在 `agent-definitions` 库里记一行，写法照 `prompt_uses`，表名 `skill_uses`。被拒或取消的轮次不记。历史行保留当时的 `SkillRef` 和名称，卸载后仍可读（SKP-07）。
+
+**消费方怎么改**（实现时做，这里先写明去向）：
+
+- **个人助理**：`methods()` 改成从目录取：已安装、在本范围启用，且 `applies_to` 含 `assistant`（修 G1）。读正文改走 `skills.body.read@1`。`assistant.methods.read@2` 只留角色资料，它改不改名由 A 轨定。
+- **Coding**：取 `applies_to` 含 `coding` 的项，起跑时把精确的 `SkillRef` 冻结进 `agent.skills`。原来那条路删掉：`agent.skills.discover.v1`、`agent.skills.install.v1`，以及 Prologue 存储里 `molis-coding-method` 这种类型；SSOT 里「装进项目的 Skill」一行同时删。Coding 自己 Agent 的 `agent.skills`（`codingSkills`）不变，仍是插件自己的。
+- **其他 Agent**：同样按目录与冻结名单读。
+
+## 9. 停用、卸载与可见性
+
+| 安装状态 | 目录里 | 新的一轮 | 正在跑的一轮 | 设置 | 用量历史 |
+| --- | --- | --- | --- | --- | --- |
+| 装上未启用（`off`） | user 看得到，标「没启用」 | 不用 | — | 无行 | 留 |
+| 启用（`auto`、`manual`） | 看得到 | 按状态用 | 按冻结的用 | 有行 | 留 |
+| 插件停用 | user 看得到，`plugin_disabled` | 不用 | 下一次读正文或资源时被拒 | 留 | 留 |
+| 发布者撤销 | user 看得到，`publisher_revoked` | 不用 | 下一次读被拒 | 留 | 留 |
+| 卸载 | 不再列 | 不用 | 下一次读被拒 | 删 | 留 |
+
+卸载只删插件内容和它的设置，不删业务数据。技能包本来也写不了业务数据（SKP-12）。
+
+## 10. 呈现（请 D 轨看）
+
+界面由 E 轨定样，这里只列合同给什么、按组件板对应哪个控件，供 D 轨核对：
+
+| 位置 | 合同给的 | 组件板控件 |
+| --- | --- | --- |
+| 管理页的一行 | `name`、`pack.title`、`version`、`state`、`enabled`、`applies_to`、`availability`、`last_used` | `mw-item`；状态用 `mw-tag`；不可用的写 `reason` 对应的一句话 |
+| 状态切换 | `off` / `auto` / `manual` 三选一 | 现有分段选择 |
+| 正文与资源预览 | `skills.body.read` 的正文、资源清单 | `renderPreviewCard`；窄屏用 `renderSheet` |
+| 安装预览的一项 | 第 5 节的 `SkillInstallPreview` | `mw-item` 加展开；「会执行」「仅手动会保留」用 `mw-tag` |
+| 导入的候选 | 第 6 节的候选列表 | 同上；`native-only` 写原因 |
+
+现在没有要「组件板新增」的。E 轨定样后若要新的控件，按 #1772 标出，由 D 轨补标本。
+
+## 11. 存量数据
+
+`skill_settings` 和 `skill_uses` 是 `agent-definitions` 库的新表。分界与 05② 相同，看 **02③ 真实 Home 重建**：
+
+- **重建之前落**：直接改第 1 版的建表，不写迁移。
+- **重建之后落**：走 U1 的升级链，写一步升级。这算「新增迁移逻辑」，是红线，开 PR 之前由统筹先问用户。
+
+删 Prologue 存储里的 `molis-coding-method`，在重建之后也一样，不留读取兜底。重建之后如果真实 Home 里已经有这种数据，按同一条红线处理。
+
+不加读取兼容。开 PR 时先核 02③ 做完没有。
+
+## 12. PR 怎么拆
+
+按轨道规则 1：合同单独先开小 PR，服务接着，消费者最后。
+
+| 片 | 内容 | 前置 |
+| --- | --- | --- |
+| C-1 声明合同 | contracts：`PluginKind` 的 `"content"`、`AgentSkillDeclaration` 的新字段、`SkillResourceDeclaration`、`SkillRef`、内容包的文件常量。SDK：`inspectContentPlugin`、扩展后的 `inspectSkillDeclarations`、`skillDeclarationFromFrontmatter`、内容包的解析。GLOSSARY 加一行；刷新 api 快照 | 02 交接；#1762 合入 |
+| C-2 目录、设置与导入的动作合同 | `services/skills.ts`：第 6、7、8 节的六个动作声明、`SkillCatalogEntry` 与 `SkillUnavailableReason`；`plugins.install.preview` 的 `skills` 与 `requires`；刷新动作快照 | C-1；E 轨定样定下 |
+| C-3 方法写法合一（看问题二） | 沙箱 app 包的 `{ name, purpose, body }` 改成完整的 Skill 声明；要跑 `pnpm studio:replay` | C-1；统筹定 |
+| 实现 | Plugin Runtime 的「已声明、不启动」装配；宿主的目录、设置和用量；导入服务与 CLI `pack-content`；助理与 Coding 两个消费方，以及删掉 Coding 的旧路；BL-165 设计与无障碍内容包 | C-1、C-2 合入；E 轨定样 |
+
+## 13. 待定问题（交统筹）
+
+1. **随系统带的技能包和官方场景套组怎么交？** 推荐：用插件包自己的 `registration`，不写 runtime（第 3 节），和别的内置插件一样进目录，项目里选了才启用，不开新路。另一种做法是把签名包放进安装包、宿主列出「可装」。这样要多一个「随包带上的待装包」目录，是新路，不推荐。这件事和第 20 批第 2 项共用，F 轨在核查套组，请一并定。
+2. **沙箱 app 包现有的三键方法写法要不要并进来？** 推荐并，开 C-3。不并，就长期有两种写法，app 包的方法也没有 skill_id、版本和资源。代价是要动 Plugin Builder 的生成辅助（Plugin Builder 是用户批过的构建期例外），并跑回放。
+3. **Character 快照里的 Skills 要不要改成引用目录？** 推荐改：导入一次，处处都用，可以单项启用。但这是 Characters 的合同，不在 08 做，建议另记一条待办，交给 Characters 的主人。
+
+已和 E 轨对齐、不再列为问题的两项（2026-11-04）：安装与导入的确认都不带启用参数，启用只走 `skills.settings.set@1`；启用状态只按范围记。
+
+## 14. 验收编号（候选）
+
+实现时，测试名或注释写出这些编号。
+
+| 编号 | 要达到的结果 | 对应 |
+| --- | --- | --- |
+| SKC-01 | 写 `kind: "content"` 的 Manifest，只收第 3 节白名单里的键；出现别的键时安装被拒，报 `plugin.declaration_invalid` 并点名那个键；内置、生成、导入、第三方走同一个 `inspectContentPlugin` | SKP-01、SKP-08、ONB-53 |
+| SKC-02 | 只有声明的插件能装、能启用、能停用、能卸载，不起进程、不挂路由、不进 MCP 工具表；正文或资源的摘要不符时不启用，并写明原因 | SKP-01、PLP-01 |
+| SKC-03 | 坏包整包被拒，不部分安装：正文缺失、重复 id、路径逃逸、超长、资源缺失、`applies_to` 非法、`tools` 越界 | SKP-08 |
+| SKC-04 | 升级时正文或资源变了而 Skill 的 `version` 没有增加，就被拒；预览按 Skill 标出新增、正文变了、资源变了、移除 | SKP-07 |
+| SKC-05 | 装上、导入、打开看都是 `off`，安装与导入的确认都不启用任何一项；启用后默认 `auto`，目录回显启用的时间、操作者和范围；`manual` 在停用再启用、升级之后不变；卸载后再装从 `off` 开始 | SKP-10 |
+| SKC-06 | `manual` 的 Skill 只在本轮冻结的点名名单里能读，模型在输入里写精确引用也读不到 | SKP-10 |
+| SKC-07 | 助理与 Coding 从同一个 `skills.catalog.list@1` 拿到同一份 `SkillRef` 和正文；只有内容的插件，助理也看得见 | SKP-02、SKP-04、G1 |
+| SKC-08 | `skills.body.read@1` 在插件停用、发布者撤销、卸载、世代变化后被拒，不换成别的版本；正在跑的一轮在下一次读时停住 | SKP-06、SKP-07 |
+| SKC-09 | 资源只能按声明的路径读，摘要不符时被拒；目录项不带正文 | SKP-05 |
+| SKC-10 | 从一个真实的本机 Skills 目录导入，得到一个本机签名的只有声明的插件，走同一个安装确认；原目录之后的改动不影响已装的版本；再导入一次就是升级 | G2、SKP-04 |
+| SKC-11 | 代码里没有只给技能包用的注册表或安装入口；Coding 的 `agent.skills.discover.v1`、`agent.skills.install.v1` 与 `molis-coding-method` 已删 | SKP-04 |
+| SKC-12 | 被拒或取消的轮次不记 `skill_uses`；卸载以后用量历史仍可读，保留当时的名称和版本 | SKP-07 |

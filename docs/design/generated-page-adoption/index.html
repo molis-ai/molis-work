@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-resolved-theme="light" data-skin="soft" data-density="standard">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>生成页面采用与恢复定样 · Molis Work 原型</title>
+  <!-- kit.css：组件板实件（共用组件包，见 ../kit/README.md）；proto.css：原型条、工作台示意外壳和「组件板新增」。 -->
+  <link rel="stylesheet" href="../kit/kit.css">
+  <link rel="stylesheet" href="proto.css?v=9">
+</head>
+<body class="proto-body">
+  <div id="icons" hidden></div>
+  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
+    <b id="p-title"></b>
+    <label><span id="p-plan"></span><select class="mw-select" id="plan"></select></label>
+    <label><span id="p-stage"></span><select class="mw-select" id="stage"></select></label>
+    <label><span id="p-fault"></span><select class="mw-select" id="fault"></select></label>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="语言 / Language" id="lang"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="明暗 / Light or dark" id="theme"></div>
+    <div class="mw-toggle-group" data-slot="toggle-group" role="group" aria-label="标注 / Notes" id="notes"></div>
+    <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-slot="button" id="reset"><span data-slot="button-label"></span></button>
+  </div>
+  <div id="app"></div>
+  <div id="toasts" class="proto-toasts"></div>
+  <div id="live" class="mw-sr-only" aria-live="polite"></div>
+  <script src="../kit/kit.js"></script>
+  <script>
+    document.getElementById("icons").innerHTML = window.mwKitSprite;
+    const client = document.createElement("script");
+    client.textContent = window.mwKitClient;
+    document.body.appendChild(client);
+  </script>
+  <script src="data.js?v=1"></script>
+  <script src="app.js?v=9"></script>
+</body>
+</html>

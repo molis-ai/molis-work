@@ -1,9 +1,9 @@
 # 定时任务按任务授权读取业务数据：第 18 批实施方案与开工前检查
 
-状态：方案待统筹审（2026-11-04，E 轨起草，未写产品代码）。原需求是[主动助理 §5.4.1](spec.md) 与验收 PWA-148～153；核账见[第 18 批「本批核账」](../post-anticorruption-roadmap/reference/batches/18.md#batch-18-audit)。
+状态：方案已由统筹审过（2026-11-04，E 轨起草，未写产品代码）；第 8 节三项统筹已定，下一步 P0 合同与 P1 定样按派单开工。原需求是[主动助理 §5.4.1](spec.md) 与验收 PWA-148～153；核账见[第 18 批「本批核账」](../post-anticorruption-roadmap/reference/batches/18.md#batch-18-audit)。
 
 - **类型**：横向能力（按任务的动作授权）为主；产品线（Schedule 插件）；底层与架构（授权与安全边界）。按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)第 1.1 节属**大需求**：跨 C1、宿主和 E 三处，带一处合同改动和安全边界变化。
-- **决策标记**：要决策：勾选界面定样（第 5 节）；可信写入放在平台面而不是插件页面，改变了统筹派单时「勾选界面归 E」的分工（第 7 节预警）。
+- **决策标记**：要决策：勾选界面定样（第 5 节）。可信写入放在平台确认面、由 D 落，统筹 2026-11-04 已定（第 8 节）。
 - **用到的横向能力**：统一动作目录与能力网关、动作授权（`config/mcp-tools.json` 的逐客户端授权）、插件 Agent 服务、平台调度。**会改动的**：动作授权多一种主体；插件 Agent 服务能带这种主体启动只读业务角色。
 - **相邻的线**：19 批简报和场景 Skill 用这条通路取数（A 轨）；「授权与放行」一页（D 轨）要列出并能撤回这种授权；02② 的合同一片（N26、N27、N29）先落。
 - **负责人**：方案与 Schedule 一侧 E 轨；合同 C1；宿主改动随 E 的使用片一起落（轨道规则 4）；平台确认面 D 轨。
@@ -78,7 +78,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
    - 带了 `grant_subject` 的，启动请求设 `action_gateway: true`，动作客户端的身份换成任务主体（`preparePlugin(caller, subject)`，`apps/local-host/src/agent-host-composition.ts:263` 的 `actor_id` 从固定的 `agent:${runtimeId}` 改为由这里传入；审计作者照旧 `agent:<runtime>:<会话>`）。
    - **没带的业务角色不给网关**：插件启动的 Agent 不能借内置 Agent（`agent:prologue`）那份共用授权。这是今天的行为，写成不变量钉住。
 3. 网关（`horizontal/agent-host/src/run-start.ts` 的 `frozenGateway`）：角色只读，`operate` 为 false，写类工具一律回「只能读」（`adapters/prologue-action-gateway.ts:243`、`250`、`368`），这一层不用改。
-4. 目录：`find-capabilities` 只列这个主体被授权的动作（`resolveMcpActionContext` 按 `client_id` 过滤）。任务主体**没有默认放开的动作**：`openByDefault` 对任务主体一律 false，连项目资料也要勾（最少权限；要不要把项目资料作为一类默认勾上，留到定样时由用户看）。
+4. 目录：`find-capabilities` 只列这个主体被授权的动作（`resolveMcpActionContext` 按 `client_id` 过滤）。任务主体**没有默认放开的动作**：`openByDefault` 对任务主体一律 false，连项目资料也要勾（最少权限；项目资料作为一类出现、默认不勾，统筹 2026-11-04 定）。
 
 ### 3.4 撤权、停用、删任务之后
 
@@ -190,8 +190,10 @@ P2 与 P3 改不同的文件，可以并行；两者都依赖 P0。按「一项�
 6. **卡住哪部分**：P1 定样和 P3；P0 合同与 P2 的宿主部分不受影响。
 7. **时限**：1 个工作日。
 
-## 8. 要统筹回答
+## 8. 统筹的决定
 
-1. 认不认可 3.7 的分工调整（勾选在平台确认面，D 落；Schedule 只做入口与状态）。
-2. 项目资料是否作为一类出现在勾选里（推荐：出现、默认不勾）。
-3. 新不变量的编号：表里现在排到 S-107，落地时顺延。
+统筹 2026-11-04 定（[#1764 评论](https://github.com/molis-ai/molis-work/pull/1764)），三条都按方案的推荐：
+
+1. **勾选放在平台确认面**（3.7 方案 A），由 D 轨落；Schedule 只做入口和状态显示。
+2. **项目资料作为一类出现，默认不勾。**
+3. **新不变量的编号落地时顺延**（表里现在排到 S-107）。

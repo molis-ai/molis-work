@@ -39,7 +39,7 @@
     },
   };
   const KEY = "molis-proto.intelligent-surfaces-forms.v1";
-  const fresh = () => ({ scheme: "A", lang: "zh", theme: "light", pos: "spec", fault: "none", done: {}, sel: "inbox", member: false });
+  const fresh = () => ({ scheme: "B", lang: "zh", theme: "light", pos: "spec", fault: "none", done: {}, sel: "inbox", member: false });
   let S = load();
   function load() { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* storage may be unavailable */ } }

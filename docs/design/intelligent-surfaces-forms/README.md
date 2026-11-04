@@ -1,6 +1,6 @@
 # 智能呈现：四种基础形态定样
 
-状态：三个方案待用户选（2026-11-03）。产品没有实现；页面里全是示例数据，不连 Home、不调模型。
+状态：方案已定（2026-11-03，用户选 B：插件领头），记入 [`specs/intelligent-surfaces/spec.md`](../../../specs/intelligent-surfaces/spec.md) §15 决策记录。产品没有实现；页面里全是示例数据，不连 Home、不调模型。
 
 需求出处：[`specs/intelligent-surfaces/spec.md`](../../../specs/intelligent-surfaces/spec.md) 第一片（§13）：名字片、行、卡片、速览四种形态；Goals、Inbox、Coding 三个插件；落在插件内、对话、项目讨论、等你四处；只有确定组合。§13 写明这四种形态和 Work Brief、基础首页要用的公共呈现组件是同一套，所以这里定的也是那一套的样子。
 

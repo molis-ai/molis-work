@@ -1,14 +1,7 @@
-/* 04 · Onboarding full journey — prototype-only styles on top of base.css. */
+/* 04 · shared parts (lines, statuses, tree, phases, plan, help) — prototype only, on top of base.css. */
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
-.app.page{display:flex;flex-direction:column;overflow:hidden}
-.app.page>.top{flex:none;height:52px;display:flex;align-items:center;gap:12px;padding:0 20px}
-.top .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
-.top .brand .mk{width:22px;height:22px;border-radius:6px;background:var(--action);color:var(--action-ink);display:grid;place-items:center;font-size:11px}
-.top .where{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.top .grow{flex:1}
 .scroll{overflow:auto;min-height:0;scrollbar-width:thin}
-
 /* Shared step body */
 .stepbody{display:flex;flex-direction:column;gap:14px}.stepbody.enter{animation:rise var(--dur-move) var(--ease)}
 .btn:disabled,.btn:disabled:hover{opacity:.45;cursor:not-allowed;transform:none}
@@ -112,70 +105,6 @@ table.map tr:last-child td{border-bottom:0}
 .tip .grow{flex:1}
 .resume{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-radius:var(--r-card);background:var(--accent-soft);color:var(--accent-strong);font-size:12px}
 .resume .grow{flex:1;min-width:20ch}
-
-/* Steps list (rail / checklist) */
-.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
-.steps li button{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:4px 10px;border:0;border-radius:var(--r-row);background:transparent;text-align:left;color:var(--ink)}
-.steps li button:hover:not(:disabled){background:var(--hover)}
-.steps li button:disabled{cursor:default}
-.steps li button[aria-current=step]{background:var(--paper);box-shadow:var(--lift-1);font-weight:600}
-.steps .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex:none;font-size:11px;font-weight:600;background:var(--fill);color:var(--muted)}
-.steps .done .dot{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
-.steps .reused .dot{background:var(--rail);color:var(--ink-soft)}
-.steps .fail .dot{background:var(--red-soft);color:var(--red)}
-.steps .cur .dot{background:var(--action);color:var(--action-ink)}
-.steps .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.steps .fact{flex:none;font-size:11px}
-
-/* Draft (what has been prepared) */
-.draft{display:flex;flex-direction:column;gap:10px}
-.draft h2{margin:0;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
-.draft .sec{background:var(--paper);border-radius:var(--r-card);box-shadow:inset 0 0 0 1px var(--line);padding:6px}
-.draft .sec .cap{padding:6px 8px 2px;font-size:11px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:6px}
-.draft .sec .cap .grow{flex:1}
-.draft .ln{min-height:32px;font-size:12px}
-.draft .ln .nm{font-weight:500}
-.draft .pending{padding:6px 8px 8px;font-size:12px;color:var(--faint)}
-
-/* Scheme A — stand-alone entry page */
-.A-body{flex:1;min-height:0;display:grid;grid-template-columns:232px minmax(0,1fr) 300px;gap:20px;padding:4px 20px 20px;max-width:1440px;width:100%;margin:0 auto}
-.A-rail{display:flex;flex-direction:column;gap:14px;min-height:0}
-.A-rail .safe{font-size:12px;color:var(--muted);display:flex;gap:6px;line-height:1.5}
-.A-main{background:var(--paper);border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow);min-height:0;display:flex;flex-direction:column}
-.A-main>.scroll{padding:24px 28px 28px;flex:1}
-.A-main .stepbody{max-width:720px;margin:0 auto}
-.A-side{min-height:0}
-.A-mini{display:none}
-
-/* Scheme B — conversation + growing draft */
-.B-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:14px;padding:4px 14px 14px}
-.B-talk{background:var(--paper);border-radius:var(--r-sheet);box-shadow:var(--sheet-shadow);display:flex;flex-direction:column;min-height:0}
-.B-talk>.scroll{flex:1;padding:20px 24px}
-.B-thread{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-.msg{display:flex;gap:10px;align-items:flex-start}
-.msg .who{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:600;background:var(--accent-soft);color:var(--accent-strong)}
-.msg.me{justify-content:flex-end}
-.msg.me .bubble{background:var(--rail);max-width:80%}
-.bubble{padding:8px 12px;border-radius:12px;line-height:1.6;background:var(--soft)}
-.bubble .link{margin-left:8px;font-size:12px}
-.msg .card{flex:1;min-width:0;padding:16px;border-radius:var(--r-card);box-shadow:inset 0 0 0 1px var(--line);background:var(--paper)}
-.msg .card .stepbody h1{font-size:16px}
-.B-compose{flex:none;margin:0 16px 14px;display:flex;align-items:center;gap:8px;height:46px;padding:0 6px 0 14px;border-radius:var(--r-composer);background:var(--paper);box-shadow:var(--lift-2)}
-.B-compose .ph{flex:1;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.B-draft{background:var(--soft);border-radius:var(--r-sheet);min-height:0;display:flex;flex-direction:column}
-.B-draft>.scroll{padding:14px;flex:1}
-.B-seg{display:none}
-
-/* Scheme C and from-help: workbench frame */
-.wb{position:fixed;inset:40px 0 0 0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:40px minmax(0,1fr) 76px}
-.wb .desk{display:grid;grid-template-columns:minmax(0,1fr) 8px var(--side-w);padding:0 14px;min-height:0}
-.wb .desk.solo{grid-template-columns:minmax(0,1fr)}
-.wb .pane>.scroll{flex:1;padding:22px 26px 28px}
-.wb .pane.main .stepbody{max-width:760px;margin:0 auto}
-.wb .pane.side>.scroll{padding:14px}
-.side-h{display:flex;align-items:center;gap:8px;padding:12px 14px 4px}
-.side-h h2{margin:0;font-size:14px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-:root{--side-w:360px}
 .coding-top{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);flex:none;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .coding-top b{color:var(--ink);font-family:var(--mono);font-weight:500}
 .coding-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:28px;text-align:center}
@@ -192,35 +121,6 @@ table.map tr:last-child td{border-bottom:0}
 .later{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
 .later .it{display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:var(--r-row);background:var(--soft);min-height:48px}
 .later .it .bd{flex:1;min-width:0}.later .it strong{display:block;font-weight:500;font-size:12px}.later .it .fact{display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* Widths */
-@media (max-width:1240px){.A-body{grid-template-columns:200px minmax(0,1fr)}.A-side{display:none}.A-mini{display:block}.B-body{grid-template-columns:minmax(0,1fr) 340px}}
-@media (max-width:1100px){:root{--side-w:320px}.A-main>.scroll{padding:20px}}
-@media (max-width:760px){
-  .A-body{grid-template-columns:minmax(0,1fr);padding:0 8px 8px;gap:8px}.A-rail{display:none}
-  .A-main>.scroll{padding:16px}
-  .A-stepper{display:flex!important}
-  .B-body{grid-template-columns:minmax(0,1fr);padding:0 8px 8px}.B-seg{display:inline-flex}
-  .B-body[data-view=talk] .B-draft,.B-body[data-view=draft] .B-talk{display:none}
-  .B-talk>.scroll{padding:14px}
-  .wb{grid-template-rows:40px minmax(0,1fr) 116px}
-  .wb .desk{grid-template-columns:minmax(0,1fr)!important;padding:0 8px}.wb .desk>.gutter{display:none}
-  .wb .desk>.pane.side{display:none}.wb .desk[data-focus=side]>.pane.main{display:none}.wb .desk[data-focus=side]>.pane.side{display:flex}
-  .wb .pane>.scroll{padding:16px}
-  .bar{flex-wrap:wrap;align-content:center;gap:8px;padding:6px 8px}.composer{order:-1;flex-basis:100%;max-width:none;height:46px}.tray{background:transparent;box-shadow:none;padding:0;height:auto}
-  .winsel{display:inline-flex!important}
-  .btn,.pill,.choice,.steps li button,.fr{min-height:44px}.btn.icon{width:44px}
-  .frm{grid-template-columns:1fr}
-  .top .where{display:none}
-  .app.page>.top{padding:0 12px}
-}
-.A-stepper{display:none;align-items:center;gap:8px;padding:0 4px 8px;font-size:12px;color:var(--muted)}
-.A-stepper .progress{flex:1;margin:0}
-.A-stepper .progress i{animation:none}
-.winsel{display:none}
-.pane.side .frm,.B-talk .card .frm{grid-template-columns:1fr;gap:6px}
-.pane.side .stepbody h1{font-size:17px}
-.pane.side .choices{grid-template-columns:1fr}
-@media (max-width:760px){.foot .btn{white-space:normal;height:auto;min-height:44px;padding:8px 12px;text-align:center}.foot .btn.primary{flex:1 1 100%}.foot>.fact{flex:1 1 100%;text-align:right}}
-@media (max-width:760px){.wb .titlebar{grid-template-columns:minmax(0,1fr)!important;padding:0 8px}.wb .titlebar .strip.side{display:none}.wb .titlebar[data-focus=side] .strip.main .tabs{display:none}}
-@media (max-width:760px){.top .wide{display:none}}
+.composer.kept{box-shadow:var(--lift-2),0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.composer .typed{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.composer .send.ready{background:var(--action);color:var(--action-ink)}

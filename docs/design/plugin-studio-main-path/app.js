@@ -6,7 +6,7 @@
   const STAGES = 8; // 0 prep · 1 idea · 2 plan · 3 build · 4 trial · 5 install · 6 use · 7 iterate
   const BUILD = 5;  // build sub-steps
   const fresh = () => ({ scheme: "A", lang: "zh", theme: "light", fault: "none", step: 0, view: 0, cfg: false, q1: null, q2: null, cand: "c1",
-    combo: null, aiPending: false, aiStale: false, bsub: 0, bdec: null, bctl: null, bfix: false, resumed: false, pointing: false, pin: null, rev: 1, revWhat: null, moved: false, defectFixed: false,
+    combo: null, aiPending: false, aiStale: false, bsub: 0, bdec: null, bctl: null, bfix: false, resumed: false, pointing: false, pin: null, rev: 1, revWhat: null, moved: false, defectFixed: false, afix: false, aview: null,
     installFixed: false, installing: false, installed: false, side: false, drawer: false, iterRev: 0, adopted: false, marks: {} });
   let S = load(), timer = null;
   function load() { try { return { ...fresh(), ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return fresh(); } }
@@ -23,7 +23,7 @@
     "Import the attendee list before the weekly meeting, check people in with one tap, and afterwards log who was missing on the “Team meeting” goal in Goals.");
   const PEOPLE = [["王一", "产品"], ["李青", "产品"], ["陈默", "设计"], ["赵安", "研发"], ["孙晴", "研发"], ["周舟", "研发"], ["吴桐", "运营"], ["郑远", "运营"]];
   const faults = () => [["none", L("正常", "Normal")], ["config", L("缺模型配置", "No model set")], ["timeout", L("构建时模型超时", "Model timeout in build")],
-    ["buildfail", L("构建失败", "Build fails")], ["interrupt", L("构建中断后重开", "Reopened after interruption")], ["defect", L("试用发现缺陷", "Trial finds a defect")],
+    ["buildfail", L("构建失败", "Build fails")], ["acceptfail", L("界面验收没过", "UI check fails")], ["interrupt", L("构建中断后重开", "Reopened after interruption")], ["defect", L("试用发现缺陷", "Trial finds a defect")],
     ["installfail", L("安装失败", "Install fails")]];
   const caption = () => [L("进入：先看缺什么", "Open: check what's missing"), L("① 说想法、答两个问题", "① Describe it, answer two questions"),
     L("② 选一个方案", "② Pick a design"), L("③ 构建，中途定一件事", "③ Build, decide one thing"), L("④ 试用并指着改", "④ Try it, point to fix"),
@@ -50,6 +50,7 @@
   const bFault = () => (S.fault === "timeout" && S.bsub === 3 && !S.bfix ? "timeout" : S.fault === "buildfail" && S.bsub === 4 && !S.bfix ? "fail" : null);
   const bWaiting = () => S.bsub === 2 && !S.bdec;
   const bDone = () => S.bsub >= BUILD;
+  const aFail = () => S.step === 3 && bDone() && S.fault === "acceptfail" && !S.afix;
   const bRunning = () => S.step === 3 && !bDone() && !bWaiting() && !bFault() && !S.bctl && !(S.fault === "interrupt" && !S.resumed);
   function tick() {
     clearInterval(timer); timer = null;
@@ -97,6 +98,15 @@
       ${combo() ? comboBox() : ""}
       <div class="row3"><button class="btn primary" data-act="go" data-n="3">${L("采用这个方案并开始构建", "Use this design and build")}</button><span class="fact">${combo() ? L("缺口不挡构建：那一步先空着，试用时会跳过并标出来", "The gap doesn't block: that step stays empty and is marked in the trial") : ""}</span></div>`;
   }
+  // Real breakpoint (reproduction-2026-11 §2): the UI check timed out although the feature works once the meeting is selected.
+  function acceptBox() {
+    const seen = S.aview === "seen";
+    return `<div class="box err"><div class="bh">${ic("circle-alert", "sm")}${L("界面验收有 1 条没过：导入名单后应当看到完整名单", "1 UI check failed: the full list should show after importing")}</div>
+      <div class="fact">${L("功能自查 6/6 通过。验收在导入后等了 20 秒没看到名单；这个界面要先选中会议才显示名单，可能是验收写得太死，也可能是界面该直接打开这场会议。", "Feature self-check passed 6/6. The check waited 20 s after import and saw no list; this screen only shows the list once the meeting is selected, so either the check is too strict or the screen should open the meeting directly.")}</div>
+      ${seen ? `<div class="fact">${ic("check", "sm")} ${L("你在试用里确认过：选中会议后 8 个人都在。", "You confirmed in the trial: all 8 people show once the meeting is selected.")}</div>` : ""}
+      <div class="row3"><button class="btn sm primary" data-act="afix" data-k="ui">${L("改界面：导入后直接打开这场会议", "Change the screen: open the meeting after import")}</button><button class="btn sm sec" data-act="afix" data-k="check">${L("改验收：选中会议后应有完整名单", "Change the check: list after selecting the meeting")}</button>${seen ? "" : `<button class="btn sm ghost" data-act="aview">${L("先在试用里看一眼", "Look in the trial first")}</button>`}</div>
+      <div class="fact">${L("这条没过之前不能安装；改哪一边都会重新验收，其他 4 条的结果保留。", "Install stays unavailable until this passes; either change re-runs this check and keeps the other 4 results.")}</div></div>`;
+  }
   function comboBox() {
     const st = comboSteps();
     const rows = st.map((x, i) => `<div class="bitem${x.cap === "gap" ? " ask" : ""}"><span class="who ${x.who === "ai" ? "ai" : "hu"}" title="${x.who === "ai" ? L("助理加的", "Added by assistant") : L("你改的", "Edited by you")}">${x.who === "ai" ? "AI" : L("你", "You")}</span><span class="tx">${i + 1}. ${esc(x.t)}</span>${capChip(x.cap)}<button class="btn icon sm ghost" data-act="up" data-i="${i}" aria-label="${L("上移", "Move up")}" ${i ? "" : "disabled"}>${ic("chevron-down", "sm up")}</button><button class="btn icon sm ghost" data-act="rm" data-i="${i}" aria-label="${L("删掉这一步", "Remove step")}">${ic("x", "sm")}</button></div>`).join("");
@@ -120,9 +130,10 @@
     else if (bWaiting()) box = S.scheme === "A" ? `<div class="fact">${ic("review", "sm")} ${L("等你在左边定一件事。", "Waiting for one decision on the left.")}</div>` : decideBox();
     else if (S.bctl === "stopping") box = `<div class="box"><div class="bh"><span class="ring running"></span>${L("正在停止…", "Stopping…")}</div></div>`;
     else if (S.bctl === "stopped") box = `<div class="box"><div class="bh">${L("已停止", "Stopped")}</div><div class="fact">${L(`完成的 ${S.bsub} 步留着；点继续从第 ${S.bsub + 1} 步接着做。`, `The ${S.bsub} finished steps are kept; continue from step ${S.bsub + 1}.`)}</div><div class="row3"><button class="btn sm primary" data-act="bresume">${L("继续", "Continue")}</button></div></div>`;
+    else if (aFail()) box = acceptBox();
     else if (bDone()) box = `<div class="box"><div class="bh">${ic("check", "sm")}${L("构建完了，自查 6/6 通过", "Built; self-check 6/6 passed")}</div><div class="fact">${L("还没有安装。先在试用项目里用一遍。", "Not installed yet. Try it in the trial project first.")}</div><div class="row3"><button class="btn sm primary" data-act="go" data-n="4">${L("去试用", "Try it")}</button></div></div>`;
     const ctl = bRunning() ? `<button class="btn sm danger" data-act="bstop">${L("停止", "Stop")}</button>` : "";
-    return `<div style="display:flex;align-items:center;gap:8px"><h2>${L("构建", "Building")}</h2><span class="stag ${bRunning() ? "running" : f ? "failed" : bWaiting() ? "decide" : bDone() ? "partial" : ""}">${bRunning() ? L(`第 ${S.bsub + 1} 步，共 ${BUILD} 步`, `Step ${S.bsub + 1} of ${BUILD}`) : f ? L("失败", "Failed") : bWaiting() ? L("等你定", "Needs you") : bDone() ? L("完成", "Done") : intr ? L("中断", "Interrupted") : L("已停止", "Stopped")}</span><span style="flex:1"></span>${ctl}</div>
+    return `<div style="display:flex;align-items:center;gap:8px"><h2>${L("构建", "Building")}</h2><span class="stag ${bRunning() ? "running" : f || aFail() ? "failed" : bWaiting() ? "decide" : bDone() ? "partial" : ""}">${bRunning() ? L(`第 ${S.bsub + 1} 步，共 ${BUILD} 步`, `Step ${S.bsub + 1} of ${BUILD}`) : f ? L("失败", "Failed") : aFail() ? L("验收没过", "Check failed") : bWaiting() ? L("等你定", "Needs you") : bDone() ? L("完成", "Done") : intr ? L("中断", "Interrupted") : L("已停止", "Stopped")}</span><span style="flex:1"></span>${ctl}</div>
       <p class="lead">${L("界面、数据和能力一起接；每一步写着产出了什么。", "Screens, data and capabilities are wired together; each step says what it made.")}</p><div class="blist">${rows}</div>${box}`;
   }
   function decideBox() {
@@ -252,7 +263,7 @@
       const s = S.step;
       if (s === 0 && S.fault === "config") S.cfg = true;
       if (s === 1) { S.q1 = S.q1 || "host"; S.q2 = S.q2 || "yes"; }
-      if (s === 3) { S.bsub = BUILD; S.bdec = S.bdec || "dept"; S.bfix = true; S.resumed = true; S.bctl = null; }
+      if (s === 3) { S.bsub = BUILD; S.bdec = S.bdec || "dept"; S.bfix = true; S.resumed = true; S.bctl = null; S.afix = true; }
       if (s === 4) { if (S.rev < 2) { S.rev = 2; S.revWhat = "mark"; S.moved = true; } S.pin = null; S.pointing = false; S.defectFixed = true; if (!Object.keys(S.marks).length) PEOPLE.slice(0, 7).forEach(([p]) => (S.marks[p] = 1)); }
       if (s === 5) { S.installed = true; S.installFixed = true; S.installing = false; }
       S.step++;
@@ -287,6 +298,8 @@
       case "bstop": S.bctl = "stopping"; render(); setTimeout(() => { S.bctl = "stopped"; render(); }, 1200); return;
       case "bresume": S.bctl = null; return render();
       case "bfix": S.bfix = true; S.bsub++; return render();
+      case "aview": S.aview = "seen"; render(); return toast(L("试用项目里：选中「周会」后名单 8 人都在", "In the trial project: all 8 people show once the meeting is selected"));
+      case "afix": S.afix = true; render(); return toast(b.dataset.k === "ui" ? L("改了界面，重新验收：5/5 通过", "Screen changed and re-checked: 5/5 passed") : L("改了这条验收，重新验收：5/5 通过", "Check changed and re-run: 5/5 passed"));
       case "resume-intr": S.resumed = true; S.bsub = 2; render(); return toast(L("核对过：第 3 步没写进去，从第 3 步接着做", "Checked: step 3 hadn't written anything; continuing from step 3"));
       case "point": S.pointing = !S.pointing; S.pin = null; return render();
       case "unpin": S.pin = null; return render();

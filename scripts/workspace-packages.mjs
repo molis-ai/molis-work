@@ -374,6 +374,7 @@ export const WORKSPACE_PACKAGES = [
       "characters.actions.v1"
     ],
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-storage"
     ]
   }),

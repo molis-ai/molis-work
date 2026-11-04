@@ -1,9 +1,9 @@
 // 37-1 · 生成页面运行、采用与恢复 — sample data. Every pair is [中文, English]. Nothing here is read from a Home.
 window.protoData = {
   plans: [
-    ["A", "A 首页里直接是草稿", "A Draft in place"],
-    ["B", "B 现在和草稿并排", "B Side by side"],
-    ["C", "C 引导框架里做完再回来", "C Guided frame"],
+    ["A", "A 首页里直接是草稿（没选）", "A Draft in place (not chosen)"],
+    ["B", "B 现在和草稿并排（已选）", "B Side by side (chosen)"],
+    ["C", "C 引导框架里做完再回来（没选）", "C Guided frame (not chosen)"],
   ],
   stages: [
     ["live", "在用第 2 版", "Version 2 in use"],

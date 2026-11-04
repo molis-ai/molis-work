@@ -19,7 +19,7 @@
 | [onboarding-full-journey/](onboarding-full-journey/README.md) | Onboarding 全程的可点定样：首次使用、新项目、已有项目加做法、从 Coding 的缺项进入再回去；全部画在打开软件时那套沉浸式全屏框架里（开场大字、一问一景、底栏步骤条与 ↵），含失败、改范围、部分采用失败与重启接续 | 用户已批准（2026-11-04）；产品未实现；首页与成员编辑是占位，里面是示例数据 |
 | [coding-execution-states/](coding-execution-states/README.md) | 第 12 批 Coding 执行的可点定样：目录（执行目录、临时查看、冻结、输出不见了）、规则和模式（只读提示与切换、规则来源）、恢复（失败、结果未知、取消、超时、被系统结束、重启后、等待前一步，沿用 04 的恢复框架）、计划卡与任务板按位置编号；每块 A／B／C 三个方案，中英文、浅深色 | 用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
 | [service-connections/](service-connections/README.md) | 服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒 | 用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据 |
-| [generated-page-adoption/](generated-page-adoption/README.md) | 第 37 批第 1 项生成页面的可点定样：草稿、检查与隔离、采用前确认与分步进度、页面里的真实操作、你改过的地方、版本与恢复、退回基础首页；三个方案（首页里直接是草稿／并排对照／引导框架），十一种状态 | 待用户选（2026-11-04 出样，推荐 A）；产品未实现；里面是示例数据 |
+| [generated-page-adoption/](generated-page-adoption/README.md) | 第 37 批第 1 项生成页面的可点定样：草稿、检查与隔离、采用前确认与分步进度、页面里的真实操作、你改过的地方、版本与恢复、退回基础首页；用户已选 B「现在和草稿并排」（A、C 留着对照），十一种状态；生成的页面是首页自己的内容，不当插件 | 用户 2026-11-04 已选 B；产品未实现；里面是示例数据 |
 | [kit/](kit/README.md) | 组件板实件，各原型共用一份：从构建结果生成的 `kit.css`／`kit.js`（色板、`mw-*` 控件、状态环、差异视图、过程折叠、图标表与真实渲染函数）和生成脚本 | 现行；`pnpm build` 后 `node docs/design/kit/build.mjs` 重新生成，不手改；组件板变了由 D 轨重生成 |
 | [molis-work-onboarding/](molis-work-onboarding/proposal.md) | 「从已有工作开始」的引导与项目创建方案 | 流程与数据边界仍有效；视觉由 Soft Workbench 引导窗口取代 |
 | [ui-renewal-2026-09-21/](ui-renewal-2026-09-21/README.md) | 设计讨论、研究与共识 | 历史参考 |

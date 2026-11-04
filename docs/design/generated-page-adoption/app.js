@@ -6,6 +6,9 @@
 // mw-alert, mw-bar-status, mw-table, mw-dialog--form, mw-popover, mw-menu, mw-steps, mw-check-row, mw-toast). The few new
 // parts carry data-board-new and are listed in README.md 「组件板新增」; their styles are in proto.css.
 //
+// The user chose B (side by side) on 2026-11-04; it is the default. A and C stay only for comparison.
+// The page is the home's own content (a platform capability), not a plugin: nothing is installed or listed as a plugin.
+//
 // What every option shares (only 「从草稿到采用」 differs between A, B and C):
 // - A draft never replaces the page in use. Checks run on every draft; a failed check blocks adopting, says what and why,
 //   and offers a fix. Real content is the default preview; writing from a preview asks first, sample content never writes.
@@ -21,12 +24,12 @@
   const KEY = "molis-proto.generated-page-adoption.v1";
   const STILL = new URLSearchParams(location.search).has("still");
 
-  const fresh = () => ({ plan: "A", stage: "live", fault: "none", lang: "zh", theme: "light", notes: true });
+  const fresh = () => ({ plan: "B", stage: "live", fault: "none", lang: "zh", theme: "light", notes: true });
   let S = load() || fresh();
   let P = {};
   let timers = [];
-  function load() { try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); return v && v.v === 1 ? { ...fresh(), ...v.s } : null; } catch { return null; } }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, s: S })); } catch { /* preview without storage */ } }
+  function load() { try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); return v && v.v === 2 ? { ...fresh(), ...v.s } : null; } catch { return null; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: 2, s: S })); } catch { /* preview without storage */ } }
   function later(ms, fn) { const t = setTimeout(() => { timers = timers.filter((x) => x !== t); fn(); }, STILL ? Math.min(ms, 60) : ms); timers.push(t); }
   function clearTimers() { timers.forEach(clearTimeout); timers = []; }
 
@@ -47,7 +50,7 @@
   const ring = (state) => K.renderStateRing({ state });
   const mark = (tone, state, label) => K.renderStatusMark({ tone, state, label });
   const toggles = (label, items, act, cls = "") => K.renderToggleGroup({ label, className: cls, items: items.map(([v, n, cur]) => ({ value: v, label: n, current: cur, attrs: { "data-act": act, "data-v": v } })) });
-  const alertBox = (tone, title, body = "", actions = "", extra = "") => `<div class="mw-alert mw-alert--${tone} gp-alert" data-slot="alert" role="status" ${extra}><strong>${title}</strong>${body ? `<p>${body}</p>` : ""}${actions ? `<div class="gp-alert__actions" data-board-new="${L("提示里的操作", "Alert actions")}">${actions}</div>` : ""}</div>`;
+  const alertBox = (tone, title, body = "", actions = "", extra = "") => `<div class="mw-alert mw-alert--${tone} gp-alert" data-slot="alert" role="status" ${extra}><strong>${title}</strong>${body ? `<p>${body}</p>` : ""}${actions ? `<div class="gp-alert__actions">${actions}</div>` : ""}</div>`;
   const isNew = (zh, en) => `data-board-new="${L(zh, en)}"`;
 
   function toast(message, action) {
@@ -149,7 +152,7 @@
     return `<div class="gp-page${ctx.compact ? " gp-page--compact" : ""}">
       ${tools}${notes}${compare}
       <div class="mw-table-wrap gp-table"><table class="mw-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
-      <p class="gp-foot">${ic("shield")}<span>${L("Work Brief 保存这个页面，在隔离里运行；事项来自待办", "Work Brief keeps this page and runs it isolated. Items come from To-dos")}${showPR ? L("，PR 来自 Coding", ", PRs from Coding") : ""}${L("。", ".")}</span></p>
+      <p class="gp-foot">${ic("shield")}<span>${L("这是首页自己的页面，在隔离里运行；事项来自待办", "This page belongs to the home and runs isolated. Items come from To-dos")}${showPR ? L("，PR 来自 Coding", ", PRs from Coding") : ""}${L("。", ".")}</span></p>
     </div>`;
   }
 
@@ -353,7 +356,7 @@
   // A — the draft takes the home area; one bar on top says it is a draft and holds every decision.
   function planADraft() {
     if (P.showNow) return `<div class="gp-nowbar">${K.renderBarStatus({ glyph: "eye", title: L("你在看现在的首页（第 2 版）", "You are looking at the home in use (version 2)"), caption: L("草稿还在", "The draft is kept") })}${btn("primary", L("回到草稿", "Back to the draft"), { "data-act": "show-now" })}</div>${generatedPage("v2", {})}`;
-    const bar = `<div class="gp-draftbar" ${isNew("草稿条", "Draft bar")}>
+    const bar = `<div class="gp-draftbar">
       <div class="gp-draftbar__id">${badge("info", L("草稿", "Draft"))}<strong>${esc(T(D.page))} · ${L("第 3 版", "Version 3")}</strong><span class="gp-muted">${esc(T(ver("v3").when))}</span></div>
       <div class="gp-draftbar__acts">${dataToggle()}<span class="gp-checks-btn">${`<button type="button" class="gp-checkmark" data-act="checks" aria-expanded="${P.checksOpen}" ${isNew("检查摘要", "Check summary")}>${checkMark()}${ic("chevron-down")}</button>`}${P.checksOpen ? K.renderPopover({ className: "gp-checkpop", preview: true, body: checksList() }) : ""}</span>
       ${btn("ghost", L("看现在的", "See the current one"), { "data-act": "show-now" })}${btn("ghost", L("放弃", "Discard"), { "data-act": "discard" })}${adoptBtn()}</div></div>`;

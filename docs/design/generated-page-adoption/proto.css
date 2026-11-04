@@ -151,7 +151,7 @@ dialog.gp-dialog::backdrop { background: var(--scrim); }
 .gp-page--compact .mw-table th, .gp-page--compact .mw-table td { padding: 8px 10px; font-size: 12px; }
 .gp-page--compact .gp-compare strong { font-size: 16px; line-height: 22px; }
 .gp-page--compact .gp-tools { gap: 6px 10px; }
-@media (max-width: 1180px) {
+@media (max-width: 1179.98px) {
   .gp-split-switch { display: flex; }
   .gp-split { grid-template-columns: minmax(0, 1fr); }
   .gp-split[data-view="now"] [data-col="draft"], .gp-split[data-view="draft"] [data-col="now"] { display: none; }

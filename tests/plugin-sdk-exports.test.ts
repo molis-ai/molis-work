@@ -88,3 +88,36 @@ test("the export check flags a new helper, a stale exception and nothing else", 
   const stale = sdkExportGaps(sources, new Set(["defineNewThingAction", "bindNewThingHandler", "withNewEffect"]), { bindNewThingHandler: "now exported", gone: "removed" });
   assert.deepEqual(stale.stale, ["bindNewThingHandler", "gone"]);
 });
+
+test("R2-01/02/03: an author builds a closed action input and keeps its scope and permissions", async () => {
+  const { arraySchema, createActionDefinition, isRecord, nullableSchema, objectSchema } = await import("@molis-ai/molis-work-plugin-sdk");
+  const { assertActionInput } = await import("@molis-ai/molis-work-kernel");
+  assert.equal(isRecord([]), false);
+  assert.equal(isRecord(null), false);
+  assert.equal(isRecord(new Date()), true);
+  assert.equal(isRecord(Object.create(null)), true);
+  const properties = { title: { type: "string" }, tags: arraySchema(nullableSchema({ type: "string" })) };
+  const input = objectSchema(properties, ["title"]);
+  const meta = { title: "Read", description: "Read notes", audiences: ["user"] as const, permissions: ["notes:read"],
+    subject_kinds: ["note"], input_schema: input };
+  const action = createActionDefinition("notes.read", "query", meta);
+  assert.deepEqual(action, { capability_id: "notes.read", version: 1, operation: "query", action: { ...meta, kind: "query", scope: "project" } });
+  assertActionInput(input, { title: "a" });
+  assertActionInput(input, { title: "a", tags: ["x", null] });
+  for (const value of [{}, { title: "a", extra: true }, { title: "a", tags: [333] }]) {
+    assert.throws(() => assertActionInput(input, value), { code: "actions.input_invalid" });
+  }
+  assert.throws(() => assertActionInput(objectSchema(properties), { title: "a" }), { code: "actions.input_invalid" });
+  const command = createActionDefinition("notes.home", "command", { ...meta, scope: "home", scheduling: "concurrent" });
+  assert.equal(command.action.scope, "home");
+  assert.equal(command.action.kind, "operation");
+  assert.equal(command.action.scheduling, "concurrent");
+  assert.deepEqual(command.action.audiences, ["user"]);
+});
+
+test("R2-04: the public UI formatter keeps both Error messages and thrown values", async () => {
+  const { messageOf } = await import("@molis-ai/molis-work-plugin-sdk/ui");
+  assert.equal(messageOf(new Error("refused")), "refused");
+  assert.equal(messageOf("cancelled"), "cancelled");
+  assert.equal(messageOf(null), "null");
+});

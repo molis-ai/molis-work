@@ -87,3 +87,8 @@ export function renderAvatar(options: { label: string; className?: string }): st
   const initial = Array.from(options.label.trim())[0] || "?";
   return `<span class="${cx("mw-avatar", options.className)}" data-slot="avatar" aria-label="${escapeHtml(options.label)}">${escapeHtml(initial)}</span>`;
 }
+
+/** Text to show for an error raised by a client action, including a thrown string. */
+export function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

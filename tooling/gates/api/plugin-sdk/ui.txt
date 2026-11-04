@@ -206,6 +206,8 @@ export declare function escapeHtml(value: unknown): string;
 
 export declare function icon(name: PluginIconName, className?: string): string;
 
+export declare function messageOf(error: unknown): string;
+
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;
     groupBody: string;

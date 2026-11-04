@@ -41,7 +41,7 @@ AP4 保持并迁移了以下既有能力：
 - Codex、Claude Code、OpenCode、Pi、Grok 与自定义命令的启动配方。
 - 面板打开/退出/重开/关闭、Session alias、Project 关联和 PTY 生命周期。
 - 菜单栏状态、Capsule 定位/显示、项目切换、主题与中英文 locale。
-- Capsule 向 Host 读取的节奏跟着窗口可见性走（N54，`apps/desktop/src/capsule-shell.ts`）：显示时每 2.5 秒读一次、每秒更新一次已用时间；隐藏时不更新已用时间、每 30 秒读一次（每次读取都会刷新菜单栏标题与提示，窗口关着它们也在屏幕上，所以不整个停掉）；读到 404（项目或 Host 里的项目已不在）就停止轮询，面板写明原因，再次显示或点「立即重试」时重新读取页面（项目列表随之更新）。可见性取 `document.hidden`：窗口由 Tauri 的 `hide()`/`show()`（tao 的 `orderOut`/`makeKeyAndOrderFront`）收放，WKWebView 随之切换 `document.hidden` 并发 `visibilitychange`，外壳不需要另发事件。读取次数每分钟：显示 24 次、隐藏 2 次（此前一律 24 次）。用例 `tests/capsule-polling.test.ts`。
+- Capsule 向 Host 读取的节奏跟着窗口可见性走（N54，`apps/desktop/src/capsule-shell.ts`）：显示时每 2.5 秒读一次、每秒更新一次已用时间；隐藏时不更新已用时间、每 30 秒读一次（每次读取都会刷新菜单栏标题与提示，窗口关着它们也在屏幕上，所以不整个停掉）；读到 404（项目或 Host 里的项目已不在）就停止轮询，面板与菜单栏标题写明「项目已不在」，菜单栏的「打开」只把主窗口带到前台、不再打开那个项目；再次显示或点「立即重试」时先确认 Host 能给出页面、再重新读取页面（项目列表随之更新），任何一次读取成功后恢复轮询。隐藏时菜单栏状态最长滞后 30 秒（此前 2.5 秒）；要彻底去掉隐藏时的读取，需让菜单栏状态改由 Host 推送或 Rust 侧驱动。可见性取 `document.hidden`：窗口由 Tauri 的 `hide()`/`show()`（tao 的 `orderOut`/`makeKeyAndOrderFront`）收放，WKWebView 随之切换 `document.hidden` 并发 `visibilitychange`，外壳不需要另发事件。读取次数每分钟：显示 24 次、隐藏 2 次（此前一律 24 次）。用例 `tests/capsule-polling.test.ts`。
 - 内置 Molis Work Runtime 的版本比较、升级安装与 owned service 配置修复。
 - Tauri command 的显式 permission allowlist。
 

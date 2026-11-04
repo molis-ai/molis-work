@@ -132,3 +132,19 @@ dialog.rs-drawer { width: min(520px, 100vw); }
 /* [原型] the catalog's note lives in arrival.css only; on the settings pages the drawer reuses the same look */
 .settings-page .ob-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
 .settings-page .ob-note svg { flex: none; width: 14px; height: 14px; margin-top: 3px; }
+
+/* [编排] D-track review (2026-11-04): a row's "more" menu (catalog mw-menu) anchored under its button; the question
+   about unsaved edits takes the drawer's footer in place; a row that receives focus after turning off shows it */
+.rs-more { position: relative; display: inline-flex; }
+.rs-more .mw-menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; animation: rs-rise var(--dur-move) var(--ease-standard); }
+.rs-member:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: var(--r-row, 10px); }
+.rs-member:focus:not(:focus-visible) { outline: none; }
+.rs-drawer__foot.is-asking { background: color-mix(in srgb, var(--amber) 8%, var(--paper)); }
+.rs-ask { display: grid; gap: 4px; width: 100%; animation: rs-rise var(--dur-move) var(--ease-standard); }
+.rs-ask__title { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-title); }
+.rs-ask__title:focus { outline: none; }
+.rs-ask__title:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; border-radius: 4px; }
+.rs-ask__title svg { flex: none; width: 16px; height: 16px; color: var(--amber); }
+.rs-ask__body { margin: 0 0 8px 24px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+.rs-inset__title:focus { outline: none; }
+@media (prefers-reduced-motion: reduce) { .rs-more .mw-menu, .rs-ask { animation: none; } }

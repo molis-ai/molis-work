@@ -23,7 +23,7 @@
   };
   // What each view starts with; the drawer and inline panels open on top of it and close back to it.
   const fresh = (keep = {}) => ({ topic: "pick", state: "project", lang: "zh", theme: "light", ...keep,
-    pop: true, mode: null, choice: undefined, done: {}, add: false, diff: false, stopAsk: false,
+    pop: true, mode: null, choice: undefined, done: {}, add: false, diff: false, stopAsk: false, menu: null, ask: null, opener: null, focusSel: null,
     drawer: null, from: null, dState: "clean", where: "project", text: null, name: "", hist: false, dDiff: false });
   const forTopic = (S0) => {
     if (S0.topic !== "editor") return S0;
@@ -99,8 +99,8 @@
   const setState = (tone, text) => `<span class="settings-state settings-state--${tone}">${text}</span>`;
   const section = (id, title, body, head = "") => `<section class="settings-section" aria-labelledby="${id}"><div class="rs-sec-head"><h2 id="${id}">${title}</h2>${head}</div>${body}</section>`;
   const select = (label, opts, value, a) => `<select class="mw-select" data-slot="select" aria-label="${esc(label)}"${a ? ` data-change="${a}"` : ""}>${opts.map(([v, n]) => `<option value="${v}"${v === value ? " selected" : ""}>${n}</option>`).join("")}</select>`;
-  // An inline panel that opens under the thing that opened it.
-  const inset = (body, cls = "") => `<div class="rs-inset${cls ? ` ${cls}` : ""}">${body}</div>`;
+  // An inline panel that opens under the thing that opened it; a labelled group, so a screen reader hears its rows as one thing.
+  const inset = (body, cls = "", label = {}) => `<div class="rs-inset${cls ? ` ${cls}` : ""}" role="group"${label.by ? ` aria-labelledby="${label.by}"` : label.text ? ` aria-label="${esc(label.text)}"` : ""}>${body}</div>`;
   const diffBox = (leftTitle, rightTitle) => `<div class="rs-diff"><section><h3>${leftTitle}</h3><p>${before()}</p></section><section><h3>${rightTitle}</h3><p>${before()}<mark>${added()}</mark></p></section></div>`;
 
   // [组件板新增] where the value comes from: the layers from nearest to farthest, the one in use marked.
@@ -129,7 +129,7 @@
     const note = (id) => (id === "rev" && !personal && !followed() ? L(" v5 · 本项目改过一节", " v5 · one section changed here") : id === "mine1" ? L(" v1 · 刚写的", " v1 · just written") : ` v${ROLES[id].v}`);
     const opt = (id, dis = "") => {
       const main = `<button type="button" class="assistant-starter rs-starter"${chosen === id && !S.mode ? ' aria-current="true"' : ""}${dis ? " disabled" : ""}${P.attrs(dis ? {} : act("choose", id ?? "none"))}>${id ? face(id) : `<span class="mw-avatar rs-self" data-slot="avatar">${ic("sparkles")}</span>`}<span class="rs-starter__copy"><strong>${id ? R(id) : L("助理自己", "The Assistant")}</strong><span class="assistant-material-origin">${id ? note(id) : L(" 不指定角色", " no role")}${dis ? ` · ${dis}` : ""}</span></span>${source(id)}</button>`;
-      const tune = id && !dis && !S.mode ? btn({ variant: "ghost", size: "sm", only: true, icon: "edit", label: L(`调整${R(id)}`, `Adjust ${R(id)}`), cls: "rs-opt__tune", attrs: act("drawer", id) }) : "";
+      const tune = id && !dis && !S.mode ? btn({ variant: "ghost", size: "sm", only: true, icon: "edit", label: L(`调整：${R(id)}`, `Adjust: ${R(id)}`), cls: "rs-opt__tune", attrs: act("drawer", id) }) : "";
       return `<div class="rs-opt">${main}${tune}</div>`;
     };
     const ids = personal ? ["res", "rev", ...created] : ["rev", "res", ...created];
@@ -177,13 +177,13 @@
     const up = s === "upstream";
     const upNote = up && !followed() && !S.done.keepOwn ? alert("warning", L(`你也改了${q(R("rev"))}的做事方式（原件 v5）`, `You also changed the way of working of ${q(R("rev"))} (original v5)`), L("本项目这一节用的是自己的版本，没有跟着变；「能用什么」照常跟随到了 v5。", "This project keeps its own version of that section; “What it can use” followed to v5 as usual."),
       actions(btn({ size: "sm", label: S.diff ? L("收起差异", "Hide the difference") : L("看差异", "See the difference"), attrs: { ...act("diff"), "aria-expanded": String(S.diff) } }), btn({ size: "sm", label: L("改为跟随", "Follow the original"), attrs: act("refollow") }), btn({ variant: "ghost", size: "sm", label: L("保持本项目的", "Keep this project's"), attrs: act("keep-own") }))
-        + (S.diff ? inset(diffBox(L("本项目的", "This project's"), L("你的原件 v5", "Your original v5"))) : ""))
+        + (S.diff ? inset(diffBox(L("本项目的", "This project's"), L("你的原件 v5", "Your original v5")), "", { text: L("本项目的与原件 v5 的差异", "This project's versus original v5") }) : ""))
       : up && S.done.keepOwn ? alert("success", L("保持本项目的做事方式。原件这一节再改时会再提示。", "Keeping this project's way of working. You'll be told again if that section changes.")) : "";
-    const members = [["rev", followed() ? L(`全部跟随你的原件 v${up ? 5 : 4}`, `Follows your original v${up ? 5 : 4}`) : L(`做事方式：本项目改过 · 能用什么：跟随原件 v${up ? 5 : 4}`, `Way of working: changed here · What it can use: follows v${up ? 5 : 4}`), followed() ? setState("neutral", L("跟随", "Following")) : setState("warning", L("改过一节", "One section changed")) + btn({ variant: "ghost", size: "sm", label: L("恢复跟随", "Follow again"), attrs: act("refollow") })],
+    const members = [["rev", followed() ? L(`全部跟随你的原件 v${up ? 5 : 4}`, `Follows your original v${up ? 5 : 4}`) : L(`做事方式：本项目改过 · 能用什么：跟随原件 v${up ? 5 : 4}`, `Way of working: changed here · What it can use: follows v${up ? 5 : 4}`), followed() ? setState("neutral", L("跟随", "Following")) : setState("warning", L("改过一节", "One section changed")) + btn({ variant: "ghost", size: "sm", label: L("恢复跟随", "Follow again"), aria: L(`恢复跟随：${R("rev")}`, `Follow again: ${R("rev")}`), attrs: act("refollow") })],
       ["res", L("全部跟随你的原件 v2", "Follows your original v2"), setState("neutral", L("跟随", "Following"))],
       ...(S.done.addedCode ? [["code", L("全部跟随你的原件 v6 · 刚加入", "Follows your original v6 · just added"), setState("neutral", L("跟随", "Following"))]] : [])];
-    const memberRow = ([id, cap, end]) => `<div class="settings-setting-row rs-member${S.done.flash === id ? " is-flash" : ""}"><div class="settings-record-title">${face(id)}<div><h3>${R(id)}</h3><p>${cap}</p></div></div><div class="setting-value">${end}${btn({ size: "sm", label: L("调整", "Adjust"), attrs: act("drawer", id) })}</div></div>`;
-    const addPanel = S.add ? inset(`<p class="rs-inset__title">${L("从你的角色里加一个。加入后跟随原件，在这里改了哪一节才变成本项目的。", "Add one of your roles. It follows the original; a section becomes this project's only when you change it here.")}</p>${S.done.addedCode ? `<p class="rs-hint">${L("你的角色都在这个项目里了。", "All your roles are already here.")}</p>` : `<div class="settings-setting-row rs-member"><div class="settings-record-title">${face("code")}<div><h3>${R("code")}</h3><p>${L("v6 · 也用在 官网改版", "v6 · also used in Website redesign")}</p></div></div><div class="setting-value">${btn({ variant: "primary", size: "sm", label: L("加入", "Add"), attrs: act("add-code") })}</div></div>`}<div class="q-row">${btn({ variant: "ghost", size: "sm", icon: "plus", label: L("写一个新角色", "Write a new role"), attrs: act("drawer", "new") })}</div>`, "rs-inset--add") : "";
+    const memberRow = ([id, cap, end]) => `<div class="settings-setting-row rs-member${S.done.flash === id ? " is-flash" : ""}"><div class="settings-record-title">${face(id)}<div><h3>${R(id)}</h3><p>${cap}</p></div></div><div class="setting-value">${end}${btn({ size: "sm", label: L("调整", "Adjust"), aria: L(`调整：${R(id)}`, `Adjust: ${R(id)}`), attrs: act("drawer", id) })}</div></div>`;
+    const addPanel = S.add ? inset(`<p class="rs-inset__title" id="rs-add-title">${L("从你的角色里加一个。加入后跟随原件，在这里改了哪一节才变成本项目的。", "Add one of your roles. It follows the original; a section becomes this project's only when you change it here.")}</p>${S.done.addedCode ? `<p class="rs-hint">${L("你的角色都在这个项目里了。", "All your roles are already here.")}</p>` : `<div class="settings-setting-row rs-member"><div class="settings-record-title">${face("code")}<div><h3>${R("code")}</h3><p>${L("v6 · 也用在 官网改版", "v6 · also used in Website redesign")}</p></div></div><div class="setting-value">${btn({ variant: "primary", size: "sm", label: L("加入", "Add"), aria: L(`加入：${R("code")}`, `Add: ${R("code")}`), attrs: act("add-code") })}</div></div>`}<div class="q-row">${btn({ variant: "ghost", size: "sm", icon: "plus", label: L("写一个新角色", "Write a new role"), attrs: act("drawer", "new") })}</div>`, "rs-inset--add", { by: "rs-add-title" }) : "";
     const addBtn = btn({ size: "sm", icon: S.add ? "x" : "plus", label: S.add ? L("收起", "Close") : L("添加角色", "Add a role"), attrs: { ...act("add"), "aria-expanded": String(S.add) } });
     const sec = section("rs-members-title", L("本项目的角色", "Roles in this project"), `<p class="rs-hint">${L("项目里的角色默认跟随你的原件：原件出了新版本，新任务就用它。在这里改了哪一节，那一节就成了本项目自己的，随时可以恢复跟随。", "Roles here follow your original by default: when it gets a new version, new tasks use it. Change a section here and that section becomes this project's own; you can go back to following any time.")}</p>${addPanel}${upNote}${members.map(memberRow).join("")}`, addBtn);
     return projectSettings(setHead(L("角色", "Roles"), L("这个项目的任务默认由谁来做，以及项目里能选哪些角色。改这里不影响别的项目，也不改你的默认。", "Who does this project's tasks by default, and which roles can be chosen here. Changes here don't touch other projects or your own default.")) + def + sec);
@@ -212,16 +212,19 @@
     const savedNote = saved ? alert("success", isNew ? L(`已保存成 v1${S.from === "pick" ? "，这次由它来做" : ""}`, `Saved as v1${S.from === "pick" ? "; it does this task" : ""}`) : inProject && S.where === "project" ? L(`已保存，本项目的做事方式成为 v${nv}`, `Saved; this project's way of working is v${nv}`) : L(`已保存，原件成为 v${nv}`, `Saved; your original is v${nv}`), impact, actions(btn({ size: "sm", label: L("撤销", "Undo"), attrs: act("undo-save") }))) : "";
     const conflict = S.dState === "conflict" ? alert("danger", L(`${inProject ? "本项目的" : "你的"}${q(isNew ? "" : R(id))}刚在另一个窗口改过`, `${inProject ? "This project's" : "Your"} ${q(isNew ? "" : R(id))} was just changed in another window`), L("你的改动还在，没有保存，也没有盖掉那边的。", "Your edits are kept, not saved, and nothing over there was overwritten."),
       actions(btn({ size: "sm", label: S.dDiff ? L("收起差异", "Hide the difference") : L("看差异", "See the difference"), attrs: { ...act("d-diff"), "aria-expanded": String(S.dDiff) } }), btn({ variant: "primary", size: "sm", label: L("在新内容上保留我的改动", "Keep my edits on top of theirs"), attrs: act("merge") }), btn({ variant: "ghost", size: "sm", label: L("丢掉我的改动", "Drop my edits"), attrs: act("reload") }))
-        + (S.dDiff ? inset(diffBox(L("那边的", "Theirs"), L("你的", "Yours"))) : "")) : "";
+        + (S.dDiff ? inset(diffBox(L("那边的", "Theirs"), L("你的", "Yours")), "", { text: L("那边的与你的差异", "Theirs versus yours") }) : "")) : "";
 
     const wayState = isNew ? "" : inProject ? (own ? setState("warning", L("本项目改过", "Changed here")) + btn({ variant: "ghost", size: "sm", label: L("恢复跟随", "Follow again"), attrs: act("refollow") }) : setState("neutral", L(`跟随原件 v${vNow}`, `Follows original v${vNow}`))) : "";
     const text = S.text !== null ? S.text : isNew ? "" : T(ROLES[id].way);
     const nameField = isNew ? `<label class="rs-field"><span class="rs-field__k">${L("名称", "Name")}</span><input class="mw-input" data-slot="input" data-name value="${esc(S.name)}" placeholder="${L("例如：审稿人", "e.g. Reviewer")}" autocomplete="off"></label>` : "";
     const way = `<section class="rs-dsec" aria-labelledby="d-way"><div class="rs-dsec__head"><h3 id="d-way">${L("做事方式", "Way of working")}</h3>${wayState}</div>${nameField}<label class="rs-field"><span class="mw-sr-only">${L("做事方式", "Way of working")}</span><textarea class="mw-input" data-slot="textarea" data-way rows="6" placeholder="${L("像交代给同事一样写：先做什么、怎样算做完、拿不准时怎么办。", "Write it as you'd brief a colleague: what to do first, what done looks like, what to do when unsure.")}">${esc(text)}</textarea></label></section>`;
     const tools = `<section class="rs-dsec" aria-labelledby="d-tools"><div class="rs-dsec__head"><h3 id="d-tools">${L("能用什么", "What it can use")}</h3>${isNew || !inProject ? "" : setState("neutral", L(`跟随原件 v${vNow}`, `Follows original v${vNow}`))}</div><label class="mw-check-row"><input class="mw-check" data-slot="checkbox" type="checkbox" checked><span>${L("沿用任务选择的能力", "Use what the task allows")}</span></label>${P.note(L("选角色不会给任务加权限，只能在任务允许的范围里再收窄。", "Choosing a role never grants anything; it can only narrow what the task allows."), "shield")}</section>`;
-    const versions = isNew ? "" : `<details class="mw-collapsible rs-versions" data-slot="collapsible"${S.hist ? " open" : ""}><summary${P.attrs(act("hist"))}>${L("版本", "Versions")} <span class="rr-fact">${L("3 个", "3")}</span></summary><div class="mw-collapsible__body">${[[`${inProject ? 5 : 4}`, inProject ? L("11-04 · 本项目改了做事方式", "11-04 · way of working changed here") : L("11-02 · 你改了做事方式", "11-02 · you changed the way of working"), true], [`${inProject ? 4 : 3}`, L("11-02 · 进行中的「第二期观察」在用", "11-02 · used by the running “Issue 2 watch”")], [`${inProject ? 3 : 2}`, "10-28"]].map(([v, cap, cur]) => `<div class="rs-ver${S.done.restored === v ? " is-flash" : ""}"><span><strong>v${v}</strong><small>${cap}</small></span>${cur ? setState("success", L("当前", "Current")) : btn({ size: "sm", label: L("恢复成这一版", "Restore this one"), attrs: act("restore", v) })}</div>`).join("")}${P.note(L("恢复会把那一版的内容保存成新的一版；进行中的任务不受影响。", "Restoring saves that version's content as a new version; running tasks are unaffected."), "history")}</div></details>`;
+    const versions = isNew ? "" : `<details class="mw-collapsible rs-versions" data-slot="collapsible"${S.hist ? " open" : ""}><summary id="d-versions"${P.attrs(act("hist"))}>${L("版本", "Versions")} <span class="rr-fact">${L("3 个", "3")}</span></summary><div class="mw-collapsible__body">${[[`${inProject ? 5 : 4}`, inProject ? L("11-04 · 本项目改了做事方式", "11-04 · way of working changed here") : L("11-02 · 你改了做事方式", "11-02 · you changed the way of working"), true], [`${inProject ? 4 : 3}`, L("11-02 · 进行中的「第二期观察」在用", "11-02 · used by the running “Issue 2 watch”")], [`${inProject ? 3 : 2}`, "10-28"]].map(([v, cap, cur]) => `<div class="rs-ver${S.done.restored === v ? " is-flash" : ""}"><span><strong>v${v}</strong><small>${cap}</small></span>${cur ? setState("neutral", L("当前", "Current")) : btn({ size: "sm", label: L("恢复成这一版", "Restore this one"), aria: L(`恢复成 v${v}`, `Restore v${v}`), attrs: act("restore", v) })}</div>`).join("")}${P.note(L("恢复会把那一版的内容保存成新的一版；进行中的任务不受影响。", "Restoring saves that version's content as a new version; running tasks are unaffected."), "history")}</div></details>`;
+    // Leaving with unsaved edits asks in place, at the bottom of the drawer: never a second dialog, never a silent loss.
+    const restoreV = S.ask && S.ask.startsWith("restore:") ? S.ask.slice(8) : null;
+    const ask = S.ask ? `<div class="rs-ask" role="group" aria-labelledby="rs-ask-title" aria-describedby="rs-ask-body"><p class="rs-ask__title" id="rs-ask-title" tabindex="-1">${ic("circle-alert")}<span>${restoreV ? L(`恢复成 v${restoreV} 会丢掉没保存的改动`, `Restoring v${restoreV} drops your unsaved edits`) : L("有没保存的改动", "You have unsaved edits")}</span></p><p class="rs-ask__body" id="rs-ask-body">${restoreV ? L(`v${restoreV} 的内容会存成新的一版；刚才框里的改动不会留下。`, `v${restoreV}'s content is saved as a new version; what you typed in the box is not kept.`) : L("关上就丢掉这些改动；已经保存的版本不受影响。", "Closing drops these edits; saved versions are unaffected.")}</p><div class="q-row rs-drawer__btns">${btn({ variant: "secondary", size: "sm", label: L("继续改", "Keep editing"), attrs: act("ask-keep") })}${btn({ variant: "danger", size: "sm", label: restoreV ? L("丢掉改动并恢复", "Drop edits and restore") : L("丢掉改动", "Drop edits"), attrs: act("ask-drop") })}</div></div>` : "";
     const canSave = S.dState === "conflict" ? false : isNew ? Boolean(S.name.trim()) && Boolean(text.trim()) : dirty;
-    const foot = `<footer class="mw-form__footer rs-drawer__foot">${(dirty || isNew) && !saved ? `<p class="rs-impact">${ic("info")}<span>${impact}</span></p>` : ""}${where && dirty && !saved ? where : ""}<div class="q-row rs-drawer__btns">${btn({ variant: "ghost", size: "sm", label: saved ? L("完成", "Done") : L("关闭", "Close"), attrs: act("drawer-close") })}${saved ? "" : btn({ variant: "primary", size: "sm", label: L("保存并使用", "Save and use"), disabled: !canSave, attrs: { ...act("save-do"), "data-save": "" } })}</div></footer>`;
+    const foot = ask ? `<footer class="mw-form__footer rs-drawer__foot is-asking">${ask}</footer>` : `<footer class="mw-form__footer rs-drawer__foot">${(dirty || isNew) && !saved ? `<p class="rs-impact">${ic("info")}<span>${impact}</span></p>` : ""}${where && dirty && !saved ? where : ""}<div class="q-row rs-drawer__btns">${btn({ variant: "ghost", size: "sm", label: saved ? L("完成", "Done") : L("关闭", "Close"), attrs: act("drawer-close") })}${saved ? "" : btn({ variant: "primary", size: "sm", label: L("保存并使用", "Save and use"), disabled: !canSave, attrs: { ...act("save-do"), "data-save": "" } })}</div></footer>`;
     return `<form method="dialog" class="mw-form mw-drawer__shell" onsubmit="return false">${head}<div class="mw-form__body mw-scroll">${savedNote}${conflict}${way}${tools}${versions}</div>${foot}</form>`;
   }
 
@@ -236,10 +239,15 @@
     const stopped = S.done.stoppedRev;
     const list = (S.done.created ? [["mine1", L("v1 · 刚写的", "v1 · just written")]] : []).concat([["rev", L("v4 · 3 个项目跟随（1 个改过一节）", "v4 · followed by 3 projects (1 changed a section)")], ["res", L("v2 · 2 个项目跟随", "v2 · followed by 2 projects")], ["code", L("v6 · 1 个项目跟随", "v6 · followed by 1 project")]]);
     const roleRow = ([id, cap]) => {
-      const end = id === "rev" && stopped ? setState("warning", L("已停用", "Turned off")) + btn({ variant: "ghost", size: "sm", label: L("重新启用", "Turn back on"), attrs: act("unstop") })
-        : id === "rev" && s === "stopped" && !S.stopAsk ? btn({ variant: "ghost", size: "sm", label: L("停用", "Turn off"), attrs: act("stop-ask") }) : "";
-      const ask = id === "rev" && S.stopAsk ? inset(`<p class="rs-inset__title">${L(`停用${q(R("rev"))}会怎样`, `What turning off ${q(R("rev"))} does`)}</p>${[[L(`${PROJECT()}的默认`, `${PROJECT()}'s default`), L("新任务改由你的默认（研究员）做", "New tasks go to your default (Researcher)")], [L("进行中的 1 件", "1 running"), L("照常做完", "Finishes as is")], [L("做过的记录和各个版本", "Past records and versions"), L("都留着，可以重新启用", "All kept; you can turn it back on")]].map(([n, e]) => `<div class="rs-fact"><span>${n}</span><span class="rr-fact">${e}</span></div>`).join("")}<div class="q-row rs-inset__end">${btn({ variant: "ghost", size: "sm", label: L("取消", "Cancel"), attrs: act("stop-cancel") })}${btn({ variant: "primary", size: "sm", label: L("停用", "Turn off"), attrs: act("stop-do") })}</div>`, "rs-inset--confirm") : "";
-      return `<div class="settings-setting-row rs-member${S.done.flash === id ? " is-flash" : ""}"><div class="settings-record-title">${face(id)}<div><h3>${R(id)}${id === mine ? ` ${badge("neutral", L("我的默认", "My default"))}` : ""}</h3><p>${cap}</p></div></div><div class="setting-value">${end}${btn({ size: "sm", label: L("调整", "Adjust"), attrs: act("drawer", id) })}</div></div>${ask}`;
+      const off = id === "rev" && stopped;
+      // Every row has the same actions: adjust, and "more" for the rest (the catalog's mw-menu). Turning off lives there.
+      const open = S.menu === id;
+      const more = off ? "" : `<div class="rs-more">${btn({ variant: "ghost", size: "sm", only: true, icon: "more", label: L(`更多：${R(id)}`, `More: ${R(id)}`), attrs: { ...act("more", id), "aria-haspopup": "menu", "aria-expanded": String(open), "aria-controls": open ? `rs-menu-${id}` : null } })}${open ? `<div class="mw-menu" data-slot="menu" role="menu" id="rs-menu-${id}" aria-label="${L(`${R(id)}的更多操作`, `More for ${R(id)}`)}"><button type="button" class="mw-menu__item" role="menuitem"${P.attrs(act("menu-copy", id))}>${ic("copy")}<span data-slot="menu-item-label">${L("复制成新角色", "Duplicate as a new role")}</span></button><hr><button type="button" class="mw-menu__item mw-menu__item--danger" role="menuitem"${P.attrs(act("stop-ask", id))}>${ic("pause")}<span data-slot="menu-item-label">${L("停用…", "Turn off…")}</span></button></div>` : ""}</div>`;
+      const end = off ? setState("warning", L("已停用", "Turned off")) + btn({ variant: "ghost", size: "sm", label: L("重新启用", "Turn back on"), aria: L(`重新启用：${R(id)}`, `Turn back on: ${R(id)}`), attrs: act("unstop") }) : "";
+      const facts = id === "rev" ? [[L(`${PROJECT()}的默认`, `${PROJECT()}'s default`), L("新任务改由你的默认（研究员）做", "New tasks go to your default (Researcher)")], [L("进行中的 1 件", "1 running"), L("照常做完", "Finishes as is")], [L("做过的记录和各个版本", "Past records and versions"), L("都留着，可以重新启用", "All kept; you can turn it back on")]]
+        : [[L("跟随它的项目", "Projects following it"), L("新任务改由各自的默认做", "New tasks go to each one's default")], [L("做过的记录和各个版本", "Past records and versions"), L("都留着，可以重新启用", "All kept; you can turn it back on")]];
+      const confirm = S.stopAsk === id ? inset(`<p class="rs-inset__title" id="rs-stop-title" tabindex="-1">${L(`停用${q(R(id))}会怎样`, `What turning off ${q(R(id))} does`)}</p>${facts.map(([n, e]) => `<div class="rs-fact"><span>${n}</span><span class="rr-fact">${e}</span></div>`).join("")}<div class="q-row rs-inset__end">${btn({ variant: "ghost", size: "sm", label: L("取消", "Cancel"), attrs: act("stop-cancel", id) })}${btn({ variant: "danger", size: "sm", label: L("停用", "Turn off"), aria: L(`停用：${R(id)}`, `Turn off: ${R(id)}`), attrs: act("stop-do", id) })}</div>`, "rs-inset--confirm", { by: "rs-stop-title" }) : "";
+      return `<div class="settings-setting-row rs-member${S.done.flash === id ? " is-flash" : ""}" id="rs-row-${id}" tabindex="-1" aria-labelledby="rs-name-${id}"><div class="settings-record-title">${face(id)}<div><h3 id="rs-name-${id}">${R(id)}${id === mine ? ` ${badge("neutral", L("我的默认", "My default"))}` : ""}</h3><p>${cap}</p></div></div><div class="setting-value">${end}${btn({ size: "sm", label: L("调整", "Adjust"), aria: L(`调整：${R(id)}`, `Adjust: ${R(id)}`), attrs: act("drawer", id) })}${more}</div></div>${confirm}`;
     };
     const def = section("rs-mydef-title", L("默认由谁来做", "Who does it by default"), setRow(L("我的默认", "My default"), L("不在项目里的工作，和没有另选的项目", "Personal work, and projects that don't choose their own"), select(L("我的默认", "My default"), [["none", L("助理自己", "The Assistant")], ["rev", R("rev")], ["res", R("res")], ["code", R("code")], ...(S.done.created ? [["mine1", R("mine1")]] : [])], mine || "none", "my-default")));
     const mineSec = section("rs-mine-title", L("我的角色", "My roles"), list.map(roleRow).join(""), `<div class="q-row">${btn({ size: "sm", icon: "upload", label: L("从本机导入", "Import"), attrs: act("toast", L("会就地列出本机 Agent 的规则（原型不展开）", "Lists local agents' rules in place (not built)")) })}${btn({ variant: "primary", size: "sm", icon: "plus", label: L("新建", "New"), attrs: act("drawer", "new") })}</div>`);
@@ -283,10 +291,11 @@
     const key = `${S.topic}|${S.state}`;
     if (key !== lastView && !S.drawer) app.querySelector("h1[tabindex], .mw-empty h2")?.focus({ preventScroll: true });
     else if (focusKey) (S.drawer ? drawerEl : app).querySelector(focusKey)?.focus({ preventScroll: true });
+    if (S.focusSel) { const t = (S.drawer ? drawerEl : app).querySelector(S.focusSel) || app.querySelector(S.focusSel); S.focusSel = null; t?.focus(); }
     lastView = key;
     save();
   }
-  function reset(patch = {}) { S = forTopic({ ...fresh({ topic: S.topic, state: S.state, lang: S.lang, theme: S.theme }), ...patch }); render(); }
+  function reset(patch = {}) { S = forTopic({ ...fresh({ topic: S.topic, state: S.state, lang: S.lang, theme: S.theme }), ...patch }); if (S.topic === "lib" && S.state === "stopped") S.stopAsk = "rev"; render(); }
   const flash = (id) => { S.done.flash = id; setTimeout(() => { if (S.done.flash === id) { S.done.flash = null; save(); } }, 900); };
 
   document.getElementById("topic").addEventListener("change", (e) => reset({ topic: e.target.value, state: TOPICS[e.target.value].states[0][0] }));
@@ -294,8 +303,25 @@
   document.getElementById("lang").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.lang = b.dataset.lang; render(); } });
   document.getElementById("theme").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.theme = b.dataset.themeSet; render(); } });
   document.getElementById("reset").addEventListener("click", () => reset());
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !S.drawer && S.topic === "pick") { if (S.mode) S.mode = null; else S.pop = false; render(); } });
-  drawerEl.addEventListener("cancel", (e) => { e.preventDefault(); S.drawer = null; render(); });
+  document.addEventListener("keydown", (e) => {
+    if (S.menu && !S.drawer) {
+      const items = [...app.querySelectorAll(`#rs-menu-${S.menu} [role=menuitem]`)];
+      if (e.key === "Escape") { e.preventDefault(); S.focusSel = `[data-act="more"][data-arg="${S.menu}"]`; S.menu = null; render(); return; }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); const i = items.indexOf(document.activeElement); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus(); return; }
+      if (e.key === "Tab") { S.menu = null; render(); return; }
+    }
+    if (e.key === "Escape" && !S.drawer && S.topic === "pick") { if (S.mode) S.mode = null; else S.pop = false; render(); }
+  });
+  document.addEventListener("pointerdown", (e) => { if (S.menu && !e.target.closest(".rs-more")) { S.menu = null; render(); } });
+  const dirtyDraft = () => S.dState === "dirty" || S.dState === "conflict";
+  // Where focus goes when the drawer closes: back to what opened it, or, after creating a role, to that role's row.
+  const closeDrawer = () => {
+    S.focusSel = S.dState === "saved" && S.drawer === "new" ? (S.from === "pick" ? '[data-act="choose"][data-arg="mine1"]' : '[data-act="drawer"][data-arg="mine1"]') : S.opener;
+    S.drawer = null; S.ask = null;
+  };
+  const askOrClose = () => { if (dirtyDraft()) { S.ask = "close"; S.focusSel = "#rs-ask-title"; } else closeDrawer(); };
+  // Esc asks first when there are edits; Esc on the question means "keep editing".
+  drawerEl.addEventListener("cancel", (e) => { e.preventDefault(); if (S.ask) { S.ask = null; S.focusSel = "[data-way]"; } else askOrClose(); render(); });
   // Typing marks the draft as changed without re-rendering the field being typed in.
   drawerEl.addEventListener("input", (e) => {
     if (e.target.matches("[data-way]")) S.text = e.target.value;
@@ -315,6 +341,7 @@
     if (sel.dataset.change === "my-default") { S.done.myDefault = v === "none" ? null : v; toast(L("你的默认已改。没有另选的项目，新任务跟着变", "Your default changed. Projects without their own choice follow it for new tasks")); }
     render();
   });
+  const restoreTo = (v) => { S.done.restored = v; setTimeout(() => { S.done.restored = null; save(); }, 900); toast(L(`已把 v${v} 的内容保存成新的一版；进行中的任务不变`, `v${v}'s content saved as a new version; running tasks unchanged`)); };
   const onClick = (e) => {
     const b = e.target.closest("[data-act]");
     if (!b) return;
@@ -346,8 +373,14 @@
       diff() { S.diff = !S.diff; },
       add() { S.add = !S.add; },
       "add-code"() { S.done.addedCode = true; S.add = false; flash("code"); toast(L("代码审查已加入本项目，跟随你的原件", "Code reviewer joined this project, following your original")); },
-      drawer() { S.drawer = arg; S.from = S.topic === "lib" ? "lib" : S.topic === "pick" ? "pick" : "project"; S.dState = "clean"; S.text = null; S.name = ""; S.where = "project"; S.hist = false; S.dDiff = false; },
-      "drawer-close"() { S.drawer = null; },
+      drawer() { S.opener = b.closest(".rs-opt") ? `[data-act="choose"][data-arg="${arg}"]` : `[data-act="drawer"][data-arg="${arg}"]`; S.ask = null; S.menu = null; S.drawer = arg; S.from = S.topic === "lib" ? "lib" : S.topic === "pick" ? "pick" : "project"; S.dState = "clean"; S.text = null; S.name = ""; S.where = "project"; S.hist = false; S.dDiff = false; },
+      "drawer-close"() { askOrClose(); },
+      "ask-keep"() { S.ask = null; S.focusSel = "[data-way]"; },
+      "ask-drop"() {
+        const v = S.ask && S.ask.startsWith("restore:") ? S.ask.slice(8) : null;
+        S.dState = "clean"; S.text = null; S.name = "";
+        if (v) { S.ask = null; S.focusSel = "#d-versions"; restoreTo(v); } else closeDrawer();
+      },
       where() { S.where = arg; },
       hist() { S.hist = !S.hist; },
       "d-diff"() { S.dDiff = !S.dDiff; },
@@ -355,15 +388,17 @@
       reload() { S.dState = "clean"; S.text = null; S.dDiff = false; toast(L("已读取新内容", "Loaded the new content")); },
       "save-do"() {
         S.dState = "saved";
-        if (S.drawer === "new") { S.done.created = true; if (S.from === "pick") { S.choice = "mine1"; } flash("mine1"); }
+        if (S.drawer === "new") { S.done.created = true; if (S.name.trim()) ROLES.mine1.name = [S.name.trim(), S.name.trim()]; if (S.from === "pick") { S.choice = "mine1"; } flash("mine1"); }
         else if (S.drawer === "rev" && S.from !== "lib") S.done.refollow = S.where === "mine"; // saved to the original: this project follows it again
       },
       "undo-save"() { S.dState = "dirty"; toast(L("已撤销：回到保存前的内容，改动还在框里", "Undone: back to the previous content; your edits are still in the box")); },
-      restore() { S.done.restored = arg; setTimeout(() => { S.done.restored = null; save(); }, 900); toast(L(`已把 v${arg} 的内容保存成新的一版；进行中的任务不变`, `v${arg}'s content saved as a new version; running tasks unchanged`)); },
-      "stop-ask"() { S.stopAsk = true; },
-      "stop-cancel"() { S.stopAsk = false; },
-      "stop-do"() { S.stopAsk = false; S.done.stoppedRev = true; },
-      unstop() { S.done.stoppedRev = false; },
+      restore() { if (dirtyDraft()) { S.ask = `restore:${arg}`; S.focusSel = "#rs-ask-title"; return; } restoreTo(arg); },
+      more() { S.menu = S.menu === arg ? null : arg; S.focusSel = S.menu ? `#rs-menu-${arg} [role=menuitem]` : `[data-act="more"][data-arg="${arg}"]`; },
+      "menu-copy"() { S.menu = null; S.focusSel = `[data-act="more"][data-arg="${arg}"]`; toast(L(`会打开一个新角色的抽屉，内容取自${q(R(arg))}（原型不画）`, `Opens a new role's drawer prefilled from ${q(R(arg))} (not drawn)`)); },
+      "stop-ask"() { S.menu = null; S.stopAsk = arg; S.focusSel = "#rs-stop-title"; },
+      "stop-cancel"() { S.stopAsk = false; S.focusSel = `[data-act="more"][data-arg="${arg}"]`; },
+      "stop-do"() { S.stopAsk = false; if (arg === "rev") S.done.stoppedRev = true; else toast(L("原型只演示停用审稿人", "The prototype only turns off Reviewer")); S.focusSel = `#rs-row-${arg}`; },
+      unstop() { S.done.stoppedRev = false; S.focusSel = '[data-act="more"][data-arg="rev"]'; },
     };
     if (A[a]) { A[a](); if (a !== "toast") render(); }
   };

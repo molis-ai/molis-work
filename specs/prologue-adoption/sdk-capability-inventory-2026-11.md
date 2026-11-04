@@ -75,7 +75,7 @@
 | LSP（代码智能） | Coding A4、A4-1 | 没有。官方场景包明写 SDK 不内置语言服务器 | **上游缺**：A4-1 要 SDK 的语言服务器模块（按文件类型按需启动、会话结束关闭）、只读工具「代码智能」，以及 Manifest `lsp_servers` 的声明式装配 |
 | 首批 Skill 自动选用 | prologue-skill-strategy SKL-01～16 | 有 `invoke-skill`、`autoSelectable` 和 `humanInvocable` 两个开关、`inline`/`fork`、配方、权限岛。**没有** `find-skills`、选择器（`router`、`maxSelected`）；`SkillManifest` 没有 `description`、`when_to_use`、`when_not_to_use`、`applies_to`；参考与脚本没有按需读取 | **上游缺**：SKL-02（选择器）、SKL-03（只返回元数据的查找）、SKL-05（按需读取与路径校验）、SKL-07（回执带理由）、SKL-15（选中后工具可见）。SKL-01 的开关语义 SDK 已有字段，Molis 侧接入和点名优先可以先做 |
 | Memory SDK 余项 | prologue-memory-strategy | — | 等原暂停解除，本文不盘 |
-| 通过全部金样回放 | upgrade-continuity U2 | — | 不是 SDK 能力，见 [回放设计](../upgrade-continuity/golden-replay-design.md)（U2 设计在分支上，随 U1 开 PR） |
+| 通过全部金样回放 | upgrade-continuity U2 | — | 不是 SDK 能力，见 [升级后持续可用](../upgrade-continuity/spec.md) U2（回放设计在分支 `claude/roadmap-05-u2-design`，随 U1 开 PR） |
 
 ## 5. 汇总
 

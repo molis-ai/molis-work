@@ -6,7 +6,7 @@
 
 裁定 11（`privileges.md` §4 e）：插件读用户指定的本机目录，要经过一项带同意流程的平台服务，任何插件都走同一个入口。
 
-main 上已经有这项服务的底子（PRR-03，用户 2026-10-20 选 B，`specs/pr-review-remediation/spec.md`）：
+main 上已经有这项服务的底子（PRR-03，用户 2026-10-20 选 B，`specs/archive/pr-review-remediation/spec.md`）：
 
 - **入口**：`POST /api/host/directory-grants`（`apps/local-host/src/plugin-directory-http.ts`）。页面只能说是哪个插件在请求，目录由系统选择器选；插件页面不能替别的插件或项目请求。
 - **读取**：插件只拿到 `PluginDirectoryService.read`（合同 `platform/plugin-directory`），按 `grant_id` 加相对路径读。宿主每次都核对安装的 `directory:read`、调用身份和授权是否仍有效；逐段 realpath/lstat，拒绝符号链接，只读，目录、文本、字节各有上限（`plugin-directory-read.ts`）。

@@ -13,7 +13,7 @@
 本轮在 main `9efbf8d044` 上只读核对：
 
 - 已有首次使用、新建项目、版本更新三种引导模式；项目选择器已经链接到新项目引导。新项目引导主要承接材料导入，不能据此认为完整场景设置已实现。
-- 模型配置已有[独立切片](../onboarding-model-link/spec.md)，来源读取和中断恢复已有[进度切片](../onboarding-intake-progress/spec.md)。本书保留相应要求，后续逐条复用和核验，不以旧状态句推断代码没有这些能力，也不将局部工程证据当作整项验收。
+- 模型配置已有[独立切片](../archive/onboarding-model-link/spec.md)，来源读取和中断恢复已有[进度切片](../archive/onboarding-intake-progress/spec.md)。本书保留相应要求，后续逐条复用和核验，不以旧状态句推断代码没有这些能力，也不将局部工程证据当作整项验收。
 - [全局设置目录](../../apps/workbench/src/settings-sections.ts)与[项目设置](../../apps/workbench/src/project-settings-pages.ts)已有实际入口；覆盖清单见 §3.11。角色、能力和工作约定需要在适合的时刻进入引导，不能只在结束时给一组设置链接。
 - Adeptify 的归档设计包含 persona 动态访谈、目标候选、AI 团队蓝图，以及回到首页接上第一步、留下第一份成果。保留这条体验路径；旧模块不直接搬入新平台，归档记录不证明当前可运行。
 

@@ -13,21 +13,23 @@
 
 ### 核回、归档与待验收来源
 
+[01 按最终主线逐项结算](batches/01.md#baseline-01)；[本人操作单](acceptance-01.md)。
+
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
-| [diff-frame-performance](../../diff-frame-performance/spec.md)、[long-turn-performance](../../long-turn-performance/spec.md)、[attention-aggregate-performance](../../attention-aggregate-performance/spec.md) | 体验与效果（性能） | [01](batches/01.md) | 直接做：核对后归档 |
-| [pr-review-remediation](../../pr-review-remediation/spec.md) | 底层与架构 | [01](batches/01.md) | 直接做：归档 |
-| [repository-cleanup](../../repository-cleanup/spec.md) | 底层与架构 | [01](batches/01.md) | 直接做：归档 |
-| [status-ring-system](../../status-ring-system/spec.md) | 横向能力（公共组件）、体验与效果 | [01](batches/01.md) | 要决策：视觉验收（你，或明确委托） |
-| [plugin-tab-groups](../../plugin-tab-groups/spec.md) | 产品线（工作台） | [01](batches/01.md) | 直接做：核对后归档 |
-| [empty-goal-create](../../empty-goal-create/spec.md)、[quiet-home-refresh](../../quiet-home-refresh/spec.md)、[onboarding-intake-progress](../../onboarding-intake-progress/spec.md)、[onboarding-model-link](../../onboarding-model-link/spec.md)、[onboarding-folder-places](../../onboarding-folder-places/spec.md) | 体验与效果、产品线（引导、Goals） | [01](batches/01.md) | 要决策：待体验项你验收；先核替代成果，未交付与待体验分别保留 |
-| [issue-home-v0](../../issue-home-v0/spec.md) | 产品线（Issue 插件） | [01](batches/01.md) | 直接做：BL-149 合入或关掉后归档 |
+| [diff-frame-performance](../../archive/diff-frame-performance/spec.md)、[long-turn-performance](../../archive/long-turn-performance/spec.md)、[attention-aggregate-performance](../../archive/attention-aggregate-performance/spec.md) | 体验与效果（性能） | [01](batches/01.md) | 已核对并归档 |
+| [pr-review-remediation](../../archive/pr-review-remediation/spec.md) | 底层与架构 | [01](batches/01.md) | 已归档 |
+| [repository-cleanup](../../archive/repository-cleanup/spec.md) | 底层与架构 | [01](batches/01.md) | 已归档 |
+| [status-ring-system](../../archive/status-ring-system/spec.md) | 横向能力（公共组件）、体验与效果 | [01](batches/01.md) | 工程归档；本人看实物 BL-945 |
+| [plugin-tab-groups](../../plugin-tab-groups/spec.md) | 产品线（工作台） | [01](batches/01.md) | 既有工程已合；现行合同及新增整合保留，PTG-10 待本人 |
+| [empty-goal-create](../../archive/empty-goal-create/spec.md)、[quiet-home-refresh](../../archive/quiet-home-refresh/spec.md)、[onboarding-intake-progress](../../archive/onboarding-intake-progress/spec.md)、[onboarding-model-link](../../archive/onboarding-model-link/spec.md)、[onboarding-folder-places](../../archive/onboarding-folder-places/spec.md) | 体验与效果、产品线（引导、Goals） | [01](batches/01.md) | 五项均已承接并归档；BL-946～950 分开试 |
+| [issue-home-v0](../../archive/issue-home-v0/spec.md) | 产品线（Issue 插件） | [01](batches/01.md) | BL-149 已随 #819 合入，已归档 |
 | [computer-use](../../computer-use/spec.md) | 产品线（助理） | [01](batches/01.md) | 要决策：BL-325 真机验收（你）；BL-326／327 留 Backlog |
 | [ai-development-handbook](../../ai-development-handbook/spec.md) | 横向能力（AI 方法） | [01](batches/01.md)、[09](batches/09.md) | 要决策：BL-320 你验收；ADH-23／BL-321 在 09 直接做 |
-| 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../../archive/plugin-project-database/spec.md)、[dual-instance-plugins](../../archive/dual-instance-plugins/spec.md)、[plugin-project-partition](../../archive/plugin-project-partition/spec.md) | 底层与架构 | [01](batches/01.md) | 直接做：随防腐线收 |
-| BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401 | 跨线 | [01](batches/01.md) | 要决策：你一次走完验收单（验收方式见[决定 12](decisions.md#decision-12)） |
+| 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../../archive/plugin-project-database/spec.md)、[dual-instance-plugins](../../archive/dual-instance-plugins/spec.md)、[plugin-project-partition](../../archive/plugin-project-partition/spec.md) | 底层与架构 | [01](batches/01.md) | 四份已归档，部分实现的余项仍在 BACKLOG |
+| BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401、929、940 及本批新增本人项 | 跨线 | [01](batches/01.md) | 按条件试；已接受、已委托和须等真实 Home 的项目单列 |
 | [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md) | 要决策：恢复授权前不启动（原暂停），见下 |
-| 右栏选一段放进文稿（产品建议 F1；#712、#720） | 产品线（工作台）、横向能力（落点） | [01](batches/01.md) | 要决策：真实材料实走后再定下一个落点 |
+| 右栏选一段放进文稿（产品建议 F1；#712、#720） | 产品线（工作台）、横向能力（落点） | [01](batches/01.md) | 要决策：BL-952：真实材料和 QA-030 复验后再定下一个落点 |
 
 <a id="memory-paused"></a>
 
@@ -221,6 +223,6 @@
 | 服务端批（[服务端批](server-batch.md#server-batch)） | BL-070（Outbox，随同步合同） | [SRV-1](batches/srv-1.md) |
 | 工程流程（统筹） | BL-142、BL-143、BL-412（偶发失败的用例）、BL-565（共享核心 PR 的全量证据进 required CI）、BL-328（真实模型小评测的命令） | [02](batches/02.md) |
 | 11-03 补点名 | BL-880：07 随 Feed／工作台迁移，门禁决定只挡该片；BL-900：05 区分非持久编辑器字段与持久化结果合同后整理，原 R-B 不改决定保留；BL-925：仅第三个双实例插件出现时再评，见 [暂缓与条件项](deferred.md#section-8) | [05](batches/05.md)、[07](batches/07.md) |
-| 11-02 补点名 | 随防腐线收（用户 10-30 定 PG-011、PG-017 的余项做完再关行）：BL-491、493、710、711、713、714，以及 PG-017 关行前要核的 BL-916；BL-701、910、915、918（沙箱包的可选权限、终端、卸载、生图上限），BL-812（平台包吞掉的错误）、BL-814（Runtime 动作调用的成本）、BL-901（插件包 `./contract` 的 API 快照）、BL-911（委托调用的受众）、BL-913（终端记录的坏值）；BL-692～694（外部集成，随服务接入收尾）；BL-912（Home 包在标签条上的图标）；BL-803、819、821（Goals 认本人、读坏时的报错） | [01](batches/01.md)、[27](batches/27.md)、[60](batches/60.md)、[61](batches/61.md) |
+| 11-02 补点名 | PG-011、PG-017 的 BL-491、493、710～714、916 已在 01 [核回](batches/01.md#baseline-01)；另有未完成的BL-701、910、915、918（沙箱包的可选权限、终端、卸载、生图上限），BL-812（平台包吞掉的错误）、BL-814（Runtime 动作调用的成本）、BL-901（插件包 `./contract` 的 API 快照）、BL-911（委托调用的受众）、BL-913（终端记录的坏值）；BL-692～694（外部集成，随服务接入收尾）；BL-912（Home 包在标签条上的图标）；BL-803、819、821（Goals 认本人、读坏时的报错） | [01](batches/01.md)、[27](batches/27.md)、[60](batches/60.md)、[61](batches/61.md) |
 
 [PAEXT]: https://github.com/molis-ai/molis-work/blob/bd6090ab468522ce57092e3d240e7e8254cd0b16/specs/proactive-assistant/spec.md

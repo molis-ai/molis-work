@@ -1,6 +1,8 @@
 # 最近三天 PR 复审确认问题的修复
 
-状态：已实现，待评审（2026-10-20；PR #901）。审计范围是 2026-10-17 至 2026-10-20 合入 main 的 227 个 PR；完整报告见 [docs/reviews/pr-review-2026-10-17-to-20.md](../../docs/reviews/pr-review-2026-10-17-to-20.md)。本 spec 只收**经本次复核确认**的问题；报告里仍是 concern、但本次没有确认的项不在这里扩成实现，见 §1.4。
+> 归档（2026-11-03）：判定为**已实现**。#901（5a8ef18f4）已合入，PRR-01～22 的处置见正文；QA-017 的原 CDP 失败保留；本批在 cbd019de6 的独立临时 Home 与专用测试浏览器跑 context-pick-result.e2e 的 QA-017，真实打开和关闭侧栏，1/1 通过，无重试或跳过。
+
+状态：已实现，待评审（2026-10-20；PR #901）。审计范围是 2026-10-17 至 2026-10-20 合入 main 的 227 个 PR；完整报告见 [docs/reviews/pr-review-2026-10-17-to-20.md](../../../docs/reviews/pr-review-2026-10-17-to-20.md)。本 spec 只收**经本次复核确认**的问题；报告里仍是 concern、但本次没有确认的项不在这里扩成实现，见 §1.4。
 
 审计基线是 `origin/main` `3ba9185d7`（2026-10-20 16:07 UTC）。本 spec 的编号前缀是 `PRR`，实现时把编号写进测试名或测试旁注释。
 
@@ -21,7 +23,7 @@
 | PRR-05 | #839 | P2 | 纯函数复现 | `coding/src/manifest.ts:71` 只 consume `knowledge.read`；`knowledge-tools.ts:33-38` 却调 `knowledge.list`；复现脚本确认 `invoke` 抛 `actions.forbidden`、catalog 为 null |
 | PRR-06 | #839 | P2 | 动作字段核对 | `packages/contracts/src/services/knowledge.ts:408` 的 `knowledge.locate` 是 query/read、权限只有 `knowledge:read`，没有 `model:invoke` 或 `metered`；`prologue-checkers.ts:171-176` 因此允许它被登记成外部等待 |
 | PRR-07 | #765 | P2 | 纯函数复现 | 复现脚本：固定 Goals 插件标签后打开 Goals 条目，`pluginGroup` 同时含固定插件标签和散条目，`closePluginGroup` 把两者都关掉；分栏里 `close` 在 `embedded` 时直接返回，没有撤销芯片/⌘⇧T |
-| PRR-08 | #819 | P2 | 词典检查 | `ISSUE_ASK` 只有中文；`RENDERER_GAP_EN` 没有该键；`capture-client.ts:50`、`review-client.ts:35` 用 `L(result.question)`；`specs/issue-home-v0/spec.md:64` 却写有英文 |
+| PRR-08 | #819 | P2 | 词典检查 | `ISSUE_ASK` 只有中文；`RENDERER_GAP_EN` 没有该键；`capture-client.ts:50`、`review-client.ts:35` 用 `L(result.question)`；`specs/archive/issue-home-v0/spec.md:64` 却写有英文 |
 | PRR-09 | #822 | P2 | 执行器复现 | `prologue-after-write.ts:48` 按原始路径做 `startsWith(cwd + "/")`；复现脚本 `src/a.js` 得到命令，`./src/a.js` 得到「没有适用于 .js 的检查器」 |
 | PRR-10 | #729 | P2 | 代码核对 | `plugins/native/lingguang/src/plugin.ts:26-33` 把 `caller.on_progress` 作为 `request.onProgress`；`materials-service.ts:45` 又调用一次 `caller.on_progress` |
 | PRR-11 | #729 | P2 | 代码核对 | `plugins/native/lingguang/src/manifest.ts:9,28-36` 所有 POST 路由都用 `BODY_BYTES = 36_000_000` |
@@ -121,7 +123,7 @@ PRR-01 和 PRR-05/PRR-06 都改 #839 的 knowledge 线；建议同一个 owner �
 
 ## 6. 证据与限制
 
-- 审计报告：[docs/reviews/pr-review-2026-10-17-to-20.md](../../docs/reviews/pr-review-2026-10-17-to-20.md)；逐 PR checklist 与 CSV 在同目录。
+- 审计报告：[docs/reviews/pr-review-2026-10-17-to-20.md](../../../docs/reviews/pr-review-2026-10-17-to-20.md)；逐 PR checklist 与 CSV 在同目录。
 - 复现脚本（会话临时目录，未入库）的实测结果：
   - `tab-groups`：固定 Goals 插件标签后打开条目，`pluginGroup` 含固定插件标签 + 散条目，`closePluginGroup` 两者都关，剩余只有 home。
   - `after-write`：`src/a.js` 得到 `node --check a.js`；`./src/a.js` 得到 `{"unchecked":"没有适用于 .js 的检查器"}`。

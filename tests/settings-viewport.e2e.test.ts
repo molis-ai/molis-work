@@ -180,3 +180,55 @@ test('RAC-2850 global Characters entry carries only its own CSS through real HTT
   assert.equal(await entry("document.querySelector('.characters-settings-entry style').textContent.includes('.characters-terminal')"), false);
   await shot('characters-global-extracted-narrow');
 });
+
+test("VUX-52/58: Assistant settings distinguish the quiet rule from a pause and name a capability consistently", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  const { command, sessionId, navigate, origin, waitFor, evaluate, click } = b;
+  const quiet = "[data-assistant-rule-quiet]", pause = "[data-assistant-rule-pause]";
+  const failure = 'input[data-assistant-rule-except=failed]';
+  const open = () => navigate(() => command("Page.navigate", { url: origin + "/settings/assistant" }, sessionId));
+  type Rule = { rule_id: string; kind: string; except: string[]; surfaces: string[] };
+  const readRules = () => evaluate<Rule[]>("fetch('/api/assistant/rules').then(r => r.json()).then(view => view.rules)");
+  await command("Network.setCookie", { name: "molis_work_locale", value: "zh", url: origin }, sessionId);
+  await open();
+  await waitFor("document.querySelector('[data-assistant-rule-surfaces] input')");
+  assert.match(await evaluate<string>(`document.querySelector('${quiet} ${failure}').parentElement.textContent`), /在这些地方/);
+  assert.match(await evaluate<string>(`document.querySelector('${pause} ${failure}').parentElement.textContent`), /暂停期间/);
+  const memoryTitleLines = () => evaluate<number>(`(() => {
+    const range = document.createRange(); range.selectNodeContents(document.querySelector('#assistant-memory-title'));
+    return new Set(Array.from(range.getClientRects()).filter(r => r.width > 0).map(r => Math.round(r.top))).size;
+  })()`);
+  for (const width of [1440, 1024, 390]) {
+    await b.setViewport(width, 850);
+    assert.equal(await memoryTitleLines(), 1, "the settings heading reads horizontally at " + width);
+  }
+  await b.setViewport(1440, 850);
+  const previousIds = new Set((await readRules()).map(rule => rule.rule_id));
+  const surface = await evaluate<string>("document.querySelector('[data-assistant-rule-surfaces] input').value");
+  await click(quiet + " [data-assistant-rule-surfaces] input");
+  await click(quiet + " " + failure);
+  await click(quiet + " [type=submit]");
+  await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 1}`);
+  await click(pause + " [type=submit]");
+  await waitFor(`document.querySelectorAll('[data-assistant-rules-list] li').length === ${previousIds.size + 2}`);
+  const rules = (await readRules()).filter(rule => !previousIds.has(rule.rule_id));
+  const persistent = rules.find(rule => rule.kind === "quiet"), timed = rules.find(rule => rule.kind === "pause");
+  assert.deepEqual(persistent?.surfaces, [surface]);
+  assert.equal(persistent?.except.includes("failed"), false);
+  assert.deepEqual(timed?.except, ["failed"]);
+  await command("Network.setCookie", { name:"molis_work_locale", value:"en", url:origin }, sessionId);
+  await open();
+  await waitFor("document.querySelector('[data-assistant-capabilities] .assistant-capability input[role=switch]')");
+  assert.match(await evaluate<string>(`document.querySelector('${quiet} ${failure}').parentElement.textContent`), /In these places/);
+  assert.match(await evaluate<string>(`document.querySelector('${pause} ${failure}').parentElement.textContent`), /While paused/);
+  const row = "document.querySelector('[data-assistant-capabilities] .assistant-capability')";
+  const name = await evaluate<string>(row + ".querySelector('strong').textContent");
+  const toggle = row + ".querySelector('input[role=switch]')";
+  assert.equal(await evaluate(toggle + ".getAttribute('aria-label')"), name);
+  const enabled = await evaluate<boolean>(toggle + ".checked");
+  await click("[data-assistant-capabilities] .assistant-capability input[role=switch]");
+  await waitFor(toggle + ".checked !== " + enabled + " && !" + toggle + ".disabled");
+  await open();
+  await waitFor(row + " && " + toggle + ".checked !== " + enabled);
+  assert.equal(await evaluate(toggle + ".getAttribute('aria-label')"), name);
+});

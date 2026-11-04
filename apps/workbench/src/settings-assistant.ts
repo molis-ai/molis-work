@@ -13,7 +13,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
       <form class="assistant-rule-form" data-assistant-rule-quiet>
         <strong>${L("在这些地方不提醒")}</strong>
         <div class="assistant-rule-surfaces" data-assistant-rule-surfaces></div>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("在这些地方，助理这一轮失败时仍提醒我")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="needs-decision"> ${L("需要我决定时仍然提醒")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="reminder" checked> ${L("我自己设的提醒到时间仍然提醒")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("添加规则")}</button>
@@ -23,7 +23,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
         <select class="mw-input" data-assistant-rule-duration aria-label="${L("暂停多久")}">
           <option value="30">${L("30 分钟")}</option><option value="60" selected>${L("1 小时")}</option><option value="day">${L("到今天结束")}</option>
         </select>
-        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("暂停期间，助理这一轮失败时仍提醒我")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("暂停")}</button>
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>
@@ -39,7 +39,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
       <p class="settings-muted">${L("到了上限，新的一轮不会开始，已做的都保留；定时安排到点时也会说明没有开始。只统计助理自己的轮次，按运行时报告的用量。")}</p>
       <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>
     </section>
-    <section class="settings-section assistant-memory" aria-labelledby="assistant-memory-title" data-assistant-memory>
+    <section class="settings-section" aria-labelledby="assistant-memory-title" data-assistant-memory>
       <h2 id="assistant-memory-title">${L("记忆")}</h2>
       <p class="settings-muted">${L("助理用的是平台记忆：你的偏好和习惯在“个人 → 记忆”，项目的约定在项目设置的“项目记忆”。在那里能看到每一条从哪来、最近用在哪，可以修改、停用或删除，也能决定助理能不能用。")}</p>
       <p class="settings-muted" data-assistant-memory-summary>${L("正在读取…")}</p>
@@ -117,7 +117,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         meta.append(el("span", "prompt-tag", L(EFFECT[row.effect] || row.effect)));
         const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = row.enabled;
         const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
-        toggle.setAttribute("aria-label", (row.enabled ? L("关闭") : L("打开")) + "：" + row.title);
+        toggle.setAttribute("aria-label", L(row.title));
         toggle.addEventListener("change", async () => {
           toggle.disabled = true;
           try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, enabled: toggle.checked }); row.enabled = toggle.checked; paint(); }

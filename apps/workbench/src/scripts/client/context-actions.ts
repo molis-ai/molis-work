@@ -72,10 +72,12 @@ const PANE_PART = String.raw`  const L = host.translate;
       if (block.tagName === "PRE") return "code";
       return "paragraph";
     };
+    // A heading names the passage only if it is in what is shown: a surface's closed dialog or hidden panel keeps its own h2 in the DOM
+    // (Shelf's "Save to project knowledge" dialog), and that is interface text, not a heading of what was selected (BL-952).
     const headingPath = (root, node) => {
       const stack = [];
       root.querySelectorAll("h1, h2, h3, h4").forEach((heading) => {
-        if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) return;
+        if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) || heading.closest("dialog:not([open]),[hidden],[inert]")) return;
         const level = Number(heading.tagName.slice(1));
         while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
         stack.push({ level, text: cutWhole(heading.textContent.trim(), 120) });

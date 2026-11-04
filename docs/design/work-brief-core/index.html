@@ -1,34 +1,21 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Work Brief 定样 · Molis Work 原型</title>
-  <link rel="stylesheet" href="base.css?v=1">
-  <link rel="stylesheet" href="brief.css?v=3">
+  <!-- 组件板现行的样式、主题与渲染函数：先在仓库根目录运行 node docs/design/component-board/build.mjs -->
+  <script src="../component-board/dist/board-head.js"></script>
+  <link rel="stylesheet" href="../component-board/dist/board.css">
+  <link rel="stylesheet" href="../component-board/proto.css">
+  <link rel="stylesheet" href="brief.css?v=4">
 </head>
-<body>
-  <div id="icons"></div>
-  <div class="proto" role="region" aria-label="原型控制（不是产品界面）">
-    <b data-t="protoTitle"></b>
-    <label><span data-t="area"></span>
-      <span class="seg" id="area"><button type="button" data-area="home"></button><button type="button" data-area="version"></button><button type="button" data-area="source"></button><button type="button" data-area="next"></button></span>
-    </label>
-    <label><span data-t="scheme"></span>
-      <span class="seg" id="scheme"><button type="button" data-scheme="A">A</button><button type="button" data-scheme="B">B</button><button type="button" data-scheme="C">C</button></span>
-    </label>
-    <label><span data-t="state"></span><select id="state"></select></label>
-    <label><span data-t="lang"></span>
-      <span class="seg" id="lang"><button type="button" data-lang="zh">中</button><button type="button" data-lang="en">EN</button></span>
-    </label>
-    <label><span data-t="theme"></span>
-      <span class="seg" id="theme"><button type="button" data-theme-set="light" data-t="light"></button><button type="button" data-theme-set="dark" data-t="dark"></button></span>
-    </label>
-    <button type="button" class="btn sm sec" id="reset" data-t="reset"></button>
-  </div>
-  <main class="stage" id="app"></main>
-  <script src="icons.js?v=1"></script>
-  <script src="data.js?v=2"></script>
-  <script src="app.js?v=5"></script>
+<body class="proto-page">
+  <div class="proto-strip" id="strip" role="region" aria-label="原型控制（不是产品界面）"></div>
+  <main class="proto-stage" id="app"></main>
+  <div class="proto-toasts" id="toasts" aria-live="polite"></div>
+  <script src="../component-board/dist/board.js"></script>
+  <script src="data.js?v=3"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

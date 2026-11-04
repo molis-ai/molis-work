@@ -22,7 +22,7 @@ export interface ConnectorConnectionStatus {
   connectivity: {
     state: "disconnected" | "unchecked" | "connected" | "failed" | "unknown";
     source: string; observed_at?: string; last_check?: ConnectorCheckObservation; current?: boolean;
-    /** Set while the service is rate limiting this connection: the check failed for the service's reason, and is tried again after this time. */
+    /** Set while the service is rate limiting this connection: the check failed for the service's reason, and is worth trying again after this time. */
     retry_at?: string;
   };
   authorization: {

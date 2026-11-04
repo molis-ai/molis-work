@@ -67,7 +67,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
   const spec = getCatalogSpec(connectorId);
   const integrations = catalogIntegrations(connectorId);
   return {
-    schema_version: 2,
+    schema_version: 1,
     plugin_id: `io.molis.work.integration.${connectorId}`,
     // 1.1.0: the account check moved to the connector action `connectors.account.read`.
     // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`, and for a document
@@ -77,7 +77,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     name: spec.title,
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-    host_api_version: 2,
+    host_api_version: 1,
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
     permissions: [
       ...[spec.permission_host, ...(spec.additional_permission_hosts ?? [])].map(host => ({ permission: `network:${host}`, required: true, reason: `读取 ${spec.title} 身份与入站更新` })),

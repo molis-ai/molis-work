@@ -36,8 +36,8 @@ export const DIFF_GIT_GROUP = "git-change-set";
  * activation, and Diff with nothing bound is a legitimate, explainable state.
  */
 export const diffManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: DIFF_PLUGIN_ID,
   version: "0.3.0",
   name: "Diff",

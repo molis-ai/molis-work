@@ -30,7 +30,7 @@ function delegateProbe(name: string, options: { declare?: boolean; consumes?: re
     input_schema: { type: "object", properties: { op: { type: "string" }, reference: { type: "object" }, input: { type: "object" } }, additionalProperties: false },
   } };
   const behavior: { handle?(context: PluginStartContext, caller: ActionExecutionContext): Promise<unknown> } = {};
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `delegate-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Keep what the delegated call returned" },
       ...(options.declare === false ? [] : [{ permission: DELEGATE, required: false, reason: "Call other actions as the person who asked" }]),
@@ -400,7 +400,7 @@ function routeProbe(name: string, consumes: readonly string[] = []) {
     audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],
     input_schema: { type: "object", properties: { op: { type: "string" }, reference: { type: "object" }, input: { type: "object" } }, additionalProperties: false },
   } };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `delegate-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Keep what the delegated call returned" },
       { permission: DELEGATE, required: true, reason: "Call other actions as the person who asked" }],

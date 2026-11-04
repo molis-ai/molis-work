@@ -13,8 +13,8 @@ export const PROBE_VERSION = "1.0.0";
  * source, a kept background job and one method. It has no page of its own and names no other plugin.
  */
 export const probeManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: PROBE_PLUGIN_ID,
   version: PROBE_VERSION,
   name: "Probe",

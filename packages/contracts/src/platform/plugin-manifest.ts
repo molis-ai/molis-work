@@ -112,12 +112,12 @@ export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
 export interface PluginManifest {
   /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
-  schema_version: 1 | 2;
+  schema_version: 1;
   plugin_id: string;
   version: string;
   name: string;
   /**
-   * v2: the plugin's name in the English interface (BL-636), one line of English of at most 80 characters. The shell draws it where it
+   * the plugin's name in the English interface (BL-636), one line of English of at most 80 characters. The shell draws it where it
    * draws the Manifest `name` itself (a plugin that has a stage and no navigator or island view); a navigator or island view's name is
    * its own `title_en`, so one is never read for the other. Left out, the English interface shows `name`.
    */
@@ -128,9 +128,9 @@ export interface PluginManifest {
     /** Signature identity. A changed value creates a different Plugin identity. */
     signature: string;
   };
-  host_api_version: 1 | 2;
+  host_api_version: 1;
   /**
-   * v2: 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
+   * 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
    * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may
    * declare it: the Runtime refuses to install or upgrade to a Manifest that does from anywhere else.
    */
@@ -170,21 +170,21 @@ export interface PluginManifest {
   };
   ui: {
     contributions: string[];
-    /** v2: Plugin IDs whose embedded surfaces this UI uses. Enables discovery, never grants authority. */
+    /** Plugin IDs whose embedded surfaces this UI uses. Enables discovery, never grants authority. */
     embedded_plugins?: string[];
-    /** v2: where each contribution is placed. Absent means the Host places nothing. */
+    /** where each contribution is placed. Absent means the Host places nothing. */
     views?: UiViewDeclaration[];
-    /** v2: the GET pages of the project the Plugin answers, as data the Host matches (T-116). A view's `stage_data.input` names parameters declared here. */
+    /** the GET pages of the project the Plugin answers, as data the Host matches (T-116). A view's `stage_data.input` names parameters declared here. */
     page_routes?: UiPageRouteDeclaration[];
     /**
-     * v2: the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
+     * the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
      * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads
      * them from the Manifests of the Plugins that are installed, never from a list of its own. A key one Plugin has
      * declared is refused to another.
      */
     messages?: PluginMessagesDeclaration;
     /**
-     * v2: English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
+     * English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
      * stable keys (specs/archive/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
      * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
      * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
@@ -192,15 +192,15 @@ export interface PluginManifest {
      */
     translations?: PluginTranslationsDeclaration;
   };
-  /** v2: named, typed connection points wired by the user inside a project. */
+  /** named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;
-  /** v2: events this Plugin publishes and the exact sources it listens to. */
+  /** events this Plugin publishes and the exact sources it listens to. */
   events?: PluginEventsDeclaration;
-  /** v2: HTTP routes the Host mounts on the Plugin's behalf. */
+  /** HTTP routes the Host mounts on the Plugin's behalf. */
   routes?: PluginRouteDeclaration[];
-  /** v2: Capability contracts required before activation. */
+  /** Capability contracts required before activation. */
   requires?: PluginRequirementDeclaration[];
-  /** v2: roles, prompts, skills and subagents for an Agent-backed Plugin. */
+  /** roles, prompts, skills and subagents for an Agent-backed Plugin. */
   agent?: AgentManifest;
   /**
    * Methods this Plugin offers to other Agents for business work (the Assistant, a Character): how to do something
@@ -226,19 +226,19 @@ export interface PluginManifest {
   runtime?: PluginRuntimeDeclaration;
   /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */
   local_tools?: import("./plugin-local-tools.js").PluginLocalToolsDeclaration;
-  /** v2: the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
+  /** the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
   attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
-  /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
+  /** places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
   connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
-  /** v2: the services whose accounts this plugin works with and the cards shown for them (PG-046). Declaring one gives no right to any connection. */
+  /** the services whose accounts this plugin works with and the cards shown for them (PG-046). Declaring one gives no right to any connection. */
   connection_services?: readonly import("./plugin-integrations.js").PluginConnectionServiceDeclaration[];
-  /** v2: what this plugin does with those services: pull a Feed source, or import a document (PG-046). */
+  /** what this plugin does with those services: pull a Feed source, or import a document (PG-046). */
   integrations?: readonly import("./plugin-integrations.js").PluginIntegrationDeclaration[];
   /** Exclusive ids of pure source presentations supplied by this integration. */
   source_presentations?: readonly string[];
-  /** v2: kept jobs and commands the platform may wake for this installation. */
+  /** kept jobs and commands the platform may wake for this installation. */
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
-  /** v2: the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
+  /** the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
   notifications?: import("./plugin-notifications.js").PluginNotificationReceiverDeclaration;
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];

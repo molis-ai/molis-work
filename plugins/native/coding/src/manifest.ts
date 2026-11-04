@@ -45,8 +45,8 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
  * Their absence never blocks an ordinary task.
  */
 export const codingManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: CODING_PLUGIN_ID,
   version: "0.3.0",
   name: "Coding",
@@ -69,7 +69,7 @@ export const codingManifest: PluginManifest = {
     },
     { permission: "workspace:read", required: true, reason: "读取已关联工作目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
     { permission: "model:read", required: true, reason: "读取全局模型设置里可用的模型，供每一轮选用；不发起模型请求" },
-    // The round's model call is the Agent runtime's; `model:invoke` covers only Coding's two explicit drafts (`agent.draft-text.v1`):
+    // The round's model call is the Agent runtime's; `model:invoke` covers only Coding's two explicit drafts (`agent.draft-text`):
     // the commit message and the digest of earlier rounds. Turned off, only those two stop (PG-035).
     { permission: "model:invoke", required: false, reason: "起草提交说明与历史摘要（显式调用）" },
     // Starting a review only: the directory is made and the child's files are brought back only once a person approves (PG-009).

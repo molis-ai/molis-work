@@ -25,7 +25,7 @@ interface Activation {
 async function routesPlugin(declared: readonly string[], routes: (activation: Activation) => PluginRouteBinding[]) {
   const activations: Activation[] = [], noted: StoppedServiceCall[] = [], ends = new WeakMap<object, () => void>();
   const definition: PluginDefinition = {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Route calls", kind: "app",
+    manifest: { schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Route calls", kind: "app",
       publisher: { publisher_id: "example", signature: "example-route-calls" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
       routes: declared.map(route_id => ({ route_id, method: "POST" as const, path: `/${route_id}` })) },

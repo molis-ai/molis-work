@@ -14,7 +14,7 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 
 function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.trust", version: "1.0.0", name: "Trust fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.trust", version: "1.0.0", name: "Trust fixture", kind: "app",
     publisher: { publisher_id: "someone", signature: "trust-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     ...extra,

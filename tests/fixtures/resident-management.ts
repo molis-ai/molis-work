@@ -51,7 +51,7 @@ export async function residentManagement(t: TestContext, options: MolisWorkLocal
     "x-molis-work-idempotency-key": randomUUID(), ...overrides }).filter((pair): pair is [string, string] => pair[1] !== undefined));
   const body = (input: unknown = { idempotency_key: randomUUID() }) => ({
     home_id: createHash("sha256").update(resolve(home)).digest("hex"), database_path: project.database_path,
-    project_id: project.project_id, call_id: randomUUID(), capability: { capability_id: "goals.board.initialize", version: 2 }, input });
+    project_id: project.project_id, call_id: randomUUID(), capability: { capability_id: "goals.board.initialize", version: 1 }, input });
   const post = async (input: unknown, overrides: Record<string, string | undefined> = {}) => {
     const response = await fetch(origin + MANAGEMENT_ROUTE, { method: "POST", headers: headers(overrides), body: JSON.stringify(input) });
     return { status: response.status, body: await response.json() as Record<string, unknown> };

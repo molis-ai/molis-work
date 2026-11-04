@@ -22,10 +22,10 @@ test("scene result labels belong to a finite recommendation contract", () => {
 
 const PLUGIN_ID = "io.molis.work.coding";
 
-function v2Manifest(): Record<string, unknown> {
+function currentManifest(): Record<string, unknown> {
   return {
-    schema_version: 2,
-    host_api_version: 2,
+    schema_version: 1,
+    host_api_version: 1,
     plugin_id: PLUGIN_ID,
     version: "0.1.0",
     name: "Coding",
@@ -92,7 +92,7 @@ function v2Manifest(): Record<string, unknown> {
 }
 
 function rejects(mutate: (manifest: Record<string, unknown>) => void, needle: string): void {
-  const input = v2Manifest();
+  const input = currentManifest();
   mutate(input);
   assert.throws(
     () => parsePluginManifest(input),
@@ -105,7 +105,7 @@ function rejects(mutate: (manifest: Record<string, unknown>) => void, needle: st
 }
 
 test("v2 Manifest keeps author declarations for ports, events, views, routes and agent", () => {
-  const input = v2Manifest();
+  const input = currentManifest();
   assert.deepEqual(parsePluginManifest(input), input);
 });
 
@@ -114,31 +114,14 @@ test("malformed action permissions fail as manifest errors instead of escaping v
   rejects(m => { m.action_scenes = [{ scene_id: "test.received", version: 1, permissions: 42 }]; }, "不完整");
 });
 
-test("v1 Manifest cannot silently carry v2 declarations", () => {
-  const v1 = {
-    schema_version: 1,
-    host_api_version: 1,
-    plugin_id: PLUGIN_ID,
-    version: "0.1.0",
-    name: "Coding",
-    kind: "native",
-    publisher: { publisher_id: "molis", signature: "official-coding-binding" },
-    entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: [],
-    capabilities: { provides: [], consumes: [] },
-    artifacts: { produces: [], consumes: [] },
-    ui: { contributions: [] },
-    ports: { inputs: [], outputs: [] },
-  };
-  assert.throws(
-    () => parsePluginManifest(v1),
-    (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
-      && error.code === "plugin.declaration_invalid" && error.message.includes("ports"),
-  );
-  assert.throws(
-    () => parsePluginManifest({ ...v1, ports: undefined, kind: "app" }),
-    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid",
-  );
+test("N26: a manifest with an unsupported format or host API is refused", () => {
+  const current = currentManifest();
+  for (const [schema_version, host_api_version] of [[2, 2], [1, 2], [2, 1]]) {
+    assert.throws(
+      () => parsePluginManifest({ ...current, schema_version, host_api_version }),
+      (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_invalid",
+    );
+  }
 });
 
 test("port declarations reject duplicates and groups that name an undeclared port", () => {
@@ -220,7 +203,7 @@ test("agent block is checked against the Plugin's own ports, prompts and subagen
     agent.roles[0]!.prompts = ["nowhere"];
   }, "引用了未声明的 Prompt");
   // A child in the main workspace may run commands (each reviewed) but never write files.
-  const checker = v2Manifest(), declared = checker.agent as { prompts: unknown[]; subagents: { parent_role_ids: string[]; roles: Array<Record<string, unknown>> } };
+  const checker = currentManifest(), declared = checker.agent as { prompts: unknown[]; subagents: { parent_role_ids: string[]; roles: Array<Record<string, unknown>> } };
   declared.subagents.parent_role_ids.push("reader");declared.prompts.push({ prompt_id: "checker", version: 1 });
   declared.subagents.roles.push({ role_id: "checker", version: 1, name: "Checker", execution: "workspace-write", parent_role_ids: ["reader"], host_tools: ["read-file", "run-command"] });
   assert.doesNotThrow(() => parsePluginManifest(checker));
@@ -261,7 +244,7 @@ test("ports must agree with the Artifact permissions and declarations they rely 
 });
 
 test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or self links", () => {
-  const input = v2Manifest();
+  const input = currentManifest();
   const ui = input.ui as Record<string, unknown>;
   ui.embedded_plugins = ["io.molis.work.example.reader"];
   assert.deepEqual(parsePluginManifest(input).ui.embedded_plugins, ["io.molis.work.example.reader"]);

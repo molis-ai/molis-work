@@ -28,7 +28,7 @@ interface Probe { readonly id: string; readonly declaration: PluginDatabaseDecla
 function probe(name: string, schema: string): Probe {
   const id = `io.molis.work.example.${name}`;
   const declaration: PluginDatabaseDeclaration = { store_name: name, version: 1, read_permission: `${name}:read`, write_permission: `${name}:write`, schema };
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: id, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: id, kind: "app",
     publisher: { publisher_id: "molis", signature: `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", declaration.read_permission, declaration.write_permission].map(permission => ({ permission, required: true, reason: "读写自己的表" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [],

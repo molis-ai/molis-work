@@ -27,10 +27,10 @@ export const feedItemActions = {
   offers: { ...defineSubjectOffersAction("feed.items.offers", ["feed_item"], "Feed 可用动作", ["feed:read"], [
     { offer_id: "feed.inbox", title: "加入 Inbox", action: { capability_id: "feed.items.inbox", version: 1 } },
     { offer_id: "feed.save", title: "保存为资料", action: { capability_id: "feed.items.disposition", version: 1 } },
-    { offer_id: "feed.promote", title: "升格为 Goal", action: { capability_id: "feed.items.promote", version: 2 } },
+    { offer_id: "feed.promote", title: "升格为 Goal", action: { capability_id: "feed.items.promote", version: 1 } },
     { offer_id: "feed.archive", title: "忽略", action: { capability_id: "feed.items.disposition", version: 1 } },
     { offer_id: "feed.restore", title: "恢复到 Feed", action: { capability_id: "feed.items.restore", version: 1 } },
-  ]), version: 2 },
+  ]), version: 1 },
   read: define<{ item_id: string }, FeedItemResult>("read", "标为已读", "把一条 Feed 消息标为已读；不改变它的去向", closed({ item_id: id }, ["item_id"]), itemResult, ["feed:read", "feed:write"]),
   inbox: define<{ item_id: string; expected_revision: number }, FeedItemResult>("inbox", "加入 Inbox", "按读取到的版本把这条消息加入 Inbox，并按当前 Inbox 规则判断下一步",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]), itemResult, ["feed:read", "feed:write", "inbox:write"], { scheduling: "concurrent" }),
@@ -41,7 +41,7 @@ export const feedItemActions = {
   promote: define<{ item_id: string; expected_revision: number }, FeedPromoteResult>("promote", "升格为 Goal", "为这条消息新建 Goal 并把它记为这个 Goal 的输入（用户升格记为已确认，助理、Agent、工作流和外部工具升格只记为待确认，等用户认可）；已关联且仍有效的 Goal 会直接复用。以调用者自己的权限调用 Goals 的 goals.directory.read、goals.create、goals.inputs.confirm，持精确动作授权的客户端要同时授权这三个动作；Goal 记在 Runtime 会话名下，经 MCP 调用须有稳定 Session",
     closed({ item_id: id, expected_revision: revision }, ["item_id", "expected_revision"]),
     { type: "object", properties: { item, goal_id: { type: "string" }, created: { type: "boolean" } }, required: ["item", "goal_id", "created"] },
-    ["feed:read", "feed:write", "goals:read", "goals:write"], { required_actions: GOALS_ACTIONS_FOR_PROMOTION, authorship: "session" }, 2),
+    ["feed:read", "feed:write", "goals:read", "goals:write"], { required_actions: GOALS_ACTIONS_FOR_PROMOTION, authorship: "session" }, 1),
 } as const;
 export const FEED_ITEM_ACTIONS: readonly ActionDefinition[] = Object.values(feedItemActions);
 

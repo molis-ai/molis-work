@@ -34,7 +34,7 @@ const pluginId = (name: string) => `io.molis.work.example.${name}`;
 
 /** A Manifest that asks the Host for a new worktree, declaring the permissions given. */
 function worktreeManifest(name: string, permissions: PluginManifest["permissions"]): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: pluginId(name), version: "1.0.0", name, kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: pluginId(name), version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions, capabilities: { provides: [], consumes: [writerDirectoryCapabilities.prepare.capability_id] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } };

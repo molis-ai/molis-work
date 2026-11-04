@@ -17,7 +17,7 @@ export function projectsProbe(name = "projectsprobe", declare = true) {
     action: { title: "exist", description: "Ask the Host's projects service", kind: "query", scope: "home", audiences: ["user"], permissions, subject_kinds: [], scheduling: "concurrent",
       input_schema: { type: "object", additionalProperties: false, required: ["ids"], properties: { ids: { type: "array" } } } } };
   const client = (): PluginProjectsClient => contexts.at(-1)?.services?.projects ?? assert.fail("no projects service");
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `projects-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "Ask whether projects exist" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [exist] },

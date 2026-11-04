@@ -3358,7 +3358,7 @@ export interface PluginLocalToolsDeclaration {
 }
 
 export interface PluginManifest {
-    schema_version: 1 | 2;
+    schema_version: 1;
     plugin_id: string;
     version: string;
     name: string;
@@ -3368,7 +3368,7 @@ export interface PluginManifest {
         publisher_id: string;
         signature: string;
     };
-    host_api_version: 1 | 2;
+    host_api_version: 1;
     always_on?: boolean;
     summary?: string;
     developer?: true;
@@ -4876,7 +4876,7 @@ export declare const WORKFLOW_CONTENT_SCHEMAS: {
 export declare const WORKFLOW_CONTENT_VERSIONS: {
     readonly list: 1;
     readonly read: 1;
-    readonly receive: 2;
+    readonly receive: 1;
     readonly create: 1;
 };
 

@@ -2,15 +2,15 @@
   "payload": {
     "schema_version": 1,
     "manifest": {
-      "schema_version": 2,
-      "host_api_version": 2,
+      "schema_version": 1,
+      "host_api_version": 1,
       "plugin_id": "io.molis.work.generated.294ae82b-b3fe-4dd6-8e65-28613de2a18e",
       "version": "1.0.1",
       "name": "文本计数器",
       "kind": "app",
       "publisher": {
         "publisher_id": "w4-once-test",
-        "signature": "ed25519:sha256:37418811f7545bf257a90d603ddaa9e0f2b7adc8c18d12a2e6bee8dadb1756c8"
+        "signature": "ed25519:sha256:8514cc13eec0bda590d99d13a6e700936f8b9c403116ef9a9e687c87065edd2a"
       },
       "entrypoints": [
         {
@@ -79,7 +79,7 @@
       },
       {
         "path": "manifest.json",
-        "content_base64": "eyJzY2hlbWFfdmVyc2lvbiI6MiwiaG9zdF9hcGlfdmVyc2lvbiI6MiwicGx1Z2luX2lkIjoiaW8ubW9saXMud29yay5nZW5lcmF0ZWQuMjk0YWU4MmItYjNmZS00ZGQ2LThlNjUtMjg2MTNkZTJhMThlIiwidmVyc2lvbiI6IjEuMC4xIiwibmFtZSI6IuaWh+acrOiuoeaVsOWZqCIsImtpbmQiOiJhcHAiLCJwdWJsaXNoZXIiOnsicHVibGlzaGVyX2lkIjoidzQtb25jZS10ZXN0Iiwic2lnbmF0dXJlIjoiZWQyNTUxOTpzaGEyNTY6Mzc0MTg4MTFmNzU0NWJmMjU3YTkwZDYwM2RkYWE5ZTBmMmI3YWRjOGMxOGQxMmEyZTZiZWU4ZGFkYjE3NTZjOCJ9LCJlbnRyeXBvaW50cyI6W3siZGVwbG95bWVudCI6ImxvY2FsIiwiZW50cnlwb2ludCI6Ii4vcGx1Z2luLm1qcyJ9XSwidXBncmFkZV9jb21wYXRpYmlsaXR5Ijp7ImNvbXBhdGlibGVfZnJvbV92ZXJzaW9ucyI6WyIxLjAuMCJdfSwicGVybWlzc2lvbnMiOlt7InBlcm1pc3Npb24iOiJzdG9yYWdlOnByaXZhdGUiLCJyZXF1aXJlZCI6dHJ1ZSwicmVhc29uIjoi5L+d5a2Y6L+Z5Liq5o+S5Lu26Ieq5bex55qE5pWw5o2uIn1dLCJjYXBhYmlsaXRpZXMiOnsicHJvdmlkZXMiOltdLCJjb25zdW1lcyI6WyJ1aS5wbHVnaW4tcHJlc2VudGF0aW9uIl19LCJhcnRpZmFjdHMiOnsicHJvZHVjZXMiOltdLCJjb25zdW1lcyI6W119LCJyZXF1aXJlcyI6W3siY2FwYWJpbGl0eV9pZCI6InVpLnBsdWdpbi1wcmVzZW50YXRpb24iLCJ2ZXJzaW9uIjoxLCJyZWFzb24iOiLmraTmj5Lku7bpnIDopoHmlbTpobXnu4TlkIjkuI7or6bmg4XmuLLmn5PlmaggdjEifV0sInJvdXRlcyI6W3sicm91dGVfaWQiOiJzdHVkaW8uY2FsbCIsIm1ldGhvZCI6IlBPU1QiLCJwYXRoIjoiL2NhbGwifV0sInVpIjp7ImNvbnRyaWJ1dGlvbnMiOlsiaW8ubW9saXMud29yay5nZW5lcmF0ZWQuMjk0YWU4MmItYjNmZS00ZGQ2LThlNjUtMjg2MTNkZTJhMThlLnVpLnYxIl0sInZpZXdzIjpbeyJ2aWV3X2lkIjoiYXBwIiwic2xvdCI6InN0YWdlIiwidGl0bGUiOiLmlofmnKzorqHmlbDlmagiLCJjb250cmlidXRpb25faWQiOiJpby5tb2xpcy53b3JrLmdlbmVyYXRlZC4yOTRhZTgyYi1iM2ZlLTRkZDYtOGU2NS0yODYxM2RlMmExOGUudWkudjEifV19fQ=="
+        "content_base64": "ewogICJzY2hlbWFfdmVyc2lvbiI6IDEsCiAgImhvc3RfYXBpX3ZlcnNpb24iOiAxLAogICJwbHVnaW5faWQiOiAiaW8ubW9saXMud29yay5nZW5lcmF0ZWQuMjk0YWU4MmItYjNmZS00ZGQ2LThlNjUtMjg2MTNkZTJhMThlIiwKICAidmVyc2lvbiI6ICIxLjAuMSIsCiAgIm5hbWUiOiAi5paH5pys6K6h5pWw5ZmoIiwKICAia2luZCI6ICJhcHAiLAogICJwdWJsaXNoZXIiOiB7CiAgICAicHVibGlzaGVyX2lkIjogInc0LW9uY2UtdGVzdCIsCiAgICAic2lnbmF0dXJlIjogImVkMjU1MTk6c2hhMjU2Ojg1MTRjYzEzZWVjMGJkYTU5MGQ5OWQxM2E2ZTcwMDkzNmY4YjljNDAzMTE2ZWY5YTllNjg3Yzg3MDY1ZWRkMmEiCiAgfSwKICAiZW50cnlwb2ludHMiOiBbCiAgICB7CiAgICAgICJkZXBsb3ltZW50IjogImxvY2FsIiwKICAgICAgImVudHJ5cG9pbnQiOiAiLi9wbHVnaW4ubWpzIgogICAgfQogIF0sCiAgInVwZ3JhZGVfY29tcGF0aWJpbGl0eSI6IHsKICAgICJjb21wYXRpYmxlX2Zyb21fdmVyc2lvbnMiOiBbCiAgICAgICIxLjAuMCIKICAgIF0KICB9LAogICJwZXJtaXNzaW9ucyI6IFsKICAgIHsKICAgICAgInBlcm1pc3Npb24iOiAic3RvcmFnZTpwcml2YXRlIiwKICAgICAgInJlcXVpcmVkIjogdHJ1ZSwKICAgICAgInJlYXNvbiI6ICLkv53lrZjov5nkuKrmj5Lku7boh6rlt7HnmoTmlbDmja4iCiAgICB9CiAgXSwKICAiY2FwYWJpbGl0aWVzIjogewogICAgInByb3ZpZGVzIjogW10sCiAgICAiY29uc3VtZXMiOiBbCiAgICAgICJ1aS5wbHVnaW4tcHJlc2VudGF0aW9uIgogICAgXQogIH0sCiAgImFydGlmYWN0cyI6IHsKICAgICJwcm9kdWNlcyI6IFtdLAogICAgImNvbnN1bWVzIjogW10KICB9LAogICJyZXF1aXJlcyI6IFsKICAgIHsKICAgICAgImNhcGFiaWxpdHlfaWQiOiAidWkucGx1Z2luLXByZXNlbnRhdGlvbiIsCiAgICAgICJ2ZXJzaW9uIjogMSwKICAgICAgInJlYXNvbiI6ICLmraTmj5Lku7bpnIDopoHmlbTpobXnu4TlkIjkuI7or6bmg4XmuLLmn5PlmaggdjEiCiAgICB9CiAgXSwKICAicm91dGVzIjogWwogICAgewogICAgICAicm91dGVfaWQiOiAic3R1ZGlvLmNhbGwiLAogICAgICAibWV0aG9kIjogIlBPU1QiLAogICAgICAicGF0aCI6ICIvY2FsbCIKICAgIH0KICBdLAogICJ1aSI6IHsKICAgICJjb250cmlidXRpb25zIjogWwogICAgICAiaW8ubW9saXMud29yay5nZW5lcmF0ZWQuMjk0YWU4MmItYjNmZS00ZGQ2LThlNjUtMjg2MTNkZTJhMThlLnVpLnYxIgogICAgXSwKICAgICJ2aWV3cyI6IFsKICAgICAgewogICAgICAgICJ2aWV3X2lkIjogImFwcCIsCiAgICAgICAgInNsb3QiOiAic3RhZ2UiLAogICAgICAgICJ0aXRsZSI6ICLmlofmnKzorqHmlbDlmagiLAogICAgICAgICJjb250cmlidXRpb25faWQiOiAiaW8ubW9saXMud29yay5nZW5lcmF0ZWQuMjk0YWU4MmItYjNmZS00ZGQ2LThlNjUtMjg2MTNkZTJhMThlLnVpLnYxIgogICAgICB9CiAgICBdCiAgfQp9Cg=="
       },
       {
         "path": "plugin.mjs",
@@ -93,10 +93,10 @@
   },
   "signature": {
     "algorithm": "ed25519",
-    "value_base64": "0fiqI24skWBtHJfpqBYLPTgKVme0U5sv94epbRwKTPlMkPKZPNQNfBBczCwL0tx+cNo3ZBvgHEL2O6D9Vw3iDg=="
+    "value_base64": "7YWWyUtXKqHTq+m51AYf1nv/+mywVqTwYk8Ocko/cDq2BhHRIGCJaUs9JiHVnONW09y/8fPGBrtuiEzdfxHeCg=="
   },
   "publisher_key": {
     "algorithm": "ed25519",
-    "spki_base64": "MCowBQYDK2VwAyEAlOqPQ841gOy3z8fS61iTzrILlVUl6wZTvtIFix9jK74="
+    "spki_base64": "MCowBQYDK2VwAyEAQjdT8PcNAWJVNFRdWx9fhKmS+OWSRTG7YuK9z2+r2FI="
   }
 }

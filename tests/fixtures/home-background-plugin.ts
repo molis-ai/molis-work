@@ -23,7 +23,7 @@ export function backgroundPlugin(answer: (projectId: string) => unknown) {
   const query = defineHomeBackgroundTasksAction("homebg.tasks", "示例后台任务", [READ]);
   // A third-party plugin may declare any schema for its answer; the page's rows are checked again by the Host.
   const declared = { ...query, action: { ...query.action, output_schema: { type: "object" as const } } };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: BACKGROUND_PLUGIN_ID, version: "1.0.0", name: "homebg", kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: BACKGROUND_PLUGIN_ID, version: "1.0.0", name: "homebg", kind: "app",
     publisher: { publisher_id: "example", signature: "home-background" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: READ, required: true, reason: "读自己的后台任务" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [declared] },

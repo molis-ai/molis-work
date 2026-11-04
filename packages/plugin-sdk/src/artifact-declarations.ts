@@ -19,13 +19,11 @@ const ROLES: Readonly<Record<Role, { label: string; operation: "query" | "comman
 
 /**
  * What stops the 成果 types of a Manifest from being kept in the 成果库, in the order a reader goes through them: each produced
- * type (name, preview, pin, compare, continue), then each type only read (continue). A version-1 Manifest cannot declare
- * actions, so it cannot give a produced type the preview it needs. `manifest` has passed the shape rules; what it does not
+ * type (name, preview, pin, compare, continue), then each type only read (continue). `manifest` has passed the shape rules; what it does not
  * promise (a title that is not text, a reference that is not a pair, actions that are not a list) is answered, not thrown.
  */
-export function artifactDeclarationProblems(manifest: Pick<PluginManifest, "schema_version" | "artifacts" | "actions">): string[] {
+export function artifactDeclarationProblems(manifest: Pick<PluginManifest, "artifacts" | "actions">): string[] {
   const produced = records(manifest.artifacts?.produces), consumed = records(manifest.artifacts?.consumes);
-  if (manifest.schema_version === 1) return [...versionOneProblems(produced, consumed), ...(manifest.artifacts?.links === undefined ? [] : ["成果链接种类（artifacts.links）需要 schema_version 2"])];
   const actions = declaredActions(manifest.actions);
   return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...consumed.flatMap(type => [...roleProblems(type, "continue", actions), ...fileProblems(type)]),
     ...linkProblems(manifest.artifacts?.links),
@@ -67,12 +65,6 @@ function fileProblems(type: Part): string[] {
   return problems;
 }
 
-function versionOneProblems(produced: Part[], consumed: Part[]): string[] {
-  return [
-    ...produced.map(type => `成果类型 ${keyOf(type)} 需要 schema_version 2：产出成果类型要有显示名和本插件的预览动作，v1 Manifest 不能声明动作`),
-    ...consumed.filter(type => type.continue !== undefined || type.file !== undefined).map(type => `成果类型 ${keyOf(type)} 的继续动作需要 schema_version 2`),
-  ];
-}
 
 function producedTypeProblems(type: Part, actions: ReadonlyMap<string, Part>): string[] {
   const key = keyOf(type), problems: string[] = [];

@@ -77,7 +77,7 @@ function probe(options: ProbeOptions = {}) {
   const on: Record<"ask" | "serial" | "plain", Behavior> = { ask: defaults, serial: defaults, plain: defaults };
   const started: Array<PluginHostServices | undefined> = [], preflight: Array<PluginUpgradeContext["services"]> = [];
   const attempts: { atStart?: unknown } = {};
-  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version, name: pluginId, kind: "app",
+  const manifest: PluginManifest = { schema_version: 1, host_api_version: 1, plugin_id: pluginId, version, name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature: options.signature ?? `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: declares ? (options.permissions ?? [{ permission: MODEL_INVOKE, required }]).map(item => ({ ...item, reason: "让模型把材料压成一句话" })) : [],
     capabilities: { provides: [], consumes: [] },

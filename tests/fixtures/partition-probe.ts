@@ -71,7 +71,7 @@ export const probe = {
 
 function createProbe(): PluginDefinition {
   const actions = [write, read, homeRead, later, laterStatus];
-  return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: PROBE_ID, version: "1.0.0", name: PROBE, kind: "app",
+  return { manifest: { schema_version: 1, host_api_version: 1, plugin_id: PROBE_ID, version: "1.0.0", name: PROBE, kind: "app",
     publisher: { publisher_id: "example", signature: `home-${PROBE}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: PROBE_PERMISSIONS.map(permission => ({ permission, required: true, reason: "分区探针读写自己的库" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions, runtime: { scope: "home" }, databases: { home: PROBE_DATABASE },

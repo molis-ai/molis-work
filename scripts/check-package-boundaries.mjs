@@ -247,7 +247,7 @@ export function checkMigratedIntegrationOwnership(repositoryRoot) {
     }
     const manifest = readJson(manifestPath);
     if (
-      (manifest.schema_version !== 1 && manifest.schema_version !== 2)
+      manifest.schema_version !== 1 || manifest.host_api_version !== 1
       || manifest.kind !== "integration"
       || !String(manifest.plugin_id ?? "").startsWith("io.molis.work.integration.")
       || !String(manifest.version ?? "").match(/^\d+\.\d+\.\d+/u)

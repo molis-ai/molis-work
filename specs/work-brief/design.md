@@ -94,7 +94,7 @@ interface Card {
 | `status` 来源状态 | 脉搏：每个来源一行红/黄/绿/n.a. | 色与一句话是助理的判断；读取成败与依据由宿主给 | 本轮各来源读取的活动编号 | 三色计数 / 行 / 行 + 风险展开 |
 | `agenda` 时间轴 | 今天或本周的时刻：日程、提醒、到期、冲突 | 主人 | `schedule.tasks.list`、`jelly.calendar.list`、`todo.reminders.due` | 下一个 / 当日轴 / 周视图 |
 | `timeline` 经过 | 一件事最近发生了什么 | 主人 | `goals.timeline.list`、`home.events.read`、`goals.history.list` | — / 最近 3 条 / 全部 |
-| `progress` 进度 | 受托工作的步骤、当前步、等待原因，可暂停或停止 | 执行主人 | `agent.run.read.v1`、`coding.runs.list`、`workflows.instances.get`、`images.jobs.get` | 环与当前步 / 步骤 / 步骤与记录入口 |
+| `progress` 进度 | 受托工作的步骤、当前步、等待原因，可暂停或停止 | 执行主人 | `agent.run.read`、`coding.runs.list`、`workflows.instances.get`、`images.jobs.get` | 环与当前步 / 步骤 / 步骤与记录入口 |
 | `diff` 对照 | 两个版本或候选稿与目标的差异 | 主人的对照动作；候选稿用 SDK 的 `compareTexts`（`packages/plugin-sdk/src/text-diff.ts`） | `pages.artifacts.compare`、`dataset.artifacts.compare`、`diff.compare` | 「+12 −3」 / 前几处 / 全部 |
 | `file` 文件 | 文件或成果的预览 | 主人的预览动作 | `artifacts.preview`、`files.side.content`、各插件的 `*.artifacts.preview` | 种类片 / 缩略与名称 / 预览 |
 | `text` 正文 | 助理的说明，可内嵌对象片 | 助理；对象片由宿主解析 | 现有富文本子集（`packages/plugin-sdk/src/rich-text.ts`） | 一句 / 段落（可折叠） / 全文 |
@@ -248,7 +248,7 @@ Skill 指导 → 模型在本轮读事实（各插件的查询动作，每次读
 
 ### 执行
 
-12. **进行中 `running`**：受托工作的真实进度。`*进度：progress`、`*在等：text`、`*控制：action`（暂停、停止、查看）。来源 `agent.run.read.v1`、`coding.runs.list`、`workflows.instances.get`、`images.jobs.get`。
+12. **进行中 `running`**：受托工作的真实进度。`*进度：progress`、`*在等：text`、`*控制：action`（暂停、停止、查看）。来源 `agent.run.read`、`coding.runs.list`、`workflows.instances.get`、`images.jobs.get`。
 13. **已完成 `receipt`**：做完了什么、改了哪里。`*结果：object 或 file`、`*改动：diff`、`*动作：action`（查看并定位；撤销只在主人有时出：`todo.changes.revert`、`pages.revert`、`jelly.undo`；下一步）。部分成功逐项列，保留没做的选择。
 
 ### 回顾

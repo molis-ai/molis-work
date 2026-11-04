@@ -101,7 +101,7 @@ const LIBRARY: HomePluginDatabaseDeclaration = { store_name: "rows-probe", versi
   schema: "CREATE TABLE items (id TEXT PRIMARY KEY, project_id TEXT NOT NULL); CREATE TABLE notes (id TEXT PRIMARY KEY, item_id TEXT NOT NULL);", project_rows: ROWS };
 
 function manifest(library: unknown = LIBRARY, id = "io.molis.work.example.rowsprobe"): PluginManifest {
-  return { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "Rows probe", kind: "app",
+  return { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "Rows probe", kind: "app",
     publisher: { publisher_id: "example", signature: "publisher-one" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [...PERMISSIONS], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     databases: { home: library as HomePluginDatabaseDeclaration } };

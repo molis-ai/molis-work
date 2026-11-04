@@ -43,7 +43,7 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   const beforeState = await goals.invoke(goalsActions.state, { goal_id });
   const progress = { goal_id, body: "One genuinely authorized note", idempotency_key: "typed-note" };
   const definition: PluginDefinition = { manifest: {
-    schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.typed-authority", version: "1.0.0", name: "Typed consumer", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.typed-authority", version: "1.0.0", name: "Typed consumer", kind: "app",
     publisher: { publisher_id: "example", signature: "typed-authority-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "goals:write", required: true, reason: "Record authorized progress" }],
     capabilities: { provides: [], consumes: [goalsActions.note.capability_id] },
@@ -135,7 +135,7 @@ for (const change of ["origin", "cancel", "provider", "closing", "async-checker"
       artifacts, processItems, ui: new UiHost(), dependencyCheck: reference => host.client(project).availability(reference, { consumer: "plugin" }),
       privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { hostIds: ISOLATED_HOST_IDS, actions });
     let capturedSdk: PluginActionClient | undefined;
-    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.tail-consumer", version: "1.0.0", name: "Tail consumer", kind: "app",
+    const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.fixture.tail-consumer", version: "1.0.0", name: "Tail consumer", kind: "app",
       publisher: { publisher_id: "fixture", signature: "tail" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
       capabilities: { provides: [], consumes: [descriptor.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
       async start(context) { capturedSdk = context.services?.actions; return { kind: "app" }; } };

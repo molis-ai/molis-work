@@ -28,7 +28,7 @@ test("W1-18-SEMVER-01 Runtime upgrades a hyphenated prerelease and refuses an un
   const starts: string[] = [];
   const definition = (version: string, from?: string): PluginDefinition => ({
     manifest: {
-      schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.semver-probe", version, name: "SemVer probe", kind: "app",
+      schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.semver-probe", version, name: "SemVer probe", kind: "app",
       publisher: { publisher_id: "fixture", signature: "semver-probe-binding" },
       entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

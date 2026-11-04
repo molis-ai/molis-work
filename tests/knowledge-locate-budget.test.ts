@@ -72,7 +72,7 @@ test("RAC-2498 omitted is always given: zero when everything fits, and sections 
   assert.ok(Math.max(...counts) - Math.min(...counts) <= 1, `sections go in by turns: ${counts.join(", ")}`);
 });
 
-test("RAC-2499 knowledge.locate@3 answers with omitted, and its output schema refuses an answer without it", async () => {
+test("RAC-2499 knowledge.locate@1 answers with omitted, and its output schema refuses an answer without it", async () => {
   assert.equal(knowledgeActions.locate.version, 3, "a new output field is a new version: a reference pinned to @2 keeps the old contract");
   assert.equal(modelPrompts.MODEL_DATA_MAX_CHARS, DATA_CHARS, "locate measures against the port's own data bound");
   const schema = knowledgeActions.locate.action.output_schema!;

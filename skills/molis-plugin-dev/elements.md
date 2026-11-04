@@ -4,8 +4,8 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 ## 身份
 
-- `schema_version`：产品插件用 `2`（ports、events、views、routes、agent、actions）。CLI 样例脚手架仍可能生成 `1`。
-- `host_api_version`：与 schema 对齐，产品用 `2`。
+- `schema_version`：现行格式为 `1`，支持 ports、events、views、routes、agent 和 actions。
+- `host_api_version`：与 schema 对齐，使用 `1`。
 - `plugin_id`：反向域名，如 `io.molis.work.feed`。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
 - `name`、`version`：给人看的名字；代码变化必须自己递增 version。同一 `plugin_id + version + signature` 的 Manifest 不能静默改内容。升级来源要通过 `upgrade_compatibility` 精确声明。

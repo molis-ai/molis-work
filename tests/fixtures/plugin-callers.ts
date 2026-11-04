@@ -57,7 +57,7 @@ export function callerPlugin(name: string, scope: CallerScope, permissions: Read
   const { peek, note } = probeActions(scope);
   const contexts: PluginStartContext[] = [];
   const declared = { "storage:private": true, [CALLERS_READ]: true, ...permissions };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `callers-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: Object.entries(declared).map(([permission, required]) => ({ permission, required, reason: "动作网关探针" })),
     capabilities: { provides: [], consumes: [peek.capability_id, note.capability_id, ...consumes] }, artifacts: { produces: [], consumes: [] },

@@ -47,8 +47,8 @@ function view(pluginId: string): UiContribution {
 
 function baseManifest(pluginId: string): PluginManifest {
   return {
-    schema_version: 2,
-    host_api_version: 2,
+    schema_version: 1,
+    host_api_version: 1,
     plugin_id: pluginId,
     version: "1.0.0",
     name: pluginId,

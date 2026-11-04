@@ -33,7 +33,7 @@ interface Probe { starts: string[][]; stops: number; failStart: boolean; failSto
 
 function build(version: string, permissions: PluginManifest["permissions"], probe: Probe, withAction = true): PluginDefinition {
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version, name: "Regrant fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version, name: "Regrant fixture", kind: "app",
     publisher: { publisher_id: "molis", signature: "regrant-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: withAction ? [USE_OPTIONAL] : [],
   };

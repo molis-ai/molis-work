@@ -18,8 +18,8 @@ export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID };
 const FORM_BODY_BYTES = 1_000_000;
 
 export const formManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: FORM_PLUGIN_ID,
   version: "0.3.0",
   name: "Forms",

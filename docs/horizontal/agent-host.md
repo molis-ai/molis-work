@@ -28,7 +28,7 @@ adapter 不自己解析角色，也不发明 Prompt。
 
 Prologue Node 用 SDK 的 SkillRegistry、prepareSkillIntent、fillSkillBody 准备有界文本方法，将正文固定到本轮指令，保留原任务和副作用审查。当前能力为 partial：内置和已安装方法可显式选择，安装管理已接通，模型自动调用和派生方法尚未接通。运行中选择变化只供下一轮，冻结结果必须与 Host 选择一致；已展开正文不代表任务已经执行或验收。
 
-安装使用 `agent.skills.discover.v1` 与 `agent.skills.install.v1`：发现只接受当前项目已授权根内的相对目录，通过 SDK reader 读取后返回完整候选快照；重新发现/重启后旧候选失效。安装复用 SDK 包扫描和 secureBody 存储，版本 1 不覆盖同名，原子 expectedVersion=0 阻止重复写入。安装只保存文本（工具声明为空），不执行包内脚本，也不自动选择或扩大本轮权限。
+安装使用 `agent.skills.discover` 与 `agent.skills.install`：发现只接受当前项目已授权根内的相对目录，通过 SDK reader 读取后返回完整候选快照；重新发现/重启后旧候选失效。安装复用 SDK 包扫描和 secureBody 存储，版本 1 不覆盖同名，原子 expectedVersion=0 阻止重复写入。安装只保存文本（工具声明为空），不执行包内脚本，也不自动选择或扩大本轮权限。
 
 ## Review 队列：批准是一次性的
 

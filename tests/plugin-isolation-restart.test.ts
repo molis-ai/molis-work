@@ -32,8 +32,8 @@ function appManifest(input: {
     reason: "测试依赖",
   }));
   return {
-    schema_version: 2,
-    host_api_version: 2,
+    schema_version: 1,
+    host_api_version: 1,
     plugin_id: input.id,
     version: "1.0.0",
     name: input.id,

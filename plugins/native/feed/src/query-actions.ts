@@ -54,7 +54,7 @@ export const feedQueryActions = {
     { type: "object", properties: { item, inbox_active: { type: "boolean" }, promote_available: { type: "boolean" } },
       required: ["item", "inbox_active", "promote_available"], additionalProperties: false }, ["feed:read", "inbox:read", "evidence:read"]),
   linkedContext: { ...linkedContext, action: { ...linkedContext.action, permissions: ["feed:read", "goals:read"],
-    required_actions: [{ capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" }] } },
+    required_actions: [{ capability_id: "goals.contract.read", version: 1, provider_id: "io.molis.work.goals" }] } },
   snapshot: define<{ include_contents?: boolean }, FeedDirectorySnapshot>("feed.snapshot", "读取 Feed 面板",
     "读取当前项目的来源、消息与拉取记录；默认省略正文，Inbox 事项由 Inbox 自己授权读取",
     { ...empty, properties: { include_contents: { type: "boolean" } } },

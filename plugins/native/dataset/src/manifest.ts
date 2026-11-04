@@ -17,8 +17,8 @@ export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
 const DATASET_BODY_BYTES = 1_000_000;
 
 export const datasetManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: DATASET_PLUGIN_ID,
   version: "0.3.0",
   name: "Dataset",

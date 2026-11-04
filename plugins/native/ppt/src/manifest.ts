@@ -17,8 +17,8 @@ export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 const PPT_BODY_BYTES = 1_000_000;
 
 export const pptManifest: PluginManifest = {
-  schema_version: 2,
-  host_api_version: 2,
+  schema_version: 1,
+  host_api_version: 1,
   plugin_id: PPT_PLUGIN_ID,
   version: "0.3.0",
   name: "PPT",

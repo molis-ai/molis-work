@@ -29,7 +29,7 @@ export function localToolsProbe(name = "toolsprobe", declaration: PluginLocalToo
   });
   const find = action("find", "query"), check = action("check", "query"), refresh = action("refresh", "command");
   const client = (): PluginLocalToolsClient => contexts.at(-1)?.services?.localTools ?? assert.fail("no local tools service");
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `local-tools-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "Look for tools" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [find, check, refresh],

@@ -158,7 +158,7 @@ test("RAC-753 a page's catalog holds the words of the Plugins that are registere
 const PLUGIN_ID = "io.molis.work.example.words-fixture";
 const definition = (): PluginDefinition => {
   const manifest: PluginManifest = {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Words fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version: "1.0.0", name: "Words fixture", kind: "app",
     publisher: { publisher_id: "molis", signature: "words-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: [],
     ui: { contributions: [], messages: { "words-fixture.panel.title": { zh: "固定文字", en: "Fixture words" } }, translations: { "夹具里的中文": "Words in the fixture" } },

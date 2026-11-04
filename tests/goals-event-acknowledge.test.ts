@@ -41,7 +41,7 @@ const PROBE: ActionDefinition<Record<string, never>, null> = { capability_id: "g
 /** A plugin that holds Goals' read and write permissions and declares the acknowledge action, started by the Host like any other. */
 function goalsPlugin() {
   const contexts: PluginStartContext[] = [];
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.goals-ack", version: "1.0.0",
+  const definition: PluginDefinition = { manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.goals-ack", version: "1.0.0",
     name: "Goals ack", kind: "app", publisher: { publisher_id: "example", signature: "goals-ack" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["goals:read", "goals:write"].map(permission => ({ permission, required: true, reason: "读写目标" })),
     capabilities: { provides: [], consumes: [PROBE.capability_id, ack] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

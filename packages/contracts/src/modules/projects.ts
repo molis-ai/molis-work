@@ -307,19 +307,19 @@ export const projectSettingsCapabilities = {
 } as const;
 
 /** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog. */
-const membership = <Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>, version = 1): ActionDefinition<Input, Output> => ({
-  capability_id: id, version, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
+const membership = <Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<Input, Output> => ({
+  capability_id: id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
     subject_kinds: ["project"], input_schema: { type: "object", properties: input, required: Object.keys(input), additionalProperties: false }, output_schema: { type: "object", properties: output, required: Object.keys(output) } },
 });
 const folderPath = { type: "string", minLength: 1, maxLength: 4096 }, folderId = { type: "string", minLength: 1, maxLength: 200 };
 export const projectWorkspaceActions = {
   add: membership<{ workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.add", "关联工作目录", "把本机一个目录加入当前项目的工作目录",
     { workspace_path: folderPath }, { workspace: { type: "object" } }),
-  // v2: Sessions are retired (BL-177), so repair and unlink no longer move them or report how many moved.
+  // Sessions are retired (BL-177), so repair and unlink no longer move them or report how many moved.
   repair: membership<{ workspace_id: string; workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.repair", "修复工作目录路径",
-    "目录搬走或改名后，把项目关系指向新路径", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" } }, 2),
+    "目录搬走或改名后，把项目关系指向新路径", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" } }),
   unlink: membership<{ workspace_id: string }, { changed: boolean }>("projects.workspaces.unlink", "解除工作目录", "解除当前项目与这个目录的关系；目录本身保留",
-    { workspace_id: folderId }, { changed: { type: "boolean" } }, 2),
+    { workspace_id: folderId }, { changed: { type: "boolean" } }),
 };
 
 function workspaceQuery(title: string, description: string, nullable: boolean): ActionMetadata {

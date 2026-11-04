@@ -19,7 +19,7 @@ import { ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
 const FILES = { store_name: "notes", entries: [{ name: "catalog.json", kind: "file" }, { name: "documents", kind: "directory" }], read_permission: "notes:read", write_permission: "notes:write" };
 const manifest = (owner_files: unknown, permissions = ["storage:private", "notes:read", "notes:write"]) => ({
-  schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
+  schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.notes-probe", version: "0.1.0", name: "Notes", kind: "native",
   publisher: { publisher_id: "example", signature: "publisher-a" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
   permissions: permissions.map(permission => ({ permission, required: true, reason: "自己的文件" })),
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },

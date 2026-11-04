@@ -393,7 +393,7 @@ test("official MCP launcher: work records and tree proposals retain provenance a
     assert.equal(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.submit__v1", arguments: treeInput })).replayed, true);
     const treeQuery = { proposal_id: proposed.proposal.proposal_id };
     const treeCheck = { ...treeQuery, idempotency_key: "mcp-tree-check" };
-    const checkedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.check__v2", arguments: treeCheck });
+    const checkedWire = await sdk.callTool({ name: "molis_work_v1_action_goals.tree.check__v1", arguments: treeCheck });
     assert.equal(checkedWire.isError, false, JSON.stringify(checkedWire));
     assert.deepEqual(parseText(checkedWire).conflict_item_ids, []);
     assert.deepEqual(parseText(await sdk.callTool({ name: "molis_work_v1_action_goals.tree.read__v1", arguments: treeQuery })), await invokePlanning(goalsActions.treeRead, treeQuery));

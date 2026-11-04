@@ -19,7 +19,7 @@ const ALWAYS_ON = { kind: "always_on", subject: consentSubject.alwaysOn() } as c
 
 function manifest(version: string, extra: Partial<PluginManifest> = {}): PluginManifest {
   return {
-    schema_version: 2, host_api_version: 2, plugin_id: PLUGIN_ID, version, name: "Always-on fixture", kind: "app",
+    schema_version: 1, host_api_version: 1, plugin_id: PLUGIN_ID, version, name: "Always-on fixture", kind: "app",
     publisher: { publisher_id: "someone", signature: "always-on-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
     ...extra,

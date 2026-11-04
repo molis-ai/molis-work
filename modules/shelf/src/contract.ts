@@ -74,7 +74,7 @@ export interface ShelfAdmitActionInput {
  * It fetches nothing and names no original file: those are `shelf.items.capture` and `shelf.items.original`.
  */
 export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item: ShelfItemRecord }> = {
-  capability_id: "shelf.items.admit", version: 2, operation: "command",
+  capability_id: "shelf.items.admit", version: 1, operation: "command",
   action: {
     title: "放进 Shelf", description: "把一段文字或一个文件副本放进置物架；文字里的网址按链接保存，不抓取网页", kind: "operation",
     scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:read", "shelf:write", "materials:read"], subject_kinds: ["shelf_item"],

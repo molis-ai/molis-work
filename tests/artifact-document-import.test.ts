@@ -630,7 +630,7 @@ test("RAC-2426 the document import reads the Home registry's document_import int
     const registry = await homeIntegrationRegistry(home);
     const service = { service_id: "docimport-service", title: "Doc import fixture", group_id: "work", summary: "A document source a package declares",
       auth_kind: "token" as const, auth: { methods: [{ kind: "token" as const, label: "Doc import token" }] }, capabilities: [{ label: "文档导入", fulfillment: "live" as const }] };
-    const manifest = { schema_version: 2 as const, host_api_version: 2, plugin_id: "io.molis.work.example.docimport", version: "1.0.0", name: "Doc import fixture",
+    const manifest = { schema_version: 1 as const, host_api_version: 1, plugin_id: "io.molis.work.example.docimport", version: "1.0.0", name: "Doc import fixture",
       kind: "integration" as const, publisher: { publisher_id: "io.example", signature: "example-signature-v1" },
       entrypoints: [{ deployment: "local" as const, entrypoint: "./plugin.mjs" }],
       permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }], capabilities: { provides: [], consumes: [] },

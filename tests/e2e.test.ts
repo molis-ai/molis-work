@@ -396,7 +396,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
           }>;
         }).tools;
         const installedNames = installedTools.map((tool) => tool.name);
-        for (const name of ["molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v2", "molis_work_v1_action_goals.events.read__v2", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
+        for (const name of ["molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v1", "molis_work_v1_action_goals.events.read__v1", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
           assert.equal(installedNames.includes(name), false, "project binding and explicit action grants are required");
         }
         for (const name of [
@@ -494,7 +494,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         }) as { replayed: boolean; event_id: string };
         assert.equal(replayedNote.replayed, true);
         assert.equal(replayedNote.event_id, createdGoal.noteId);
-        const listed = await restartedMcp.call("molis_work_v1_action_goals.events.list__v2", {
+        const listed = await restartedMcp.call("molis_work_v1_action_goals.events.list__v1", {
           goal_id: createdGoal.goalId,
           limit: 20,
         }) as { events: Array<{ event_id: string; kind: string; payload?: { operation?: string; body?: string } }> };

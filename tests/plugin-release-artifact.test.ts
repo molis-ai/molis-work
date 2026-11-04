@@ -696,8 +696,8 @@ function definition(
 ): PluginDefinition {
   const label = variant?.build ? `${version} ${variant.build}` : version;
   const manifest: PluginManifest = {
-    schema_version: 2,
-    host_api_version: 2,
+    schema_version: 1,
+    host_api_version: 1,
     plugin_id: PLUGIN_ID,
     version,
     name: variant?.build ? `Release fixture ${variant.build}` : "Release fixture",

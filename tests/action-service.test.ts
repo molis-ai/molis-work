@@ -45,7 +45,7 @@ test("unknown SDK plugin registers a real write and read through Runtime; stoppi
     action: { ...write.definition.action, title: "读取笔记", kind: "query", permissions: [],
       input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "array", items: { type: "object" } } },
   }, c => db.prepare("SELECT id, body FROM notes WHERE project = ? ORDER BY id").all(c.project_id));
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "测试笔记",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "测试笔记",
     kind: "app", publisher: { publisher_id: "example", signature: "example-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: [{ permission: "notes:write", required: false, reason: "保存笔记" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [write.definition, read.definition] },
@@ -378,7 +378,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     return row ? { ...JSON.parse(row.binding), revision: row.revision } as ActionSceneBinding : null;
   };
   const configurable = { ...scene, configuration_permissions: ["notes:write"] };
-  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.configurable", version: "1.0.0", name: "配置位置插件",
+  const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.configurable", version: "1.0.0", name: "配置位置插件",
     kind: "app", publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
     permissions: ["notes:write", "notes:activate"].map(permission => ({ permission, required: false, reason: "配置原业务规则" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] }, actions: [], action_scenes: [configurable] }, async start() { return { kind: "app", action_scenes: [{ ...configurable,

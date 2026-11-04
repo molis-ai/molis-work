@@ -255,12 +255,15 @@ const headErrors = (measured, budget, base) => {
 // Tried: each skin rule is written once over shared `--sk-*` tokens; the board's own samples stay inlined on the board page;
 // the palette switch was removed from the board instead of shipped; the soft-fog commit's rewrite of buttons and badges is
 // smaller than what it replaced; no new asset.
+// BL-952 (2026-11-04): the selection reader skips headings inside a closed dialog or a hidden element, +56 B on workbench.js and on
+// plugin-frame.js (the same reader). Tried: one `closest` test with a short selector, no feature check, no second path.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [678758, 689755],
   "/assets/molis-work-plugins/coding.css": [74624, 75514],
   "/assets/molis-work-settings.css": [816992, 826705],
   "/assets/molis-work-workbench.css": [1179610, 1194394],
-  "/assets/molis-work-workbench.js": [1073749, 1074514],
+  "/assets/molis-work-workbench.js": [1074514, 1074570],
+  "/assets/molis-work-plugin-frame.js": [207977, 208033],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

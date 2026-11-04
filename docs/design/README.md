@@ -20,6 +20,7 @@
 | [work-records/](work-records/README.md) | 工作记录的可点定样：记了什么、保留与清理、占用、覆盖与缺口四块定下的方案，用组件板实件画（样式是组件板现行样式的生成快照），含首次接入、暂停、期限过短、清理失败、磁盘满、断线与截断等状态 | 用户已定（2026-11-04，四块都选推荐方案，同日按组件板实件重做并确认）；产品未实现；里面是示例数据 |
 | [coding-execution-states/](coding-execution-states/README.md) | 第 12 批 Coding 执行的可点定样：目录（执行目录、临时查看、冻结、输出不见了）、规则和模式（只读提示与切换、规则来源）、恢复（失败、结果未知、取消、超时、被系统结束、重启后、等待前一步，沿用 04 的恢复框架）、计划卡与任务板按位置编号；每块 A／B／C 三个方案，中英文、浅深色 | 用户已选定（2026-11-04：目录 C，其余 A，记在 [Coding 需求书 §11](../../specs/coding-harness-optimization/spec.md#11-决策记录)）；产品未实现；里面是示例数据 |
 | [service-connections/](service-connections/README.md) | 服务与模型连接的可点定样：直接连接、高级配置、连好回到原处三块，各三个方案，含取消登录、登录失效、换账号、服务限流、密钥被拒 | 用户已选定（2026-11-04，三块都选 A）；产品未实现；里面是示例数据 |
+| [kit/](kit/README.md) | 组件板实件，各原型共用一份：从构建结果生成的 `kit.css`／`kit.js`（色板、`mw-*` 控件、状态环、差异视图、过程折叠、图标表与真实渲染函数）和生成脚本 | 现行；`pnpm build` 后 `node docs/design/kit/build.mjs` 重新生成，不手改；组件板变了由 D 轨重生成 |
 | [molis-work-onboarding/](molis-work-onboarding/proposal.md) | 「从已有工作开始」的引导与项目创建方案 | 流程与数据边界仍有效；视觉由 Soft Workbench 引导窗口取代 |
 | [ui-renewal-2026-09-21/](ui-renewal-2026-09-21/README.md) | 设计讨论、研究与共识 | 历史参考 |
 | [immersive-workbench/](immersive-workbench/README.md) | 画布中心工作台原型（Linear 方向） | 历史原型，视觉已被取代 |

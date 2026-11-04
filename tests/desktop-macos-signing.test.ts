@@ -50,7 +50,7 @@ test("C-1 the release build signs the runtime before Tauri packs it, checks ever
 });
 
 /** A runtime laid out like src-tauri/resources/molis-work-runtime, with the real Node, real addons and a helper app. */
-function fixtureRuntime(): { dir: string; node: string; addon: string; helper: string; cleanup: () => void } {
+function fixtureRuntime(): { dir: string; node: string; addon: string; spawnHelper: string; helper: string; helperTool: string; cleanup: () => void } {
   const base = mkdtempSync(path.join(tmpdir(), "molis-signing-"));
   const dir = path.join(base, "molis-work-runtime");
   const node = path.join(dir, "runtime/node");
@@ -63,10 +63,20 @@ function fixtureRuntime(): { dir: string; node: string; addon: string; helper: s
   mkdirSync(path.dirname(addon), { recursive: true });
   copyFileSync(path.join(sqliteRoot, "build/Release/better_sqlite3.node"), addon);
 
-  const helper = path.join(dir, "native/computer/bin/Molis Work Computer Helper.app");
-  mkdirSync(path.join(helper, "Contents/MacOS"), { recursive: true });
   writeFileSync(path.join(base, "main.c"), "int main(void) { return 0; }\n");
-  execFileSync("/usr/bin/clang", ["-o", path.join(helper, "Contents/MacOS/computer-helper"), path.join(base, "main.c")]);
+  const compile = (output: string) => execFileSync("/usr/bin/clang", ["-o", output, path.join(base, "main.c")]);
+  // A loose executable, like node-pty's spawn-helper.
+  const spawnHelper = path.join(dir, "node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper");
+  mkdirSync(path.dirname(spawnHelper), { recursive: true });
+  compile(spawnHelper);
+
+  // A helper app with a second Mach-O inside it besides its main executable.
+  const helper = path.join(dir, "native/computer/bin/Molis Work Computer Helper.app");
+  const helperTool = path.join(helper, "Contents/Resources/tool");
+  mkdirSync(path.join(helper, "Contents/MacOS"), { recursive: true });
+  mkdirSync(path.dirname(helperTool), { recursive: true });
+  compile(path.join(helper, "Contents/MacOS/computer-helper"));
+  compile(helperTool);
   writeFileSync(path.join(helper, "Contents/Info.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -80,7 +90,7 @@ function fixtureRuntime(): { dir: string; node: string; addon: string; helper: s
   // A folder that only looks like a bundle (no Info.plist) is plain content, not code to seal.
   mkdirSync(path.join(dir, "node_modules/look-alike.bundle"), { recursive: true });
   writeFileSync(path.join(dir, "node_modules/look-alike.bundle/README"), "not code\n");
-  return { dir, node, addon, helper, cleanup: () => rmSync(base, { recursive: true, force: true }) };
+  return { dir, node, addon, spawnHelper, helper, helperTool, cleanup: () => rmSync(base, { recursive: true, force: true }) };
 }
 
 const run = (script: string, ...args: string[]) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
@@ -95,7 +105,7 @@ test("C-1 S2 an ad-hoc signed runtime passes the local check, its Node starts un
 
   const signed = run(signScript, fixture.dir, "-");
   assert.equal(signed.status, 0, signed.stderr);
-  assert.match(signed.stdout, /Signed 2 Mach-O file\(s\) and 1 bundle\(s\)/);
+  assert.match(signed.stdout, /Signed 4 Mach-O file\(s\) and 1 bundle\(s\)/);
 
   const after = run(verifyScript, fixture.dir);
   assert.equal(after.status, 0, after.stderr);
@@ -115,7 +125,7 @@ test("C-1 S2 an ad-hoc signed runtime passes the local check, its Node starts un
   assert.match(release.stderr, /no secure timestamp/);
 });
 
-test("C-1 the local check rejects get-task-allow, a Node without JIT, and a helper whose executable was signed alone", darwin, t => {
+test("C-1 the local check rejects get-task-allow, a Node without JIT, and a bundle whose inner code was re-signed after sealing", darwin, t => {
   const fixture = fixtureRuntime();
   t.after(fixture.cleanup);
   assert.equal(run(signScript, fixture.dir, "-").status, 0);
@@ -125,16 +135,16 @@ test("C-1 the local check rejects get-task-allow, a Node without JIT, and a help
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>com.apple.security.get-task-allow</key><true/></dict></plist>
 `);
-  execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", "--entitlements", debuggable, fixture.addon], { stdio: "pipe" });
+  // Entitlements only exist on executables (codesign ignores them on a library such as a .node addon).
+  execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", "--entitlements", debuggable, fixture.spawnHelper], { stdio: "pipe" });
   // Node re-signed without its entitlements: hardened runtime on, JIT not allowed.
   execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", fixture.node], { stdio: "pipe" });
-  // The snapshot's mistake: re-signing the helper's executable by itself after the bundle was sealed.
-  execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-",
-    path.join(fixture.helper, "Contents/MacOS/computer-helper")], { stdio: "pipe" });
+  // Signing code inside a bundle after the bundle was sealed changes a sealed file: the bundle no longer verifies.
+  execFileSync("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", fixture.helperTool], { stdio: "pipe" });
 
   const result = run(verifyScript, fixture.dir);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /better_sqlite3\.node: carries get-task-allow/);
+  assert.match(result.stderr, /spawn-helper: carries get-task-allow/);
   assert.match(result.stderr, /runtime\/node: Node without com\.apple\.security\.cs\.allow-jit/);
   assert.match(result.stderr, /Computer Helper\.app: signature does not verify/);
 });

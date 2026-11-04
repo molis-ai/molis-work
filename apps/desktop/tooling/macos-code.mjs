@@ -1,10 +1,10 @@
 // What counts as code in a macOS release tree, shared by sign-macos-runtime.mjs and verify-macos-signatures.mjs.
 //
 // macOS signs two kinds of things: a single Mach-O file, and a bundle (.app, .framework, .bundle, .xpc, .appex) that is
-// sealed as one unit — its main executable, Info.plist and resources are hashed together. A Mach-O inside a bundle must
-// never be signed on its own after the bundle is sealed: that rewrites the executable and breaks the bundle's seal
-// (the mistake in the unreviewed snapshot d6fa42998, batches/26.md). So the tree is split into bundles and loose files,
-// and every Mach-O is assigned to the innermost bundle that holds it.
+// sealed as one unit — its main executable, Info.plist and every other file are hashed together. Any other Mach-O inside a
+// bundle is one of those sealed files: it has to be signed before the bundle, and never again afterwards, or the bundle
+// no longer verifies. So the tree is split into bundles and loose files, every Mach-O is assigned to the innermost bundle
+// that holds it, and bundles are signed innermost first.
 import { execFileSync } from "node:child_process";
 import { closeSync, lstatSync, openSync, readSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";

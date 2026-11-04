@@ -67,7 +67,7 @@ security find-identity -v -p codesigning
 
 1. **先查公证凭据**：只认环境变量名（`APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_PATH`，或 `APPLE_ID` + `APPLE_PASSWORD` + `APPLE_TEAM_ID`），一组都不齐就在构建前停下。签了名却没公证的包不能给人。
 2. **准备内嵌运行时**：下载并校验 Node，生成运行时，删掉 `node-pty` 里别的平台和另一架构的预编译。
-3. **逐个重签内嵌运行时**（`sign-macos-runtime.mjs`）：Tauri 只签 App 的标准位置，`Contents/Resources` 下的代码它不签。脚本把里面每个 Mach-O 用同一身份重签，开 hardened runtime、带时间戳；`runtime/node` 带 [`node-runtime.entitlements`](../../apps/desktop/tooling/entitlements/node-runtime.entitlements)（JIT、可执行内存、放开库校验，**不带** `get-task-allow`）；电脑助手这类 `.app` 由里往外按 bundle 整体签，不单签里面的可执行文件。
+3. **逐个重签内嵌运行时**（`sign-macos-runtime.mjs`）：Tauri 只签 App 的标准位置，`Contents/Resources` 下的代码它不签。脚本把里面每个 Mach-O 用同一身份重签，开 hardened runtime、带时间戳；`runtime/node` 带 [`node-runtime.entitlements`](../../apps/desktop/tooling/entitlements/node-runtime.entitlements)（JIT、可执行内存、放开库校验，**不带** `get-task-allow`）；电脑助手这类 `.app` 先签里面主程序以外的 Mach-O，再由里往外把 bundle 整体签，签完不再动里面的文件。
 4. **Tauri 打包、签 App、公证并装订 App**。App 的 entitlements 是 `src-tauri/Entitlements.plist`（向 Safari、Chrome、Finder 发 Apple Events），说明文字在 `src-tauri/Info.plist` 的 `NSAppleEventsUsageDescription`。
 5. **逐个检查签名**（`verify-macos-signatures.mjs --release`）：每个 Mach-O 和 bundle 签名有效、hardened runtime、没有 `get-task-allow`、Node 有 JIT 权限、都是 Developer ID、都带时间戳、只有一个 Team ID。
 6. **签名、公证、装订 DMG**（`notarytool submit --wait`、`stapler staple`）。用户可能第一次在断网时打开下载的 DMG，所以 DMG 也要带自己的票据。

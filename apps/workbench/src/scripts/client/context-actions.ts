@@ -125,7 +125,7 @@ const PANE_PART = String.raw`  const L = host.translate;
   // What the plugins declare as their search sources: surface → the one kind it opens and the plugin that owns it. Read once.
   // The declarations are a project's: a page with no project open (choosing one) has none and asks nothing (N53).
   let surfaces = null;
-  const known=()=>surfaces||(surfaces=!document.body.dataset.projectId?Promise.resolve({}):molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
+  const known=()=>!document.body.dataset.projectId?Promise.resolve({}):surfaces||(surfaces=molisWorkRequest(host.route("/api/contextual/surfaces")).then(value=>value.surfaces||{}).catch(()=>{surfaces=null;return {};}));
   // A surface opened an item (the workbench's molis-work:select-item) but did not name it: name it from what the
   // plugins declare as their search sources (surface → kind), so its text can be acted on like any declared object.
   (() => {

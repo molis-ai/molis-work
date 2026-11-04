@@ -71,10 +71,11 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     }
   };
   const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
-  // A 404 means this page's project (or Home) is gone: an old tab stops asking instead of reading a 404 every 15 seconds (N54).
-  let gone = false, timer = 0;
+  // A 404 means the project (or Home) this address reads is gone: an old tab stops asking it instead of reading a 404 every
+  // 15 seconds (N54). It is kept by address: the project chooser's route follows the project chosen, and another one is asked.
+  const gone = new Set();
   const read = async () => {
-    if (document.hidden || gone) return;
+    if (document.hidden || gone.has(route("/api/attention"))) return;
     if (reading) { again = true; return; }
     reading = true; again = false;
     const started = performance.now();
@@ -85,7 +86,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
     } catch (error) {
       // Any other failure keeps what it showed and is asked again on the next beat.
-      if (error && error.status === 404) { gone = true; clearInterval(timer); }
+      if (error && error.status === 404) gone.add(route("/api/attention"));
     }
     finally { reading = false; if (again) void read(); }
   };
@@ -98,5 +99,5 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void read(); });
   document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(read, 300));
   void read();
-  timer = setInterval(read, 15000);
+  setInterval(read, 15000);
 }`;

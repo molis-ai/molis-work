@@ -6,7 +6,7 @@ const reads = new Map<string, Promise<Record<string, string>>>();
 /**
  * Which surface opens objects of a kind, as the plugins declare it (their search sources: surface → the one kind it opens). A kind
  * that no surface or several surfaces claim is left out, so a page never gets a link that opens nothing or the wrong place.
- * The declarations are a project's: a page with no project open asks nothing (the Host answers 400 there).
+ * The declarations are a project's: a page with no project open asks nothing (the read could only fail there).
  */
 export async function subjectSurfaces(route: (path: string) => string, scope: FrameScope): Promise<Record<string, string>> {
   if (!document.body.dataset.projectId) return {};

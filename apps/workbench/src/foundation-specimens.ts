@@ -18,14 +18,12 @@ const MEDIA_SPECIMEN = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="h
 export function renderFoundationSection(): string {
   const specimen = (caption: string, body: string) => `<figure class="mw-catalog__specimen"><figcaption>${caption}</figcaption><div class="mw-catalog-fade-box">${body}</div></figure>`;
   return `<section class="mw-catalog__section" id="foundation" data-primitive="foundation"><h2>视觉机制</h2>
-    <p class="mw-catalog__hint">哪里都不画滚动条，照样能用滚轮、触控、键盘和焦点滚动，哪边还有更多由边缘渐隐告诉人。边缘渐隐：放不下的横向条只在真有更多的一侧淡出，28px 羽化、八个透明度采样；滚到头那一侧变清晰，放得下两侧都清晰；用键盘走到的项停在羽化之外；强制颜色下去掉渐隐、换回系统滚动条。</p>
     <div class="mw-catalog__specimens">
       ${specimen("放不下 · 右侧有更多", strip("视图（起点）"))}
       ${specimen("滚到中间 · 两侧都有", strip("视图（中间）", ' data-catalog-scroll="middle"'))}
       ${specimen("从右到左", strip("视图（从右到左）", ' dir="rtl"'))}
       ${specimen("放得下 · 不淡出", strip("视图（放得下）", "", VIEWS.slice(0, 3)))}
     </div>
-    <p class="mw-catalog__hint">复制：剪贴板真的收下才显示「已复制」，约 2.5 秒后淡回；失败说复制失败；三种文字占同一宽度，连按以最后一次为准。折叠：按自然高度展开，途中反向从当前高度接着走，收起后里面不能获得焦点。会变的数字：等宽数字，宽度按取值范围里最宽的值预留，9 → 10、59 秒 → 1 分 0 秒都不推旁边的按钮。一直在长的记录：在底部就跟着，往上滚、按键或选字就停，新的行在「新消息」后面等着，点它一次平滑回到最新。媒体缩放：触控板捏合或滚轮加 ⌘/Ctrl、两指、双击都以所指的点为锚放大，图被约束在框内、小于框的方向居中；放大后普通滚轮与拖动平移，0 回到适应、+/− 缩放；只有这张图接管手势，页面自己的缩放不受影响。</p>
     <div class="mw-catalog__specimens">
       <figure class="mw-catalog__specimen"><figcaption>复制 · 成功与失败</figcaption><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="ok">复制</button><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="fail">复制（会失败）</button></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>折叠 · 自然高度</figcaption>${renderCollapsible({ summary: "这一轮读过的文件（3）", body: "<p>specs/visual-ui-experience/spec.md</p><p>DESIGN.md</p><p>packages/design-system/src/styles/disclosure.ts</p>" })}</figure>
@@ -35,7 +33,6 @@ export function renderFoundationSection(): string {
       <figure class="mw-catalog__specimen"><figcaption>新写出的文字 · 6px（对照上限）</figcaption><div class="mw-catalog-stream" data-catalog-stream="6"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-stream-replay>重播</button><label class="mw-catalog-row"><input type="checkbox" data-catalog-stream-slow>慢放 4 倍</label></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>跟随到底 · 往上滚就停</figcaption><div class="mw-catalog-follow" data-catalog-follow style="height:120px;overflow:auto;font-size:12px;line-height:20px"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-latest hidden>↓ 新消息</button></div></figure>
     </div>
-    <p class="mw-catalog__hint">输入框自然高度：从两行加内边距起，随内容一行行长高，删掉就回落；上限取框自己的上限（默认 240px）与所在窗格高度的 40% 中较小的一个，到了上限在框内滚动，光标在末尾时整行可见；外面的页面不跳。引擎没有 field-sizing 时由同一份程序测量。</p>
     <div class="mw-catalog__specimens">
       <figure class="mw-catalog__specimen"><figcaption>输入框 · 随内容长高</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit rows="2" aria-label="试着写几行" placeholder="试着写几行，再删掉"></textarea></figure>
       <figure class="mw-catalog__specimen"><figcaption>输入框 · 达到上限（160px）</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit style="--fit-max:160px" rows="2" aria-label="达到上限的输入框">第 1 行：写到上限之后在框内滚动&#10;第 2 行：写到上限之后在框内滚动&#10;第 3 行：写到上限之后在框内滚动&#10;第 4 行：写到上限之后在框内滚动&#10;第 5 行：写到上限之后在框内滚动&#10;第 6 行：写到上限之后在框内滚动&#10;第 7 行：写到上限之后在框内滚动&#10;第 8 行：写到上限之后在框内滚动&#10;第 9 行：写到上限之后在框内滚动&#10;第 10 行：写到上限之后在框内滚动&#10;第 11 行：写到上限之后在框内滚动&#10;第 12 行：写到上限之后在框内滚动&#10;第 13 行：写到上限之后在框内滚动&#10;第 14 行：写到上限之后在框内滚动</textarea></figure>

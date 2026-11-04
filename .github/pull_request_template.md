@@ -4,7 +4,7 @@
 
 ## 开工前检查
 
-<!-- 分档与检查项见 specs/post-anticorruption-roadmap/development-workflow.md。 -->
+<!-- 分档与检查项见 specs/post-anticorruption-roadmap/reference/development-workflow.md。 -->
 
 - [ ] 档位：小修 / 独立片 / 大需求；类型（产品线 / 体验与效果 / 横向能力 / 底层与架构，跨几类都写）
 - [ ] 小修：第 4 节涉及的项与结论写在这里；独立片与大需求：贴 spec 里「开工前检查」一节和统筹审过的评论

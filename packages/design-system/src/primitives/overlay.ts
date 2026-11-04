@@ -105,10 +105,30 @@ export function renderMenu(options: { items: string; className?: string; labelle
   }>${options.items}</div>`;
 }
 
-export function renderMenuItem(options: { label: string; iconName?: Parameters<typeof icon>[0]; danger?: boolean; attrs?: Record<string, AttrValue> }): string {
-  return `<button type="button" class="${cx("mw-menu__item", options.danger && "mw-menu__item--danger")}" role="menuitem"${renderAttrs(options.attrs)}>${
-    options.iconName ? icon(options.iconName) : ""
-  }<span>${escapeHtml(options.label)}</span></button>`;
+/** A menu item; `checked` makes it a checkbox item whose leading slot holds the tick, `shortcut` sits at the far end. */
+export function renderMenuItem(options: {
+  label: string;
+  iconName?: Parameters<typeof icon>[0];
+  danger?: boolean;
+  shortcut?: string;
+  disabled?: boolean;
+  checked?: boolean;
+  attrs?: Record<string, AttrValue>;
+}): string {
+  const checkable = options.checked !== undefined;
+  const lead = checkable ? `<span class="mw-menu__check" aria-hidden="true">${options.checked ? icon("check") : ""}</span>` : options.iconName ? icon(options.iconName) : "";
+  return `<button type="button" class="${cx("mw-menu__item", options.danger && "mw-menu__item--danger")}" role="${checkable ? "menuitemcheckbox" : "menuitem"}"${
+    checkable ? ` aria-checked="${options.checked}"` : ""
+  }${options.disabled ? " disabled" : ""}${renderAttrs(options.attrs)}>${lead}<span data-slot="menu-item-label">${escapeHtml(options.label)}</span>${
+    options.shortcut ? `<span class="mw-menu__shortcut">${escapeHtml(options.shortcut)}</span>` : ""
+  }</button>`;
+}
+
+/** Items that belong together, under an optional quiet heading; consecutive groups are divided by a hairline. */
+export function renderMenuGroup(options: { items: string; label?: string }): string {
+  return `<div class="mw-menu__group" role="group"${options.label ? ` aria-label="${escapeHtml(options.label)}"` : ""}>${
+    options.label ? `<div class="mw-menu__label" aria-hidden="true">${escapeHtml(options.label)}</div>` : ""
+  }${options.items}</div>`;
 }
 
 export function renderDrawer(options: {

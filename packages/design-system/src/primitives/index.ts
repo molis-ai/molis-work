@@ -7,6 +7,7 @@ export {
   renderHint,
   renderMenu,
   renderMenuItem,
+  renderMenuGroup,
   renderCommand,
   renderDrawer,
   renderContextMenu,

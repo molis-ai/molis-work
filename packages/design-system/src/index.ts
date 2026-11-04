@@ -1,8 +1,10 @@
 export { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 export { STATE_RING_STYLES } from "./styles/state-ring.js";
+export { SKIN_STYLES } from "./styles/skins.js";
 
 export {
   MOLIS_WORK_DENSITY_STORAGE_KEY,
+  MOLIS_WORK_SKIN_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
@@ -18,6 +20,7 @@ export {
   CRAFT_FINISH_STYLES,
   CRAFT_FINISH_CLIENT_SCRIPT,
   type MolisWorkDensity,
+  type MolisWorkSkin,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,
 } from "./visual-foundation.js";

@@ -120,8 +120,9 @@ test("T405-FULL-15: the shell applies the same project's saved directory width b
       localStorage: { getItem(name: string) { localReads.push(name); return null; } },
       sessionStorage: { getItem(name: string) { reads.push(name); return (storage as Record<string, string>)[name] ?? null; } },
       document: { documentElement, createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
-    assert.deepEqual(localReads, ["molis-work:theme", "molis-work:density", "molis-work:terminal-theme"]);
-    assert.deepEqual(documentElement.dataset, { theme: "system", resolvedTheme: "light", density: "standard", terminalTheme: "auto", resolvedTerminalTheme: "light" });
+    // The skin preference (DESIGN「皮肤」) is read and applied with the other pre-paint preferences.
+    assert.deepEqual(localReads, ["molis-work:theme", "molis-work:density", "molis-work:terminal-theme", "molis-work:skin"]);
+    assert.deepEqual(documentElement.dataset, { theme: "system", resolvedTheme: "light", density: "standard", skin: "soft", terminalTheme: "auto", resolvedTerminalTheme: "light" });
     assert.deepEqual(styles.map(style => style.textContent), expected === undefined ? [] : [`body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:${expected}px}`]);
     assert.ok(reads.every(name => name === key + ":" + collection || collection === "current" && name === key));
   }

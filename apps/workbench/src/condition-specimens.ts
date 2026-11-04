@@ -40,7 +40,6 @@ export function renderConditionsSection(say: Say, lang: "zh" | "en" = "zh"): str
   const preferences = preference(say, "明暗", "data-theme-option", [["light", "浅色"], ["dark", "深色"]])
     + preference(say, "界面密度", "data-density-option", [["standard", "标准"], ["compact", "紧凑"]]);
   return `<section class="mw-catalog__section" id="conditions" data-primitive="conditions"><h2>${escapeHtml(say("条件与状态"))}</h2>
-    <p class="mw-catalog__hint">${escapeHtml(say("同一块生产内容放在真实的工作台环境里（下面的框架用工作台的样式表与页面程序），一次只换一个参数对照：界面语言、正文语言与混排、编程与非编程、后备字体、复制成败、容器宽度，明暗与密度用页面的偏好。缩放、触控与减少动态效果由浏览器给，框架只读出当前值。示例内容固定，不连接任何服务；标「模拟」的是板上造出的条件，不代替生产验证。"))}</p>
     <div class="mw-cond-params" data-cond-params>${PARAMS.map((one) => boardFrameParam(say, one, one[0] === "lang" ? lang : undefined)).join("")}${preferences}</div>
     <iframe class="mw-cond-frame" data-cond-frame src="/__ui/catalog/conditions?lang=${lang}&amp;text=zh&amp;kind=code&amp;font=system&amp;copy=ok" title="${escapeHtml(say("条件与状态样例"))}" style="width:760px" loading="lazy"></iframe>
     <script>${CONDITIONS_SECTION_SCRIPT}</script>

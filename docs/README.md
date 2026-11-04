@@ -10,7 +10,7 @@
 | 开发或修改插件 | [插件开发 Skill](../skills/molis-plugin-dev/SKILL.md) → [插件开发手册](platform/PLUGIN-DEVELOPMENT.md) | Skill 给开发步骤，手册解释本地运行、动作录取与打包签名；[动作基本合同](../specs/action-architecture/spec.md)规定注册、调用与授权；具体包的边界和验证看包 README |
 | 修改平台 | [仓库协作规则](../AGENTS.md) → [CLI 与开发](cli-and-development.md)（[English](cli-and-development.en.md)）→ [SSOT 包归属](SSOT-MATRIX.md) | [架构](system/ARCHITECTURE.md)、[依赖边界](system/PACKAGE-BOUNDARIES.md)、[并行开发](system/PARALLEL-DEVELOPMENT.md)；改界面看 [DESIGN](../DESIGN.md)，调模型看 [Prologue AI Skill](../skills/molis-prologue-ai/SKILL.md)与[手册](platform/PROLOGUE-AI.md) |
 | 发布、安装维护或处理 Home 数据 | [发布策略](releases/POLICY.md) → [发布检查清单](releases/CHECKLIST.md) | [安装与维护](installation.md)、[Home 数据归属](system/HOME-DATA.md)、[合同变更](system/CONTRACT-CHANGES.md)；版本变化查 [CHANGELOG](releases/CHANGELOG.md)及该版本的发布记录 |
-| 接续任务或确定下一步 | [规格书索引](../specs/README.md) → 对应任务的 spec、当前状态与证据 | [统一待办](../specs/BACKLOG.md)查剩余事项，[路线书](../specs/post-anticorruption-roadmap/spec.md)查依赖与排期，[需求开发流程](../specs/post-anticorruption-roadmap/development-workflow.md)查从立项到收尾的步骤；[任务要求与执行参考](prompts/README.md)保留原始要求 |
+| 接续任务或确定下一步 | [规格书索引](../specs/README.md) → 对应任务的 spec、当前状态与证据 | [统一待办](../specs/BACKLOG.md)查剩余事项，[路线书](../specs/post-anticorruption-roadmap/spec.md)查依赖与排期，[需求开发流程](../specs/post-anticorruption-roadmap/reference/development-workflow.md)查从立项到收尾的步骤；[任务要求与执行参考](prompts/README.md)保留原始要求 |
 
 ## 怎样判断材料的用途
 

@@ -1,0 +1,64 @@
+import { createHash } from "node:crypto";
+import type { ConnectorCheckObservation } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ModelProviderCheck, ModelProviderHealth, ModelProviderRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import { withConnectorConnections } from "./connector-connection-store.js";
+import { rememberConnectorCheck, withConnectorObservations } from "./connector-observations.js";
+
+/**
+ * A model provider's last real check (batch 13, PF-A04): not a second record of the provider or its key. The key is held by a `model-api`
+ * connection, so the check is remembered as that connection's last check, with `subject` naming the provider and the version of it that
+ * was checked. A key two providers share keeps the later check only; the other provider then reads as not checked, never as verified.
+ */
+
+/**
+ * The version of a provider a check speaks for: how it is reached (address, format and the two request modes), not its name or which
+ * models are switched on, so renaming it or switching a model off does not make a verified provider look unchecked. A model switched on
+ * is checked by the save itself (`planConnectionCheck`).
+ */
+export function modelCheckRevision(provider: ModelProviderRecord): string {
+  const reached = [provider.base_url, provider.api_format, provider.thinking ?? "off", provider.prompt_cache];
+  return createHash("sha256").update(JSON.stringify(reached)).digest("hex").slice(0, 16);
+}
+
+/** The reason a failed check gives, from the error's code and status only, never its text (it may carry what the provider echoed). */
+export function modelCheckCode(raw: string): string {
+  const code = /^(MODEL_[A-Z_]+)/.exec(raw)?.[1];
+  const status = Number(/\((\d{3})\)/.exec(raw)?.[1] ?? 0);
+  if (code === "MODEL_HTTP_ERROR") {
+    if (status === 401 || status === 403) return "model_provider.key_rejected";
+    if (status === 429) return "model_provider.rate_limited";
+    if (status === 404 || status === 400 || status === 422) return "model_provider.request_refused";
+    if (status >= 500) return "model_provider.provider_failed";
+  }
+  if (code === "MODEL_NETWORK_FAILED" || /超时/.test(raw)) return "model_provider.unreachable";
+  if (code === "MODEL_RESPONSE_INVALID" || raw === "模型返回了空内容") return "model_provider.response_invalid";
+  return "model_provider.check_failed";
+}
+
+/** Remember a check of the provider as it is stored now. Nothing is remembered for a provider whose key has no connection. */
+export function rememberModelCheck(home: string, provider: ModelProviderRecord, outcome: "connected" | "failed", code?: string): void {
+  const connection = withConnectorConnections(home, store => store.list("model-api").find(row => row.credential_ref === provider.credential_ref));
+  if (!connection) return;
+  rememberConnectorCheck(home, connection.connection_id, { at: new Date().toISOString(), revision: connection.updated_at, outcome,
+    authorization: outcome === "connected" ? "verified" : code === "model_provider.key_rejected" ? "required" : "unknown",
+    ...(code ? { code } : {}), subject: { kind: "model-provider", id: provider.provider_id, revision: modelCheckRevision(provider) } });
+}
+
+function checkOf(provider: ModelProviderRecord, check: ConnectorCheckObservation | undefined, connectionRevision: string | undefined): ModelProviderCheck | undefined {
+  if (!check?.subject || check.subject.kind !== "model-provider" || check.subject.id !== provider.provider_id) return undefined;
+  return { at: check.at, outcome: check.outcome, ...(check.code ? { code: check.code } : {}), ...(check.retry_at ? { retry_at: check.retry_at } : {}),
+    current: check.subject.revision === modelCheckRevision(provider) && check.revision === connectionRevision };
+}
+
+/** Health with each provider's last check, read in one pass over the connections and their checks. */
+export function withModelChecks(home: string | undefined, providers: readonly ModelProviderRecord[], health: readonly ModelProviderHealth[]): ModelProviderHealth[] {
+  if (!home || providers.length === 0) return [...health];
+  const connections = withConnectorConnections(home, store => store.list("model-api"));
+  const checks = withConnectorObservations(home, store => new Map(connections.map(row => [row.connection_id, store.read(row.connection_id).check])));
+  return health.map(entry => {
+    const provider = providers.find(one => one.provider_id === entry.provider_id);
+    const connection = provider && connections.find(row => row.credential_ref === provider.credential_ref);
+    const last = provider && connection ? checkOf(provider, checks.get(connection.connection_id), connection.updated_at) : undefined;
+    return last ? { ...entry, last_check: last } : entry;
+  });
+}

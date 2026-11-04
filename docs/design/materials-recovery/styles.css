@@ -14,11 +14,11 @@
   background:radial-gradient(ellipse 60% 70% at 0% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 100%),radial-gradient(ellipse 60% 75% at 100% 100%,color-mix(in srgb,var(--ink) 6%,transparent),transparent 100%)}
 :root[data-resolved-theme=dark] .ob-sheet::before{opacity:.55}
 .ob-welcome{height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)}
-.ob-left{min-height:0;overflow:auto;display:flex;flex-direction:column;justify-content:safe center;padding:40px clamp(24px,4.5vw,80px);scrollbar-width:thin}
+.ob-left{min-height:0;overflow:auto;display:flex;flex-direction:column;justify-content:safe center;padding:40px clamp(24px,4.5vw,80px)}
 .ob-col{width:100%;max-width:440px;display:flex;flex-direction:column;gap:16px}
 .is-arriving .ob-col>*{animation:ob-rise var(--dur-arrive) var(--ease-quint) both}
 .is-arriving .ob-col>*:nth-child(2){animation-delay:40ms}.is-arriving .ob-col>*:nth-child(3){animation-delay:80ms}.is-arriving .ob-col>*:nth-child(n+4){animation-delay:120ms}
-.ob-right{min-width:0;min-height:0;overflow:auto;scrollbar-width:thin;display:grid;align-items:safe center;justify-items:center;padding:32px clamp(20px,4vw,64px) 32px 0}
+.ob-right{min-width:0;min-height:0;overflow:auto;display:grid;align-items:safe center;justify-items:center;padding:32px clamp(20px,4vw,64px) 32px 0}
 .is-arriving .ob-right>*{animation:ob-scene var(--dur-arrive) var(--ease-quint) both}
 @keyframes ob-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes ob-scene{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
@@ -110,10 +110,17 @@
 .ob-funnel li.is-later b{color:var(--faint);font-weight:500;font-size:13px;line-height:25px}
 .ob-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .ob-rows{list-style:none;margin:0;padding:4px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft)}
-.ob-r{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,9em) auto;align-items:center;gap:12px;min-height:48px;padding:4px 8px;border-radius:10px;transition:background-color var(--dur-hover) var(--ease-quint)}
+/* The reason is what this list is for, so it never gets cut: it takes its own line under the name and source, and the fix button
+   stays at the end of the row, beside both lines. */
+.ob-r{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;column-gap:12px;row-gap:2px;min-height:48px;padding:8px;border-radius:10px;transition:background-color var(--dur-hover) var(--ease-quint)}
+.ob-r>:first-child{grid-row:1/3}
+.ob-r .nm{grid-column:2;grid-row:1}
+.ob-r .ob-track{grid-column:3;grid-row:1}
+.ob-r .ob-r__word{grid-column:2/4;grid-row:2;line-height:1.5}
+.ob-r .mw-btn{grid-column:4;grid-row:1/3}
 .ob-r:hover{background:var(--nav-hover)}
 .ob-r .nm{display:grid;min-width:0}
-.ob-r .nm b{font-size:13px;font-weight:500}.ob-r .nm small{font-size:12px;color:var(--muted)}
+.ob-r .nm b{font-size:13px;font-weight:500}.ob-r .nm small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .ob-r__word{font-size:12px;color:var(--muted)}
 .ob-r.is-issue .ob-r__word{color:var(--amber)}
 .ob-track{display:inline-flex;gap:3px}
@@ -178,7 +185,7 @@
 @media (max-width:900px){.ob-stepname{display:none}}
 @media (max-width:760px){
   .ob{grid-template-rows:44px minmax(0,1fr) 64px}
-  .ob-sheet{margin:0 8px;overflow:auto;scrollbar-width:thin}
+  .ob-sheet{margin:0 8px;overflow:auto}
   .ob-welcome{display:block;height:auto}
   .ob-left{overflow:visible;padding:24px 16px 8px;justify-content:flex-start}
   .ob-right{overflow:visible;padding:8px 16px 24px;display:block}
@@ -190,10 +197,8 @@
   .ob-back,.ob-exit{padding-inline:12px}
   .ob-bar__mid .mw-steps{display:none}
   .ob-bar__mid .ob-stepname{display:inline}
-  .ob-r__word{white-space:normal;overflow:visible}
   .ob-crumb{display:none}
   .ob-r{grid-template-columns:auto minmax(0,1fr) auto;row-gap:4px}
-  .ob-r .ob-r__word{grid-column:2/4;grid-row:2}
   .ob-r .mw-btn{grid-column:2/4;grid-row:3;justify-self:start}
   .ob-funnel{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:12px}
   .ob-funnel li:nth-child(4){box-shadow:none}

@@ -198,6 +198,7 @@
 | BL-060 | 真实第三方账号验收：Connector 逐服务的真实授权、发布审核与 Feed 的选择→拉取→捕捉组合实操（45 个服务的逐项缺口在 configuration-readiness.md） | [connector-all-methods](archive/connector-all-methods/spec.md)、[connector-experience](archive/connector-experience/spec.md)、[feed-source-workbench](archive/feed-source-workbench/spec.md) | 部分实现 | 缺测试账号与应用配置 | 产品方应用注册与审核 | 中 | 未分配 |
 | BL-061 | 来源：浏览器标签页自动捕获、实时 IM Connector、多项目自动归类、持续同步 | [molis-work-context-onboarding](archive/molis-work-context-onboarding/spec.md) | 明确后续做 | 不在现有底座 | 无 | 中 | 未分配 |
 | BL-062 | 正式 OAuth 发布配置（产品级客户端） | [molis-work-context-onboarding](archive/molis-work-context-onboarding/spec.md) | 未实现 | 外部条件 | BL-060 | 中 | 未分配 |
+| BL-956 | 英文界面里开场按钮显示「Started」，应为「Begin」：`apps/workbench/src/i18n/en.ts` 把「开始」译成 "Started"（第 750 行），同一个中文键既当按钮又当状态；按钮要改成动词，按 `apps/workbench/README.md`「界面文字」迁到稳定键，与状态分开（F 轨 11-04 在临时 Home 里看到） | F 轨 #1784 走查顺带发现 | 缺陷 | 不在定样 PR 范围 | 无 | 中 | D 轨 |
 | BL-063 | 群聊：手机真机与公网部署 | [molis-work-im](archive/molis-work-im/spec.md) | 明确后续做 | 依赖 Server 与成员身份 | 团队能力 | 低 | 未分配 |
 | BL-106 | 选择页项目简介里的材料数、文档数与「助理在做」：设计稿里有，现在按「不猜」不显示（个人空间那一行的「灵光、Shelf、待办」计数同理） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 已知缺口 | 没有公开读口，要读各插件私有存储或跨项目汇总 | 各插件的公开读口 | 低 | 未分配 |
 | BL-107 | 新建项目引导的「在后台继续」：离开页面后整理仍在继续，回来接着看（现在整理本来就在 Host 后台跑，只是没有登记成后台任务入口） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 明确后续做 | 登记成后台任务没有 owner | 无 | 低 | 未分配 |

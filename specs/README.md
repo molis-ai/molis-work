@@ -16,7 +16,6 @@
 
 - [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。
 
-
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 版本恢复/分类授权已合并；M1 配置采用 PR 的完整回归与产品验收仍待完成。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作，尚未实现。
 - [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理，尚未实现。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。
@@ -101,9 +100,8 @@
 
 ## 梳理记录
 
-- 2026-11-03：[第 01 批主线核对](post-anticorruption-roadmap/reference/batches/01.md#baseline-01)按合入提交归档三项性能修复、复审修正、双仓清理、状态环、五项 Goals／首页／引导小需求和 Issue V0；历史限制与待本人验收分别保留。
-
 - 2026-11-04：[系统性代码与架构防腐整理](archive/repository-anti-corruption/spec.md)归档（部分实现；工程项随 #1725 合入，剩余 BL-928～930）。同批归档本线的三份卫星：[项目库里的插件表](archive/plugin-project-database/spec.md)（已实现，BL-377）、[Home 级插件的库按项目分开](archive/plugin-project-partition/spec.md)（已实现，BL-639）、[双实例](archive/dual-instance-plugins/spec.md)（部分实现，BL-933）。防腐目录里另有早先归档的 6 份历史文件与 `evidence/`；`assistant-service-connections`、`repository-cleanup`、`pr-review-remediation` 不属本线，留在根目录。未实现的 C 端方案与依赖／SDK 方案的剩余在 BL-931、BL-932。
+- 2026-11-03：[第 01 批主线核对](post-anticorruption-roadmap/reference/batches/01.md#baseline-01)按合入提交归档三项性能修复、复审修正、双仓清理、状态环、五项 Goals／首页／引导小需求和 Issue V0；历史限制与待本人验收分别保留。
 - 2026-10-23：[系统评审问题修复](archive/system-review-fixes/spec.md)归档（本轮已实现，负责人 Codex）；#1018、#1058、#1061、#1062 已合入，#1049 收尾衔接随本 PR 合入。按一骏明确的完成边界，三项偶发测试与安装验收分别转 BL-412、BL-413。
 - 2026-10-21：`logic-diagnosis-fixes`、`goal-closure-identity`、`artifact-positioning` 归档（已实现；goal 与 artifact 的用户验收见 BL-401、BL-400）；`project-knowledge` 归档（部分实现，剩余 BL-396～399）。`artifact-positioning` §4 的整页例外清单拆成现行规范 [shell-page-exceptions](shell-page-exceptions/spec.md)。
 - 2026-10-17：[合作源码与商业授权](archive/commercial-source-license/spec.md)归档（已实现，负责人 Codex）；#636 已合入 main，许可、分发材料及安装器许可传递通过定向验证、PR CI 和合并队列检查。

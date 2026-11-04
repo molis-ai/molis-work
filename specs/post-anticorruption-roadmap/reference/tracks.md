@@ -6,21 +6,21 @@
 
 ## 冲突面与轨道
 
-每条轨道一个写手，轨道之间可按依赖并行。当前各项已分配归属保留到明确交接；没有分配依据的具体任务记“待分配”。10-31 设备 A 的 Codex 全线接手不等于后来任意重分轨道；[决定 22](decisions.md#decision-22)未收口前沿已有会话继续。历史热点与旧人员建议见[历史记录](baseline-and-history.md#track-history)。
+每条轨道一个写手，轨道之间可按依赖并行。统筹是 Claude（本机）统筹会话（用户 2026-11-04 定，[决定 22](decisions.md#decision-22)）；会话按轨道跨批做到底，不按批次另开；谁正在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。下表「沿原会话」的轨道，原归属保留到明确交接；没有分配依据的具体任务记“待分配”。历史热点与旧人员建议见[历史记录](baseline-and-history.md#track-history)。
 
 | 轨道 | 这条轨道独占的文件 | 主要的活 | 有效归属与协作 |
 | --- | --- | --- | --- |
 | A 助理与输入 | `apps/workbench/src/scripts/client/assistant-*.ts`（`assistant-island.ts` 已拆成 24 个）、`apps/local-host/src/assistant/`、`packages/contracts/src/services/assistant.ts`、共用输入组件、助理的词典 | 统一输入框、个人助理的引导接点、回执余项、每日简报、主动助理 | 沿原会话；借用本轨文件由本轨写手落 |
 | B Coding | `plugins/native/coding/`、Git、Diff 及 Files 退役涉及的现有消费者 | harness、下一阶段、质量保证、代码现代化 | 沿原会话；独立片交接需明确记录 |
-| C1 合同与 SDK | `packages/contracts/src/platform/`、`packages/plugin-sdk/`（UI 子路径除外）、`packages/plugin-runtime/`、`tooling/gates/api/`、`tooling/gates/actions/` | 公共资料/目录、技能包、场景/角色/页面、授权及人审的合同，以及服务端批里的同步合同；沙箱包与 Runtime 的缺口；对抗式审查的 SDK 收拢；合同评审 | C 轨原写手；负责合同评审 |
-| C2 AI 运行时 | `horizontal/agent-host/`、`horizontal/memory/`、`vendor/prologue-sdk/` | Prologue 采用与换包窗口、记忆、Skill/Context/MCP/Tool 四份策略、子代理的 Prologue 一半 | C 轨原写手；Memory 原负责人和暂停保留 |
-| C3 平台新服务 | 每项服务一个新的 `horizontal/<服务>/` 包（用户 11-01 定新的平台服务不进宿主，宿主只做装配） | 观测和采集、评测、Sessions 历史与控制、智能呈现组合服务、主线、场景与生成页面的运行时、Attention 的提醒与唤醒；按包分清主人；[决策记录](decisions.md#section-7)第 17 项确认前由 C 轨一个写手顺序实现 | C 轨原写手；具体服务未分配的保留待分配 |
-| D 外观与语言 | `packages/design-system/`、`apps/workbench/src/i18n/`、ui-host、`packages/contracts/src/ui/` 与 `ui.ts`、`packages/plugin-sdk/src/ui.ts`（字体皮肤语言 A 段落在这里）、`DESIGN.md`、平台设置页 | 工作台标签/分屏/导航、公共资料呈现、VUX 收尾、字体皮肤语言、生成页面承载与交互预览、「授权与放行」一页（产品建议 H1） | 沿原会话；负责公共视觉与 UI 文件 |
+| C1 合同与 SDK | `packages/contracts/src/platform/`、`packages/plugin-sdk/`（UI 子路径除外）、`packages/plugin-runtime/`、`tooling/gates/api/`、`tooling/gates/actions/` | 公共资料/目录、技能包、场景/角色/页面、授权及人审的合同，以及服务端批里的同步合同；沙箱包与 Runtime 的缺口；对抗式审查的 SDK 收拢；合同评审 | Claude（本机）C 轨会话；Codex 交完 02 后接手（[决定 17](decisions.md#decision-17)）；负责合同评审 |
+| C2 AI 运行时 | `horizontal/agent-host/`、`horizontal/memory/`、`vendor/prologue-sdk/` | Prologue 采用与换包窗口、记忆、Skill/Context/MCP/Tool 四份策略、子代理的 Prologue 一半 | 同 C1 的写手；Memory 原负责人和暂停保留 |
+| C3 平台新服务 | 每项服务一个新的 `horizontal/<服务>/` 包（用户 11-01 定新的平台服务不进宿主，宿主只做装配） | 观测和采集、评测、Sessions 历史与控制、智能呈现组合服务、主线、场景与生成页面的运行时、Attention 的提醒与唤醒；按包分清主人；[决定 17](decisions.md#decision-17)定为不拆，由 C 轨一个写手顺序实现 | 同 C1 的写手；具体服务未分配的保留待分配 |
+| D 外观与语言 | `packages/design-system/`、`apps/workbench/src/i18n/`、ui-host、`packages/contracts/src/ui/` 与 `ui.ts`、`packages/plugin-sdk/src/ui.ts`（字体皮肤语言 A 段落在这里）、`DESIGN.md`、平台设置页 | 工作台标签/分屏/导航、公共资料呈现、VUX 收尾、字体皮肤语言、生成页面承载与交互预览、「授权与放行」一页（产品建议 H1） | Claude（本机）D 轨会话；负责公共视觉与 UI 文件 |
 | E 插件 | Coding 一族以外的 `plugins/native/<插件>/`、新插件包 | 体验债、风险、工作简报本体、创作台的插件侧实现、场景所需插件配置与结果落点、情境 W4～W6、插件小功能 | 沿原会话；插件实现与定样按已有分工 |
-| F 场景引导与发布 | `apps/desktop/`、安装器、`docs/releases/`、引导页与引导路由 | 首次/项目/任务引导完整路径、设置映射、首日旅程；运行条件、签名与升级、正式 OAuth | 沿原会话；账号、证书、真实 Home 按原用户边界 |
+| F 场景引导与发布 | `apps/desktop/`、安装器、`docs/releases/`、引导页与引导路由 | 首次/项目/任务引导完整路径、设置映射、首日旅程；运行条件、签名与升级、正式 OAuth | Claude（本机）F 轨会话；账号、证书、真实 Home 按原用户边界 |
 | G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～89 期间不开工 | 保留 personal 分支原会话；用户定开工，C 轨评合同，F 写桌面部分 |
 
-本文里的“C 轨”“1·C”指 C1～C3 合起来；[决定 17](decisions.md#decision-17)确认前仍由 C 轨一个写手顺序实现，其他轨道各有自己的写手。职责拆分不代表增加写手。
+本文里的“C 轨”“1·C”指 C1～C3 合起来；[决定 17](decisions.md#decision-17)定为不拆，C 轨一个写手顺序实现，其他轨道各有自己的写手。职责拆分不代表增加写手。
 
 规则：
 
@@ -36,6 +36,6 @@
 
 ### C 轨职责与写入边界
 
-C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务；实际顺序只维护在[执行目录](../spec.md#execution-batches)所链接的批次详情。设计与只读核查可以并行，决定 17 批准前仍由同一个 C 轨写手实现；批准后同包、同合同快照也不并写。
+C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务；实际顺序只维护在[执行目录](../spec.md#execution-batches)所链接的批次详情。设计与只读核查可以并行，决定 17 定为不拆，由同一个 C 轨写手实现；同包、同合同快照不并写。
 
 创作台、Sessions、团队仍是各自完整交付项，未分配的保持待分配；C/D/E/G 是所需的协作职责，不取代原任务负责人。服务端批开工后，合同同样按本文件规则 1 排队。

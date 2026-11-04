@@ -10,7 +10,7 @@
 
 ### 阶段 0：收口（防腐线合完立即开始）
 
-[01～02](batches/01.md) 核准收尾基线、需求差距与归档／验收去处；升级基础接 [05](batches/05.md)。用户已指定 01 先行；[逐项结果](batches/01.md#baseline-01)与[试用单](acceptance-01.md)已备。02、真实 Home、Memory 仍按各自边界。
+[01～02](batches/01.md) 核准收尾基线、需求差距与归档／验收去处；升级基础接 [05](batches/05.md)。用户已指定 01 先行；[逐项结果](batches/01.md#baseline-01)与[试用单](acceptance-01.md)已备。提前开工 11-04 已定（[决定 21](decisions.md#decision-21)）：不碰真实 Home 的部分照常推进；02 的重建、真实 Home 与 Memory 仍按各自边界。
 
 **退出条件**：
 

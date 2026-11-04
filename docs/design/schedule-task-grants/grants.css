@@ -11,7 +11,6 @@
 .gr-muted svg { width: 14px; height: 14px; flex: none; }
 .gr-small { font-size: 12px; }
 .gr-spacer { flex: 1; }
-.gr-note { font-size: 12px; color: var(--muted); }
 
 /* 组件板新增 · 插件色标（与第 19 批相同）：mw-mark、mw-tag 里的图标用 --hue-* 着色 */
 [data-hue="blue"] { --gr-hue: var(--hue-blue); }
@@ -41,6 +40,10 @@
 .gr-task { cursor: pointer; }
 .gr-task[aria-current="true"] { background: var(--surface-soft); }
 .gr-kind svg { color: var(--muted); }
+/* 时间和下次运行各占一行，窄了也照常折行，不截断 */
+.gr-task > span:nth-child(2) { display: grid; gap: 1px; min-width: 0; }
+.gr-task strong, .gr-task small { white-space: normal; overflow: visible; text-overflow: clip; }
+.gr-task .gr-next { color: var(--faint); font-variant-numeric: tabular-nums; }
 
 .gr-detail { padding: 16px 28px 40px; min-width: 0; display: grid; align-content: start; gap: 6px; }
 .gr-detail__bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -89,8 +92,10 @@
 .gr-sum[data-tone="warn"] { color: var(--ink); }
 .gr-bar__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-/* F：开关即生效，下面一行说发生了什么，可撤销 */
-.gr-live { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; animation: gr-arrive var(--dur-move) var(--ease-quint); }
+/* F：开关即生效，下面一行说发生了什么，可撤销。用组件板那一个提示（mw-toast 带 mw-toast__action），放在原处、不浮起：
+   字和「撤销」在同一个胶囊里，高度、基线由组件板对齐；进场动效也是组件板的 */
+.gr-live { display: flex; min-width: 0; }
+.gr-live .mw-toast { max-width: 100%; }
 
 /* E：工作台侧栏（平台的，停在右边） */
 .gr-panel { position: sticky; top: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: calc(100dvh - 48px - 48px); min-height: 480px; background: var(--paper); border-radius: var(--r-sheet); box-shadow: var(--sheet-shadow); overflow: hidden; animation: gr-panel-in var(--dur-arrive, 420ms) var(--ease-quint); }

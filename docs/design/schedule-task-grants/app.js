@@ -23,12 +23,12 @@
       wsHint: "只读项目文件的任务要先给这个项目选一个工作区。", wsLink: "选择工作区",
       justCreated: "任务建好了。选好它能读的数据，下一次运行就能读到。",
       kicker: "Molis Work · 只有你能改", slotLead: "只能读，不能改；只给「{t}」；随时可以撤回。",
-      groupPlugins: "插件的数据", groupPlatform: "平台", knowledgeNote: "默认不勾",
+      groupPlugins: "插件的数据", groupPlatform: "平台",
       newCap: "新：{c}", offTag: "已停用", allowNew: "允许",
       contains: "包含：{c}",
       sumNone: "没有改动", sumAdd: "允许读：{a}", sumRemove: "撤回：{r}。下一次运行起读不到。", sumBoth: "加上 {a}；撤回 {r}", sumRe: "确认 {n} 新的读取能力", sumEmpty: "一类都不勾：任务只读项目文件。",
       allow: "允许读取", confirmRevoke: "确认撤回", confirm: "确认", revokeAll: "全部撤回",
-      liveOn: "已允许读 {n}。", liveOff: "已撤回 {n}，下一次运行起读不到。", liveRe: "已确认 {n} 新的读取能力。", undo: "撤销",
+      liveOn: "已允许读「{n}」", liveOff: "已撤回「{n}」，下一次运行起读不到", liveRe: "已允许「{n}」新的读取能力", undo: "撤销",
       noSrcT: "这个项目里还没有能读的插件数据", noSrcD: "装了待办、Inbox、Jelly、Goals 这类插件后会出现在这里。项目资料仍可选。",
       saveFailT: "没能保存", saveFailD: "原来的授权没变，任务照旧按原来的范围读。", retry: "重试",
       statusFail: "暂时读不到这个任务能读什么", statusFailD: "到点照常按上次确认的范围读；只是这里显示不出来。",
@@ -50,12 +50,12 @@
       wsHint: "A task that reads only project files needs a workspace for this project first.", wsLink: "Choose a workspace",
       justCreated: "Task created. Choose what it may read and the next run can read it.",
       kicker: "Molis Work · only you can change this", slotLead: "Read only, never change; for “{t}” only; revoke any time.",
-      groupPlugins: "Plugin data", groupPlatform: "Platform", knowledgeNote: "Off by default",
+      groupPlugins: "Plugin data", groupPlatform: "Platform",
       newCap: "New: {c}", offTag: "Turned off", allowNew: "Allow",
       contains: "Includes: {c}",
       sumNone: "No changes", sumAdd: "Allow: {a}", sumRemove: "Revoke: {r}. From the next run it can't be read.", sumBoth: "Add {a}; revoke {r}", sumRe: "Confirm {n}'s new read ability", sumEmpty: "Nothing ticked: the task reads project files only.",
       allow: "Allow", confirmRevoke: "Revoke", confirm: "Confirm", revokeAll: "Revoke all",
-      liveOn: "Now reads {n}.", liveOff: "Revoked {n}; from the next run it can't be read.", liveRe: "Confirmed {n}'s new read ability.", undo: "Undo",
+      liveOn: "Now reads “{n}”", liveOff: "Revoked “{n}” — the next run can’t read it", liveRe: "Allowed “{n}” to read more", undo: "Undo",
       noSrcT: "No plugin data to read in this project yet", noSrcD: "Plugins such as To-dos, Inbox, Jelly and Goals show up here once installed. Project knowledge can still be chosen.",
       saveFailT: "Couldn't save", saveFailD: "Nothing changed: the task still reads what it read before.", retry: "Retry",
       statusFail: "Can't show what this task can read right now", statusFailD: "Runs still read what you last confirmed; only this display failed.",
@@ -106,7 +106,6 @@
   function rowStatus(c) {
     if (providerOff(c.id)) return status(t("offTag"), "quiet", "unavailable");
     if (needsRe() && c.newCap) return status(t("newCap", { c: L(c.newCap) }), "attention", "answer");
-    if (c.platform) return `<span class="gr-note">${esc(t("knowledgeNote"))}</span>`;
     return "";
   }
   // One kind = one item row: plugin mark, name, what it includes, and a switch (the board's mw-switch).
@@ -153,7 +152,9 @@
     const { kind, id } = ui.live;
     const n = L(cat(id).name);
     const text = kind === "on" ? t("liveOn", { n }) : kind === "off" ? t("liveOff", { n }) : t("liveRe", { n });
-    return `<div class="gr-live" role="status">${M.renderStatusMark({ label: text, tone: kind === "off" ? "quiet" : "done", state: kind === "off" ? "paused" : "done" })}${kind === "re" ? "" : btn(t("undo"), { size: "sm", variant: "ghost", attrs: act("undo") })}</div>`;
+    // The board's one toast with its action (mw-toast + mw-toast__action), set in place under the switches rather than floating:
+    // words and the undo chip share one capsule, so their height and baseline line up at every width.
+    return `<div class="gr-live">${M.renderToast({ message: text, tone: kind === "off" ? "neutral" : "success", action: kind === "re" ? undefined : { label: t("undo"), attrs: act("undo") } })}</div>`;
   }
 
   /* ---------- Schedule: the "can read" section in the detail ---------- */
@@ -198,8 +199,9 @@
     const isBrief = task.id === D.task.id;
     const kind = isBrief ? (ui.granted.length ? "data" : "files") : task.kind;
     const st = isBrief && needsRe() ? status(t("needsRe"), "attention", "answer") : task.enabled === false ? status(t("paused"), "quiet", "paused") : status(t("enabled"), "progress", "ready");
-    const when = `${task.day ? L(task.day) + " " + task.time : t("dailyAt", { t: task.time })} · ${task.next ? t("next", { t: task.next }) : t("notScheduled")}`;
-    return `<li class="mw-item gr-task"${current ? ' aria-current="true"' : ""} role="button" tabindex="0" data-act="${isBrief ? "area" : "sim"}" data-v="${isBrief ? "detail" : "row"}"><span class="mw-mark gr-kind" title="${esc(kind === "data" ? t("kData") : t("kFiles"))}">${M.icon(kind === "data" ? "database" : "file")}</span><span><strong>${esc(L(task.title))}</strong><small>${esc(when)}</small></span><span class="mw-item__end">${st}</span></li>`;
+    const when = task.day ? L(task.day) + " " + task.time : t("dailyAt", { t: task.time });
+    const next = task.next ? t("next", { t: task.next }) : t("notScheduled");
+    return `<li class="mw-item gr-task"${current ? ' aria-current="true"' : ""} role="button" tabindex="0" data-act="${isBrief ? "area" : "sim"}" data-v="${isBrief ? "detail" : "row"}"><span class="mw-mark gr-kind" title="${esc(kind === "data" ? t("kData") : t("kFiles"))}">${M.icon(kind === "data" ? "database" : "file")}</span><span><strong>${esc(L(task.title))}</strong><small>${esc(when)}</small><small class="gr-next">${esc(next)}</small></span><span class="mw-item__end">${st}</span></li>`;
   }
   function detail() {
     const turns = ui.justCreated ? [] : [

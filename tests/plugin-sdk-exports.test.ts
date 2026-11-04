@@ -115,8 +115,8 @@ test("R2-01/02/03: an author builds a closed action input and keeps its scope an
   assert.deepEqual(command.action.audiences, ["user"]);
 });
 
-test("R2-04: the public UI formatter keeps both Error messages and thrown values", async () => {
-  const { messageOf } = await import("@molis-ai/molis-work-plugin-sdk/ui");
+test("R2-04: the public browser formatter keeps both Error messages and thrown values", async () => {
+  const { messageOf } = await import("@molis-ai/molis-work-plugin-sdk/browser");
   assert.equal(messageOf(new Error("refused")), "refused");
   assert.equal(messageOf("cancelled"), "cancelled");
   assert.equal(messageOf(null), "null");

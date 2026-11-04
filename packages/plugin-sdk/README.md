@@ -178,7 +178,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
-动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限与受众。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/ui` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
+动作声明可用公开入口的 `createActionDefinition`。调用方给出 id、操作、输入输出、权限与受众。默认是项目范围，查询的种类为 query，命令为 operation；需要 Home 范围、判断、导航或并发调度时显式声明。`objectSchema` 默认所有字段必填，第二个参数可指定必填字段；`arraySchema` 和 `nullableSchema` 分别声明数组和可空值。`isRecord` 排除 null 与数组，接受非数组对象。`/browser` 的 `messageOf` 保留 Error 的消息，其余抛出值按字符串呈现。
 
 ## 开发要求
 

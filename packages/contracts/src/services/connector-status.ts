@@ -5,6 +5,10 @@ export interface ConnectorCheckObservation {
   at: string; revision: string; outcome: "connected" | "failed";
   authorization: "verified" | "not-required" | "unknown" | "required";
   scopes?: string[]; code?: string; account?: { login: string; account_id?: string };
+  /** The service asked to be left alone until then (HTTP 429 with `Retry-After`); the connection is not at fault. */
+  retry_at?: string;
+  /** What was checked when it is not the connection alone: a model provider checks its own address and model with the connection's key. */
+  subject?: { kind: "model-provider"; id: string; revision: string };
 }
 export interface ConnectorCallObservation {
   at: string; revision: string; outcome: "succeeded" | "failed" | "unknown";
@@ -18,6 +22,8 @@ export interface ConnectorConnectionStatus {
   connectivity: {
     state: "disconnected" | "unchecked" | "connected" | "failed" | "unknown";
     source: string; observed_at?: string; last_check?: ConnectorCheckObservation; current?: boolean;
+    /** Set while the service is rate limiting this connection: the check failed for the service's reason, and is tried again after this time. */
+    retry_at?: string;
   };
   authorization: {
     service: { state: ConnectorCheckObservation["authorization"]; scopes: string[] | null; scope_state: "reported" | "unknown" };

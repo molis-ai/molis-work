@@ -2,6 +2,8 @@
 
 状态：方案已定（2026-11-03），产品代码未写。
 
+Coding 的工作目录放在哪里，以[第 12 批](../../../specs/post-anticorruption-roadmap/reference/batches/12.md)的 Coding 定样为准：那里选的方案把工作目录放在文件区抬头。本原型 Coding 顶部条里的「项目输出与本轮位置」只用来演示「临时查看不改执行位置」，位置不作数；顶部条里的说法照用本原型。
+
 参考原型，不是产品界面。需求来源：[目录与资料整合方案](../../../specs/product-flow-governance/workspace-and-materials-design.md)（WMD-01～12，§3.1、§4）和[动线治理 §4.6](../../../specs/product-flow-governance/spec.md)（PFG-22～26）；排期见[第 03 批](../../../specs/post-anticorruption-roadmap/reference/batches/03.md)。视觉沿用 [DESIGN.md](../../../DESIGN.md) 的雾蓝配色（2026-11-03 定），图标是设计系统图标库的子集。用户拍板后，定下的方案写进上面两份需求的决策记录，再进产品代码（换成 `mw-*` 控件）。
 
 ## 怎么打开

@@ -577,11 +577,18 @@ ${ASSISTANT_TABS_PART}
   };
   // Reads asked while one is in flight share it: the start, the panel opening, coming back to the page and the list's timer
   // ask for the same list. A caller after a change of its own (fresh) waits for one read that starts after it, shared by every such caller.
-  let worksRead = null, worksAgain = null;
+  // Shared only for the same address: on the chooser the route follows the selected project, and another project's list is another read.
+  let worksRead = null, worksAt = "", worksAgain = null;
   const loadWorks = (fresh) => {
-    if (!worksRead) return worksRead = readWorks().finally(() => { worksRead = null; });
+    const at = host.route("/api/assistant/works");
+    if (!worksRead || at !== worksAt) {
+      worksAt = at; worksAgain = null;
+      const read = worksRead = readWorks().finally(() => { if (worksRead === read) worksRead = null; });
+      return read;
+    }
     if (!fresh) return worksRead;
-    return worksAgain ??= worksRead.then(() => { worksAgain = null; return loadWorks(); });
+    if (!worksAgain) worksAgain = worksRead.then(() => { worksAgain = null; return loadWorks(); });
+    return worksAgain;
   };
   const readWorks = async () => {
     try {

@@ -9,7 +9,7 @@ test("N53: the Assistant reads its works once per page load and shares reads in 
   if (!browser) return;
   const { projectId, origin, command, sessionId, navigate, evaluate, waitFor } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const reads = (path: string) => evaluate<number>(`performance.getEntriesByType("resource").filter(entry => new URL(entry.name).pathname === ${JSON.stringify(path)}).length`);
+  const reads = (path: string) => evaluate<number>(`performance.getEntriesByType("resource").filter(entry => new URL(entry.name).pathname.endsWith(${JSON.stringify(path)})).length`);
   const settle = () => new Promise(resolve => setTimeout(resolve, 2_000));
 
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));

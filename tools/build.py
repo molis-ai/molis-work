@@ -54,7 +54,7 @@ for x in out:
     for n,it in enumerate(x['items'],1):
         r=TR.get(f"{x['id']}-{n}")
         if r and r['title']!=it['t']:print('轨道表对不上',x['id'],n,it['t'])
-        it['track']=r['main'] if r else '';it['occ']=bool(r and r['occupy']);it['also']=r['also'] if r else []
+        it['track']=r['main'] if r else '';it['occ']=bool(r and r['occupy']);it['also']=r['also'] if r else [];it['kind']=r['kind'] if r else ''
 foot=f'依据 main 上的路线书（提交 {sys.argv[6]}）。依赖按子项汇总到批次，只算必须先做完的；有些依赖由批次号判读到子项，还待核实。轨道对照是推导后由用户确认的，还没写进路线书。'
 data=dict(batches=out,edges=edges,state={},order={b:i for i,b in enumerate(B)},foot=foot,board=prog['body'],boardAt=prog['updated_at'],claimers=json.load(open(sys.argv[7])))
 html=open(TPL).read().replace('/*DATA*/null',json.dumps(data,ensure_ascii=False,separators=(',',':')).replace('</','<\\/'))

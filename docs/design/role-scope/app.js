@@ -94,7 +94,7 @@
       <div class="settings-nav-body">${items.map(([id, g, n]) => `<a href="#"${id === "roles" ? ' aria-current="page"' : ""}${id === "roles" ? "" : notDrawn()}>${ic(g)}${n}</a>`).join("")}</div></nav>
       <div class="settings-content"><section class="settings-document" aria-labelledby="settings-title">${body}</section></div></main>` };
   }
-  const setHead = (title, sub = "") => `<header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title" tabindex="-1">${title}</h1></div>${sub ? `<p>${sub}</p>` : ""}</header>`;
+  const setHead = (title, sub = "") => `<header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${title}</h1></div>${sub ? `<p>${sub}</p>` : ""}</header>`;
   const setRow = (title, sub, value, cls = "") => `<section class="settings-setting-row${cls ? ` ${cls}` : ""}"><div class="setting-copy"><strong>${title}</strong>${sub ? `<span>${sub}</span>` : ""}</div><div class="setting-value">${value}</div></section>`;
   const setState = (tone, text) => `<span class="settings-state settings-state--${tone}">${text}</span>`;
   const section = (id, title, body, head = "") => `<section class="settings-section" aria-labelledby="${id}"><div class="rs-sec-head"><h2 id="${id}">${title}</h2>${head}</div>${body}</section>`;
@@ -152,7 +152,7 @@
       end: broken ? status("wait", L("停在原处", "Stopped")) + btn({ variant: "primary", size: "sm", label: L("另选角色继续", "Continue with another role"), attrs: act("continue") }) : status("run", L("进行中", "Running")) });
     const done = row({ icon: face("res"), title: L("竞品定价表", "Competitor pricing"), caption: L("研究员 v2", "Researcher v2"), end: status("done") });
     const solo = row({ icon: face("res"), title: L("读书笔记整理", "Reading notes"), caption: L("研究员 v2 · 个人工作", "Researcher v2 · personal work"), end: status("done") });
-    const head = personal ? `<div class="land-head"><span class="mw-avatar rs-me" data-slot="avatar">${ic("user")}</span><h1 class="mw-brief__title" id="land-title" tabindex="-1">${L("个人", "Personal")}</h1></div>` : `<div class="land-head">${monogram("A")}<h1 class="mw-brief__title" id="land-title" tabindex="-1">${PROJECT()}</h1></div>`;
+    const head = personal ? `<div class="land-head"><span class="mw-avatar rs-me" data-slot="avatar">${ic("user")}</span><h1 class="mw-brief__title" id="land-title">${L("个人", "Personal")}</h1></div>` : `<div class="land-head">${monogram("A")}<h1 class="mw-brief__title" id="land-title">${PROJECT()}</h1></div>`;
     const brief = `<article class="mw-brief" data-slot="brief" aria-labelledby="land-title">${head}
       <div class="mw-brief__cols rs-one"><section class="mw-brief__sec"><h2>${L("最近的工作", "Recent work")}</h2><div class="mw-brief__list">${personal ? solo : running + done}</div></section></div>
       ${broken ? alert("warning", L("不会悄悄换成别的版本", "It won't switch versions on its own"), L("前几轮用 v3 做的记录照旧；另选的角色从下一轮开始。", "Rounds already done with v3 stay as they are; another role takes over from the next round.")) : ""}</article>`;
@@ -233,7 +233,7 @@
     const s = S.state, mine = personalDefault();
     if (s === "empty" && !S.done.created) {
       const def = section("rs-mydef-title", L("默认由谁来做", "Who does it by default"), setRow(L("我的默认", "My default"), L("不在项目里的工作，和没有另选的项目", "Personal work, and projects that don't choose their own"), select(L("我的默认", "My default"), [["none", L("助理自己", "The Assistant")]], "none")));
-      const empty = `<div class="mw-empty" data-slot="empty"><span class="mw-empty__mark">${ic("user")}</span><h2 tabindex="-1">${L("还没有自己的角色", "No roles of your own yet")}</h2><p>${L("写下你希望 AI 怎样做事；或者从 Codex、Claude Code 等本机 Agent 导入已有的规则。", "Write how you want the AI to work, or import rules you already have from Codex, Claude Code and other local agents.")}</p><div class="mw-empty__actions">${btn({ variant: "primary", size: "sm", icon: "plus", label: L("新建角色", "New role"), attrs: act("drawer", "new") })}${btn({ size: "sm", icon: "upload", label: L("从本机导入", "Import from this Mac"), attrs: act("toast", L("会就地列出本机 Agent 的规则（原型不展开）", "Lists local agents' rules in place (not built)")) })}</div></div>`;
+      const empty = `<div class="mw-empty" data-slot="empty"><span class="mw-empty__mark">${ic("user")}</span><h2>${L("还没有自己的角色", "No roles of your own yet")}</h2><p>${L("写下你希望 AI 怎样做事；或者从 Codex、Claude Code 等本机 Agent 导入已有的规则。", "Write how you want the AI to work, or import rules you already have from Codex, Claude Code and other local agents.")}</p><div class="mw-empty__actions">${btn({ variant: "primary", size: "sm", icon: "plus", label: L("新建角色", "New role"), attrs: act("drawer", "new") })}${btn({ size: "sm", icon: "upload", label: L("从本机导入", "Import from this Mac"), attrs: act("toast", L("会就地列出本机 Agent 的规则（原型不展开）", "Lists local agents' rules in place (not built)")) })}</div></div>`;
       return globalSettings("roles", setHead(L("角色", "Roles"), L("你写的角色。各个项目怎样用，在 项目设置 › 角色 里定。", "Roles you write. How each project uses them is set in Project settings › Roles.")) + def + section("rs-mine-title", L("我的角色", "My roles"), empty));
     }
     const stopped = S.done.stoppedRev;
@@ -289,8 +289,8 @@
     // The drawer is one element that stays open across renders: only its content changes, so it never re-animates.
     if (S.drawer) { drawerEl.innerHTML = drawer(); if (!drawerEl.open) drawerEl.showModal(); } else if (drawerEl.open) drawerEl.close();
     const key = `${S.topic}|${S.state}`;
-    if (key !== lastView && !S.drawer) app.querySelector("h1[tabindex], .mw-empty h2")?.focus({ preventScroll: true });
-    else if (focusKey) (S.drawer ? drawerEl : app).querySelector(focusKey)?.focus({ preventScroll: true });
+    // Like the product: a heading never takes focus when the view changes; only the control that was used keeps it.
+    if (key === lastView && focusKey) (S.drawer ? drawerEl : app).querySelector(focusKey)?.focus({ preventScroll: true });
     if (S.focusSel) { const t = (S.drawer ? drawerEl : app).querySelector(S.focusSel) || app.querySelector(S.focusSel); S.focusSel = null; t?.focus(); }
     lastView = key;
     save();

@@ -148,3 +148,5 @@ dialog.rs-drawer { width: min(520px, 100vw); }
 .rs-ask__body { margin: 0 0 8px 24px; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
 .rs-inset__title:focus { outline: none; }
 @media (prefers-reduced-motion: reduce) { .rs-more .mw-menu, .rs-ask { animation: none; } }
+/* [编排] the page intro balances its lines, so no line is left holding a single word (English especially) */
+.settings-heading p, .rs-hint { text-wrap: pretty; }

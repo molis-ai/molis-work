@@ -1,0 +1,232 @@
+/* 33 item 2 · the 04 onboarding sheet drawn on the component board's tokens, plus this sample's few new parts (each marked with
+   data-new in app.js). Spacing 4/8/12/16/24/32, type 11/12/13/15/17 (+ the 28 question), corners 6/8/10/12/14/16, the board's
+   durations and curves. Every control inside is a board renderer from kit.js. */
+
+/* ── The frame: titlebar, one glowing sheet on the desk, the resident bottom bar (04, apps/workbench/src/styles/arrival.ts). ── */
+.sheet:has(>.ob){background:transparent;box-shadow:none;border-radius:0;overflow:visible}
+.desk:has(.ob){padding:0}
+.ob{flex:1;min-height:0;display:grid;grid-template-rows:44px minmax(0,1fr) 72px;background:var(--desk);color:var(--ink)}
+.ob-title{display:flex;align-items:center;gap:16px;min-width:0;padding:0 20px}
+.ob-brand{display:inline-flex;align-items:center;gap:8px;font-size:15px;font-weight:600;letter-spacing:-.02em;white-space:nowrap}
+.ob-crumb{font-size:12px;color:var(--muted)}
+.ob-sheet{position:relative;isolation:isolate;min-height:0;margin:0 14px;border-radius:var(--r-sheet,14px);background:var(--paper);box-shadow:var(--sheet-shadow,var(--shadow-raised));overflow:hidden}
+.ob-sheet::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse 60% 70% at 0% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 100%),radial-gradient(ellipse 60% 75% at 100% 100%,color-mix(in srgb,var(--ink) 6%,transparent),transparent 100%)}
+:root[data-resolved-theme=dark] .ob-sheet::before{opacity:.55}
+.ob-welcome{height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)}
+.ob-left{min-height:0;overflow:auto;display:flex;flex-direction:column;justify-content:safe center;padding:40px clamp(24px,4.5vw,80px);scrollbar-width:thin}
+.ob-col{width:100%;max-width:440px;display:flex;flex-direction:column;gap:16px}
+.is-arriving .ob-col>*{animation:ob-rise var(--dur-arrive) var(--ease-quint) both}
+.is-arriving .ob-col>*:nth-child(2){animation-delay:40ms}.is-arriving .ob-col>*:nth-child(3){animation-delay:80ms}.is-arriving .ob-col>*:nth-child(n+4){animation-delay:120ms}
+.ob-right{min-width:0;min-height:0;overflow:auto;scrollbar-width:thin;display:grid;align-items:safe center;justify-items:center;padding:32px clamp(20px,4vw,64px) 32px 0}
+.is-arriving .ob-right>*{animation:ob-scene var(--dur-arrive) var(--ease-quint) both}
+@keyframes ob-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes ob-scene{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.ob-head{display:flex;align-items:center;gap:14px}
+.ob-av{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;flex:none;color:#fff;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 86%,white),var(--accent-strong));box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 28%,transparent)}
+:root[data-resolved-theme=dark] .ob-av{color:#17212b}
+.ob-head h1{flex:1;min-width:0;margin:0;font-size:28px;font-weight:600;letter-spacing:-.035em;line-height:1.25;outline:none}
+.ob-bar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:0 20px}
+.ob-bar__start{justify-self:start}.ob-bar__end{justify-self:end;display:flex;gap:8px}
+.ob-bar__mid{display:flex;align-items:center;gap:8px;min-width:0}
+.ob-stepname{font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* ── Left column pieces ── */
+.ob-note{display:flex;gap:8px;margin:0;font-size:13px;line-height:1.6;color:var(--ink-soft)}
+.ob-note .ic{margin-top:3px;color:var(--muted)}
+.ob-note.is-warn .ic{color:var(--amber)}
+.ob-lede{margin:0;font-size:15px;line-height:1.7;color:var(--ink-soft);text-wrap:pretty}
+.ob-big{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}
+.ob-big b{font-size:44px;font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.ob-big span{font-size:13px;color:var(--muted)}
+.ob-big em{font-style:normal;font-size:12px;color:var(--faint)}
+.ob-big .mw-status{align-self:center}
+.ob-phases{list-style:none;margin:0;padding:12px 16px;display:grid;gap:12px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft)}
+.ob-phases li{display:flex;gap:12px;align-items:flex-start}
+.ob-phases li>span:last-child{display:grid;min-width:0}
+.ob-phases b{font-size:13px;font-weight:500}
+.ob-phases small{font-size:12px;color:var(--muted);line-height:1.5}
+.ob-phases li.is-wait b{color:var(--ink-soft)}
+.ob-sim{align-self:flex-start}
+
+/* Asking before a file that looks like secrets leaves the Mac: a bordered group of the board's radios. */
+.ob-ask{display:grid;gap:8px;padding:16px;border-radius:12px;background:color-mix(in srgb,var(--amber) 8%,var(--paper));box-shadow:0 0 0 1px color-mix(in srgb,var(--amber) 28%,transparent)}
+.ob-ask__h{display:flex;align-items:center;gap:8px;font-size:13px}
+.ob-ask__h .ic{color:var(--amber)}
+.ob-ask>p{margin:0 0 4px;font-size:13px;color:var(--ink-soft);line-height:1.6}
+.ob-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:var(--paper);box-shadow:0 0 0 1px var(--line-strong);cursor:pointer;transition:box-shadow var(--dur-hover) var(--ease-quint),background-color var(--dur-hover) var(--ease-quint)}
+.ob-opt:hover{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 45%,var(--line-strong))}
+.ob-opt.is-on{box-shadow:0 0 0 1.5px var(--accent);background:color-mix(in srgb,var(--accent) 5%,var(--paper))}
+.ob-opt .mw-radio{margin-top:2px}
+.ob-opt span{display:grid}.ob-opt b{font-size:13px;font-weight:500}.ob-opt small{font-size:12px;color:var(--muted)}
+.ob-ask__acts{display:flex;gap:8px;margin-top:4px}
+
+/* "Only this, this time": what a change of scope or model redoes. */
+.ob-delta{border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft);overflow:hidden}
+.ob-delta__h{padding:12px 16px 4px;font-size:12px;font-weight:500;color:var(--muted)}
+.ob-delta__r{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 16px}
+.ob-delta__r+.ob-delta__r{box-shadow:inset 0 1px 0 var(--line)}
+.ob-delta__r .nm{display:grid;min-width:0}
+.ob-delta__r b{font-size:13px;font-weight:500}.ob-delta__r small{font-size:12px;color:var(--muted)}
+.ob-tile{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--rail);color:var(--ink-soft)}
+.ob-delta__r.is-add .ob-tile{background:color-mix(in srgb,var(--green) 13%,var(--paper));color:var(--green)}
+.ob-delta__r.is-rem .ob-tile{background:color-mix(in srgb,var(--red) 11%,var(--paper));color:var(--red)}
+.ob-delta__r.is-keep b{color:var(--ink-soft)}
+.ob-delta__r.is-redo .ob-tile{background:color-mix(in srgb,var(--accent) 12%,var(--paper));color:var(--accent-strong)}
+.ob-late{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:var(--surface-soft);font-size:13px;line-height:1.6;color:var(--ink-soft)}
+.ob-late .ic{margin-top:3px;color:var(--muted)}
+
+/* ── Right scene ── */
+.ob-scene{width:min(600px,100%);display:grid;gap:12px;align-content:start}
+.ob-scene>.mw-file-group+.mw-file-group{margin-top:8px}
+.ob-scene .mw-file-group{padding:8px 12px 10px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft)}
+.ob-scene .mw-file-group.is-ok .mw-file-group__ic{background:color-mix(in srgb,var(--green) 13%,var(--paper));color:var(--green)}
+.ob-scene .mw-file-group.is-warn .mw-file-group__ic{background:color-mix(in srgb,var(--amber) 15%,var(--paper));color:var(--amber)}
+.ob-scene .mw-file-group.is-hold .mw-file-group__ic{background:color-mix(in srgb,var(--red) 11%,var(--paper));color:var(--red)}
+.ob-scene .mw-file-row__size{max-width:22em}
+.ob-loc{position:relative}
+.ob-loc .mw-file-group{padding-right:12px}
+.ob-loc__tools{display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 12px 52px;margin-top:-6px}
+.ob-loc.is-blocked .mw-file-group{box-shadow:0 0 0 1px color-mix(in srgb,var(--red) 30%,transparent),var(--shadow-soft)}
+.ob-loc:has(.ob-loc__tools) .mw-file-group{border-radius:12px 12px 0 0;box-shadow:0 -1px 0 0 var(--line),1px 0 0 0 var(--line),-1px 0 0 0 var(--line)}
+.ob-loc:has(.ob-loc__tools) .ob-loc__tools{margin-top:0;padding-top:4px;border-radius:0 0 12px 12px;background:var(--paper);box-shadow:0 1px 0 0 var(--line),1px 0 0 0 var(--line),-1px 0 0 0 var(--line),var(--shadow-soft)}
+.ob-loc.is-blocked:has(.ob-loc__tools) .mw-file-group,.ob-loc.is-blocked .ob-loc__tools{--line:color-mix(in srgb,var(--red) 30%,transparent)}
+.ob-fix{display:flex;flex-wrap:wrap;gap:4px;padding:0 0 6px 44px;list-style:none}
+.ob-fix--group{padding:0 0 0 52px;margin-top:-6px}
+.ob-fold{padding:0 4px}
+.ob-fold summary{padding:8px 0;font-size:12px}
+.ob-fold .mw-file-list{padding-left:0}
+.ob-rule{margin:8px 0 0;font-size:12px;line-height:1.7;color:var(--muted)}
+.ob-rule code{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft)}
+.ob-more{list-style:none;padding:6px 0 2px;font-size:12px;color:var(--faint)}
+
+/* B: one row per file with the five-cell track */
+.ob-funnel{list-style:none;margin:0;padding:12px 8px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft)}
+.ob-funnel li{display:grid;gap:2px;padding:0 8px;min-width:0}
+.ob-funnel li+li{box-shadow:inset 1px 0 0 var(--line)}
+.ob-funnel b{font-size:17px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-funnel span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-funnel li.is-later b{color:var(--faint);font-weight:500;font-size:13px;line-height:25px}
+.ob-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ob-rows{list-style:none;margin:0;padding:4px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft)}
+.ob-r{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,9em) auto;align-items:center;gap:12px;min-height:48px;padding:4px 8px;border-radius:10px;transition:background-color var(--dur-hover) var(--ease-quint)}
+.ob-r:hover{background:var(--nav-hover)}
+.ob-r .nm{display:grid;min-width:0}
+.ob-r .nm b{font-size:13px;font-weight:500}.ob-r .nm small{font-size:12px;color:var(--muted)}
+.ob-r__word{font-size:12px;color:var(--muted)}
+.ob-r.is-issue .ob-r__word{color:var(--amber)}
+.ob-track{display:inline-flex;gap:3px}
+.ob-track i{width:12px;height:6px;border-radius:3px;background:var(--line-strong);transition:background-color var(--dur-move) var(--ease-quint)}
+.ob-track i.on{background:var(--green)}
+.ob-track i.stop{background:color-mix(in srgb,var(--amber) 70%,var(--paper))}
+.ob-r:not(.is-issue) .ob-track i.stop{background:var(--line-strong)}
+
+/* C: one result line of chips; a chip opens its files */
+.ob-card{padding:16px 18px;border-radius:14px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--lift-2,var(--shadow-soft));transition:opacity var(--dur-move) var(--ease-quint)}
+.ob-card__h{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px}
+.ob-card__h .ic{color:var(--accent)}
+.ob-card__h .mw-badge{margin-left:auto}
+.ob-card p{margin:0;font-size:13px;line-height:1.75;color:var(--ink-soft)}
+.ob-card.is-stale{opacity:.62}
+.ob-card.is-stale p{text-decoration:none}
+.ob-card.is-landed{animation:ob-land var(--dur-arrive) var(--ease-quint)}
+@keyframes ob-land{from{box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 45%,transparent),var(--shadow-soft)}}
+.ob-skel{display:grid;gap:8px;margin:4px 0 10px}
+.ob-skel .mw-skeleton:nth-child(2){width:86%}.ob-skel .mw-skeleton:nth-child(3){width:58%}
+.ob-stale-note{display:flex;gap:8px;margin:0;font-size:12px;color:var(--muted)}
+.ob-stale-note .ic{margin-top:2px}
+.ob-banner{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 12px;border-radius:12px;background:var(--surface-soft)}
+.ob-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ob-chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:0;border-radius:99px;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;
+  background:var(--paper);box-shadow:0 0 0 1px var(--line-strong);transition:box-shadow var(--dur-hover) var(--ease-quint),background-color var(--dur-hover) var(--ease-quint),transform var(--dur-hover) var(--ease-quint)}
+.ob-chip:hover{transform:translateY(-1px);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 45%,var(--line-strong)),var(--shadow-soft)}
+.ob-chip:focus-visible{outline:var(--focus-stroke,2px solid var(--accent));outline-offset:2px}
+.ob-chip>.ic:first-child{color:var(--muted)}
+.ob-chip[data-tone=done]>.ic:first-child{color:var(--green)}
+.ob-chip[data-tone=attention]>.ic:first-child{color:var(--amber)}
+.ob-chip[data-tone=hold]>.ic:first-child{color:var(--red)}
+.ob-chip>.ic:last-child{color:var(--faint);transition:transform var(--dur-move) var(--ease-quint)}
+.ob-chip.is-open{background:color-mix(in srgb,var(--accent) 6%,var(--paper));box-shadow:0 0 0 1.5px var(--accent)}
+.ob-chip.is-open>.ic:last-child{transform:rotate(180deg)}
+.ob-chipbody{padding:8px 12px;border-radius:12px;background:var(--paper);box-shadow:0 0 0 1px var(--line),var(--shadow-soft);animation:ob-rise var(--dur-move) var(--ease-quint)}
+.ob-chipbody .mw-file-list{padding-left:0}
+.ob-hint{margin:0}
+
+/* Scope B: changes marked on each row */
+.ob-diff .ob-dr.is-add{background:color-mix(in srgb,var(--green) 7%,transparent)}
+.ob-diff .ob-dr.is-rem .mw-file-row__name{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+
+/* ── Coding: material chips in the composer (B) and the materials section of the files column (C) ── */
+.mrow b{width:auto!important;max-width:15em}
+.mtray{display:flex;flex-wrap:wrap;gap:6px;padding:8px 8px 0}
+.mchip{display:inline-flex;align-items:center;gap:6px;max-width:220px;min-height:28px;padding:0 6px 0 8px;border-radius:99px;background:var(--nav-active);font-size:12px;color:var(--ink);transition:background-color var(--dur-move) var(--ease-quint)}
+.mchip button{display:grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:99px;background:none;color:var(--muted);cursor:pointer}
+.mchip button:hover{background:var(--nav-hover);color:var(--ink)}
+.mchip.is-err{background:color-mix(in srgb,var(--red) 11%,var(--paper));color:var(--red)}
+.mchip.is-hold{background:color-mix(in srgb,var(--amber) 13%,var(--paper))}
+.mchip.is-unk{box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--paper)}
+.mchip.is-more{padding:0 10px;color:var(--muted)}
+.mw-dir-row.mat .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mw-dir-row.mat.is-err .nm{color:var(--red)}
+.mw-dir-row.mat.is-hold .nm,.mw-dir-row.mat.is-unk .nm{color:var(--ink-soft)}
+.mat-more{padding:4px 8px 8px 30px}
+.mat-sep{margin-top:12px;padding-top:12px;box-shadow:inset 0 1px 0 var(--line)}
+
+/* ── Widths: 1024 keeps the two columns tighter; under 760 the sheet stacks and scrolls as one page ── */
+@media (max-width:1100px){.ob-welcome{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}.ob-left{padding:32px 28px}.ob-right{padding:28px 24px 28px 0}.ob-head h1{font-size:24px}}
+@media (max-width:900px){.ob-stepname{display:none}}
+@media (max-width:760px){
+  .ob{grid-template-rows:44px minmax(0,1fr) 64px}
+  .ob-sheet{margin:0 8px;overflow:auto;scrollbar-width:thin}
+  .ob-welcome{display:block;height:auto}
+  .ob-left{overflow:visible;padding:24px 16px 8px;justify-content:flex-start}
+  .ob-right{overflow:visible;padding:8px 16px 24px;display:block}
+  .ob-scene{width:100%}
+  .ob-head h1{font-size:22px}
+  .ob-bar{grid-template-columns:auto 1fr auto;padding:0 12px;gap:8px}
+  .ob-bar__mid{justify-content:center}
+  .ob-back [data-slot=button-label],.ob-exit [data-slot=button-label]{display:none}
+  .ob-back,.ob-exit{padding-inline:12px}
+  .ob-bar__mid .mw-steps{display:none}
+  .ob-bar__mid .ob-stepname{display:inline}
+  .ob-r__word{white-space:normal;overflow:visible}
+  .ob-crumb{display:none}
+  .ob-r{grid-template-columns:auto minmax(0,1fr) auto;row-gap:4px}
+  .ob-r .ob-r__word{grid-column:2/4;grid-row:2}
+  .ob-r .mw-btn{grid-column:2/4;grid-row:3;justify-self:start}
+  .ob-funnel{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:12px}
+  .ob-funnel li:nth-child(4){box-shadow:none}
+  .ob-scene .mw-file-row__size{max-width:12em}
+  .ob-fix,.ob-fix--group{padding-left:0}
+  .ob-loc__tools{padding-left:12px}
+  .mrow b{max-width:9em}
+}
+@media (prefers-reduced-motion:reduce){.is-arriving .ob-col>*,.is-arriving .ob-right>*,.ob-card.is-landed,.ob-chipbody{animation:none}.ob-chip:hover{transform:none}}
+
+/* A row whose detail is a reason: the reason wraps under the name instead of being cut short. */
+.mw-file-row.is-why{grid-template-columns:minmax(0,1fr) auto;row-gap:0;padding-top:6px;padding-bottom:6px}
+.mw-file-row.is-why .mw-file-row__size{grid-column:1;grid-row:2;max-width:none;white-space:normal;padding-left:44px;line-height:1.5;color:var(--muted)}
+.mw-file-row.is-why .mw-status{grid-column:2;grid-row:1}
+.ob-fix{margin-top:-2px}
+/* The scene starts at a fixed height, so opening a result never shifts what is above it. */
+.ob-right{align-items:safe start;padding-top:clamp(32px,9vh,96px)}
+@media (max-width:760px){
+  .ob-right{padding-top:8px}
+  .mw-file-row.is-why .mw-file-row__size{grid-column:1/-1}
+}
+
+/* The walk-through's start and end notes (prototype guidance, not product). */
+.walk-start{display:flex;gap:8px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--surface-soft);font-size:13px;line-height:1.6;color:var(--ink-soft)}
+.walk-start .ic{margin-top:3px;color:var(--accent)}
+.walk-end{display:flex;justify-content:center;padding-top:8px}
+.mw-dir-row.mat{grid-template-columns:auto minmax(0,1fr) auto}
+.mat-w{font-size:11px;color:var(--faint);white-space:nowrap}
+.mw-dir-row.mat.is-err .mat-w{color:var(--red)}
+.mw-dir-row.mat.is-run .mat-w{color:var(--accent)}
+.row.is-quiet .mrow b{color:var(--ink-soft)}
+.mchip.is-run{background:color-mix(in srgb,var(--accent) 10%,var(--paper))}
+.mchip.is-wait,.mchip.is-skip{background:var(--surface-soft);color:var(--ink-soft)}
+.mchip,.row,.mw-dir-row.mat{transition:background-color var(--dur-move) var(--ease-quint),color var(--dur-move) var(--ease-quint)}
+.c-column .is-new{animation:craft-rise var(--dur-arrive) var(--ease-quint) both}
+@media (prefers-reduced-motion:reduce){.c-column .is-new{animation:none}}
